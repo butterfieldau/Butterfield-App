@@ -1,369 +1,138 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { MOCK_WHOLESALE_ORDERS } from '@/data/mockData';
-import { WholesaleStatusBadge } from '@/components/OrderStatusBadge';
-import { useColors } from '@/hooks/useColors';
+import { api } from '@/lib/api';
+
+const BG = '#0A1A0A';
+const CARD = '#122012';
+const ACCENT = '#3A8A3A';
+
+const STATUS_COLORS: Record<string, string> = {
+  draft: '#6B7280', submitted: '#3B82F6', approved: ACCENT, processing: '#F59E0B',
+  dispatched: '#8B5CF6', delivered: '#22C55E', cancelled: '#EF4444',
+};
 
 export default function WholesaleDashboard() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const u = user as any;
 
-  const creditUsed = u?.creditUsed ?? 0;
-  const creditLimit = u?.creditLimit ?? 10000;
-  const creditAvailable = creditLimit - creditUsed;
-  const creditPct = (creditUsed / creditLimit) * 100;
+  const { data: accountData, isLoading: acctLoading } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
+  const { data: ordersData, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-orders'], queryFn: () => api.wholesale.orders(), retry: 1 });
+  const { data: announcementsData } = useQuery({ queryKey: ['announcements'], queryFn: () => api.announcements(), retry: 1 });
 
-  const recentOrders = MOCK_WHOLESALE_ORDERS.slice(0, 3);
-  const ytdSpend = 24680;
-  const ordersThisMonth = 8;
+  const account = accountData?.data;
+  const orders = ordersData?.data ?? [];
+  const announcements = announcementsData?.data ?? [];
+  const recentOrders = orders.slice(0, 3);
+  const pendingOrders = orders.filter((o: any) => !['delivered', 'cancelled'].includes(o.status)).length;
+
+  const firstName = user?.name?.split(' ')[0] ?? 'Partner';
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: '#F2F8F5' }}
-      contentContainerStyle={{ paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom + 90 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
-      <LinearGradient
-        colors={['#1A3A2A', '#2A6A4A']}
-        style={[styles.header, { paddingTop: Platform.OS === 'web' ? 80 : insets.top + 20 }]}
-      >
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={[styles.portalLabel, { fontFamily: 'Inter_400Regular' }]}>Wholesale Portal</Text>
-            <Text style={[styles.companyName, { fontFamily: 'Inter_700Bold' }]}>{u?.companyName}</Text>
-            <Text style={[styles.accountNum, { fontFamily: 'Inter_400Regular' }]}>Account: {u?.accountNumber}</Text>
-          </View>
-          <View style={styles.verifiedBadge}>
-            <Feather name="shield" size={14} color="#4ADE80" />
-            <Text style={[styles.verifiedText, { fontFamily: 'Inter_500Medium' }]}>Verified</Text>
-          </View>
-        </View>
-
-        {/* Credit */}
-        <View style={styles.creditCard}>
-          <View style={styles.creditRow}>
-            <View>
-              <Text style={[styles.creditLabel, { fontFamily: 'Inter_400Regular' }]}>Available Credit</Text>
-              <Text style={[styles.creditAmount, { fontFamily: 'Inter_700Bold' }]}>
-                ${creditAvailable.toLocaleString()}
-              </Text>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.creditLabel, { fontFamily: 'Inter_400Regular' }]}>Credit Limit</Text>
-              <Text style={[styles.creditLimit, { fontFamily: 'Inter_600SemiBold' }]}>
-                ${creditLimit.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.progressBg}>
-            <View style={[styles.progressFill, { width: `${creditPct}%` }]} />
-          </View>
-          <Text style={[styles.creditUsed, { fontFamily: 'Inter_400Regular' }]}>
-            ${creditUsed.toLocaleString()} used of ${creditLimit.toLocaleString()}
-          </Text>
-        </View>
+    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={ACCENT} />}>
+      <LinearGradient colors={['#1A3A1A', BG]} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <Text style={[{ color: 'rgba(255,255,255,0.6)', fontSize: 13, fontFamily: 'Inter_400Regular' }]}>Welcome back,</Text>
+        <Text style={[{ color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
+        {account && <Text style={[{ color: ACCENT, fontSize: 13, fontFamily: 'Inter_500Medium' }]}>{account.companyName} · {account.tier?.toUpperCase() ?? 'STANDARD'}</Text>}
       </LinearGradient>
 
-      {/* Stats */}
-      <View style={styles.statsSection}>
-        {[
-          { label: 'YTD Spend', value: `$${ytdSpend.toLocaleString()}`, icon: 'trending-up' },
-          { label: 'Orders / Month', value: `${ordersThisMonth}`, icon: 'package' },
-          { label: 'Avg. Order', value: `$${Math.floor(ytdSpend / (ordersThisMonth * 5))}`, icon: 'bar-chart-2' },
-          { label: 'Payment Terms', value: '30 days', icon: 'clock' },
-        ].map((stat) => (
-          <View
-            key={stat.label}
-            style={[styles.statCard, { backgroundColor: '#fff', borderRadius: colors.radius, borderColor: '#C8DDD4' }]}
-          >
-            <View style={[styles.statIcon, { backgroundColor: '#E8F4EE' }]}>
-              <Feather name={stat.icon as any} size={16} color="#2A6A4A" />
+      <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
+        {/* Account Summary */}
+        {account && (
+          <View style={[styles.card, { backgroundColor: CARD, borderRadius: 16 }]}>
+            <Text style={[styles.sectionTitle, { color: '#fff', fontFamily: 'Inter_600SemiBold', marginBottom: 12 }]}>Account Overview</Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              {[
+                { label: 'Credit Limit', value: `$${((account.creditLimitCents ?? 0) / 100).toFixed(0)}` },
+                { label: 'Used', value: `$${((account.creditUsedCents ?? 0) / 100).toFixed(0)}` },
+                { label: 'Orders', value: String(orders.length) },
+                { label: 'Pending', value: String(pendingOrders) },
+              ].map((s) => (
+                <View key={s.label} style={[styles.miniStat, { backgroundColor: BG, borderRadius: 10 }]}>
+                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 16 }]}>{s.value}</Text>
+                  <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 10 }]}>{s.label}</Text>
+                </View>
+              ))}
             </View>
-            <Text style={[styles.statValue, { color: '#1A3A2A', fontFamily: 'Inter_700Bold' }]}>{stat.value}</Text>
-            <Text style={[styles.statLabel, { color: '#6A9A7A' }]}>{stat.label}</Text>
           </View>
-        ))}
-      </View>
+        )}
 
-      {/* Recent Orders */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: '#1A3A2A', fontFamily: 'Inter_700Bold' }]}>
-          Recent Orders
-        </Text>
-        {recentOrders.map((order) => (
-          <View
-            key={order.id}
-            style={[styles.orderCard, { backgroundColor: '#fff', borderRadius: colors.radius, borderColor: '#C8DDD4' }]}
-          >
-            <View style={styles.orderHeader}>
-              <View>
-                <Text style={[styles.orderNum, { color: '#1A3A2A', fontFamily: 'Inter_600SemiBold' }]}>
-                  {order.orderNumber}
-                </Text>
-                <Text style={[styles.orderDate, { color: '#6A9A7A' }]}>{order.date}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <WholesaleStatusBadge status={order.status} />
-                <Text style={[styles.orderTotal, { color: '#1A3A2A', fontFamily: 'Inter_700Bold' }]}>
-                  ${order.total.toFixed(2)}
-                </Text>
-              </View>
+        {/* Cut-off Times */}
+        <View style={[styles.card, { backgroundColor: CARD, borderRadius: 16 }]}>
+          <Text style={[styles.sectionTitle, { color: '#fff', fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Order Cut-Off Times</Text>
+          {[
+            { day: 'Monday delivery', cutOff: 'Friday 12pm' },
+            { day: 'Thursday delivery', cutOff: 'Tuesday 12pm' },
+          ].map((c) => (
+            <View key={c.day} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+              <Text style={[{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', fontSize: 13 }]}>{c.day}</Text>
+              <Text style={[{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>{c.cutOff}</Text>
             </View>
-            <View style={[styles.divider, { backgroundColor: '#E8F4EE' }]} />
-            {order.items.slice(0, 2).map((item, i) => (
-              <View key={i} style={styles.itemRow}>
-                <Text style={[styles.itemQty, { color: '#2A6A4A', fontFamily: 'Inter_600SemiBold' }]}>
-                  {item.quantity}×
-                </Text>
-                <Text style={[styles.itemName, { color: '#3A5A4A' }]} numberOfLines={1}>
-                  {item.productName}
-                </Text>
-                <Text style={[styles.itemPrice, { color: '#6A9A7A' }]}>
-                  ${(item.quantity * item.unitPrice).toFixed(2)}
-                </Text>
+          ))}
+          <Text style={[{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 4 }]}>
+            Minimum order: $50 · Contact your rep for urgent orders
+          </Text>
+        </View>
+
+        {/* Announcements */}
+        {announcements.length > 0 && (
+          <View style={[styles.card, { backgroundColor: CARD, borderRadius: 16 }]}>
+            <Text style={[styles.sectionTitle, { color: '#fff', fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Announcements</Text>
+            {announcements.slice(0, 3).map((a: any) => (
+              <View key={a.id} style={{ borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)', paddingVertical: 8 }}>
+                <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>{a.title}</Text>
+                <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }]}>{a.body}</Text>
               </View>
             ))}
-            {order.items.length > 2 && (
-              <Text style={[styles.moreItems, { color: '#6A9A7A' }]}>
-                +{order.items.length - 2} more items
-              </Text>
-            )}
           </View>
-        ))}
-      </View>
+        )}
 
-      {/* Quick contacts */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: '#1A3A2A', fontFamily: 'Inter_700Bold' }]}>
-          Your Account Manager
-        </Text>
-        <View style={[styles.contactCard, { backgroundColor: '#fff', borderRadius: colors.radius, borderColor: '#C8DDD4' }]}>
-          <View style={styles.contactAvatar}>
-            <Text style={[styles.contactInitials, { fontFamily: 'Inter_700Bold' }]}>JB</Text>
+        {/* Recent Orders */}
+        {recentOrders.length > 0 && (
+          <View>
+            <Text style={[styles.sectionTitle, { color: '#fff', fontFamily: 'Inter_600SemiBold', marginBottom: 12 }]}>Recent Orders</Text>
+            {recentOrders.map((order: any) => {
+              const statusColor = STATUS_COLORS[order.status] ?? '#6B7280';
+              return (
+                <View key={order.id} style={[styles.orderRow, { backgroundColor: CARD, borderRadius: 14, borderLeftColor: statusColor, borderLeftWidth: 3 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>#{order.poReference ?? order.id.slice(0, 8).toUpperCase()}</Text>
+                    <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }]}>
+                      {new Date(order.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                    <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
+                    <View style={[{ backgroundColor: `${statusColor}20`, borderColor: statusColor, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 }]}>
+                      <Text style={[{ color: statusColor, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{order.status}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.contactName, { color: '#1A3A2A', fontFamily: 'Inter_600SemiBold' }]}>
-              James Butterfield
-            </Text>
-            <Text style={[styles.contactRole, { color: '#6A9A7A' }]}>Wholesale Director</Text>
+        )}
+
+        {orders.length === 0 && !isRefetching && (
+          <View style={{ alignItems: 'center', marginTop: 40, gap: 12 }}>
+            <Feather name="package" size={36} color="rgba(255,255,255,0.2)" />
+            <Text style={[{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 14, textAlign: 'center' }]}>No orders yet. Head to the catalog to place your first order.</Text>
           </View>
-          <View style={styles.contactActions}>
-            <View style={[styles.contactBtn, { backgroundColor: '#E8F4EE' }]}>
-              <Feather name="phone" size={16} color="#2A6A4A" />
-            </View>
-            <View style={[styles.contactBtn, { backgroundColor: '#E8F4EE' }]}>
-              <Feather name="mail" size={16} color="#2A6A4A" />
-            </View>
-          </View>
-        </View>
+        )}
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    gap: 20,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  portalLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  companyName: {
-    color: '#fff',
-    fontSize: 18,
-    lineHeight: 24,
-  },
-  accountNum: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(74,222,128,0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  verifiedText: {
-    color: '#4ADE80',
-    fontSize: 12,
-  },
-  creditCard: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 14,
-    padding: 16,
-    gap: 10,
-  },
-  creditRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  creditLabel: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 11,
-    marginBottom: 3,
-  },
-  creditAmount: {
-    color: '#fff',
-    fontSize: 28,
-  },
-  creditLimit: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 15,
-  },
-  progressBg: {
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#4ADE80',
-    borderRadius: 2,
-  },
-  creditUsed: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
-  },
-  statsSection: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 16,
-    gap: 10,
-  },
-  statCard: {
-    width: '47%',
-    padding: 14,
-    gap: 6,
-    borderWidth: 1,
-    shadowColor: '#1A3A2A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  statIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statValue: {
-    fontSize: 20,
-  },
-  statLabel: {
-    fontSize: 11,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 10,
-  },
-  sectionTitle: {
-    fontSize: 17,
-  },
-  orderCard: {
-    padding: 14,
-    gap: 10,
-    borderWidth: 1,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  orderNum: {
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  orderDate: {
-    fontSize: 12,
-  },
-  orderTotal: {
-    fontSize: 15,
-    marginTop: 4,
-  },
-  divider: {
-    height: 1,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  itemQty: {
-    fontSize: 13,
-    minWidth: 32,
-  },
-  itemName: {
-    flex: 1,
-    fontSize: 13,
-  },
-  itemPrice: {
-    fontSize: 12,
-  },
-  moreItems: {
-    fontSize: 12,
-    marginTop: -4,
-  },
-  contactCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 14,
-    borderWidth: 1,
-  },
-  contactAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2A6A4A',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contactInitials: {
-    color: '#fff',
-    fontSize: 15,
-  },
-  contactName: {
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  contactRole: {
-    fontSize: 12,
-  },
-  contactActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  contactBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  header: { paddingHorizontal: 20, paddingBottom: 24, gap: 4 },
+  card: { padding: 16 },
+  sectionTitle: { fontSize: 15 },
+  miniStat: { flex: 1, padding: 10, alignItems: 'center', gap: 3 },
+  orderRow: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10 },
 });

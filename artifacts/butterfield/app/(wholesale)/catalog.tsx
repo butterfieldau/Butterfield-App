@@ -1,304 +1,282 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PRODUCTS } from '@/data/mockData';
-import { useColors } from '@/hooks/useColors';
-import type { Product } from '@/types';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { api, type ApiProduct } from '@/lib/api';
 
-const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'cookies', label: 'Cookies' },
-  { id: 'desserts', label: 'Desserts' },
-  { id: 'bundles', label: 'Bundles' },
+const BG = '#0A1A0A';
+const CARD = '#122012';
+const ACCENT = '#3A8A3A';
+
+const WHOLESALE_TIERS = [
+  { minQty: 1, label: 'Retail', discount: 0 },
+  { minQty: 10, label: 'Trade (10+)', discount: 0.1 },
+  { minQty: 25, label: 'Bulk (25+)', discount: 0.2 },
+  { minQty: 50, label: 'Volume (50+)', discount: 0.3 },
 ];
 
-const wholesaleProducts = PRODUCTS.filter((p) => p.wholesalePrice && p.category !== 'coffee');
-
-function PriceTierRow({ minQty, price, current }: { minQty: number; price: number; current: number }) {
-  const isActive = current >= minQty;
-  return (
-    <View style={[styles.tierRow, { backgroundColor: isActive ? '#E8F4EE' : '#F4F7F5' }]}>
-      <Text style={[styles.tierQty, { color: isActive ? '#1A3A2A' : '#6A9A7A' }]}>{minQty}+ units</Text>
-      <Text style={[styles.tierPrice, { color: isActive ? '#2A6A4A' : '#9AB8A8', fontFamily: 'Inter_700Bold' }]}>
-        ${price.toFixed(2)}/ea
-      </Text>
-      {isActive && <Feather name="check" size={12} color="#2A6A4A" />}
-    </View>
-  );
+function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
+function getGradient(p: ApiProduct): [string, string] {
+  const g = p.metadata?.gradient?.split(',');
+  return g?.length === 2 ? [g[0], g[1]] : ['#3A8A3A', '#2A6A2A'];
+}
+function getWholesalePrice(basePrice: number, qty: number): number {
+  const tier = [...WHOLESALE_TIERS].reverse().find((t) => qty >= t.minQty);
+  return basePrice * (1 - (tier?.discount ?? 0));
 }
 
-function WholesaleProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product, qty: number) => void }) {
-  const colors = useColors();
-  const [qty, setQty] = useState(12);
-  const minTier = product.wholesalePriceTiers?.[0];
-  const activePrice = product.wholesalePriceTiers?.slice().reverse().find((t) => qty >= t.minQty)?.price ?? product.wholesalePrice ?? product.price;
-  const subtotal = qty * activePrice;
+interface CartEntry { product: ApiProduct; quantity: number }
 
+function ProductRow({
+  product,
+  cartEntry,
+  onAdd,
+}: {
+  product: ApiProduct;
+  cartEntry?: CartEntry;
+  onAdd: (product: ApiProduct, qty: number) => void;
+}) {
+  const [qty, setQty] = useState('12');
+  const basePrice = getPrice(product);
+  const parsedQty = parseInt(qty) || 1;
+  const wsPrice = getWholesalePrice(basePrice, parsedQty);
+  const tier = [...WHOLESALE_TIERS].reverse().find((t) => parsedQty >= t.minQty);
   return (
-    <View style={[styles.productCard, { backgroundColor: '#fff', borderRadius: colors.radius, borderColor: '#C8DDD4' }]}>
-      <View style={styles.cardTop}>
-        <LinearGradient
-          colors={product.gradient as [string, string]}
-          style={[styles.swatch, { borderRadius: 10 }]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.productName, { color: '#1A3A2A', fontFamily: 'Inter_600SemiBold' }]}>
-            {product.name}
-          </Text>
-          <Text style={[styles.category, { color: '#6A9A7A' }]}>
-            {product.category.charAt(0).toUpperCase() + product.category.slice(1)}
-          </Text>
-          <Text style={[styles.retailNote, { color: '#9AB8A8' }]}>
-            RRP ${product.price.toFixed(2)}
-          </Text>
+    <View style={[styles.productCard, { backgroundColor: CARD, borderRadius: 14 }]}>
+      <LinearGradient colors={getGradient(product)} style={styles.productThumbLg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        {product.metadata?.popular === 'true' && (
+          <View style={[{ position: 'absolute', top: 6, left: 6, backgroundColor: ACCENT, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }]}>
+            <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 9 }]}>POPULAR</Text>
+          </View>
+        )}
+      </LinearGradient>
+      <View style={{ padding: 12, gap: 6 }}>
+        <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{product.name}</Text>
+        <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 11 }]} numberOfLines={2}>{product.description}</Text>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 }}>
+          <Text style={[{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 12, textDecorationLine: 'line-through' }]}>${basePrice.toFixed(2)} RRP</Text>
+          <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>${wsPrice.toFixed(2)}/unit</Text>
+          {tier && tier.discount > 0 && (
+            <View style={[{ backgroundColor: `${ACCENT}30`, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }]}>
+              <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 10 }]}>−{tier.discount * 100}%</Text>
+            </View>
+          )}
         </View>
-      </View>
-
-      {/* Price tiers */}
-      {product.wholesalePriceTiers && (
-        <View style={styles.tiers}>
-          {product.wholesalePriceTiers.map((tier) => (
-            <PriceTierRow key={tier.minQty} minQty={tier.minQty} price={tier.price} current={qty} />
-          ))}
-        </View>
-      )}
-
-      {/* Qty selector */}
-      <View style={styles.qtyRow}>
-        <View style={styles.qtyControls}>
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 4 }}>
+          <View style={[{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 10, paddingHorizontal: 12, height: 40 }]}>
+            <Text style={[{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Qty: </Text>
+            <TextInput
+              style={[{ flex: 1, color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }]}
+              value={qty}
+              onChangeText={setQty}
+              keyboardType="numeric"
+            />
+          </View>
           <Pressable
-            onPress={() => { setQty((q) => Math.max(1, q - 12)); Haptics.selectionAsync(); }}
-            style={[styles.qtyBtn, { borderColor: '#C8DDD4' }]}
+            onPress={() => onAdd(product, parsedQty)}
+            style={[{ backgroundColor: ACCENT, borderRadius: 10, paddingHorizontal: 16, height: 40, alignItems: 'center', justifyContent: 'center' }]}
           >
-            <Feather name="minus" size={14} color="#2A6A4A" />
-          </Pressable>
-          <Text style={[styles.qtyValue, { color: '#1A3A2A', fontFamily: 'Inter_600SemiBold' }]}>{qty}</Text>
-          <Pressable
-            onPress={() => { setQty((q) => q + 12); Haptics.selectionAsync(); }}
-            style={[styles.qtyBtn, { borderColor: '#C8DDD4' }]}
-          >
-            <Feather name="plus" size={14} color="#2A6A4A" />
+            <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }]}>
+              {cartEntry ? `In cart (${cartEntry.quantity})` : 'Add'}
+            </Text>
           </Pressable>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.subtotalLabel, { color: '#6A9A7A' }]}>Subtotal</Text>
-          <Text style={[styles.subtotal, { color: '#1A3A2A', fontFamily: 'Inter_700Bold' }]}>
-            ${subtotal.toFixed(2)}
-          </Text>
-        </View>
       </View>
-
-      <Pressable
-        onPress={() => { onAdd(product, qty); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-        style={[styles.addBtn, { backgroundColor: '#2A6A4A', borderRadius: colors.radius / 2 }]}
-      >
-        <Feather name="plus" size={15} color="#fff" />
-        <Text style={[styles.addBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Add to Order</Text>
-      </Pressable>
     </View>
   );
 }
 
 export default function WholesaleCatalog() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState('all');
-  const [added, setAdded] = useState<Record<string, number>>({});
+  const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [cart, setCart] = useState<CartEntry[]>([]);
+  const [showCart, setShowCart] = useState(false);
+  const [poRef, setPoRef] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const filtered = filter === 'all' ? wholesaleProducts : wholesaleProducts.filter((p) => p.category === filter);
+  const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.products(), retry: 1 });
+  const products = data?.data ?? [];
 
-  const handleAdd = (product: Product, qty: number) => {
-    setAdded((prev) => ({ ...prev, [product.id]: (prev[product.id] ?? 0) + qty }));
+  const filtered = useMemo(() => products.filter((p) =>
+    !search || p.name.toLowerCase().includes(search.toLowerCase())
+  ), [products, search]);
+
+  const addToCart = (product: ApiProduct, qty: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCart((prev) => {
+      const existing = prev.find((e) => e.product.id === product.id);
+      if (existing) return prev.map((e) => e.product.id === product.id ? { ...e, quantity: e.quantity + qty } : e);
+      return [...prev, { product, quantity: qty }];
+    });
   };
 
-  const totalItems = Object.values(added).reduce((a, b) => a + b, 0);
+  const removeFromCart = (productId: string) => setCart((prev) => prev.filter((e) => e.product.id !== productId));
+
+  const totalCents = cart.reduce((sum, e) => sum + Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * e.quantity * 100), 0);
+
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
+    if (totalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is $50.'); return; }
+    setSubmitting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.wholesale.createOrder({
+        items: cart.map((e) => ({
+          productStripeId: e.product.id,
+          productName: e.product.name,
+          quantity: e.quantity,
+          unitPriceCents: Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * 100),
+        })),
+        poReference: poRef.trim() || undefined,
+        notes: notes.trim() || undefined,
+        totalCents,
+        deliveryType: 'delivery',
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      qc.invalidateQueries({ queryKey: ['wholesale-orders'] });
+      setCart([]); setPoRef(''); setNotes(''); setShowCart(false);
+      Alert.alert('Order Submitted!', "Your wholesale order has been received. We'll confirm within 1 business day.");
+    } catch (e: any) { Alert.alert('Error', e.message); } finally { setSubmitting(false); }
+  };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F2F8F5' }}>
-      <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 80 : insets.top + 20, backgroundColor: '#F2F8F5' }]}>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={[styles.title, { color: '#1A3A2A', fontFamily: 'Inter_700Bold' }]}>Wholesale Catalog</Text>
-            <Text style={[styles.subtitle, { color: '#6A9A7A' }]}>{filtered.length} products</Text>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <Text style={[{ color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' }]}>Wholesale Catalog</Text>
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+          <View style={[styles.searchBar, { flex: 1, backgroundColor: CARD, borderRadius: 12 }]}>
+            <Feather name="search" size={14} color="rgba(255,255,255,0.4)" />
+            <TextInput
+              style={[{ flex: 1, color: '#fff', fontFamily: 'Inter_400Regular', fontSize: 14 }]}
+              placeholder="Search products..."
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              value={search}
+              onChangeText={setSearch}
+            />
           </View>
-          {totalItems > 0 && (
-            <View style={[styles.orderDraft, { backgroundColor: '#2A6A4A', borderRadius: 20 }]}>
-              <Text style={[styles.orderDraftText, { fontFamily: 'Inter_600SemiBold' }]}>{totalItems} in draft</Text>
-            </View>
-          )}
-        </View>
-
-        <FlatList
-          horizontal
-          data={CATEGORIES}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catScroll}
-          keyExtractor={(i) => i.id}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => { setFilter(item.id); Haptics.selectionAsync(); }}
-              style={[
-                styles.catPill,
-                { backgroundColor: filter === item.id ? '#2A6A4A' : '#E8F4EE', borderRadius: 20 },
-              ]}
-            >
-              <Text style={[styles.catText, { color: filter === item.id ? '#fff' : '#2A6A4A', fontFamily: 'Inter_500Medium' }]}>
-                {item.label}
-              </Text>
+          {cart.length > 0 && (
+            <Pressable onPress={() => setShowCart(true)} style={[styles.cartBtn, { backgroundColor: ACCENT, borderRadius: 12 }]}>
+              <Feather name="shopping-cart" size={16} color="#fff" />
+              <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{cart.reduce((s, e) => s + e.quantity, 0)}</Text>
             </Pressable>
           )}
-        />
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {WHOLESALE_TIERS.map((tier) => (
+            <View key={tier.label} style={[styles.tierTag, { backgroundColor: CARD, borderRadius: 10 }]}>
+              <Text style={[{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>{tier.label}</Text>
+              {tier.discount > 0 && <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 10 }]}>−{tier.discount * 100}%</Text>}
+            </View>
+          ))}
+        </ScrollView>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom + 90 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => <WholesaleProductCard product={item} onAdd={handleAdd} />}
-      />
-    </View>
+      {isLoading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={ACCENT} /></View>
+      ) : showCart ? (
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 120 }}>
+          <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }]}>Order Summary</Text>
+          {cart.map((entry) => {
+            const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
+            return (
+              <View key={entry.product.id} style={[styles.cartRow, { backgroundColor: CARD, borderRadius: 14 }]}>
+                <LinearGradient colors={getGradient(entry.product)} style={styles.cartThumb} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>{entry.product.name}</Text>
+                  <Text style={[{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 11 }]}>Qty: {entry.quantity}</Text>
+                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 12, marginTop: 2 }]}>${wsPrice.toFixed(2)} ea · ${(wsPrice * entry.quantity).toFixed(2)} total</Text>
+                </View>
+                <Pressable onPress={() => removeFromCart(entry.product.id)} style={[{ padding: 6 }]}>
+                  <Feather name="trash-2" size={16} color="#EF4444" />
+                </Pressable>
+              </View>
+            );
+          })}
+          <View style={[styles.totalCard, { backgroundColor: CARD, borderRadius: 14 }]}>
+            <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Order Total</Text>
+            <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 24 }]}>${(totalCents / 100).toFixed(2)}</Text>
+            {totalCents < 5000 && <Text style={[{ color: '#EF4444', fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Minimum order $50 not met</Text>}
+          </View>
+          {[
+            { label: 'PO Reference (optional)', key: 'poRef', setter: setPoRef, value: poRef, placeholder: 'e.g. PO-2024-001' },
+            { label: 'Notes', key: 'notes', setter: setNotes, value: notes, placeholder: 'Delivery instructions, special requests...' },
+          ].map((field) => (
+            <View key={field.key}>
+              <Text style={[{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 6 }]}>{field.label}</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: CARD, color: '#fff', fontFamily: 'Inter_400Regular', borderRadius: 12 }]}
+                placeholder={field.placeholder}
+                placeholderTextColor="rgba(255,255,255,0.25)"
+                value={field.value}
+                onChangeText={field.setter}
+              />
+            </View>
+          ))}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable onPress={() => setShowCart(false)} style={[{ flex: 1, padding: 16, backgroundColor: CARD, borderRadius: 14, alignItems: 'center' }]}>
+              <Text style={[{ color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>Back</Text>
+            </Pressable>
+            <Pressable
+              onPress={handlePlaceOrder}
+              disabled={submitting || totalCents < 5000}
+              style={[{ flex: 2, padding: 16, backgroundColor: totalCents >= 5000 ? ACCENT : '#2A4A2A', borderRadius: 14, alignItems: 'center' }]}
+            >
+              <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }]}>{submitting ? 'Submitting...' : 'Place Order'}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(p) => p.id}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={ACCENT} />}
+          contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 120 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
+              <Feather name="package" size={32} color="rgba(255,255,255,0.2)" />
+              <Text style={[{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 14 }]}>No products available</Text>
+            </View>
+          }
+          renderItem={({ item: p }) => (
+            <ProductRow
+              product={p}
+              cartEntry={cart.find((e) => e.product.id === p.id)}
+              onAdd={addToCart}
+            />
+          )}
+        />
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#C8DDD4',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  title: {
-    fontSize: 22,
-  },
-  subtitle: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  orderDraft: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  orderDraftText: {
-    color: '#fff',
-    fontSize: 13,
-  },
-  catScroll: {
-    gap: 8,
-    paddingBottom: 12,
-  },
-  catPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  catText: {
-    fontSize: 13,
-  },
-  list: {
-    padding: 16,
-    gap: 12,
-  },
-  productCard: {
-    padding: 16,
-    gap: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-    shadowColor: '#1A3A2A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    gap: 14,
-    alignItems: 'flex-start',
-  },
-  swatch: {
-    width: 56,
-    height: 56,
-  },
-  productName: {
-    fontSize: 15,
-    marginBottom: 3,
-  },
-  category: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  retailNote: {
-    fontSize: 11,
-  },
-  tiers: {
-    gap: 4,
-  },
-  tierRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  tierQty: {
-    flex: 1,
-    fontSize: 12,
-  },
-  tierPrice: {
-    fontSize: 13,
-  },
-  qtyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  qtyControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  qtyBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qtyValue: {
-    fontSize: 18,
-    minWidth: 36,
-    textAlign: 'center',
-  },
-  subtotalLabel: {
-    fontSize: 11,
-  },
-  subtotal: {
-    fontSize: 18,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-  },
-  addBtnText: {
-    color: '#fff',
-    fontSize: 14,
-  },
+  header: { paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42 },
+  cartBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 42 },
+  tierTag: { paddingHorizontal: 10, paddingVertical: 6, gap: 2, alignItems: 'center' },
+  productCard: { overflow: 'hidden' },
+  productThumbLg: { height: 100, position: 'relative' },
+  cartRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  cartThumb: { width: 48, height: 48, borderRadius: 10 },
+  totalCard: { padding: 16, alignItems: 'center', gap: 4 },
+  input: { padding: 14, fontSize: 14 },
 });

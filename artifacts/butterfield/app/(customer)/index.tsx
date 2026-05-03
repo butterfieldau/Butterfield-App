@@ -1,31 +1,74 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductCard } from '@/components/ProductCard';
-import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { PRODUCTS } from '@/data/mockData';
+import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
-import type { Product } from '@/types';
+import { api, type ApiProduct } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'cookies', label: 'Cookies' },
   { id: 'coffee', label: 'Coffee' },
   { id: 'desserts', label: 'Desserts' },
+  { id: 'sandwiches', label: 'Food' },
   { id: 'bundles', label: 'Bundles' },
 ];
+
+function getPrice(p: ApiProduct): number {
+  return (p.prices?.[0]?.unit_amount ?? 0) / 100;
+}
+
+function getGradient(p: ApiProduct): [string, string] {
+  const g = p.metadata?.gradient?.split(',');
+  if (g?.length === 2) return [g[0], g[1]];
+  return ['#C8833A', '#8B4513'];
+}
+
+function ProductTile({ product, onAdd }: { product: ApiProduct; onAdd: () => void }) {
+  const colors = useColors();
+  const gradient = getGradient(product);
+  const price = getPrice(product);
+  const available = product.metadata?.available !== 'false';
+
+  return (
+    <Pressable style={[styles.tile, { borderRadius: colors.radius, backgroundColor: colors.card }]} onPress={available ? onAdd : undefined}>
+      <LinearGradient colors={gradient} style={[styles.tileImage, { borderRadius: colors.radius - 2 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        {product.metadata?.isNew === 'true' && (
+          <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>
+        )}
+        {!available && (
+          <View style={styles.soldOutOverlay}><Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Sold Out</Text></View>
+        )}
+      </LinearGradient>
+      <View style={styles.tileInfo}>
+        <Text style={[styles.tileName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{product.name}</Text>
+        <Text style={[styles.tileDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>{product.description}</Text>
+        <View style={styles.tileBottom}>
+          <Text style={[styles.tilePrice, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>${price.toFixed(2)}</Text>
+          {available && (
+            <Pressable onPress={onAdd} style={[styles.addBtn, { backgroundColor: colors.primary, borderRadius: 10 }]}>
+              <Feather name="plus" size={14} color="#fff" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
 
 export default function CustomerHome() {
   const colors = useColors();
@@ -34,300 +77,178 @@ export default function CustomerHome() {
   const { addItem, totalItems } = useCart();
   const [activeCategory, setActiveCategory] = useState('all');
 
-  const popular = PRODUCTS.filter((p) => p.popular && p.available);
-  const featured = PRODUCTS.filter((p) =>
-    activeCategory === 'all' ? p.available : p.category === activeCategory && p.available
+  const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => api.products.list(),
+    retry: 2,
+  });
+
+  const { data: loyaltyData } = useQuery({
+    queryKey: ['loyalty-profile'],
+    queryFn: () => api.loyalty.profile(),
+    retry: 1,
+  });
+
+  const products = productsData?.data ?? [];
+  const loyaltyPoints = loyaltyData?.data?.loyaltyPoints ?? 0;
+
+  const popular = products.filter((p) => p.metadata?.popular === 'true');
+  const featured = products.filter((p) =>
+    activeCategory === 'all' ? true : p.metadata?.category === activeCategory
   );
 
-  const handleAdd = (product: Product) => {
-    addItem(product);
+  const handleAdd = useCallback((p: ApiProduct) => {
+    addItem({
+      id: p.id,
+      name: p.name,
+      category: (p.metadata?.category ?? 'cookies') as any,
+      price: getPrice(p),
+      description: p.description,
+      available: p.metadata?.available !== 'false',
+      gradient: getGradient(p),
+      priceId: p.prices?.[0]?.id,
+    });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+  }, [addItem]);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
     >
-      {/* Header */}
-      <LinearGradient
-        colors={['#C8833A', '#8B4513']}
-        style={[styles.header, { paddingTop: insets.top + 16 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
+      <LinearGradient colors={['#C8833A', '#8B4513']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>Good morning</Text>
-            <Text style={[styles.greetingName, { fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
+            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>{greeting},</Text>
+            <Text style={[styles.name, { fontFamily: 'Inter_700Bold' }]}>{firstName} 👋</Text>
           </View>
-          <Pressable
-            onPress={() => router.push('/(customer)/cart')}
-            style={styles.cartBtn}
-          >
-            <Feather name="shopping-bag" size={22} color="#fff" />
+          <View style={styles.headerActions}>
             {totalItems > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{totalItems}</Text>
+              <View style={[styles.cartBadge, { backgroundColor: '#fff' }]}>
+                <Feather name="shopping-bag" size={16} color="#C8833A" />
+                <Text style={[styles.cartBadgeText, { color: '#C8833A', fontFamily: 'Inter_700Bold' }]}>{totalItems}</Text>
               </View>
             )}
-          </Pressable>
+          </View>
         </View>
-
-        {/* Loyalty chip */}
-        <View style={styles.loyaltyChip}>
-          <Feather name="star" size={14} color="#C8833A" />
-          <Text style={[styles.loyaltyText, { fontFamily: 'Inter_600SemiBold' }]}>
-            {user?.loyaltyPoints?.toLocaleString() ?? 0} points
-          </Text>
-          <Text style={[styles.loyaltySub, { fontFamily: 'Inter_400Regular' }]}>
-            · Silver member
-          </Text>
+        <View style={[styles.loyaltyChip, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+          <Feather name="star" size={14} color="#FFE4A0" />
+          <Text style={[styles.loyaltyText, { fontFamily: 'Inter_600SemiBold' }]}>{loyaltyPoints} pts</Text>
+          <Text style={[styles.loyaltyLabel, { fontFamily: 'Inter_400Regular' }]}>· Loyalty Balance</Text>
         </View>
       </LinearGradient>
 
-      {/* Hero Promo */}
-      <Pressable
-        style={[styles.promoBanner, { marginHorizontal: 20, marginTop: 20, borderRadius: colors.radius }]}
-      >
-        <LinearGradient
-          colors={['#3D1F0D', '#7A3A18']}
-          style={[styles.promoGradient, { borderRadius: colors.radius }]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+      {/* Promo Banner */}
+      <View style={styles.promoSection}>
+        <LinearGradient colors={['#3D1F0D', '#1A0A04']} style={[styles.promoBanner, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.promoContent}>
-            <Text style={[styles.promoEyebrow, { fontFamily: 'Inter_500Medium' }]}>THIS WEEK ONLY</Text>
-            <Text style={[styles.promoTitle, { fontFamily: 'Inter_700Bold' }]}>
-              Buy 2 cookies,{'\n'}get 1 free
-            </Text>
-            <View style={styles.promoCta}>
-              <Text style={[styles.promoCtaText, { fontFamily: 'Inter_600SemiBold' }]}>Order now</Text>
-              <Feather name="arrow-right" size={14} color="#C8833A" />
-            </View>
+            <Text style={[styles.promoTag, { fontFamily: 'Inter_600SemiBold' }]}>🍪 DAILY SPECIAL</Text>
+            <Text style={[styles.promoTitle, { fontFamily: 'Inter_700Bold' }]}>Cookie & Cream Sandwich</Text>
+            <Text style={[styles.promoSub, { fontFamily: 'Inter_400Regular' }]}>Two warm cookies + vanilla cream</Text>
           </View>
-          <View style={styles.promoDecor}>
-            <LinearGradient
-              colors={['#C8833A', '#E0A050']}
-              style={styles.promoCircle}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          </View>
+          <View style={[styles.promoCircle, { backgroundColor: 'rgba(200,131,58,0.3)' }]} />
         </LinearGradient>
-      </Pressable>
-
-      {/* Popular */}
-      <View style={styles.section}>
-        <View style={styles.sectionRow}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-            Fan Favourites
-          </Text>
-        </View>
-        <FlatList
-          data={popular}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-          keyExtractor={(i) => i.id}
-          renderItem={({ item }) => (
-            <View style={{ width: 180 }}>
-              <ProductCard product={item} onAdd={handleAdd} />
-            </View>
-          )}
-        />
       </View>
 
-      {/* Category filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoryScroll}
-      >
+      {/* Fan Favourites */}
+      {popular.length > 0 && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Fan Favourites</Text>
+          <FlatList
+            data={popular}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(p) => p.id}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+            renderItem={({ item }) => (
+              <Pressable style={[styles.favCard, { backgroundColor: colors.card, borderRadius: colors.radius }]} onPress={() => handleAdd(item)}>
+                <LinearGradient colors={getGradient(item)} style={styles.favImage} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+                <Text style={[styles.favName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{item.name}</Text>
+                <Text style={[styles.favPrice, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>${getPrice(item).toFixed(2)}</Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      )}
+
+      {/* Categories */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
         {CATEGORIES.map((cat) => (
           <Pressable
             key={cat.id}
-            onPress={() => {
-              setActiveCategory(cat.id);
-              Haptics.selectionAsync();
-            }}
-            style={[
-              styles.categoryPill,
-              {
-                backgroundColor: activeCategory === cat.id ? colors.primary : colors.muted,
-                borderRadius: 20,
-              },
-            ]}
+            onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
+            style={[styles.catPill, {
+              backgroundColor: activeCategory === cat.id ? colors.primary : colors.muted,
+              borderRadius: 20,
+            }]}
           >
-            <Text
-              style={[
-                styles.categoryText,
-                {
-                  color: activeCategory === cat.id ? '#fff' : colors.mutedForeground,
-                  fontFamily: 'Inter_500Medium',
-                },
-              ]}
-            >
-              {cat.label}
-            </Text>
+            <Text style={[styles.catLabel, { color: activeCategory === cat.id ? '#fff' : colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>{cat.label}</Text>
           </Pressable>
         ))}
       </ScrollView>
 
-      {/* Product grid */}
-      <View style={styles.grid}>
-        {featured.map((product, index) => (
-          <View key={product.id} style={styles.gridItem}>
-            <ProductCard product={product} onAdd={handleAdd} />
+      {/* Product Grid */}
+      <View style={styles.section}>
+        {isLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        ) : featured.length === 0 ? (
+          <Text style={[styles.empty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>No products in this category yet.</Text>
+        ) : (
+          <View style={[styles.grid, { paddingHorizontal: 20 }]}>
+            {featured.map((p) => (
+              <ProductTile key={p.id} product={p} onAdd={() => handleAdd(p)} />
+            ))}
           </View>
-        ))}
+        )}
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    gap: 16,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  greeting: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 14,
-  },
-  greetingName: {
-    color: '#fff',
-    fontSize: 24,
-  },
-  cartBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#C8833A',
-  },
-  loyaltyChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  loyaltyText: {
-    fontSize: 13,
-    color: '#4A2410',
-  },
-  loyaltySub: {
-    fontSize: 12,
-    color: '#9A7B5A',
-  },
-  promoBanner: {
-    overflow: 'hidden',
-    shadowColor: '#4A2410',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  promoGradient: {
-    flexDirection: 'row',
-    padding: 20,
-    overflow: 'hidden',
-  },
-  promoContent: {
-    flex: 1,
-    gap: 8,
-  },
-  promoEyebrow: {
-    color: '#C8833A',
-    fontSize: 10,
-    letterSpacing: 1.5,
-  },
-  promoTitle: {
-    color: '#fff',
-    fontSize: 20,
-    lineHeight: 26,
-  },
-  promoCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  promoCtaText: {
-    color: '#C8833A',
-    fontSize: 13,
-  },
-  promoDecor: {
-    justifyContent: 'center',
-  },
-  promoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    opacity: 0.3,
-  },
-  section: {
-    marginTop: 24,
-    gap: 14,
-  },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-  },
-  categoryScroll: {
-    paddingHorizontal: 20,
-    gap: 8,
-    marginTop: 20,
-    marginBottom: 4,
-  },
-  categoryPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  categoryText: {
-    fontSize: 14,
-  },
-  grid: {
-    paddingHorizontal: 20,
-    gap: 12,
-    marginTop: 12,
-  },
-  gridItem: {
-    flex: 1,
-  },
+  header: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  greeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+  name: { color: '#fff', fontSize: 24 },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  cartBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  cartBadgeText: { fontSize: 13 },
+  loyaltyChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: 'flex-start' },
+  loyaltyText: { color: '#FFE4A0', fontSize: 14 },
+  loyaltyLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  promoSection: { paddingHorizontal: 20, paddingTop: 20 },
+  promoBanner: { padding: 20, minHeight: 100, overflow: 'hidden' },
+  promoContent: { gap: 4, zIndex: 1 },
+  promoTag: { color: '#C8833A', fontSize: 11, letterSpacing: 1 },
+  promoTitle: { color: '#fff', fontSize: 20 },
+  promoSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13 },
+  promoCircle: { position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: 60 },
+  section: { marginTop: 24 },
+  sectionTitle: { fontSize: 20, paddingHorizontal: 20, marginBottom: 12 },
+  favCard: { width: 130, padding: 12, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  favImage: { width: '100%', height: 80, borderRadius: 10 },
+  favName: { fontSize: 13 },
+  favPrice: { fontSize: 13 },
+  catScroll: { marginTop: 24 },
+  catPill: { paddingHorizontal: 16, paddingVertical: 8 },
+  catLabel: { fontSize: 13 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  tile: { width: '47%', padding: 12, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  tileImage: { width: '100%', height: 90, alignItems: 'flex-start', justifyContent: 'flex-start', padding: 6 },
+  newBadge: { backgroundColor: '#C8833A', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  newBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  soldOutOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  tileInfo: { gap: 4 },
+  tileName: { fontSize: 13 },
+  tileDesc: { fontSize: 11, lineHeight: 15 },
+  tileBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  tilePrice: { fontSize: 14 },
+  addBtn: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
+  empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },
 });

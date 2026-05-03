@@ -1,0 +1,46 @@
+import { pgTable, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const loyaltyTransactionsTable = pgTable("loyalty_transactions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  points: integer("points").notNull(),
+  type: text("type").notNull(),
+  description: text("description").notNull(),
+  referenceId: text("reference_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const loyaltyRewardsTable = pgTable("loyalty_rewards", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  pointsCost: integer("points_cost").notNull(),
+  category: text("category").notNull().default("food"),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  isAppOnly: boolean("is_app_only").notNull().default(false),
+  stock: integer("stock"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  rewardId: text("reward_id").notNull(),
+  orderId: text("order_id"),
+  pointsSpent: integer("points_spent").notNull(),
+  redeemedAt: timestamp("redeemed_at").notNull().defaultNow(),
+});
+
+export const insertLoyaltyTransactionSchema = createInsertSchema(loyaltyTransactionsTable).omit({ createdAt: true });
+export const insertLoyaltyRewardSchema = createInsertSchema(loyaltyRewardsTable).omit({ createdAt: true });
+export const insertLoyaltyRedemptionSchema = createInsertSchema(loyaltyRedemptionsTable).omit({ redeemedAt: true });
+
+export type InsertLoyaltyTransaction = z.infer<typeof insertLoyaltyTransactionSchema>;
+export type LoyaltyTransaction = typeof loyaltyTransactionsTable.$inferSelect;
+export type InsertLoyaltyReward = z.infer<typeof insertLoyaltyRewardSchema>;
+export type LoyaltyReward = typeof loyaltyRewardsTable.$inferSelect;
+export type LoyaltyRedemption = typeof loyaltyRedemptionsTable.$inferSelect;

@@ -1,21 +1,28 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductCard } from '@/components/ProductCard';
+import { useQuery } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
-import { PRODUCTS } from '@/data/mockData';
 import { useColors } from '@/hooks/useColors';
-import type { Product } from '@/types';
+import { api, type ApiProduct } from '@/lib/api';
 
 const CATEGORIES = [
-  { id: 'all', label: 'All Items' },
+  { id: 'all', label: 'All' },
   { id: 'cookies', label: 'Cookies' },
   { id: 'coffee', label: 'Coffee' },
   { id: 'desserts', label: 'Desserts' },
+  { id: 'sandwiches', label: 'Food' },
   { id: 'bundles', label: 'Bundles' },
 ];
+
+function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
+function getGradient(p: ApiProduct): [string, string] {
+  const g = p.metadata?.gradient?.split(',');
+  return g?.length === 2 ? [g[0], g[1]] : ['#C8833A', '#8B4513'];
+}
 
 export default function MenuScreen() {
   const colors = useColors();
@@ -24,163 +31,101 @@ export default function MenuScreen() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
 
-  const filtered = PRODUCTS.filter((p) => {
-    const matchCat = activeCategory === 'all' || p.category === activeCategory;
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
+  const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['products'], queryFn: () => api.products.list(), retry: 2 });
+
+  const products = data?.data ?? [];
+  const filtered = useMemo(() => products.filter((p) => {
+    const matchCat = activeCategory === 'all' || p.metadata?.category === activeCategory;
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
-  });
+  }), [products, activeCategory, search]);
 
-  const available = filtered.filter((p) => p.available);
-  const unavailable = filtered.filter((p) => !p.available);
-  const displayList = [...available, ...unavailable];
-
-  const handleAdd = (product: Product) => {
-    addItem(product);
+  const handleAdd = (p: ApiProduct) => {
+    addItem({ id: p.id, name: p.name, category: (p.metadata?.category ?? 'cookies') as any, price: getPrice(p), description: p.description, available: p.metadata?.available !== 'false', gradient: getGradient(p), priceId: p.prices?.[0]?.id });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: Platform.OS === 'web' ? 67 : insets.top + 12,
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-          Our Menu
-        </Text>
-
-        {/* Search */}
-        <View
-          style={[
-            styles.searchBar,
-            { backgroundColor: colors.muted, borderRadius: colors.radius },
-          ]}
-        >
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-            placeholder="Search menu..."
-            placeholderTextColor={colors.mutedForeground}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')}>
-              <Feather name="x" size={14} color={colors.mutedForeground} />
-            </Pressable>
-          )}
+      <LinearGradient colors={['#C8833A', '#8B4513']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
+        <View style={[styles.searchBar, { backgroundColor: '#fff', borderRadius: colors.radius }]}>
+          <Feather name="search" size={16} color="#C8833A" />
+          <TextInput style={[styles.searchInput, { fontFamily: 'Inter_400Regular', color: '#1A0A04' }]}
+            placeholder="Search cookies, coffee..." placeholderTextColor="#9B8B7A" value={search} onChangeText={setSearch} />
+          {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#9B8B7A" /></Pressable> : null}
         </View>
-
-        {/* Category pills */}
         <FlatList
-          horizontal
           data={CATEGORIES}
+          horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catScroll}
-          keyExtractor={(i) => i.id}
+          keyExtractor={(c) => c.id}
+          contentContainerStyle={{ gap: 8, paddingRight: 4 }}
           renderItem={({ item }) => (
-            <Pressable
-              onPress={() => {
-                setActiveCategory(item.id);
-                Haptics.selectionAsync();
-              }}
-              style={[
-                styles.catPill,
-                {
-                  backgroundColor: activeCategory === item.id ? colors.primary : colors.muted,
-                  borderRadius: 20,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.catText,
-                  {
-                    color: activeCategory === item.id ? '#fff' : colors.mutedForeground,
-                    fontFamily: 'Inter_500Medium',
-                  },
-                ]}
-              >
-                {item.label}
-              </Text>
+            <Pressable onPress={() => { setActiveCategory(item.id); Haptics.selectionAsync(); }}
+              style={[styles.catPill, { backgroundColor: activeCategory === item.id ? '#fff' : 'rgba(255,255,255,0.2)', borderRadius: 20 }]}>
+              <Text style={[styles.catLabel, { color: activeCategory === item.id ? '#C8833A' : '#fff', fontFamily: 'Inter_600SemiBold' }]}>{item.label}</Text>
             </Pressable>
           )}
         />
-      </View>
+      </LinearGradient>
 
-      <FlatList
-        data={displayList}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={[styles.list, { paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom + 90 }]}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <View style={styles.itemWrap}>
-            <ProductCard product={item} onAdd={handleAdd} />
-          </View>
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="coffee" size={40} color={colors.border} />
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No items found</Text>
-          </View>
-        }
-      />
+      {isLoading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={colors.primary} /></View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(p) => p.id}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 12 }}
+          contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+          ListEmptyComponent={<Text style={[styles.empty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>No items found.</Text>}
+          renderItem={({ item: p }) => {
+            const available = p.metadata?.available !== 'false';
+            const price = getPrice(p);
+            const gradient = getGradient(p);
+            return (
+              <Pressable style={[styles.tile, { flex: 1, backgroundColor: colors.card, borderRadius: colors.radius }]} onPress={() => available && handleAdd(p)}>
+                <LinearGradient colors={gradient} style={[styles.tileImage, { borderRadius: colors.radius - 2 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                  {p.metadata?.isNew === 'true' && <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>}
+                  {!available && <View style={styles.soldOut}><Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text></View>}
+                </LinearGradient>
+                <View style={{ gap: 4, padding: 2 }}>
+                  <Text style={[styles.tileName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{p.name}</Text>
+                  <Text style={[styles.tileDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>{p.description}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={[{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>${price.toFixed(2)}</Text>
+                    {available && (
+                      <Pressable onPress={() => handleAdd(p)} style={[{ backgroundColor: colors.primary, borderRadius: 10, width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Feather name="plus" size={14} color="#fff" />
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              </Pressable>
+            );
+          }}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    gap: 12,
-  },
-  title: {
-    fontSize: 26,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    height: 46,
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-  },
-  catScroll: {
-    gap: 8,
-  },
-  catPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-  },
-  catText: {
-    fontSize: 13,
-  },
-  list: {
-    padding: 20,
-    gap: 12,
-  },
-  itemWrap: {
-    marginBottom: 12,
-  },
-  empty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 16,
-  },
+  header: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
+  headerTitle: { color: '#fff', fontSize: 26 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44 },
+  searchInput: { flex: 1, fontSize: 14 },
+  catPill: { paddingHorizontal: 14, paddingVertical: 7 },
+  catLabel: { fontSize: 13 },
+  tile: { padding: 12, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  tileImage: { width: '100%', height: 90, alignItems: 'flex-start', justifyContent: 'flex-start', padding: 6 },
+  newBadge: { backgroundColor: '#C8833A', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  newBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  soldOut: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  tileName: { fontSize: 13 },
+  tileDesc: { fontSize: 11, lineHeight: 15 },
+  empty: { textAlign: 'center', marginTop: 60, fontSize: 14 },
 });

@@ -1,178 +1,172 @@
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { OrderStatusBadge } from '@/components/OrderStatusBadge';
-import { StatCard } from '@/components/StatCard';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { MOCK_STAFF_ORDERS } from '@/data/mockData';
 import { useColors } from '@/hooks/useColors';
-import type { StaffOrder, OrderStatus } from '@/types';
+import { api } from '@/lib/api';
 
-const QUICK_ACTIONS = [
-  { icon: 'plus-circle', label: 'New Order', color: '#C8833A' },
-  { icon: 'users', label: 'Check In', color: '#3A6A5A' },
-  { icon: 'printer', label: 'Print Queue', color: '#4A4A8A' },
-  { icon: 'alert-circle', label: 'Issue', color: '#8A4A4A' },
-];
-
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  return `${Math.floor(mins / 60)}h ago`;
-}
-
-function OrderRow({ order, onStatusChange }: { order: StaffOrder; onStatusChange: (id: string, s: OrderStatus) => void }) {
-  const colors = useColors();
-  const nextStatus: Record<OrderStatus, OrderStatus | null> = {
-    pending: 'in-progress',
-    'in-progress': 'ready',
-    ready: 'completed',
-    completed: null,
-  };
-  const next = nextStatus[order.status];
-
-  return (
-    <View style={[styles.orderCard, { backgroundColor: colors.card, borderRadius: colors.radius, borderColor: colors.border }]}>
-      <View style={styles.orderHeader}>
-        <View>
-          <Text style={[styles.orderNum, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{order.orderNumber}</Text>
-          <Text style={[styles.orderMeta, { color: colors.mutedForeground }]}>
-            {order.customerName} · {order.type === 'dine-in' ? `Table ${order.tableNumber}` : order.type}
-          </Text>
-        </View>
-        <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <OrderStatusBadge status={order.status} />
-          <Text style={[styles.orderTime, { color: colors.mutedForeground }]}>{timeAgo(order.createdAt)}</Text>
-        </View>
-      </View>
-      <View style={[styles.orderDivider, { backgroundColor: colors.border }]} />
-      {order.items.map((item, i) => (
-        <View key={i} style={styles.itemRow}>
-          <Text style={[styles.itemQty, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>{item.quantity}×</Text>
-          <Text style={[styles.itemName, { color: colors.foreground }]}>{item.name}</Text>
-          <Text style={[styles.itemPrice, { color: colors.mutedForeground }]}>${(item.quantity * item.price).toFixed(2)}</Text>
-        </View>
-      ))}
-      <View style={styles.orderFooter}>
-        <Text style={[styles.orderTotal, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>
-          ${order.total.toFixed(2)}
-        </Text>
-        {next && (
-          <Pressable
-            onPress={() => onStatusChange(order.id, next)}
-            style={[styles.nextBtn, { backgroundColor: colors.primary, borderRadius: colors.radius / 2 }]}
-          >
-            <Text style={[styles.nextBtnText, { fontFamily: 'Inter_600SemiBold' }]}>
-              {next === 'in-progress' ? 'Start' : next === 'ready' ? 'Mark Ready' : 'Complete'}
-            </Text>
-          </Pressable>
-        )}
-      </View>
-    </View>
-  );
-}
+const BG = '#0D0604';
+const CARD = '#1A0A04';
+const ACCENT = '#C8833A';
 
 export default function StaffDashboard() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [orders, setOrders] = useState<StaffOrder[]>(MOCK_STAFF_ORDERS);
+  const qc = useQueryClient();
+  const [clockingIn, setClockingIn] = useState(false);
 
-  const activeOrders = orders.filter((o) => o.status !== 'completed');
-  const completedToday = orders.filter((o) => o.status === 'completed').length;
-  const revenueToday = orders.reduce((s, o) => s + o.total, 0);
-  const pendingCount = orders.filter((o) => o.status === 'pending').length;
+  const { data: shiftData, refetch: refetchShift, isRefetching: shiftRefetching } = useQuery({
+    queryKey: ['current-shift'], queryFn: () => api.staff.currentShift(), retry: 1,
+  });
+  const { data: tasksData, refetch: refetchTasks } = useQuery({
+    queryKey: ['staff-tasks'], queryFn: () => api.staff.tasks(), retry: 1,
+  });
 
-  const handleStatusChange = (id: string, status: OrderStatus) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+  const currentShift = shiftData?.data;
+  const tasks = tasksData?.data ?? [];
+  const completedTasks = tasks.filter((t) => t.isCompleted).length;
+
+  const getShiftDuration = () => {
+    if (!currentShift) return null;
+    const ms = Date.now() - new Date(currentShift.clockIn).getTime();
+    const hrs = Math.floor(ms / 3600000);
+    const mins = Math.floor((ms % 3600000) / 60000);
+    return `${hrs}h ${mins}m`;
   };
 
+  const handleClockIn = async () => {
+    setClockingIn(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    try {
+      await api.staff.clockIn();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      qc.invalidateQueries({ queryKey: ['current-shift'] });
+    } catch (e: any) { Alert.alert('Error', e.message); } finally { setClockingIn(false); }
+  };
+
+  const handleClockOut = async () => {
+    Alert.alert('Clock Out', 'End your shift?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clock Out', style: 'destructive', onPress: async () => {
+        setClockingIn(true);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        try {
+          const res = await api.staff.clockOut();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          qc.invalidateQueries({ queryKey: ['current-shift'] });
+          Alert.alert('Shift ended', `Total time: ${res.data.hoursWorked}`);
+        } catch (e: any) { Alert.alert('Error', e.message); } finally { setClockingIn(false); }
+      }},
+    ]);
+  };
+
+  const handleCompleteTask = async (taskId: string, completed: boolean) => {
+    Haptics.selectionAsync();
+    try {
+      await api.staff.completeTask(taskId, !completed);
+      qc.invalidateQueries({ queryKey: ['staff-tasks'] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  const urgentTasks = tasks.filter((t) => !t.isCompleted).slice(0, 5);
+
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: '#0D0604' }}
-      contentContainerStyle={{ paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom + 90 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Dark header */}
-      <LinearGradient
-        colors={['#1A0A04', '#3D1F0D']}
-        style={[styles.header, { paddingTop: Platform.OS === 'web' ? 80 : insets.top + 20 }]}
-      >
-        <View style={styles.headerRow}>
+    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={shiftRefetching} onRefresh={() => { refetchShift(); refetchTasks(); }} tintColor={ACCENT} />}>
+      <LinearGradient colors={['#2A1408', BG]} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.headerTop}>
           <View>
-            <Text style={[styles.staffLabel, { fontFamily: 'Inter_400Regular' }]}>Staff Portal</Text>
-            <Text style={[styles.staffName, { fontFamily: 'Inter_700Bold' }]}>{user?.name}</Text>
-            <Text style={[styles.staffId, { fontFamily: 'Inter_400Regular' }]}>ID: {(user as any)?.staffId}</Text>
+            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.6)' }]}>Good shift,</Text>
+            <Text style={[styles.name, { fontFamily: 'Inter_700Bold', color: '#fff' }]}>{user?.name?.split(' ')[0]} 👋</Text>
           </View>
-          <View style={styles.shiftBadge}>
-            <View style={styles.shiftDot} />
-            <Text style={[styles.shiftText, { fontFamily: 'Inter_500Medium' }]}>On Shift</Text>
+          <View style={[styles.shiftIndicator, { backgroundColor: currentShift ? '#22C55E20' : '#EF444420', borderColor: currentShift ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
+            <View style={[styles.shiftDot, { backgroundColor: currentShift ? '#22C55E' : '#EF4444' }]} />
+            <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: currentShift ? '#22C55E' : '#EF4444' }]}>{currentShift ? 'On Shift' : 'Off Duty'}</Text>
           </View>
         </View>
       </LinearGradient>
 
-      {/* Stats */}
-      <View style={styles.statsSection}>
-        <Text style={[styles.sectionLabel, { color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_500Medium' }]}>
-          TODAY'S OVERVIEW
-        </Text>
-        <View style={styles.statsRow}>
-          <StatCard
-            label="Revenue"
-            value={`$${revenueToday.toFixed(0)}`}
-            subtitle="total today"
-            gradient={['#C8833A', '#8B4513']}
-          />
-          <StatCard
-            label="Completed"
-            value={`${completedToday}`}
-            subtitle="orders done"
-            dark
-          />
+      <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
+        {/* Clock In/Out */}
+        <View style={[styles.clockCard, { backgroundColor: CARD, borderRadius: 16 }]}>
+          {currentShift ? (
+            <>
+              <View style={styles.clockInfo}>
+                <Text style={[styles.clockLabel, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' }]}>Shift started</Text>
+                <Text style={[styles.clockTime, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{new Date(currentShift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Text style={[{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{getShiftDuration()} on shift</Text>
+              </View>
+              <Pressable onPress={handleClockOut} disabled={clockingIn} style={[styles.clockBtn, { backgroundColor: '#DC2626', borderRadius: 12 }]}>
+                {clockingIn ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>Clock Out</Text>}
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <View style={styles.clockInfo}>
+                <Text style={[styles.clockLabel, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' }]}>Ready to start?</Text>
+                <Text style={[styles.clockTime, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
+              </View>
+              <Pressable onPress={handleClockIn} disabled={clockingIn} style={[styles.clockBtn, { backgroundColor: '#22C55E', borderRadius: 12 }]}>
+                {clockingIn ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>Clock In</Text>}
+              </Pressable>
+            </>
+          )}
         </View>
-        <View style={styles.statsRow}>
-          <StatCard label="Active" value={`${activeOrders.length}`} subtitle="orders live" dark />
-          <StatCard label="Pending" value={`${pendingCount}`} subtitle="awaiting start" dark />
-        </View>
-      </View>
 
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_600SemiBold' }]}>
-          Quick Actions
-        </Text>
+        {/* Task Progress */}
+        <View style={[styles.taskProgress, { backgroundColor: CARD, borderRadius: 16 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Today's Tasks</Text>
+            <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
+          </View>
+          <View style={[styles.progressTrack, { backgroundColor: '#2A1408' }]}>
+            <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: ACCENT }]} />
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
-          {QUICK_ACTIONS.map((action) => (
-            <Pressable
-              key={action.label}
-              style={[styles.actionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: colors.radius }]}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: action.color + '25' }]}>
-                <Feather name={action.icon as any} size={20} color={action.color} />
+          {[
+            { icon: 'clipboard', label: 'Tasks', onPress: () => {} },
+            { icon: 'alert-triangle', label: 'Log Wastage', onPress: () => {} },
+            { icon: 'tool', label: 'Report Issue', onPress: () => {} },
+            { icon: 'calendar', label: 'Leave Request', onPress: () => {} },
+          ].map((action) => (
+            <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
+              style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16 }]}>
+              <View style={[styles.actionIcon, { backgroundColor: `${ACCENT}20`, borderRadius: 12 }]}>
+                <Feather name={action.icon as any} size={20} color={ACCENT} />
               </View>
               <Text style={[styles.actionLabel, { color: '#fff', fontFamily: 'Inter_500Medium' }]}>{action.label}</Text>
             </Pressable>
           ))}
         </View>
-      </View>
 
-      {/* Active Orders */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_600SemiBold' }]}>
-          Active Orders
-        </Text>
-        {activeOrders.length === 0 ? (
-          <View style={[styles.emptyOrders, { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: colors.radius }]}>
-            <Feather name="check-circle" size={32} color="rgba(255,255,255,0.3)" />
-            <Text style={[styles.emptyText, { color: 'rgba(255,255,255,0.4)' }]}>All clear — no active orders</Text>
-          </View>
-        ) : (
-          activeOrders.map((order) => (
-            <OrderRow key={order.id} order={order} onStatusChange={handleStatusChange} />
-          ))
+        {/* Urgent Tasks */}
+        {urgentTasks.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>PENDING TASKS</Text>
+            {urgentTasks.map((task) => (
+              <Pressable key={task.id} onPress={() => handleCompleteTask(task.id, task.isCompleted)}
+                style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderLeftColor: ACCENT, borderLeftWidth: 3 }]}>
+                <View style={[styles.taskCheck, {
+                  borderColor: task.isCompleted ? '#22C55E' : ACCENT,
+                  backgroundColor: task.isCompleted ? '#22C55E' : 'transparent', borderWidth: 2, borderRadius: 8,
+                }]}>
+                  {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[{ color: task.isCompleted ? 'rgba(255,255,255,0.4)' : '#fff', fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
+                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </>
         )}
       </View>
     </ScrollView>
@@ -180,159 +174,25 @@ export default function StaffDashboard() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  staffLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  staffName: {
-    color: '#fff',
-    fontSize: 22,
-  },
-  staffId: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  shiftBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(80, 200, 80, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
-  shiftDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#4ADE80',
-  },
-  shiftText: {
-    color: '#4ADE80',
-    fontSize: 13,
-  },
-  statsSection: {
-    padding: 20,
-    gap: 10,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  actionCard: {
-    width: '47%',
-    padding: 16,
-    gap: 10,
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionLabel: {
-    fontSize: 13,
-  },
-  orderCard: {
-    padding: 16,
-    gap: 10,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  orderNum: {
-    fontSize: 16,
-    marginBottom: 2,
-  },
-  orderMeta: {
-    fontSize: 12,
-  },
-  orderTime: {
-    fontSize: 11,
-  },
-  orderDivider: {
-    height: 1,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  itemQty: {
-    fontSize: 13,
-    minWidth: 28,
-  },
-  itemName: {
-    flex: 1,
-    fontSize: 13,
-  },
-  itemPrice: {
-    fontSize: 13,
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  orderTotal: {
-    fontSize: 16,
-  },
-  nextBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  nextBtnText: {
-    color: '#fff',
-    fontSize: 13,
-  },
-  emptyOrders: {
-    alignItems: 'center',
-    padding: 32,
-    gap: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-  },
+  header: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  greeting: { fontSize: 14 },
+  name: { fontSize: 24 },
+  shiftIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  shiftDot: { width: 6, height: 6, borderRadius: 3 },
+  clockCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20 },
+  clockInfo: { flex: 1, gap: 4 },
+  clockLabel: { fontSize: 12 },
+  clockTime: { fontSize: 28 },
+  clockBtn: { paddingHorizontal: 20, paddingVertical: 14 },
+  taskProgress: { padding: 16, gap: 10 },
+  progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 4 },
+  sectionTitle: { fontSize: 11, letterSpacing: 1.5, marginTop: 4 },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  actionCard: { width: '47%', padding: 16, gap: 10 },
+  actionIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { fontSize: 13 },
+  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  taskCheck: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
 });

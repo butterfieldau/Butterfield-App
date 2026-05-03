@@ -17,7 +17,7 @@ export interface User {
 export interface Product {
   id: string;
   name: string;
-  category: 'cookies' | 'coffee' | 'desserts' | 'bundles';
+  category: 'cookies' | 'coffee' | 'desserts' | 'bundles' | 'sandwiches';
   price: number;
   wholesalePrice?: number;
   wholesalePriceTiers?: { minQty: number; price: number }[];
@@ -26,6 +26,7 @@ export interface Product {
   popular?: boolean;
   isNew?: boolean;
   gradient: [string, string];
+  priceId?: string;
 }
 
 export interface CartItem {
@@ -33,7 +34,7 @@ export interface CartItem {
   quantity: number;
 }
 
-export type OrderStatus = 'pending' | 'in-progress' | 'ready' | 'completed';
+export type OrderStatus = 'received' | 'being_prepared' | 'ready_for_pickup' | 'completed' | 'cancelled';
 
 export interface StaffOrder {
   id: string;
