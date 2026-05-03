@@ -21,7 +21,7 @@ function NativeCustomerTabs() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="cart">
         <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
-        <Label>Order</Label>
+        <Label>Cart</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="loyalty">
         <Icon sf={{ default: 'star', selected: 'star.fill' }} />
@@ -29,7 +29,7 @@ function NativeCustomerTabs() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <Label>Account</Label>
+        <Label>Profile</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -83,7 +83,7 @@ function ClassicCustomerTabs() {
       <Tabs.Screen
         name="cart"
         options={{
-          title: 'Order',
+          title: 'Cart',
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
         }}
@@ -99,16 +99,13 @@ function ClassicCustomerTabs() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Account',
+          title: 'Profile',
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
         }}
       />
       <Tabs.Screen name="orders" options={{ href: null, title: 'My Orders' }} />
       <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
-      <Tabs.Screen name="store" options={{ href: null, title: 'Our Store' }} />
-      <Tabs.Screen name="edit-details" options={{ href: null, title: 'Edit Details' }} />
-      <Tabs.Screen name="product/[id]" options={{ href: null, title: 'Product' }} />
     </Tabs>
   );
 }

@@ -51,8 +51,6 @@ export const api = {
       companyName: string; abn?: string; deliveryAddress?: string;
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
     me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
-    updateProfile: (data: { name?: string; phone?: string; birthday?: string }) =>
-      request<{ success: boolean }>('/auth/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   },
   products: {
     list: () => request<{ data: ApiProduct[] }>('/products'),

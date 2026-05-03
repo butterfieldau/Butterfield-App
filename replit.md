@@ -4,22 +4,12 @@
 A premium iOS mobile app for Butterfield Cookies, a Sydney-based cookie, coffee, and dessert café brand.
 Built with Expo SDK 54 + React Native. Backed by a real Express + PostgreSQL API server with JWT auth, Stripe integration (AUD), and full role-based portals.
 
-## Brand Design
+## Brand Design (Updated)
 - **Primary colour**: Butterfield cornflower blue `#4B72C4` / `#3058A8` (matches butterfieldcookies.com.au)
+- **Loyalty card / Coffee Club card**: Sky blue `#5AB8FF` → `#3A7FD4` gradient
 - **Background**: Light `#F5F6FA`, cards `#FFFFFF`
-- **Colours propagate via**: `useColors()` hook → all screens (ALL three portals use identical blue theme)
-- **All portals**: Same blue floating tab bar (BlurView on iOS, solid white on web), same card styles
-
-## New Screens Added (Customer Portal)
-- `app/(customer)/store.tsx` — In-store pickup page with Google Maps iframe (web), directions + Open in Maps buttons, trading hours
-- `app/(customer)/edit-details.tsx` — Edit name/phone/birthday form, PATCH /api/auth/profile
-- `app/(customer)/product/[id].tsx` — Product detail page: image card, qty stepper, "Add to bag" button
-
-## Portal Unification
-- Staff and Wholesale portals now use identical blue theme as Customer portal via `useColors()`
-- All three portals have floating BlurView tab bars
-- Dark hardcoded colours (BG/CARD/ACCENT) removed from all portal screens (index, profile)
-- API: PATCH /api/auth/profile endpoint added to update name, phone, birthday
+- **Colours propagate via**: `constants/colors.ts` → `useColors()` hook → all screens
+- **QR code**: `react-native-qrcode-svg` installed. Per-customer QR code in the Rewards screen Coffee Club card ("My QR" button opens modal with scannable code encoding userId + referralCode)
 
 ## Architecture
 

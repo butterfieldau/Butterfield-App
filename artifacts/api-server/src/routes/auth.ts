@@ -136,25 +136,4 @@ router.get('/me', requireAuth, async (req, res) => {
   return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone }, profile });
 });
 
-router.patch('/profile', requireAuth, async (req, res) => {
-  const { name, phone, birthday } = req.body;
-  const user = req.user!;
-
-  const updateData: Record<string, any> = {};
-  if (name && name.trim()) updateData.name = name.trim();
-  if (phone !== undefined) updateData.phone = phone.trim() || null;
-
-  if (Object.keys(updateData).length > 0) {
-    await db.update(usersTable).set(updateData).where(eq(usersTable.id, user.id));
-  }
-
-  if (birthday !== undefined && user.role === 'customer') {
-    await db.update(customerProfilesTable)
-      .set({ birthday: birthday.trim() || null })
-      .where(eq(customerProfilesTable.userId, user.id));
-  }
-
-  return res.json({ success: true });
-});
-
 export default router;
