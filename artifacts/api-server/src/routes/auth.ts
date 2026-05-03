@@ -117,6 +117,18 @@ router.post('/wholesale-apply', async (req, res) => {
   });
 });
 
+router.patch('/me', requireAuth, async (req, res) => {
+  const user = req.user!;
+  const { name, phone } = req.body;
+  if (!name && !phone) return res.status(400).json({ error: 'Nothing to update' });
+  const updates: Record<string, any> = {};
+  if (name) updates.name = name.trim();
+  if (phone) updates.phone = phone.trim();
+  await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+  const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
+  return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone } });
+});
+
 router.get('/me', requireAuth, async (req, res) => {
   const user = req.user!;
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));

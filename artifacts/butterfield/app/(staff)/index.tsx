@@ -26,6 +26,9 @@ export default function StaffDashboard() {
   const { data: tasksData, refetch: refetchTasks } = useQuery({
     queryKey: ['staff-tasks'], queryFn: () => api.staff.tasks(), retry: 1,
   });
+  const { data: ordersData, refetch: refetchOrders } = useQuery({
+    queryKey: ['all-orders'], queryFn: () => api.staff.allOrders(), retry: 1, refetchInterval: 60000,
+  });
 
   const currentShift = shiftData?.data;
   const tasks = tasksData?.data ?? [];
@@ -74,6 +77,25 @@ export default function StaffDashboard() {
   };
 
   const urgentTasks = tasks.filter((t) => !t.isCompleted).slice(0, 5);
+
+  const allOrders = ordersData?.data ?? [];
+  const sydNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const todayStr = sydNow.toDateString();
+  const todayScheduled = allOrders
+    .filter((o: any) => {
+      if (!o.scheduledFor) return false;
+      const d = new Date(o.scheduledFor);
+      return d.toDateString() === todayStr && o.status !== 'cancelled' && o.status !== 'refunded';
+    })
+    .sort((a: any, b: any) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
+
+  const scheduleGroups: { time: string; orders: any[] }[] = [];
+  todayScheduled.forEach((o: any) => {
+    const t = new Date(o.scheduledFor).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+    const existing = scheduleGroups.find((g) => g.time === t);
+    if (existing) existing.orders.push(o);
+    else scheduleGroups.push({ time: t, orders: [o] });
+  });
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
@@ -148,6 +170,54 @@ export default function StaffDashboard() {
           ))}
         </View>
 
+        {/* Today's Schedule */}
+        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>TODAY'S SCHEDULE</Text>
+        {scheduleGroups.length === 0 ? (
+          <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14 }]}>
+            <Feather name="calendar" size={22} color="rgba(255,255,255,0.2)" />
+            <Text style={[{ color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter_400Regular', fontSize: 13 }]}>No scheduled pickups or deliveries today</Text>
+          </View>
+        ) : scheduleGroups.map((group) => (
+          <View key={group.time} style={{ gap: 8 }}>
+            <View style={styles.timeRow}>
+              <Feather name="clock" size={12} color={ACCENT} />
+              <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{group.time}</Text>
+            </View>
+            {group.orders.map((order: any) => {
+              const items = Array.isArray(order.items) ? order.items : [];
+              const statusColors: Record<string, string> = {
+                received: '#3B82F6', being_prepared: ACCENT, ready_for_pickup: '#22C55E',
+                completed: '#6B7280', cancelled: '#EF4444',
+              };
+              const sc = statusColors[order.status] ?? '#3B82F6';
+              return (
+                <Pressable
+                  key={order.id}
+                  onPress={() => router.push('/(staff)/orders')}
+                  style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderLeftColor: sc, borderLeftWidth: 3 }]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
+                      <View style={[{ backgroundColor: `${sc}22`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
+                        <Text style={[{ color: sc, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
+                      </View>
+                      <View style={[{ backgroundColor: order.type === 'delivery' ? '#8B5CF622' : '#40C0F222', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
+                        <Text style={[{ color: order.type === 'delivery' ? '#8B5CF6' : '#40C0F2', fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'capitalize' }]}>{order.type}</Text>
+                      </View>
+                    </View>
+                    <Text style={[{ color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular', fontSize: 12 }]} numberOfLines={1}>
+                      {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
+                      {items.length > 3 ? ` +${items.length - 3} more` : ''}
+                    </Text>
+                  </View>
+                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+
         {/* Urgent Tasks */}
         {urgentTasks.length > 0 && (
           <>
@@ -196,4 +266,7 @@ const styles = StyleSheet.create({
   actionLabel: { fontSize: 13 },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   taskCheck: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  emptySchedule: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
+  scheduleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
 });
