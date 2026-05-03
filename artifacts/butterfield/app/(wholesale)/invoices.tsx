@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -86,18 +85,24 @@ export default function WholesaleInvoices() {
   const handleView = async (invoice: Invoice) => {
     setActionId(invoice.id);
     try {
-      const html = generateInvoiceHtml(buildInvoiceData(invoice));
       if (Platform.OS === 'web') {
+        const html = generateInvoiceHtml(buildInvoiceData(invoice));
         const win = window.open('', '_blank');
         if (win) { win.document.write(html); win.document.close(); win.focus(); }
         return;
       }
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await WebBrowser.openBrowserAsync(uri, {
-        toolbarColor: '#1C1C1E',
-        controlsColor: '#40C0F2',
-        dismissButtonStyle: 'close',
-      });
+      // On native: generate PDF then share/open via system viewer
+      const uri = await getPdfUri(invoice);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Invoice ${invoice.number}`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        await Print.printAsync({ uri });
+      }
     } catch (e: any) {
       Alert.alert('View Error', e?.message ?? 'Could not open invoice.');
     } finally {
@@ -185,7 +190,6 @@ export default function WholesaleInvoices() {
               <View style={[styles.invoiceDivider, { backgroundColor: BORDER }]} />
 
               <View style={styles.invoiceActions}>
-                {/* View button */}
                 <Pressable
                   onPress={() => handleView(invoice)}
                   disabled={isViewing || isPdfLoading}
@@ -194,14 +198,13 @@ export default function WholesaleInvoices() {
                   {isViewing ? (
                     <ActivityIndicator size="small" color={BLUE} />
                   ) : (
-                    <Feather name="eye" size={14} color={BLUE} />
+                    <Feather name="file-text" size={14} color={BLUE} />
                   )}
                   <Text style={[styles.invoiceBtnText, { color: BLUE, fontFamily: 'Inter_600SemiBold' }]}>
-                    {isViewing ? 'Opening…' : 'View'}
+                    {isViewing ? 'Opening…' : 'View PDF'}
                   </Text>
                 </Pressable>
 
-                {/* Download / Share button */}
                 <Pressable
                   onPress={() => handleDownload(invoice)}
                   disabled={isPdfLoading || isViewing}

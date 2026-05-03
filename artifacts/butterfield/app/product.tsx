@@ -15,20 +15,19 @@ import { getSelectedProduct } from '@/lib/selectedProduct';
 import { api } from '@/lib/api';
 
 const { width: W, height: H } = Dimensions.get('window');
-const HERO_H = Math.round(H * 0.42);
+const HERO_H = Math.round(H * 0.46);
+const PHOTO_SIZE = Math.round(W * 0.62);
 
 const BLUE   = '#40C0F2';
 const RED    = '#F40009';
-const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#F0F0F0';
-const BG     = '#F5F6FA';
+const BORDER = '#E8E8E8';
 
 function priceDollars(cents?: number | null): string {
   if (!cents) return '';
-  return `$${(cents / 100).toFixed(2)}`;
+  return `AUD ${(cents / 100).toFixed(2)}`;
 }
 
 function parseArr(val: any): string[] {
@@ -40,7 +39,6 @@ function parseArr(val: any): string[] {
   return [];
 }
 
-// ── Dietary chip ──────────────────────────────────────────────────────────────
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛',
   'Nut-Free': '🥜', Halal: '☪️', Kosher: '✡️', 'Low-Sugar': '🍬',
@@ -64,25 +62,20 @@ function AllergenChip({ label }: { label: string }) {
   );
 }
 
-// ── Detail section ────────────────────────────────────────────────────────────
 function DetailSection({ icon, title, content }: { icon: string; title: string; content: string }) {
   if (!content?.trim()) return null;
   return (
     <View style={detail.wrap}>
-      <View style={detail.header}>
-        <Feather name={icon as any} size={14} color={MUTED} />
-        <Text style={[detail.title, { fontFamily: 'Inter_700Bold', color: TEXT }]}>{title}</Text>
-      </View>
-      <Text style={[detail.body, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{content}</Text>
+      <Text style={[detail.title, { fontFamily: 'Inter_600SemiBold' }]}>{title}</Text>
+      <Text style={[detail.body, { fontFamily: 'Inter_400Regular' }]}>{content}</Text>
     </View>
   );
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
-function Badge({ label, color }: { label: string; color: string }) {
+function StatusPill({ label, color, textColor }: { label: string; color: string; textColor?: string }) {
   return (
-    <View style={[badge.wrap, { backgroundColor: color }]}>
-      <Text style={[badge.text, { fontFamily: 'Inter_700Bold' }]}>{label}</Text>
+    <View style={[pill.wrap, { backgroundColor: color }]}>
+      <Text style={[pill.text, { fontFamily: 'Inter_700Bold', color: textColor ?? '#fff' }]}>{label}</Text>
     </View>
   );
 }
@@ -137,7 +130,7 @@ export default function ProductDetailScreen() {
   const options      = getOptions(category);
   const photoUrl     = product.images?.[0] ?? null;
 
-  const priceCents   = (product as any).priceCents      ?? product.prices?.[0]?.unit_amount ?? 0;
+  const priceCents   = (product as any).priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
   const saleCents    = (product as any).salePriceCents;
   const displayCents = saleCents ?? priceCents;
   const pricePerItem = displayCents / 100;
@@ -150,11 +143,11 @@ export default function ProductDetailScreen() {
   const ingredients  = (product as any).ingredients        ?? product.metadata?.ingredients ?? '';
   const storage      = (product as any).storageInstructions ?? product.metadata?.storageInstructions ?? '';
   const serving      = (product as any).servingInstructions ?? product.metadata?.servingInstructions ?? '';
-  const available    = product.metadata?.available !== 'false';
   const isNew        = product.metadata?.isNew === 'true'         || (product as any).isNew;
   const isLimited    = product.metadata?.isLimitedDrop === 'true' || (product as any).isLimitedDrop;
   const isSoldOut    = product.metadata?.available === 'false'    || (product as any).isSoldOut;
   const isComingSoon = product.metadata?.isComingSoon === 'true'  || (product as any).isComingSoon;
+  const available    = !isSoldOut && !isComingSoon;
   const gst          = (product as any).gstIncluded !== false;
 
   const minQty = (product as any).minOrderQty ?? 1;
@@ -198,70 +191,86 @@ export default function ProductDetailScreen() {
   return (
     <View style={s.root}>
 
-      {/* ── HERO ──────────────────────────────────────────────────────── */}
-      <View style={[s.hero, { height: HERO_H }]}>
-        {photoUrl ? (
-          <Image
-            source={{ uri: photoUrl }}
-            style={s.heroImage}
-            contentFit="cover"
-            transition={300}
-          />
-        ) : (
-          <View style={[s.heroFallback, { backgroundColor: palette.bg }]}>
-            {product.name.toUpperCase().split(' ').map((word, i) => (
-              <Text key={i} style={[s.watermark, { color: palette.banner }]}>{word}</Text>
-            ))}
-            <Text style={s.heroEmoji}>{palette.emoji}</Text>
-          </View>
-        )}
+      {/* ── HERO: coloured background with floating photo ──────────────── */}
+      <View style={[s.hero, { height: HERO_H, backgroundColor: BLUE }]}>
 
-        {/* Gradient overlay at bottom */}
         {/* Back button */}
-        <Pressable onPress={() => router.back()} style={[s.overlayBtn, { top: insets.top + 12, left: 16 }]} hitSlop={12}>
-          <Feather name="arrow-left" size={20} color="#1C1C1E" />
+        <Pressable
+          onPress={() => router.back()}
+          style={[s.navBtn, { top: insets.top + 10, left: 16 }]}
+          hitSlop={12}
+        >
+          <Feather name="arrow-left" size={20} color={TEXT} />
         </Pressable>
 
         {/* Favourite button */}
-        <Pressable onPress={handleFavouriteToggle} disabled={togglingFav}
-          style={[s.overlayBtn, { top: insets.top + 12, right: 16 }]} hitSlop={12}>
-          <Feather name="heart" size={18} color={isFavourited ? RED : '#1C1C1E'}
-            style={{ opacity: togglingFav ? 0.5 : 1 }} />
+        <Pressable
+          onPress={handleFavouriteToggle}
+          disabled={togglingFav}
+          style={[s.navBtn, { top: insets.top + 10, right: 16 }]}
+          hitSlop={12}
+        >
+          <Feather
+            name="heart"
+            size={18}
+            color={isFavourited ? RED : TEXT}
+            style={{ opacity: togglingFav ? 0.5 : 1 }}
+          />
         </Pressable>
 
-      </View>
-
-      {/* ── SCROLLABLE CONTENT ────────────────────────────────────────── */}
-      <View style={s.sheet}>
-        {/* Name + price */}
-        <View style={s.nameRow}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={[s.productName, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
-            {shortDesc ? (
-              <Text style={[s.shortDesc, { fontFamily: 'Inter_400Regular' }]}>{shortDesc}</Text>
-            ) : null}
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
-            <Text style={[s.price, { fontFamily: 'Inter_700Bold' }]}>{priceDollars(displayCents)}</Text>
-            {saleCents && priceCents !== saleCents ? (
-              <Text style={[s.wasPrice, { fontFamily: 'Inter_400Regular' }]}>{priceDollars(priceCents)}</Text>
-            ) : null}
-            {gst && <Text style={[s.gstNote, { fontFamily: 'Inter_400Regular' }]}>inc. GST</Text>}
-          </View>
+        {/* Floating product photo card */}
+        <View style={s.photoCard}>
+          {photoUrl ? (
+            <Image
+              source={{ uri: photoUrl }}
+              style={s.photo}
+              contentFit="contain"
+              transition={300}
+            />
+          ) : (
+            <View style={[s.photoFallback, { backgroundColor: palette.bg }]}>
+              <Text style={s.fallbackEmoji}>{palette.emoji}</Text>
+            </View>
+          )}
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 20, paddingBottom: 32 }}>
+        {/* Status pills — top-right of photo, inside hero */}
+        {(isNew || isLimited || isComingSoon || isSoldOut) && (
+          <View style={s.pillRow}>
+            {isNew       && <StatusPill label="NEW"          color="#1C1C1E" />}
+            {isLimited   && <StatusPill label="LIMITED"      color={RED} />}
+            {isComingSoon&& <StatusPill label="COMING SOON"  color={AMBER} textColor={TEXT} />}
+            {isSoldOut   && <StatusPill label="SOLD OUT"     color="#6B7280" />}
+          </View>
+        )}
+      </View>
+
+      {/* ── WHITE SHEET ───────────────────────────────────────────────── */}
+      <View style={s.sheet}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        >
+          {/* Name */}
+          <Text style={[s.name, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
+
+          {/* Short description / about */}
+          {(shortDesc || product.description) ? (
+            <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>
+              {shortDesc || product.description}
+            </Text>
+          ) : null}
 
           {/* Dietary tags */}
           {dietaryTags.length > 0 && (
-            <View style={s.chipRow}>
+            <View style={[s.chipRow, { marginTop: 14 }]}>
               {dietaryTags.map(t => <DietaryChip key={t} label={t} />)}
             </View>
           )}
 
-          {/* Tags */}
+          {/* Flavour tags */}
           {tags.length > 0 && (
-            <View style={s.chipRow}>
+            <View style={[s.chipRow, { marginTop: 8 }]}>
               {tags.map(t => (
                 <View key={t} style={chip.tag}>
                   <Text style={[chip.tagText, { fontFamily: 'Inter_500Medium' }]}>{t}</Text>
@@ -270,84 +279,70 @@ export default function ProductDetailScreen() {
             </View>
           )}
 
-          {/* Full description */}
-          {product.description ? (
-            <View style={s.descBlock}>
-              <View style={s.sectionHeaderRow}>
-                <Feather name="info" size={13} color={MUTED} />
-                <Text style={[s.sectionHeaderText, { fontFamily: 'Inter_700Bold' }]}>About this product</Text>
+          {/* ── Price + Quantity row ───────────────────────────────────── */}
+          <View style={s.priceQtyCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.priceLabel, { fontFamily: 'Inter_600SemiBold' }]}>PRICE</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                <Text style={[s.priceValue, { fontFamily: 'Inter_700Bold' }]}>
+                  {priceDollars(displayCents)}
+                </Text>
+                {saleCents && priceCents !== saleCents && (
+                  <Text style={[s.wasPrice, { fontFamily: 'Inter_400Regular' }]}>
+                    {priceDollars(priceCents)}
+                  </Text>
+                )}
               </View>
-              <Text style={[s.descText, { fontFamily: 'Inter_400Regular' }]}>{product.description}</Text>
+              {gst && <Text style={[s.gstNote, { fontFamily: 'Inter_400Regular' }]}>inc. GST</Text>}
             </View>
-          ) : null}
 
-          {/* Allergens */}
-          {allergens.length > 0 && (
-            <View style={s.allergenBlock}>
-              <View style={s.sectionHeaderRow}>
-                <Feather name="alert-triangle" size={13} color={AMBER} />
-                <Text style={[s.sectionHeaderText, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Contains</Text>
-              </View>
-              <View style={s.chipRow}>
-                {allergens.map(a => <AllergenChip key={a} label={a} />)}
-              </View>
-            </View>
-          )}
-
-          {/* Ingredients */}
-          <DetailSection icon="list" title="Ingredients" content={ingredients} />
-          <DetailSection icon="archive" title="Storage" content={storage} />
-          <DetailSection icon="coffee" title="Best Enjoyed" content={serving} />
-
-          {(isNew || isLimited || isComingSoon || isSoldOut) && (
-            <View style={s.flagRow}>
-              {isNew && <Badge label="NEW" color="#1C1C1E" />}
-              {isLimited && <Badge label="LIMITED DROP" color={RED} />}
-              {isComingSoon && <Badge label="COMING SOON" color={AMBER} />}
-              {isSoldOut && <Badge label="SOLD OUT" color="#6B7280" />}
-            </View>
-          )}
-
-          {/* Divider */}
-          <View style={s.divider} />
-
-          {/* Quantity */}
-          <View>
-            <Text style={[s.sectionLabel, { fontFamily: 'Inter_700Bold' }]}>Quantity</Text>
-            <View style={s.qtyRow}>
+            {/* Qty stepper */}
+            <View style={s.stepper}>
               <Pressable
                 onPress={() => { if (qty > minQty) { setQty(q => q - 1); Haptics.selectionAsync(); } }}
-                style={[s.qtyBtn, { borderColor: qty <= minQty ? BORDER : '#D1D5DB' }]}
+                style={[s.stepBtn, { borderColor: BORDER, backgroundColor: qty <= minQty ? '#F3F4F6' : '#fff' }]}
               >
-                <Feather name="minus" size={16} color={qty <= minQty ? BORDER : TEXT} />
+                <Feather name="minus" size={16} color={qty <= minQty ? MUTED : TEXT} />
               </Pressable>
-              <Text style={[s.qtyNum, { fontFamily: 'Inter_700Bold' }]}>{qty}</Text>
+              <Text style={[s.stepNum, { fontFamily: 'Inter_700Bold' }]}>{qty}</Text>
               <Pressable
                 onPress={() => { if (qty < maxQty) { setQty(q => q + 1); Haptics.selectionAsync(); } }}
-                style={[s.qtyBtn, { borderColor: BLUE, backgroundColor: BLUE }]}
+                style={[s.stepBtn, { backgroundColor: BLUE, borderColor: BLUE }]}
               >
                 <Feather name="plus" size={16} color="#fff" />
               </Pressable>
             </View>
-            {maxQty < 99 && (
-              <Text style={[{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12, marginTop: 6 }]}>Max {maxQty} per order</Text>
-            )}
           </View>
+
+          {maxQty < 99 && (
+            <Text style={[{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12, marginTop: 6, marginLeft: 2 }]}>
+              Max {maxQty} per order
+            </Text>
+          )}
 
           {/* Customise options */}
           {options.length > 0 && (
-            <>
-              <Text style={[s.sectionLabel, { fontFamily: 'Inter_700Bold' }]}>Customise</Text>
+            <View style={{ marginTop: 20, gap: 14 }}>
+              <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Customise</Text>
               {options.map((section: any) => (
-                <View key={section.label} style={s.sectionBlock}>
-                  <Text style={[s.optionLabel, { fontFamily: 'Inter_600SemiBold' }]}>{section.label}</Text>
-                  <View style={s.chipsWrap}>
+                <View key={section.label} style={{ gap: 8 }}>
+                  <Text style={[s.optLabel, { fontFamily: 'Inter_600SemiBold' }]}>{section.label}</Text>
+                  <View style={s.chipRow}>
                     {section.choices.map((choice: string) => {
                       const sel = (selections[section.label] ?? []).includes(choice);
                       return (
-                        <Pressable key={choice} onPress={() => toggle(section.label, choice)}
-                          style={[s.chip, sel ? { backgroundColor: palette.banner, borderColor: palette.banner } : { backgroundColor: '#fff', borderColor: '#E5E7EB' }]}>
-                          <Text style={[s.chipText, { fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular', color: sel ? '#fff' : TEXT }]}>
+                        <Pressable
+                          key={choice}
+                          onPress={() => toggle(section.label, choice)}
+                          style={[s.selChip, sel
+                            ? { backgroundColor: palette.banner, borderColor: palette.banner }
+                            : { backgroundColor: '#fff', borderColor: BORDER }
+                          ]}
+                        >
+                          <Text style={[s.selChipText, {
+                            fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                            color: sel ? '#fff' : TEXT,
+                          }]}>
                             {choice}
                           </Text>
                         </Pressable>
@@ -356,23 +351,56 @@ export default function ProductDetailScreen() {
                   </View>
                 </View>
               ))}
-            </>
+            </View>
           )}
+
+          {/* Allergens */}
+          {allergens.length > 0 && (
+            <View style={[s.allergenCard, { marginTop: 20 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Feather name="alert-triangle" size={13} color={AMBER} />
+                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Contains</Text>
+              </View>
+              <View style={s.chipRow}>
+                {allergens.map(a => <AllergenChip key={a} label={a} />)}
+              </View>
+            </View>
+          )}
+
+          {/* Extra details */}
+          {(ingredients || storage || serving) ? (
+            <View style={{ marginTop: 20, gap: 16 }}>
+              <DetailSection icon="list"    title="Ingredients"  content={ingredients} />
+              <DetailSection icon="archive" title="Storage"      content={storage} />
+              <DetailSection icon="coffee"  title="Best Enjoyed" content={serving} />
+            </View>
+          ) : null}
+
+          {/* Full description (if different from shortDesc) */}
+          {product.description && shortDesc && product.description !== shortDesc ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', marginBottom: 6 }]}>About</Text>
+              <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>{product.description}</Text>
+            </View>
+          ) : null}
 
         </ScrollView>
       </View>
 
-      {/* ── FIXED FOOTER ──────────────────────────────────────────────── */}
+      {/* ── FOOTER ────────────────────────────────────────────────────── */}
       <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
         {isSoldOut ? (
           <View style={s.soldOutBtn}>
             <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold' }]}>Currently Sold Out</Text>
           </View>
+        ) : isComingSoon ? (
+          <View style={[s.soldOutBtn, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
+            <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Coming Soon</Text>
+          </View>
         ) : (
-          <Pressable onPress={handleAddToCart} style={[s.addBtn, { backgroundColor: '#1C1C1E' }]}>
-            <Feather name="shopping-bag" size={18} color="#fff" />
+          <Pressable onPress={handleAddToCart} style={[s.addBtn, { backgroundColor: BLUE }]}>
             <Text style={[s.addBtnText, { fontFamily: 'Inter_700Bold' }]}>
-              Add to Order{qty > 1 ? ` (${qty})` : ''} — ${total.toFixed(2)}
+              Add to bag · AUD {total.toFixed(2)}
             </Text>
           </Pressable>
         )}
@@ -382,47 +410,57 @@ export default function ProductDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  root:       { flex: 1, backgroundColor: '#fff' },
-  hero:       { position: 'relative', width: W, overflow: 'hidden', backgroundColor: '#F0EDE8' },
-  heroImage:  { width: '100%', height: '100%' },
-  heroFallback:{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  watermark:  { fontSize: 56, lineHeight: 60, opacity: 0.18, fontWeight: '900', letterSpacing: 2, position: 'absolute' },
-  heroEmoji:  { fontSize: 80, lineHeight: 100, zIndex: 2 },
-  overlayBtn: { position: 'absolute', zIndex: 10, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  sheet:      { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, paddingHorizontal: 20, paddingTop: 18 },
-  nameRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
-  productName:{ fontSize: 22, color: TEXT, lineHeight: 28, flex: 1 },
-  shortDesc:  { fontSize: 13, color: MUTED, lineHeight: 18, marginTop: 2 },
-  price:      { fontSize: 24, color: TEXT },
-  wasPrice:   { fontSize: 14, color: MUTED, textDecorationLine: 'line-through' },
-  gstNote:    { fontSize: 11, color: MUTED },
-  chipRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  sectionHeaderRow:{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  sectionHeaderText:{ fontSize: 13, color: TEXT },
-  descBlock:  { gap: 0 },
-  descText:   { fontSize: 14, color: MUTED, lineHeight: 21 },
-  allergenBlock:{ backgroundColor: '#FFFBEB', padding: 14, borderRadius: 12, gap: 10 },
-  divider:    { height: 1, backgroundColor: BORDER },
-  sectionLabel:{ fontSize: 16, color: TEXT, marginBottom: 10 },
-  optionLabel: { fontSize: 14, color: TEXT, marginBottom: 8 },
-  sectionBlock:{ gap: 0 },
-  qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  qtyBtn:     { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  qtyNum:     { fontSize: 22, color: TEXT, minWidth: 32, textAlign: 'center' },
-  chipsWrap:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip:       { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5 },
-  chipText:   { fontSize: 14 },
-  footer:     { backgroundColor: '#fff', paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
-  addBtn:     { borderRadius: 30, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  addBtnText: { color: '#fff', fontSize: 16 },
-  soldOutBtn: { borderRadius: 30, padding: 18, alignItems: 'center', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
-  soldOutText:{ color: MUTED, fontSize: 16 },
-  flagRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  root:         { flex: 1, backgroundColor: '#F5F6FA' },
+
+  // Hero
+  hero:         { position: 'relative', width: W, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 28 },
+  navBtn:       { position: 'absolute', zIndex: 10, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 20, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  photoCard:    { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 24, backgroundColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8, alignItems: 'center', justifyContent: 'center' },
+  photo:        { width: '100%', height: '100%' },
+  photoFallback:{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  fallbackEmoji:{ fontSize: 72 },
+  pillRow:      { position: 'absolute', top: 12, right: 16, flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', zIndex: 5 },
+
+  // Sheet
+  sheet:        { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, paddingHorizontal: 22, paddingTop: 22 },
+
+  // Text
+  name:         { fontSize: 26, color: TEXT, lineHeight: 32, marginBottom: 8 },
+  desc:         { fontSize: 14, color: MUTED, lineHeight: 22 },
+  sectionTitle: { fontSize: 14, color: TEXT },
+  optLabel:     { fontSize: 13, color: MUTED },
+
+  // Price + Qty card
+  priceQtyCard: { flexDirection: 'row', alignItems: 'center', marginTop: 18, borderWidth: 1, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, backgroundColor: '#FAFAFA' },
+  priceLabel:   { fontSize: 11, color: MUTED, letterSpacing: 0.8, marginBottom: 2 },
+  priceValue:   { fontSize: 22, color: TEXT },
+  wasPrice:     { fontSize: 14, color: MUTED, textDecorationLine: 'line-through' },
+  gstNote:      { fontSize: 11, color: MUTED, marginTop: 2 },
+
+  // Stepper
+  stepper:      { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  stepBtn:      { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  stepNum:      { fontSize: 20, color: TEXT, minWidth: 28, textAlign: 'center' },
+
+  // Chips
+  chipRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selChip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5 },
+  selChipText:  { fontSize: 13 },
+
+  // Allergens
+  allergenCard: { backgroundColor: '#FFFBEB', padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#FDE68A' },
+
+  // Footer
+  footer:       { backgroundColor: '#fff', paddingHorizontal: 20, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER },
+  addBtn:       { borderRadius: 30, paddingVertical: 17, alignItems: 'center', justifyContent: 'center' },
+  addBtnText:   { color: '#fff', fontSize: 16 },
+  soldOutBtn:   { borderRadius: 30, paddingVertical: 17, alignItems: 'center', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
+  soldOutText:  { color: MUTED, fontSize: 16 },
 });
 
-const badge = StyleSheet.create({
-  wrap: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  text: { color: '#fff', fontSize: 10, letterSpacing: 1 },
+const pill = StyleSheet.create({
+  wrap: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8 },
+  text: { fontSize: 10, letterSpacing: 0.8 },
 });
 
 const chip = StyleSheet.create({
@@ -431,13 +469,12 @@ const chip = StyleSheet.create({
   dietaryText: { fontSize: 12, color: '#166534' },
   allergen:    { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' },
   allergenText:{ fontSize: 12, color: '#92400E' },
-  tag:         { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: '#F3F4F6' },
+  tag:         { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: '#F0F0F0' },
   tagText:     { fontSize: 12, color: MUTED },
 });
 
 const detail = StyleSheet.create({
-  wrap:   { gap: 6 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  title:  { fontSize: 13, letterSpacing: 0.3 },
-  body:   { fontSize: 14, lineHeight: 21 },
+  wrap:  { gap: 4 },
+  title: { fontSize: 13, color: TEXT, letterSpacing: 0.3 },
+  body:  { fontSize: 13, lineHeight: 20, color: MUTED },
 });
