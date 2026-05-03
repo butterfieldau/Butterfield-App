@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -44,6 +45,7 @@ const ROLES = [
 ];
 
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
+type LocationState = 'idle' | 'acquiring' | 'ready' | 'denied' | 'error';
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -63,11 +65,14 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [locationState, setLocationState] = useState<LocationState>('idle');
 
   const roleConfig = ROLES.find((r) => r.role === selectedRole)!;
 
   const resetFields = () => {
-    setEmail(''); setPassword(''); setName(''); setPhone(''); setBirthday(''); setCompanyName(''); setAbn(''); setError(''); setSuccessMsg('');
+    setEmail(''); setPassword(''); setName(''); setPhone(''); setBirthday('');
+    setCompanyName(''); setAbn(''); setError(''); setSuccessMsg('');
+    setLocationState('idle');
   };
 
   const handleRoleSelect = (role: UserRole) => {
@@ -84,8 +89,34 @@ export default function LoginScreen() {
     if (mode === 'register' && !name.trim()) { setError('Please enter your name.'); return; }
     if (mode === 'wholesale-apply' && !companyName.trim()) { setError('Please enter your company name.'); return; }
 
-    setLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    let staffCoords: { latitude: number; longitude: number } | undefined;
+
+    if (selectedRole === 'staff' && mode === 'login') {
+      setLoading(true);
+      setLocationState('acquiring');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setLocationState('denied');
+          setError('Location permission is required for staff sign-in. Please enable location access in your device Settings.');
+          setLoading(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        staffCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        setLocationState('ready');
+      } catch {
+        setLocationState('error');
+        setError('Could not determine your location. Please ensure Location Services are enabled and try again.');
+        setLoading(false);
+        return;
+      }
+    } else {
+      setLoading(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
     try {
       if (mode === 'register') {
         const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() || undefined });
@@ -97,7 +128,7 @@ export default function LoginScreen() {
         setSuccessMsg('Application submitted! We\'ll review and get back to you within 1 business day.');
         resetFields();
       } else {
-        const res = await login(email.trim(), password, selectedRole);
+        const res = await login(email.trim(), password, selectedRole, staffCoords);
         if (!res.success) { setError(res.error ?? 'Login failed. Check your credentials.'); return; }
         router.replace('/(tabs)');
       }
@@ -107,14 +138,28 @@ export default function LoginScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
+      if (selectedRole !== 'staff') setLocationState('idle');
     }
   };
 
   const isWholesale = selectedRole === 'wholesale';
   const isRegister = mode === 'register';
   const isWholesaleApply = mode === 'wholesale-apply';
+  const isStaff = selectedRole === 'staff';
 
-  const btnLabel = isWholesaleApply ? 'Submit Application' : isRegister ? 'Create Account' : `Sign In as ${roleConfig.label}`;
+  const btnLabel = loading
+    ? (isStaff && locationState === 'acquiring' ? 'Getting location…' : 'Signing in…')
+    : isWholesaleApply ? 'Submit Application'
+    : isRegister ? 'Create Account'
+    : `Sign In as ${roleConfig.label}`;
+
+  const locationBannerConfig = {
+    idle:     { color: '#F59E0B', bg: '#FFFBEB', text: 'Location required — you must be within range of Butterfield Merrylands.' },
+    acquiring:{ color: '#3B82F6', bg: '#EFF6FF', text: 'Getting your location…' },
+    ready:    { color: '#22C55E', bg: '#F0FDF4', text: 'Location verified. Signing in…' },
+    denied:   { color: '#EF4444', bg: '#FEF2F2', text: 'Location permission denied. Enable it in Settings.' },
+    error:    { color: '#EF4444', bg: '#FEF2F2', text: 'Could not get location. Check Location Services.' },
+  }[locationState];
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -158,6 +203,20 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.fields}>
+            {/* Staff geolocation banner */}
+            {isStaff && mode === 'login' && (
+              <View style={[styles.geoBanner, { backgroundColor: locationBannerConfig.bg, borderColor: locationBannerConfig.color + '40' }]}>
+                {locationState === 'acquiring' ? (
+                  <ActivityIndicator size="small" color={locationBannerConfig.color} />
+                ) : (
+                  <Feather name="map-pin" size={14} color={locationBannerConfig.color} />
+                )}
+                <Text style={[styles.geoBannerText, { color: locationBannerConfig.color, fontFamily: 'Inter_500Medium' }]}>
+                  {locationBannerConfig.text}
+                </Text>
+              </View>
+            )}
+
             {isWholesale && (
               <View style={[styles.wholesaleToggle, { backgroundColor: colors.muted, borderRadius: 12 }]}>
                 <Pressable
@@ -258,9 +317,12 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            <Pressable onPress={handleSubmit} disabled={loading} style={[styles.submitBtn, { backgroundColor: colors.primary, borderRadius: 14 }]}>
+            <Pressable onPress={handleSubmit} disabled={loading} style={[styles.submitBtn, { backgroundColor: colors.primary, borderRadius: 14, opacity: loading ? 0.85 : 1 }]}>
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={[styles.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>{btnLabel}</Text>
+                </View>
               ) : (
                 <Text style={[styles.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>{btnLabel}</Text>
               )}
@@ -302,7 +364,7 @@ const styles = StyleSheet.create({
   logoBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   brand: { color: '#fff', fontSize: 30, letterSpacing: -0.5 },
   tagline: { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
-  formContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 28, gap: 20 },
+  formContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 28, gap: 20, paddingBottom: 40 },
   signInLabel: { fontSize: 15 },
   roleRow: { flexDirection: 'row', gap: 10 },
   roleCard: { flex: 1, padding: 14, gap: 6, alignItems: 'center' },
@@ -310,6 +372,11 @@ const styles = StyleSheet.create({
   roleLabel: { fontSize: 14 },
   roleSub: { fontSize: 10, textAlign: 'center', color: '#8E8E93' },
   fields: { gap: 12 },
+  geoBanner: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+    padding: 12, borderRadius: 10, borderWidth: 1,
+  },
+  geoBannerText: { flex: 1, fontSize: 12, lineHeight: 17 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1 },
   input: { flex: 1, fontSize: 15 },
   errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },

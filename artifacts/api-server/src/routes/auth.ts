@@ -1,11 +1,40 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable } from '@workspace/db';
 import { eq } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 
 const router = Router();
+
+const SHOP_LAT_DEFAULT  = -33.8349;
+const SHOP_LNG_DEFAULT  = 150.9942;
+const RADIUS_DEFAULT    = 20;
+
+function haversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function getGeoSettings() {
+  await db.insert(storeSettingsTable).values([
+    { key: 'geo_radius_meters', value: String(RADIUS_DEFAULT) },
+    { key: 'shop_lat',          value: String(SHOP_LAT_DEFAULT) },
+    { key: 'shop_lng',          value: String(SHOP_LNG_DEFAULT) },
+  ]).onConflictDoNothing();
+  const rows = await db.select().from(storeSettingsTable);
+  const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  return {
+    shopLat:      parseFloat(map['shop_lat']          ?? String(SHOP_LAT_DEFAULT)),
+    shopLng:      parseFloat(map['shop_lng']          ?? String(SHOP_LNG_DEFAULT)),
+    radiusMeters: parseInt(  map['geo_radius_meters'] ?? String(RADIUS_DEFAULT)),
+  };
+}
 
 function generateReferralCode(name: string): string {
   const prefix = name.replace(/\s+/g, '').toUpperCase().slice(0, 4);
@@ -45,14 +74,35 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/staff-login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, latitude, longitude } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (!user || user.role !== 'staff') return res.status(401).json({ error: 'Staff account not found.' });
+
   const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
-  if (!staffProfile?.approvedByAdmin) return res.status(403).json({ error: 'Your staff account is pending approval.' });
+  if (!staffProfile?.approvedByAdmin) {
+    return res.status(403).json({ error: 'Your staff account is pending approval.' });
+  }
+
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
+
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return res.status(403).json({ error: 'Location verification is required for staff sign-in. Please enable location services.' });
+  }
+
+  const geo = await getGeoSettings();
+  const distanceMeters = haversineDistanceMeters(latitude, longitude, geo.shopLat, geo.shopLng);
+
+  if (distanceMeters > geo.radiusMeters) {
+    return res.status(403).json({
+      error: `You must be within ${geo.radiusMeters}m of Butterfield Merrylands to sign in. You are currently ${Math.round(distanceMeters)}m away.`,
+      distanceMeters: Math.round(distanceMeters),
+      radiusMeters: geo.radiusMeters,
+    });
+  }
+
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -75,20 +125,15 @@ router.post('/wholesale-apply', async (req, res) => {
 router.patch('/me', requireAuth, async (req, res) => {
   const user = req.user!;
   const { name, phone, deliveryAddress } = req.body;
-
   const userUpdates: Record<string, any> = {};
   if (name) userUpdates.name = name.trim();
   if (phone) userUpdates.phone = phone.trim();
   if (Object.keys(userUpdates).length > 0) {
     await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, user.id));
   }
-
   if (typeof deliveryAddress !== 'undefined' && user.role === 'customer') {
-    await db.update(customerProfilesTable)
-      .set({ deliveryAddress })
-      .where(eq(customerProfilesTable.userId, user.id));
+    await db.update(customerProfilesTable).set({ deliveryAddress }).where(eq(customerProfilesTable.userId, user.id));
   }
-
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
   let profile = null;
   if (dbUser.role === 'customer') {
@@ -102,7 +147,6 @@ router.get('/me', requireAuth, async (req, res) => {
   const user = req.user!;
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
   if (!dbUser) return res.status(404).json({ error: 'User not found' });
-
   let profile = null;
   if (dbUser.role === 'customer') {
     const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));

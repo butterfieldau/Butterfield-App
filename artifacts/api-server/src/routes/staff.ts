@@ -1,11 +1,52 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable } from '@workspace/db';
+import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, storeSettingsTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
 router.use(requireRole('staff'));
+
+const SHOP_LAT_DEFAULT  = -33.8349;
+const SHOP_LNG_DEFAULT  = 150.9942;
+const RADIUS_DEFAULT    = 20;
+
+async function ensureGeoDefaults() {
+  await db.insert(storeSettingsTable).values([
+    { key: 'geo_radius_meters', value: String(RADIUS_DEFAULT) },
+    { key: 'shop_lat',          value: String(SHOP_LAT_DEFAULT) },
+    { key: 'shop_lng',          value: String(SHOP_LNG_DEFAULT) },
+  ]).onConflictDoNothing();
+}
+
+router.get('/settings/geo', async (req, res) => {
+  await ensureGeoDefaults();
+  const rows = await db.select().from(storeSettingsTable);
+  const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  return res.json({
+    data: {
+      shopLat:      parseFloat(map['shop_lat']          ?? String(SHOP_LAT_DEFAULT)),
+      shopLng:      parseFloat(map['shop_lng']          ?? String(SHOP_LNG_DEFAULT)),
+      radiusMeters: parseInt(  map['geo_radius_meters'] ?? String(RADIUS_DEFAULT)),
+    },
+  });
+});
+
+router.patch('/settings/geo', async (req, res) => {
+  const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
+  if (!profile?.isManager) {
+    return res.status(403).json({ error: 'Only managers can update geo settings.' });
+  }
+  const { radiusMeters } = req.body;
+  if (typeof radiusMeters !== 'number' || radiusMeters < 5 || radiusMeters > 500) {
+    return res.status(400).json({ error: 'Radius must be between 5 and 500 meters.' });
+  }
+  await ensureGeoDefaults();
+  await db.update(storeSettingsTable)
+    .set({ value: String(radiusMeters), updatedAt: new Date(), updatedBy: req.user!.id })
+    .where(eq(storeSettingsTable.key, 'geo_radius_meters'));
+  return res.json({ data: { radiusMeters } });
+});
 
 router.post('/shifts/clock-in', async (req, res) => {
   const existing = await db.select().from(staffShiftsTable)

@@ -37,7 +37,7 @@ export const api = {
       request<{ token: string; user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     login: (data: { email: string; password: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-    staffLogin: (data: { email: string; password: string }) =>
+    staffLogin: (data: { email: string; password: string; latitude?: number; longitude?: number }) =>
       request<{ token: string; user: ApiUser }>('/auth/staff-login', { method: 'POST', body: JSON.stringify(data) }),
     wholesaleApply: (data: {
       email: string; password: string; name: string; phone?: string;
@@ -68,58 +68,22 @@ export const api = {
     rewards: () => request<{ data: LoyaltyReward[] }>('/loyalty/rewards'),
     redeem: (rewardId: string) =>
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
-    updateBirthday: (birthday: string) =>
-      request<{ data: { birthday: string } }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
   staff: {
-    clockIn: () => request<{ data: StaffShift }>('/staff/shifts/clock-in', { method: 'POST' }),
-    clockOut: (unpaidBreakMins?: number) =>
-      request<{ data: StaffShift }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins: unpaidBreakMins ?? 0 }) }),
-    currentShift: () => request<{ data: StaffShift | null }>('/staff/shifts/current'),
-    shiftStats: () => request<{ data: StaffShiftStats }>('/staff/shifts/stats'),
-    shifts: (from?: string, to?: string) => {
-      const params = new URLSearchParams();
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
-      const qs = params.toString();
-      return request<{ data: StaffShift[] }>(`/staff/shifts${qs ? `?${qs}` : ''}`);
+    profile: () => request<{ data: StaffProfile }>('/staff/profile'),
+    geoSettings: {
+      get: () => request<{ data: GeoSettings }>('/staff/settings/geo'),
+      update: (radiusMeters: number) =>
+        request<{ data: GeoSettings }>('/staff/settings/geo', { method: 'PATCH', body: JSON.stringify({ radiusMeters }) }),
     },
-    timesheet: (from?: string, to?: string, userId?: string) => {
-      const params = new URLSearchParams();
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
-      if (userId) params.set('userId', userId);
-      const qs = params.toString();
-      return request<TimesheetResponse>(`/staff/timesheet${qs ? `?${qs}` : ''}`);
-    },
-    tasks: (category?: string) => request<{ data: StaffTask[] }>(`/staff/tasks${category ? `?category=${category}` : ''}`),
-    completeTask: (id: string, isCompleted: boolean) =>
-      request<{ data: StaffTask }>(`/staff/tasks/${id}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
-    logWastage: (data: { productName: string; quantity: string; unit: string; reason: string; estimatedCostCents?: number; notes?: string }) =>
-      request<{ data: any }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
-    wastage: () => request<{ data: any[] }>('/staff/wastage'),
-    reportIssue: (data: { title: string; description: string; category?: string; priority?: string }) =>
-      request<{ data: any }>('/staff/issues', { method: 'POST', body: JSON.stringify(data) }),
-    requestLeave: (data: { startDate: string; endDate: string; type: string; reason: string }) =>
-      request<{ data: any }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
-    allOrders: () => request<{ data: ApiOrder[] }>('/staff/orders'),
-    profile: () => request<{ data: StaffProfile | null }>('/staff/profile'),
-    updateHourlyRate: (hourlyRateCents: number, userId?: string) =>
-      request<{ data: StaffProfile }>('/staff/profile/hourly-rate', {
-        method: 'PATCH', body: JSON.stringify({ hourlyRateCents, userId }),
-      }),
-    members: () => request<{ data: any[] }>('/staff/members'),
   },
   wholesale: {
-    account: () => request<{ data: any }>('/wholesale/account'),
-    products: () => request<{ data: ApiProduct[] }>('/wholesale/products'),
+    profile: () => request<{ data: any }>('/wholesale/profile'),
     orders: () => request<{ data: any[] }>('/wholesale/orders'),
-    createOrder: (data: {
-      items: any[]; poReference?: string; notes?: string;
-      totalCents: number; deliveryType: string; scheduledDate?: string;
-    }) => request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
+    createOrder: (data: any) => request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
+    invoices: () => request<{ data: any[] }>('/wholesale/invoices'),
+    catalog: () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
   },
-  announcements: () => request<{ data: any[] }>('/announcements'),
   favourites: {
     list: () => request<{ data: { productStripeId: string }[] }>('/favourites'),
     add: (productStripeId: string) =>
@@ -127,66 +91,89 @@ export const api = {
     remove: (productStripeId: string) =>
       request<{ success: boolean }>(`/favourites/${productStripeId}`, { method: 'DELETE' }),
   },
-  feedback: (data: { category: string; message: string; rating?: number; orderId?: string }) =>
-    request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
-  waitlist: (productStripeId: string) =>
-    request<{ data: any }>('/waitlist', { method: 'POST', body: JSON.stringify({ productStripeId }) }),
+  misc: {
+    announcements: () => request<{ data: any[] }>('/announcements'),
+    feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
+      request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
+  },
   payment: {
-    createIntent: (amountCents: number) =>
-      request<{ clientSecret: string; paymentIntentId: string }>('/payment/payment-intent', {
-        method: 'POST', body: JSON.stringify({ amountCents }),
-      }),
+    createIntent: (data: { amountCents: number; currency?: string }) =>
+      request<{ clientSecret: string; paymentIntentId: string }>('/payment/create-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
 };
 
-export interface ApiUser {
-  id: string; email: string; role: 'customer' | 'staff' | 'wholesale'; name: string; phone?: string;
+export interface GeoSettings {
+  shopLat: number;
+  shopLng: number;
+  radiusMeters: number;
 }
+
+export interface ApiUser {
+  id: string;
+  email: string;
+  role: string;
+  name: string;
+  phone?: string;
+}
+
 export interface ApiProduct {
-  id: string; name: string; description: string; active: boolean;
-  metadata: Record<string, string>; images?: string[];
+  id: string;
+  name: string;
+  description: string;
+  metadata?: Record<string, string>;
   prices?: { id: string; unit_amount: number; currency: string }[];
 }
+
 export interface ApiOrder {
-  id: string; userId: string; status: string; type: string;
-  scheduledFor?: string; notes?: string; totalCents: number;
-  items: any[]; loyaltyPointsEarned: number; createdAt: string;
+  id: string;
+  userId: string;
+  status: string;
+  type: string;
+  scheduledFor?: string;
+  notes?: string;
+  totalCents: number;
+  items: any[];
+  createdAt: string;
+  updatedAt: string;
+  stripePaymentIntentId?: string;
+  stripePaymentStatus?: string;
+  loyaltyPointsEarned?: number;
+  loyaltyPointsUsed?: number;
+  discountCents?: number;
+  deliveryAddress?: string;
 }
+
 export interface LoyaltyProfile {
-  userId: string; loyaltyPoints: number; loyaltyTier: string;
-  referralCode: string; birthday?: string; stampCount: number;
-  totalVisits: number; totalSpentCents: number;
+  loyaltyPoints: number;
+  loyaltyTier: string;
+  stampCount: number;
+  totalVisits: number;
+  totalSpentCents: number;
+  referralCode: string;
 }
+
 export interface LoyaltyTransaction {
-  id: string; points: number; type: string; description: string; createdAt: string;
+  id: string;
+  points: number;
+  type: string;
+  description: string;
+  createdAt: string;
 }
+
 export interface LoyaltyReward {
-  id: string; name: string; description: string; pointsCost: number; category: string; isAppOnly: boolean;
+  id: string;
+  title: string;
+  description: string;
+  pointsCost: number;
+  type: string;
+  isActive: boolean;
 }
-export interface StaffShift {
-  id: string; userId: string; clockIn: string; clockOut?: string;
-  hoursWorked?: string; unpaidBreakMins?: number;
-  name?: string; hourlyRateCents?: number; position?: string;
-}
-export interface StaffShiftStats {
-  hourlyRateCents: number; todayMins: number; todayEarningsCents: number;
-  weekMins: number; weekEarningsCents: number;
-}
+
 export interface StaffProfile {
-  userId: string; employeeId: string; position: string; department: string;
-  isManager: boolean; approvedByAdmin: boolean; hourlyRateCents: number;
-}
-export interface StaffMember {
-  userId: string; name: string | null; position: string;
-  hourlyRateCents: number; isManager: boolean;
-}
-export interface TimesheetResponse {
-  data: StaffShift[];
-  profile?: StaffProfile;
-  staff?: StaffMember[];
+  userId: string;
+  employeeId: string;
+  position: string;
+  department: string;
   isManager: boolean;
-}
-export interface StaffTask {
-  id: string; title: string; description?: string; category: string;
-  isCompleted: boolean; completedBy?: string; completedAt?: string; sortOrder: number;
+  hourlyRateCents: number;
 }

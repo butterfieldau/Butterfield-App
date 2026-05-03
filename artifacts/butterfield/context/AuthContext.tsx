@@ -14,7 +14,12 @@ export interface AuthContextUser {
 interface AuthContextValue {
   user: AuthContextUser | null;
   isLoading: boolean;
-  login: (email: string, password: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    email: string,
+    password: string,
+    role?: UserRole,
+    coords?: { latitude: number; longitude: number }
+  ) => Promise<{ success: boolean; error?: string; distanceMeters?: number; radiusMeters?: number }>;
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
   wholesaleApply: (data: { email: string; password: string; name: string; phone?: string; companyName: string; abn?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => Promise<void>;
@@ -49,12 +54,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (email: string, password: string, role?: UserRole) => {
+  const login = useCallback(async (
+    email: string,
+    password: string,
+    role?: UserRole,
+    coords?: { latitude: number; longitude: number }
+  ) => {
     if (!email.trim() || !password.trim()) return { success: false, error: 'Email and password are required.' };
     try {
       let res;
       if (role === 'staff') {
-        res = await api.auth.staffLogin({ email: email.trim(), password });
+        res = await api.auth.staffLogin({
+          email: email.trim(),
+          password,
+          latitude: coords?.latitude,
+          longitude: coords?.longitude,
+        });
       } else {
         res = await api.auth.login({ email: email.trim(), password });
       }

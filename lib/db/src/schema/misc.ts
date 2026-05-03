@@ -39,6 +39,13 @@ export const waitlistsTable = pgTable("waitlists", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const storeSettingsTable = pgTable("store_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedBy: text("updated_by"),
+});
+
 export const insertAnnouncementSchema = createInsertSchema(announcementsTable).omit({ createdAt: true });
 export const insertFeedbackSchema = createInsertSchema(feedbackTable).omit({ createdAt: true });
 export const insertWaitlistSchema = createInsertSchema(waitlistsTable).omit({ createdAt: true });
@@ -47,5 +54,6 @@ export type Announcement = typeof announcementsTable.$inferSelect;
 export type Feedback = typeof feedbackTable.$inferSelect;
 export type Waitlist = typeof waitlistsTable.$inferSelect;
 export type Favourite = typeof favouritesTable.$inferSelect;
+export type StoreSettings = typeof storeSettingsTable.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
