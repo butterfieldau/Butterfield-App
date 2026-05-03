@@ -23,6 +23,10 @@ function NativeCustomerTabs() {
         <Icon sf={{ default: 'cup.and.saucer', selected: 'cup.and.saucer.fill' }} />
         <Label>Rewards</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="cart">
+        <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
+        <Label>Order</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
         <Label>Account</Label>
@@ -84,7 +88,15 @@ function ClassicCustomerTabs() {
             isIOS ? <SymbolView name="star" tintColor={color} size={24} /> : <Feather name="coffee" size={22} color={color} />,
         }}
       />
-      <Tabs.Screen name="cart" options={{ href: null }} />
+      <Tabs.Screen
+        name="cart"
+        options={{
+          title: 'Order',
+          tabBarStyle: { display: 'none' },
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="profile"
         options={{
