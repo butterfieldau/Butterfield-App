@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { api } from '@/lib/api';
+import { api, type SavedAddress } from '@/lib/api';
 import {
   formatDateChip,
   formatTime,
@@ -80,6 +80,9 @@ export default function CartScreen() {
   const [street, setStreet]                   = useState('');
   const [suburb, setSuburb]                   = useState('');
   const [postcode, setPostcode]               = useState('');
+  const [addrState, setAddrState]             = useState('NSW');
+  const [apt, setApt]                         = useState('');
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [contactName, setContactName]         = useState('');
   const [contactPhone, setContactPhone]       = useState('');
   const [contactEmail, setContactEmail]       = useState('');
@@ -87,7 +90,26 @@ export default function CartScreen() {
   const [loading, setLoading]                 = useState(false);
   const [confirmation, setConfirmation]       = useState<Confirmation | null>(null);
 
-  // Pre-fill contact from auth user
+  // Load saved addresses
+  const { data: addrData } = useQuery({
+    queryKey: ['addresses'],
+    queryFn:  () => api.addresses.list(),
+    retry: 1,
+  });
+  const savedAddresses  = addrData?.data ?? [];
+  const defaultAddress  = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0] ?? null;
+
+  // Helper: fill delivery form from a saved address
+  const fillFromAddress = (addr: SavedAddress) => {
+    setStreet(addr.street);
+    setApt(addr.apt ?? '');
+    setSuburb(addr.suburb);
+    setPostcode(addr.postcode);
+    setAddrState(addr.state);
+    setSelectedAddressId(addr.id);
+  };
+
+  // Pre-fill contact from auth user + pre-fill default address when switching to delivery
   useEffect(() => {
     if (user) {
       if (!contactName)  setContactName(user.name ?? '');
@@ -95,6 +117,13 @@ export default function CartScreen() {
       if (!contactPhone && (user as any).phone) setContactPhone((user as any).phone);
     }
   }, [user]);
+
+  // Auto-fill default address when delivery tab is opened
+  useEffect(() => {
+    if (orderType === 'delivery' && defaultAddress && !street) {
+      fillFromAddress(defaultAddress);
+    }
+  }, [orderType, defaultAddress]);
 
   const subtotalCents = Math.round(totalPrice * 100);
   const { deliv: delivCents, surcharge: surchargeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType);
@@ -162,8 +191,9 @@ export default function CartScreen() {
         scheduledForDate = selectedDate;
         scheduledLabel = `Delivery on ${selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}`;
       }
+      const aptPart = apt.trim() ? `${apt.trim()}/` : '';
       const deliveryAddress = orderType === 'delivery'
-        ? `${street.trim()}, ${suburb.trim()} NSW ${postcode.trim()}`
+        ? `${aptPart}${street.trim()}, ${suburb.trim()} ${addrState} ${postcode.trim()}`
         : undefined;
       const order = await api.orders.create({
         items: items.map((i) => ({
@@ -444,14 +474,55 @@ export default function CartScreen() {
       {orderType === 'delivery' && (
         <>
           <SectionLabel title="DELIVERY ADDRESS" />
+
+          {/* Saved address chips */}
+          {savedAddresses.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
+              {savedAddresses.map((addr) => {
+                const isSelected = selectedAddressId === addr.id;
+                return (
+                  <Pressable
+                    key={addr.id}
+                    onPress={() => { fillFromAddress(addr); Haptics.selectionAsync(); }}
+                    style={[styles.savedAddrChip, {
+                      backgroundColor: isSelected ? LIGHT_BLUE : CARD,
+                      borderColor:     isSelected ? BLUE : BORDER,
+                      borderWidth:     isSelected ? 1.5 : 1,
+                    }]}
+                  >
+                    <Feather name={addr.label.toLowerCase() === 'home' ? 'home' : addr.label.toLowerCase() === 'work' ? 'briefcase' : 'map-pin'} size={12} color={isSelected ? BLUE : MUTED} />
+                    <Text style={[styles.savedAddrChipText, { color: isSelected ? BLUE : TEXT }]}>{addr.label}</Text>
+                    {addr.isDefault && <View style={[styles.savedAddrDot, { backgroundColor: BLUE }]} />}
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => router.push('/(customer)/addresses')}
+                style={[styles.savedAddrChip, { backgroundColor: CARD, borderColor: BORDER }]}
+              >
+                <Feather name="plus" size={12} color={MUTED} />
+                <Text style={[styles.savedAddrChipText, { color: MUTED }]}>Manage</Text>
+              </Pressable>
+            </ScrollView>
+          )}
+
           <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
             <Text style={styles.formFieldLabel}>Street address</Text>
             <TextInput
               style={[styles.formInput, { color: TEXT, borderColor: BORDER }]}
-              placeholder="e.g. 21a Villiers Street"
+              placeholder="e.g. 21 Villiers Street"
               placeholderTextColor={MUTED}
               value={street}
-              onChangeText={setStreet}
+              onChangeText={(v) => { setStreet(v); setSelectedAddressId(null); }}
+              autoCapitalize="words"
+            />
+            <Text style={styles.formFieldLabel}>Apt / unit (optional)</Text>
+            <TextInput
+              style={[styles.formInput, { color: TEXT, borderColor: BORDER }]}
+              placeholder="Unit 4"
+              placeholderTextColor={MUTED}
+              value={apt}
+              onChangeText={(v) => { setApt(v); setSelectedAddressId(null); }}
               autoCapitalize="words"
             />
             <View style={styles.formRow}>
@@ -462,7 +533,7 @@ export default function CartScreen() {
                   placeholder="Merrylands"
                   placeholderTextColor={MUTED}
                   value={suburb}
-                  onChangeText={setSuburb}
+                  onChangeText={(v) => { setSuburb(v); setSelectedAddressId(null); }}
                   autoCapitalize="words"
                 />
               </View>
@@ -473,13 +544,27 @@ export default function CartScreen() {
                   placeholder="2160"
                   placeholderTextColor={MUTED}
                   value={postcode}
-                  onChangeText={setPostcode}
+                  onChangeText={(v) => { setPostcode(v); setSelectedAddressId(null); }}
                   keyboardType="number-pad"
                   maxLength={4}
                 />
               </View>
             </View>
-            <Text style={[styles.formNote, { color: MUTED }]}>We currently only deliver in Sydney NSW.</Text>
+            <Text style={styles.formFieldLabel}>State</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+              {['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT'].map((s) => (
+                <Pressable
+                  key={s}
+                  onPress={() => { setAddrState(s); setSelectedAddressId(null); Haptics.selectionAsync(); }}
+                  style={[styles.statePill, {
+                    backgroundColor: addrState === s ? BLUE : CARD,
+                    borderColor:     addrState === s ? BLUE : BORDER,
+                  }]}
+                >
+                  <Text style={[styles.statePillText, { color: addrState === s ? '#fff' : MUTED }]}>{s}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         </>
       )}
@@ -796,4 +881,11 @@ const styles = StyleSheet.create({
   emptyIconCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   emptyTitle:      { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
   emptySub:        { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
+  // Saved address chips
+  savedAddrChip:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  savedAddrChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  savedAddrDot:      { width: 6, height: 6, borderRadius: 3, marginLeft: 2 },
+  // State pills (delivery form)
+  statePill:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  statePillText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
 });

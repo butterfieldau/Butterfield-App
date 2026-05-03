@@ -7,3 +7,4 @@ export * from "./loyalty";
 export * from "./staff";
 export * from "./wholesale_orders";
 export * from "./misc";
+export * from "./addresses";

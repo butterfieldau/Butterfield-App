@@ -91,6 +91,15 @@ export const api = {
     remove: (productStripeId: string) =>
       request<{ success: boolean }>(`/favourites/${productStripeId}`, { method: 'DELETE' }),
   },
+  addresses: {
+    list: () => request<{ data: SavedAddress[] }>('/addresses'),
+    create: (data: { label?: string; street: string; apt?: string; suburb: string; postcode: string; state?: string; isDefault?: boolean }) =>
+      request<{ data: SavedAddress }>('/addresses', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { label?: string; street?: string; apt?: string; suburb?: string; postcode?: string; state?: string; isDefault?: boolean }) =>
+      request<{ data: SavedAddress }>(`/addresses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      request<{ success: boolean }>(`/addresses/${id}`, { method: 'DELETE' }),
+  },
   misc: {
     announcements: () => request<{ data: any[] }>('/announcements'),
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
@@ -167,6 +176,20 @@ export interface LoyaltyReward {
   pointsCost: number;
   type: string;
   isActive: boolean;
+}
+
+export interface SavedAddress {
+  id: string;
+  userId: string;
+  label: string;
+  street: string;
+  apt?: string | null;
+  suburb: string;
+  postcode: string;
+  state: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface StaffProfile {

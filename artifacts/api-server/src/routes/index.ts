@@ -8,6 +8,7 @@ import staffRouter from "./staff.js";
 import wholesaleRouter from "./wholesale.js";
 import miscRouter from "./misc.js";
 import paymentRouter from "./payment.js";
+import addressesRouter from "./addresses.js";
 
 const router: IRouter = Router();
 
@@ -19,6 +20,7 @@ router.use("/loyalty", loyaltyRouter);
 router.use("/staff", staffRouter);
 router.use("/wholesale", wholesaleRouter);
 router.use("/payment", paymentRouter);
+router.use("/addresses", addressesRouter);
 router.use(miscRouter);
 
 export default router;
