@@ -120,7 +120,7 @@ export default function CartScreen() {
   if (confirmation) {
     return (
       <View style={[styles.successContainer, { backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? 80 : insets.top + 40 }]}>
-        <LinearGradient colors={['#C8833A', '#8B4513']} style={styles.successIcon}>
+        <LinearGradient colors={['#4B72C4', '#3058A8']} style={styles.successIcon}>
           <Feather name="check" size={36} color="#fff" />
         </LinearGradient>
         <Text style={[styles.successTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Order Received!</Text>
@@ -168,7 +168,7 @@ export default function CartScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={['#C8833A', '#8B4513']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Your Cart</Text>
           <Text style={[styles.headerSub, { fontFamily: 'Inter_400Regular' }]}>{totalItems} item{totalItems !== 1 ? 's' : ''}</Text>
         </LinearGradient>
@@ -252,7 +252,7 @@ export default function CartScreen() {
           </View>
 
           <Pressable onPress={handleCheckout} disabled={loading} style={[styles.checkoutBtn, { borderRadius: colors.radius }]}>
-            <LinearGradient colors={['#C8833A', '#8B4513']} style={[styles.checkoutGradient, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.checkoutGradient, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <>
                   <Feather name="credit-card" size={18} color="#fff" />

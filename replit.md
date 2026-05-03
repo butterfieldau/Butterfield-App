@@ -4,6 +4,13 @@
 A premium iOS mobile app for Butterfield Cookies, a Sydney-based cookie, coffee, and dessert café brand.
 Built with Expo SDK 54 + React Native. Backed by a real Express + PostgreSQL API server with JWT auth, Stripe integration (AUD), and full role-based portals.
 
+## Brand Design (Updated)
+- **Primary colour**: Butterfield cornflower blue `#4B72C4` / `#3058A8` (matches butterfieldcookies.com.au)
+- **Loyalty card / Coffee Club card**: Sky blue `#5AB8FF` → `#3A7FD4` gradient
+- **Background**: Light `#F5F6FA`, cards `#FFFFFF`
+- **Colours propagate via**: `constants/colors.ts` → `useColors()` hook → all screens
+- **QR code**: `react-native-qrcode-svg` installed. Per-customer QR code in the Rewards screen Coffee Club card ("My QR" button opens modal with scannable code encoding userId + referralCode)
+
 ## Architecture
 
 ```

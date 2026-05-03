@@ -63,7 +63,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={['#C8833A', '#8B4513']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={[styles.avatar, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
           <Text style={[styles.avatarText, { fontFamily: 'Inter_700Bold' }]}>{user?.name?.charAt(0).toUpperCase() ?? 'B'}</Text>
         </View>

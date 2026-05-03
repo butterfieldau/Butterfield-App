@@ -2,184 +2,409 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useColors } from '@/hooks/useColors';
+import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
 
-const TIER_CONFIG: Record<string, { label: string; color: string; next?: string; nextTarget: number; perks: string[] }> = {
-  bronze: { label: 'Bronze', color: '#CD7F32', next: 'Silver', nextTarget: 15000, perks: ['1pt per $1 spent', 'Birthday reward', 'App-only offers'] },
-  silver: { label: 'Silver', color: '#9CA3AF', next: 'Gold', nextTarget: 50000, perks: ['1.5pts per $1 spent', 'Free cookie monthly', 'Early drop access'] },
-  gold: { label: 'Gold', color: '#F59E0B', next: 'Platinum', nextTarget: 100000, perks: ['2pts per $1 spent', 'Free drink monthly', 'VIP events'] },
-  platinum: { label: 'Platinum', color: '#8B5CF6', nextTarget: 100000, perks: ['3pts per $1 spent', 'Free weekly treat', 'Private tastings', 'Priority orders'] },
-};
+const BG = '#F5F6FA';
+const BLUE_CARD = '#5AB8FF';
+const BLUE_DARK = '#3A7FD4';
+const BRAND = '#4B72C4';
+const WHITE = '#FFFFFF';
+const TEXT = '#1C1C1E';
+const MUTED = '#8E8E93';
+const BORDER = '#E8EFF9';
+
+const STAMP_COUNT = 6;
+
+const TIERS = [
+  { key: 'bronze', label: 'BRONZE', threshold: 0 },
+  { key: 'silver', label: 'SILVER', threshold: 1000 },
+  { key: 'gold', label: 'GOLD', threshold: 3000 },
+];
+
+const HOW_IT_WORKS = [
+  { icon: 'coffee', title: 'Earn 1 pt per $1', desc: 'Every dollar you spend earns 1 point automatically.' },
+  { icon: 'tag', title: '100 pts = $5 credit', desc: 'Save up your points and redeem them for store credit. No minimum spend.' },
+  { icon: 'award', title: 'Climb the tiers', desc: 'Silver at 1,000 pts · Gold at 3,000 pts (lifetime).' },
+  { icon: 'gift', title: 'Birthday treat', desc: 'Free cookie every birthday week, on us.' },
+];
 
 export default function LoyaltyScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const qc = useQueryClient();
+  const [showQR, setShowQR] = useState(false);
+  const [redeeming, setRedeeming] = useState<string | null>(null);
 
-  const { data: profileData, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['loyalty-profile'], queryFn: () => api.loyalty.profile() });
-  const { data: rewardsData } = useQuery({ queryKey: ['loyalty-rewards'], queryFn: () => api.loyalty.rewards() });
-  const { data: txnData } = useQuery({ queryKey: ['loyalty-transactions'], queryFn: () => api.loyalty.transactions() });
+  const { data: profileData, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['loyalty-profile'],
+    queryFn: () => api.loyalty.profile(),
+  });
+  const { data: rewardsData } = useQuery({
+    queryKey: ['loyalty-rewards'],
+    queryFn: () => api.loyalty.rewards(),
+  });
+  const { data: txnData } = useQuery({
+    queryKey: ['loyalty-transactions'],
+    queryFn: () => api.loyalty.transactions(),
+  });
 
   const profile = profileData?.data;
   const rewards = rewardsData?.data ?? [];
   const transactions = txnData?.data ?? [];
-  const [redeeming, setRedeeming] = useState<string | null>(null);
 
-  const tier = profile?.loyaltyTier ?? 'bronze';
-  const tierConfig = TIER_CONFIG[tier] ?? TIER_CONFIG.bronze;
-  const progress = tier !== 'platinum' ? Math.min(profile?.totalSpentCents ?? 0, tierConfig.nextTarget) / tierConfig.nextTarget : 1;
+  const pts = profile?.loyaltyPoints ?? 0;
+  const stamps = Math.min(profile?.stampCount ?? 0, STAMP_COUNT);
+  const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
+
+  const currentTier = pts >= 3000 ? TIERS[2] : pts >= 1000 ? TIERS[1] : TIERS[0];
+  const nextTier = TIERS.find((t) => t.threshold > pts);
+  const ptsToNext = nextTier ? nextTier.threshold - pts : 0;
+  const progress = nextTier ? Math.min(pts / nextTier.threshold, 1) : 1;
+
+  const qrValue = `BUTTERFIELD:${user?.id ?? ''}:${profile?.referralCode ?? ''}`;
 
   const handleRedeem = async (reward: LoyaltyReward) => {
-    if ((profile?.loyaltyPoints ?? 0) < reward.pointsCost) {
-      Alert.alert('Not enough points', `You need ${reward.pointsCost - (profile?.loyaltyPoints ?? 0)} more points.`);
+    if (pts < reward.pointsCost) {
+      Alert.alert('Not enough points', `You need ${reward.pointsCost - pts} more points.`);
       return;
     }
     Alert.alert('Redeem Reward', `Redeem "${reward.name}" for ${reward.pointsCost} points?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Redeem', onPress: async () => {
-        setRedeeming(reward.id);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        try {
-          await api.loyalty.redeem(reward.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
-          qc.invalidateQueries({ queryKey: ['loyalty-transactions'] });
-          Alert.alert('Redeemed!', `Show "${reward.name}" to the team at Butterfield.`);
-        } catch (e: any) { Alert.alert('Error', e.message); } finally { setRedeeming(null); }
-      }},
+      {
+        text: 'Redeem', onPress: async () => {
+          setRedeeming(reward.id);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          try {
+            await api.loyalty.redeem(reward.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+            qc.invalidateQueries({ queryKey: ['loyalty-transactions'] });
+            Alert.alert('Redeemed! 🎉', `Show "${reward.name}" to the team at Butterfield.`);
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          } finally {
+            setRedeeming(null);
+          }
+        },
+      },
     ]);
   };
 
-  if (isLoading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.primary} /></View>;
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}>
+        <ActivityIndicator color={BRAND} size="large" />
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}>
-      <LinearGradient colors={[tierConfig.color, '#4A2410']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Text style={[styles.headerLabel, { fontFamily: 'Inter_400Regular' }]}>Your Loyalty</Text>
-        <Text style={[styles.points, { fontFamily: 'Inter_700Bold' }]}>{profile?.loyaltyPoints ?? 0}<Text style={styles.pointsLabel}> pts</Text></Text>
-        <View style={[styles.tierBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-          <Feather name="award" size={14} color="#fff" />
-          <Text style={[styles.tierLabel, { fontFamily: 'Inter_600SemiBold' }]}>{tierConfig.label} Member</Text>
-        </View>
-      </LinearGradient>
-
-      <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 24 }}>
-        <View style={[styles.card, { backgroundColor: colors.card, borderRadius: colors.radius }]}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Tier Progress</Text>
-            {tierConfig.next && <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Next: {tierConfig.next}</Text>}
+    <>
+      <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowQR(false)}>
+          <View style={styles.qrModal}>
+            <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
+            <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
+            <View style={styles.qrBox}>
+              <QRCode value={qrValue} size={200} color={TEXT} backgroundColor={WHITE} />
+            </View>
+            <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>{profile?.referralCode ?? user?.name}</Text>
+            <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>
+              <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Close</Text>
+            </Pressable>
           </View>
-          <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
-            <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: tierConfig.color }]} />
-          </View>
-          {tier !== 'platinum' && <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>${((profile?.totalSpentCents ?? 0) / 100).toFixed(0)} of ${(tierConfig.nextTarget / 100).toFixed(0)} spent</Text>}
+        </Pressable>
+      </Modal>
+
+      <ScrollView
+        style={{ flex: 1, backgroundColor: BG }}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BRAND} />}
+      >
+        <View style={[styles.pageHeader, { paddingTop: insets.top + 16 }]}>
+          <Text style={[styles.pageLabel, { fontFamily: 'Inter_600SemiBold' }]}>REWARDS</Text>
+          <Text style={[styles.pageTitle, { fontFamily: 'Inter_700Bold' }]}>Your loyalty card</Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderRadius: colors.radius }]}>
-          <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Stamp Card — {profile?.stampCount ?? 0}/10</Text>
-          <View style={styles.stampGrid}>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <View key={i} style={[styles.stamp, { backgroundColor: i < (profile?.stampCount ?? 0) ? colors.primary : colors.muted, borderRadius: 10 }]}>
-                {i < (profile?.stampCount ?? 0) ? <Feather name="coffee" size={14} color="#fff" /> : <Text style={{ color: colors.mutedForeground, fontSize: 10 }}>{i + 1}</Text>}
+        <View style={{ paddingHorizontal: 16 }}>
+          <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.loyaltyCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <Text style={[styles.memberLabel, { fontFamily: 'Inter_600SemiBold' }]}>
+              MEMBER · {currentTier.label}
+            </Text>
+            <Text style={[styles.bigPoints, { fontFamily: 'Inter_700Bold' }]}>{pts.toLocaleString()}</Text>
+            <Text style={[styles.ptsWorth, { fontFamily: 'Inter_400Regular' }]}>
+              points · worth ${(Math.floor(pts / 100) * 5).toFixed(0)}
+            </Text>
+
+            {nextTier && (
+              <View style={styles.progressSection}>
+                <View style={styles.progressLabels}>
+                  <Text style={[styles.progressLabelText, { fontFamily: 'Inter_400Regular' }]}>
+                    {ptsToNext.toLocaleString()} pts to {nextTier.label}
+                  </Text>
+                  <Text style={[styles.progressLabelText, { fontFamily: 'Inter_600SemiBold' }]}>
+                    {pts.toLocaleString()} / {nextTier.threshold.toLocaleString()}
+                  </Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+                </View>
               </View>
-            ))}
-          </View>
-          <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Complete your card for a free coffee!</Text>
+            )}
+
+            <View style={styles.tierRow}>
+              {TIERS.map((tier, i) => {
+                const active = tier.key === currentTier.key;
+                return (
+                  <View
+                    key={tier.key}
+                    style={[styles.tierBtn, active && styles.tierBtnActive, i < TIERS.length - 1 && { marginRight: 8 }]}
+                  >
+                    <Feather name="award" size={12} color={active ? BRAND : 'rgba(255,255,255,0.6)'} />
+                    <Text style={[styles.tierBtnLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular', color: active ? BRAND : 'rgba(255,255,255,0.7)' }]}>
+                      {tier.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </LinearGradient>
         </View>
 
-        {profile?.referralCode && (
-          <View style={[styles.card, { backgroundColor: colors.card, borderRadius: colors.radius }]}>
-            <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Referral Code</Text>
-            <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Share & both earn 100 bonus points</Text>
-            <View style={[styles.refCode, { backgroundColor: colors.muted, borderRadius: 12 }]}>
-              <Text style={[{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 22, letterSpacing: 3 }]}>{profile.referralCode}</Text>
-            </View>
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Club</Text>
+          <View style={styles.buyBadge}>
+            <Text style={[styles.buyBadgeText, { fontFamily: 'Inter_500Medium' }]}>Buy 5, get 1 free</Text>
           </View>
-        )}
+        </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderRadius: colors.radius }]}>
-          <Text style={[styles.cardTitle, { color: colors.foreground, fontFamily: 'Inter_600SemiBold', marginBottom: 4 }]}>{tierConfig.label} Perks</Text>
-          {tierConfig.perks.map((p, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 3 }}>
-              <View style={[styles.perkDot, { backgroundColor: tierConfig.color }]} />
-              <Text style={[{ color: colors.foreground, fontFamily: 'Inter_400Regular', fontSize: 14 }]}>{p}</Text>
+        <View style={{ paddingHorizontal: 16 }}>
+          <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.coffeeCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <View style={styles.coffeeCardTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.coffeeLabel, { fontFamily: 'Inter_600SemiBold' }]}>COFFEE CLUB</Text>
+                <Text style={[styles.coffeeToGo, { fontFamily: 'Inter_700Bold' }]}>
+                  {stampsLeft > 0 ? `${stampsLeft} to go` : '🎉 Free coffee!'}
+                </Text>
+                <Text style={[styles.coffeeDesc, { fontFamily: 'Inter_400Regular' }]}>
+                  Earn {STAMP_COUNT} stamps to unlock your free coffee.
+                </Text>
+              </View>
+              <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }} style={styles.qrBtn}>
+                <Feather name="maximize" size={12} color={WHITE} />
+                <Text style={[styles.qrBtnText, { fontFamily: 'Inter_600SemiBold' }]}>My QR</Text>
+              </Pressable>
             </View>
-          ))}
+
+            <View style={styles.stampRow}>
+              {Array.from({ length: STAMP_COUNT }).map((_, i) => {
+                const filled = i < stamps;
+                return (
+                  <View key={i} style={[styles.stampCircle, { backgroundColor: filled ? WHITE : 'transparent', borderColor: filled ? WHITE : 'rgba(255,255,255,0.4)', borderWidth: filled ? 0 : 2, borderStyle: filled ? 'solid' : 'dashed' }]}>
+                    {filled && <Feather name="coffee" size={14} color={BLUE_DARK} />}
+                  </View>
+                );
+              })}
+            </View>
+          </LinearGradient>
+        </View>
+
+        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+          <Pressable style={styles.birthdayCard}>
+            <View style={[styles.birthdayIcon, { backgroundColor: '#EEF2FB' }]}>
+              <Text style={{ fontSize: 18 }}>🎂</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_600SemiBold' }]}>Add your birthday</Text>
+              <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular' }]}>Get a free cookie every birthday week</Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={MUTED} />
+          </Pressable>
         </View>
 
         {rewards.length > 0 && (
-          <View>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 12 }]}>Redeem Rewards</Text>
-            {rewards.map((r) => (
-              <View key={r.id} style={[styles.rewardCard, { backgroundColor: colors.card, borderRadius: colors.radius, marginBottom: 10 }]}>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={[{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{r.name}</Text>
-                    {r.isAppOnly && <View style={[styles.appOnlyBadge, { backgroundColor: colors.primary }]}><Text style={styles.appOnlyText}>APP ONLY</Text></View>}
+          <View style={{ marginTop: 24 }}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Redeem rewards</Text>
+            </View>
+            <View style={{ paddingHorizontal: 16, gap: 10 }}>
+              {rewards.map((r) => {
+                const canRedeem = pts >= r.pointsCost;
+                const isLocked = r.category === 'tier' && !canRedeem;
+                return (
+                  <View key={r.id} style={styles.rewardCard}>
+                    <View style={[styles.rewardIcon, { backgroundColor: '#EEF2FB' }]}>
+                      <Feather name={r.category === 'tier' ? 'lock' : 'tag'} size={18} color={BRAND} />
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.rewardName, { fontFamily: 'Inter_600SemiBold' }]}>{r.name}</Text>
+                        {r.category === 'tier' && (
+                          <View style={[styles.tierTag, { backgroundColor: '#F59E0B' }]}>
+                            <Text style={[styles.tierTagText, { fontFamily: 'Inter_700Bold' }]}>Gold</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.rewardDesc, { fontFamily: 'Inter_400Regular' }]}>{r.description}</Text>
+                      <Text style={[styles.rewardPts, { fontFamily: 'Inter_600SemiBold', color: r.category === 'tier' ? MUTED : BRAND }]}>
+                        {r.category === 'tier' ? 'Tier perk' : `${r.pointsCost} pts`}
+                      </Text>
+                    </View>
+                    {isLocked ? (
+                      <View style={[styles.lockedBtn, { backgroundColor: '#F0F0F0' }]}>
+                        <Text style={[styles.lockedBtnText, { fontFamily: 'Inter_500Medium' }]}>Locked</Text>
+                      </View>
+                    ) : (
+                      <Pressable
+                        onPress={() => handleRedeem(r)}
+                        disabled={redeeming === r.id || !canRedeem}
+                        style={[styles.redeemBtn, { backgroundColor: canRedeem ? WHITE : '#F0F0F0', borderColor: canRedeem ? BORDER : 'transparent', borderWidth: 1 }]}
+                      >
+                        {redeeming === r.id ? (
+                          <ActivityIndicator size="small" color={BRAND} />
+                        ) : (
+                          <Text style={[styles.redeemBtnText, { fontFamily: 'Inter_600SemiBold', color: canRedeem ? TEXT : MUTED }]}>
+                            {canRedeem ? 'Redeem' : 'Need more'}
+                          </Text>
+                        )}
+                      </Pressable>
+                    )}
                   </View>
-                  <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>{r.description}</Text>
-                  <Text style={[{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{r.pointsCost} pts</Text>
-                </View>
-                <Pressable onPress={() => handleRedeem(r)} disabled={redeeming === r.id}
-                  style={[styles.redeemBtn, { backgroundColor: (profile?.loyaltyPoints ?? 0) >= r.pointsCost ? colors.primary : colors.muted, borderRadius: 12 }]}>
-                  {redeeming === r.id ? <ActivityIndicator size="small" color="#fff" /> : (
-                    <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: (profile?.loyaltyPoints ?? 0) >= r.pointsCost ? '#fff' : colors.mutedForeground }]}>
-                      {(profile?.loyaltyPoints ?? 0) >= r.pointsCost ? 'Redeem' : 'Need more'}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-            ))}
+                );
+              })}
+            </View>
           </View>
         )}
 
         {transactions.length > 0 && (
-          <View>
-            <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 12 }]}>History</Text>
-            {transactions.slice(0, 15).map((txn) => (
-              <View key={txn.id} style={[styles.txnRow, { borderBottomColor: colors.border }]}>
-                <View style={[styles.txnIcon, { backgroundColor: txn.type === 'earn' ? '#E6F4EC' : '#FEF3C7' }]}>
-                  <Feather name={txn.type === 'earn' ? 'plus-circle' : 'minus-circle'} size={16} color={txn.type === 'earn' ? '#16A34A' : '#D97706'} />
+          <View style={{ marginTop: 24 }}>
+            <View style={styles.sectionHeader}>
+              <Feather name="clock" size={16} color={TEXT} />
+              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Recent activity</Text>
+            </View>
+            <View style={{ paddingHorizontal: 16, gap: 8 }}>
+              {transactions.slice(0, 10).map((txn) => (
+                <View key={txn.id} style={styles.txnRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.txnDesc, { fontFamily: 'Inter_500Medium' }]}>{txn.description}</Text>
+                    <Text style={[styles.txnDate, { fontFamily: 'Inter_400Regular' }]}>
+                      {new Date(txn.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                  <Text style={[styles.txnPts, { fontFamily: 'Inter_700Bold', color: txn.type === 'earn' ? BRAND : '#EF4444' }]}>
+                    {txn.type === 'earn' ? '+' : ''}{txn.points}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        <View style={{ marginTop: 24 }}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>How it works</Text>
+          </View>
+          <View style={{ paddingHorizontal: 16, gap: 10 }}>
+            {HOW_IT_WORKS.map((item) => (
+              <View key={item.title} style={styles.howCard}>
+                <View style={[styles.howIcon, { backgroundColor: '#EEF2FB' }]}>
+                  <Feather name={item.icon as any} size={18} color={BRAND} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: colors.foreground, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>{txn.description}</Text>
-                  <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>{new Date(txn.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</Text>
+                  <Text style={[styles.howTitle, { fontFamily: 'Inter_600SemiBold' }]}>{item.title}</Text>
+                  <Text style={[styles.howDesc, { fontFamily: 'Inter_400Regular' }]}>{item.desc}</Text>
                 </View>
-                <Text style={[{ color: txn.type === 'earn' ? '#16A34A' : '#D97706', fontFamily: 'Inter_700Bold', fontSize: 15 }]}>{txn.type === 'earn' ? '+' : ''}{txn.points}</Text>
               </View>
             ))}
           </View>
-        )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 28, gap: 8 },
-  headerLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 1 },
-  points: { color: '#fff', fontSize: 52, lineHeight: 58 },
-  pointsLabel: { fontSize: 22 },
-  tierBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start' },
-  tierLabel: { color: '#fff', fontSize: 13 },
-  card: { padding: 18, gap: 10 },
-  cardTitle: { fontSize: 15 },
-  progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4 },
-  stampGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  stamp: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  refCode: { padding: 14, alignItems: 'center' },
-  perkDot: { width: 6, height: 6, borderRadius: 3 },
-  sectionTitle: { fontSize: 20 },
-  rewardCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 },
-  appOnlyBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  appOnlyText: { color: '#fff', fontSize: 8, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-  redeemBtn: { paddingHorizontal: 14, paddingVertical: 10 },
-  txnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
-  txnIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  pageHeader: { paddingHorizontal: 20, paddingBottom: 16, gap: 4, backgroundColor: WHITE },
+  pageLabel: { fontSize: 12, color: MUTED, letterSpacing: 1 },
+  pageTitle: { fontSize: 26, color: TEXT },
+
+  loyaltyCard: { borderRadius: 20, padding: 20, gap: 4 },
+  memberLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, letterSpacing: 1 },
+  bigPoints: { color: WHITE, fontSize: 52, lineHeight: 60 },
+  ptsWorth: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  progressSection: { marginTop: 12, gap: 6 },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressLabelText: { color: 'rgba(255,255,255,0.8)', fontSize: 12 },
+  progressTrack: { height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 4, backgroundColor: WHITE },
+  tierRow: { flexDirection: 'row', marginTop: 16 },
+  tierBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  tierBtnActive: { backgroundColor: WHITE },
+  tierBtnLabel: { fontSize: 11, letterSpacing: 0.5 },
+
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 12 },
+  sectionTitle: { fontSize: 18, color: TEXT },
+  buyBadge: { marginLeft: 'auto', backgroundColor: '#EEF2FB', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  buyBadgeText: { fontSize: 12, color: BRAND },
+
+  coffeeCard: { borderRadius: 20, padding: 20, gap: 4 },
+  coffeeCardTop: { flexDirection: 'row', alignItems: 'flex-start' },
+  coffeeLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11, letterSpacing: 1, marginBottom: 4 },
+  coffeeToGo: { color: WHITE, fontSize: 32, lineHeight: 38 },
+  coffeeDesc: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
+  qrBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  qrBtnText: { color: WHITE, fontSize: 12 },
+  stampRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  stampCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+
+  birthdayCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, borderStyle: 'dashed' },
+  birthdayIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  birthdayTitle: { fontSize: 15, color: TEXT },
+  birthdaySub: { fontSize: 12, color: MUTED, marginTop: 2 },
+
+  rewardCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
+  rewardIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rewardName: { fontSize: 14, color: TEXT },
+  rewardDesc: { fontSize: 12, color: MUTED, lineHeight: 16 },
+  rewardPts: { fontSize: 13, marginTop: 2 },
+  tierTag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  tierTagText: { fontSize: 10, color: WHITE, letterSpacing: 0.3 },
+  lockedBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  lockedBtnText: { fontSize: 13, color: MUTED },
+  redeemBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  redeemBtnText: { fontSize: 13 },
+
+  txnRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER },
+  txnDesc: { fontSize: 13, color: TEXT },
+  txnDate: { fontSize: 11, color: MUTED, marginTop: 2 },
+  txnPts: { fontSize: 16 },
+
+  howCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
+  howIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  howTitle: { fontSize: 14, color: TEXT, marginBottom: 2 },
+  howDesc: { fontSize: 12, color: MUTED, lineHeight: 17 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  qrModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', gap: 10, marginHorizontal: 32, width: 300 },
+  qrTitle: { fontSize: 20, color: TEXT },
+  qrSub: { fontSize: 13, color: MUTED, textAlign: 'center' },
+  qrBox: { padding: 16, backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: BORDER, marginVertical: 8 },
+  qrCode: { fontSize: 16, color: BRAND, letterSpacing: 2 },
+  qrClose: { marginTop: 8, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12, width: '100%', alignItems: 'center' },
 });

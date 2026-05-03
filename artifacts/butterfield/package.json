@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@stripe/stripe-react-native": "^0.65.0",
-    "expo-notifications": "^55.0.22"
+    "expo-notifications": "^55.0.22",
+    "react-native-qrcode-svg": "^6.3.21"
   }
 }
