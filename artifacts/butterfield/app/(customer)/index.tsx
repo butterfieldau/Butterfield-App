@@ -208,7 +208,7 @@ export default function CustomerHome() {
       <View style={styles.quickSection}>
         <Pressable
           style={[styles.pickupRow, { backgroundColor: colors.card, borderRadius: colors.radius }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); Alert.alert('Butterfield Cookies', 'Mason & Main\nMerrylands NSW 2160\n\nMon–Fri 8am–5pm · Sat 8am–4pm · Sun 9am–3pm'); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(customer)/store'); }}
         >
           <View style={styles.pickupIconWrap}>
             <Feather name="map-pin" size={20} color="#40C0F2" />
