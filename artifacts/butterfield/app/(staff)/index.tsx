@@ -10,11 +10,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
-const BG = '#0D0604';
-const CARD = '#1A0A04';
-const ACCENT = '#C8833A';
-
 export default function StaffDashboard() {
+  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -76,15 +73,15 @@ export default function StaffDashboard() {
   const urgentTasks = tasks.filter((t) => !t.isCompleted).slice(0, 5);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={shiftRefetching} onRefresh={() => { refetchShift(); refetchTasks(); }} tintColor={ACCENT} />}>
-      <LinearGradient colors={['#2A1408', BG]} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={shiftRefetching} onRefresh={() => { refetchShift(); refetchTasks(); }} tintColor={colors.primary} />}>
+      <LinearGradient colors={['#EBF0FA', '#F5F6FA']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.6)' }]}>Good shift,</Text>
-            <Text style={[styles.name, { fontFamily: 'Inter_700Bold', color: '#fff' }]}>{user?.name?.split(' ')[0]} 👋</Text>
+            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular', color: colors.mutedForeground }]}>Good shift,</Text>
+            <Text style={[styles.name, { fontFamily: 'Inter_700Bold', color: colors.foreground }]}>{user?.name?.split(' ')[0]} 👋</Text>
           </View>
-          <View style={[styles.shiftIndicator, { backgroundColor: currentShift ? '#22C55E20' : '#EF444420', borderColor: currentShift ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
+          <View style={[styles.shiftIndicator, { backgroundColor: currentShift ? '#22C55E15' : '#EF444415', borderColor: currentShift ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
             <View style={[styles.shiftDot, { backgroundColor: currentShift ? '#22C55E' : '#EF4444' }]} />
             <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: currentShift ? '#22C55E' : '#EF4444' }]}>{currentShift ? 'On Shift' : 'Off Duty'}</Text>
           </View>
@@ -92,14 +89,13 @@ export default function StaffDashboard() {
       </LinearGradient>
 
       <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
-        {/* Clock In/Out */}
-        <View style={[styles.clockCard, { backgroundColor: CARD, borderRadius: 16 }]}>
+        <View style={[styles.clockCard, { backgroundColor: colors.card, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
           {currentShift ? (
             <>
               <View style={styles.clockInfo}>
-                <Text style={[styles.clockLabel, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' }]}>Shift started</Text>
-                <Text style={[styles.clockTime, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{new Date(currentShift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
-                <Text style={[{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{getShiftDuration()} on shift</Text>
+                <Text style={[styles.clockLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Shift started</Text>
+                <Text style={[styles.clockTime, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{new Date(currentShift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{getShiftDuration()} on shift</Text>
               </View>
               <Pressable onPress={handleClockOut} disabled={clockingIn} style={[styles.clockBtn, { backgroundColor: '#DC2626', borderRadius: 12 }]}>
                 {clockingIn ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>Clock Out</Text>}
@@ -108,8 +104,8 @@ export default function StaffDashboard() {
           ) : (
             <>
               <View style={styles.clockInfo}>
-                <Text style={[styles.clockLabel, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' }]}>Ready to start?</Text>
-                <Text style={[styles.clockTime, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Text style={[styles.clockLabel, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Ready to start?</Text>
+                <Text style={[styles.clockTime, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
               </View>
               <Pressable onPress={handleClockIn} disabled={clockingIn} style={[styles.clockBtn, { backgroundColor: '#22C55E', borderRadius: 12 }]}>
                 {clockingIn ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>Clock In</Text>}
@@ -118,19 +114,17 @@ export default function StaffDashboard() {
           )}
         </View>
 
-        {/* Task Progress */}
-        <View style={[styles.taskProgress, { backgroundColor: CARD, borderRadius: 16 }]}>
+        <View style={[styles.taskProgress, { backgroundColor: colors.card, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Today's Tasks</Text>
-            <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
+            <Text style={[{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Today's Tasks</Text>
+            <Text style={[{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
           </View>
-          <View style={[styles.progressTrack, { backgroundColor: '#2A1408' }]}>
-            <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: ACCENT }]} />
+          <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+            <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: colors.primary }]} />
           </View>
         </View>
 
-        {/* Quick Actions */}
-        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
           {[
             { icon: 'clipboard', label: 'Tasks', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
@@ -139,31 +133,30 @@ export default function StaffDashboard() {
             { icon: 'calendar', label: 'Leave Request', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
           ].map((action) => (
             <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
-              style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16 }]}>
-              <View style={[styles.actionIcon, { backgroundColor: `${ACCENT}20`, borderRadius: 12 }]}>
-                <Feather name={action.icon as any} size={20} color={ACCENT} />
+              style={[styles.actionCard, { backgroundColor: colors.card, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
+              <View style={[styles.actionIcon, { backgroundColor: `${colors.primary}15`, borderRadius: 12 }]}>
+                <Feather name={action.icon as any} size={20} color={colors.primary} />
               </View>
-              <Text style={[styles.actionLabel, { color: '#fff', fontFamily: 'Inter_500Medium' }]}>{action.label}</Text>
+              <Text style={[styles.actionLabel, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{action.label}</Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Urgent Tasks */}
         {urgentTasks.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>PENDING TASKS</Text>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>PENDING TASKS</Text>
             {urgentTasks.map((task) => (
               <Pressable key={task.id} onPress={() => handleCompleteTask(task.id, task.isCompleted)}
-                style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderLeftColor: ACCENT, borderLeftWidth: 3 }]}>
+                style={[styles.taskRow, { backgroundColor: colors.card, borderRadius: 14, borderLeftColor: colors.primary, borderLeftWidth: 3, borderColor: colors.border, borderWidth: 1 }]}>
                 <View style={[styles.taskCheck, {
-                  borderColor: task.isCompleted ? '#22C55E' : ACCENT,
+                  borderColor: task.isCompleted ? '#22C55E' : colors.primary,
                   backgroundColor: task.isCompleted ? '#22C55E' : 'transparent', borderWidth: 2, borderRadius: 8,
                 }]}>
                   {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: task.isCompleted ? 'rgba(255,255,255,0.4)' : '#fff', fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
-                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
+                  <Text style={[{ color: task.isCompleted ? colors.mutedForeground : colors.foreground, fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
+                  <Text style={[{ color: colors.primary, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
                 </View>
               </Pressable>
             ))}

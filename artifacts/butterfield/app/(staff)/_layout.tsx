@@ -1,35 +1,46 @@
-import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import React from 'react';
-import { Platform } from 'react-native';
-
-const BG = '#0D0604';
-const ACCENT = '#C8833A';
+import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
+import { useColors } from '@/hooks/useColors';
 
 export default function StaffLayout() {
+  const colors = useColors();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const isIOS = Platform.OS === 'ios';
+  const isWeb = Platform.OS === 'web';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: ACCENT,
-        tabBarInactiveTintColor: 'rgba(255,255,255,0.35)',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
-          backgroundColor: Platform.OS === 'ios' ? 'transparent' : BG,
-          borderTopColor: 'rgba(255,255,255,0.08)',
-          borderTopWidth: 1,
+          position: 'absolute',
+          backgroundColor: isIOS ? 'transparent' : colors.background,
+          borderTopWidth: isWeb ? 1 : 0,
+          borderTopColor: colors.border,
+          elevation: 0,
+          ...(isWeb ? { height: 84 } : {}),
         },
-        tabBarBackground: Platform.OS === 'ios'
-          ? () => <BlurView intensity={80} tint="dark" style={{ flex: 1 }} />
-          : undefined,
+        tabBarBackground: () =>
+          isIOS ? (
+            <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          ) : isWeb ? (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+          ) : null,
         tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }} />
-      <Tabs.Screen name="orders" options={{ title: 'Orders', tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} /> }} />
-      <Tabs.Screen name="tasks" options={{ title: 'Tasks', tabBarIcon: ({ color }) => <Feather name="clipboard" size={22} color={color} /> }} />
-      <Tabs.Screen name="products" options={{ title: 'Products', tabBarIcon: ({ color }) => <Feather name="box" size={22} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Dashboard', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="square.grid.2x2" tintColor={color} size={22} /> : <Feather name="grid" size={22} color={color} /> }} />
+      <Tabs.Screen name="orders" options={{ title: 'Orders', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="bag" tintColor={color} size={22} /> : <Feather name="shopping-bag" size={22} color={color} /> }} />
+      <Tabs.Screen name="tasks" options={{ title: 'Tasks', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="checklist" tintColor={color} size={22} /> : <Feather name="clipboard" size={22} color={color} /> }} />
+      <Tabs.Screen name="products" options={{ title: 'Products', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="shippingbox" tintColor={color} size={22} /> : <Feather name="box" size={22} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color }) => isIOS ? <SymbolView name="person" tintColor={color} size={22} /> : <Feather name="user" size={22} color={color} /> }} />
     </Tabs>
   );
 }

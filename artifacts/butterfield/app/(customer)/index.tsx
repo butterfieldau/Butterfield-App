@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -20,15 +20,6 @@ import { useColors } from '@/hooks/useColors';
 import { api, type ApiProduct } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
-const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'cookies', label: 'Cookies' },
-  { id: 'coffee', label: 'Coffee' },
-  { id: 'desserts', label: 'Desserts' },
-  { id: 'sandwiches', label: 'Food' },
-  { id: 'bundles', label: 'Bundles' },
-];
-
 const PRODUCT_IMAGES: Record<string, string> = {
   'prod_classic_choc_chip': 'https://butterfieldcookies.com.au/cdn/shop/files/classic-choc-chip.jpg',
   'prod_double_chocolate': 'https://butterfieldcookies.com.au/cdn/shop/files/double-choc.jpg',
@@ -36,50 +27,46 @@ const PRODUCT_IMAGES: Record<string, string> = {
   'prod_cookie_sandwich': 'https://butterfieldcookies.com.au/cdn/shop/files/cookie-sandwich.jpg',
 };
 
-function getPrice(p: ApiProduct): number {
-  return (p.prices?.[0]?.unit_amount ?? 0) / 100;
-}
-
+function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
 function getGradient(p: ApiProduct): [string, string] {
   const g = p.metadata?.gradient?.split(',');
-  if (g?.length === 2) return [g[0], g[1]];
-  return ['#4B72C4', '#3A5BA8'];
+  return g?.length === 2 ? [g[0], g[1]] : ['#4B72C4', '#3A5BA8'];
 }
 
-function ProductTile({ product, onAdd }: { product: ApiProduct; onAdd: () => void }) {
+function QuickAction({ emoji, label, color, onPress }: { emoji: string; label: string; color: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={() => { Haptics.selectionAsync(); onPress(); }} style={styles.quickItem}>
+      <View style={[styles.quickCircle, { backgroundColor: color }]}>
+        <Text style={{ fontSize: 22 }}>{emoji}</Text>
+      </View>
+      <Text style={[styles.quickLabel, { fontFamily: 'Inter_500Medium', color: '#1C1C1E' }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function FreshPickCard({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
   const colors = useColors();
+  const imageUrl = PRODUCT_IMAGES[product.id];
   const gradient = getGradient(product);
   const price = getPrice(product);
-  const available = product.metadata?.available !== 'false';
-  const imageUrl = PRODUCT_IMAGES[product.id];
+  const isPopular = product.metadata?.popular === 'true';
 
   return (
-    <Pressable style={[styles.tile, { borderRadius: colors.radius, backgroundColor: colors.card }]} onPress={available ? onAdd : undefined}>
-      <View style={[styles.tileImage, { borderRadius: colors.radius - 4, overflow: 'hidden' }]}>
+    <Pressable onPress={onPress} style={[styles.freshCard, { backgroundColor: colors.card }]}>
+      <View style={styles.freshImageWrap}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%', borderRadius: 14 }} resizeMode="cover" />
         ) : (
-          <LinearGradient colors={gradient} style={{ flex: 1 }} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+          <LinearGradient colors={gradient} style={{ flex: 1, borderRadius: 14 }} />
         )}
-        {product.metadata?.isNew === 'true' && (
-          <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>
-        )}
-        {!available && (
-          <View style={styles.soldOutOverlay}><Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Sold Out</Text></View>
+        {isPopular && (
+          <View style={styles.bestSellerBadge}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 9 }}>BEST SELLER</Text>
+          </View>
         )}
       </View>
-      <View style={styles.tileInfo}>
-        <Text style={[styles.tileName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[styles.tileDesc, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>{product.description}</Text>
-        <View style={styles.tileBottom}>
-          <Text style={[styles.tilePrice, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>${price.toFixed(2)}</Text>
-          {available && (
-            <Pressable onPress={onAdd} style={[styles.addBtn, { backgroundColor: colors.primary, borderRadius: 10 }]}>
-              <Feather name="plus" size={14} color="#fff" />
-            </Pressable>
-          )}
-        </View>
-      </View>
+      <Text style={[styles.freshName, { fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' }]} numberOfLines={1}>{product.name}</Text>
+      <Text style={[styles.freshPrice, { fontFamily: 'Inter_700Bold', color: '#4B72C4' }]}>${price.toFixed(2)}</Text>
     </Pressable>
   );
 }
@@ -88,15 +75,14 @@ export default function CustomerHome() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { addItem, totalItems } = useCart();
-  const [activeCategory, setActiveCategory] = useState('all');
+  const { totalItems } = useCart();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
+  const { data: productsData, refetch } = useQuery({
     queryKey: ['products'],
     queryFn: () => api.products.list(),
     retry: 2,
   });
-
   const { data: loyaltyData } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn: () => api.loyalty.profile(),
@@ -104,164 +90,156 @@ export default function CustomerHome() {
   });
 
   const products = productsData?.data ?? [];
-  const loyaltyPoints = loyaltyData?.data?.loyaltyPoints ?? 0;
-  const loyaltyTier = loyaltyData?.data?.loyaltyTier ?? 'bronze';
+  const freshPicks = products.slice(0, 6);
 
-  const popular = products.filter((p) => p.metadata?.popular === 'true');
-  const featured = products.filter((p) =>
-    activeCategory === 'all' ? true : p.metadata?.category === activeCategory
-  );
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
-  const handleAdd = useCallback((p: ApiProduct) => {
-    addItem({
-      id: p.id,
-      name: p.name,
-      category: (p.metadata?.category ?? 'cookies') as any,
-      price: getPrice(p),
-      description: p.description,
-      available: p.metadata?.available !== 'false',
-      gradient: getGradient(p),
-      priceId: p.prices?.[0]?.id,
-    });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [addItem]);
-
-  const firstName = user?.name?.split(' ')[0] ?? 'there';
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const initial = user?.name?.charAt(0).toUpperCase() ?? 'B';
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: '#F5F6FA' }}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4B72C4" />}
     >
-      <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>{greeting},</Text>
-            <Text style={[styles.name, { fontFamily: 'Inter_700Bold' }]}>{firstName} 👋</Text>
-          </View>
-          <View style={styles.headerActions}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 14, backgroundColor: '#F5F6FA' }]}>
+        <Text style={[styles.logo, { fontFamily: 'Inter_700Bold' }]}>Butterfield</Text>
+        <View style={styles.headerRight}>
+          <Pressable onPress={() => router.push('/(customer)/cart')} style={[styles.headerIconBtn, { backgroundColor: '#fff' }]}>
+            <Feather name="shopping-bag" size={18} color="#1C1C1E" />
             {totalItems > 0 && (
-              <View style={[styles.cartBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                <Feather name="shopping-bag" size={16} color="#fff" />
-                <Text style={[styles.cartBadgeText, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{totalItems}</Text>
+              <View style={[styles.headerBadge, { backgroundColor: '#4B72C4' }]}>
+                <Text style={{ color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' }}>{totalItems}</Text>
               </View>
             )}
-          </View>
+          </Pressable>
+          <Pressable onPress={() => router.push('/(customer)/profile')} style={[styles.avatarBtn, { backgroundColor: '#4B72C4' }]}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{initial}</Text>
+          </Pressable>
         </View>
-        <View style={[styles.loyaltyChip, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-          <Feather name="star" size={14} color="#FFE4A0" />
-          <Text style={[styles.loyaltyText, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints} pts</Text>
-          <Text style={[styles.loyaltyLabel, { fontFamily: 'Inter_400Regular' }]}>· {loyaltyTier.charAt(0).toUpperCase() + loyaltyTier.slice(1)} Member</Text>
-        </View>
-      </LinearGradient>
+      </View>
 
-      <View style={styles.promoSection}>
-        <LinearGradient colors={['#5AB8FF', '#3A7FD4']} style={[styles.promoBanner, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-          <View style={styles.promoContent}>
-            <Text style={[styles.promoTag, { fontFamily: 'Inter_600SemiBold' }]}>🍪 DAILY SPECIAL</Text>
-            <Text style={[styles.promoTitle, { fontFamily: 'Inter_700Bold' }]}>Cookie & Cream Sandwich</Text>
-            <Text style={[styles.promoSub, { fontFamily: 'Inter_400Regular' }]}>Two warm cookies + vanilla cream</Text>
+      {/* Hero Banner */}
+      <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+        <LinearGradient colors={['#4B72C4', '#3058A8']} style={styles.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+          <View style={styles.heroLeft}>
+            <View style={styles.freshBadge}>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>✦ FRESH TODAY</Text>
+            </View>
+            <Text style={[styles.heroTitle, { fontFamily: 'Inter_700Bold' }]}>Delicious from every angle.</Text>
+            <Text style={[styles.heroSub, { fontFamily: 'Inter_400Regular' }]}>Order ahead and pick up at our Merrylands store.</Text>
+            <Pressable onPress={() => router.push('/(customer)/menu')} style={styles.startBtn}>
+              <Text style={[styles.startBtnText, { fontFamily: 'Inter_700Bold' }]}>Start order →</Text>
+            </Pressable>
           </View>
-          <View style={[styles.promoCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
+          <View style={styles.heroRight}>
+            <View style={[styles.heroImageBg, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+              <Text style={{ fontSize: 48 }}>🍪</Text>
+            </View>
+          </View>
         </LinearGradient>
       </View>
 
-      {popular.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Fan Favourites</Text>
+      {/* In-Store Pickup */}
+      <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+        <Pressable onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/store'); }} style={[styles.pickupRow, { backgroundColor: '#fff', borderRadius: 14 }]}>
+          <View style={[styles.pickupIcon, { backgroundColor: '#EBF0FA' }]}>
+            <Feather name="map-pin" size={18} color="#4B72C4" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#4B72C4', fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 0.5 }}>IN-STORE PICKUP</Text>
+            <Text style={{ color: '#1C1C1E', fontFamily: 'Inter_600SemiBold', fontSize: 14, marginTop: 1 }}>Butterfield Cookies — Merrylands...</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color="#8E8E93" />
+        </Pressable>
+      </View>
+
+      {/* Quick Actions */}
+      <View style={[styles.quickRow, { paddingHorizontal: 16, marginTop: 16 }]}>
+        <QuickAction
+          emoji="🍪"
+          label="Order cookies"
+          color="#EBF0FA"
+          onPress={() => router.push('/(customer)/menu')}
+        />
+        <QuickAction
+          emoji="☕"
+          label="Coffee Club"
+          color="#FEE8E8"
+          onPress={() => router.push('/(customer)/loyalty')}
+        />
+        <QuickAction
+          emoji="🛍"
+          label="My order"
+          color="#F0F0F0"
+          onPress={() => router.push('/(customer)/orders')}
+        />
+      </View>
+
+      {/* Fresh Picks */}
+      {freshPicks.length > 0 && (
+        <View style={{ marginTop: 24 }}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={{ color: '#4B72C4', fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 0.5 }}>TODAY'S BATCH</Text>
+              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold', color: '#1C1C1E' }]}>Fresh picks</Text>
+            </View>
+            <Pressable onPress={() => router.push('/(customer)/menu')}>
+              <Text style={{ color: '#4B72C4', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>See all</Text>
+            </Pressable>
+          </View>
           <FlatList
-            data={popular}
+            data={freshPicks}
             horizontal
             showsHorizontalScrollIndicator={false}
             keyExtractor={(p) => p.id}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingVertical: 4 }}
             renderItem={({ item }) => (
-              <Pressable style={[styles.favCard, { backgroundColor: colors.card, borderRadius: colors.radius }]} onPress={() => handleAdd(item)}>
-                <View style={[styles.favImage, { overflow: 'hidden', borderRadius: 10 }]}>
-                  <LinearGradient colors={getGradient(item)} style={{ flex: 1 }} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
-                </View>
-                <Text style={[styles.favName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{item.name}</Text>
-                <Text style={[styles.favPrice, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>${getPrice(item).toFixed(2)}</Text>
-              </Pressable>
+              <FreshPickCard
+                product={item}
+                onPress={() => router.push(`/(customer)/product/${item.id}` as any)}
+              />
             )}
           />
         </View>
       )}
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-        {CATEGORIES.map((cat) => (
-          <Pressable
-            key={cat.id}
-            onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
-            style={[styles.catPill, {
-              backgroundColor: activeCategory === cat.id ? colors.primary : colors.muted,
-              borderRadius: 20,
-            }]}
-          >
-            <Text style={[styles.catLabel, { color: activeCategory === cat.id ? '#fff' : colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>{cat.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      <View style={styles.section}>
-        {isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-        ) : featured.length === 0 ? (
-          <Text style={[styles.empty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>No products in this category yet.</Text>
-        ) : (
-          <View style={[styles.grid, { paddingHorizontal: 20 }]}>
-            {featured.map((p) => (
-              <ProductTile key={p.id} product={p} onAdd={() => handleAdd(p)} />
-            ))}
-          </View>
-        )}
-      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  greeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
-  name: { color: '#fff', fontSize: 24 },
-  headerActions: { flexDirection: 'row', gap: 8 },
-  cartBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  cartBadgeText: { fontSize: 13 },
-  loyaltyChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: 'flex-start' },
-  loyaltyText: { color: '#FFE4A0', fontSize: 14 },
-  loyaltyLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
-  promoSection: { paddingHorizontal: 20, paddingTop: 20 },
-  promoBanner: { padding: 20, minHeight: 100, overflow: 'hidden' },
-  promoContent: { gap: 4, zIndex: 1 },
-  promoTag: { color: 'rgba(255,255,255,0.85)', fontSize: 11, letterSpacing: 1 },
-  promoTitle: { color: '#fff', fontSize: 20 },
-  promoSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
-  promoCircle: { position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: 60 },
-  section: { marginTop: 24 },
-  sectionTitle: { fontSize: 20, paddingHorizontal: 20, marginBottom: 12 },
-  favCard: { width: 130, padding: 12, gap: 8, shadowColor: '#4B72C4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-  favImage: { width: '100%', height: 80 },
-  favName: { fontSize: 13 },
-  favPrice: { fontSize: 13 },
-  catScroll: { marginTop: 24 },
-  catPill: { paddingHorizontal: 16, paddingVertical: 8 },
-  catLabel: { fontSize: 13 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: { width: '47%', padding: 12, gap: 8, shadowColor: '#4B72C4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  tileImage: { width: '100%', height: 90, alignItems: 'flex-start', justifyContent: 'flex-start', padding: 0 },
-  newBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: '#4B72C4', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  newBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
-  soldOutOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  tileInfo: { gap: 4 },
-  tileName: { fontSize: 13 },
-  tileDesc: { fontSize: 11, lineHeight: 15 },
-  tileBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  tilePrice: { fontSize: 14 },
-  addBtn: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
-  empty: { textAlign: 'center', marginTop: 40, fontSize: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  logo: { fontSize: 26, color: '#4B72C4', fontStyle: 'italic' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerIconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.07, shadowRadius: 3, elevation: 2 },
+  headerBadge: { position: 'absolute', top: 5, right: 5, width: 14, height: 14, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  avatarBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  hero: { borderRadius: 18, flexDirection: 'row', overflow: 'hidden', minHeight: 160 },
+  heroLeft: { flex: 1, padding: 18, gap: 6, justifyContent: 'center' },
+  freshBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  heroTitle: { color: '#fff', fontSize: 20, lineHeight: 26 },
+  heroSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 17 },
+  startBtn: { marginTop: 6, alignSelf: 'flex-start', backgroundColor: '#DC2626', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20 },
+  startBtnText: { color: '#fff', fontSize: 13 },
+  heroRight: { width: 110, alignItems: 'center', justifyContent: 'center' },
+  heroImageBg: { width: 90, height: 90, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  pickupRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  pickupIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  quickRow: { flexDirection: 'row', gap: 0, justifyContent: 'space-between' },
+  quickItem: { flex: 1, alignItems: 'center', gap: 8, padding: 8 },
+  quickCircle: { width: 62, height: 62, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  quickLabel: { fontSize: 12, textAlign: 'center' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 16, marginBottom: 12 },
+  sectionTitle: { fontSize: 22, marginTop: 2 },
+  freshCard: { width: 140, borderRadius: 16, padding: 10, gap: 8, shadowColor: '#4B72C4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
+  freshImageWrap: { width: '100%', height: 100, borderRadius: 14, overflow: 'hidden' },
+  bestSellerBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#DC2626', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  freshName: { fontSize: 13 },
+  freshPrice: { fontSize: 13 },
 });

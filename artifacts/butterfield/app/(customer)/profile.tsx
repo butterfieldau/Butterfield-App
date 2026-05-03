@@ -25,7 +25,6 @@ export default function ProfileScreen() {
 
   const profile = loyaltyData?.data;
   const orders = ordersData?.data ?? [];
-  const completedOrders = orders.filter((o) => o.status === 'completed').length;
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -52,11 +51,15 @@ export default function ProfileScreen() {
     } finally { setSubmitting(false); }
   };
 
+  const hasBirthday = !!profile?.birthday;
+
   const MENU_ITEMS = [
+    { icon: 'edit-2', label: 'Edit Details', action: () => router.push('/(customer)/edit-details') },
+    { icon: 'gift', label: hasBirthday ? `Birthday: ${profile?.birthday}` : 'Add your birthday 🎂', action: () => router.push('/(customer)/edit-details') },
     { icon: 'package', label: 'My Orders', action: () => router.push('/(customer)/orders') },
     { icon: 'heart', label: 'Favourites', action: () => router.push('/(customer)/favourites') },
+    { icon: 'map-pin', label: 'Store Location & Hours', action: () => router.push('/(customer)/store') },
     { icon: 'bell', label: 'Notifications', action: () => Alert.alert('Notifications', 'You have no new notifications.\n\nWe\'ll notify you when your order is ready for pickup.') },
-    { icon: 'map-pin', label: 'Store Location & Hours', action: () => Alert.alert('Butterfield Cookies', '42 Butterfield Lane\nSurry Hills NSW 2010\n\nMon–Fri  7:00am – 5:00pm\nSaturday  8:00am – 4:00pm\nSunday  Closed\n\nPhone: (02) 9000 0000') },
     { icon: 'message-circle', label: 'Send Feedback', action: () => setShowFeedback(true) },
     { icon: 'help-circle', label: 'Help & Support', action: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\nHours: Mon–Fri 7am–5pm') },
   ];
@@ -72,7 +75,7 @@ export default function ProfileScreen() {
       </LinearGradient>
 
       <View style={{ paddingHorizontal: 20, paddingTop: 20, gap: 16 }}>
-        <View style={[styles.statsRow]}>
+        <View style={styles.statsRow}>
           {[
             { label: 'Loyalty Points', value: String(profile?.loyaltyPoints ?? 0) },
             { label: 'Orders', value: String(orders.length) },

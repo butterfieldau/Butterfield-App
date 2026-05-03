@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +46,11 @@ export default function MenuScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleProductPress = (p: ApiProduct) => {
+    Haptics.selectionAsync();
+    router.push(`/(customer)/product/${p.id}` as any);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
@@ -87,7 +93,7 @@ export default function MenuScreen() {
             const price = getPrice(p);
             const gradient = getGradient(p);
             return (
-              <Pressable style={[styles.tile, { flex: 1, backgroundColor: colors.card, borderRadius: colors.radius }]} onPress={() => available && handleAdd(p)}>
+              <Pressable style={[styles.tile, { flex: 1, backgroundColor: colors.card, borderRadius: colors.radius }]} onPress={() => handleProductPress(p)}>
                 <LinearGradient colors={gradient} style={[styles.tileImage, { borderRadius: colors.radius - 2 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                   {p.metadata?.isNew === 'true' && <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>}
                   {!available && <View style={styles.soldOut}><Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text></View>}
@@ -98,7 +104,7 @@ export default function MenuScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
                     <Text style={[{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>${price.toFixed(2)}</Text>
                     {available && (
-                      <Pressable onPress={() => handleAdd(p)} style={[{ backgroundColor: colors.primary, borderRadius: 10, width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Pressable onPress={(e) => { e.stopPropagation?.(); handleAdd(p); }} style={[{ backgroundColor: colors.primary, borderRadius: 10, width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }]}>
                         <Feather name="plus" size={14} color="#fff" />
                       </Pressable>
                     )}
