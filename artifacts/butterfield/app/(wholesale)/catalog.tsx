@@ -18,17 +18,21 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 
-const BG = '#0A1A0A';
-const CARD = '#122012';
-const ACCENT = '#3A8A3A';
+const BG     = '#F5F6FA';
+const CARD   = '#FFFFFF';
+const BLUE   = '#40C0F2';
+const TEXT   = '#1C1C1E';
+const MUTED  = '#8E8E93';
+const BORDER = '#E5E7EB';
 
 const WHOLESALE_TIERS = [
-  { minQty: 1, label: 'Retail', discount: 0 },
+  { minQty: 1,  label: 'Retail',      discount: 0 },
   { minQty: 10, label: 'Trade (10+)', discount: 0.1 },
-  { minQty: 25, label: 'Bulk (25+)', discount: 0.2 },
-  { minQty: 50, label: 'Volume (50+)', discount: 0.3 },
+  { minQty: 25, label: 'Bulk (25+)',  discount: 0.2 },
+  { minQty: 50, label: 'Volume (50+)',discount: 0.3 },
 ];
 
 function getSydneyNow(): Date {
@@ -104,10 +108,6 @@ function isSameDay(a: Date, b: Date) {
 }
 
 function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
-function getGradient(p: ApiProduct): [string, string] {
-  const g = p.metadata?.gradient?.split(',');
-  return g?.length === 2 ? [g[0], g[1]] : ['#3A8A3A', '#2A6A2A'];
-}
 function getWholesalePrice(basePrice: number, qty: number): number {
   const tier = [...WHOLESALE_TIERS].reverse().find((t) => qty >= t.minQty);
   return basePrice * (1 - (tier?.discount ?? 0));
@@ -121,38 +121,41 @@ function ProductRow({ product, cartEntry, onAdd }: { product: ApiProduct; cartEn
   const parsedQty = parseInt(qty) || 1;
   const wsPrice = getWholesalePrice(basePrice, parsedQty);
   const tier = [...WHOLESALE_TIERS].reverse().find((t) => parsedQty >= t.minQty);
+  const palette = getPalette(product.metadata?.category);
+
   return (
-    <View style={[styles.productCard, { backgroundColor: CARD, borderRadius: 14 }]}>
-      <LinearGradient colors={getGradient(product)} style={styles.productThumbLg} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+    <View style={[styles.productCard, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
+      <View style={[styles.productThumbLg, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }]}>
+        <Text style={{ fontSize: 36 }}>{palette.emoji}</Text>
         {cartEntry && (
-          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: ACCENT, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
             <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 11 }}>In cart: {cartEntry.quantity}</Text>
           </View>
         )}
-      </LinearGradient>
+      </View>
       <View style={{ padding: 14, gap: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{product.name}</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }}>{product.description}</Text>
+            <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }}>{product.name}</Text>
+            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{product.description}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 16 }}>${wsPrice.toFixed(2)}</Text>
+            <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 16 }}>${wsPrice.toFixed(2)}</Text>
             {tier && tier.discount > 0 && (
-              <Text style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter_400Regular', fontSize: 10, textDecorationLine: 'line-through' }}>${basePrice.toFixed(2)}</Text>
+              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 10, textDecorationLine: 'line-through' }}>${basePrice.toFixed(2)}</Text>
             )}
           </View>
         </View>
         {tier && (
-          <View style={{ backgroundColor: `${ACCENT}22`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }}>
-            <Text style={{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}{tier.discount > 0 ? ` −${tier.discount * 100}%` : ''}</Text>
+          <View style={{ backgroundColor: `${BLUE}15`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }}>
+            <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}{tier.discount > 0 ? ` −${tier.discount * 100}%` : ''}</Text>
           </View>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#0A1A0A', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flex: 1 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 12 }}>Qty:</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flex: 1, borderWidth: 1, borderColor: BORDER }}>
+            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>Qty:</Text>
             <TextInput
-              style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16, flex: 1 }}
+              style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 16, flex: 1 }}
               value={qty}
               onChangeText={setQty}
               keyboardType="number-pad"
@@ -161,7 +164,7 @@ function ProductRow({ product, cartEntry, onAdd }: { product: ApiProduct; cartEn
           </View>
           <Pressable
             onPress={() => onAdd(product, parsedQty)}
-            style={{ backgroundColor: ACCENT, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }}
+            style={{ backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }}
           >
             <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Add</Text>
           </Pressable>
@@ -259,52 +262,56 @@ export default function WholesaleCatalog() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={{ color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' }}>Wholesale Catalog</Text>
-        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-          <View style={[styles.searchBar, { flex: 1, backgroundColor: CARD, borderRadius: 12 }]}>
-            <Feather name="search" size={14} color="rgba(255,255,255,0.4)" />
-            <TextInput
-              style={{ flex: 1, color: '#fff', fontFamily: 'Inter_400Regular', fontSize: 14 }}
-              placeholder="Search products..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: TEXT, fontSize: 26, fontFamily: 'Inter_700Bold' }}>Wholesale Catalog</Text>
           {cart.length > 0 && (
-            <Pressable onPress={() => setShowCart(true)} style={[styles.cartBtn, { backgroundColor: ACCENT, borderRadius: 12 }]}>
+            <Pressable onPress={() => setShowCart(true)} style={[styles.cartBtn, { backgroundColor: BLUE, borderRadius: 12 }]}>
               <Feather name="shopping-cart" size={16} color="#fff" />
               <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>{cart.reduce((s, e) => s + e.quantity, 0)}</Text>
             </Pressable>
           )}
         </View>
+        <View style={[styles.searchBar, { backgroundColor: BG, borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}>
+          <Feather name="search" size={14} color={MUTED} />
+          <TextInput
+            style={{ flex: 1, color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14 }}
+            placeholder="Search products..."
+            placeholderTextColor={MUTED}
+            value={search}
+            onChangeText={setSearch}
+          />
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {WHOLESALE_TIERS.map((tier) => (
-            <View key={tier.label} style={[styles.tierTag, { backgroundColor: CARD, borderRadius: 10 }]}>
-              <Text style={{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}</Text>
-              {tier.discount > 0 && <Text style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
+            <View key={tier.label} style={[styles.tierTag, { backgroundColor: `${BLUE}12`, borderRadius: 10, borderWidth: 1, borderColor: `${BLUE}30` }]}>
+              <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}</Text>
+              {tier.discount > 0 && <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
             </View>
           ))}
         </ScrollView>
       </View>
 
       {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={ACCENT} /></View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
       ) : showCart ? (
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 120 }}>
-          <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }}>Order Summary</Text>
+          <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }}>Order Summary</Text>
 
           {/* Cart items */}
           {cart.map((entry) => {
             const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
+            const palette = getPalette(entry.product.metadata?.category);
             return (
-              <View key={entry.product.id} style={[styles.cartRow, { backgroundColor: CARD, borderRadius: 14 }]}>
-                <LinearGradient colors={getGradient(entry.product)} style={styles.cartThumb} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+              <View key={entry.product.id} style={[styles.cartRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
+                <View style={[styles.cartThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }]}>
+                  <Text style={{ fontSize: 22 }}>{palette.emoji}</Text>
+                </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{entry.product.name}</Text>
-                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>Qty: {entry.quantity}</Text>
-                  <Text style={{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 12, marginTop: 2 }}>${wsPrice.toFixed(2)} ea · ${(wsPrice * entry.quantity).toFixed(2)} total</Text>
+                  <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{entry.product.name}</Text>
+                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Qty: {entry.quantity}</Text>
+                  <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12, marginTop: 2 }}>${wsPrice.toFixed(2)} ea · ${(wsPrice * entry.quantity).toFixed(2)} total</Text>
                 </View>
                 <Pressable onPress={() => removeFromCart(entry.product.id)} style={{ padding: 6 }}>
                   <Feather name="trash-2" size={16} color="#EF4444" />
@@ -314,9 +321,9 @@ export default function WholesaleCatalog() {
           })}
 
           {/* Total */}
-          <View style={[styles.totalCard, { backgroundColor: CARD, borderRadius: 14 }]}>
-            <Text style={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_400Regular', fontSize: 13 }}>Order Total</Text>
-            <Text style={{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 24 }}>${(totalCents / 100).toFixed(2)}</Text>
+          <View style={[styles.totalCard, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
+            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>Order Total</Text>
+            <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 26 }}>${(totalCents / 100).toFixed(2)}</Text>
             {totalCents < 5000 && <Text style={{ color: '#EF4444', fontFamily: 'Inter_400Regular', fontSize: 12 }}>Minimum order $50 not met</Text>}
           </View>
 
@@ -328,14 +335,14 @@ export default function WholesaleCatalog() {
                 key={t.id}
                 onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
                 style={[styles.typeBtn, {
-                  borderColor: orderType === t.id ? ACCENT : 'rgba(255,255,255,0.12)',
+                  borderColor: orderType === t.id ? BLUE : BORDER,
                   borderWidth: orderType === t.id ? 2 : 1,
-                  backgroundColor: orderType === t.id ? `${ACCENT}22` : CARD,
+                  backgroundColor: orderType === t.id ? `${BLUE}12` : CARD,
                   borderRadius: 12,
                 }]}
               >
-                <Feather name={t.icon as any} size={16} color={orderType === t.id ? ACCENT : 'rgba(255,255,255,0.4)'} />
-                <Text style={{ color: orderType === t.id ? '#fff' : 'rgba(255,255,255,0.5)', fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>{t.label}</Text>
+                <Feather name={t.icon as any} size={16} color={orderType === t.id ? BLUE : MUTED} />
+                <Text style={{ color: orderType === t.id ? TEXT : MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>{t.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -345,9 +352,9 @@ export default function WholesaleCatalog() {
 
           {orderType === 'delivery' ? (
             <>
-              <View style={[styles.infoRow, { backgroundColor: `${ACCENT}22`, borderRadius: 10 }]}>
-                <Feather name="truck" size={13} color={ACCENT} />
-                <Text style={{ color: ACCENT, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 1 }}>
+              <View style={[styles.infoRow, { backgroundColor: `${BLUE}12`, borderRadius: 10 }]}>
+                <Feather name="truck" size={13} color={BLUE} />
+                <Text style={{ color: BLUE, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 1 }}>
                   Mon & Thu delivery · Monday orders close Sat 5pm
                 </Text>
               </View>
@@ -360,17 +367,17 @@ export default function WholesaleCatalog() {
                       disabled={!slot.available}
                       onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
                       style={[styles.datePill, {
-                        borderColor: isSelected ? ACCENT : 'rgba(255,255,255,0.12)',
-                        backgroundColor: isSelected ? ACCENT : !slot.available ? 'rgba(255,255,255,0.03)' : CARD,
+                        borderColor: isSelected ? BLUE : BORDER,
+                        backgroundColor: isSelected ? BLUE : !slot.available ? '#F5F6FA' : CARD,
                         borderWidth: isSelected ? 2 : 1,
                         opacity: slot.available ? 1 : 0.45,
                         borderRadius: 20,
                       }]}
                     >
-                      <Text style={{ color: isSelected ? '#fff' : !slot.available ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
+                      <Text style={{ color: isSelected ? '#fff' : !slot.available ? MUTED : TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
                         {slot.label}
                       </Text>
-                      {slot.note && <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 2 }}>{slot.note}</Text>}
+                      {slot.note && <Text style={{ color: MUTED, fontSize: 10, marginTop: 2 }}>{slot.note}</Text>}
                     </Pressable>
                   );
                 })}
@@ -378,13 +385,12 @@ export default function WholesaleCatalog() {
             </>
           ) : (
             <>
-              <View style={[styles.infoRow, { backgroundColor: `${ACCENT}22`, borderRadius: 10 }]}>
-                <Feather name="clock" size={13} color={ACCENT} />
-                <Text style={{ color: ACCENT, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 1 }}>
+              <View style={[styles.infoRow, { backgroundColor: `${BLUE}12`, borderRadius: 10 }]}>
+                <Feather name="clock" size={13} color={BLUE} />
+                <Text style={{ color: BLUE, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 1 }}>
                   10am – 7pm · 30-min slots · At least 3 hrs ahead
                 </Text>
               </View>
-              {/* Date row */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                 {pickupDates.map((d) => {
                   const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
@@ -394,24 +400,23 @@ export default function WholesaleCatalog() {
                       key={lbl}
                       onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
                       style={[styles.datePill, {
-                        borderColor: isSelected ? ACCENT : 'rgba(255,255,255,0.12)',
-                        backgroundColor: isSelected ? ACCENT : CARD,
+                        borderColor: isSelected ? BLUE : BORDER,
+                        backgroundColor: isSelected ? BLUE : CARD,
                         borderWidth: isSelected ? 2 : 1,
                         borderRadius: 20,
                       }]}
                     >
-                      <Text style={{ color: isSelected ? '#fff' : 'rgba(255,255,255,0.8)', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{lbl}</Text>
+                      <Text style={{ color: isSelected ? '#fff' : TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{lbl}</Text>
                     </Pressable>
                   );
                 })}
               </ScrollView>
-              {/* Time row */}
               {selectedDate && (
                 <>
                   <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Select a time</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                     {pickupTimes.length === 0 ? (
-                      <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 13, paddingVertical: 10 }}>
+                      <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, paddingVertical: 10 }}>
                         No slots available — choose another day
                       </Text>
                     ) : pickupTimes.map((mins) => {
@@ -422,13 +427,13 @@ export default function WholesaleCatalog() {
                           key={mins}
                           onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
                           style={[styles.datePill, {
-                            borderColor: isSelected ? ACCENT : 'rgba(255,255,255,0.12)',
-                            backgroundColor: isSelected ? ACCENT : CARD,
+                            borderColor: isSelected ? BLUE : BORDER,
+                            backgroundColor: isSelected ? BLUE : CARD,
                             borderWidth: isSelected ? 2 : 1,
                             borderRadius: 20,
                           }]}
                         >
-                          <Text style={{ color: isSelected ? '#fff' : 'rgba(255,255,255,0.8)', fontFamily: 'Inter_500Medium', fontSize: 13 }}>{lbl}</Text>
+                          <Text style={{ color: isSelected ? '#fff' : TEXT, fontFamily: 'Inter_500Medium', fontSize: 13 }}>{lbl}</Text>
                         </Pressable>
                       );
                     })}
@@ -446,9 +451,9 @@ export default function WholesaleCatalog() {
             <View key={field.key}>
               <Text style={[styles.sectionLabel, { marginTop: 0 }]}>{field.label}</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: CARD, color: '#fff', fontFamily: 'Inter_400Regular', borderRadius: 12 }]}
+                style={[styles.input, { backgroundColor: CARD, color: TEXT, fontFamily: 'Inter_400Regular', borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}
                 placeholder={field.placeholder}
-                placeholderTextColor="rgba(255,255,255,0.25)"
+                placeholderTextColor={MUTED}
                 value={field.value}
                 onChangeText={field.setter}
               />
@@ -456,13 +461,13 @@ export default function WholesaleCatalog() {
           ))}
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={() => setShowCart(false)} style={{ flex: 1, padding: 16, backgroundColor: CARD, borderRadius: 14, alignItems: 'center' }}>
-              <Text style={{ color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }}>Back</Text>
+            <Pressable onPress={() => setShowCart(false)} style={{ flex: 1, padding: 16, backgroundColor: CARD, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ color: MUTED, fontFamily: 'Inter_600SemiBold' }}>Back</Text>
             </Pressable>
             <Pressable
               onPress={handlePlaceOrder}
               disabled={submitting || totalCents < 5000}
-              style={{ flex: 2, padding: 16, backgroundColor: totalCents >= 5000 ? ACCENT : '#2A4A2A', borderRadius: 14, alignItems: 'center' }}
+              style={{ flex: 2, padding: 16, backgroundColor: totalCents >= 5000 ? BLUE : '#C7C7CC', borderRadius: 14, alignItems: 'center' }}
             >
               <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{submitting ? 'Submitting...' : 'Place Order'}</Text>
             </Pressable>
@@ -472,16 +477,20 @@ export default function WholesaleCatalog() {
         <FlatList
           data={filtered}
           keyExtractor={(p) => p.id}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={ACCENT} />}
-          contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 120 }}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 120 }}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
-              <Feather name="package" size={32} color="rgba(255,255,255,0.2)" />
-              <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'Inter_400Regular', fontSize: 14 }}>No products available</Text>
+              <Feather name="package" size={32} color={BORDER} />
+              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }}>No products available</Text>
             </View>
           }
-          renderItem={({ item: p }) => (
-            <ProductRow product={p} cartEntry={cart.find((e) => e.product.id === p.id)} onAdd={addToCart} />
+          renderItem={({ item: product }) => (
+            <ProductRow
+              product={product}
+              cartEntry={cart.find((e) => e.product.id === product.id)}
+              onAdd={addToCart}
+            />
           )}
         />
       )}
@@ -490,18 +499,18 @@ export default function WholesaleCatalog() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  header: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
   searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42 },
-  cartBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 42 },
+  cartBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
   tierTag: { paddingHorizontal: 10, paddingVertical: 6, gap: 2, alignItems: 'center' },
-  productCard: { overflow: 'hidden' },
-  productThumbLg: { height: 100, position: 'relative' },
+  productCard: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  productThumbLg: { height: 120 },
   cartRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  cartThumb: { width: 48, height: 48, borderRadius: 10 },
-  totalCard: { padding: 16, alignItems: 'center', gap: 4 },
+  cartThumb: { width: 48, height: 48 },
+  totalCard: { padding: 16, gap: 4 },
+  sectionLabel: { color: MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 },
+  datePill: { paddingHorizontal: 14, paddingVertical: 10 },
   input: { padding: 14, fontSize: 14 },
-  sectionLabel: { color: 'rgba(255,255,255,0.5)', fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 4 },
-  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
-  datePill: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
 });

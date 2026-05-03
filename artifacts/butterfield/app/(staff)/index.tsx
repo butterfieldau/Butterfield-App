@@ -7,12 +7,14 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
-const BG = '#0D0604';
-const CARD = '#1A0A04';
-const ACCENT = '#C8833A';
+const BG     = '#F5F6FA';
+const CARD   = '#FFFFFF';
+const BLUE   = '#40C0F2';
+const TEXT   = '#1C1C1E';
+const MUTED  = '#8E8E93';
+const BORDER = '#E5E7EB';
 
 export default function StaffDashboard() {
   const insets = useSafeAreaInsets();
@@ -84,8 +86,7 @@ export default function StaffDashboard() {
   const todayScheduled = allOrders
     .filter((o: any) => {
       if (!o.scheduledFor) return false;
-      const d = new Date(o.scheduledFor);
-      return d.toDateString() === todayStr && o.status !== 'cancelled' && o.status !== 'refunded';
+      return new Date(o.scheduledFor).toDateString() === todayStr && o.status !== 'cancelled' && o.status !== 'refunded';
     })
     .sort((a: any, b: any) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
 
@@ -99,14 +100,16 @@ export default function StaffDashboard() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={shiftRefetching} onRefresh={() => { refetchShift(); refetchTasks(); }} tintColor={ACCENT} />}>
-      <LinearGradient colors={['#2A1408', BG]} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+      refreshControl={<RefreshControl refreshing={shiftRefetching} onRefresh={() => { refetchShift(); refetchTasks(); refetchOrders(); }} tintColor={BLUE} />}>
+
+      {/* Header */}
+      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.6)' }]}>Good shift,</Text>
-            <Text style={[styles.name, { fontFamily: 'Inter_700Bold', color: '#fff' }]}>{user?.name?.split(' ')[0]} 👋</Text>
+            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>Good shift,</Text>
+            <Text style={[styles.name, { fontFamily: 'Inter_700Bold' }]}>{user?.name?.split(' ')[0]} 👋</Text>
           </View>
-          <View style={[styles.shiftIndicator, { backgroundColor: currentShift ? '#22C55E20' : '#EF444420', borderColor: currentShift ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
+          <View style={[styles.shiftIndicator, { backgroundColor: currentShift ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', borderColor: currentShift ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
             <View style={[styles.shiftDot, { backgroundColor: currentShift ? '#22C55E' : '#EF4444' }]} />
             <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: currentShift ? '#22C55E' : '#EF4444' }]}>{currentShift ? 'On Shift' : 'Off Duty'}</Text>
           </View>
@@ -114,14 +117,15 @@ export default function StaffDashboard() {
       </LinearGradient>
 
       <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
-        {/* Clock In/Out */}
-        <View style={[styles.clockCard, { backgroundColor: CARD, borderRadius: 16 }]}>
+
+        {/* Clock card */}
+        <View style={[styles.clockCard, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
           {currentShift ? (
             <>
               <View style={styles.clockInfo}>
-                <Text style={[styles.clockLabel, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' }]}>Shift started</Text>
-                <Text style={[styles.clockTime, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{new Date(currentShift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
-                <Text style={[{ color: ACCENT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{getShiftDuration()} on shift</Text>
+                <Text style={[styles.clockLabel, { color: MUTED, fontFamily: 'Inter_400Regular' }]}>Shift started</Text>
+                <Text style={[styles.clockTime, { color: TEXT, fontFamily: 'Inter_700Bold' }]}>{new Date(currentShift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{getShiftDuration()} on shift</Text>
               </View>
               <Pressable onPress={handleClockOut} disabled={clockingIn} style={[styles.clockBtn, { backgroundColor: '#DC2626', borderRadius: 12 }]}>
                 {clockingIn ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>Clock Out</Text>}
@@ -130,8 +134,8 @@ export default function StaffDashboard() {
           ) : (
             <>
               <View style={styles.clockInfo}>
-                <Text style={[styles.clockLabel, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_400Regular' }]}>Ready to start?</Text>
-                <Text style={[styles.clockTime, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Text style={[styles.clockLabel, { color: MUTED, fontFamily: 'Inter_400Regular' }]}>Ready to start?</Text>
+                <Text style={[styles.clockTime, { color: TEXT, fontFamily: 'Inter_700Bold' }]}>{new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
               </View>
               <Pressable onPress={handleClockIn} disabled={clockingIn} style={[styles.clockBtn, { backgroundColor: '#22C55E', borderRadius: 12 }]}>
                 {clockingIn ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }]}>Clock In</Text>}
@@ -140,100 +144,94 @@ export default function StaffDashboard() {
           )}
         </View>
 
-        {/* Task Progress */}
-        <View style={[styles.taskProgress, { backgroundColor: CARD, borderRadius: 16 }]}>
+        {/* Task progress */}
+        <View style={[styles.taskProgress, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Today's Tasks</Text>
-            <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
+            <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Today's Tasks</Text>
+            <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
           </View>
-          <View style={[styles.progressTrack, { backgroundColor: '#2A1408' }]}>
-            <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: ACCENT }]} />
+          <View style={[styles.progressTrack, { backgroundColor: '#F0F0F0' }]}>
+            <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: BLUE }]} />
           </View>
         </View>
 
-        {/* Quick Actions */}
-        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
+        {/* Quick actions */}
+        <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
           {[
-            { icon: 'clipboard', label: 'Tasks', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
-            { icon: 'alert-triangle', label: 'Log Wastage', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'wastage' } }) },
-            { icon: 'tool', label: 'Report Issue', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
-            { icon: 'calendar', label: 'Leave Request', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
+            { icon: 'clipboard',      label: 'Tasks',        bg: '#E0F5FE', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
+            { icon: 'alert-triangle', label: 'Log Wastage',  bg: '#FEF3C7', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'wastage' } }) },
+            { icon: 'tool',           label: 'Report Issue', bg: '#FEE2E2', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
+            { icon: 'calendar',       label: 'Leave Request',bg: '#F3E8FF', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
           ].map((action) => (
             <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
-              style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16 }]}>
-              <View style={[styles.actionIcon, { backgroundColor: `${ACCENT}20`, borderRadius: 12 }]}>
-                <Feather name={action.icon as any} size={20} color={ACCENT} />
+              style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
+              <View style={[styles.actionIcon, { backgroundColor: action.bg, borderRadius: 12 }]}>
+                <Feather name={action.icon as any} size={20} color={BLUE} />
               </View>
-              <Text style={[styles.actionLabel, { color: '#fff', fontFamily: 'Inter_500Medium' }]}>{action.label}</Text>
+              <Text style={[styles.actionLabel, { color: TEXT, fontFamily: 'Inter_500Medium' }]}>{action.label}</Text>
             </Pressable>
           ))}
         </View>
 
-        {/* Today's Schedule */}
-        <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>TODAY'S SCHEDULE</Text>
+        {/* Today's schedule */}
+        <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>TODAY'S SCHEDULE</Text>
         {scheduleGroups.length === 0 ? (
-          <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14 }]}>
-            <Feather name="calendar" size={22} color="rgba(255,255,255,0.2)" />
-            <Text style={[{ color: 'rgba(255,255,255,0.35)', fontFamily: 'Inter_400Regular', fontSize: 13 }]}>No scheduled pickups or deliveries today</Text>
+          <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
+            <Feather name="calendar" size={22} color={BORDER} />
+            <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>No scheduled pickups or deliveries today</Text>
           </View>
         ) : scheduleGroups.map((group) => (
           <View key={group.time} style={{ gap: 8 }}>
             <View style={styles.timeRow}>
-              <Feather name="clock" size={12} color={ACCENT} />
-              <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{group.time}</Text>
+              <Feather name="clock" size={12} color={BLUE} />
+              <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{group.time}</Text>
             </View>
             {group.orders.map((order: any) => {
               const items = Array.isArray(order.items) ? order.items : [];
               const statusColors: Record<string, string> = {
-                received: '#3B82F6', being_prepared: ACCENT, ready_for_pickup: '#22C55E',
+                received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: '#22C55E',
                 completed: '#6B7280', cancelled: '#EF4444',
               };
               const sc = statusColors[order.status] ?? '#3B82F6';
               return (
-                <Pressable
-                  key={order.id}
-                  onPress={() => router.push('/(staff)/orders')}
-                  style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderLeftColor: sc, borderLeftWidth: 3 }]}
-                >
+                <Pressable key={order.id} onPress={() => router.push('/(staff)/orders')}
+                  style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, borderLeftColor: sc, borderLeftWidth: 3 }]}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
-                      <View style={[{ backgroundColor: `${sc}22`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
+                      <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
+                      <View style={[{ backgroundColor: `${sc}18`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
                         <Text style={[{ color: sc, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
                       </View>
-                      <View style={[{ backgroundColor: order.type === 'delivery' ? '#8B5CF622' : '#40C0F222', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
-                        <Text style={[{ color: order.type === 'delivery' ? '#8B5CF6' : '#40C0F2', fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'capitalize' }]}>{order.type}</Text>
-                      </View>
                     </View>
-                    <Text style={[{ color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular', fontSize: 12 }]} numberOfLines={1}>
+                    <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]} numberOfLines={1}>
                       {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
                       {items.length > 3 ? ` +${items.length - 3} more` : ''}
                     </Text>
                   </View>
-                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
+                  <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
                 </Pressable>
               );
             })}
           </View>
         ))}
 
-        {/* Urgent Tasks */}
+        {/* Pending tasks */}
         {urgentTasks.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>PENDING TASKS</Text>
+            <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>PENDING TASKS</Text>
             {urgentTasks.map((task) => (
               <Pressable key={task.id} onPress={() => handleCompleteTask(task.id, task.isCompleted)}
-                style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderLeftColor: ACCENT, borderLeftWidth: 3 }]}>
+                style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftColor: BLUE, borderLeftWidth: 3 }]}>
                 <View style={[styles.taskCheck, {
-                  borderColor: task.isCompleted ? '#22C55E' : ACCENT,
-                  backgroundColor: task.isCompleted ? '#22C55E' : 'transparent', borderWidth: 2, borderRadius: 8,
+                  borderColor: task.isCompleted ? '#22C55E' : BORDER,
+                  backgroundColor: task.isCompleted ? '#22C55E' : '#fff', borderWidth: 2, borderRadius: 8,
                 }]}>
                   {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: task.isCompleted ? 'rgba(255,255,255,0.4)' : '#fff', fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
-                  <Text style={[{ color: ACCENT, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
+                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
+                  <Text style={[{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
                 </View>
               </Pressable>
             ))}
@@ -247,8 +245,8 @@ export default function StaffDashboard() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  greeting: { fontSize: 14 },
-  name: { fontSize: 24 },
+  greeting: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
+  name: { color: '#fff', fontSize: 24 },
   shiftIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   shiftDot: { width: 6, height: 6, borderRadius: 3 },
   clockCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20 },
@@ -261,7 +259,7 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 4 },
   sectionTitle: { fontSize: 11, letterSpacing: 1.5, marginTop: 4 },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  actionCard: { width: '47%', padding: 16, gap: 10 },
+  actionCard: { width: '47%', padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   actionIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 13 },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },

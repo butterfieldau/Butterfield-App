@@ -19,12 +19,27 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 
-const BG = '#F5F6FA';
-const CARD = '#FFFFFF';
-const BRAND = '#40C0F2';
-const TEXT = '#1C1C1E';
-const MUTED = '#8E8E93';
+const BG     = '#F5F6FA';
+const CARD   = '#FFFFFF';
+const BLUE   = '#40C0F2';
+const TEXT   = '#1C1C1E';
+const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+
+function autoFormatBirthday(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function birthdayToISO(birthday: string): string | null {
+  const parts = birthday.trim().split('/');
+  if (parts.length !== 3) return null;
+  const [d, m, y] = parts.map((p) => parseInt(p, 10));
+  if (!d || !m || !y || d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) return null;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
 
 export default function EditDetailsScreen() {
   const insets = useSafeAreaInsets();
@@ -36,6 +51,7 @@ export default function EditDetailsScreen() {
   const [phone, setPhone] = useState((user as any)?.phone ?? '');
   const [birthday, setBirthday] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     api.loyalty.profile().then((res) => {
@@ -44,8 +60,12 @@ export default function EditDetailsScreen() {
         const [y, m, d] = bd.split('-');
         setBirthday(`${d}/${m}/${y}`);
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoadingProfile(false));
   }, []);
+
+  const handleBirthdayChange = (text: string) => {
+    setBirthday(autoFormatBirthday(text));
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -59,35 +79,23 @@ export default function EditDetailsScreen() {
       await api.auth.updateMe({ name: name.trim(), phone: phone.trim() || undefined });
 
       if (birthday.trim()) {
-        const parts = birthday.trim().split('/');
-        if (parts.length === 3) {
-          const [d, m, y] = parts;
-          const day = parseInt(d, 10);
-          const month = parseInt(m, 10);
-          const year = parseInt(y, 10);
-          if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900 && year <= new Date().getFullYear()) {
-            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            await api.loyalty.updateBirthday(isoDate);
-          } else {
-            Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY.');
-            setSaving(false);
-            return;
-          }
-        } else {
-          Alert.alert('Invalid birthday format', 'Please use DD/MM/YYYY format.');
+        const iso = birthdayToISO(birthday);
+        if (!iso) {
+          Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY (e.g. 15/06/1995).');
           setSaving(false);
           return;
         }
+        await api.loyalty.updateBirthday(iso);
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
       qc.invalidateQueries({ queryKey: ['auth-me'] });
-      Alert.alert('Saved!', 'Your details have been updated.', [
+      Alert.alert('Saved! 🎉', 'Your details have been updated.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not save your details.');
+      Alert.alert('Error', e.message ?? 'Could not save your details. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -95,55 +103,78 @@ export default function EditDetailsScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: CARD }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <Feather name="chevron-left" size={24} color={TEXT} />
         </Pressable>
-        <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Edit details</Text>
-        <Text style={[styles.brandText, { fontFamily: 'Inter_700Bold', color: BRAND }]}>Butterfield</Text>
+        <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold', color: TEXT }]}>Edit Profile</Text>
+        <Text style={[styles.brandText, { fontFamily: 'Inter_700Bold', color: BLUE, fontStyle: 'italic' }]}>Butterfield</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        <View style={[styles.card, { backgroundColor: CARD }]}>
-          <Field label="Full name" value={name} onChangeText={setName} placeholder="Your name" autoCapitalize="words" />
-          <View style={styles.divider} />
-          <Field label="Email" value={email} onChangeText={() => {}} placeholder="Email" editable={false} dimmed />
-          <View style={styles.divider} />
-          <Field label="Mobile number" value={phone} onChangeText={setPhone} placeholder="04xx xxx xxx" keyboardType="phone-pad" />
-          <View style={styles.divider} />
-          <View style={styles.fieldWrap}>
-            <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Birthday 🎂</Text>
-            <TextInput
-              style={[styles.fieldInput, { fontFamily: 'Inter_400Regular', color: TEXT }]}
-              value={birthday}
-              onChangeText={setBirthday}
-              placeholder="DD/MM/YYYY"
-              placeholderTextColor={MUTED}
-              keyboardType="numbers-and-punctuation"
-            />
-            <Text style={[styles.fieldHint, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
-              Get a free cookie every birthday week.
-            </Text>
+
+        {/* Personal info card */}
+        <View>
+          <Text style={[styles.groupLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>PERSONAL INFO</Text>
+          <View style={[styles.card]}>
+            <FieldRow icon="user"  label="Full name"     value={name}  onChangeText={setName}  placeholder="Your full name" autoCapitalize="words" />
+            <View style={styles.divider} />
+            <FieldRow icon="mail"  label="Email"         value={email} onChangeText={() => {}} placeholder="Email" editable={false} dimmed hint="Email cannot be changed" />
+            <View style={styles.divider} />
+            <FieldRow icon="phone" label="Mobile number" value={phone} onChangeText={setPhone} placeholder="04xx xxx xxx" keyboardType="phone-pad" />
+          </View>
+        </View>
+
+        {/* Birthday card */}
+        <View>
+          <Text style={[styles.groupLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>BIRTHDAY</Text>
+          <View style={[styles.card]}>
+            <View style={styles.fieldRow}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={{ fontSize: 16 }}>🎂</Text>
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 15, color: TEXT }]}>Birthday</Text>
+                {loadingProfile ? (
+                  <ActivityIndicator size="small" color={BLUE} />
+                ) : (
+                  <TextInput
+                    style={[styles.input, { fontFamily: 'Inter_400Regular', color: TEXT }]}
+                    value={birthday}
+                    onChangeText={handleBirthdayChange}
+                    placeholder="DD/MM/YYYY"
+                    placeholderTextColor={MUTED}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                )}
+                <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED }]}>
+                  🍪 You'll receive a free cookie during your birthday week!
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
         <Text style={[styles.disclaimer, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
-          Your details speed up checkout — name, email and phone are saved to your account.
+          Your details are saved securely and used to personalise your Butterfield experience.
         </Text>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+      {/* Save button */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: BG }]}>
         <Pressable
           onPress={handleSave}
           disabled={saving}
-          style={[styles.saveBtn, { backgroundColor: BRAND }]}
+          style={[styles.saveBtn, { backgroundColor: saving ? '#A0DCF0' : BLUE }]}
         >
           {saving ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <>
-              <Feather name="save" size={16} color="#fff" />
-              <Text style={[styles.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Save changes</Text>
+              <Feather name="check" size={18} color="#fff" />
+              <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>Save changes</Text>
             </>
           )}
         </Pressable>
@@ -152,27 +183,34 @@ export default function EditDetailsScreen() {
   );
 }
 
-function Field({
-  label, value, onChangeText, placeholder, editable = true, dimmed = false,
-  autoCapitalize, keyboardType,
+function FieldRow({
+  icon, label, value, onChangeText, placeholder, editable = true, dimmed = false,
+  autoCapitalize, keyboardType, hint,
 }: {
-  label: string; value: string; onChangeText: (v: string) => void;
+  icon: string; label: string; value: string; onChangeText: (v: string) => void;
   placeholder?: string; editable?: boolean; dimmed?: boolean;
-  autoCapitalize?: any; keyboardType?: any;
+  autoCapitalize?: any; keyboardType?: any; hint?: string;
 }) {
+  const iconBgs: Record<string, string> = { user: '#E0F5FE', mail: '#F3F4F6', phone: '#DCFCE7' };
   return (
-    <View style={styles.fieldWrap}>
-      <Text style={[styles.fieldLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>{label}</Text>
-      <TextInput
-        style={[styles.fieldInput, { fontFamily: 'Inter_400Regular', color: dimmed ? MUTED : TEXT }]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={MUTED}
-        editable={editable}
-        autoCapitalize={autoCapitalize}
-        keyboardType={keyboardType}
-      />
+    <View style={styles.fieldRow}>
+      <View style={[styles.iconCircle, { backgroundColor: iconBgs[icon] ?? '#F3F4F6' }]}>
+        <Feather name={icon as any} size={16} color={BLUE} />
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: TEXT }]}>{label}</Text>
+        <TextInput
+          style={[styles.input, { fontFamily: 'Inter_400Regular', color: dimmed ? MUTED : TEXT }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={MUTED}
+          editable={editable}
+          autoCapitalize={autoCapitalize}
+          keyboardType={keyboardType}
+        />
+        {hint && <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 11, color: MUTED }]}>{hint}</Text>}
+      </View>
     </View>
   );
 }
@@ -180,25 +218,25 @@ function Field({
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14,
-    backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 8,
+    borderBottomWidth: 1, borderBottomColor: BORDER, gap: 8,
   },
   backBtn: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 20, color: TEXT },
-  brandText: { fontSize: 18, fontStyle: 'italic' },
+  headerTitle: { flex: 1, fontSize: 20 },
+  brandText: { fontSize: 18 },
 
-  card: { borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
-  divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 16 },
-  fieldWrap: { paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
-  fieldLabel: { fontSize: 14, color: TEXT },
-  fieldInput: {
+  groupLabel: { fontSize: 11, letterSpacing: 1.2, marginBottom: 8, paddingLeft: 4 },
+  card: { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  divider: { height: 1, backgroundColor: BORDER, marginLeft: 68 },
+
+  fieldRow: { flexDirection: 'row', gap: 14, padding: 16, alignItems: 'flex-start' },
+  iconCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  input: {
     borderWidth: 1, borderColor: BORDER, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 16,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
+    backgroundColor: BG,
   },
-  fieldHint: { fontSize: 12, marginTop: -4 },
-
   disclaimer: { fontSize: 13, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
-
-  footer: { paddingHorizontal: 20, paddingTop: 12, backgroundColor: BG, borderTopWidth: 1, borderTopColor: BORDER },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, borderRadius: 14 },
+  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 17, borderRadius: 16 },
   saveBtnText: { color: '#fff', fontSize: 16 },
 });
