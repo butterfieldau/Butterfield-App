@@ -21,7 +21,7 @@ const CATEGORIES = [
 function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
 function getGradient(p: ApiProduct): [string, string] {
   const g = p.metadata?.gradient?.split(',');
-  return g?.length === 2 ? [g[0], g[1]] : ['#4B72C4', '#3A5BA8'];
+  return g?.length === 2 ? [g[0], g[1]] : ['#40C0F2', '#2AA8DC'];
 }
 
 export default function MenuScreen() {

@@ -1,0 +1,129 @@
+{
+  "colorScheme": "light",
+  "fonts": [
+    {
+      "family": "Barlow Condensed",
+      "role": "heading"
+    },
+    {
+      "family": "Barlow",
+      "role": "body"
+    }
+  ],
+  "colors": {
+    "primary": "#FFF8F0",
+    "secondary": "#F40009",
+    "accent": "#40C0F2",
+    "background": "#FFFFFF",
+    "textPrimary": "#40C0F2",
+    "link": "#40C0F2"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Barlow",
+      "heading": "Barlow Condensed"
+    },
+    "fontStacks": {
+      "heading": [
+        "Barlow Condensed",
+        "sans-serif"
+      ],
+      "body": [
+        "Barlow",
+        "sans-serif"
+      ],
+      "paragraph": [
+        "Barlow Condensed",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "120px",
+      "h2": "72px",
+      "body": "18px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 4,
+    "borderRadius": "0px"
+  },
+  "components": {
+    "buttonPrimary": {
+      "background": "#40C0F2",
+      "textColor": "#FFFFFF",
+      "borderRadius": "0px",
+      "borderRadiusCorners": {
+        "topLeft": "0px",
+        "topRight": "0px",
+        "bottomRight": "0px",
+        "bottomLeft": "0px"
+      },
+      "shadow": "rgb(64, 192, 242) 0px 0px 0px 0px inset"
+    },
+    "buttonSecondary": {
+      "background": "#F0F0F0",
+      "textColor": "#000000",
+      "borderRadius": "0px",
+      "borderRadiusCorners": {
+        "topLeft": "0px",
+        "topRight": "0px",
+        "bottomRight": "0px",
+        "bottomLeft": "0px"
+      },
+      "shadow": "rgb(64, 192, 242) 0px 0px 0px 0px inset"
+    }
+  },
+  "images": {
+    "ogImage": "http://butterfieldcookies.com.au/cdn/shop/files/butterfield_box_32_3cdca50b-1f06-4c80-a9cf-fe4b45eaf6ec.jpg?v=1751601857",
+    "logoHref": "File saved at: attached_assets/logoHref.html"
+  },
+  "__llm_logo_reasoning": {
+    "selectedIndex": 2,
+    "reasoning": "Selected #2 because it is visible, located in the header, links to the homepage, and matches the brand name 'Butterfield Cookies'.",
+    "confidence": 0.95,
+    "source": "llm"
+  },
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": 1,
+      "text": "Shop now -->",
+      "reasoning": "Button #1 ('Shop now -->') is the primary CTA due to its action-oriented text and vibrant blue background, which aligns with the brand's accent color."
+    },
+    "secondary": {
+      "index": 2,
+      "text": "Skip to content",
+      "reasoning": "Button #2 ('Skip to content') is selected as secondary because it has a different, lighter background color (#F0F0F0) and serves a supportive function."
+    },
+    "confidence": 0.95
+  },
+  "personality": {
+    "tone": "playful",
+    "energy": "high",
+    "targetAudience": "cookie enthusiasts and gift shoppers"
+  },
+  "designSystem": {
+    "framework": "custom",
+    "componentLibrary": ""
+  },
+  "confidence": {
+    "buttons": 0.95,
+    "colors": 0.9,
+    "overall": 0.925
+  },
+  "__llm_metadata": {
+    "logoSelection": {
+      "llmCalled": true,
+      "llmSucceeded": true,
+      "finalSource": "llm",
+      "rawLogoSelection": {
+        "selectedLogoIndex": 2,
+        "selectedLogoReasoning": "Selected #2 because it is visible, located in the header, links to the homepage, and matches the brand name 'Butterfield Cookies'.",
+        "confidence": 0.95
+      }
+    },
+    "buttonClassification": {
+      "llmCalled": true,
+      "llmSucceeded": true
+    }
+  }
+}

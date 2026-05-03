@@ -19,14 +19,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
 
-const BG = '#F5F6FA';
-const BLUE_CARD = '#5AB8FF';
-const BLUE_DARK = '#3A7FD4';
-const BRAND = '#4B72C4';
+const BG = '#FFF8F0';
+const BLUE_CARD = '#40C0F2';
+const BLUE_DARK = '#2AA8DC';
+const BRAND = '#40C0F2';
 const WHITE = '#FFFFFF';
 const TEXT = '#1C1C1E';
 const MUTED = '#8E8E93';
-const BORDER = '#E8EFF9';
+const BORDER = '#D0E8F5';
 
 const STAMP_COUNT = 6;
 

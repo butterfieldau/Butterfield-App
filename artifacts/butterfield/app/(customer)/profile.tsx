@@ -56,7 +56,7 @@ export default function ProfileScreen() {
     { icon: 'package', label: 'My Orders', action: () => router.push('/(customer)/orders') },
     { icon: 'heart', label: 'Favourites', action: () => router.push('/(customer)/favourites') },
     { icon: 'bell', label: 'Notifications', action: () => Alert.alert('Notifications', 'You have no new notifications.\n\nWe\'ll notify you when your order is ready for pickup.') },
-    { icon: 'map-pin', label: 'Store Location & Hours', action: () => Alert.alert('Butterfield Cookies', '42 Butterfield Lane\nSurry Hills NSW 2010\n\nMon–Fri  7:00am – 5:00pm\nSaturday  8:00am – 4:00pm\nSunday  Closed\n\nPhone: (02) 9000 0000') },
+    { icon: 'map-pin', label: 'Store Location & Hours', action: () => Alert.alert('Butterfield Cookies', 'Mason & Main\nMerrylands NSW 2160\n\nMon–Fri  8:00am – 5:00pm\nSaturday  8:00am – 4:00pm\nSunday  9:00am – 3:00pm\n\nInstagram: @butterfieldau') },
     { icon: 'message-circle', label: 'Send Feedback', action: () => setShowFeedback(true) },
     { icon: 'help-circle', label: 'Help & Support', action: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\nHours: Mon–Fri 7am–5pm') },
   ];

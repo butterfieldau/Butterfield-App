@@ -30,10 +30,16 @@ const CATEGORIES = [
 ];
 
 const PRODUCT_IMAGES: Record<string, string> = {
-  'prod_classic_choc_chip': 'https://butterfieldcookies.com.au/cdn/shop/files/classic-choc-chip.jpg',
-  'prod_double_chocolate': 'https://butterfieldcookies.com.au/cdn/shop/files/double-choc.jpg',
-  'prod_flat_white': 'https://butterfieldcookies.com.au/cdn/shop/files/flat-white.jpg',
-  'prod_cookie_sandwich': 'https://butterfieldcookies.com.au/cdn/shop/files/cookie-sandwich.jpg',
+  'Choc Chip Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_ChocChip_2880x2304_0fb8e9b6-eb1d-4afe-97f5-0fca062170a8.jpg?v=1764302334&width=600',
+  'Pistachio Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Pistachio_2880x2304_22fcddc2-bd6f-48b2-b5c0-cfe6528a14b5.jpg?v=1764302160&width=600',
+  'Biscoff': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Biscoff_2880x2304_c0c0d24b-bd23-4dbf-b563-82b0d49eeb65.jpg?v=1764302195&width=600',
+  'M&Ms Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldCookies_MAndMs.jpg?v=1764302008&width=600',
+  'Red Velvet Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_RedValvet_2880x2304_1af322bc-b56c-4635-8477-309d188fe6dd.jpg?v=1764302309&width=600',
+  'Almond Croissant Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldCookies_AlmondCroissantCookie_2880x2304_ad98ea84-f045-47a1-8af7-e6b6e79fa74d.jpg?v=1771549363&width=600',
+  'Bueno Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Bueno_2880x2304_3b3d438c-63c9-41ae-82bc-92da907cf7ce.jpg?v=1764301910&width=600',
+  'Classic Choc Chip': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_ChocChip_2880x2304_0fb8e9b6-eb1d-4afe-97f5-0fca062170a8.jpg?v=1764302334&width=600',
+  'Double Chocolate': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Bueno_2880x2304_3b3d438c-63c9-41ae-82bc-92da907cf7ce.jpg?v=1764301910&width=600',
+  'Cookie & Cream Sandwich': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_ChocChip_2880x2304_0fb8e9b6-eb1d-4afe-97f5-0fca062170a8.jpg?v=1764302334&width=600',
 };
 
 function getPrice(p: ApiProduct): number {
@@ -43,7 +49,7 @@ function getPrice(p: ApiProduct): number {
 function getGradient(p: ApiProduct): [string, string] {
   const g = p.metadata?.gradient?.split(',');
   if (g?.length === 2) return [g[0], g[1]];
-  return ['#4B72C4', '#3A5BA8'];
+  return ['#40C0F2', '#2AA8DC'];
 }
 
 function ProductTile({ product, onAdd }: { product: ApiProduct; onAdd: () => void }) {
@@ -51,7 +57,7 @@ function ProductTile({ product, onAdd }: { product: ApiProduct; onAdd: () => voi
   const gradient = getGradient(product);
   const price = getPrice(product);
   const available = product.metadata?.available !== 'false';
-  const imageUrl = PRODUCT_IMAGES[product.id];
+  const imageUrl = PRODUCT_IMAGES[product.name];
 
   return (
     <Pressable style={[styles.tile, { borderRadius: colors.radius, backgroundColor: colors.card }]} onPress={available ? onAdd : undefined}>
@@ -137,7 +143,7 @@ export default function CustomerHome() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
     >
-      <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={styles.headerTop}>
           <View>
             <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>{greeting},</Text>
@@ -160,7 +166,7 @@ export default function CustomerHome() {
       </LinearGradient>
 
       <View style={styles.promoSection}>
-        <LinearGradient colors={['#5AB8FF', '#3A7FD4']} style={[styles.promoBanner, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.promoBanner, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
           <View style={styles.promoContent}>
             <Text style={[styles.promoTag, { fontFamily: 'Inter_600SemiBold' }]}>🍪 DAILY SPECIAL</Text>
             <Text style={[styles.promoTitle, { fontFamily: 'Inter_700Bold' }]}>Cookie & Cream Sandwich</Text>
@@ -244,7 +250,7 @@ const styles = StyleSheet.create({
   promoCircle: { position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: 60 },
   section: { marginTop: 24 },
   sectionTitle: { fontSize: 20, paddingHorizontal: 20, marginBottom: 12 },
-  favCard: { width: 130, padding: 12, gap: 8, shadowColor: '#4B72C4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  favCard: { width: 130, padding: 12, gap: 8, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
   favImage: { width: '100%', height: 80 },
   favName: { fontSize: 13 },
   favPrice: { fontSize: 13 },
@@ -252,9 +258,9 @@ const styles = StyleSheet.create({
   catPill: { paddingHorizontal: 16, paddingVertical: 8 },
   catLabel: { fontSize: 13 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: { width: '47%', padding: 12, gap: 8, shadowColor: '#4B72C4', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  tile: { width: '47%', padding: 12, gap: 8, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   tileImage: { width: '100%', height: 90, alignItems: 'flex-start', justifyContent: 'flex-start', padding: 0 },
-  newBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: '#4B72C4', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  newBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: '#40C0F2', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   newBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
   soldOutOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   tileInfo: { gap: 4 },

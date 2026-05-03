@@ -25,7 +25,7 @@ const ROLES = [
     label: 'Customer',
     subtitle: 'Order, earn rewards & explore',
     icon: 'coffee',
-    gradient: ['#4B72C4', '#3A5BA8'] as [string, string],
+    gradient: ['#40C0F2', '#2AA8DC'] as [string, string],
   },
   {
     role: 'staff' as UserRole,
