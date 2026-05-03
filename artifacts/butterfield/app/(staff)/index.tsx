@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -132,10 +133,10 @@ export default function StaffDashboard() {
         <Text style={[styles.sectionTitle, { color: 'rgba(255,255,255,0.6)', fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
           {[
-            { icon: 'clipboard', label: 'Tasks', onPress: () => {} },
-            { icon: 'alert-triangle', label: 'Log Wastage', onPress: () => {} },
-            { icon: 'tool', label: 'Report Issue', onPress: () => {} },
-            { icon: 'calendar', label: 'Leave Request', onPress: () => {} },
+            { icon: 'clipboard', label: 'Tasks', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
+            { icon: 'alert-triangle', label: 'Log Wastage', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'wastage' } }) },
+            { icon: 'tool', label: 'Report Issue', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
+            { icon: 'calendar', label: 'Leave Request', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
           ].map((action) => (
             <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
               style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16 }]}>

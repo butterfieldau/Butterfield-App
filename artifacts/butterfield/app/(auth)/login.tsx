@@ -72,7 +72,7 @@ export default function LoginScreen() {
 
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
-    setMode(role === 'wholesale' ? 'wholesale-apply' : 'login');
+    setMode('login');
     resetFields();
     Haptics.selectionAsync();
   };
@@ -88,15 +88,18 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       if (mode === 'register') {
-        await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() || undefined });
-        router.replace('/(customer)/');
+        const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() || undefined });
+        if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
+        router.replace('/(customer)');
       } else if (mode === 'wholesale-apply') {
-        await wholesaleApply({ email: email.trim(), password, name: name.trim(), companyName: companyName.trim(), abn: abn.trim() || undefined });
+        const res = await wholesaleApply({ email: email.trim(), password, name: name.trim(), companyName: companyName.trim(), abn: abn.trim() || undefined });
+        if (!res.success) { setError(res.error ?? 'Application failed.'); return; }
         setSuccessMsg('Application submitted! We\'ll review and get back to you within 1 business day.');
         resetFields();
       } else {
-        await login({ email: email.trim(), password });
-        router.replace('/(tabs)/');
+        const res = await login(email.trim(), password, selectedRole);
+        if (!res.success) { setError(res.error ?? 'Login failed. Check your credentials.'); return; }
+        router.replace('/(tabs)');
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
@@ -109,8 +112,9 @@ export default function LoginScreen() {
 
   const isWholesale = selectedRole === 'wholesale';
   const isRegister = mode === 'register';
+  const isWholesaleApply = mode === 'wholesale-apply';
 
-  const btnLabel = mode === 'wholesale-apply' ? 'Apply for Wholesale' : mode === 'register' ? `Create Account` : `Sign In as ${roleConfig.label}`;
+  const btnLabel = isWholesaleApply ? 'Submit Application' : isRegister ? 'Create Account' : `Sign In as ${roleConfig.label}`;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -154,7 +158,23 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.fields}>
-            {(isRegister || isWholesale) && (
+            {isWholesale && (
+              <View style={[styles.wholesaleToggle, { backgroundColor: colors.muted, borderRadius: 12 }]}>
+                <Pressable
+                  onPress={() => { setMode('login'); resetFields(); Haptics.selectionAsync(); }}
+                  style={[styles.wholesaleToggleBtn, { backgroundColor: !isWholesaleApply ? colors.card : 'transparent', borderRadius: 9 }]}
+                >
+                  <Text style={[{ fontFamily: !isWholesaleApply ? 'Inter_600SemiBold' : 'Inter_400Regular', fontSize: 13, color: !isWholesaleApply ? colors.foreground : colors.mutedForeground }]}>Sign In</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setMode('wholesale-apply'); resetFields(); Haptics.selectionAsync(); }}
+                  style={[styles.wholesaleToggleBtn, { backgroundColor: isWholesaleApply ? colors.card : 'transparent', borderRadius: 9 }]}
+                >
+                  <Text style={[{ fontFamily: isWholesaleApply ? 'Inter_600SemiBold' : 'Inter_400Regular', fontSize: 13, color: isWholesaleApply ? colors.foreground : colors.mutedForeground }]}>Apply for Account</Text>
+                </Pressable>
+              </View>
+            )}
+            {(isRegister || isWholesaleApply) && (
               <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
                 <Feather name="user" size={16} color={colors.mutedForeground} />
                 <TextInput
@@ -167,7 +187,7 @@ export default function LoginScreen() {
                 />
               </View>
             )}
-            {isWholesale && (
+            {isWholesaleApply && (
               <>
                 <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
                   <Feather name="briefcase" size={16} color={colors.mutedForeground} />
@@ -259,6 +279,17 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
             )}
+            {isWholesale && !isWholesaleApply && (
+              <Pressable
+                onPress={() => { setMode('wholesale-apply'); resetFields(); Haptics.selectionAsync(); }}
+                style={{ alignItems: 'center', paddingVertical: 4 }}
+              >
+                <Text style={[styles.toggleText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  {"Don't have an account? "}
+                  <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Apply for Wholesale</Text>
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -288,4 +319,6 @@ const styles = StyleSheet.create({
   submitBtn: { height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   submitBtnText: { color: '#fff', fontSize: 16 },
   toggleText: { fontSize: 14, textAlign: 'center' },
+  wholesaleToggle: { flexDirection: 'row', padding: 4, gap: 4 },
+  wholesaleToggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
 });

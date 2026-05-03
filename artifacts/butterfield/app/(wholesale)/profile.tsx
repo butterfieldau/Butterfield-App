@@ -91,9 +91,9 @@ export default function WholesaleProfileScreen() {
 
         <View style={[{ backgroundColor: CARD, borderRadius: 16, overflow: 'hidden' }]}>
           {[
-            { icon: 'phone', label: 'Contact Sales Rep', onPress: () => {} },
-            { icon: 'file-text', label: 'Download Invoices', onPress: () => {} },
-            { icon: 'help-circle', label: 'Wholesale FAQs', onPress: () => {} },
+            { icon: 'phone', label: 'Contact Sales Rep', onPress: () => Alert.alert('Sales Representative', 'Phone: (02) 9000 1234\nEmail: wholesale@butterfield.com.au\n\nAvailable Mon–Fri, 8:00am – 4:00pm AEST') },
+            { icon: 'file-text', label: 'Download Invoices', onPress: () => router.push('/(wholesale)/invoices') },
+            { icon: 'help-circle', label: 'Wholesale FAQs', onPress: () => Alert.alert('Wholesale FAQs', 'When is order cut-off?\nMonday delivery: Friday 12pm\nThursday delivery: Tuesday 12pm\n\nPayment terms?\n30 days from invoice date\n\nMinimum order?\n$150 per delivery\n\nPricing?\nBased on your account tier') },
           ].map((item, i, arr) => (
             <Pressable key={item.label} onPress={item.onPress}
               style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }]}>

@@ -104,6 +104,8 @@ function ClassicCustomerTabs() {
             isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
         }}
       />
+      <Tabs.Screen name="orders" options={{ href: null, title: 'My Orders' }} />
+      <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
     </Tabs>
   );
 }

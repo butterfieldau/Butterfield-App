@@ -75,9 +75,9 @@ export default function StaffProfileScreen() {
 
         <View style={[{ backgroundColor: CARD, borderRadius: 16, overflow: 'hidden' }]}>
           {[
-            { icon: 'calendar', label: 'Request Leave', onPress: () => {} },
-            { icon: 'message-circle', label: 'Team Announcements', onPress: () => {} },
-            { icon: 'help-circle', label: 'Help & Support', onPress: () => {} },
+            { icon: 'calendar', label: 'Request Leave', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
+            { icon: 'message-circle', label: 'Team Announcements', onPress: () => Alert.alert('Team Announcements', 'No new announcements from management.\n\nCheck back before your next shift.') },
+            { icon: 'help-circle', label: 'Help & Support', onPress: () => Alert.alert('Help & Support', 'Manager on duty: (02) 9000 0001\nEmail: staff@butterfield.com.au\nPayroll: payroll@butterfield.com.au') },
           ].map((item, i, arr) => (
             <Pressable key={item.label} onPress={item.onPress}
               style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)' }]}>

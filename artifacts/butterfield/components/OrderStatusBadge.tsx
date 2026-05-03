@@ -7,6 +7,7 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: stri
   'in-progress': { label: 'In Progress', bg: '#DBEAFE', text: '#1E40AF' },
   ready: { label: 'Ready', bg: '#D1FAE5', text: '#065F46' },
   completed: { label: 'Completed', bg: '#F3F4F6', text: '#6B7280' },
+  cancelled: { label: 'Cancelled', bg: '#FEE2E2', text: '#991B1B' },
 };
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {

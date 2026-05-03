@@ -34,7 +34,7 @@ export interface CartItem {
   quantity: number;
 }
 
-export type OrderStatus = 'received' | 'being_prepared' | 'ready_for_pickup' | 'completed' | 'cancelled';
+export type OrderStatus = 'pending' | 'in-progress' | 'ready' | 'completed' | 'cancelled';
 
 export interface StaffOrder {
   id: string;

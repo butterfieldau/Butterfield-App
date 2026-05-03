@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,7 +23,14 @@ export default function StaffTasksScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const params = useLocalSearchParams<{ initialTab?: TabMode }>();
   const [tab, setTab] = useState<TabMode>('tasks');
+
+  useEffect(() => {
+    if (params.initialTab && (['tasks', 'wastage', 'issues', 'leave'] as TabMode[]).includes(params.initialTab)) {
+      setTab(params.initialTab);
+    }
+  }, [params.initialTab]);
   const [activeCat, setActiveCat] = useState('daily');
   const [submitting, setSubmitting] = useState(false);
 
