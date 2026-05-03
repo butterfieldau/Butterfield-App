@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -30,21 +31,30 @@ import {
   isSameDay,
 } from '@/lib/dateUtils';
 
-const BG     = '#F5F6FA';
-const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BG         = '#F5F6FA';
+const CARD       = '#FFFFFF';
+const BLUE       = '#40C0F2';
+const LIGHT_BLUE = '#EBF8FF';
+const TEXT       = '#1C1C1E';
+const MUTED      = '#8E8E93';
+const BORDER     = '#E5E7EB';
 
 const WHOLESALE_TIERS = [
-  { minQty: 1,  label: 'Retail',      discount: 0 },
-  { minQty: 10, label: 'Trade (10+)', discount: 0.1 },
-  { minQty: 25, label: 'Bulk (25+)',  discount: 0.2 },
-  { minQty: 50, label: 'Volume (50+)',discount: 0.3 },
+  { minQty: 1,  label: 'Retail',      discount: 0    },
+  { minQty: 10, label: 'Trade (10+)', discount: 0.10 },
+  { minQty: 25, label: 'Bulk (25+)',  discount: 0.20 },
+  { minQty: 50, label: 'Volume (50+)',discount: 0.30 },
 ];
 
-function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
+const CHECKOUT_TABS = [
+  { label: 'CART',    icon: 'shopping-bag' },
+  { label: 'SHIPPING',icon: 'truck' },
+  { label: 'ORDER',   icon: 'file-text' },
+] as const;
+
+function getPrice(p: ApiProduct): number {
+  return (p.prices?.[0]?.unit_amount ?? 0) / 100;
+}
 function getWholesalePrice(basePrice: number, qty: number): number {
   const tier = [...WHOLESALE_TIERS].reverse().find((t) => qty >= t.minQty);
   return basePrice * (1 - (tier?.discount ?? 0));
@@ -52,24 +62,33 @@ function getWholesalePrice(basePrice: number, qty: number): number {
 
 interface CartEntry { product: ApiProduct; quantity: number }
 
-function ProductRow({ product, cartEntry, onAdd }: { product: ApiProduct; cartEntry?: CartEntry; onAdd: (product: ApiProduct, qty: number) => void }) {
-  const [qty, setQty] = useState('12');
-  const basePrice = getPrice(product);
-  const parsedQty = parseInt(qty) || 1;
-  const wsPrice = getWholesalePrice(basePrice, parsedQty);
-  const tier = [...WHOLESALE_TIERS].reverse().find((t) => parsedQty >= t.minQty);
-  const palette = getPalette(product.metadata?.category);
+function ProductRow({ product, cartEntry, onAdd }: {
+  product: ApiProduct;
+  cartEntry?: CartEntry;
+  onAdd: (product: ApiProduct, qty: number) => void;
+}) {
+  const [qty, setQty]  = useState('12');
+  const basePrice      = getPrice(product);
+  const parsedQty      = parseInt(qty) || 1;
+  const wsPrice        = getWholesalePrice(basePrice, parsedQty);
+  const tier           = [...WHOLESALE_TIERS].reverse().find((t) => parsedQty >= t.minQty);
+  const palette        = getPalette(product.metadata?.category);
+  const imageUrl       = (product as any).images?.[0];
 
   return (
     <View style={[styles.productCard, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
-      <View style={[styles.productThumbLg, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }]}>
-        <Text style={{ fontSize: 36 }}>{palette.emoji}</Text>
-        {cartEntry && (
-          <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 11 }}>In cart: {cartEntry.quantity}</Text>
-          </View>
-        )}
-      </View>
+      {imageUrl ? (
+        <Image source={{ uri: imageUrl }} style={styles.productThumbLg} resizeMode="cover" />
+      ) : (
+        <View style={[styles.productThumbLg, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }]}>
+          <Text style={{ fontSize: 36 }}>{palette.emoji}</Text>
+          {cartEntry && (
+            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 11 }}>In cart: {cartEntry.quantity}</Text>
+            </View>
+          )}
+        </View>
+      )}
       <View style={{ padding: 14, gap: 10 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
@@ -99,10 +118,7 @@ function ProductRow({ product, cartEntry, onAdd }: { product: ApiProduct; cartEn
               selectTextOnFocus
             />
           </View>
-          <Pressable
-            onPress={() => onAdd(product, parsedQty)}
-            style={{ backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }}
-          >
+          <Pressable onPress={() => onAdd(product, parsedQty)} style={{ backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
             <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Add</Text>
           </Pressable>
         </View>
@@ -113,21 +129,29 @@ function ProductRow({ product, cartEntry, onAdd }: { product: ApiProduct; cartEn
 
 export default function WholesaleCatalog() {
   const insets = useSafeAreaInsets();
-  const qc = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [cart, setCart] = useState<CartEntry[]>([]);
-  const [showCart, setShowCart] = useState(false);
-  const [poRef, setPoRef] = useState('');
-  const [notes, setNotes] = useState('');
+  const qc     = useQueryClient();
+  const [search, setSearch]   = useState('');
+  const [cart, setCart]       = useState<CartEntry[]>([]);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState(0);
+
+  // Shipping
+  const [orderType, setOrderType]           = useState<'pickup' | 'delivery'>('delivery');
+  const [selectedDate, setSelectedDate]     = useState<Date | null>(null);
+  const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
+  const [street, setStreet]                 = useState('');
+  const [suburb, setSuburb]                 = useState('');
+  const [postcode, setPostcode]             = useState('');
+  const [contactName, setContactName]       = useState('');
+  const [contactPhone, setContactPhone]     = useState('');
+  const [contactEmail, setContactEmail]     = useState('');
+  // Order
+  const [poRef, setPoRef]     = useState('');
+  const [notes, setNotes]     = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const [orderType, setOrderType] = useState<'pickup' | 'delivery'>('delivery');
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
-
-  const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.products(), retry: 1 });
+  const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.catalog(), retry: 1 });
   const products = data?.data ?? [];
-
   const filtered = useMemo(() => products.filter((p) =>
     !search || p.name.toLowerCase().includes(search.toLowerCase())
   ), [products, search]);
@@ -140,85 +164,480 @@ export default function WholesaleCatalog() {
       return [...prev, { product, quantity: qty }];
     });
   };
+  const removeFromCart  = (productId: string) => setCart((prev) => prev.filter((e) => e.product.id !== productId));
+  const updateCartQty   = (productId: string, qty: number) => {
+    if (qty <= 0) removeFromCart(productId);
+    else setCart((prev) => prev.map((e) => e.product.id === productId ? { ...e, quantity: qty } : e));
+  };
 
-  const removeFromCart = (productId: string) => setCart((prev) => prev.filter((e) => e.product.id !== productId));
   const totalCents = cart.reduce((sum, e) => sum + Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * e.quantity * 100), 0);
+  const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
 
-  const sydNow = getSydneyNow();
-  const pickupDates = getPickupDates();
+  const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
-  const pickupTimes = selectedDate ? getPickupTimeMins(selectedDate, sydNow) : [];
+  const pickupDates   = getPickupDates();
+  const pickupTimes   = selectedDate ? getPickupTimeMins(selectedDate, sydNow) : [];
+
+  const deliveryPairs: (typeof deliveryDates[0] | null)[][] = [];
+  for (let i = 0; i < deliveryDates.length; i += 2) {
+    deliveryPairs.push([deliveryDates[i], deliveryDates[i + 1] ?? null]);
+  }
+  const pickupPairs: (Date | null)[][] = [];
+  for (let i = 0; i < pickupDates.length; i += 2) {
+    pickupPairs.push([pickupDates[i], pickupDates[i + 1] ?? null]);
+  }
+
+  const handleOpenCheckout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setCheckoutStep(0);
+    setShowCheckout(true);
+  };
+
+  const handleContinue = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (checkoutStep === 0) {
+      if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
+      if (totalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is AUD 50.'); return; }
+      setCheckoutStep(1);
+      return;
+    }
+    if (checkoutStep === 1) {
+      if (orderType === 'pickup') {
+        if (!selectedDate || selectedTimeMins === null) { Alert.alert('Select pickup time', 'Please choose a date and time for your pickup.'); return; }
+      } else {
+        if (!selectedDate) { Alert.alert('Select delivery date', 'Please choose a delivery date.'); return; }
+      }
+      setCheckoutStep(2);
+      return;
+    }
+    if (checkoutStep === 2) {
+      await handlePlaceOrder();
+    }
+  };
 
   const handlePlaceOrder = async () => {
-    if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
-    if (totalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is $50.'); return; }
-    if (orderType === 'pickup') {
-      if (!selectedDate || selectedTimeMins === null) {
-        Alert.alert('Select pickup time', 'Please choose a date and time for your pickup.');
-        return;
-      }
-    } else {
-      if (!selectedDate) {
-        Alert.alert('Select delivery day', 'Please choose a delivery date to continue.');
-        return;
-      }
-    }
-
-    let scheduledForDate: Date | undefined;
-    if (orderType === 'pickup' && selectedDate && selectedTimeMins !== null) {
-      const d = new Date(selectedDate);
-      d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
-      scheduledForDate = d;
-    } else if (orderType === 'delivery' && selectedDate) {
-      scheduledForDate = selectedDate;
-    }
-
     setSubmitting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      let scheduledForDate: Date | undefined;
+      if (orderType === 'pickup' && selectedDate && selectedTimeMins !== null) {
+        const d = new Date(selectedDate);
+        d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
+        scheduledForDate = d;
+      } else if (orderType === 'delivery' && selectedDate) {
+        scheduledForDate = selectedDate;
+      }
+      const deliveryAddress = orderType === 'delivery' && street.trim()
+        ? `${street.trim()}, ${suburb.trim()} NSW ${postcode.trim()}`
+        : undefined;
       await api.wholesale.createOrder({
         items: cart.map((e) => ({
           productStripeId: e.product.id,
-          productName: e.product.name,
-          quantity: e.quantity,
-          unitPriceCents: Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * 100),
+          productName:     e.product.name,
+          quantity:        e.quantity,
+          unitPriceCents:  Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * 100),
         })),
-        poReference: poRef.trim() || undefined,
-        notes: notes.trim() || undefined,
+        poReference:   poRef.trim() || undefined,
+        notes:         [notes.trim(), contactName.trim(), contactPhone.trim()].filter(Boolean).join(' | ') || undefined,
         totalCents,
-        deliveryType: orderType,
+        deliveryType:  orderType,
         scheduledDate: scheduledForDate?.toISOString(),
+        deliveryAddress,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['wholesale-orders'] });
-      setCart([]); setPoRef(''); setNotes(''); setShowCart(false);
+      setCart([]); setPoRef(''); setNotes('');
       setSelectedDate(null); setSelectedTimeMins(null);
-      Alert.alert('Order Submitted! 🎉', "Your wholesale order has been received. We'll confirm within 1 business day.");
-    } catch (e: any) { Alert.alert('Error', e.message); } finally { setSubmitting(false); }
+      setStreet(''); setSuburb(''); setPostcode('');
+      setShowCheckout(false); setCheckoutStep(0);
+      Alert.alert('Order Submitted!', "Your wholesale order has been received. We'll confirm within 1 business day.");
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally { setSubmitting(false); }
   };
 
+  const getContinueLabel = () => {
+    if (submitting) return '…';
+    if (checkoutStep === 0) return 'Continue to shipping';
+    if (checkoutStep === 1) return 'Continue to order';
+    return 'Place Order';
+  };
+
+  // ── Checkout overlay ─────────────────────────────────────────────────────
+  if (showCheckout) {
+    return (
+      <View style={{ flex: 1, backgroundColor: CARD }}>
+
+        {/* Header */}
+        <View style={[styles.checkoutHeader, { paddingTop: insets.top + 12, borderBottomColor: BORDER }]}>
+          <View style={styles.checkoutHeaderTop}>
+            {checkoutStep > 0 ? (
+              <Pressable onPress={() => setCheckoutStep((s) => s - 1)} style={styles.backBtn}>
+                <Feather name="chevron-left" size={22} color={TEXT} />
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setShowCheckout(false)} style={styles.backBtn}>
+                <Feather name="x" size={20} color={TEXT} />
+              </Pressable>
+            )}
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.checkoutTitle}>CHECKOUT</Text>
+              <Text style={[styles.checkoutSub, { color: MUTED }]}>{totalQty} item{totalQty !== 1 ? 's' : ''}</Text>
+            </View>
+            <View style={{ width: 36 }} />
+          </View>
+
+          <View style={styles.tabBar}>
+            {CHECKOUT_TABS.map((tab, i) => {
+              const active = checkoutStep === i;
+              const done   = checkoutStep > i;
+              return (
+                <View key={tab.label} style={styles.tabItem}>
+                  <View style={styles.tabInner}>
+                    <Feather name={tab.icon as any} size={13} color={active || done ? BLUE : MUTED} />
+                    <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                      {tab.label}
+                    </Text>
+                  </View>
+                  {active && <View style={[styles.tabUnderline, { backgroundColor: BLUE }]} />}
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 160 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+            {/* ── CART STEP ── */}
+            {checkoutStep === 0 && (
+              <>
+                {cart.map((entry) => {
+                  const wsPrice  = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                  const palette  = getPalette(entry.product.metadata?.category);
+                  const imageUrl = (entry.product as any).images?.[0];
+                  return (
+                    <View key={entry.product.id} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                      {imageUrl ? (
+                        <Image source={{ uri: imageUrl }} style={styles.itemThumb} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
+                        </View>
+                      )}
+                      <Pressable onPress={() => removeFromCart(entry.product.id)} style={styles.removeBtn}>
+                        <Feather name="x" size={12} color={MUTED} />
+                      </Pressable>
+                      <View style={styles.itemBody}>
+                        <Text style={styles.itemName}>{entry.product.name}</Text>
+                        <Text style={styles.itemPrice}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
+                        <View style={styles.qtyRow}>
+                          <Pressable onPress={() => updateCartQty(entry.product.id, entry.quantity - 1)} style={styles.qtyBtn}>
+                            <Text style={styles.qtyBtnText}>–</Text>
+                          </Pressable>
+                          <Text style={styles.qtyLabel}>QTY: {entry.quantity}</Text>
+                          <Pressable onPress={() => updateCartQty(entry.product.id, entry.quantity + 1)} style={styles.qtyBtn}>
+                            <Text style={styles.qtyBtnText}>+</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryRowLabel}>Subtotal</Text>
+                    <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
+                    <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  </View>
+                  {totalCents < 5000 && (
+                    <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                      Minimum wholesale order is AUD 50.00
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.shippingNote}>Choose pickup or delivery on the next step.</Text>
+              </>
+            )}
+
+            {/* ── SHIPPING STEP ── */}
+            {checkoutStep === 1 && (
+              <>
+                <Text style={styles.sectionLabel}>HOW WOULD YOU LIKE TO RECEIVE YOUR ORDER?</Text>
+
+                <View style={styles.orderTypeRow}>
+                  {[
+                    { id: 'delivery', label: 'Delivery', sub: 'AUD 0.00 (invoiced)', icon: 'truck' as const },
+                    { id: 'pickup',   label: 'Pickup',   sub: 'In-store, free',      icon: 'shopping-bag' as const },
+                  ].map((t) => {
+                    const active = orderType === t.id;
+                    return (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+                        style={[styles.orderTypeCard, {
+                          backgroundColor: active ? LIGHT_BLUE : CARD,
+                          borderColor:     active ? BLUE : BORDER,
+                          borderWidth:     active ? 2 : 1,
+                        }]}
+                      >
+                        <View style={[styles.orderTypeIcon, { backgroundColor: active ? BLUE : BG }]}>
+                          <Feather name={t.icon} size={18} color={active ? '#fff' : MUTED} />
+                        </View>
+                        <View>
+                          <Text style={styles.orderTypeLabel}>{t.label}</Text>
+                          <Text style={[styles.orderTypeSub, { color: active ? BLUE : MUTED }]}>{t.sub}</Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {orderType === 'delivery' && (
+                  <View style={[styles.deliveryInfoCard, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+                    <View style={[styles.deliveryInfoIcon, { backgroundColor: BLUE }]}>
+                      <Feather name="truck" size={16} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.deliveryInfoTag, { color: BLUE }]}>SYDNEY DELIVERY</Text>
+                      <Text style={styles.deliveryInfoTitle}>Invoiced on dispatch</Text>
+                      <Text style={styles.deliveryInfoSub}>Mondays &amp; Thursdays, 8am – 5pm. 24 hours notice required.</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.chooseDateHeader}>
+                  <Feather name="calendar" size={18} color={TEXT} />
+                  <Text style={styles.chooseDateTitle}>
+                    {orderType === 'delivery' ? 'Choose a delivery date' : 'Choose a pickup date'}
+                  </Text>
+                </View>
+
+                {orderType === 'delivery' ? (
+                  deliveryPairs.map((pair, ri) => (
+                    <View key={ri} style={styles.dateGrid}>
+                      {pair.map((slot, ci) => {
+                        if (!slot) return <View key={ci} style={{ flex: 1 }} />;
+                        const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
+                        const dayName    = slot.date.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
+                        const dayDate    = slot.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+                        return (
+                          <Pressable
+                            key={ci}
+                            onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
+                            disabled={!slot.available}
+                            style={[styles.dateCard, {
+                              backgroundColor: isSelected ? LIGHT_BLUE : CARD,
+                              borderColor:     isSelected ? BLUE : BORDER,
+                              borderWidth:     isSelected ? 2 : 1,
+                              opacity:         slot.available ? 1 : 0.4,
+                            }]}
+                          >
+                            <Text style={[styles.dateDayName, { color: BLUE }]}>{dayName}</Text>
+                            <Text style={styles.dateDayNum}>{dayDate}</Text>
+                            <Text style={styles.dateTimeRange}>8am – 5pm</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ))
+                ) : (
+                  <>
+                    {pickupPairs.map((pair, ri) => (
+                      <View key={ri} style={styles.dateGrid}>
+                        {pair.map((d, ci) => {
+                          if (!d) return <View key={ci} style={{ flex: 1 }} />;
+                          const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
+                          const lbl        = formatDateChip(sydNow, d);
+                          const dayFull    = d.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
+                          const dayDate    = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+                          return (
+                            <Pressable
+                              key={ci}
+                              onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+                              style={[styles.dateCard, {
+                                backgroundColor: isSelected ? LIGHT_BLUE : CARD,
+                                borderColor:     isSelected ? BLUE : BORDER,
+                                borderWidth:     isSelected ? 2 : 1,
+                              }]}
+                            >
+                              <Text style={[styles.dateDayName, { color: BLUE }]}>
+                                {lbl === 'Today' ? 'TODAY' : lbl === 'Tomorrow' ? 'TOMORROW' : dayFull}
+                              </Text>
+                              <Text style={styles.dateDayNum}>{dayDate}</Text>
+                              <Text style={styles.dateTimeRange}>10am – 7pm</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
+                    {selectedDate && (
+                      <>
+                        <Text style={styles.pickupTimeLabel}>Select a time</Text>
+                        <View style={styles.timeGrid}>
+                          {pickupTimes.length === 0 ? (
+                            <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No slots available</Text>
+                          ) : pickupTimes.map((mins) => {
+                            const lbl = formatTime(mins);
+                            const isSel = selectedTimeMins === mins;
+                            return (
+                              <Pressable key={mins} onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
+                                style={[styles.timePill, { backgroundColor: isSel ? BLUE : CARD, borderColor: isSel ? BLUE : BORDER }]}>
+                                <Text style={[styles.timePillText, { color: isSel ? '#fff' : TEXT }]}>{lbl}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {orderType === 'delivery' && (
+                  <>
+                    <Text style={styles.sectionLabel}>DELIVERY ADDRESS</Text>
+                    <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                      <Text style={styles.formFieldLabel}>Street address</Text>
+                      <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="Street address" placeholderTextColor={MUTED} value={street} onChangeText={setStreet} autoCapitalize="words" />
+                      <View style={styles.formRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.formFieldLabel}>Suburb</Text>
+                          <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="Suburb" placeholderTextColor={MUTED} value={suburb} onChangeText={setSuburb} autoCapitalize="words" />
+                        </View>
+                        <View style={{ width: 110 }}>
+                          <Text style={styles.formFieldLabel}>Postcode</Text>
+                          <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="2160" placeholderTextColor={MUTED} value={postcode} onChangeText={setPostcode} keyboardType="number-pad" maxLength={4} />
+                        </View>
+                      </View>
+                      <Text style={[styles.formNote, { color: MUTED }]}>We currently only deliver in Sydney NSW.</Text>
+                    </View>
+                  </>
+                )}
+
+                <Text style={styles.sectionLabel}>YOUR DETAILS</Text>
+                <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  {[
+                    { label: 'Full name',     value: contactName,  setter: setContactName,  placeholder: 'Contact name',    keyboard: 'default' as const,       autoCapitalize: 'words' as const },
+                    { label: 'Mobile number', value: contactPhone, setter: setContactPhone, placeholder: '04XX XXX XXX',   keyboard: 'phone-pad' as const,     autoCapitalize: 'none' as const  },
+                    { label: 'Email',         value: contactEmail, setter: setContactEmail, placeholder: 'you@company.com', keyboard: 'email-address' as const, autoCapitalize: 'none' as const  },
+                  ].map((f) => (
+                    <View key={f.label} style={styles.formFieldWrap}>
+                      <Text style={styles.formFieldLabel}>{f.label}</Text>
+                      <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder={f.placeholder} placeholderTextColor={MUTED} value={f.value} onChangeText={f.setter} keyboardType={f.keyboard} autoCapitalize={f.autoCapitalize} />
+                    </View>
+                  ))}
+                </View>
+
+                <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryRowLabel}>Subtotal</Text>
+                    <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
+                    <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* ── ORDER STEP ── */}
+            {checkoutStep === 2 && (
+              <>
+                <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
+                  {cart.map((entry) => {
+                    const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                    return (
+                      <View key={entry.product.id} style={styles.paymentItem}>
+                        <Text style={[styles.paymentItemName, { color: TEXT }]}>{entry.product.name} × {entry.quantity}</Text>
+                        <Text style={[styles.paymentItemPrice, { color: MUTED }]}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
+                      </View>
+                    );
+                  })}
+                  <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
+                    <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  </View>
+                </View>
+
+                <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <View style={styles.formFieldWrap}>
+                    <Text style={styles.formFieldLabel}>PO Reference (optional)</Text>
+                    <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="e.g. PO-2024-001" placeholderTextColor={MUTED} value={poRef} onChangeText={setPoRef} />
+                  </View>
+                  <View style={styles.formFieldWrap}>
+                    <Text style={styles.formFieldLabel}>Notes (optional)</Text>
+                    <TextInput style={[styles.formInput, styles.notesInput, { color: TEXT, borderColor: BORDER }]} placeholder="Delivery instructions, special requests..." placeholderTextColor={MUTED} value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
+                  </View>
+                </View>
+
+                <View style={[styles.orderDetailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <View style={styles.orderDetailRow}>
+                    <Feather name={orderType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={BLUE} />
+                    <Text style={[styles.orderDetailText, { color: TEXT }]}>
+                      {orderType === 'delivery' ? `Delivery${street ? ` · ${street}, ${suburb} NSW` : ''}` : 'In-store Pickup'}
+                    </Text>
+                  </View>
+                  {selectedDate && (
+                    <View style={styles.orderDetailRow}>
+                      <Feather name="calendar" size={14} color={BLUE} />
+                      <Text style={[styles.orderDetailText, { color: TEXT }]}>
+                        {selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        {orderType === 'pickup' && selectedTimeMins !== null ? ` at ${formatTime(selectedTimeMins)}` : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={[styles.secureCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                  <Feather name="file-text" size={14} color="#22C55E" />
+                  <Text style={[styles.secureText, { color: '#166534' }]}>
+                    Your order will be confirmed within 1 business day. An invoice will be issued on approval.
+                  </Text>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        {/* Sticky bottom bar */}
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
+          <View style={styles.bottomTotal}>
+            <Text style={styles.bottomTotalLabel}>TOTAL</Text>
+            <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
+          </View>
+          <Pressable onPress={handleContinue} disabled={submitting || (checkoutStep === 0 && totalCents < 5000)}
+            style={[styles.continueBtn, { backgroundColor: (checkoutStep === 0 && totalCents < 5000) ? '#C7C7CC' : BLUE, opacity: submitting ? 0.8 : 1 }]}>
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>}
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Catalog list ─────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+      <View style={[styles.catalogHeader, { paddingTop: insets.top + 16, backgroundColor: CARD, borderBottomColor: BORDER }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ color: TEXT, fontSize: 26, fontFamily: 'Inter_700Bold' }}>Wholesale Catalog</Text>
           {cart.length > 0 && (
-            <Pressable onPress={() => setShowCart(true)} style={[styles.cartBtn, { backgroundColor: BLUE, borderRadius: 12 }]}>
+            <Pressable onPress={handleOpenCheckout} style={[styles.cartBtn, { backgroundColor: BLUE, borderRadius: 12 }]}>
               <Feather name="shopping-cart" size={16} color="#fff" />
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>{cart.reduce((s, e) => s + e.quantity, 0)}</Text>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>{totalQty}</Text>
             </Pressable>
           )}
         </View>
         <View style={[styles.searchBar, { backgroundColor: BG, borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}>
           <Feather name="search" size={14} color={MUTED} />
-          <TextInput
-            style={{ flex: 1, color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14 }}
-            placeholder="Search products..."
-            placeholderTextColor={MUTED}
-            value={search}
-            onChangeText={setSearch}
-          />
+          <TextInput style={{ flex: 1, color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14 }} placeholder="Search products..." placeholderTextColor={MUTED} value={search} onChangeText={setSearch} />
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {WHOLESALE_TIERS.map((tier) => (
@@ -232,184 +651,6 @@ export default function WholesaleCatalog() {
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
-      ) : showCart ? (
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 120 }}>
-          <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }}>Order Summary</Text>
-
-          {/* Cart items */}
-          {cart.map((entry) => {
-            const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
-            const palette = getPalette(entry.product.metadata?.category);
-            return (
-              <View key={entry.product.id} style={[styles.cartRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
-                <View style={[styles.cartThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', borderRadius: 10 }]}>
-                  <Text style={{ fontSize: 22 }}>{palette.emoji}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{entry.product.name}</Text>
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Qty: {entry.quantity}</Text>
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12, marginTop: 2 }}>${wsPrice.toFixed(2)} ea · ${(wsPrice * entry.quantity).toFixed(2)} total</Text>
-                </View>
-                <Pressable onPress={() => removeFromCart(entry.product.id)} style={{ padding: 6 }}>
-                  <Feather name="trash-2" size={16} color="#EF4444" />
-                </Pressable>
-              </View>
-            );
-          })}
-
-          {/* Total */}
-          <View style={[styles.totalCard, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
-            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>Order Total</Text>
-            <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 26 }}>${(totalCents / 100).toFixed(2)}</Text>
-            {totalCents < 5000 && <Text style={{ color: '#EF4444', fontFamily: 'Inter_400Regular', fontSize: 12 }}>Minimum order $50 not met</Text>}
-          </View>
-
-          {/* Order type */}
-          <Text style={styles.sectionLabel}>Fulfilment type</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            {[{ id: 'delivery', label: 'Delivery', icon: 'truck' }, { id: 'pickup', label: 'Pickup', icon: 'map-pin' }].map((t) => (
-              <Pressable
-                key={t.id}
-                onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
-                style={[styles.typeBtn, {
-                  borderColor: orderType === t.id ? BLUE : BORDER,
-                  borderWidth: orderType === t.id ? 2 : 1,
-                  backgroundColor: orderType === t.id ? `${BLUE}12` : CARD,
-                  borderRadius: 12,
-                }]}
-              >
-                <Feather name={t.icon as any} size={16} color={orderType === t.id ? BLUE : MUTED} />
-                <Text style={{ color: orderType === t.id ? TEXT : MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>{t.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Scheduling */}
-          <Text style={styles.sectionLabel}>{orderType === 'delivery' ? 'Delivery day' : 'Pickup date & time'}</Text>
-
-          {orderType === 'delivery' ? (
-            <>
-              <View style={[styles.infoRow, { backgroundColor: `${BLUE}12`, borderRadius: 10 }]}>
-                <Feather name="truck" size={13} color={BLUE} />
-                <Text style={{ color: BLUE, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 1 }}>
-                  Mon & Thu delivery · Monday orders close Sat 5pm
-                </Text>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {deliveryDates.map((slot) => {
-                  const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
-                  return (
-                    <Pressable
-                      key={slot.date.toISOString()}
-                      disabled={!slot.available}
-                      onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
-                      style={[styles.datePill, {
-                        borderColor: isSelected ? BLUE : BORDER,
-                        backgroundColor: isSelected ? BLUE : !slot.available ? '#F5F6FA' : CARD,
-                        borderWidth: isSelected ? 2 : 1,
-                        opacity: slot.available ? 1 : 0.45,
-                        borderRadius: 20,
-                      }]}
-                    >
-                      <Text style={{ color: isSelected ? '#fff' : !slot.available ? MUTED : TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
-                        {slot.label}
-                      </Text>
-                      {slot.note && <Text style={{ color: MUTED, fontSize: 10, marginTop: 2 }}>{slot.note}</Text>}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </>
-          ) : (
-            <>
-              <View style={[styles.infoRow, { backgroundColor: `${BLUE}12`, borderRadius: 10 }]}>
-                <Feather name="clock" size={13} color={BLUE} />
-                <Text style={{ color: BLUE, fontFamily: 'Inter_500Medium', fontSize: 12, flex: 1 }}>
-                  10am – 7pm · 30-min slots · At least 3 hrs ahead
-                </Text>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {pickupDates.map((d) => {
-                  const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
-                  const lbl = formatDateChip(sydNow, d);
-                  return (
-                    <Pressable
-                      key={d.toISOString()}
-                      onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
-                      style={[styles.datePill, {
-                        borderColor: isSelected ? BLUE : BORDER,
-                        backgroundColor: isSelected ? BLUE : CARD,
-                        borderWidth: isSelected ? 2 : 1,
-                        borderRadius: 20,
-                      }]}
-                    >
-                      <Text style={{ color: isSelected ? '#fff' : TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{lbl}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-              {selectedDate && (
-                <>
-                  <Text style={[styles.sectionLabel, { marginTop: 0 }]}>Select a time</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                    {pickupTimes.length === 0 ? (
-                      <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, paddingVertical: 10 }}>
-                        No slots available — choose another day
-                      </Text>
-                    ) : pickupTimes.map((mins) => {
-                      const lbl = formatTime(mins);
-                      const isSelected = selectedTimeMins === mins;
-                      return (
-                        <Pressable
-                          key={mins}
-                          onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
-                          style={[styles.datePill, {
-                            borderColor: isSelected ? BLUE : BORDER,
-                            backgroundColor: isSelected ? BLUE : CARD,
-                            borderWidth: isSelected ? 2 : 1,
-                            borderRadius: 20,
-                          }]}
-                        >
-                          <Text style={{ color: isSelected ? '#fff' : TEXT, fontFamily: 'Inter_500Medium', fontSize: 13 }}>{lbl}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </>
-              )}
-            </>
-          )}
-
-          {/* PO Reference + Notes */}
-          {[
-            { label: 'PO Reference (optional)', key: 'poRef', setter: setPoRef, value: poRef, placeholder: 'e.g. PO-2024-001' },
-            { label: 'Notes', key: 'notes', setter: setNotes, value: notes, placeholder: 'Delivery instructions, special requests...' },
-          ].map((field) => (
-            <View key={field.key}>
-              <Text style={[styles.sectionLabel, { marginTop: 0 }]}>{field.label}</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: CARD, color: TEXT, fontFamily: 'Inter_400Regular', borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}
-                placeholder={field.placeholder}
-                placeholderTextColor={MUTED}
-                value={field.value}
-                onChangeText={field.setter}
-              />
-            </View>
-          ))}
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={() => setShowCart(false)} style={{ flex: 1, padding: 16, backgroundColor: CARD, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: BORDER }}>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_600SemiBold' }}>Back</Text>
-            </Pressable>
-            <Pressable
-              onPress={handlePlaceOrder}
-              disabled={submitting || totalCents < 5000}
-              style={{ flex: 2, padding: 16, backgroundColor: totalCents >= 5000 ? BLUE : '#C7C7CC', borderRadius: 14, alignItems: 'center' }}
-            >
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{submitting ? 'Submitting...' : 'Place Order'}</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
       ) : (
         <FlatList
           data={filtered}
@@ -423,43 +664,25 @@ export default function WholesaleCatalog() {
             </View>
           }
           renderItem={({ item: product }) => (
-            <ProductRow
-              product={product}
-              cartEntry={cart.find((e) => e.product.id === product.id)}
-              onAdd={addToCart}
-            />
+            <ProductRow product={product} cartEntry={cart.find((e) => e.product.id === product.id)} onAdd={addToCart} />
           )}
         />
       )}
 
-      {/* Floating cart bar — visible on catalog list when cart has items */}
-      {cart.length > 0 && !showCart && (
-        <Pressable
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowCart(true); }}
-          style={[styles.floatingCart, { paddingBottom: insets.bottom + 10 }]}
-        >
-          <LinearGradient
-            colors={['#40C0F2', '#2398D8']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={styles.floatingCartInner}
-          >
+      {cart.length > 0 && (
+        <Pressable onPress={handleOpenCheckout} style={[styles.floatingCart, { paddingBottom: insets.bottom + 10 }]}>
+          <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={styles.floatingCartBadge}>
-                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }}>
-                  {cart.reduce((s, e) => s + e.quantity, 0)}
-                </Text>
+                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }}>{totalQty}</Text>
               </View>
               <View>
                 <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>View Cart</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>
-                  {cart.length} line item{cart.length !== 1 ? 's' : ''}
-                </Text>
+                <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{cart.length} line item{cart.length !== 1 ? 's' : ''}</Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17 }}>
-                ${(totalCents / 100).toFixed(2)}
-              </Text>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17 }}>${(totalCents / 100).toFixed(2)}</Text>
               <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.85)" />
             </View>
           </LinearGradient>
@@ -470,33 +693,98 @@ export default function WholesaleCatalog() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42 },
-  cartBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
-  tierTag: { paddingHorizontal: 10, paddingVertical: 6, gap: 2, alignItems: 'center' },
-  productCard: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  productThumbLg: { height: 120 },
-  cartRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  cartThumb: { width: 48, height: 48 },
-  totalCard: { padding: 16, gap: 4 },
-  sectionLabel: { color: MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
-  typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 },
-  datePill: { paddingHorizontal: 14, paddingVertical: 10 },
-  input: { padding: 14, fontSize: 14 },
-  floatingCart: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16, paddingTop: 10,
-    backgroundColor: 'rgba(245,246,250,0.95)',
-    borderTopWidth: 1, borderTopColor: '#E5E7EB',
-  },
-  floatingCartInner: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 15, borderRadius: 18,
-    shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
-  },
-  floatingCartBadge: {
-    backgroundColor: '#fff', borderRadius: 10, minWidth: 30, height: 30,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
-  },
+  // Catalog
+  catalogHeader:  { paddingHorizontal: 16, paddingBottom: 14, gap: 10, borderBottomWidth: 1 },
+  searchBar:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42 },
+  cartBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
+  tierTag:        { paddingHorizontal: 10, paddingVertical: 6, gap: 2, alignItems: 'center' },
+  productCard:    { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  productThumbLg: { height: 120, borderRadius: 12 },
+  floatingCart:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: 'rgba(245,246,250,0.95)', borderTopWidth: 1, borderTopColor: BORDER },
+  floatingCartInner:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderRadius: 18, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8 },
+  floatingCartBadge:  { backgroundColor: '#fff', borderRadius: 10, minWidth: 30, height: 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  // Checkout header
+  checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
+  checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  backBtn:           { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  checkoutTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT, letterSpacing: 1.5 },
+  checkoutSub:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  // Tabs
+  tabBar:      { flexDirection: 'row' },
+  tabItem:     { flex: 1, alignItems: 'center', paddingVertical: 10, position: 'relative' },
+  tabInner:    { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tabLabel:    { fontSize: 11, letterSpacing: 0.5 },
+  tabUnderline:{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2.5, borderRadius: 2 },
+  // Section
+  sectionLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: MUTED, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  // Cart items
+  itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
+  itemThumb:  { width: 90, height: 90 },
+  removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER, zIndex: 1 },
+  itemBody:   { flex: 1, padding: 12, gap: 4 },
+  itemName:   { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  itemPrice:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT },
+  qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
+  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
+  qtyBtnText: { fontSize: 16, color: TEXT, fontFamily: 'Inter_600SemiBold', lineHeight: 20 },
+  qtyLabel:   { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  // Summary
+  summaryCard:       { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
+  summaryRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryRowLabel:   { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED },
+  summaryRowValue:   { fontSize: 13, fontFamily: 'Inter_500Medium', color: TEXT },
+  summaryTotalLabel: { fontFamily: 'Inter_700Bold', fontSize: 15, color: TEXT },
+  summaryTotalValue: { fontFamily: 'Inter_700Bold', fontSize: 16, color: TEXT },
+  summaryDivider:    { height: 1 },
+  shippingNote:      { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED },
+  // Order type
+  orderTypeRow:   { flexDirection: 'row', gap: 10 },
+  orderTypeCard:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14 },
+  orderTypeIcon:  { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  orderTypeLabel: { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
+  orderTypeSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  // Delivery info
+  deliveryInfoCard:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  deliveryInfoIcon:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  deliveryInfoTag:   { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
+  deliveryInfoTitle: { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT, marginTop: 2 },
+  deliveryInfoSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 },
+  // Date grid
+  chooseDateHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  chooseDateTitle:  { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  dateGrid:         { flexDirection: 'row', gap: 10 },
+  dateCard:         { flex: 1, borderRadius: 14, padding: 14, gap: 3 },
+  dateDayName:      { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
+  dateDayNum:       { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  dateTimeRange:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED },
+  // Time slots
+  pickupTimeLabel: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT, marginTop: 4 },
+  timeGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  timePill:        { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
+  timePillText:    { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  // Forms
+  formCard:       { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
+  formFieldWrap:  { gap: 4 },
+  formFieldLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: MUTED },
+  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: BG },
+  formRow:        { flexDirection: 'row', gap: 10 },
+  formNote:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  notesInput:     { height: 80, textAlignVertical: 'top', paddingTop: 12 },
+  // Order step
+  paymentHeader:    { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  paymentItem:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  paymentItemName:  { fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
+  paymentItemPrice: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  orderDetailsCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  orderDetailRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  orderDetailText:  { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  secureCard:       { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
+  secureText:       { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular' },
+  // Bottom bar
+  bottomBar:        { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 14, gap: 10 },
+  bottomTotal:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bottomTotalLabel: { fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT, letterSpacing: 1 },
+  bottomTotalAmount:{ fontSize: 20, fontFamily: 'Inter_700Bold', color: TEXT },
+  continueBtn:      { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  continueBtnText:  { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
 });
