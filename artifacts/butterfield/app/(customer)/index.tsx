@@ -208,7 +208,7 @@ export default function CustomerHome() {
       <View style={styles.quickSection}>
         <Pressable
           style={[styles.pickupRow, { backgroundColor: colors.card, borderRadius: colors.radius }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(customer)/store'); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/store'); }}
         >
           <View style={styles.pickupIconWrap}>
             <Feather name="map-pin" size={20} color="#40C0F2" />

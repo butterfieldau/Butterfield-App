@@ -103,7 +103,11 @@ export default function StoreScreen() {
             {HOURS.map(({ day, hours }, i) => (
               <View key={day} style={[styles.hoursRow, i < HOURS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
                 <Text style={[styles.hoursDay, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}>{day}</Text>
-                <Text style={[styles.hoursTime, { color: hours === 'Closed' ? colors.mutedForeground : colors.foreground, fontFamily: hours === 'Closed' ? 'Inter_400Regular' : 'Inter_500Medium' }]}>{hours}</Text>
+                <Text style={[
+                  styles.hoursTime,
+                  { color: hours === 'Closed' ? colors.mutedForeground : colors.foreground,
+                    fontFamily: hours === 'Closed' ? 'Inter_400Regular' : 'Inter_500Medium' }
+                ]}>{hours}</Text>
               </View>
             ))}
           </View>
@@ -142,7 +146,7 @@ const styles = StyleSheet.create({
 
   scroll: { flexGrow: 1 },
 
-  mapWrapper: { width: '100%', height: 220, overflow: 'hidden', position: 'relative' },
+  mapWrapper: { width: '100%', height: 220, overflow: 'hidden' },
   mapImage: { width: '100%', height: '100%' },
   mapBadge: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   mapBadgeText: { fontSize: 12 },

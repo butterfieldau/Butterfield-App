@@ -106,7 +106,6 @@ function ClassicCustomerTabs() {
       />
       <Tabs.Screen name="orders" options={{ href: null, title: 'My Orders' }} />
       <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
-      <Tabs.Screen name="store" options={{ href: null, title: 'Our Store' }} />
     </Tabs>
   );
 }

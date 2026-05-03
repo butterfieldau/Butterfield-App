@@ -30,6 +30,7 @@ function RootLayoutNav() {
         options={{ presentation: "modal", headerShown: false }}
       />
       <Stack.Screen name="(customer)" options={{ headerShown: false }} />
+      <Stack.Screen name="store" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="(staff)" options={{ headerShown: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false }} />
     </Stack>
