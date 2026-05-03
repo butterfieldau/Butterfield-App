@@ -1,11 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -21,83 +21,115 @@ import { setSelectedProduct } from '@/lib/selectedProduct';
 import { api, type ApiProduct } from '@/lib/api';
 
 const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'cookies', label: 'Cookies' },
-  { id: 'coffee', label: 'Coffee' },
-  { id: 'desserts', label: 'Desserts' },
-  { id: 'sandwiches', label: 'Food' },
-  { id: 'bundles', label: 'Bundles' },
+  { id: 'all',        label: 'All'      },
+  { id: 'cookies',    label: 'Cookies'  },
+  { id: 'coffee',     label: 'Coffee'   },
+  { id: 'desserts',   label: 'Desserts' },
+  { id: 'sandwiches', label: 'Food'     },
+  { id: 'pastries',   label: 'Pastries' },
+  { id: 'drinks',     label: 'Drinks'   },
+  { id: 'bundles',    label: 'Bundles'  },
 ];
 
-function getPrice(p: ApiProduct): number {
-  return (p.prices?.[0]?.unit_amount ?? 0) / 100;
+const DIETARY_ICONS: Record<string, string> = {
+  Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
+};
+
+function parseArr(val: any): string[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string' && val) {
+    try { const r = JSON.parse(val); if (Array.isArray(r)) return r; } catch {}
+    return val.split(',').map((s: string) => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
-function getTags(p: ApiProduct): string[] {
-  const raw = p.metadata?.tags;
-  if (raw) return raw.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 4);
-  return getPalette(p.metadata?.category).defaultTags.slice(0, 4);
+function getDisplayPrice(p: ApiProduct): { display: number; was?: number } {
+  const raw = p as any;
+  const retail  = (raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0) / 100;
+  const sale    = raw.salePriceCents ? raw.salePriceCents / 100 : null;
+  return sale ? { display: sale, was: retail } : { display: retail };
+}
+
+function getChips(p: ApiProduct): string[] {
+  const raw = p as any;
+  const dietary = parseArr(raw.dietaryTags ?? p.metadata?.dietaryTags);
+  if (dietary.length > 0) return dietary.slice(0, 3);
+  const tags = parseArr(raw.tags ?? p.metadata?.tags);
+  if (tags.length > 0) return tags.slice(0, 3);
+  return getPalette(p.metadata?.category).defaultTags.slice(0, 3);
 }
 
 function ProductTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const price = getPrice(product);
-  const palette = getPalette(product.metadata?.category);
-  const tags = getTags(product);
-  const available = product.metadata?.available !== 'false';
+  const raw = product as any;
+  const { display, was }  = getDisplayPrice(product);
+  const palette           = getPalette(product.metadata?.category);
+  const chips             = getChips(product);
+  const photoUrl          = product.images?.[0] ?? null;
+  const available         = product.metadata?.available !== 'false';
+  const isNew             = product.metadata?.isNew === 'true';
+  const isLimited         = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
+  const isSoldOut         = !available || raw.isSoldOut;
 
   return (
     <Pressable
-      onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[styles.tile, { opacity: available ? 1 : 0.6 }]}
+      onPress={() => { if (available && !isSoldOut) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
+      style={[s.tile, { opacity: isSoldOut ? 0.7 : 1 }]}
     >
-      {/* Image area */}
-      <View style={[styles.tileTop, { backgroundColor: palette.bg }]}>
-        {/* NEW badge */}
-        {product.metadata?.isNew === 'true' && (
-          <View style={[styles.newBadge, { backgroundColor: '#1C1C1E' }]}>
-            <Text style={[styles.newBadgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text>
-          </View>
+      {/* Image / emoji area */}
+      <View style={[s.tileTop, { backgroundColor: photoUrl ? '#F0EDE8' : palette.bg }]}>
+        {photoUrl ? (
+          <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
+        ) : (
+          <Text style={s.tileEmoji}>{palette.emoji}</Text>
         )}
 
-        {/* Price — top right */}
-        <View style={styles.priceBadge}>
-          <Text style={[styles.priceText, { fontFamily: 'Inter_700Bold' }]}>${price.toFixed(0)}</Text>
+        {/* Badges */}
+        <View style={s.badgeRow}>
+          {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
+          {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
         </View>
 
-        {/* Product emoji */}
-        <Text style={styles.tileEmoji}>{palette.emoji}</Text>
+        {/* Price */}
+        <View style={s.pricePill}>
+          {was ? <Text style={[s.priceWas, { fontFamily: 'Inter_400Regular' }]}>${was.toFixed(0)}</Text> : null}
+          <Text style={[s.priceMain, { fontFamily: 'Inter_700Bold' }]}>${display.toFixed(0)}</Text>
+        </View>
 
-        {/* Sold-out overlay */}
-        {!available && (
-          <View style={styles.soldOut}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text>
+        {/* Sold out overlay */}
+        {isSoldOut && (
+          <View style={s.soldOutOverlay}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 }}>Sold Out</Text>
           </View>
         )}
 
-        {/* Bottom banner strip */}
-        <View style={[styles.bannerStrip, { backgroundColor: palette.banner }]}>
-          <Text style={[styles.bannerText, { fontFamily: 'Inter_500Medium', color: palette.bannerText }]} numberOfLines={1}>
+        {/* Bottom banner */}
+        <View style={[s.bannerStrip, { backgroundColor: photoUrl ? 'rgba(0,0,0,0.42)' : palette.banner }]}>
+          <Text style={[s.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
             In-store Pickup · Merrylands
           </Text>
         </View>
       </View>
 
       {/* Info area */}
-      <View style={styles.tileBottom}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
-          <Pressable onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}>
-            <Text style={[styles.orderNow, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>Order Now ↗</Text>
-          </Pressable>
+      <View style={s.tileBottom}>
+        <View style={s.nameRow}>
+          <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
+          <Text style={[s.arrow, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>↗</Text>
         </View>
-
-        {/* Tag chips */}
-        <View style={styles.tagsRow}>
-          {tags.map((tag) => (
-            <View key={tag} style={[styles.tagChip, { backgroundColor: `${palette.bg}55` }]}>
-              <Text style={[styles.tagText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
-            </View>
-          ))}
+        {raw.shortDescription ? (
+          <Text style={[s.shortDesc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{raw.shortDescription}</Text>
+        ) : null}
+        <View style={s.chipsRow}>
+          {chips.map(tag => {
+            const icon = DIETARY_ICONS[tag];
+            return (
+              <View key={tag} style={[s.chip, { backgroundColor: `${palette.bg}55` }]}>
+                {icon ? <Text style={{ fontSize: 9 }}>{icon}</Text> : null}
+                <Text style={[s.chipText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
     </Pressable>
@@ -116,8 +148,9 @@ export default function MenuScreen() {
   });
 
   const products = data?.data ?? [];
-  const filtered = useMemo(() => products.filter((p) => {
-    const matchCat = activeCategory === 'all' || p.metadata?.category === activeCategory;
+
+  const filtered = useMemo(() => products.filter(p => {
+    const matchCat    = activeCategory === 'all' || p.metadata?.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   }), [products, activeCategory, search]);
@@ -130,15 +163,15 @@ export default function MenuScreen() {
   const activePalette = getPalette(activeCategory === 'all' ? 'default' : activeCategory);
 
   return (
-    <View style={styles.root}>
+    <View style={s.root}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: '#fff' }]}>
-        <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold', color: '#1C1C1E' }]}>Menu</Text>
-        <View style={[styles.searchBar, { backgroundColor: '#F5F6FA', borderRadius: 14 }]}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
+        <Text style={[s.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
+        <View style={s.searchBar}>
           <Feather name="search" size={16} color="#8E8E93" />
           <TextInput
-            style={[styles.searchInput, { fontFamily: 'Inter_400Regular', color: '#1C1C1E' }]}
-            placeholder="Search cookies, coffee..."
+            style={[s.searchInput, { fontFamily: 'Inter_400Regular' }]}
+            placeholder="Search cookies, coffee…"
             placeholderTextColor="#8E8E93"
             value={search}
             onChangeText={setSearch}
@@ -146,22 +179,15 @@ export default function MenuScreen() {
           {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#8E8E93" /></Pressable> : null}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
-          {CATEGORIES.map((cat) => {
-            const pal = getPalette(cat.id === 'all' ? 'default' : cat.id);
+          {CATEGORIES.map(cat => {
+            const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
             return (
-              <Pressable
-                key={cat.id}
-                onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
-                style={[styles.catPill, {
-                  backgroundColor: active ? pal.banner : '#F5F6FA',
-                  borderRadius: 20,
-                }]}
-              >
-                <Text style={[styles.catLabel, {
-                  color: active ? '#fff' : '#8E8E93',
-                  fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium',
-                }]}>{cat.label}</Text>
+              <Pressable key={cat.id} onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
+                style={[s.catPill, { backgroundColor: active ? pal.banner : '#F5F6FA' }]}>
+                <Text style={[s.catLabel, { color: active ? '#fff' : '#8E8E93', fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                  {cat.label}
+                </Text>
               </Pressable>
             );
           })}
@@ -175,12 +201,17 @@ export default function MenuScreen() {
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(p) => p.id}
+          keyExtractor={p => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#40C0F2" />}
+          ListHeaderComponent={
+            <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
+              {filtered.length} item{filtered.length !== 1 ? 's' : ''}{activeCategory !== 'all' ? ` · ${activeCategory}` : ''}
+            </Text>
+          }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
               <Feather name="search" size={28} color="#D0D0D0" />
@@ -198,76 +229,34 @@ export default function MenuScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F5F6FA' },
+const s = StyleSheet.create({
+  root:        { flex: 1, backgroundColor: '#F5F6FA' },
+  header:      { paddingHorizontal: 16, paddingBottom: 14, gap: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#EFEFEF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, zIndex: 10 },
+  headerTitle: { fontSize: 26, color: '#1C1C1E' },
+  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F5F6FA', borderRadius: 14 },
+  searchInput: { flex: 1, fontSize: 14, color: '#1C1C1E' },
+  catPill:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  catLabel:    { fontSize: 13 },
+  count:       { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
 
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFEFEF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-    zIndex: 10,
-  },
-  headerTitle: { fontSize: 26 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44 },
-  searchInput: { flex: 1, fontSize: 14 },
-  catPill: { paddingHorizontal: 16, paddingVertical: 8 },
-  catLabel: { fontSize: 13 },
-
-  tile: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-
-  tileTop: {
-    height: 150,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tileEmoji: { fontSize: 54, lineHeight: 64 },
-  newBadge: {
-    position: 'absolute', top: 8, left: 8,
-    borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-  },
-  newBadgeText: { color: '#fff', fontSize: 9 },
-  priceBadge: {
-    position: 'absolute', top: 8, right: 8,
-  },
-  priceText: { fontSize: 16, color: '#1C1C1E' },
-  soldOut: {
-    position: 'absolute', inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  bannerStrip: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingVertical: 5, paddingHorizontal: 8,
-    alignItems: 'center',
-  },
-  bannerText: { fontSize: 10, letterSpacing: 0.2 },
-
-  tileBottom: {
-    padding: 10, gap: 8, backgroundColor: '#fff',
-  },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
-  tileName: { fontSize: 13, color: '#1C1C1E', flex: 1 },
-  orderNow: { fontSize: 10, textDecorationLine: 'underline' },
-
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  tagChip: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
-  tagText: { fontSize: 9 },
+  tile:        { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  tileTop:     { height: 160, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  tileEmoji:   { fontSize: 56, lineHeight: 66 },
+  badgeRow:    { position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 },
+  badge:       { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgeText:   { color: '#fff', fontSize: 9 },
+  pricePill:   { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+  priceWas:    { fontSize: 11, color: 'rgba(255,255,255,0.7)', textDecorationLine: 'line-through' },
+  priceMain:   { fontSize: 16, color: '#1C1C1E' },
+  soldOutOverlay:{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  bannerStrip: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
+  bannerText:  { fontSize: 9, color: '#fff', letterSpacing: 0.2 },
+  tileBottom:  { padding: 10, gap: 5, backgroundColor: '#fff' },
+  nameRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
+  tileName:    { fontSize: 13, color: '#1C1C1E', flex: 1 },
+  arrow:       { fontSize: 13 },
+  shortDesc:   { fontSize: 10, color: '#8E8E93' },
+  chipsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  chip:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+  chipText:    { fontSize: 9 },
 });

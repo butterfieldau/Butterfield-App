@@ -167,8 +167,10 @@ export interface ApiProduct {
   id: string;
   name: string;
   description: string;
+  active?: boolean;
+  images?: string[];
   metadata?: Record<string, string>;
-  prices?: { id: string; unit_amount: number; currency: string }[];
+  prices?: { id: string; unit_amount: number; currency: string; active?: boolean; metadata?: Record<string, string> }[];
 }
 
 export interface ApiOrder {

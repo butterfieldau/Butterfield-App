@@ -1,12 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -63,39 +63,66 @@ const PRODUCT_IMAGES: Record<string, string> = {
 
 function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
 
+const DIETARY_ICONS: Record<string, string> = {
+  Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
+};
+
+function parseArr(val: any): string[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string' && val) {
+    try { const r = JSON.parse(val); if (Array.isArray(r)) return r; } catch {}
+    return val.split(',').map((s: string) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 function getTags(p: ApiProduct): string[] {
-  const raw = p.metadata?.tags;
-  if (raw) return raw.split(',').map((t) => t.trim()).filter(Boolean).slice(0, 3);
+  const raw = p as any;
+  const dietary = parseArr(raw.dietaryTags ?? p.metadata?.dietaryTags);
+  if (dietary.length > 0) return dietary.slice(0, 3);
+  const tags = parseArr(raw.tags ?? p.metadata?.tags);
+  if (tags.length > 0) return tags.slice(0, 3);
   return getPalette(p.metadata?.category).defaultTags.slice(0, 3);
 }
 
 function HomeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const price = getPrice(product);
-  const palette = getPalette(product.metadata?.category);
-  const available = product.metadata?.available !== 'false';
-  const imageUrl = PRODUCT_IMAGES[product.name];
-  const tags = getTags(product);
+  const raw = product as any;
+  const priceCents = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
+  const saleCents  = raw.salePriceCents;
+  const price      = (saleCents ?? priceCents) / 100;
+  const palette    = getPalette(product.metadata?.category);
+  const available  = product.metadata?.available !== 'false';
+  const isSoldOut  = !available || raw.isSoldOut;
+  const isNew      = product.metadata?.isNew === 'true';
+  const isLimited  = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
+  const imageUrl   = product.images?.[0] ?? PRODUCT_IMAGES[product.name] ?? null;
+  const tags       = getTags(product);
 
   return (
     <Pressable
       onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[styles.tile, { opacity: available ? 1 : 0.6 }]}
+      style={[styles.tile, { opacity: isSoldOut ? 0.72 : 1 }]}
     >
       <View style={[styles.tileTop, { backgroundColor: imageUrl ? '#F0EDE8' : palette.bg }]}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
         ) : (
           <Text style={styles.tileEmoji}>{palette.emoji}</Text>
         )}
-        {product.metadata?.isNew === 'true' && (
-          <View style={[styles.newBadge, { backgroundColor: '#1C1C1E' }]}>
-            <Text style={[styles.newBadgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text>
-          </View>
-        )}
+
+        {/* Badge row (top-left) */}
+        <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 }}>
+          {isNew    && <View style={[styles.newBadge, { backgroundColor: '#1C1C1E' }]}><Text style={[styles.newBadgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
+          {isLimited&& <View style={[styles.newBadge, { backgroundColor: '#F40009' }]}><Text style={[styles.newBadgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
+        </View>
+
+        {/* Price (top-right) */}
         <View style={styles.priceBadge}>
+          {saleCents ? <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 10, color: '#1C1C1E', textDecorationLine: 'line-through' }]}>${(priceCents/100).toFixed(0)}</Text> : null}
           <Text style={[styles.priceBadgeText, { fontFamily: 'Inter_700Bold' }]}>${price.toFixed(0)}</Text>
         </View>
-        {!available && (
+
+        {isSoldOut && (
           <View style={styles.soldOut}>
             <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text>
           </View>
@@ -112,11 +139,15 @@ function HomeTile({ product, onPress }: { product: ApiProduct; onPress: () => vo
           <Text style={[styles.orderNow, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>↗</Text>
         </View>
         <View style={styles.tagsRow}>
-          {tags.map((tag) => (
-            <View key={tag} style={[styles.tagChip, { backgroundColor: `${palette.bg}55` }]}>
-              <Text style={[styles.tagText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
-            </View>
-          ))}
+          {tags.map((tag) => {
+            const icon = DIETARY_ICONS[tag];
+            return (
+              <View key={tag} style={[styles.tagChip, { backgroundColor: `${palette.bg}55` }]}>
+                {icon ? <Text style={{ fontSize: 8 }}>{icon}</Text> : null}
+                <Text style={[styles.tagText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
     </Pressable>
@@ -128,7 +159,7 @@ function MerchTile({ item, onPress }: { item: typeof MERCH[number]; onPress: () 
   return (
     <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }} style={styles.merchTile}>
       <View style={styles.merchTileTop}>
-        <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+        <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
         <View style={styles.priceBadge}>
           <Text style={[styles.priceBadgeText, { fontFamily: 'Inter_700Bold' }]}>${item.price}</Text>
         </View>
@@ -300,31 +331,27 @@ export default function CustomerHome() {
             showsHorizontalScrollIndicator={false}
             keyExtractor={(p) => p.id}
             contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-            renderItem={({ item: p }) => (
-              <Pressable onPress={() => handleTilePress(p)} style={[styles.favTile, { backgroundColor: colors.card }]}>
-                {(() => {
-                  const pal = getPalette(p.metadata?.category);
-                  const img = PRODUCT_IMAGES[p.name];
-                  return (
-                    <>
-                      <View style={[styles.favTop, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
-                        {img
-                          ? <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                          : <Text style={{ fontSize: 36 }}>{pal.emoji}</Text>
-                        }
-                        <View style={[styles.bannerStrip, { backgroundColor: img ? 'rgba(0,0,0,0.4)' : pal.banner }]}>
-                          <Text style={[styles.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>Pickup</Text>
-                        </View>
-                      </View>
-                      <View style={{ padding: 8, gap: 2 }}>
-                        <Text style={[styles.favName, { fontFamily: 'Inter_600SemiBold', color: colors.foreground }]} numberOfLines={1}>{p.name}</Text>
-                        <Text style={[{ fontFamily: 'Inter_700Bold', color: pal.banner, fontSize: 13 }]}>${getPrice(p).toFixed(2)}</Text>
-                      </View>
-                    </>
-                  );
-                })()}
-              </Pressable>
-            )}
+            renderItem={({ item: p }) => {
+              const pal = getPalette(p.metadata?.category);
+              const img = p.images?.[0] ?? PRODUCT_IMAGES[p.name] ?? null;
+              return (
+                <Pressable onPress={() => handleTilePress(p)} style={[styles.favTile, { backgroundColor: colors.card }]}>
+                  <View style={[styles.favTop, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
+                    {img
+                      ? <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
+                      : <Text style={{ fontSize: 36 }}>{pal.emoji}</Text>
+                    }
+                    <View style={[styles.bannerStrip, { backgroundColor: img ? 'rgba(0,0,0,0.4)' : pal.banner }]}>
+                      <Text style={[styles.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>Pickup</Text>
+                    </View>
+                  </View>
+                  <View style={{ padding: 8, gap: 2 }}>
+                    <Text style={[styles.favName, { fontFamily: 'Inter_600SemiBold', color: colors.foreground }]} numberOfLines={1}>{p.name}</Text>
+                    <Text style={[{ fontFamily: 'Inter_700Bold', color: pal.banner, fontSize: 13 }]}>${getPrice(p).toFixed(2)}</Text>
+                  </View>
+                </Pressable>
+              );
+            }}
           />
         </View>
       )}
@@ -431,7 +458,7 @@ const styles = StyleSheet.create({
   tileName: { fontSize: 12, color: '#1C1C1E', flex: 1 },
   orderNow: { fontSize: 13 },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  tagChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
+  tagChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
   tagText: { fontSize: 9 },
 
   // Merch tile
