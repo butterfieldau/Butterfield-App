@@ -80,8 +80,10 @@ export const api = {
   },
   staff: {
     clockIn: () => request<{ data: StaffShift }>('/staff/shifts/clock-in', { method: 'POST' }),
-    clockOut: () => request<{ data: StaffShift }>('/staff/shifts/clock-out', { method: 'POST' }),
+    clockOut: (unpaidBreakMins?: number) =>
+      request<{ data: StaffShift }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins: unpaidBreakMins ?? 0 }) }),
     currentShift: () => request<{ data: StaffShift | null }>('/staff/shifts/current'),
+    shiftStats: () => request<{ data: StaffShiftStats }>('/staff/shifts/stats'),
     shifts: () => request<{ data: StaffShift[] }>('/staff/shifts'),
     tasks: (category?: string) => request<{ data: StaffTask[] }>(`/staff/tasks${category ? `?category=${category}` : ''}`),
     completeTask: (id: string, isCompleted: boolean) =>
@@ -94,7 +96,12 @@ export const api = {
     requestLeave: (data: { startDate: string; endDate: string; type: string; reason: string }) =>
       request<{ data: any }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
     allOrders: () => request<{ data: ApiOrder[] }>('/staff/orders'),
-    profile: () => request<{ data: any }>('/staff/profile'),
+    profile: () => request<{ data: StaffProfile | null }>('/staff/profile'),
+    updateHourlyRate: (hourlyRateCents: number, userId?: string) =>
+      request<{ data: StaffProfile }>('/staff/profile/hourly-rate', {
+        method: 'PATCH', body: JSON.stringify({ hourlyRateCents, userId }),
+      }),
+    members: () => request<{ data: any[] }>('/staff/members'),
   },
   wholesale: {
     account: () => request<{ data: any }>('/wholesale/account'),
@@ -190,6 +197,25 @@ export interface StaffShift {
   clockIn: string;
   clockOut?: string;
   hoursWorked?: string;
+  unpaidBreakMins?: number;
+}
+
+export interface StaffShiftStats {
+  hourlyRateCents: number;
+  todayMins: number;
+  todayEarningsCents: number;
+  weekMins: number;
+  weekEarningsCents: number;
+}
+
+export interface StaffProfile {
+  userId: string;
+  employeeId: string;
+  position: string;
+  department: string;
+  isManager: boolean;
+  approvedByAdmin: boolean;
+  hourlyRateCents: number;
 }
 
 export interface StaffTask {

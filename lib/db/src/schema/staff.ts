@@ -20,6 +20,7 @@ export const staffShiftsTable = pgTable("staff_shifts", {
   clockOut: timestamp("clock_out"),
   notes: text("notes"),
   hoursWorked: text("hours_worked"),
+  unpaidBreakMins: integer("unpaid_break_mins").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

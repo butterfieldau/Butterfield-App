@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,6 +9,7 @@ export const staffProfilesTable = pgTable("staff_profiles", {
   department: text("department").notNull().default("floor"),
   isManager: boolean("is_manager").notNull().default(false),
   approvedByAdmin: boolean("approved_by_admin").notNull().default(false),
+  hourlyRateCents: integer("hourly_rate_cents").notNull().default(2200),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable } from '@workspace/db';
-import { eq, desc, isNull, and } from 'drizzle-orm';
+import { eq, desc, isNull, and, gte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
@@ -17,20 +17,25 @@ router.post('/shifts/clock-in', async (req, res) => {
     id: randomUUID(),
     userId: req.user!.id,
     clockIn: new Date(),
+    unpaidBreakMins: 0,
   }).returning();
   return res.status(201).json({ data: shift });
 });
 
 router.post('/shifts/clock-out', async (req, res) => {
+  const { unpaidBreakMins } = req.body;
   const [active] = await db.select().from(staffShiftsTable)
     .where(and(eq(staffShiftsTable.userId, req.user!.id), isNull(staffShiftsTable.clockOut)));
   if (!active) return res.status(400).json({ error: 'No active shift found' });
   const now = new Date();
   const ms = now.getTime() - active.clockIn.getTime();
-  const hrs = Math.floor(ms / 3600000);
-  const mins = Math.floor((ms % 3600000) / 60000);
+  const totalMins = Math.floor(ms / 60000);
+  const unpaidMins = typeof unpaidBreakMins === 'number' ? unpaidBreakMins : 0;
+  const paidMins = Math.max(0, totalMins - unpaidMins);
+  const hrs = Math.floor(paidMins / 60);
+  const mins = paidMins % 60;
   const [shift] = await db.update(staffShiftsTable)
-    .set({ clockOut: now, hoursWorked: `${hrs}h ${mins}m` })
+    .set({ clockOut: now, hoursWorked: `${hrs}h ${mins}m`, unpaidBreakMins: unpaidMins })
     .where(eq(staffShiftsTable.id, active.id))
     .returning();
   return res.json({ data: shift });
@@ -40,6 +45,43 @@ router.get('/shifts/current', async (req, res) => {
   const [active] = await db.select().from(staffShiftsTable)
     .where(and(eq(staffShiftsTable.userId, req.user!.id), isNull(staffShiftsTable.clockOut)));
   return res.json({ data: active ?? null });
+});
+
+router.get('/shifts/stats', async (req, res) => {
+  const [profile] = await db.select().from(staffProfilesTable)
+    .where(eq(staffProfilesTable.userId, req.user!.id));
+  const hourlyRateCents = profile?.hourlyRateCents ?? 2200;
+
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const weekStart = new Date(todayStart);
+  const day = weekStart.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  weekStart.setDate(weekStart.getDate() + diff);
+
+  const allShifts = await db.select().from(staffShiftsTable)
+    .where(and(eq(staffShiftsTable.userId, req.user!.id), gte(staffShiftsTable.clockIn, weekStart)));
+
+  const todayShifts = allShifts.filter(s => new Date(s.clockIn) >= todayStart && s.clockOut);
+  const weekShifts = allShifts.filter(s => s.clockOut);
+
+  const sumPaidMins = (shifts: typeof allShifts) =>
+    shifts.reduce((sum, s) => {
+      const ms = new Date(s.clockOut!).getTime() - new Date(s.clockIn).getTime();
+      const total = Math.floor(ms / 60000);
+      return sum + Math.max(0, total - (s.unpaidBreakMins ?? 0));
+    }, 0);
+
+  const todayMins = sumPaidMins(todayShifts);
+  const weekMins = sumPaidMins(weekShifts);
+  const todayEarningsCents = Math.round((todayMins / 60) * hourlyRateCents);
+  const weekEarningsCents = Math.round((weekMins / 60) * hourlyRateCents);
+
+  return res.json({
+    data: { hourlyRateCents, todayMins, todayEarningsCents, weekMins, weekEarningsCents },
+  });
 });
 
 router.get('/shifts', async (req, res) => {
@@ -136,6 +178,38 @@ router.get('/orders', async (req, res) => {
 router.get('/profile', async (req, res) => {
   const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
   return res.json({ data: profile ?? null });
+});
+
+router.patch('/profile/hourly-rate', async (req, res) => {
+  const { userId, hourlyRateCents } = req.body;
+  if (!hourlyRateCents || typeof hourlyRateCents !== 'number') {
+    return res.status(400).json({ error: 'hourlyRateCents must be a number' });
+  }
+  const targetId = userId ?? req.user!.id;
+  const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
+  if (!profile?.isManager && targetId !== req.user!.id) {
+    return res.status(403).json({ error: 'Only managers can update other staff rates' });
+  }
+  const [updated] = await db.update(staffProfilesTable)
+    .set({ hourlyRateCents })
+    .where(eq(staffProfilesTable.userId, targetId))
+    .returning();
+  return res.json({ data: updated });
+});
+
+router.get('/members', async (req, res) => {
+  const [myProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
+  if (!myProfile?.isManager) return res.status(403).json({ error: 'Managers only' });
+  const members = await db.select({
+    userId: staffProfilesTable.userId,
+    employeeId: staffProfilesTable.employeeId,
+    position: staffProfilesTable.position,
+    isManager: staffProfilesTable.isManager,
+    hourlyRateCents: staffProfilesTable.hourlyRateCents,
+    name: usersTable.name,
+    email: usersTable.email,
+  }).from(staffProfilesTable).leftJoin(usersTable, eq(staffProfilesTable.userId, usersTable.id));
+  return res.json({ data: members });
 });
 
 export default router;

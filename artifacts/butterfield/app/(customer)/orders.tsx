@@ -8,12 +8,23 @@ import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: '#F59E0B',
+  pending:   '#F59E0B',
   confirmed: '#3B82F6',
   preparing: '#8B5CF6',
-  ready: '#22C55E',
+  ready:     '#22C55E',
   completed: '#6B7280',
   cancelled: '#EF4444',
+};
+
+const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready'];
+
+const STATUS_LABEL: Record<string, string> = {
+  pending:   'Received',
+  confirmed: 'Confirmed',
+  preparing: 'In Prep',
+  ready:     'Ready',
+  completed: 'Collected',
+  cancelled: 'Cancelled',
 };
 
 export default function CustomerOrdersScreen() {
@@ -68,12 +79,17 @@ export default function CustomerOrdersScreen() {
           }
           renderItem={({ item: order }) => {
             const statusColor = STATUS_COLOR[order.status] ?? '#6B7280';
+            const statusLabel = STATUS_LABEL[order.status] ?? order.status;
+            const isActive = ACTIVE_STATUSES.includes(order.status);
             const total = (order.totalCents ?? 0) / 100;
             const itemCount = order.items?.length ?? 0;
             const date = new Date(order.createdAt);
 
             return (
-              <View style={[styles.orderCard, { backgroundColor: colors.card, borderRadius: colors.radius, borderLeftColor: statusColor, borderLeftWidth: 3 }]}>
+              <Pressable
+                onPress={() => router.push(`/(customer)/track/${order.id}` as any)}
+                style={[styles.orderCard, { backgroundColor: colors.card, borderRadius: colors.radius, borderLeftColor: statusColor, borderLeftWidth: 3 }]}
+              >
                 <View style={styles.orderTop}>
                   <View style={{ flex: 1 }}>
                     <Text style={[{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>
@@ -88,9 +104,9 @@ export default function CustomerOrdersScreen() {
                       ${total.toFixed(2)}
                     </Text>
                     <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
-                      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                      <Text style={[{ color: statusColor, fontFamily: 'Inter_600SemiBold', fontSize: 11, textTransform: 'capitalize' }]}>
-                        {order.status}
+                      {isActive && <View style={[styles.statusDot, { backgroundColor: statusColor }]} />}
+                      <Text style={[{ color: statusColor, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>
+                        {statusLabel}
                       </Text>
                     </View>
                   </View>
@@ -119,7 +135,15 @@ export default function CustomerOrdersScreen() {
                     </Text>
                   </View>
                 )}
-              </View>
+
+                {/* Track indicator */}
+                <View style={[styles.trackRow, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.trackText, { color: isActive ? colors.primary : colors.mutedForeground }]}>
+                    {isActive ? 'Tap to track live' : 'View details'}
+                  </Text>
+                  <Feather name="chevron-right" size={13} color={isActive ? colors.primary : colors.mutedForeground} />
+                </View>
+              </Pressable>
             );
           }}
         />
@@ -140,4 +164,6 @@ const styles = StyleSheet.create({
   statusDot: { width: 5, height: 5, borderRadius: 3 },
   itemsList: { borderTopWidth: 1, marginTop: 12, paddingTop: 10, gap: 4 },
   pickupRow: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, marginTop: 10, paddingTop: 10 },
+  trackRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3, borderTopWidth: 1, marginTop: 10, paddingTop: 10 },
+  trackText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
 });
