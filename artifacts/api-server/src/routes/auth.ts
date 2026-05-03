@@ -5,6 +5,8 @@ import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAcc
 import { eq } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 
+const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com'];
+
 const router = Router();
 
 const SHOP_LAT_DEFAULT  = -33.8349;
@@ -88,19 +90,21 @@ router.post('/staff-login', async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
 
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    return res.status(403).json({ error: 'Location verification is required for staff sign-in. Please enable location services.' });
-  }
-
-  const geo = await getGeoSettings();
-  const distanceMeters = haversineDistanceMeters(latitude, longitude, geo.shopLat, geo.shopLng);
-
-  if (distanceMeters > geo.radiusMeters) {
-    return res.status(403).json({
-      error: `You must be within ${geo.radiusMeters}m of Butterfield Merrylands to sign in. You are currently ${Math.round(distanceMeters)}m away.`,
-      distanceMeters: Math.round(distanceMeters),
-      radiusMeters: geo.radiusMeters,
-    });
+  // Demo accounts bypass all geo checks
+  const isDemoAccount = DEMO_EMAILS.includes(user.email.toLowerCase());
+  if (!isDemoAccount) {
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      return res.status(403).json({ error: 'Location verification is required for staff sign-in. Please enable location services.' });
+    }
+    const geo = await getGeoSettings();
+    const distanceMeters = haversineDistanceMeters(latitude, longitude, geo.shopLat, geo.shopLng);
+    if (distanceMeters > geo.radiusMeters) {
+      return res.status(403).json({
+        error: `You must be within ${geo.radiusMeters}m of Butterfield Merrylands to sign in. You are currently ${Math.round(distanceMeters)}m away.`,
+        distanceMeters: Math.round(distanceMeters),
+        radiusMeters: geo.radiusMeters,
+      });
+    }
   }
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
@@ -141,6 +145,63 @@ router.patch('/me', requireAuth, async (req, res) => {
     profile = cp;
   }
   return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone }, profile });
+});
+
+// ── Seed demo accounts ──────────────────────────────────────────────────────
+router.post('/seed-demo', async (req, res) => {
+  const DEMO_PW = 'Demo1234!';
+  const hash = await bcrypt.hash(DEMO_PW, 10);
+
+  const demos = [
+    { email: 'customer@demo.com', role: 'customer' as const, name: 'Demo Customer' },
+    { email: 'staff@demo.com',    role: 'staff'    as const, name: 'Demo Staff' },
+    { email: 'wholesale@demo.com',role: 'wholesale' as const,name: 'Demo Wholesale' },
+    { email: 'director@demo.com', role: 'director' as const, name: 'Demo Director' },
+  ];
+
+  const created: string[] = [];
+  const existing: string[] = [];
+
+  for (const demo of demos) {
+    const [ex] = await db.select().from(usersTable).where(eq(usersTable.email, demo.email));
+    if (ex) { existing.push(demo.email); continue; }
+
+    const userId = randomUUID();
+    await db.insert(usersTable).values({ id: userId, email: demo.email, passwordHash: hash, role: demo.role as any, name: demo.name });
+
+    if (demo.role === 'customer') {
+      await db.insert(customerProfilesTable).values({
+        userId, loyaltyPoints: 150, loyaltyTier: 'silver', referralCode: 'DEMO1234',
+      });
+    } else if (demo.role === 'staff') {
+      await db.insert(staffProfilesTable).values({
+        userId, employeeId: 'EMP-DEMO-001', position: 'Senior Crew', department: 'floor',
+        isManager: true, approvedByAdmin: true, hourlyRateCents: 2800,
+      });
+    } else if (demo.role === 'wholesale') {
+      const accountId = randomUUID();
+      await db.insert(wholesaleAccountsTable).values({
+        id: accountId, userId, companyName: 'Demo Wholesale Co.', abn: '12 345 678 901',
+        contactName: demo.name, phone: '0400000000', status: 'approved',
+      });
+    }
+    created.push(demo.email);
+  }
+
+  return res.json({
+    message: `Demo accounts ready.`,
+    created,
+    existing,
+    credentials: {
+      password: DEMO_PW,
+      accounts: [
+        { email: 'customer@demo.com',  role: 'customer',  portal: 'Customer app' },
+        { email: 'staff@demo.com',     role: 'staff',     portal: 'Staff portal (no geo restriction)' },
+        { email: 'wholesale@demo.com', role: 'wholesale', portal: 'Wholesale portal' },
+        { email: 'director@demo.com',  role: 'director',  portal: 'Director portal (full backend)' },
+      ],
+    },
+  });
 });
 
 router.get('/me', requireAuth, async (req, res) => {

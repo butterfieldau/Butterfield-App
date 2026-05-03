@@ -92,6 +92,7 @@ function ClassicCustomerTabs() {
         name="cart"
         options={{
           title: 'Order',
+          tabBarStyle: { display: 'none' },
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
         }}

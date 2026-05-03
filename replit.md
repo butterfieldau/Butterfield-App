@@ -34,8 +34,9 @@ scripts/
 |-------|------|-------------|
 | POST /api/auth/register | — | Customer registration |
 | POST /api/auth/login | — | Login (all roles) |
-| POST /api/auth/staff-login | — | Staff login (validates staff role) |
+| POST /api/auth/staff-login | — | Staff login (geo check; demo accounts bypassed) |
 | POST /api/auth/wholesale-apply | — | Wholesale application (pending status) |
+| POST /api/auth/seed-demo | — | Create/verify all 4 demo accounts |
 | GET /api/auth/me | JWT | Current user + profile |
 | GET /api/products | — | All active products from stripe.products |
 | GET /api/orders | JWT | Customer's own orders |
@@ -58,6 +59,16 @@ scripts/
 | GET /api/wholesale/products | wholesale | Product catalog (same as /api/products) |
 | GET /api/wholesale/orders | wholesale | Wholesale order history |
 | POST /api/wholesale/orders | wholesale | Place wholesale order |
+| GET /api/director/stats | director | Dashboard KPIs (orders, revenue, users) |
+| GET /api/director/orders | director | All orders (200 most recent) |
+| PATCH /api/director/orders/:id/status | director | Update any order status |
+| GET /api/director/users | director | All users with staff/wholesale profiles |
+| PATCH /api/director/staff/:userId/approve | director | Approve/revoke staff access |
+| PATCH /api/director/wholesale/:id/status | director | Approve/reject wholesale account |
+| GET /api/director/products | director | All products |
+| PATCH /api/director/products/:id | director | Update product (availability, featured, new) |
+| GET /api/director/settings | director | Store settings (geo, open/close, special) |
+| PATCH /api/director/settings | director | Update store settings |
 | GET /api/announcements | JWT | All active announcements |
 | GET/POST /api/favourites | JWT | Favourites list |
 | POST /api/feedback | JWT | Submit feedback |
@@ -65,7 +76,7 @@ scripts/
 | POST /api/payment/payment-intent | JWT | Create Stripe payment intent |
 | POST /api/stripe/webhook | — | Stripe webhook handler |
 
-## Three Distinct Role-Based Experiences
+## Four Role-Based Experiences
 
 ### 1. Customer Portal (`/(customer)/`)
 - **Home**: Caramel gradient hero, loyalty points chip, daily special banner, fan favourites scroll, category-filtered product grid
@@ -90,6 +101,15 @@ scripts/
 - **Orders**: Order history with status tracking
 - **Invoices**: Outstanding balance summary
 - **Profile**: Company details, ABN, payment terms, credit utilisation, cut-off schedule
+
+### 4. Director Portal (`/(director)/`)
+- Navy `#1A2B4A` header strip with red DIRECTOR badge; no geo restriction
+- **Dashboard** (`index.tsx`): Revenue strip (today/week/month in AUD), 4-stat grid (orders today, active, users, products), pending-approvals alert banner, recent 8 orders list
+- **Orders** (`orders.tsx`): All 200 most-recent orders, filter chips (All/Pending/Preparing/Ready/Done/Cancelled), tap card → Alert to advance status
+- **Users** (`users.tsx`): Tabbed All/Staff/Wholesale/Customers, staff approval toggle (Switch), wholesale status prompt (Approve/Pending/Reject)
+- **Products** (`products.tsx`): All products with Available/Featured/New toggle switches per item
+- **Settings** (`settings.tsx`): Store open toggle, daily special text, geo-fence radius + shop lat/lng, demo account quick-reference panel
+- Auth: uses regular `/auth/login` endpoint (no geo check needed); `requireRole('director')` middleware on all `/director/*` routes
 
 ## Database (PostgreSQL)
 
@@ -123,12 +143,17 @@ scripts/
 - `AuthContext.tsx` — real JWT-backed context with AsyncStorage persistence
 - Customers: register via app; Staff/Wholesale: created via admin or seeded
 
-## Test Accounts (for development)
-| Role | Email | Password |
-|------|-------|----------|
-| Customer | test@butterfield.com | test1234 |
-| Staff | staff@butterfield.com | staff1234 |
-| Wholesale | wholesale@butterfield.com | wholesale1234 |
+## Demo Accounts (seeded via POST /api/auth/seed-demo)
+All demo accounts use password `Demo1234!`. Staff geo-check is bypassed for all demo emails.
+
+| Role | Email | Portal |
+|------|-------|--------|
+| Customer | customer@demo.com | Customer app |
+| Staff | staff@demo.com | Staff portal (approvedByAdmin: true) |
+| Wholesale | wholesale@demo.com | Wholesale portal (status: approved) |
+| Director | director@demo.com | Director portal (full backend access) |
+
+Login screen has a **Demo accounts** strip with one-tap auto-fill for each role.
 
 ## Brand Design
 - **Palette**: Background `#FBF7F2` (cream), Primary `#C8833A` (caramel), Dark `#4A2410` (chocolate)

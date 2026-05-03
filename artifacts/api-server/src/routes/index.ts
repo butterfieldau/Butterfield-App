@@ -9,6 +9,7 @@ import wholesaleRouter from "./wholesale.js";
 import miscRouter from "./misc.js";
 import paymentRouter from "./payment.js";
 import addressesRouter from "./addresses.js";
+import directorRouter from "./director.js";
 
 const router: IRouter = Router();
 
@@ -21,6 +22,7 @@ router.use("/staff", staffRouter);
 router.use("/wholesale", wholesaleRouter);
 router.use("/payment", paymentRouter);
 router.use("/addresses", addressesRouter);
+router.use("/director", directorRouter);
 router.use(miscRouter);
 
 export default router;

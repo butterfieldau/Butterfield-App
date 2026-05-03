@@ -26,22 +26,32 @@ const ROLES = [
     label: 'Customer',
     subtitle: 'Order, earn rewards & explore',
     icon: 'coffee',
-    gradient: ['#40C0F2', '#2AA8DC'] as [string, string],
   },
   {
     role: 'staff' as UserRole,
     label: 'Staff',
     subtitle: 'Internal Butterfield team',
     icon: 'briefcase',
-    gradient: ['#2A3F6B', '#1A2B4A'] as [string, string],
   },
   {
     role: 'wholesale' as UserRole,
     label: 'Wholesale',
     subtitle: 'Bulk orders & account tools',
     icon: 'package',
-    gradient: ['#2A5A3A', '#1A3A28'] as [string, string],
   },
+  {
+    role: 'director' as UserRole,
+    label: 'Director',
+    subtitle: 'Full backend access',
+    icon: 'shield',
+  },
+];
+
+const DEMO_CREDS: { role: UserRole; email: string; label: string; color: string; bg: string }[] = [
+  { role: 'customer',  email: 'customer@demo.com',  label: 'Customer',  color: '#0369A1', bg: '#EBF8FF' },
+  { role: 'staff',     email: 'staff@demo.com',     label: 'Staff',     color: '#5B21B6', bg: '#EDE9FE' },
+  { role: 'wholesale', email: 'wholesale@demo.com', label: 'Wholesale', color: '#166534', bg: '#DCFCE7' },
+  { role: 'director',  email: 'director@demo.com',  label: 'Director',  color: '#854D0E', bg: '#FEF9C3' },
 ];
 
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
@@ -146,6 +156,14 @@ export default function LoginScreen() {
   const isRegister = mode === 'register';
   const isWholesaleApply = mode === 'wholesale-apply';
   const isStaff = selectedRole === 'staff';
+  const isDirector = selectedRole === 'director';
+
+  const fillDemo = (demo: typeof DEMO_CREDS[0]) => {
+    handleRoleSelect(demo.role);
+    setEmail(demo.email);
+    setPassword('Demo1234!');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const btnLabel = loading
     ? (isStaff && locationState === 'acquiring' ? 'Getting location…' : 'Signing in…')
@@ -174,24 +192,29 @@ export default function LoginScreen() {
 
         <View style={[styles.formContainer, { backgroundColor: colors.background }]}>
           <Text style={[styles.signInLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Sign in as</Text>
-          <View style={styles.roleRow}>
+          <View style={styles.roleGrid}>
             {ROLES.map((r) => {
               const active = selectedRole === r.role;
+              const isDir = r.role === 'director';
               return (
                 <Pressable
                   key={r.role}
                   onPress={() => handleRoleSelect(r.role)}
                   style={[styles.roleCard, {
-                    backgroundColor: active ? colors.card : colors.muted,
-                    borderColor: active ? colors.primary : 'transparent',
+                    backgroundColor: active ? (isDir ? '#FEF9C3' : colors.card) : colors.muted,
+                    borderColor: active ? (isDir ? '#B45309' : colors.primary) : 'transparent',
                     borderWidth: active ? 2 : 0,
                     borderRadius: colors.radius,
                   }]}
                 >
-                  <View style={[styles.roleIcon, { backgroundColor: active ? colors.secondary : colors.muted }]}>
-                    <Feather name={r.icon as any} size={20} color={active ? colors.primary : colors.mutedForeground} />
+                  <View style={[styles.roleIcon, {
+                    backgroundColor: active
+                      ? (isDir ? '#FDE68A' : colors.secondary)
+                      : colors.muted,
+                  }]}>
+                    <Feather name={r.icon as any} size={18} color={active ? (isDir ? '#B45309' : colors.primary) : colors.mutedForeground} />
                   </View>
-                  <Text style={[styles.roleLabel, { color: active ? colors.foreground : colors.mutedForeground, fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular' }]}>
+                  <Text style={[styles.roleLabel, { color: active ? (isDir ? '#B45309' : colors.foreground) : colors.mutedForeground, fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular' }]}>
                     {r.label}
                   </Text>
                   <Text style={[styles.roleSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>
@@ -328,7 +351,7 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            {!isWholesale && (
+            {!isWholesale && !isDirector && (
               <Pressable
                 onPress={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); Haptics.selectionAsync(); }}
                 style={{ alignItems: 'center', paddingVertical: 4 }}
@@ -353,6 +376,19 @@ export default function LoginScreen() {
               </Pressable>
             )}
           </View>
+
+          {/* Demo credentials quick-fill */}
+          <View style={[styles.demoSection, { borderColor: '#E5E7EB' }]}>
+            <Text style={[styles.demoTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>Demo accounts</Text>
+            <Text style={[styles.demoSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Tap to auto-fill · password: Demo1234!</Text>
+            <View style={styles.demoGrid}>
+              {DEMO_CREDS.map((d) => (
+                <Pressable key={d.role} onPress={() => fillDemo(d)} style={[styles.demoPill, { backgroundColor: d.bg }]}>
+                  <Text style={[styles.demoPillText, { color: d.color, fontFamily: 'Inter_700Bold' }]}>{d.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -360,32 +396,35 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  heroSection: { alignItems: 'center', paddingBottom: 32, gap: 6 },
-  logoBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  brand: { color: '#fff', fontSize: 30, letterSpacing: -0.5 },
-  tagline: { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
-  formContainer: { flex: 1, paddingHorizontal: 20, paddingTop: 28, gap: 20, paddingBottom: 40 },
-  signInLabel: { fontSize: 15 },
-  roleRow: { flexDirection: 'row', gap: 10 },
-  roleCard: { flex: 1, padding: 14, gap: 6, alignItems: 'center' },
-  roleIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  roleLabel: { fontSize: 14 },
-  roleSub: { fontSize: 10, textAlign: 'center', color: '#8E8E93' },
-  fields: { gap: 12 },
-  geoBanner: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    padding: 12, borderRadius: 10, borderWidth: 1,
-  },
-  geoBannerText: { flex: 1, fontSize: 12, lineHeight: 17 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1 },
-  input: { flex: 1, fontSize: 15 },
-  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
-  errorText: { flex: 1, color: '#EF4444', fontSize: 13 },
-  successBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
-  successText: { flex: 1, color: '#22C55E', fontSize: 13 },
-  submitBtn: { height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  submitBtnText: { color: '#fff', fontSize: 16 },
-  toggleText: { fontSize: 14, textAlign: 'center' },
-  wholesaleToggle: { flexDirection: 'row', padding: 4, gap: 4 },
+  heroSection:      { alignItems: 'center', paddingBottom: 32, gap: 6 },
+  logoBox:          { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  brand:            { color: '#fff', fontSize: 30, letterSpacing: -0.5 },
+  tagline:          { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
+  formContainer:    { flex: 1, paddingHorizontal: 20, paddingTop: 28, gap: 20, paddingBottom: 40 },
+  signInLabel:      { fontSize: 15 },
+  roleGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  roleCard:         { width: '47.5%', padding: 12, gap: 5, alignItems: 'center' },
+  roleIcon:         { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  roleLabel:        { fontSize: 13 },
+  roleSub:          { fontSize: 10, textAlign: 'center', color: '#8E8E93' },
+  fields:           { gap: 12 },
+  geoBanner:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
+  geoBannerText:    { flex: 1, fontSize: 12, lineHeight: 17 },
+  inputRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1 },
+  input:            { flex: 1, fontSize: 15 },
+  errorBox:         { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
+  errorText:        { flex: 1, color: '#EF4444', fontSize: 13 },
+  successBox:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
+  successText:      { flex: 1, color: '#22C55E', fontSize: 13 },
+  submitBtn:        { height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  submitBtnText:    { color: '#fff', fontSize: 16 },
+  toggleText:       { fontSize: 14, textAlign: 'center' },
+  wholesaleToggle:  { flexDirection: 'row', padding: 4, gap: 4 },
   wholesaleToggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  demoSection:      { borderTopWidth: 1, paddingTop: 18, gap: 10 },
+  demoTitle:        { fontSize: 13 },
+  demoSub:          { fontSize: 11, marginTop: -4 },
+  demoGrid:         { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  demoPill:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  demoPillText:     { fontSize: 13, letterSpacing: 0.3 },
 });

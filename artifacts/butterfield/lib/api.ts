@@ -109,6 +109,20 @@ export const api = {
     createIntent: (data: { amountCents: number; currency?: string }) =>
       request<{ clientSecret: string; paymentIntentId: string }>('/payment/create-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
+  director: {
+    stats:               () => request<{ data: any }>('/director/stats'),
+    orders:              () => request<{ data: any[] }>('/director/orders'),
+    updateOrderStatus:   (id: string, status: string) => request<{ data: any }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    users:               () => request<{ data: any[] }>('/director/users'),
+    approveStaff:        (userId: string, approved: boolean) => request<{ data: any }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
+    setWholesaleStatus:  (accountId: string, status: string) => request<{ data: any }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    products:            () => request<{ data: any[] }>('/director/products'),
+    updateProduct:       (id: string, updates: any) => request<{ data: any }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+    settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
+    updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
+  },
+  seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
 };
 
 export interface GeoSettings {
