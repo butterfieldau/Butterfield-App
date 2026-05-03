@@ -310,7 +310,7 @@ export default function CartScreen() {
                   const lbl = formatDateChip(sydNow, d);
                   return (
                     <Pressable
-                      key={lbl}
+                      key={d.toISOString()}
                       onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
                       style={[styles.datePill, {
                         borderRadius: 20,
