@@ -1,10 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Linking } from 'react-native';
+import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -204,26 +205,39 @@ export default function CustomerHome() {
         </LinearGradient>
       </View>
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Gift Cards</Text>
+      <View style={styles.quickSection}>
         <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            Linking.openURL('https://app.squareup.com/gift/ML8SSM5YK5T0E/order');
-          }}
-          style={[styles.giftCard, { backgroundColor: colors.card, borderRadius: colors.radius }]}
+          style={[styles.pickupRow, { backgroundColor: colors.card, borderRadius: colors.radius }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); Alert.alert('Butterfield Cookies', 'Mason & Main\nMerrylands NSW 2160\n\nMon–Fri 8am–5pm · Sat 8am–4pm · Sun 9am–3pm'); }}
         >
-          <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.giftCardBadge} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Text style={{ fontSize: 28 }}>🍪</Text>
-          </LinearGradient>
+          <View style={styles.pickupIconWrap}>
+            <Feather name="map-pin" size={20} color="#40C0F2" />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.giftCardTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Give the gift of cookies</Text>
-            <Text style={[styles.giftCardSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Choose your value · Email delivery · No expiry</Text>
+            <Text style={[styles.pickupLabel, { fontFamily: 'Inter_600SemiBold', color: colors.primary }]}>IN-STORE PICKUP</Text>
+            <Text style={[styles.pickupTitle, { fontFamily: 'Inter_700Bold', color: colors.foreground }]} numberOfLines={1}>Butterfield Cookies — Merrylands</Text>
           </View>
-          <View style={[styles.giftCardArrow, { backgroundColor: colors.primary }]}>
-            <Feather name="arrow-right" size={16} color="#fff" />
-          </View>
+          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
         </Pressable>
+
+        <View style={styles.quickRow}>
+          {[
+            { label: 'Order cookies', emoji: '🍪', bg: '#E6F4FF', onPress: () => router.push('/(customer)/menu') },
+            { label: 'Coffee Club', emoji: '☕', bg: '#FFE8E8', onPress: () => router.push('/(customer)/loyalty') },
+            { label: 'My order', emoji: '🛍️', bg: '#F5EDE6', onPress: () => router.push('/(customer)/cart') },
+          ].map(({ label, emoji, bg, onPress }) => (
+            <Pressable
+              key={label}
+              style={[styles.quickTile, { backgroundColor: colors.card, borderRadius: colors.radius }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+            >
+              <View style={[styles.quickIconCircle, { backgroundColor: bg }]}>
+                <Text style={{ fontSize: 22 }}>{emoji}</Text>
+              </View>
+              <Text style={[styles.quickTileLabel, { fontFamily: 'Inter_600SemiBold', color: colors.foreground }]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -344,11 +358,15 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { width: '47%', padding: 12, gap: 8, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   tileImage: { width: '100%', height: 90, alignItems: 'flex-start', justifyContent: 'flex-start', padding: 0 },
-  giftCard: { flexDirection: 'row', alignItems: 'center', gap: 14, marginHorizontal: 20, padding: 16, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2 },
-  giftCardBadge: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  giftCardTitle: { fontSize: 15 },
-  giftCardSub: { fontSize: 12, marginTop: 2 },
-  giftCardArrow: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  quickSection: { paddingHorizontal: 20, marginTop: 20, gap: 12 },
+  pickupRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  pickupIconWrap: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E6F4FF', alignItems: 'center', justifyContent: 'center' },
+  pickupLabel: { fontSize: 11, letterSpacing: 0.8, marginBottom: 2 },
+  pickupTitle: { fontSize: 15 },
+  quickRow: { flexDirection: 'row', gap: 10 },
+  quickTile: { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  quickIconCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  quickTileLabel: { fontSize: 12, textAlign: 'center' },
   newBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: '#40C0F2', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   newBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
   soldOutOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
