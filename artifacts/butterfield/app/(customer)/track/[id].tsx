@@ -2,13 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+  ActivityIndicator, Animated, Pressable,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -16,22 +11,21 @@ import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
 const STAGES = [
-  { key: 'pending',   label: 'Received',      icon: 'check-circle',    desc: 'Your order has been placed successfully.' },
-  { key: 'confirmed', label: 'Confirmed',      icon: 'thumbs-up',       desc: 'We\'ve confirmed your order and it\'s in the queue.' },
-  { key: 'preparing', label: 'In Preparation', icon: 'package',         desc: 'Our team is freshly preparing your cookies.' },
-  { key: 'ready',     label: 'Ready',          icon: 'shopping-bag',    desc: 'Your order is ready for pickup at the counter!' },
-  { key: 'completed', label: 'Collected',      icon: 'star',            desc: 'Enjoy your Butterfield cookies!' },
+  { key: 'received',          label: 'Received',        icon: 'check-circle',  desc: 'Your order has been placed successfully. We\'ve got it!' },
+  { key: 'being_prepared',    label: 'In Preparation',  icon: 'package',       desc: 'Our team is freshly baking your order right now.' },
+  { key: 'ready_for_pickup',  label: 'Ready for Pickup',icon: 'shopping-bag',  desc: 'Your order is ready at the counter. Come grab it!' },
+  { key: 'completed',         label: 'Collected',       icon: 'star',          desc: 'Enjoy your Butterfield cookies! See you next time.' },
 ];
 
-const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready'];
+const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup'];
 
 const STATUS_COLOR: Record<string, string> = {
-  pending:   '#F59E0B',
-  confirmed: '#3B82F6',
-  preparing: '#8B5CF6',
-  ready:     '#22C55E',
-  completed: '#6B7280',
-  cancelled: '#EF4444',
+  received:         '#F59E0B',
+  being_prepared:   '#8B5CF6',
+  ready_for_pickup: '#22C55E',
+  completed:        '#6B7280',
+  cancelled:        '#EF4444',
+  refunded:         '#EF4444',
 };
 
 function getStageIndex(status: string): number {
@@ -68,42 +62,23 @@ function AnimatedStep({ stage, index, currentIndex, colors }: {
     Animated.timing(opacityAnim, { toValue: isPending ? 0.35 : 1, duration: 300, useNativeDriver: true }).start();
   }, [isActive, isPending]);
 
-  const stageColor = isCompleted || isActive
-    ? (STATUS_COLOR[stage.key] ?? colors.primary)
-    : colors.border;
+  const stageColor = isCompleted || isActive ? (STATUS_COLOR[stage.key] ?? colors.primary) : colors.border;
 
   return (
     <View style={styles.stageRow}>
-      {/* Icon circle */}
       <View style={{ alignItems: 'center' }}>
-        <Animated.View
-          style={[
-            styles.stageCircle,
-            {
-              backgroundColor: isCompleted || isActive ? stageColor : colors.muted,
-              borderColor: isActive ? stageColor : 'transparent',
-              transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim,
-            },
-          ]}
-        >
-          <Feather
-            name={stage.icon as any}
-            size={16}
-            color={isCompleted || isActive ? '#fff' : colors.mutedForeground}
-          />
+        <Animated.View style={[styles.stageCircle, {
+          backgroundColor: isCompleted || isActive ? stageColor : colors.muted,
+          borderColor: isActive ? stageColor : 'transparent',
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim,
+        }]}>
+          <Feather name={stage.icon as any} size={16} color={isCompleted || isActive ? '#fff' : colors.mutedForeground} />
         </Animated.View>
         {index < STAGES.length - 1 && (
-          <View
-            style={[
-              styles.stageLine,
-              { backgroundColor: isCompleted ? stageColor : colors.border },
-            ]}
-          />
+          <View style={[styles.stageLine, { backgroundColor: isCompleted ? stageColor : colors.border }]} />
         )}
       </View>
-
-      {/* Label + desc */}
       <Animated.View style={[styles.stageInfo, { opacity: opacityAnim }]}>
         <Text style={[styles.stageLabel, { color: isActive || isCompleted ? colors.foreground : colors.mutedForeground, fontFamily: isActive ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
           {stage.label}
@@ -133,9 +108,9 @@ export default function TrackOrderScreen() {
   });
 
   const order = data?.data;
-  const status = order?.status ?? 'pending';
+  const status = order?.status ?? 'received';
   const stageIndex = getStageIndex(status);
-  const isCancelled = status === 'cancelled';
+  const isCancelled = status === 'cancelled' || status === 'refunded';
   const isActive = ACTIVE_STATUSES.includes(status);
   const total = ((order?.totalCents ?? 0) / 100).toFixed(2);
   const statusColor = STATUS_COLOR[status] ?? colors.primary;
@@ -143,7 +118,6 @@ export default function TrackOrderScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -168,24 +142,19 @@ export default function TrackOrderScreen() {
           <View style={[styles.orderCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
-                <Text style={[styles.orderRef, { color: colors.foreground }]}>
-                  Order #{order.id.slice(-6).toUpperCase()}
-                </Text>
-                <Text style={[styles.orderDate, { color: colors.mutedForeground }]}>
-                  {formatDate(order.createdAt)}
-                </Text>
+                <Text style={[styles.orderRef, { color: colors.foreground }]}>Order #{order.id.slice(-6).toUpperCase()}</Text>
+                <Text style={[styles.orderDate, { color: colors.mutedForeground }]}>{formatDate(order.createdAt)}</Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={[styles.orderTotal, { color: colors.primary }]}>${total}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
                   {isActive && <View style={[styles.statusDot, { backgroundColor: statusColor }]} />}
                   <Text style={[styles.statusText, { color: statusColor }]}>
-                    {isCancelled ? 'Cancelled' : currentStage?.label ?? status}
+                    {isCancelled ? 'Cancelled' : (currentStage?.label ?? status.replace(/_/g, ' '))}
                   </Text>
                 </View>
               </View>
             </View>
-
             {order.scheduledFor && (
               <View style={[styles.pickupRow, { borderTopColor: colors.border }]}>
                 <Feather name="clock" size={13} color={colors.primary} />
@@ -196,7 +165,7 @@ export default function TrackOrderScreen() {
             )}
           </View>
 
-          {/* Live status message */}
+          {/* Live message */}
           {isActive && currentStage && (
             <View style={[styles.liveCard, { backgroundColor: `${statusColor}12`, borderColor: `${statusColor}30` }]}>
               <Feather name="zap" size={14} color={statusColor} />
@@ -210,13 +179,7 @@ export default function TrackOrderScreen() {
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Order Progress</Text>
               <View style={{ marginTop: 8, gap: 0 }}>
                 {STAGES.map((stage, i) => (
-                  <AnimatedStep
-                    key={stage.key}
-                    stage={stage}
-                    index={i}
-                    currentIndex={stageIndex}
-                    colors={colors}
-                  />
+                  <AnimatedStep key={stage.key} stage={stage} index={i} currentIndex={stageIndex} colors={colors} />
                 ))}
               </View>
             </View>
@@ -242,9 +205,7 @@ export default function TrackOrderScreen() {
                     <View style={[styles.qtyBadge, { backgroundColor: colors.primary }]}>
                       <Text style={styles.qtyText}>{item.quantity}</Text>
                     </View>
-                    <Text style={[styles.itemName, { color: colors.foreground, flex: 1 }]}>
-                      {item.productName ?? 'Item'}
-                    </Text>
+                    <Text style={[styles.itemName, { color: colors.foreground, flex: 1 }]}>{item.productName ?? 'Item'}</Text>
                     {item.priceCents && (
                       <Text style={[styles.itemPrice, { color: colors.mutedForeground }]}>
                         ${((item.priceCents * item.quantity) / 100).toFixed(2)}
@@ -256,7 +217,6 @@ export default function TrackOrderScreen() {
             </View>
           )}
 
-          {/* Refresh hint */}
           {isActive && (
             <Text style={[styles.refreshHint, { color: colors.mutedForeground }]}>
               Status updates automatically every 10 seconds
@@ -269,54 +229,31 @@ export default function TrackOrderScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 18, fontFamily: 'Inter_700Bold' },
-  orderCard: {
-    borderRadius: 16, padding: 16, borderWidth: 1, gap: 0,
-  },
+  orderCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 0 },
   orderRef: { fontSize: 17, fontFamily: 'Inter_700Bold' },
   orderDate: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 3 },
   orderTotal: { fontSize: 18, fontFamily: 'Inter_700Bold' },
-  statusBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
-  },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' },
-  pickupRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderTopWidth: 1, marginTop: 12, paddingTop: 12,
-  },
+  statusText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  pickupRow: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
   pickupText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  liveCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderRadius: 12, padding: 14, borderWidth: 1,
-  },
+  liveCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
   liveMessage: { fontSize: 13, fontFamily: 'Inter_500Medium', flex: 1, lineHeight: 18 },
   pipelineCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
   sectionTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   stageRow: { flexDirection: 'row', gap: 14, minHeight: 56 },
-  stageCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2,
-  },
+  stageCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   stageLine: { width: 2, flex: 1, minHeight: 20, borderRadius: 1, marginVertical: 3 },
   stageInfo: { flex: 1, paddingTop: 6, paddingBottom: 10 },
   stageLabel: { fontSize: 14 },
   activeTag: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   stageDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginTop: 2 },
-  itemRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 8, borderBottomWidth: 1,
-  },
-  qtyBadge: {
-    width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center',
-  },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
+  qtyBadge: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   qtyText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
   itemName: { fontSize: 14, fontFamily: 'Inter_400Regular' },
   itemPrice: { fontSize: 13, fontFamily: 'Inter_500Medium' },

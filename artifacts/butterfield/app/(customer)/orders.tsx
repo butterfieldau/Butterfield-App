@@ -8,24 +8,24 @@ import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
 const STATUS_COLOR: Record<string, string> = {
-  pending:   '#F59E0B',
-  confirmed: '#3B82F6',
-  preparing: '#8B5CF6',
-  ready:     '#22C55E',
-  completed: '#6B7280',
-  cancelled: '#EF4444',
+  received:         '#F59E0B',
+  being_prepared:   '#8B5CF6',
+  ready_for_pickup: '#22C55E',
+  completed:        '#6B7280',
+  cancelled:        '#EF4444',
+  refunded:         '#EF4444',
 };
-
-const ACTIVE_STATUSES = ['pending', 'confirmed', 'preparing', 'ready'];
 
 const STATUS_LABEL: Record<string, string> = {
-  pending:   'Received',
-  confirmed: 'Confirmed',
-  preparing: 'In Prep',
-  ready:     'Ready',
-  completed: 'Collected',
-  cancelled: 'Cancelled',
+  received:         'Received',
+  being_prepared:   'In Preparation',
+  ready_for_pickup: 'Ready for Pickup',
+  completed:        'Collected',
+  cancelled:        'Cancelled',
+  refunded:         'Refunded',
 };
+
+const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup'];
 
 export default function CustomerOrdersScreen() {
   const colors = useColors();
@@ -79,7 +79,7 @@ export default function CustomerOrdersScreen() {
           }
           renderItem={({ item: order }) => {
             const statusColor = STATUS_COLOR[order.status] ?? '#6B7280';
-            const statusLabel = STATUS_LABEL[order.status] ?? order.status;
+            const statusLabel = STATUS_LABEL[order.status] ?? order.status.replace(/_/g, ' ');
             const isActive = ACTIVE_STATUSES.includes(order.status);
             const total = (order.totalCents ?? 0) / 100;
             const itemCount = order.items?.length ?? 0;
@@ -88,7 +88,12 @@ export default function CustomerOrdersScreen() {
             return (
               <Pressable
                 onPress={() => router.push(`/(customer)/track/${order.id}` as any)}
-                style={[styles.orderCard, { backgroundColor: colors.card, borderRadius: colors.radius, borderLeftColor: statusColor, borderLeftWidth: 3 }]}
+                style={[styles.orderCard, {
+                  backgroundColor: colors.card,
+                  borderRadius: colors.radius,
+                  borderLeftColor: statusColor,
+                  borderLeftWidth: 3,
+                }]}
               >
                 <View style={styles.orderTop}>
                   <View style={{ flex: 1 }}>
@@ -136,7 +141,6 @@ export default function CustomerOrdersScreen() {
                   </View>
                 )}
 
-                {/* Track indicator */}
                 <View style={[styles.trackRow, { borderTopColor: colors.border }]}>
                   <Text style={[styles.trackText, { color: isActive ? colors.primary : colors.mutedForeground }]}>
                     {isActive ? 'Tap to track live' : 'View details'}
@@ -158,7 +162,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20 },
   emptyIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
   shopBtn: { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, marginTop: 4 },
-  orderCard: { padding: 16, gap: 0 },
+  orderCard: { padding: 16, gap: 0, borderWidth: 1, borderColor: '#F0F0F0' },
   orderTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },
   statusDot: { width: 5, height: 5, borderRadius: 3 },

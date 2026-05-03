@@ -3,18 +3,15 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Dimensions,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+  Dimensions, Platform, Pressable, ScrollView,
+  StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { getPalette, getOptions } from '@/constants/categoryColors';
 import { getSelectedProduct } from '@/lib/selectedProduct';
+import { api } from '@/lib/api';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const HERO_H = SCREEN_H * 0.40;
@@ -26,9 +23,42 @@ function getPrice(p: any): number {
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { addItem } = useCart();
+  const qc = useQueryClient();
   const product = getSelectedProduct();
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [qty, setQty] = useState(1);
+  const [togglingFav, setTogglingFav] = useState(false);
+
+  const { data: favsData } = useQuery({
+    queryKey: ['favourites'],
+    queryFn: () => api.favourites.list(),
+    retry: 1,
+    enabled: !!product,
+  });
+
+  const isFavourited = product
+    ? (favsData?.data ?? []).some((f: any) => f.productStripeId === product.id)
+    : false;
+
+  const handleFavouriteToggle = async () => {
+    if (!product || togglingFav) return;
+    setTogglingFav(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      if (isFavourited) {
+        await api.favourites.remove(product.id);
+      } else {
+        await api.favourites.add(product.id);
+      }
+      qc.invalidateQueries({ queryKey: ['favourites'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      // Already favourited or already removed — still refresh
+      qc.invalidateQueries({ queryKey: ['favourites'] });
+    } finally {
+      setTogglingFav(false);
+    }
+  };
 
   if (!product) {
     return (
@@ -84,7 +114,6 @@ export default function ProductDetailScreen() {
     router.back();
   };
 
-  // Watermark text: split product name into "lines" of ~10 chars each for multi-line effect
   const wmWords = product.name.toUpperCase().split(' ');
 
   return (
@@ -94,22 +123,35 @@ export default function ProductDetailScreen() {
         {/* Back button */}
         <Pressable
           onPress={() => router.back()}
-          style={[styles.backBtn, { top: insets.top + 12 }]}
+          style={[styles.overlayBtn, { top: insets.top + 12, left: 16 }]}
           hitSlop={12}
         >
           <Feather name="arrow-left" size={22} color="#1C1C1E" />
         </Pressable>
 
-        {/* Watermark text — huge, behind everything */}
+        {/* Favourite button */}
+        <Pressable
+          onPress={handleFavouriteToggle}
+          disabled={togglingFav}
+          style={[styles.overlayBtn, { top: insets.top + 12, right: 16 }]}
+          hitSlop={12}
+        >
+          <Feather
+            name="heart"
+            size={20}
+            color={isFavourited ? '#EF4444' : '#1C1C1E'}
+            style={{ opacity: togglingFav ? 0.5 : 1 }}
+          />
+        </Pressable>
+
+        {/* Watermark */}
         <View style={styles.watermarkWrap} pointerEvents="none">
           {wmWords.map((word, i) => (
-            <Text key={i} style={[styles.watermark, { color: palette.banner }]} numberOfLines={1}>
-              {word}
-            </Text>
+            <Text key={i} style={[styles.watermark, { color: palette.banner }]} numberOfLines={1}>{word}</Text>
           ))}
         </View>
 
-        {/* Product emoji — floats in center */}
+        {/* Product emoji */}
         <Text style={styles.heroEmoji}>{palette.emoji}</Text>
       </View>
 
@@ -149,7 +191,6 @@ export default function ProductDetailScreen() {
 
           <Text style={[styles.customizeTitle, { fontFamily: 'Inter_700Bold' }]}>Customize</Text>
 
-          {/* Option sections */}
           {options.map((section) => (
             <View key={section.label} style={styles.sectionBlock}>
               <Text style={[styles.sectionLabel, { fontFamily: 'Inter_700Bold' }]}>{section.label}</Text>
@@ -167,11 +208,7 @@ export default function ProductDetailScreen() {
                           : { backgroundColor: '#fff', borderColor: '#E5E7EB' },
                       ]}
                     >
-                      <Text style={[
-                        styles.chipText,
-                        { fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular' },
-                        { color: sel ? '#fff' : '#1C1C1E' },
-                      ]}>
+                      <Text style={[styles.chipText, { fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular', color: sel ? '#fff' : '#1C1C1E' }]}>
                         {choice}
                       </Text>
                     </Pressable>
@@ -183,11 +220,11 @@ export default function ProductDetailScreen() {
         </ScrollView>
       </View>
 
-      {/* Fixed Continue button */}
+      {/* Fixed footer */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable onPress={handleAddToCart} style={styles.continueBtn}>
           <Text style={[styles.continueBtnText, { fontFamily: 'Inter_700Bold' }]}>
-            Add to Cart{qty > 1 ? ` (${qty})` : ''} — ${total.toFixed(2)}
+            Add to Order{qty > 1 ? ` (${qty})` : ''} — ${total.toFixed(2)}
           </Text>
         </Pressable>
       </View>
@@ -197,99 +234,30 @@ export default function ProductDetailScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
-
-  hero: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    position: 'relative',
+  hero: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  overlayBtn: {
+    position: 'absolute', zIndex: 10,
+    backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 20,
+    width: 38, height: 38, alignItems: 'center', justifyContent: 'center',
   },
-  backBtn: {
-    position: 'absolute',
-    left: 16,
-    zIndex: 10,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    borderRadius: 20,
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  watermarkWrap: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 0,
-  },
-  watermark: {
-    fontSize: 64,
-    lineHeight: 68,
-    opacity: 0.18,
-    letterSpacing: 2,
-    fontWeight: '900',
-  },
-  heroEmoji: {
-    fontSize: 90,
-    lineHeight: 110,
-    zIndex: 2,
-  },
-
-  sheet: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -24,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 20,
-  },
+  watermarkWrap: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 0 },
+  watermark: { fontSize: 64, lineHeight: 68, opacity: 0.18, letterSpacing: 2, fontWeight: '900' },
+  heroEmoji: { fontSize: 90, lineHeight: 110, zIndex: 2 },
+  sheet: { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -24, paddingHorizontal: 24, paddingTop: 24 },
+  nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 20 },
   productName: { fontSize: 22, color: '#1C1C1E', lineHeight: 28 },
   productDesc: { fontSize: 13, lineHeight: 18, marginTop: 4 },
   priceTag: { fontSize: 22, lineHeight: 28 },
-
   customizeTitle: { fontSize: 22, color: '#1C1C1E' },
-
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 10 },
-  qtyBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  qtyBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   qtyNum: { fontSize: 20, color: '#1C1C1E', minWidth: 30, textAlign: 'center' },
-
   sectionBlock: { gap: 10 },
   sectionLabel: { fontSize: 16, color: '#1C1C1E' },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 30,
-    borderWidth: 1.5,
-  },
+  chip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5 },
   chipText: { fontSize: 14 },
-
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#fff',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  continueBtn: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 30,
-    padding: 18,
-    alignItems: 'center',
-  },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', paddingHorizontal: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F0F0F0' },
+  continueBtn: { backgroundColor: '#1C1C1E', borderRadius: 30, padding: 18, alignItems: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16 },
 });

@@ -24,20 +24,10 @@ router.post('/register', async (req, res) => {
   }
   const passwordHash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
-  await db.insert(usersTable).values({
-    id: userId,
-    email: email.toLowerCase(),
-    passwordHash,
-    role: 'customer',
-    name,
-    phone,
-  });
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'customer', name, phone });
   await db.insert(customerProfilesTable).values({
-    userId,
-    loyaltyPoints: 100,
-    loyaltyTier: 'bronze',
-    referralCode: generateReferralCode(name),
-    birthday: birthday ?? null,
+    userId, loyaltyPoints: 100, loyaltyTier: 'bronze',
+    referralCode: generateReferralCode(name), birthday: birthday ?? null,
   });
   const token = signToken({ id: userId, email: email.toLowerCase(), role: 'customer', name });
   return res.status(201).json({ token, user: { id: userId, email, role: 'customer', name } });
@@ -45,38 +35,24 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
-  }
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid email or password.' });
-  }
+  if (!user) return res.status(401).json({ error: 'Invalid email or password.' });
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    return res.status(401).json({ error: 'Invalid email or password.' });
-  }
+  if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
 router.post('/staff-login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
-  }
+  if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || user.role !== 'staff') {
-    return res.status(401).json({ error: 'Staff account not found.' });
-  }
+  if (!user || user.role !== 'staff') return res.status(401).json({ error: 'Staff account not found.' });
   const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
-  if (!staffProfile?.approvedByAdmin) {
-    return res.status(403).json({ error: 'Your staff account is pending approval.' });
-  }
+  if (!staffProfile?.approvedByAdmin) return res.status(403).json({ error: 'Your staff account is pending approval.' });
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    return res.status(401).json({ error: 'Invalid email or password.' });
-  }
+  if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -87,46 +63,39 @@ router.post('/wholesale-apply', async (req, res) => {
     return res.status(400).json({ error: 'Email, password, name and company name are required.' });
   }
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (existing.length > 0) {
-    return res.status(409).json({ error: 'An account with this email already exists.' });
-  }
+  if (existing.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
   const passwordHash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
   const accountId = randomUUID();
-  await db.insert(usersTable).values({
-    id: userId,
-    email: email.toLowerCase(),
-    passwordHash,
-    role: 'wholesale',
-    name,
-    phone,
-  });
-  await db.insert(wholesaleAccountsTable).values({
-    id: accountId,
-    userId,
-    companyName,
-    abn,
-    contactName: name,
-    phone,
-    deliveryAddress,
-    status: 'pending',
-  });
-  return res.status(201).json({
-    message: 'Application received. Our wholesale team will be in touch within 1-2 business days.',
-    userId,
-  });
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'wholesale', name, phone });
+  await db.insert(wholesaleAccountsTable).values({ id: accountId, userId, companyName, abn, contactName: name, phone, deliveryAddress, status: 'pending' });
+  return res.status(201).json({ message: 'Application received. Our wholesale team will be in touch within 1-2 business days.', userId });
 });
 
 router.patch('/me', requireAuth, async (req, res) => {
   const user = req.user!;
-  const { name, phone } = req.body;
-  if (!name && !phone) return res.status(400).json({ error: 'Nothing to update' });
-  const updates: Record<string, any> = {};
-  if (name) updates.name = name.trim();
-  if (phone) updates.phone = phone.trim();
-  await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+  const { name, phone, deliveryAddress } = req.body;
+
+  const userUpdates: Record<string, any> = {};
+  if (name) userUpdates.name = name.trim();
+  if (phone) userUpdates.phone = phone.trim();
+  if (Object.keys(userUpdates).length > 0) {
+    await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, user.id));
+  }
+
+  if (typeof deliveryAddress !== 'undefined' && user.role === 'customer') {
+    await db.update(customerProfilesTable)
+      .set({ deliveryAddress })
+      .where(eq(customerProfilesTable.userId, user.id));
+  }
+
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
-  return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone } });
+  let profile = null;
+  if (dbUser.role === 'customer') {
+    const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
+    profile = cp;
+  }
+  return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone }, profile });
 });
 
 router.get('/me', requireAuth, async (req, res) => {

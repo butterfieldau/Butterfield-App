@@ -12,6 +12,7 @@ export const customerProfilesTable = pgTable("customer_profiles", {
   stampCount: integer("stamp_count").notNull().default(0),
   totalVisits: integer("total_visits").notNull().default(0),
   totalSpentCents: integer("total_spent_cents").notNull().default(0),
+  deliveryAddress: text("delivery_address"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
