@@ -217,8 +217,6 @@ export default function ProductDetailScreen() {
         )}
 
         {/* Gradient overlay at bottom */}
-        <View style={s.heroGradient} />
-
         {/* Back button */}
         <Pressable onPress={() => router.back()} style={[s.overlayBtn, { top: insets.top + 12, left: 16 }]} hitSlop={12}>
           <Feather name="arrow-left" size={20} color="#1C1C1E" />
@@ -231,20 +229,13 @@ export default function ProductDetailScreen() {
             style={{ opacity: togglingFav ? 0.5 : 1 }} />
         </Pressable>
 
-        {/* Badges strip */}
-        <View style={s.badgeStrip}>
-          {isNew       && <Badge label="NEW"         color="#1C1C1E" />}
-          {isLimited   && <Badge label="LIMITED DROP" color={RED}    />}
-          {isComingSoon&& <Badge label="COMING SOON"  color={AMBER}  />}
-          {isSoldOut   && <Badge label="SOLD OUT"     color="#6B7280" />}
-        </View>
       </View>
 
       {/* ── SCROLLABLE CONTENT ────────────────────────────────────────── */}
       <View style={s.sheet}>
         {/* Name + price */}
         <View style={s.nameRow}>
-          <View style={{ flex: 1, gap: 4 }}>
+          <View style={{ flex: 1, gap: 6 }}>
             <Text style={[s.productName, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
             {shortDesc ? (
               <Text style={[s.shortDesc, { fontFamily: 'Inter_400Regular' }]}>{shortDesc}</Text>
@@ -304,9 +295,18 @@ export default function ProductDetailScreen() {
           )}
 
           {/* Ingredients */}
-          <DetailSection icon="list"     title="Ingredients"           content={ingredients} />
-          <DetailSection icon="archive"  title="Storage"               content={storage} />
-          <DetailSection icon="coffee"   title="Best Enjoyed"          content={serving} />
+          <DetailSection icon="list" title="Ingredients" content={ingredients} />
+          <DetailSection icon="archive" title="Storage" content={storage} />
+          <DetailSection icon="coffee" title="Best Enjoyed" content={serving} />
+
+          {(isNew || isLimited || isComingSoon || isSoldOut) && (
+            <View style={s.flagRow}>
+              {isNew && <Badge label="NEW" color="#1C1C1E" />}
+              {isLimited && <Badge label="LIMITED DROP" color={RED} />}
+              {isComingSoon && <Badge label="COMING SOON" color={AMBER} />}
+              {isSoldOut && <Badge label="SOLD OUT" color="#6B7280" />}
+            </View>
+          )}
 
           {/* Divider */}
           <View style={s.divider} />
@@ -388,11 +388,9 @@ const s = StyleSheet.create({
   heroFallback:{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   watermark:  { fontSize: 56, lineHeight: 60, opacity: 0.18, fontWeight: '900', letterSpacing: 2, position: 'absolute' },
   heroEmoji:  { fontSize: 80, lineHeight: 100, zIndex: 2 },
-  heroGradient:{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, backgroundColor: 'rgba(0,0,0,0.0)' },
   overlayBtn: { position: 'absolute', zIndex: 10, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  badgeStrip: { position: 'absolute', bottom: 14, left: 16, flexDirection: 'row', gap: 8, zIndex: 5 },
-  sheet:      { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -20, paddingHorizontal: 20, paddingTop: 20 },
-  nameRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
+  sheet:      { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: -16, paddingHorizontal: 20, paddingTop: 18 },
+  nameRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   productName:{ fontSize: 22, color: TEXT, lineHeight: 28, flex: 1 },
   shortDesc:  { fontSize: 13, color: MUTED, lineHeight: 18, marginTop: 2 },
   price:      { fontSize: 24, color: TEXT },
@@ -405,7 +403,7 @@ const s = StyleSheet.create({
   descText:   { fontSize: 14, color: MUTED, lineHeight: 21 },
   allergenBlock:{ backgroundColor: '#FFFBEB', padding: 14, borderRadius: 12, gap: 10 },
   divider:    { height: 1, backgroundColor: BORDER },
-  sectionLabel:{ fontSize: 17, color: TEXT, marginBottom: 12 },
+  sectionLabel:{ fontSize: 16, color: TEXT, marginBottom: 10 },
   optionLabel: { fontSize: 14, color: TEXT, marginBottom: 8 },
   sectionBlock:{ gap: 0 },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 18 },
@@ -419,6 +417,7 @@ const s = StyleSheet.create({
   addBtnText: { color: '#fff', fontSize: 16 },
   soldOutBtn: { borderRadius: 30, padding: 18, alignItems: 'center', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
   soldOutText:{ color: MUTED, fontSize: 16 },
+  flagRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
 
 const badge = StyleSheet.create({
