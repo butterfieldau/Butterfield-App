@@ -73,6 +73,8 @@ export const api = {
     rewards: () => request<{ data: LoyaltyReward[] }>('/loyalty/rewards'),
     redeem: (rewardId: string) =>
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
+    updateBirthday: (birthday: string) =>
+      request<{ data: { birthday: string } }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
   staff: {
     clockIn: () => request<{ data: StaffShift }>('/staff/shifts/clock-in', { method: 'POST' }),

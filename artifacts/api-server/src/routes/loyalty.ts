@@ -55,6 +55,17 @@ router.post('/redeem', requireAuth, async (req, res) => {
   return res.json({ data: redemption, reward });
 });
 
+router.patch('/birthday', requireAuth, async (req, res) => {
+  const { birthday } = req.body;
+  if (!birthday || !/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
+    return res.status(400).json({ error: 'Birthday must be in YYYY-MM-DD format' });
+  }
+  const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  await db.update(customerProfilesTable).set({ birthday }).where(eq(customerProfilesTable.userId, req.user!.id));
+  return res.json({ data: { birthday } });
+});
+
 router.post('/rewards', requireRole('staff'), async (req, res) => {
   const { name, description, pointsCost, category, isAppOnly } = req.body;
   const [reward] = await db.insert(loyaltyRewardsTable).values({

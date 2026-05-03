@@ -5,12 +5,15 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -49,6 +52,11 @@ export default function LoyaltyScreen() {
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
+  const [showBirthdayModal, setShowBirthdayModal] = useState(false);
+  const [bdDay, setBdDay] = useState('');
+  const [bdMonth, setBdMonth] = useState('');
+  const [bdYear, setBdYear] = useState('');
+  const [savingBirthday, setSavingBirthday] = useState(false);
 
   const { data: profileData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['loyalty-profile'],
@@ -77,6 +85,29 @@ export default function LoyaltyScreen() {
   const progress = nextTier ? Math.min(pts / nextTier.threshold, 1) : 1;
 
   const qrValue = `BUTTERFIELD:${user?.id ?? ''}:${profile?.referralCode ?? ''}`;
+
+  const handleSaveBirthday = async () => {
+    const day = parseInt(bdDay, 10);
+    const month = parseInt(bdMonth, 10);
+    const year = parseInt(bdYear, 10);
+    if (!day || !month || !year || day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > new Date().getFullYear()) {
+      Alert.alert('Invalid date', 'Please enter a valid day, month and year.');
+      return;
+    }
+    const birthday = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSavingBirthday(true);
+    try {
+      await api.loyalty.updateBirthday(birthday);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+      setShowBirthdayModal(false);
+      Alert.alert('Birthday saved! 🎂', 'You\'ll get a free cookie during your birthday week.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Could not save birthday.');
+    } finally {
+      setSavingBirthday(false);
+    }
+  };
 
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
@@ -115,6 +146,67 @@ export default function LoyaltyScreen() {
 
   return (
     <>
+      <Modal visible={showBirthdayModal} transparent animationType="slide" onRequestClose={() => setShowBirthdayModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <Pressable style={{ flex: 1 }} onPress={() => setShowBirthdayModal(false)} />
+          <View style={styles.birthdayModal}>
+            <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold', marginBottom: 4 }]}>Your Birthday 🎂</Text>
+            <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular', marginBottom: 20 }]}>We'll send a free cookie to you every birthday week</Text>
+            <View style={styles.bdRow}>
+              <View style={styles.bdField}>
+                <Text style={[styles.bdLabel, { fontFamily: 'Inter_600SemiBold' }]}>Day</Text>
+                <TextInput
+                  style={[styles.bdInput, { fontFamily: 'Inter_600SemiBold' }]}
+                  value={bdDay}
+                  onChangeText={setBdDay}
+                  placeholder="DD"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholderTextColor={MUTED}
+                />
+              </View>
+              <View style={styles.bdField}>
+                <Text style={[styles.bdLabel, { fontFamily: 'Inter_600SemiBold' }]}>Month</Text>
+                <TextInput
+                  style={[styles.bdInput, { fontFamily: 'Inter_600SemiBold' }]}
+                  value={bdMonth}
+                  onChangeText={setBdMonth}
+                  placeholder="MM"
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholderTextColor={MUTED}
+                />
+              </View>
+              <View style={[styles.bdField, { flex: 1.4 }]}>
+                <Text style={[styles.bdLabel, { fontFamily: 'Inter_600SemiBold' }]}>Year</Text>
+                <TextInput
+                  style={[styles.bdInput, { fontFamily: 'Inter_600SemiBold' }]}
+                  value={bdYear}
+                  onChangeText={setBdYear}
+                  placeholder="YYYY"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  placeholderTextColor={MUTED}
+                />
+              </View>
+            </View>
+            <Pressable
+              onPress={handleSaveBirthday}
+              disabled={savingBirthday}
+              style={[styles.qrClose, { backgroundColor: BRAND, marginTop: 20 }]}
+            >
+              {savingBirthday
+                ? <ActivityIndicator color={WHITE} size="small" />
+                : <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Save Birthday</Text>
+              }
+            </Pressable>
+            <Pressable onPress={() => setShowBirthdayModal(false)} style={{ marginTop: 12, alignItems: 'center' }}>
+              <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowQR(false)}>
           <View style={styles.qrModal}>
@@ -226,13 +318,25 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          <Pressable style={styles.birthdayCard}>
+          <Pressable style={styles.birthdayCard} onPress={() => {
+            if (profile?.birthday) {
+              const [y, m, d] = profile.birthday.split('-');
+              setBdDay(d); setBdMonth(m); setBdYear(y);
+            }
+            setShowBirthdayModal(true);
+          }}>
             <View style={[styles.birthdayIcon, { backgroundColor: '#EEF2FB' }]}>
               <Text style={{ fontSize: 18 }}>🎂</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_600SemiBold' }]}>Add your birthday</Text>
-              <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular' }]}>Get a free cookie every birthday week</Text>
+              <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_600SemiBold' }]}>
+                {profile?.birthday ? 'Your birthday' : 'Add your birthday'}
+              </Text>
+              <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular' }]}>
+                {profile?.birthday
+                  ? (() => { const [y, m, d] = profile.birthday!.split('-'); return `${d}/${m}/${y} · Free cookie on your birthday week`; })()
+                  : 'Get a free cookie every birthday week'}
+              </Text>
             </View>
             <Feather name="chevron-right" size={18} color={MUTED} />
           </Pressable>
@@ -399,6 +503,12 @@ const styles = StyleSheet.create({
   howIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   howTitle: { fontSize: 14, color: TEXT, marginBottom: 2 },
   howDesc: { fontSize: 12, color: MUTED, lineHeight: 17 },
+
+  birthdayModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, marginHorizontal: 20 },
+  bdRow: { flexDirection: 'row', gap: 10 },
+  bdField: { flex: 1 },
+  bdLabel: { fontSize: 12, color: MUTED, marginBottom: 6, letterSpacing: 0.5 },
+  bdInput: { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   qrModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', gap: 10, marginHorizontal: 32, width: 300 },
