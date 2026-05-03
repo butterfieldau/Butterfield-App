@@ -9,3 +9,6 @@ export * from "./wholesale_orders";
 export * from "./misc";
 export * from "./addresses";
 export * from "./products";
+export * from "./pricing_tiers";
+export * from "./quantity_price_breaks";
+export * from "./customer_pricing";

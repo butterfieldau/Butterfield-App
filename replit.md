@@ -19,9 +19,17 @@ artifacts/
   api-server/           ← Express + TypeScript API server (port 8080 → /api proxy)
 lib/
   db/                   ← Drizzle ORM schema + migrations (PostgreSQL)
+                         Includes: pricing_tiers, quantity_price_breaks, customer_pricing
 scripts/
   src/seed-products.ts  ← Stripe product seeder (run after connecting Stripe)
 ```
+
+## Wholesale Pricing Tier System (Director-managed)
+- **Schema**: `pricing_tiers` (Bronze/Silver/Gold/etc, each with discount %, min order, payment terms, lead time, cut-off, delivery rules), `quantity_price_breaks` (per product, scoped to tier or customer), `customer_pricing` (per-customer overrides on product or category). Tiers soft-archive (status='archived'); pricing rules soft-archive (isActive=false) — never hard-deleted to preserve order audit trails.
+- **Pricing engine**: `artifacts/api-server/src/lib/wholesalePricing.ts` — `calculateWholesalePrice` enforces strict priority order: manual override → customer product → customer category → qty break (customer) → qty break (tier) → tier default discount → standard wholesale → error. Deterministic ordering (highest minQty first, then most-recent createdAt) for overlapping rules.
+- **Order security**: `priceAndValidateOrder` recomputes ALL prices server-side, ignores any client-supplied totals, enforces tier min order, product min/max qty, suspended/approved checks. Client cannot manipulate price.
+- **Director routes** (all `requireRole('director')`): `/api/director/{tiers,quantity-breaks,customer-pricing,pricing-preview}` CRUD, plus `/api/director/wholesale/:id/{tier,suspend}` and `/api/director/products/:id/wholesale-access`.
+- **Mobile UI**: New `app/(director)/pricing.tsx` tab with 4 sub-tabs (Tiers / Qty Breaks / Custom / Assign).
 
 ## API Server
 - Base path: `/api` (proxied from Expo app via `EXPO_PUBLIC_DOMAIN/api`)

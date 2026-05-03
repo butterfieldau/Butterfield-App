@@ -38,6 +38,14 @@ export const productsTable = pgTable("products", {
   isComingSoon:         boolean("is_coming_soon").notNull().default(false),
   isPickupOnly:         boolean("is_pickup_only").notNull().default(false),
 
+  // Wholesale access control
+  wholesaleAccessMode:  text("wholesale_access_mode").notNull().default("all"), // all | tiers | customers | hidden
+  wholesaleAllowedTierIds: text("wholesale_allowed_tier_ids"),     // JSON: string[]
+  wholesaleAllowedCustomerIds: text("wholesale_allowed_customer_ids"), // JSON: string[]
+  wholesaleRequiresApproval: boolean("wholesale_requires_approval").notNull().default(false),
+  wholesaleMaxQtyPerCustomer: integer("wholesale_max_qty_per_customer"),
+  wholesaleOrderByRequest: boolean("wholesale_order_by_request").notNull().default(false),
+
   // Tags & dietary
   tags:                 text("tags"),           // JSON: string[]
   allergens:            text("allergens"),       // JSON: string[]

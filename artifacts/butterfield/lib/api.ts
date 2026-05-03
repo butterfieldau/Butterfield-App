@@ -96,8 +96,11 @@ export const api = {
   },
   wholesale: {
     profile: () => request<{ data: any }>('/wholesale/profile'),
+    account: () => request<{ data: any }>('/wholesale/account'),
     orders: () => request<{ data: any[] }>('/wholesale/orders'),
-    createOrder: (data: any) => request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
+    order:  (id: string) => request<{ data: any }>(`/wholesale/orders/${id}`),
+    createOrder: (data: { items: { productId: string; qty: number }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string }) =>
+      request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
     invoices: () => request<{ data: any[] }>('/wholesale/invoices'),
     catalog: () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
   },
@@ -145,6 +148,42 @@ export const api = {
       request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     createWholesale:     (data: { name: string; email: string; password: string; companyName: string; abn?: string; phone?: string }) =>
       request<{ data: any }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
+
+    // Pricing tiers
+    tiers:               () => request<{ data: any[] }>('/director/tiers'),
+    tier:                (id: string) => request<{ data: any }>(`/director/tiers/${id}`),
+    createTier:          (data: any) => request<{ data: any }>('/director/tiers', { method: 'POST', body: JSON.stringify(data) }),
+    updateTier:          (id: string, data: any) => request<{ data: any }>(`/director/tiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    archiveTier:         (id: string) => request<{ success: boolean; data: any }>(`/director/tiers/${id}`, { method: 'DELETE' }),
+
+    // Quantity price breaks
+    qtyBreaks:           (params?: { productId?: string; tierId?: string; customerId?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return request<{ data: any[] }>(`/director/quantity-breaks${q ? `?${q}` : ''}`);
+    },
+    createQtyBreak:      (data: any) => request<{ data: any }>('/director/quantity-breaks', { method: 'POST', body: JSON.stringify(data) }),
+    updateQtyBreak:      (id: string, data: any) => request<{ data: any }>(`/director/quantity-breaks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteQtyBreak:      (id: string) => request<{ success: boolean }>(`/director/quantity-breaks/${id}`, { method: 'DELETE' }),
+
+    // Customer custom pricing
+    customerPricing:     (customerId?: string) => request<{ data: any[] }>(`/director/customer-pricing${customerId ? `?customerId=${customerId}` : ''}`),
+    createCustomerPricing:(data: any) => request<{ data: any }>('/director/customer-pricing', { method: 'POST', body: JSON.stringify(data) }),
+    updateCustomerPricing:(id: string, data: any) => request<{ data: any }>(`/director/customer-pricing/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteCustomerPricing:(id: string) => request<{ success: boolean }>(`/director/customer-pricing/${id}`, { method: 'DELETE' }),
+
+    // Wholesale account ops
+    assignTier:          (accountId: string, data: { tierId?: string | null; customPricingEnabled?: boolean }) =>
+      request<{ data: any }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
+    suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
+      request<{ data: any }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    // Product wholesale access
+    setProductWholesaleAccess: (id: string, data: any) =>
+      request<{ data: any }>(`/director/products/${id}/wholesale-access`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    // Pricing preview
+    pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
+      request<{ data: any }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
   },
   seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
 };
