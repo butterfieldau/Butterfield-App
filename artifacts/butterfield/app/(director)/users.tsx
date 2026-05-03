@@ -152,7 +152,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
             <>
               <Text style={[modal.sectionLabel, { color: MUTED }]}>COMPANY DETAILS</Text>
               <View style={[modal.inputRow, { borderColor: BORDER }]}>
-                <Feather name="building" size={15} color={MUTED} />
+                <Feather name="briefcase" size={15} color={MUTED} />
                 <TextInput style={[modal.input, { color: TEXT }]} placeholder="Company name *" placeholderTextColor={MUTED} value={companyName} onChangeText={setCompanyName} autoCapitalize="words" />
               </View>
               <View style={[modal.inputRow, { borderColor: BORDER }]}>
