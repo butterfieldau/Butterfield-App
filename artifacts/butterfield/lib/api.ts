@@ -9,28 +9,21 @@ const BASE = process.env.EXPO_PUBLIC_DOMAIN
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
 }
-
 export async function saveToken(token: string): Promise<void> {
   return AsyncStorage.setItem(TOKEN_KEY, token);
 }
-
 export async function clearToken(): Promise<void> {
   return AsyncStorage.removeItem(TOKEN_KEY);
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
-
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -84,7 +77,21 @@ export const api = {
       request<{ data: StaffShift }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins: unpaidBreakMins ?? 0 }) }),
     currentShift: () => request<{ data: StaffShift | null }>('/staff/shifts/current'),
     shiftStats: () => request<{ data: StaffShiftStats }>('/staff/shifts/stats'),
-    shifts: () => request<{ data: StaffShift[] }>('/staff/shifts'),
+    shifts: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const qs = params.toString();
+      return request<{ data: StaffShift[] }>(`/staff/shifts${qs ? `?${qs}` : ''}`);
+    },
+    timesheet: (from?: string, to?: string, userId?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (userId) params.set('userId', userId);
+      const qs = params.toString();
+      return request<TimesheetResponse>(`/staff/timesheet${qs ? `?${qs}` : ''}`);
+    },
     tasks: (category?: string) => request<{ data: StaffTask[] }>(`/staff/tasks${category ? `?category=${category}` : ''}`),
     completeTask: (id: string, isCompleted: boolean) =>
       request<{ data: StaffTask }>(`/staff/tasks/${id}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
@@ -133,98 +140,53 @@ export const api = {
 };
 
 export interface ApiUser {
-  id: string;
-  email: string;
-  role: 'customer' | 'staff' | 'wholesale';
-  name: string;
-  phone?: string;
+  id: string; email: string; role: 'customer' | 'staff' | 'wholesale'; name: string; phone?: string;
 }
-
 export interface ApiProduct {
-  id: string;
-  name: string;
-  description: string;
-  active: boolean;
-  metadata: Record<string, string>;
-  images?: string[];
+  id: string; name: string; description: string; active: boolean;
+  metadata: Record<string, string>; images?: string[];
   prices?: { id: string; unit_amount: number; currency: string }[];
 }
-
 export interface ApiOrder {
-  id: string;
-  userId: string;
-  status: string;
-  type: string;
-  scheduledFor?: string;
-  notes?: string;
-  totalCents: number;
-  items: any[];
-  loyaltyPointsEarned: number;
-  createdAt: string;
+  id: string; userId: string; status: string; type: string;
+  scheduledFor?: string; notes?: string; totalCents: number;
+  items: any[]; loyaltyPointsEarned: number; createdAt: string;
 }
-
 export interface LoyaltyProfile {
-  userId: string;
-  loyaltyPoints: number;
-  loyaltyTier: string;
-  referralCode: string;
-  birthday?: string;
-  stampCount: number;
-  totalVisits: number;
-  totalSpentCents: number;
+  userId: string; loyaltyPoints: number; loyaltyTier: string;
+  referralCode: string; birthday?: string; stampCount: number;
+  totalVisits: number; totalSpentCents: number;
 }
-
 export interface LoyaltyTransaction {
-  id: string;
-  points: number;
-  type: string;
-  description: string;
-  createdAt: string;
+  id: string; points: number; type: string; description: string; createdAt: string;
 }
-
 export interface LoyaltyReward {
-  id: string;
-  name: string;
-  description: string;
-  pointsCost: number;
-  category: string;
-  isAppOnly: boolean;
+  id: string; name: string; description: string; pointsCost: number; category: string; isAppOnly: boolean;
 }
-
 export interface StaffShift {
-  id: string;
-  userId: string;
-  clockIn: string;
-  clockOut?: string;
-  hoursWorked?: string;
-  unpaidBreakMins?: number;
+  id: string; userId: string; clockIn: string; clockOut?: string;
+  hoursWorked?: string; unpaidBreakMins?: number;
+  name?: string; hourlyRateCents?: number; position?: string;
 }
-
 export interface StaffShiftStats {
-  hourlyRateCents: number;
-  todayMins: number;
-  todayEarningsCents: number;
-  weekMins: number;
-  weekEarningsCents: number;
+  hourlyRateCents: number; todayMins: number; todayEarningsCents: number;
+  weekMins: number; weekEarningsCents: number;
 }
-
 export interface StaffProfile {
-  userId: string;
-  employeeId: string;
-  position: string;
-  department: string;
-  isManager: boolean;
-  approvedByAdmin: boolean;
-  hourlyRateCents: number;
+  userId: string; employeeId: string; position: string; department: string;
+  isManager: boolean; approvedByAdmin: boolean; hourlyRateCents: number;
 }
-
+export interface StaffMember {
+  userId: string; name: string | null; position: string;
+  hourlyRateCents: number; isManager: boolean;
+}
+export interface TimesheetResponse {
+  data: StaffShift[];
+  profile?: StaffProfile;
+  staff?: StaffMember[];
+  isManager: boolean;
+}
 export interface StaffTask {
-  id: string;
-  title: string;
-  description?: string;
-  category: string;
-  isCompleted: boolean;
-  completedBy?: string;
-  completedAt?: string;
-  sortOrder: number;
+  id: string; title: string; description?: string; category: string;
+  isCompleted: boolean; completedBy?: string; completedAt?: string; sortOrder: number;
 }

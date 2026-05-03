@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,12 +54,8 @@ const INVOICE_LINES: Record<string, InvoiceLine[]> = {
   ],
 };
 
-async function downloadInvoicePdf(invoice: Invoice): Promise<void> {
-  const lines = INVOICE_LINES[invoice.id] ?? [
-    { description: 'Wholesale Cookie Order', qty: 1, unitPrice: invoice.amount },
-  ];
-
-  const data: InvoicePdfData = {
+function buildInvoiceData(invoice: Invoice): InvoicePdfData {
+  return {
     number: invoice.number,
     date: invoice.date,
     dueDate: invoice.dueDate,
@@ -68,47 +65,62 @@ async function downloadInvoicePdf(invoice: Invoice): Promise<void> {
     contactEmail: 'accounts@freshbite.com.au',
     deliveryAddress: '12 Market Street\nParramatta NSW 2150',
     accountNumber: 'WH-2891',
-    lines,
+    lines: INVOICE_LINES[invoice.id] ?? [{ description: 'Wholesale Cookie Order', qty: 1, unitPrice: invoice.amount }],
   };
+}
 
-  const html = generateInvoiceHtml(data);
-
-  if (Platform.OS === 'web') {
-    // Web: open print dialog in a new tab
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      setTimeout(() => win.print(), 500);
-    }
-    return;
-  }
-
+async function getPdfUri(invoice: Invoice): Promise<string> {
+  const html = generateInvoiceHtml(buildInvoiceData(invoice));
   const { uri } = await Print.printToFileAsync({ html, base64: false });
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'application/pdf',
-      dialogTitle: `Invoice ${invoice.number}`,
-      UTI: 'com.adobe.pdf',
-    });
-  } else {
-    await Print.printAsync({ uri });
-  }
+  return uri;
 }
 
 export default function WholesaleInvoices() {
   const insets = useSafeAreaInsets();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
 
   const totalPending = MOCK_INVOICES.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
   const overdueCount = MOCK_INVOICES.filter((i) => i.status === 'overdue').length;
 
+  const handleView = async (invoice: Invoice) => {
+    setActionId(invoice.id);
+    try {
+      const html = generateInvoiceHtml(buildInvoiceData(invoice));
+      if (Platform.OS === 'web') {
+        const win = window.open('', '_blank');
+        if (win) { win.document.write(html); win.document.close(); win.focus(); }
+        return;
+      }
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await WebBrowser.openBrowserAsync(uri, {
+        toolbarColor: '#1C1C1E',
+        controlsColor: '#40C0F2',
+        dismissButtonStyle: 'close',
+      });
+    } catch (e: any) {
+      Alert.alert('View Error', e?.message ?? 'Could not open invoice.');
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const handleDownload = async (invoice: Invoice) => {
     setLoadingId(invoice.id);
     try {
-      await downloadInvoicePdf(invoice);
+      if (Platform.OS === 'web') {
+        const html = generateInvoiceHtml(buildInvoiceData(invoice));
+        const win = window.open('', '_blank');
+        if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 500); }
+        return;
+      }
+      const uri = await getPdfUri(invoice);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${invoice.number}`, UTI: 'com.adobe.pdf' });
+      } else {
+        await Print.printAsync({ uri });
+      }
     } catch (e: any) {
       Alert.alert('PDF Error', e?.message ?? 'Could not generate PDF. Please try again.');
     } finally {
@@ -144,18 +156,15 @@ export default function WholesaleInvoices() {
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item: invoice }) => {
+          const isViewing = actionId === invoice.id;
           const isPdfLoading = loadingId === invoice.id;
+
           return (
-            <View style={[
-              styles.invoiceCard,
-              {
-                backgroundColor: CARD,
-                borderLeftColor: invoice.status === 'overdue' ? '#EF4444' : BLUE,
-                borderLeftWidth: 3,
-                borderWidth: 1,
-                borderColor: BORDER,
-              },
-            ]}>
+            <View style={[styles.invoiceCard, {
+              backgroundColor: CARD,
+              borderLeftColor: invoice.status === 'overdue' ? '#EF4444' : BLUE,
+              borderLeftWidth: 3, borderWidth: 1, borderColor: BORDER,
+            }]}>
               <View style={styles.invoiceTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.invoiceNum, { color: TEXT, fontFamily: 'Inter_600SemiBold' }]}>{invoice.number}</Text>
@@ -176,9 +185,26 @@ export default function WholesaleInvoices() {
               <View style={[styles.invoiceDivider, { backgroundColor: BORDER }]} />
 
               <View style={styles.invoiceActions}>
+                {/* View button */}
+                <Pressable
+                  onPress={() => handleView(invoice)}
+                  disabled={isViewing || isPdfLoading}
+                  style={[styles.invoiceBtn, { backgroundColor: '#F0F9FF', borderRadius: 10, flex: 1, borderWidth: 1, borderColor: `${BLUE}30`, opacity: isViewing ? 0.7 : 1 }]}
+                >
+                  {isViewing ? (
+                    <ActivityIndicator size="small" color={BLUE} />
+                  ) : (
+                    <Feather name="eye" size={14} color={BLUE} />
+                  )}
+                  <Text style={[styles.invoiceBtnText, { color: BLUE, fontFamily: 'Inter_600SemiBold' }]}>
+                    {isViewing ? 'Opening…' : 'View'}
+                  </Text>
+                </Pressable>
+
+                {/* Download / Share button */}
                 <Pressable
                   onPress={() => handleDownload(invoice)}
-                  disabled={isPdfLoading}
+                  disabled={isPdfLoading || isViewing}
                   style={[styles.invoiceBtn, { backgroundColor: isPdfLoading ? `${BLUE}20` : '#E0F5FE', borderRadius: 10, flex: 1, opacity: isPdfLoading ? 0.7 : 1 }]}
                 >
                   {isPdfLoading ? (
@@ -187,9 +213,10 @@ export default function WholesaleInvoices() {
                     <Feather name="download" size={14} color={BLUE} />
                   )}
                   <Text style={[styles.invoiceBtnText, { color: BLUE, fontFamily: 'Inter_600SemiBold' }]}>
-                    {isPdfLoading ? 'Generating…' : 'Download PDF'}
+                    {isPdfLoading ? 'Generating…' : 'Download'}
                   </Text>
                 </Pressable>
+
                 {invoice.status !== 'paid' && (
                   <Pressable
                     onPress={() => Alert.alert('Pay Invoice', `Pay ${invoice.number} for $${invoice.amount.toFixed(2)}?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Pay Now', style: 'default' }])}
@@ -227,7 +254,7 @@ const styles = StyleSheet.create({
   invoiceLines: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 4 },
   invoiceAmount: { fontSize: 17, marginTop: 4 },
   invoiceDivider: { height: 1 },
-  invoiceActions: { flexDirection: 'row', gap: 10 },
-  invoiceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 11 },
+  invoiceActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  invoiceBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 11 },
   invoiceBtnText: { fontSize: 13 },
 });

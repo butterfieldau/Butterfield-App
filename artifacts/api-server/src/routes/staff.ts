@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable } from '@workspace/db';
-import { eq, desc, isNull, and, gte } from 'drizzle-orm';
+import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
@@ -85,21 +85,90 @@ router.get('/shifts/stats', async (req, res) => {
 });
 
 router.get('/shifts', async (req, res) => {
+  const { from, to } = req.query;
+  const conditions: any[] = [eq(staffShiftsTable.userId, req.user!.id)];
+  if (from) conditions.push(gte(staffShiftsTable.clockIn, new Date(from as string)));
+  if (to) conditions.push(lte(staffShiftsTable.clockIn, new Date(to as string)));
   const shifts = await db.select().from(staffShiftsTable)
-    .where(eq(staffShiftsTable.userId, req.user!.id))
+    .where(and(...conditions))
     .orderBy(desc(staffShiftsTable.clockIn))
-    .limit(20);
+    .limit(100);
   return res.json({ data: shifts });
+});
+
+router.get('/timesheet', async (req, res) => {
+  const [myProfile] = await db.select().from(staffProfilesTable)
+    .where(eq(staffProfilesTable.userId, req.user!.id));
+
+  const { from, to, userId: targetUserId } = req.query;
+
+  const now = new Date();
+  const weekStart = new Date(now);
+  const day = weekStart.getDay();
+  weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1));
+  weekStart.setHours(0, 0, 0, 0);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  const fromDate = from ? new Date(from as string) : weekStart;
+  const toDate = to ? new Date(to as string) : weekEnd;
+
+  const isManagerOrDirector = myProfile?.isManager;
+
+  if (isManagerOrDirector) {
+    const staffList = await db.select({
+      userId: staffProfilesTable.userId,
+      name: usersTable.name,
+      position: staffProfilesTable.position,
+      hourlyRateCents: staffProfilesTable.hourlyRateCents,
+      isManager: staffProfilesTable.isManager,
+    }).from(staffProfilesTable)
+      .leftJoin(usersTable, eq(staffProfilesTable.userId, usersTable.id));
+
+    const target = targetUserId as string | undefined;
+    const shiftConditions: any[] = [
+      gte(staffShiftsTable.clockIn, fromDate),
+      lte(staffShiftsTable.clockIn, toDate),
+    ];
+    if (target) shiftConditions.push(eq(staffShiftsTable.userId, target));
+
+    const shifts = await db.select({
+      id: staffShiftsTable.id,
+      userId: staffShiftsTable.userId,
+      clockIn: staffShiftsTable.clockIn,
+      clockOut: staffShiftsTable.clockOut,
+      hoursWorked: staffShiftsTable.hoursWorked,
+      unpaidBreakMins: staffShiftsTable.unpaidBreakMins,
+      name: usersTable.name,
+      hourlyRateCents: staffProfilesTable.hourlyRateCents,
+      position: staffProfilesTable.position,
+    }).from(staffShiftsTable)
+      .leftJoin(staffProfilesTable, eq(staffShiftsTable.userId, staffProfilesTable.userId))
+      .leftJoin(usersTable, eq(staffShiftsTable.userId, usersTable.id))
+      .where(and(...shiftConditions))
+      .orderBy(desc(staffShiftsTable.clockIn));
+
+    return res.json({ data: shifts, staff: staffList, isManager: true, profile: myProfile });
+  } else {
+    const shifts = await db.select().from(staffShiftsTable)
+      .where(and(
+        eq(staffShiftsTable.userId, req.user!.id),
+        gte(staffShiftsTable.clockIn, fromDate),
+        lte(staffShiftsTable.clockIn, toDate),
+      ))
+      .orderBy(desc(staffShiftsTable.clockIn));
+    return res.json({ data: shifts, profile: myProfile, isManager: false });
+  }
 });
 
 router.get('/tasks', async (req, res) => {
   const { category } = req.query;
-  let query = db.select().from(staffTasksTable);
   if (category) {
     const tasks = await db.select().from(staffTasksTable).where(eq(staffTasksTable.category, category as any));
     return res.json({ data: tasks });
   }
-  const tasks = await query.orderBy(staffTasksTable.sortOrder);
+  const tasks = await db.select().from(staffTasksTable).orderBy(staffTasksTable.sortOrder);
   return res.json({ data: tasks });
 });
 
@@ -121,12 +190,7 @@ router.post('/wastage', async (req, res) => {
   const [entry] = await db.insert(staffWastageTable).values({
     id: randomUUID(),
     userId: req.user!.id,
-    productName,
-    quantity,
-    unit: unit ?? 'units',
-    reason,
-    estimatedCostCents,
-    notes,
+    productName, quantity, unit: unit ?? 'units', reason, estimatedCostCents, notes,
   }).returning();
   return res.status(201).json({ data: entry });
 });
@@ -138,34 +202,20 @@ router.get('/wastage', async (req, res) => {
 
 router.post('/issues', async (req, res) => {
   const { title, description, category, priority } = req.body;
-  if (!title || !description) {
-    return res.status(400).json({ error: 'Title and description are required' });
-  }
+  if (!title || !description) return res.status(400).json({ error: 'Title and description are required' });
   const [issue] = await db.insert(staffIssuesTable).values({
-    id: randomUUID(),
-    userId: req.user!.id,
-    title,
-    description,
-    category: category ?? 'general',
-    priority: priority ?? 'medium',
-    status: 'open',
+    id: randomUUID(), userId: req.user!.id, title, description,
+    category: category ?? 'general', priority: priority ?? 'medium', status: 'open',
   }).returning();
   return res.status(201).json({ data: issue });
 });
 
 router.post('/leave', async (req, res) => {
   const { startDate, endDate, type, reason } = req.body;
-  if (!startDate || !endDate || !reason) {
-    return res.status(400).json({ error: 'Start date, end date and reason are required' });
-  }
+  if (!startDate || !endDate || !reason) return res.status(400).json({ error: 'Start date, end date and reason are required' });
   const [leave] = await db.insert(staffLeaveRequestsTable).values({
-    id: randomUUID(),
-    userId: req.user!.id,
-    startDate,
-    endDate,
-    type: type ?? 'annual',
-    reason,
-    status: 'pending',
+    id: randomUUID(), userId: req.user!.id, startDate, endDate,
+    type: type ?? 'annual', reason, status: 'pending',
   }).returning();
   return res.status(201).json({ data: leave });
 });
@@ -185,8 +235,8 @@ router.patch('/profile/hourly-rate', async (req, res) => {
   if (!hourlyRateCents || typeof hourlyRateCents !== 'number') {
     return res.status(400).json({ error: 'hourlyRateCents must be a number' });
   }
-  const targetId = userId ?? req.user!.id;
   const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
+  const targetId = userId ?? req.user!.id;
   if (!profile?.isManager && targetId !== req.user!.id) {
     return res.status(403).json({ error: 'Only managers can update other staff rates' });
   }

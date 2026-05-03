@@ -18,10 +18,7 @@ export default function StaffLayout() {
 
   useOrderNotifications(handleNewOrders);
 
-  const handleDismiss = useCallback(() => {
-    setShowBanner(false);
-  }, []);
-
+  const handleDismiss = useCallback(() => setShowBanner(false), []);
   const handleView = useCallback(() => {
     setShowBanner(false);
     setUnreadCount(0);
@@ -35,20 +32,13 @@ export default function StaffLayout() {
           headerShown: false,
           tabBarActiveTintColor: '#40C0F2',
           tabBarInactiveTintColor: '#8E8E93',
-          tabBarStyle: {
-            backgroundColor: '#fff',
-            borderTopColor: '#EFEFEF',
-            borderTopWidth: 1,
-          },
+          tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
           tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
         }}
       >
         <Tabs.Screen
           name="index"
-          options={{
-            title: 'Dashboard',
-            tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} />,
-          }}
+          options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} /> }}
         />
         <Tabs.Screen
           name="orders"
@@ -61,33 +51,21 @@ export default function StaffLayout() {
         />
         <Tabs.Screen
           name="tasks"
-          options={{
-            title: 'Tasks',
-            tabBarIcon: ({ color }) => <Feather name="clipboard" size={22} color={color} />,
-          }}
+          options={{ title: 'Tasks', tabBarIcon: ({ color }) => <Feather name="clipboard" size={22} color={color} /> }}
         />
         <Tabs.Screen
-          name="products"
-          options={{
-            title: 'Products',
-            tabBarIcon: ({ color }) => <Feather name="box" size={22} color={color} />,
-          }}
+          name="timesheet"
+          options={{ title: 'Timesheet', tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} /> }}
         />
         <Tabs.Screen
           name="profile"
-          options={{
-            title: 'Profile',
-            tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
-          }}
+          options={{ title: 'Profile', tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} /> }}
         />
+        <Tabs.Screen name="products" options={{ href: null }} />
       </Tabs>
 
       {showBanner && (
-        <NewOrderBanner
-          orders={pendingOrders}
-          onDismiss={handleDismiss}
-          onView={handleView}
-        />
+        <NewOrderBanner orders={pendingOrders} onDismiss={handleDismiss} onView={handleView} />
       )}
     </View>
   );
