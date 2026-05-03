@@ -241,7 +241,7 @@ export default function CustomerHome() {
             <Text style={[styles.name, { fontFamily: 'Inter_700Bold' }]}>{firstName} 👋</Text>
           </View>
           {totalItems > 0 && (
-            <Pressable onPress={() => router.push('/(customer)/cart')} style={[styles.cartBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+            <Pressable onPress={() => router.push('/cart')} style={[styles.cartBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
               <Feather name="shopping-bag" size={16} color="#fff" />
               <Text style={[styles.cartBadgeText, { fontFamily: 'Inter_700Bold' }]}>{totalItems}</Text>
             </Pressable>
@@ -292,7 +292,7 @@ export default function CustomerHome() {
           {[
             { label: 'Order cookies', emoji: '🍪', bg: '#E6F4FF', onPress: () => router.push('/(customer)/menu') },
             { label: 'Coffee Club', emoji: '☕', bg: '#FFE8E8', onPress: () => router.push('/(customer)/loyalty') },
-            { label: 'My order', emoji: '🛍️', bg: '#F5EDE6', onPress: () => router.push('/(customer)/cart') },
+            { label: 'My order', emoji: '🛍️', bg: '#F5EDE6', onPress: () => router.push('/cart') },
           ].map(({ label, emoji, bg, onPress }) => (
             <Pressable
               key={label}

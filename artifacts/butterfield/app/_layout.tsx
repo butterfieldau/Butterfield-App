@@ -33,6 +33,7 @@ function RootLayoutNav() {
       <Stack.Screen name="store" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="edit-details" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="product" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="cart" options={{ headerShown: false }} />
       <Stack.Screen name="(staff)" options={{ headerShown: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false }} />
       <Stack.Screen name="(director)" options={{ headerShown: false }} />
