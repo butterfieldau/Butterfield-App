@@ -74,7 +74,7 @@ export default function AccountScreen() {
     {
       icon: 'bell' as const,
       label: 'Notifications',
-      onPress: () => Alert.alert('Notifications', "You're all caught up!\n\nWe'll notify you when your order is ready for pickup."),
+      onPress: () => router.push('/(customer)/notifications' as any),
     },
     {
       icon: 'map-pin' as const,
