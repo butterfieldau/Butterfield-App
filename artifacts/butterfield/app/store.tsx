@@ -22,9 +22,10 @@ function getSydneyNow(): Date {
 function isStoreOpen(): boolean {
   const syd = getSydneyNow();
   const day = syd.getDay();
-  if (day === 0) return false;
   const mins = syd.getHours() * 60 + syd.getMinutes();
-  return mins >= 600 && mins < 1080;
+  if (day === 0) return mins >= 480 && mins < 1320;                                // Sun  8am–10pm
+  if (day >= 1 && day <= 3) return (mins >= 390 && mins < 900) || (mins >= 1020 && mins < 1260); // Mon–Wed  6:30am–3pm, 5–9pm
+  return mins >= 390 && mins < 1320;                                                // Thu–Sat 6:30am–10pm
 }
 
 const STORE_LAT = -33.8360;
@@ -33,9 +34,9 @@ const ADDRESS = '2 Main Lane, Merrylands NSW 2160';
 const MAP_URL = `https://staticmap.openstreetmap.de/staticmap.php?center=${STORE_LAT},${STORE_LNG}&zoom=16&size=800x400&markers=${STORE_LAT},${STORE_LNG},red-pushpin`;
 
 const HOURS = [
-  { day: 'Mon – Fri', hours: '10:00 AM – 6:00 PM' },
-  { day: 'Saturday',  hours: '10:00 AM – 6:00 PM' },
-  { day: 'Sunday',    hours: 'Closed' },
+  { day: 'Sunday',    hours: '8:00 AM – 10:00 PM' },
+  { day: 'Mon – Wed', hours: '6:30 AM – 3:00 PM · 5:00 – 9:00 PM' },
+  { day: 'Thu – Sat', hours: '6:30 AM – 10:00 PM' },
 ];
 
 function openDirections() {
@@ -95,7 +96,7 @@ export default function StoreScreen() {
           <View style={[styles.openBadge, { backgroundColor: storeOpen ? '#DCFCE7' : '#FEE2E2' }]}>
             <View style={[styles.openDot, { backgroundColor: storeOpen ? '#22C55E' : '#EF4444' }]} />
             <Text style={[styles.openText, { color: storeOpen ? '#15803D' : '#DC2626', fontFamily: 'Inter_600SemiBold' }]}>
-              {storeOpen ? 'Open now · Mon–Sat 10am–6pm' : 'Closed · Mon–Sat 10am–6pm'}
+              {storeOpen ? 'Open now' : 'Closed · See hours below'}
             </Text>
           </View>
 
