@@ -80,19 +80,25 @@ router.post('/staff-login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || user.role !== 'staff') return res.status(401).json({ error: 'Staff account not found.' });
+  if (!user || (user.role !== 'staff' && user.role !== 'director')) {
+    return res.status(401).json({ error: 'Staff or Director account not found.' });
+  }
 
-  const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
-  if (!staffProfile?.approvedByAdmin) {
-    return res.status(403).json({ error: 'Your staff account is pending approval.' });
+  // Staff accounts require admin approval; directors do not
+  if (user.role === 'staff') {
+    const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
+    if (!staffProfile?.approvedByAdmin) {
+      return res.status(403).json({ error: 'Your staff account is pending approval.' });
+    }
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
 
-  // Demo accounts bypass all geo checks
+  // Directors bypass geo check — only staff need location verification
   const isDemoAccount = DEMO_EMAILS.includes(user.email.toLowerCase());
-  if (!isDemoAccount) {
+  const needsGeoCheck = user.role === 'staff' && !isDemoAccount;
+  if (needsGeoCheck) {
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
       return res.status(403).json({ error: 'Location verification is required for staff sign-in. Please enable location services.' });
     }

@@ -19,7 +19,12 @@ interface AuthContextValue {
     password: string,
     role?: UserRole,
     coords?: { latitude: number; longitude: number }
-  ) => Promise<{ success: boolean; error?: string; distanceMeters?: number; radiusMeters?: number }>;
+  ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
+  internalLogin: (
+    email: string,
+    password: string,
+    coords?: { latitude: number; longitude: number }
+  ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
   wholesaleApply: (data: { email: string; password: string; name: string; phone?: string; companyName: string; abn?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => Promise<void>;
@@ -77,7 +82,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const u: AuthContextUser = { id: res.user.id, name: res.user.name, email: res.user.email, role: res.user.role as UserRole };
       setUser(u);
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
-      return { success: true };
+      return { success: true, role: res.user.role as UserRole };
+    } catch (e: any) {
+      return { success: false, error: e.message ?? 'Login failed.' };
+    }
+  }, []);
+
+  // Unified internal login — figures out role from credentials, handles geo for staff
+  const internalLogin = useCallback(async (
+    email: string,
+    password: string,
+    coords?: { latitude: number; longitude: number }
+  ) => {
+    if (!email.trim() || !password.trim()) return { success: false, error: 'Email and password are required.' };
+    try {
+      // Use staff-login endpoint which handles geo check server-side
+      const res = await api.auth.staffLogin({
+        email: email.trim(),
+        password,
+        latitude: coords?.latitude,
+        longitude: coords?.longitude,
+      });
+      const returnedRole = res.user.role as UserRole;
+      if (returnedRole !== 'staff' && returnedRole !== 'director') {
+        return { success: false, error: 'This account does not have internal access.' };
+      }
+      await saveToken(res.token);
+      const u: AuthContextUser = { id: res.user.id, name: res.user.name, email: res.user.email, role: returnedRole };
+      setUser(u);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+      return { success: true, role: returnedRole };
     } catch (e: any) {
       return { success: false, error: e.message ?? 'Login failed.' };
     }
@@ -111,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, isLoading, login, register, wholesaleApply, logout }), [user, isLoading, login, register, wholesaleApply, logout]);
+  const value = useMemo(() => ({ user, isLoading, login, internalLogin, register, wholesaleApply, logout }), [user, isLoading, login, internalLogin, register, wholesaleApply, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

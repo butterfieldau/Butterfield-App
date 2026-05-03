@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
+import bcrypt from 'bcryptjs';
 import {
   db, usersTable, customerProfilesTable, staffProfilesTable,
   wholesaleAccountsTable, ordersTable, storeSettingsTable, productsTable,
@@ -162,6 +163,58 @@ router.patch('/settings', async (req, res) => {
 router.get('/wholesale', async (req, res) => {
   const accounts = await db.select().from(wholesaleAccountsTable).orderBy(desc(wholesaleAccountsTable.createdAt));
   return res.json({ data: accounts });
+});
+
+// ── Create staff account ─────────────────────────────────────────────────────
+router.post('/create-staff', async (req, res) => {
+  const { name, email, password, position, department, isManager, hourlyRateCents } = req.body;
+  if (!name?.trim() || !email?.trim() || !password?.trim()) {
+    return res.status(400).json({ error: 'Name, email and password are required.' });
+  }
+  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim()));
+  if (existing.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
+
+  const hash = await bcrypt.hash(password, 10);
+  const userId = randomUUID();
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase().trim(), passwordHash: hash, role: 'staff' as any, name: name.trim() });
+  const empId = `EMP-${Date.now().toString(36).toUpperCase()}`;
+  const [profile] = await db.insert(staffProfilesTable).values({
+    userId,
+    employeeId: empId,
+    position:   position?.trim()   ?? 'Crew',
+    department: department?.trim() ?? 'floor',
+    isManager:  isManager === true,
+    approvedByAdmin: true,
+    hourlyRateCents: typeof hourlyRateCents === 'number' ? hourlyRateCents : 2200,
+  }).returning();
+
+  return res.status(201).json({ data: { userId, email, name, role: 'staff', employeeId: empId, profile } });
+});
+
+// ── Create wholesale account ──────────────────────────────────────────────────
+router.post('/create-wholesale', async (req, res) => {
+  const { name, email, password, companyName, abn, phone } = req.body;
+  if (!name?.trim() || !email?.trim() || !password?.trim() || !companyName?.trim()) {
+    return res.status(400).json({ error: 'Name, email, password and company name are required.' });
+  }
+  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim()));
+  if (existing.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
+
+  const hash = await bcrypt.hash(password, 10);
+  const userId = randomUUID();
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase().trim(), passwordHash: hash, role: 'wholesale' as any, name: name.trim() });
+  const accountId = randomUUID();
+  const [account] = await db.insert(wholesaleAccountsTable).values({
+    id:          accountId,
+    userId,
+    companyName: companyName.trim(),
+    abn:         abn?.trim()   ?? '',
+    contactName: name.trim(),
+    phone:       phone?.trim() ?? '',
+    status:      'approved',
+  }).returning();
+
+  return res.status(201).json({ data: { userId, email, name, role: 'wholesale', account } });
 });
 
 export default router;

@@ -70,9 +70,26 @@ export const api = {
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
   },
   staff: {
-    profile: () => request<{ data: StaffProfile }>('/staff/profile'),
+    profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
+    currentShift: () => request<{ data: any }>('/staff/shifts/current'),
+    shiftStats:   () => request<{ data: any }>('/staff/shifts/stats'),
+    clockIn:      () => request<{ data: any }>('/staff/shifts/clock-in', { method: 'POST' }),
+    clockOut:     (unpaidBreakMins = 0) =>
+      request<{ data: any }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins }) }),
+    tasks:        (category?: string) =>
+      request<{ data: any[] }>(`/staff/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+    completeTask: (taskId: string, isCompleted: boolean) =>
+      request<{ data: any }>(`/staff/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
+    allOrders:    () => request<{ data: any[] }>('/staff/orders'),
+    submitWastage:(data: any) =>
+      request<{ data: any }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
+    submitIssue:  (data: any) =>
+      request<{ data: any }>('/staff/issues', { method: 'POST', body: JSON.stringify(data) }),
+    submitLeave:  (data: any) =>
+      request<{ data: any }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
+    members:      () => request<{ data: any[] }>('/staff/members'),
     geoSettings: {
-      get: () => request<{ data: GeoSettings }>('/staff/settings/geo'),
+      get:    () => request<{ data: GeoSettings }>('/staff/settings/geo'),
       update: (radiusMeters: number) =>
         request<{ data: GeoSettings }>('/staff/settings/geo', { method: 'PATCH', body: JSON.stringify({ radiusMeters }) }),
     },
@@ -121,6 +138,10 @@ export const api = {
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
+    createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number }) =>
+      request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
+    createWholesale:     (data: { name: string; email: string; password: string; companyName: string; abn?: string; phone?: string }) =>
+      request<{ data: any }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
   },
   seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
 };

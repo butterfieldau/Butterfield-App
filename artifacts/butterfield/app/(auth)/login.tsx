@@ -5,426 +5,427 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  ActivityIndicator, KeyboardAvoidingView, Platform,
+  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
-import { useColors } from '@/hooks/useColors';
 import type { UserRole } from '@/types';
 
-const ROLES = [
-  {
-    role: 'customer' as UserRole,
-    label: 'Customer',
-    subtitle: 'Order, earn rewards & explore',
-    icon: 'coffee',
-  },
-  {
-    role: 'staff' as UserRole,
-    label: 'Staff',
-    subtitle: 'Internal Butterfield team',
-    icon: 'briefcase',
-  },
-  {
-    role: 'wholesale' as UserRole,
-    label: 'Wholesale',
-    subtitle: 'Bulk orders & account tools',
-    icon: 'package',
-  },
-  {
-    role: 'director' as UserRole,
-    label: 'Director',
-    subtitle: 'Full backend access',
-    icon: 'shield',
-  },
+const BG      = '#F5F6FA';
+const CARD    = '#FFFFFF';
+const BLUE    = '#40C0F2';
+const NAVY    = '#1A2B4A';
+const TEXT    = '#1C1C1E';
+const MUTED   = '#8E8E93';
+const BORDER  = '#E5E7EB';
+const GREEN   = '#22C55E';
+
+// Public-facing roles only
+const PUBLIC_ROLES = [
+  { role: 'customer'  as UserRole, label: 'Customer',  subtitle: 'Order, earn\nrewards & explore', icon: 'coffee'  },
+  { role: 'wholesale' as UserRole, label: 'Wholesale', subtitle: 'Bulk orders\n& account tools',   icon: 'package' },
 ];
 
-const DEMO_CREDS: { role: UserRole; email: string; label: string; color: string; bg: string }[] = [
-  { role: 'customer',  email: 'customer@demo.com',  label: 'Customer',  color: '#0369A1', bg: '#EBF8FF' },
-  { role: 'staff',     email: 'staff@demo.com',     label: 'Staff',     color: '#5B21B6', bg: '#EDE9FE' },
-  { role: 'wholesale', email: 'wholesale@demo.com', label: 'Wholesale', color: '#166534', bg: '#DCFCE7' },
-  { role: 'director',  email: 'director@demo.com',  label: 'Director',  color: '#854D0E', bg: '#FEF9C3' },
+const DEMO_CREDS = [
+  { role: 'customer'  as UserRole, email: 'customer@demo.com',  label: 'Customer',  color: '#0369A1', bg: '#EBF8FF', internal: false },
+  { role: 'wholesale' as UserRole, email: 'wholesale@demo.com', label: 'Wholesale', color: '#166534', bg: '#DCFCE7', internal: false },
+  { role: 'staff'     as UserRole, email: 'staff@demo.com',     label: 'Staff',     color: '#5B21B6', bg: '#EDE9FE', internal: true  },
+  { role: 'director'  as UserRole, email: 'director@demo.com',  label: 'Director',  color: '#854D0E', bg: '#FEF9C3', internal: true  },
 ];
+
+const DEMO_PW        = 'Demo1234!';
+const INTERNAL_EMAILS = DEMO_CREDS.filter(d => d.internal).map(d => d.email);
 
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
-type LocationState = 'idle' | 'acquiring' | 'ready' | 'denied' | 'error';
 
 export default function LoginScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login, register, wholesaleApply } = useAuth();
+  const { login, internalLogin, register, wholesaleApply } = useAuth();
+
+  // Public portal
   const [selectedRole, setSelectedRole] = useState<UserRole>('customer');
-  const [mode, setMode] = useState<ScreenMode>('login');
+  const [mode, setMode]                 = useState<ScreenMode>('login');
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
+  const [name, setName]                 = useState('');
+  const [companyName, setCompanyName]   = useState('');
+  const [abn, setAbn]                   = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
+  const [successMsg, setSuccessMsg]     = useState('');
+  const [showPw, setShowPw]             = useState(false);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [birthday, setBirthday] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [abn, setAbn] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [locationState, setLocationState] = useState<LocationState>('idle');
+  // Internal portal
+  const [showInternal, setShowInternal]   = useState(false);
+  const [iEmail, setIEmail]               = useState('');
+  const [iPassword, setIPassword]         = useState('');
+  const [iShowPw, setIShowPw]             = useState(false);
+  const [iLoading, setILoading]           = useState(false);
+  const [iError, setIError]               = useState('');
+  const [geoStatus, setGeoStatus]         = useState<'idle' | 'acquiring' | 'ready' | 'denied'>('idle');
 
-  const roleConfig = ROLES.find((r) => r.role === selectedRole)!;
+  const isWholesale     = selectedRole === 'wholesale';
+  const isWholesaleApply = mode === 'wholesale-apply';
 
-  const resetFields = () => {
-    setEmail(''); setPassword(''); setName(''); setPhone(''); setBirthday('');
-    setCompanyName(''); setAbn(''); setError(''); setSuccessMsg('');
-    setLocationState('idle');
+  const clearPublic = () => {
+    setEmail(''); setPassword(''); setName(''); setCompanyName(''); setAbn('');
+    setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
-  const handleRoleSelect = (role: UserRole) => {
-    setSelectedRole(role);
-    setMode('login');
-    resetFields();
-    Haptics.selectionAsync();
+  const fillDemo = (d: typeof DEMO_CREDS[0]) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (d.internal) {
+      setShowInternal(true); setIEmail(d.email); setIPassword(DEMO_PW); setIError(''); setGeoStatus('idle');
+    } else {
+      setShowInternal(false); setSelectedRole(d.role); setMode('login');
+      setEmail(d.email); setPassword(DEMO_PW); setError('');
+    }
   };
 
-  const handleSubmit = async () => {
-    setError('');
-    setSuccessMsg('');
+  // ── Public submit ──────────────────────────────────────────────────────────
+  const handlePublicSubmit = async () => {
+    setError(''); setSuccessMsg('');
     if (!email.trim() || !password.trim()) { setError('Please enter your email and password.'); return; }
-    if (mode === 'register' && !name.trim()) { setError('Please enter your name.'); return; }
-    if (mode === 'wholesale-apply' && !companyName.trim()) { setError('Please enter your company name.'); return; }
+    if (isWholesaleApply && !companyName.trim()) { setError('Company name is required.'); return; }
+    setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      if (mode === 'register') {
+        if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
+        const res = await register({ email: email.trim(), password, name: name.trim() });
+        if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
+        router.replace('/(tabs)');
+      } else if (isWholesaleApply) {
+        const res = await wholesaleApply({
+          email: email.trim(), password, name: name.trim() || email.trim(),
+          companyName: companyName.trim(), abn: abn.trim() || undefined,
+        });
+        if (!res.success) { setError(res.error ?? 'Application failed.'); return; }
+        setSuccessMsg("Application submitted! We'll review it within 1 business day.");
+        clearPublic();
+      } else {
+        const res = await login(email.trim(), password, selectedRole);
+        if (!res.success) { setError(res.error ?? 'Login failed.'); return; }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.replace('/(tabs)');
+      }
+    } catch (e: any) {
+      setError(e.message ?? 'Something went wrong.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally { setLoading(false); }
+  };
 
-    let staffCoords: { latitude: number; longitude: number } | undefined;
+  // ── Internal submit ────────────────────────────────────────────────────────
+  const handleInternalSubmit = async () => {
+    setIError('');
+    if (!iEmail.trim() || !iPassword.trim()) { setIError('Email and password are required.'); return; }
+    setILoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    if (selectedRole === 'staff' && mode === 'login') {
-      setLoading(true);
-      setLocationState('acquiring');
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const isDemoAcc = INTERNAL_EMAILS.includes(iEmail.trim().toLowerCase());
+    let coords: { latitude: number; longitude: number } | undefined;
+
+    if (!isDemoAcc) {
+      setGeoStatus('acquiring');
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          setLocationState('denied');
-          setError('Location permission is required for staff sign-in. Please enable location access in your device Settings.');
-          setLoading(false);
-          return;
+          setGeoStatus('denied');
+          setIError('Location permission is required for staff sign-in.');
+          setILoading(false); return;
         }
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-        staffCoords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-        setLocationState('ready');
+        coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        setGeoStatus('ready');
       } catch {
-        setLocationState('error');
-        setError('Could not determine your location. Please ensure Location Services are enabled and try again.');
-        setLoading(false);
-        return;
+        setIError('Could not get your location. Ensure Location Services are on.');
+        setILoading(false); setGeoStatus('idle'); return;
       }
-    } else {
-      setLoading(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
     try {
-      if (mode === 'register') {
-        const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() || undefined });
-        if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
-        router.replace('/(customer)');
-      } else if (mode === 'wholesale-apply') {
-        const res = await wholesaleApply({ email: email.trim(), password, name: name.trim(), companyName: companyName.trim(), abn: abn.trim() || undefined });
-        if (!res.success) { setError(res.error ?? 'Application failed.'); return; }
-        setSuccessMsg('Application submitted! We\'ll review and get back to you within 1 business day.');
-        resetFields();
-      } else {
-        const res = await login(email.trim(), password, selectedRole, staffCoords);
-        if (!res.success) { setError(res.error ?? 'Login failed. Check your credentials.'); return; }
-        router.replace('/(tabs)');
-      }
+      const res = await internalLogin(iEmail.trim(), iPassword, coords);
+      if (!res.success) { setIError(res.error ?? 'Sign in failed.'); setGeoStatus('idle'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
     } catch (e: any) {
-      setError(e.message ?? 'Something went wrong. Please try again.');
+      setIError(e.message ?? 'Something went wrong.');
+      setGeoStatus('idle');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setLoading(false);
-      if (selectedRole !== 'staff') setLocationState('idle');
-    }
+    } finally { setILoading(false); }
   };
-
-  const isWholesale = selectedRole === 'wholesale';
-  const isRegister = mode === 'register';
-  const isWholesaleApply = mode === 'wholesale-apply';
-  const isStaff = selectedRole === 'staff';
-  const isDirector = selectedRole === 'director';
-
-  const fillDemo = (demo: typeof DEMO_CREDS[0]) => {
-    handleRoleSelect(demo.role);
-    setEmail(demo.email);
-    setPassword('Demo1234!');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const btnLabel = loading
-    ? (isStaff && locationState === 'acquiring' ? 'Getting location…' : 'Signing in…')
-    : isWholesaleApply ? 'Submit Application'
-    : isRegister ? 'Create Account'
-    : `Sign In as ${roleConfig.label}`;
-
-  const locationBannerConfig = {
-    idle:     { color: '#F59E0B', bg: '#FFFBEB', text: 'Location required — you must be within range of Butterfield Merrylands.' },
-    acquiring:{ color: '#3B82F6', bg: '#EFF6FF', text: 'Getting your location…' },
-    ready:    { color: '#22C55E', bg: '#F0FDF4', text: 'Location verified. Signing in…' },
-    denied:   { color: '#EF4444', bg: '#FEF2F2', text: 'Location permission denied. Enable it in Settings.' },
-    error:    { color: '#EF4444', bg: '#FEF2F2', text: 'Could not get location. Check Location Services.' },
-  }[locationState];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.heroSection, { paddingTop: insets.top + 24 }]}>
-          <View style={styles.logoBox}>
+
+        {/* Hero gradient */}
+        <LinearGradient colors={['#4B72C4', '#3058A8']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
+          <View style={s.logoBox}>
             <Feather name="coffee" size={30} color="#fff" />
           </View>
-          <Text style={[styles.brand, { fontFamily: 'Inter_700Bold' }]}>Butterfield</Text>
-          <Text style={[styles.tagline, { fontFamily: 'Inter_400Regular' }]}>Cookies · Coffee · Desserts</Text>
+          <Text style={[s.brand, { fontFamily: 'Inter_700Bold' }]}>Butterfield</Text>
+          <Text style={[s.tagline, { fontFamily: 'Inter_400Regular' }]}>Cookies · Coffee · Desserts</Text>
         </LinearGradient>
 
-        <View style={[styles.formContainer, { backgroundColor: colors.background }]}>
-          <Text style={[styles.signInLabel, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Sign in as</Text>
-          <View style={styles.roleGrid}>
-            {ROLES.map((r) => {
-              const active = selectedRole === r.role;
-              const isDir = r.role === 'director';
-              return (
-                <Pressable
-                  key={r.role}
-                  onPress={() => handleRoleSelect(r.role)}
-                  style={[styles.roleCard, {
-                    backgroundColor: active ? (isDir ? '#FEF9C3' : colors.card) : colors.muted,
-                    borderColor: active ? (isDir ? '#B45309' : colors.primary) : 'transparent',
-                    borderWidth: active ? 2 : 0,
-                    borderRadius: colors.radius,
-                  }]}
-                >
-                  <View style={[styles.roleIcon, {
-                    backgroundColor: active
-                      ? (isDir ? '#FDE68A' : colors.secondary)
-                      : colors.muted,
-                  }]}>
-                    <Feather name={r.icon as any} size={18} color={active ? (isDir ? '#B45309' : colors.primary) : colors.mutedForeground} />
-                  </View>
-                  <Text style={[styles.roleLabel, { color: active ? (isDir ? '#B45309' : colors.foreground) : colors.mutedForeground, fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular' }]}>
-                    {r.label}
-                  </Text>
-                  <Text style={[styles.roleSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>
-                    {r.subtitle}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+        <View style={s.body}>
 
-          <View style={styles.fields}>
-            {/* Staff geolocation banner */}
-            {isStaff && mode === 'login' && (
-              <View style={[styles.geoBanner, { backgroundColor: locationBannerConfig.bg, borderColor: locationBannerConfig.color + '40' }]}>
-                {locationState === 'acquiring' ? (
-                  <ActivityIndicator size="small" color={locationBannerConfig.color} />
-                ) : (
-                  <Feather name="map-pin" size={14} color={locationBannerConfig.color} />
-                )}
-                <Text style={[styles.geoBannerText, { color: locationBannerConfig.color, fontFamily: 'Inter_500Medium' }]}>
-                  {locationBannerConfig.text}
-                </Text>
-              </View>
-            )}
+          {!showInternal ? (
+            /* ── Public portal ─────────────────────────────────────────── */
+            <>
+              <Text style={[s.signInAs, { fontFamily: 'Inter_600SemiBold' }]}>Sign in as</Text>
 
-            {isWholesale && (
-              <View style={[styles.wholesaleToggle, { backgroundColor: colors.muted, borderRadius: 12 }]}>
-                <Pressable
-                  onPress={() => { setMode('login'); resetFields(); Haptics.selectionAsync(); }}
-                  style={[styles.wholesaleToggleBtn, { backgroundColor: !isWholesaleApply ? colors.card : 'transparent', borderRadius: 9 }]}
-                >
-                  <Text style={[{ fontFamily: !isWholesaleApply ? 'Inter_600SemiBold' : 'Inter_400Regular', fontSize: 13, color: !isWholesaleApply ? colors.foreground : colors.mutedForeground }]}>Sign In</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => { setMode('wholesale-apply'); resetFields(); Haptics.selectionAsync(); }}
-                  style={[styles.wholesaleToggleBtn, { backgroundColor: isWholesaleApply ? colors.card : 'transparent', borderRadius: 9 }]}
-                >
-                  <Text style={[{ fontFamily: isWholesaleApply ? 'Inter_600SemiBold' : 'Inter_400Regular', fontSize: 13, color: isWholesaleApply ? colors.foreground : colors.mutedForeground }]}>Apply for Account</Text>
-                </Pressable>
+              {/* 2-card role selector */}
+              <View style={s.roleRow}>
+                {PUBLIC_ROLES.map((r) => {
+                  const active = selectedRole === r.role;
+                  return (
+                    <Pressable
+                      key={r.role}
+                      onPress={() => { setSelectedRole(r.role); setMode('login'); clearPublic(); Haptics.selectionAsync(); }}
+                      style={[s.roleCard, { backgroundColor: CARD, borderColor: active ? BLUE : BORDER, borderWidth: active ? 2 : 1 }]}
+                    >
+                      <View style={[s.roleIconBox, { backgroundColor: active ? '#E6F7FE' : '#F5F6FA' }]}>
+                        <Feather name={r.icon as any} size={22} color={active ? BLUE : MUTED} />
+                      </View>
+                      <Text style={[s.roleLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? TEXT : MUTED }]}>
+                        {r.label}
+                      </Text>
+                      <Text style={[s.roleSub, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{r.subtitle}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-            )}
-            {(isRegister || isWholesaleApply) && (
-              <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
-                <Feather name="user" size={16} color={colors.mutedForeground} />
-                <TextInput
-                  style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-                  placeholder="Full name"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                />
-              </View>
-            )}
-            {isWholesaleApply && (
-              <>
-                <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
-                  <Feather name="briefcase" size={16} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-                    placeholder="Company name"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={companyName}
-                    onChangeText={setCompanyName}
-                    autoCapitalize="words"
-                  />
+
+              {/* Wholesale tab switcher */}
+              {isWholesale && (
+                <View style={[s.segControl, { backgroundColor: '#EFEFEF' }]}>
+                  {(['login', 'wholesale-apply'] as const).map((m) => (
+                    <Pressable
+                      key={m}
+                      onPress={() => { setMode(m); clearPublic(); Haptics.selectionAsync(); }}
+                      style={[s.segBtn, { backgroundColor: mode === m ? CARD : 'transparent' }]}
+                    >
+                      <Text style={[s.segBtnText, { fontFamily: mode === m ? 'Inter_600SemiBold' : 'Inter_400Regular', color: mode === m ? TEXT : MUTED }]}>
+                        {m === 'login' ? 'Sign In' : 'Apply for Account'}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
-                <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
-                  <Feather name="hash" size={16} color={colors.mutedForeground} />
-                  <TextInput
-                    style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-                    placeholder="ABN (optional)"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={abn}
-                    onChangeText={setAbn}
-                    keyboardType="numeric"
-                  />
-                </View>
-              </>
-            )}
-
-            <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
-              <Feather name="mail" size={16} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}
-                placeholder="Email address"
-                placeholderTextColor={colors.mutedForeground}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-              />
-            </View>
-
-            <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: 12 }]}>
-              <Feather name="lock" size={16} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.input, { color: colors.foreground, fontFamily: 'Inter_400Regular', flex: 1 }]}
-                placeholder="Password"
-                placeholderTextColor={colors.mutedForeground}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)}>
-                <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
-              </Pressable>
-            </View>
-
-            {error ? (
-              <View style={[styles.errorBox, { backgroundColor: '#FEF2F2', borderRadius: 10 }]}>
-                <Feather name="alert-circle" size={14} color="#EF4444" />
-                <Text style={[styles.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
-              </View>
-            ) : null}
-
-            {successMsg ? (
-              <View style={[styles.successBox, { backgroundColor: '#F0FDF4', borderRadius: 10 }]}>
-                <Feather name="check-circle" size={14} color="#22C55E" />
-                <Text style={[styles.successText, { fontFamily: 'Inter_400Regular' }]}>{successMsg}</Text>
-              </View>
-            ) : null}
-
-            <Pressable onPress={handleSubmit} disabled={loading} style={[styles.submitBtn, { backgroundColor: colors.primary, borderRadius: 14, opacity: loading ? 0.85 : 1 }]}>
-              {loading ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <ActivityIndicator color="#fff" size="small" />
-                  <Text style={[styles.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>{btnLabel}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>{btnLabel}</Text>
               )}
-            </Pressable>
 
-            {!isWholesale && !isDirector && (
-              <Pressable
-                onPress={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); Haptics.selectionAsync(); }}
-                style={{ alignItems: 'center', paddingVertical: 4 }}
-              >
-                <Text style={[styles.toggleText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                  {mode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
-                  <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
-                    {mode === 'register' ? 'Sign In' : 'Register'}
+              {/* Name field */}
+              {(mode === 'register' || isWholesaleApply) && (
+                <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <Feather name="user" size={16} color={MUTED} />
+                  <TextInput style={[s.input, { color: TEXT }]} placeholder="Full name" placeholderTextColor={MUTED} value={name} onChangeText={setName} autoCapitalize="words" />
+                </View>
+              )}
+
+              {/* Company + ABN */}
+              {isWholesaleApply && (
+                <>
+                  <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                    <Feather name="briefcase" size={16} color={MUTED} />
+                    <TextInput style={[s.input, { color: TEXT }]} placeholder="Company name" placeholderTextColor={MUTED} value={companyName} onChangeText={setCompanyName} autoCapitalize="words" />
+                  </View>
+                  <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                    <Feather name="hash" size={16} color={MUTED} />
+                    <TextInput style={[s.input, { color: TEXT }]} placeholder="ABN (optional)" placeholderTextColor={MUTED} value={abn} onChangeText={setAbn} keyboardType="numeric" />
+                  </View>
+                </>
+              )}
+
+              {/* Email */}
+              <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <Feather name="mail" size={16} color={MUTED} />
+                <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+              </View>
+
+              {/* Password */}
+              <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <Feather name="lock" size={16} color={MUTED} />
+                <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPw} />
+                <Pressable onPress={() => setShowPw(p => !p)}><Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
+              </View>
+
+              {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text></View> : null}
+              {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontFamily: 'Inter_400Regular' }]}>{successMsg}</Text></View> : null}
+
+              <Pressable onPress={handlePublicSubmit} disabled={loading} style={[s.submitBtn, { backgroundColor: BLUE, opacity: loading ? 0.85 : 1 }]}>
+                {loading ? <ActivityIndicator color="#fff" size="small" /> : (
+                  <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                    {isWholesaleApply ? 'Submit Application' : mode === 'register' ? 'Create Account' : 'Sign In'}
                   </Text>
-                </Text>
+                )}
               </Pressable>
-            )}
-            {isWholesale && !isWholesaleApply && (
-              <Pressable
-                onPress={() => { setMode('wholesale-apply'); resetFields(); Haptics.selectionAsync(); }}
-                style={{ alignItems: 'center', paddingVertical: 4 }}
-              >
-                <Text style={[styles.toggleText, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                  {"Don't have an account? "}
-                  <Text style={[{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>Apply for Wholesale</Text>
-                </Text>
-              </Pressable>
-            )}
-          </View>
 
-          {/* Demo credentials quick-fill */}
-          <View style={[styles.demoSection, { borderColor: '#E5E7EB' }]}>
-            <Text style={[styles.demoTitle, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>Demo accounts</Text>
-            <Text style={[styles.demoSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>Tap to auto-fill · password: Demo1234!</Text>
-            <View style={styles.demoGrid}>
-              {DEMO_CREDS.map((d) => (
-                <Pressable key={d.role} onPress={() => fillDemo(d)} style={[styles.demoPill, { backgroundColor: d.bg }]}>
-                  <Text style={[styles.demoPillText, { color: d.color, fontFamily: 'Inter_700Bold' }]}>{d.label}</Text>
+              {!isWholesale && (
+                <Pressable onPress={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); Haptics.selectionAsync(); }} style={{ alignItems: 'center', paddingVertical: 4 }}>
+                  <Text style={[s.toggleText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                    {mode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
+                    <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold' }}>{mode === 'register' ? 'Sign In' : 'Register'}</Text>
+                  </Text>
                 </Pressable>
-              ))}
-            </View>
-          </View>
+              )}
+
+              {/* Demo accounts */}
+              <View style={[s.demoSection, { borderColor: BORDER }]}>
+                <Text style={[s.demoTitle, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>Demo accounts</Text>
+                <Text style={[s.demoSub, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Tap to auto-fill · password: Demo1234!</Text>
+                <View style={s.demoGrid}>
+                  {DEMO_CREDS.map((d) => (
+                    <Pressable key={d.role} onPress={() => fillDemo(d)} style={[s.demoPill, { backgroundColor: d.bg }]}>
+                      <Text style={[s.demoPillText, { color: d.color, fontFamily: 'Inter_700Bold' }]}>{d.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* Internal access link */}
+              <Pressable
+                onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); setGeoStatus('idle'); Haptics.selectionAsync(); }}
+                style={{ alignItems: 'center', paddingVertical: 8 }}
+              >
+                <Text style={[s.internalLink, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                  Staff / Internal Access  →
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            /* ── Internal portal (Staff & Director) ─────────────────── */
+            <>
+              {/* Back */}
+              <Pressable onPress={() => { setShowInternal(false); setIError(''); setGeoStatus('idle'); Haptics.selectionAsync(); }} style={s.backBtn}>
+                <Feather name="arrow-left" size={18} color={TEXT} />
+                <Text style={[s.backText, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Back</Text>
+              </Pressable>
+
+              {/* Dark header */}
+              <View style={[s.internalHeader, { backgroundColor: NAVY }]}>
+                <View style={s.internalBadgeRow}>
+                  <Feather name="shield" size={13} color="rgba(255,255,255,0.6)" />
+                  <Text style={[s.internalBadgeTxt, { fontFamily: 'Inter_700Bold' }]}>INTERNAL ACCESS</Text>
+                </View>
+                <Text style={[s.internalTitle, { fontFamily: 'Inter_700Bold' }]}>Staff & Director Sign In</Text>
+                <Text style={[s.internalSub, { fontFamily: 'Inter_400Regular' }]}>
+                  Your role is automatically determined by your credentials.
+                </Text>
+              </View>
+
+              {/* Geo status banner */}
+              {geoStatus === 'acquiring' && (
+                <View style={[s.geoBanner, { backgroundColor: '#EFF6FF', borderColor: '#3B82F680' }]}>
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <Text style={[s.geoText, { fontFamily: 'Inter_400Regular', color: '#3B82F6' }]}>Getting your location…</Text>
+                </View>
+              )}
+              {geoStatus === 'ready' && (
+                <View style={[s.geoBanner, { backgroundColor: '#F0FDF4', borderColor: '#22C55E80' }]}>
+                  <Feather name="check-circle" size={14} color={GREEN} />
+                  <Text style={[s.geoText, { fontFamily: 'Inter_400Regular', color: GREEN }]}>Location verified</Text>
+                </View>
+              )}
+              {geoStatus === 'denied' && (
+                <View style={[s.geoBanner, { backgroundColor: '#FEF2F2', borderColor: '#EF444480' }]}>
+                  <Feather name="alert-circle" size={14} color="#EF4444" />
+                  <Text style={[s.geoText, { fontFamily: 'Inter_400Regular', color: '#EF4444' }]}>Location denied — enable in Settings</Text>
+                </View>
+              )}
+
+              {/* Email */}
+              <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <Feather name="mail" size={16} color={MUTED} />
+                <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={iEmail} onChangeText={setIEmail} keyboardType="email-address" autoCapitalize="none" autoFocus />
+              </View>
+
+              {/* Password */}
+              <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <Feather name="lock" size={16} color={MUTED} />
+                <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={iPassword} onChangeText={setIPassword} secureTextEntry={!iShowPw} />
+                <Pressable onPress={() => setIShowPw(p => !p)}><Feather name={iShowPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
+              </View>
+
+              {iError ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{iError}</Text></View> : null}
+
+              <Pressable onPress={handleInternalSubmit} disabled={iLoading} style={[s.submitBtn, { backgroundColor: NAVY, opacity: iLoading ? 0.8 : 1 }]}>
+                {iLoading ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <ActivityIndicator color="#fff" size="small" />
+                    <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                      {geoStatus === 'acquiring' ? 'Getting location…' : 'Signing in…'}
+                    </Text>
+                  </View>
+                ) : <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>Sign In</Text>}
+              </Pressable>
+
+              {/* Geo note */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 2 }}>
+                <Feather name="map-pin" size={11} color={MUTED} style={{ marginTop: 1 }} />
+                <Text style={[s.geoNote, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                  Staff must be within range of Butterfield Merrylands. Demo accounts bypass this check.
+                </Text>
+              </View>
+
+              {/* Internal demo strip */}
+              <View style={[s.demoSection, { borderColor: BORDER }]}>
+                <Text style={[s.demoTitle, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>Demo accounts</Text>
+                <View style={s.demoGrid}>
+                  {DEMO_CREDS.filter(d => d.internal).map((d) => (
+                    <Pressable key={d.role} onPress={() => fillDemo(d)} style={[s.demoPill, { backgroundColor: d.bg }]}>
+                      <Text style={[s.demoPillText, { color: d.color, fontFamily: 'Inter_700Bold' }]}>{d.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  heroSection:      { alignItems: 'center', paddingBottom: 32, gap: 6 },
-  logoBox:          { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  brand:            { color: '#fff', fontSize: 30, letterSpacing: -0.5 },
-  tagline:          { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
-  formContainer:    { flex: 1, paddingHorizontal: 20, paddingTop: 28, gap: 20, paddingBottom: 40 },
-  signInLabel:      { fontSize: 15 },
-  roleGrid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  roleCard:         { width: '47.5%', padding: 12, gap: 5, alignItems: 'center' },
-  roleIcon:         { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  roleLabel:        { fontSize: 13 },
-  roleSub:          { fontSize: 10, textAlign: 'center', color: '#8E8E93' },
-  fields:           { gap: 12 },
-  geoBanner:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
-  geoBannerText:    { flex: 1, fontSize: 12, lineHeight: 17 },
-  inputRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1 },
-  input:            { flex: 1, fontSize: 15 },
-  errorBox:         { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
-  errorText:        { flex: 1, color: '#EF4444', fontSize: 13 },
-  successBox:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12 },
-  successText:      { flex: 1, color: '#22C55E', fontSize: 13 },
-  submitBtn:        { height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  submitBtnText:    { color: '#fff', fontSize: 16 },
-  toggleText:       { fontSize: 14, textAlign: 'center' },
-  wholesaleToggle:  { flexDirection: 'row', padding: 4, gap: 4 },
-  wholesaleToggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  demoSection:      { borderTopWidth: 1, paddingTop: 18, gap: 10 },
-  demoTitle:        { fontSize: 13 },
-  demoSub:          { fontSize: 11, marginTop: -4 },
-  demoGrid:         { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  demoPill:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  demoPillText:     { fontSize: 13, letterSpacing: 0.3 },
+const s = StyleSheet.create({
+  hero:          { alignItems: 'center', paddingBottom: 36, gap: 6 },
+  logoBox:       { width: 68, height: 68, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  brand:         { color: '#fff', fontSize: 30, letterSpacing: -0.5 },
+  tagline:       { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
+  body:          { flex: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
+  signInAs:      { fontSize: 15, color: TEXT },
+  roleRow:       { flexDirection: 'row', gap: 12 },
+  roleCard:      { flex: 1, padding: 16, gap: 8, alignItems: 'center', borderRadius: 16 },
+  roleIconBox:   { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  roleLabel:     { fontSize: 15 },
+  roleSub:       { fontSize: 11, textAlign: 'center' },
+  segControl:    { flexDirection: 'row', padding: 4, gap: 4, borderRadius: 13 },
+  segBtn:        { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 },
+  segBtnText:    { fontSize: 13 },
+  inputRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1, borderRadius: 12 },
+  input:         { flex: 1, fontSize: 15 },
+  errorBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
+  errorText:     { flex: 1, color: '#EF4444', fontSize: 13 },
+  successBox:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#F0FDF4', borderRadius: 10 },
+  successText:   { flex: 1, color: GREEN, fontSize: 13 },
+  submitBtn:     { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  submitBtnText: { color: '#fff', fontSize: 16 },
+  toggleText:    { fontSize: 14, textAlign: 'center' },
+  demoSection:   { borderTopWidth: 1, paddingTop: 16, gap: 8 },
+  demoTitle:     { fontSize: 12, letterSpacing: 0.5 },
+  demoSub:       { fontSize: 11 },
+  demoGrid:      { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  demoPill:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  demoPillText:  { fontSize: 13, letterSpacing: 0.3 },
+  internalLink:  { fontSize: 13 },
+  backBtn:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  backText:      { fontSize: 15 },
+  internalHeader:  { padding: 20, gap: 8, borderRadius: 16 },
+  internalBadgeRow:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
+  internalBadgeTxt:{ color: 'rgba(255,255,255,0.6)', fontSize: 11, letterSpacing: 1.5 },
+  internalTitle:   { color: '#fff', fontSize: 22 },
+  internalSub:     { color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 18 },
+  geoBanner:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
+  geoText:       { flex: 1, fontSize: 13 },
+  geoNote:       { flex: 1, fontSize: 11, lineHeight: 16 },
 });
