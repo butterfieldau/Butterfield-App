@@ -90,7 +90,7 @@ export default function LoginScreen() {
       if (mode === 'register') {
         const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() || undefined });
         if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
-        router.replace('/(customer)');
+        router.replace('/(customer)/');
       } else if (mode === 'wholesale-apply') {
         const res = await wholesaleApply({ email: email.trim(), password, name: name.trim(), companyName: companyName.trim(), abn: abn.trim() || undefined });
         if (!res.success) { setError(res.error ?? 'Application failed.'); return; }
@@ -99,7 +99,7 @@ export default function LoginScreen() {
       } else {
         const res = await login(email.trim(), password, selectedRole);
         if (!res.success) { setError(res.error ?? 'Login failed. Check your credentials.'); return; }
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/');
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
