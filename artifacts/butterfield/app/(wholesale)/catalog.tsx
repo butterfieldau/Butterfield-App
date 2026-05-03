@@ -20,6 +20,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
+import {
+  formatDateChip,
+  formatTime,
+  getDeliveryDates,
+  getPickupDates,
+  getPickupTimeMins,
+  getSydneyNow,
+  isSameDay,
+} from '@/lib/dateUtils';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -34,78 +43,6 @@ const WHOLESALE_TIERS = [
   { minQty: 25, label: 'Bulk (25+)',  discount: 0.2 },
   { minQty: 50, label: 'Volume (50+)',discount: 0.3 },
 ];
-
-function getSydneyNow(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-}
-
-function formatDateChip(syd: Date, d: Date): string {
-  if (d.getDate() === syd.getDate() && d.getMonth() === syd.getMonth() && d.getFullYear() === syd.getFullYear()) return 'Today';
-  const tom = new Date(syd); tom.setDate(syd.getDate() + 1);
-  if (d.getDate() === tom.getDate() && d.getMonth() === tom.getMonth()) return 'Tomorrow';
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function formatTime(totalMins: number): string {
-  const h = Math.floor(totalMins / 60);
-  const m = totalMins % 60;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
-}
-
-function getPickupDates(): Date[] {
-  const syd = getSydneyNow();
-  const dates: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(syd); d.setDate(d.getDate() + i); d.setHours(0, 0, 0, 0);
-    if (i === 0) {
-      const nowMins = syd.getHours() * 60 + syd.getMinutes();
-      if (nowMins + 180 <= 19 * 60) dates.push(d);
-    } else {
-      dates.push(d);
-    }
-  }
-  return dates;
-}
-
-function getPickupTimeMins(date: Date, syd: Date): number[] {
-  const sameDay = date.getDate() === syd.getDate() && date.getMonth() === syd.getMonth() && date.getFullYear() === syd.getFullYear();
-  const minAllowed = sameDay ? syd.getHours() * 60 + syd.getMinutes() + 180 : 0;
-  const slots: number[] = [];
-  for (let h = 10; h <= 19; h++) {
-    const limit = h === 19 ? 1 : 60;
-    for (let m = 0; m < limit; m += 30) {
-      const t = h * 60 + m;
-      if (t >= minAllowed) slots.push(t);
-    }
-  }
-  return slots;
-}
-
-interface DeliveryDate { date: Date; label: string; available: boolean; note?: string }
-
-function getDeliveryDates(): DeliveryDate[] {
-  const syd = getSydneyNow();
-  const results: DeliveryDate[] = [];
-  for (let i = 1; i <= 28 && results.length < 6; i++) {
-    const d = new Date(syd); d.setDate(d.getDate() + i); d.setHours(0, 0, 0, 0);
-    const day = d.getDay();
-    const label = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-    if (day === 1) {
-      const cutoff = new Date(d); cutoff.setDate(d.getDate() - 2); cutoff.setHours(17, 0, 0, 0);
-      const available = syd.getTime() < cutoff.getTime();
-      results.push({ date: d, label, available, note: available ? undefined : 'Order closed (Sat 5pm)' });
-    } else if (day === 4) {
-      results.push({ date: d, label, available: true });
-    }
-  }
-  return results;
-}
-
-function isSameDay(a: Date, b: Date) {
-  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-}
 
 function getPrice(p: ApiProduct): number { return (p.prices?.[0]?.unit_amount ?? 0) / 100; }
 function getWholesalePrice(basePrice: number, qty: number): number {
@@ -363,7 +300,7 @@ export default function WholesaleCatalog() {
                   const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
                   return (
                     <Pressable
-                      key={slot.label}
+                      key={slot.date.toISOString()}
                       disabled={!slot.available}
                       onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
                       style={[styles.datePill, {
@@ -397,7 +334,7 @@ export default function WholesaleCatalog() {
                   const lbl = formatDateChip(sydNow, d);
                   return (
                     <Pressable
-                      key={lbl}
+                      key={d.toISOString()}
                       onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
                       style={[styles.datePill, {
                         borderColor: isSelected ? BLUE : BORDER,
@@ -478,7 +415,7 @@ export default function WholesaleCatalog() {
           data={filtered}
           keyExtractor={(p) => p.id}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 120 }}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: cart.length > 0 ? 110 : 40 }}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
               <Feather name="package" size={32} color={BORDER} />
@@ -493,6 +430,40 @@ export default function WholesaleCatalog() {
             />
           )}
         />
+      )}
+
+      {/* Floating cart bar — visible on catalog list when cart has items */}
+      {cart.length > 0 && !showCart && (
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowCart(true); }}
+          style={[styles.floatingCart, { paddingBottom: insets.bottom + 10 }]}
+        >
+          <LinearGradient
+            colors={['#40C0F2', '#2398D8']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={styles.floatingCartInner}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={styles.floatingCartBadge}>
+                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }}>
+                  {cart.reduce((s, e) => s + e.quantity, 0)}
+                </Text>
+              </View>
+              <View>
+                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>View Cart</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>
+                  {cart.length} line item{cart.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17 }}>
+                ${(totalCents / 100).toFixed(2)}
+              </Text>
+              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.85)" />
+            </View>
+          </LinearGradient>
+        </Pressable>
       )}
     </KeyboardAvoidingView>
   );
@@ -513,4 +484,19 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 },
   datePill: { paddingHorizontal: 14, paddingVertical: 10 },
   input: { padding: 14, fontSize: 14 },
+  floatingCart: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16, paddingTop: 10,
+    backgroundColor: 'rgba(245,246,250,0.95)',
+    borderTopWidth: 1, borderTopColor: '#E5E7EB',
+  },
+  floatingCartInner: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 15, borderRadius: 18,
+    shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+  },
+  floatingCartBadge: {
+    backgroundColor: '#fff', borderRadius: 10, minWidth: 30, height: 30,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+  },
 });

@@ -18,92 +18,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
+import {
+  formatDateChip,
+  formatTime,
+  getDeliveryDates,
+  getPickupDates,
+  getPickupTimeMins,
+  getSydneyNow,
+  isSameDay,
+} from '@/lib/dateUtils';
 import { useQueryClient } from '@tanstack/react-query';
 
 const ORDER_TYPES = [
   { id: 'pickup', label: 'Pickup', icon: 'map-pin' },
   { id: 'delivery', label: 'Delivery', icon: 'truck' },
 ];
-
-function getSydneyNow(): Date {
-  const now = new Date();
-  return new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-}
-
-function formatDateChip(syd: Date, d: Date): string {
-  if (d.getDate() === syd.getDate() && d.getMonth() === syd.getMonth() && d.getFullYear() === syd.getFullYear()) return 'Today';
-  const tom = new Date(syd); tom.setDate(syd.getDate() + 1);
-  if (d.getDate() === tom.getDate() && d.getMonth() === tom.getMonth()) return 'Tomorrow';
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-function formatTime(totalMins: number): string {
-  const h = Math.floor(totalMins / 60);
-  const m = totalMins % 60;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
-}
-
-function getPickupDates(): Date[] {
-  const syd = getSydneyNow();
-  const dates: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(syd);
-    d.setDate(d.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    if (i === 0) {
-      const nowMins = syd.getHours() * 60 + syd.getMinutes();
-      if (nowMins + 180 <= 19 * 60) dates.push(d);
-    } else {
-      dates.push(d);
-    }
-  }
-  return dates;
-}
-
-function getPickupTimeMins(date: Date, syd: Date): number[] {
-  const sameDay =
-    date.getDate() === syd.getDate() &&
-    date.getMonth() === syd.getMonth() &&
-    date.getFullYear() === syd.getFullYear();
-  const minAllowed = sameDay ? syd.getHours() * 60 + syd.getMinutes() + 180 : 0;
-  const slots: number[] = [];
-  for (let h = 10; h <= 19; h++) {
-    const limit = h === 19 ? 1 : 60;
-    for (let m = 0; m < limit; m += 30) {
-      const t = h * 60 + m;
-      if (t >= minAllowed) slots.push(t);
-    }
-  }
-  return slots;
-}
-
-interface DeliveryDate { date: Date; label: string; available: boolean; note?: string }
-
-function getDeliveryDates(): DeliveryDate[] {
-  const syd = getSydneyNow();
-  const results: DeliveryDate[] = [];
-  for (let i = 1; i <= 28 && results.length < 6; i++) {
-    const d = new Date(syd);
-    d.setDate(d.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    const day = d.getDay();
-    const label = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-    if (day === 1) {
-      const cutoff = new Date(d); cutoff.setDate(d.getDate() - 2); cutoff.setHours(17, 0, 0, 0);
-      const available = syd.getTime() < cutoff.getTime();
-      results.push({ date: d, label, available, note: available ? undefined : 'Order closed (Sat 5pm)' });
-    } else if (day === 4) {
-      results.push({ date: d, label, available: true });
-    }
-  }
-  return results;
-}
-
-function isSameDay(a: Date, b: Date) {
-  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-}
 
 interface OrderConfirmation {
   orderId: string;
@@ -272,7 +201,7 @@ export default function CartScreen() {
                   const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
                   return (
                     <Pressable
-                      key={slot.label}
+                      key={slot.date.toISOString()}
                       disabled={!slot.available}
                       onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
                       style={[styles.datePill, {
