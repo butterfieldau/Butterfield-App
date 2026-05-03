@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
 
-const BG = '#FFF8F0';
+const BG = '#F5F6FA';
 const BLUE_CARD = '#40C0F2';
 const BLUE_DARK = '#2AA8DC';
 const BRAND = '#40C0F2';
