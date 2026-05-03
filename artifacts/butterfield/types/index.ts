@@ -17,7 +17,7 @@ export interface User {
 export interface Product {
   id: string;
   name: string;
-  category: 'cookies' | 'coffee' | 'desserts' | 'bundles' | 'sandwiches';
+  category: 'cookies' | 'coffee' | 'desserts' | 'bundles' | 'sandwiches' | 'merch';
   price: number;
   wholesalePrice?: number;
   wholesalePriceTiers?: { minQty: number; price: number }[];

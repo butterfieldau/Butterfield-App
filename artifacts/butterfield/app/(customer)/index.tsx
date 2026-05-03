@@ -29,6 +29,33 @@ const CATEGORIES = [
   { id: 'bundles', label: 'Bundles' },
 ];
 
+const MERCH = [
+  {
+    id: 'merch-retro-shirt',
+    name: 'Retro Shirt',
+    price: 50,
+    image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldNEWTEE.jpg?v=1766964759&width=600',
+  },
+  {
+    id: 'merch-bucket-hat',
+    name: 'Bucket Hat',
+    price: 20,
+    image: 'https://butterfieldcookies.com.au/cdn/shop/files/butterefieldhat2.jpg?v=1764301783&width=600',
+  },
+  {
+    id: 'merch-chunky-hoodie',
+    name: 'Chunky Hoodie',
+    price: 80,
+    image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldHoodiesBack.png?v=1751264789&width=600',
+  },
+  {
+    id: 'merch-sugar-crew-tee',
+    name: 'Sugar Crew Tee',
+    price: 40,
+    image: 'https://butterfieldcookies.com.au/cdn/shop/files/SugarCrewTeam2.jpg?v=1751264285&width=600',
+  },
+];
+
 const PRODUCT_IMAGES: Record<string, string> = {
   'Choc Chip Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_ChocChip_2880x2304_0fb8e9b6-eb1d-4afe-97f5-0fca062170a8.jpg?v=1764302334&width=600',
   'Pistachio Cookie': 'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Pistachio_2880x2304_22fcddc2-bd6f-48b2-b5c0-cfe6528a14b5.jpg?v=1764302160&width=600',
@@ -176,6 +203,35 @@ export default function CustomerHome() {
         </LinearGradient>
       </View>
 
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Merch</Text>
+        <FlatList
+          data={MERCH}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(m) => m.id}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+          renderItem={({ item }) => (
+            <Pressable
+              style={[styles.merchCard, { backgroundColor: colors.card, borderRadius: colors.radius }]}
+              onPress={() => {
+                addItem({ id: item.id, name: item.name, category: 'merch', price: item.price, description: '', available: true, gradient: ['#40C0F2', '#2AA8DC'] });
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <Image source={{ uri: item.image }} style={[styles.merchImage, { borderRadius: colors.radius - 2 }]} resizeMode="cover" />
+              <Text style={[styles.merchName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{item.name}</Text>
+              <View style={styles.merchBottom}>
+                <Text style={[styles.merchPrice, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>${item.price.toFixed(2)}</Text>
+                <View style={[styles.addBtn, { backgroundColor: colors.primary, borderRadius: 10 }]}>
+                  <Feather name="plus" size={14} color="#fff" />
+                </View>
+              </View>
+            </Pressable>
+          )}
+        />
+      </View>
+
       {popular.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Fan Favourites</Text>
@@ -254,6 +310,11 @@ const styles = StyleSheet.create({
   favImage: { width: '100%', height: 80 },
   favName: { fontSize: 13 },
   favPrice: { fontSize: 13 },
+  merchCard: { width: 150, padding: 10, gap: 8, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  merchImage: { width: '100%', height: 110 },
+  merchName: { fontSize: 13 },
+  merchBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  merchPrice: { fontSize: 14 },
   catScroll: { marginTop: 24 },
   catPill: { paddingHorizontal: 16, paddingVertical: 8 },
   catLabel: { fontSize: 13 },
