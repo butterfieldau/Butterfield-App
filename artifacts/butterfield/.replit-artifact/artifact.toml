@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "Butterfield Cookies"
+version = "1.0.0"
+id = "artifacts/butterfield"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 19639
+
+[services.development]
+run = "pnpm --filter @workspace/butterfield run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/butterfield", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/butterfield", "run", "serve" ]
+
+[services.env]
+PORT = "19639"
+BASE_PATH = "/"

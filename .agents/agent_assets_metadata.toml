@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "EfwPUeuT8Ex7nkwI1HBrs"
+uri = "file://artifacts/butterfield/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "ycrqQUTvzjcnjaHIckyTz"
+uri = "file://artifacts/butterfield/assets/images/cookie-hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "ftuZdk4UG_LvTnT8NrueW"
+uri = "file://artifacts/butterfield/assets/images/coffee-hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "r8a2sz_S3I7GEKAMg3Ukb"
+uri = "file://artifacts/butterfield/assets/images/dessert-hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "RabgNy3GPTy2jQ-1AsPCe"
+uri = "file://artifacts/butterfield/assets/images/cafe-hero.png"
+type = "image"
+title = "generated_image"
