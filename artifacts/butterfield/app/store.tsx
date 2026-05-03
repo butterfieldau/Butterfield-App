@@ -15,6 +15,18 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 
+function getSydneyNow(): Date {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+}
+
+function isStoreOpen(): boolean {
+  const syd = getSydneyNow();
+  const day = syd.getDay();
+  if (day === 0) return false;
+  const mins = syd.getHours() * 60 + syd.getMinutes();
+  return mins >= 600 && mins < 1080;
+}
+
 const STORE_LAT = -33.8360;
 const STORE_LNG = 150.9878;
 const ADDRESS = '2 Main Lane, Merrylands NSW 2160';
@@ -44,6 +56,7 @@ function openInMaps() {
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const storeOpen = isStoreOpen();
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -79,6 +92,12 @@ export default function StoreScreen() {
           <Text style={[styles.visitLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>VISIT US</Text>
           <Text style={[styles.storeName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Butterfield Cookies</Text>
           <Text style={[styles.storeAddress, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{ADDRESS}</Text>
+          <View style={[styles.openBadge, { backgroundColor: storeOpen ? '#DCFCE7' : '#FEE2E2' }]}>
+            <View style={[styles.openDot, { backgroundColor: storeOpen ? '#22C55E' : '#EF4444' }]} />
+            <Text style={[styles.openText, { color: storeOpen ? '#15803D' : '#DC2626', fontFamily: 'Inter_600SemiBold' }]}>
+              {storeOpen ? 'Open now · Mon–Sat 10am–6pm' : 'Closed · Mon–Sat 10am–6pm'}
+            </Text>
+          </View>
 
           <View style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
             <View style={[styles.addrIconWrap, { backgroundColor: '#E6F4FF' }]}>
@@ -156,6 +175,9 @@ const styles = StyleSheet.create({
   visitLabel: { fontSize: 12, letterSpacing: 1 },
   storeName: { fontSize: 30, lineHeight: 34, marginTop: -4 },
   storeAddress: { fontSize: 14, marginTop: 2 },
+  openBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignSelf: 'flex-start' },
+  openDot: { width: 8, height: 8, borderRadius: 4 },
+  openText: { fontSize: 13 },
 
   addressCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, marginTop: 4 },
   addrIconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },

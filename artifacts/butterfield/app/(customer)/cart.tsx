@@ -25,33 +25,84 @@ const ORDER_TYPES = [
   { id: 'delivery', label: 'Delivery', icon: 'truck' },
 ];
 
-function getNextAvailableSlots(): { label: string; date: Date }[] {
-  const slots: { label: string; date: Date }[] = [];
+function getSydneyNow(): Date {
   const now = new Date();
-  const minTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  return new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+}
 
-  let d = new Date(minTime);
-  while (slots.length < 4) {
-    const day = d.getDay();
-    if (day === 1) {
-      const slot8 = new Date(d); slot8.setHours(8, 0, 0, 0);
-      const slot12 = new Date(d); slot12.setHours(12, 0, 0, 0);
-      const slot16 = new Date(d); slot16.setHours(16, 0, 0, 0);
-      if (slot8 > minTime) slots.push({ label: `Mon ${slot8.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} 8am`, date: slot8 });
-      if (slot12 > minTime && slots.length < 4) slots.push({ label: `Mon ${slot12.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} 12pm`, date: slot12 });
-      if (slot16 > minTime && slots.length < 4) slots.push({ label: `Mon ${slot16.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} 4pm`, date: slot16 });
+function formatDateChip(syd: Date, d: Date): string {
+  if (d.getDate() === syd.getDate() && d.getMonth() === syd.getMonth() && d.getFullYear() === syd.getFullYear()) return 'Today';
+  const tom = new Date(syd); tom.setDate(syd.getDate() + 1);
+  if (d.getDate() === tom.getDate() && d.getMonth() === tom.getMonth()) return 'Tomorrow';
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function formatTime(totalMins: number): string {
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function getPickupDates(): Date[] {
+  const syd = getSydneyNow();
+  const dates: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(syd);
+    d.setDate(d.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    if (i === 0) {
+      const nowMins = syd.getHours() * 60 + syd.getMinutes();
+      if (nowMins + 180 <= 19 * 60) dates.push(d);
+    } else {
+      dates.push(d);
     }
-    if (day === 4) {
-      const slot8 = new Date(d); slot8.setHours(8, 0, 0, 0);
-      const slot12 = new Date(d); slot12.setHours(12, 0, 0, 0);
-      if (slot8 > minTime && slots.length < 4) slots.push({ label: `Thu ${slot8.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} 8am`, date: slot8 });
-      if (slot12 > minTime && slots.length < 4) slots.push({ label: `Thu ${slot12.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} 12pm`, date: slot12 });
-    }
-    d.setDate(d.getDate() + 1);
-    if (slots.length > 4) break;
-    if (d.getTime() - now.getTime() > 30 * 24 * 60 * 60 * 1000) break;
   }
-  return slots.slice(0, 4);
+  return dates;
+}
+
+function getPickupTimeMins(date: Date, syd: Date): number[] {
+  const sameDay =
+    date.getDate() === syd.getDate() &&
+    date.getMonth() === syd.getMonth() &&
+    date.getFullYear() === syd.getFullYear();
+  const minAllowed = sameDay ? syd.getHours() * 60 + syd.getMinutes() + 180 : 0;
+  const slots: number[] = [];
+  for (let h = 10; h <= 19; h++) {
+    const limit = h === 19 ? 1 : 60;
+    for (let m = 0; m < limit; m += 30) {
+      const t = h * 60 + m;
+      if (t >= minAllowed) slots.push(t);
+    }
+  }
+  return slots;
+}
+
+interface DeliveryDate { date: Date; label: string; available: boolean; note?: string }
+
+function getDeliveryDates(): DeliveryDate[] {
+  const syd = getSydneyNow();
+  const results: DeliveryDate[] = [];
+  for (let i = 1; i <= 28 && results.length < 6; i++) {
+    const d = new Date(syd);
+    d.setDate(d.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay();
+    const label = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (day === 1) {
+      const cutoff = new Date(d); cutoff.setDate(d.getDate() - 2); cutoff.setHours(17, 0, 0, 0);
+      const available = syd.getTime() < cutoff.getTime();
+      results.push({ date: d, label, available, note: available ? undefined : 'Order closed (Sat 5pm)' });
+    } else if (day === 4) {
+      results.push({ date: d, label, available: true });
+    }
+  }
+  return results;
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
 }
 
 interface OrderConfirmation {
@@ -68,19 +119,44 @@ export default function CartScreen() {
   const queryClient = useQueryClient();
 
   const [orderType, setOrderType] = useState<'pickup' | 'delivery'>('pickup');
-  const [selectedSlot, setSelectedSlot] = useState<{ label: string; date: Date } | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmation, setConfirmation] = useState<OrderConfirmation | null>(null);
 
-  const slots = getNextAvailableSlots();
+  const sydNow = getSydneyNow();
+  const pickupDates = getPickupDates();
+  const deliveryDates = getDeliveryDates();
+  const pickupTimes = selectedDate ? getPickupTimeMins(selectedDate, sydNow) : [];
   const totalCents = Math.round(totalPrice * 100);
 
   const handleCheckout = async () => {
-    if (!selectedSlot && orderType === 'delivery') {
-      Alert.alert('Select a delivery slot', 'Please choose a delivery time to continue.');
-      return;
+    if (orderType === 'pickup') {
+      if (!selectedDate || selectedTimeMins === null) {
+        Alert.alert('Select pickup time', 'Please choose a date and time for your pickup.');
+        return;
+      }
+    } else {
+      if (!selectedDate) {
+        Alert.alert('Select delivery day', 'Please choose a delivery date to continue.');
+        return;
+      }
     }
+
+    let scheduledForDate: Date | undefined;
+    let scheduledLabel: string | undefined;
+
+    if (orderType === 'pickup' && selectedDate && selectedTimeMins !== null) {
+      const d = new Date(selectedDate);
+      d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
+      scheduledForDate = d;
+      scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)} at ${formatTime(selectedTimeMins)}`;
+    } else if (orderType === 'delivery' && selectedDate) {
+      scheduledForDate = selectedDate;
+      scheduledLabel = `Delivery on ${selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    }
+
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
@@ -95,7 +171,7 @@ export default function CartScreen() {
       const order = await api.orders.create({
         items: orderItems,
         type: orderType,
-        scheduledFor: selectedSlot?.date.toISOString(),
+        scheduledFor: scheduledForDate?.toISOString(),
         notes: notes.trim() || undefined,
         totalCents,
       });
@@ -104,12 +180,7 @@ export default function CartScreen() {
       queryClient.invalidateQueries({ queryKey: ['loyalty-profile'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setConfirmation({
-        orderId: order.data.id,
-        total: totalPrice,
-        type: orderType,
-        scheduledLabel: selectedSlot?.label,
-      });
+      setConfirmation({ orderId: order.data.id, total: totalPrice, type: orderType, scheduledLabel });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
     } finally {
@@ -120,32 +191,28 @@ export default function CartScreen() {
   if (confirmation) {
     return (
       <View style={[styles.successContainer, { backgroundColor: colors.background, paddingTop: Platform.OS === 'web' ? 80 : insets.top + 40 }]}>
-        <LinearGradient colors={['#4B72C4', '#3058A8']} style={styles.successIcon}>
+        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
           <Feather name="check" size={36} color="#fff" />
         </LinearGradient>
         <Text style={[styles.successTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Order Received!</Text>
         <Text style={[styles.successOrderId, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>
           #{confirmation.orderId.slice(0, 8).toUpperCase()}
         </Text>
-
         <View style={[styles.importantBox, { backgroundColor: '#FFF8E7', borderColor: '#F0A030', borderRadius: colors.radius }]}>
           <Feather name="alert-circle" size={18} color="#D97706" style={{ marginTop: 2 }} />
           <Text style={[styles.importantText, { fontFamily: 'Inter_500Medium' }]}>
-            Your order is not ready until you receive confirmation from our team. Please wait for your pickup notification before coming in.
+            Your order is not ready until you receive confirmation from our team. Please wait for your notification before coming in.
           </Text>
         </View>
-
         {confirmation.scheduledLabel && (
           <View style={[styles.slotBox, { backgroundColor: colors.card, borderRadius: colors.radius }]}>
             <Feather name="clock" size={16} color={colors.primary} />
             <Text style={[styles.slotText, { color: colors.foreground, fontFamily: 'Inter_500Medium' }]}>{confirmation.scheduledLabel}</Text>
           </View>
         )}
-
         <Text style={[styles.successSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
           Total: ${confirmation.total.toFixed(2)}
         </Text>
-
         <Pressable onPress={() => setConfirmation(null)} style={[styles.continueBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]}>
           <Text style={[styles.continueBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Continue Shopping</Text>
         </Pressable>
@@ -168,7 +235,7 @@ export default function CartScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Your Cart</Text>
           <Text style={[styles.headerSub, { fontFamily: 'Inter_400Regular' }]}>{totalItems} item{totalItems !== 1 ? 's' : ''}</Text>
         </LinearGradient>
@@ -178,7 +245,8 @@ export default function CartScreen() {
           <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Order type</Text>
           <View style={styles.typeRow}>
             {ORDER_TYPES.map((t) => (
-              <Pressable key={t.id} onPress={() => { setOrderType(t.id as any); Haptics.selectionAsync(); }}
+              <Pressable key={t.id}
+                onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
                 style={[styles.typeBtn, { borderRadius: colors.radius, borderColor: orderType === t.id ? colors.primary : colors.border, borderWidth: orderType === t.id ? 2 : 1, backgroundColor: orderType === t.id ? colors.card : colors.background }]}>
                 <Feather name={t.icon as any} size={18} color={orderType === t.id ? colors.primary : colors.mutedForeground} />
                 <Text style={[styles.typeBtnLabel, { color: orderType === t.id ? colors.foreground : colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>{t.label}</Text>
@@ -186,22 +254,107 @@ export default function CartScreen() {
             ))}
           </View>
 
-          {/* Delivery Slot */}
+          {/* Scheduling */}
           <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
-            {orderType === 'delivery' ? 'Delivery slot' : 'Pickup time'} <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 12 }}>(Mon & Thu, 8am–4pm)</Text>
+            {orderType === 'delivery' ? 'Delivery day' : 'Pickup date & time'}
           </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {slots.map((slot) => (
-              <Pressable key={slot.label} onPress={() => { setSelectedSlot(slot); Haptics.selectionAsync(); }}
-                style={[styles.slotPill, {
-                  borderRadius: 20, borderColor: selectedSlot?.label === slot.label ? colors.primary : colors.border,
-                  backgroundColor: selectedSlot?.label === slot.label ? colors.primary : colors.card,
-                  borderWidth: selectedSlot?.label === slot.label ? 2 : 1,
-                }]}>
-                <Text style={[styles.slotPillText, { color: selectedSlot?.label === slot.label ? '#fff' : colors.foreground, fontFamily: 'Inter_500Medium' }]}>{slot.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+
+          {orderType === 'delivery' ? (
+            <>
+              <View style={[styles.infoRow, { backgroundColor: '#E6F4FF', borderRadius: colors.radius }]}>
+                <Feather name="truck" size={14} color={colors.primary} />
+                <Text style={[styles.infoText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
+                  Mon & Thu delivery · Monday orders close Sat 5pm
+                </Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {deliveryDates.map((slot) => {
+                  const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
+                  return (
+                    <Pressable
+                      key={slot.label}
+                      disabled={!slot.available}
+                      onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
+                      style={[styles.datePill, {
+                        borderRadius: 20,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: isSelected ? colors.primary : !slot.available ? colors.background : colors.card,
+                        borderWidth: isSelected ? 2 : 1,
+                        opacity: slot.available ? 1 : 0.5,
+                      }]}
+                    >
+                      <Text style={[styles.datePillText, { color: isSelected ? '#fff' : !slot.available ? colors.mutedForeground : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>
+                        {slot.label}
+                      </Text>
+                      {slot.note && (
+                        <Text style={[styles.datePillSub, { color: colors.mutedForeground }]}>{slot.note}</Text>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          ) : (
+            <>
+              <View style={[styles.infoRow, { backgroundColor: '#E6F4FF', borderRadius: colors.radius }]}>
+                <Feather name="clock" size={14} color={colors.primary} />
+                <Text style={[styles.infoText, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
+                  10am – 7pm · 30-min slots · At least 3 hrs ahead
+                </Text>
+              </View>
+
+              {/* Date row */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {pickupDates.map((d) => {
+                  const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
+                  const lbl = formatDateChip(sydNow, d);
+                  return (
+                    <Pressable
+                      key={lbl}
+                      onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+                      style={[styles.datePill, {
+                        borderRadius: 20,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: isSelected ? colors.primary : colors.card,
+                        borderWidth: isSelected ? 2 : 1,
+                      }]}
+                    >
+                      <Text style={[styles.datePillText, { color: isSelected ? '#fff' : colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{lbl}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Time row */}
+              {selectedDate && (
+                <>
+                  <Text style={[styles.subLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>Select a time</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {pickupTimes.length === 0 ? (
+                      <Text style={[styles.noSlots, { color: colors.mutedForeground }]}>No slots available — choose another day</Text>
+                    ) : pickupTimes.map((mins) => {
+                      const lbl = formatTime(mins);
+                      const isSelected = selectedTimeMins === mins;
+                      return (
+                        <Pressable
+                          key={mins}
+                          onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
+                          style={[styles.datePill, {
+                            borderRadius: 20,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                            backgroundColor: isSelected ? colors.primary : colors.card,
+                            borderWidth: isSelected ? 2 : 1,
+                          }]}
+                        >
+                          <Text style={[styles.datePillText, { color: isSelected ? '#fff' : colors.foreground, fontFamily: 'Inter_500Medium' }]}>{lbl}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              )}
+            </>
+          )}
 
           {/* Cart Items */}
           <Text style={[styles.label, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>Items</Text>
@@ -252,7 +405,7 @@ export default function CartScreen() {
           </View>
 
           <Pressable onPress={handleCheckout} disabled={loading} style={[styles.checkoutBtn, { borderRadius: colors.radius }]}>
-            <LinearGradient colors={['#4B72C4', '#3058A8']} style={[styles.checkoutGradient, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+            <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.checkoutGradient, { borderRadius: colors.radius }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <>
                   <Feather name="credit-card" size={18} color="#fff" />
@@ -291,11 +444,16 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 20 },
   emptySub: { fontSize: 14 },
   label: { fontSize: 15, marginTop: 8 },
+  subLabel: { fontSize: 13, marginTop: 4 },
   typeRow: { flexDirection: 'row', gap: 12 },
   typeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   typeBtnLabel: { fontSize: 14 },
-  slotPill: { paddingHorizontal: 16, paddingVertical: 10 },
-  slotPillText: { fontSize: 13 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  infoText: { fontSize: 13, flex: 1 },
+  datePill: { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
+  datePillText: { fontSize: 13 },
+  datePillSub: { fontSize: 10, marginTop: 2 },
+  noSlots: { fontSize: 13, paddingVertical: 10 },
   cartItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   cartItemImage: { width: 48, height: 48, borderRadius: 10 },
   cartItemInfo: { flex: 1, gap: 2 },

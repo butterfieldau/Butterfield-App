@@ -22,6 +22,14 @@ import { useColors } from '@/hooks/useColors';
 import { api, type ApiProduct } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
+function isStoreOpen(): boolean {
+  const syd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const day = syd.getDay();
+  if (day === 0) return false;
+  const mins = syd.getHours() * 60 + syd.getMinutes();
+  return mins >= 600 && mins < 1080;
+}
+
 const CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'cookies', label: 'Cookies' },
@@ -216,6 +224,12 @@ export default function CustomerHome() {
           <View style={{ flex: 1 }}>
             <Text style={[styles.pickupLabel, { fontFamily: 'Inter_600SemiBold', color: colors.primary }]}>IN-STORE PICKUP</Text>
             <Text style={[styles.pickupTitle, { fontFamily: 'Inter_700Bold', color: colors.foreground }]} numberOfLines={1}>Butterfield Cookies — Merrylands</Text>
+            <View style={styles.openRow}>
+              <View style={[styles.openDot, { backgroundColor: isStoreOpen() ? '#22C55E' : '#EF4444' }]} />
+              <Text style={[styles.openText, { color: isStoreOpen() ? '#15803D' : '#DC2626', fontFamily: 'Inter_500Medium' }]}>
+                {isStoreOpen() ? 'Open now' : 'Closed'}
+              </Text>
+            </View>
           </View>
           <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
         </Pressable>
@@ -363,6 +377,9 @@ const styles = StyleSheet.create({
   pickupIconWrap: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#E6F4FF', alignItems: 'center', justifyContent: 'center' },
   pickupLabel: { fontSize: 11, letterSpacing: 0.8, marginBottom: 2 },
   pickupTitle: { fontSize: 15 },
+  openRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  openDot: { width: 7, height: 7, borderRadius: 4 },
+  openText: { fontSize: 12 },
   quickRow: { flexDirection: 'row', gap: 10 },
   quickTile: { flex: 1, alignItems: 'center', paddingVertical: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   quickIconCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
