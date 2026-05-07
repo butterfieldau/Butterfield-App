@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -174,7 +174,19 @@ export default function DirectorControlCentre() {
                   </Pressable>
                 )}
                 {(s?.issues.high ?? 0) > 0 && (
-                  <Pressable style={styles.alertRow}>
+                  <Pressable
+                    style={styles.alertRow}
+                    onPress={() =>
+                      Alert.alert(
+                        `${s?.issues.high} High-Priority Issue${s?.issues.high !== 1 ? 's' : ''}`,
+                        'Staff-submitted issues are managed through the Staff Portal.\n\nAsk your on-duty manager to review and resolve open issues, or approve a staff account to give them access.',
+                        [
+                          { text: 'View Staff', onPress: () => router.navigate('/(director)/users' as any) },
+                          { text: 'Dismiss', style: 'cancel' },
+                        ],
+                      )
+                    }
+                  >
                     <Feather name="alert-triangle" size={13} color="#991B1B" />
                     <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.issues.high} high-priority issue{s?.issues.high !== 1 ? 's' : ''} open</Text>
                     <Text style={[styles.reviewLink, { fontFamily: 'Inter_700Bold', color: '#991B1B' }]}>View →</Text>

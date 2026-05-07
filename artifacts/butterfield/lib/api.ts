@@ -87,7 +87,17 @@ export const api = {
       request<{ data: any }>('/staff/issues', { method: 'POST', body: JSON.stringify(data) }),
     submitLeave:  (data: any) =>
       request<{ data: any }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
-    members:      () => request<{ data: any[] }>('/staff/members'),
+    members:      () => request<{ data: StaffMember[] }>('/staff/members'),
+    timesheet:    (from?: string, to?: string, userId?: string) => {
+      const params = new URLSearchParams();
+      if (from)   params.set('from', from);
+      if (to)     params.set('to', to);
+      if (userId) params.set('userId', userId);
+      const qs = params.toString();
+      return request<{ data: StaffShift[]; staff?: StaffMember[]; isManager: boolean; profile?: any }>(
+        `/staff/timesheet${qs ? `?${qs}` : ''}`,
+      );
+    },
     geoSettings: {
       get:    () => request<{ data: GeoSettings }>('/staff/settings/geo'),
       update: (radiusMeters: number) =>
@@ -277,5 +287,28 @@ export interface StaffProfile {
   position: string;
   department: string;
   isManager: boolean;
+  hourlyRateCents: number;
+}
+
+export interface StaffShift {
+  id: string;
+  userId: string;
+  clockIn: string;
+  clockOut?: string | null;
+  hoursWorked?: string | null;
+  unpaidBreakMins?: number | null;
+  createdAt?: string;
+  hourlyRateCents?: number | null;
+  position?: string | null;
+  name?: string | null;
+}
+
+export interface StaffMember {
+  userId: string;
+  employeeId?: string;
+  name?: string | null;
+  email?: string | null;
+  position?: string | null;
+  isManager?: boolean;
   hourlyRateCents: number;
 }

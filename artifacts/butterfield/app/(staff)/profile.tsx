@@ -61,7 +61,6 @@ export default function StaffProfileScreen() {
       await api.staff.geoSettings.update(radius);
       await refetchGeo();
       qc.invalidateQueries({ queryKey: ['staff-geo-settings'] });
-      Feather;
       setGeoModal(false);
       Alert.alert('Saved', `Sign-in radius updated to ${radius}m.`);
     } catch (e: any) {
