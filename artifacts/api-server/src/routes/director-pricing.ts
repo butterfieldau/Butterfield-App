@@ -13,8 +13,8 @@ import { requireRole } from '../middlewares/auth.js';
 import { calculateWholesalePrice, loadPriceContextForAccount } from '../lib/wholesalePricing.js';
 
 const router = Router();
-// Director-only on every endpoint here
-router.use(requireRole('director'));
+// Directors and managers can read; mutations are director-only and checked per-route
+router.use(requireRole('director', 'manager'));
 
 // ── Pricing tiers CRUD ───────────────────────────────────────────────────────
 router.get('/tiers', async (_req, res) => {

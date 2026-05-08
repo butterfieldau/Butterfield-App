@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, storeSettingsTable } from '@workspace/db';
+import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
@@ -262,13 +262,26 @@ router.post('/leave', async (req, res) => {
 });
 
 router.get('/orders', async (req, res) => {
-  const [customerOrders, wholesaleOrders] = await Promise.all([
+  const [customerOrders, wholesaleOrders, allUsers, wsAccounts] = await Promise.all([
     db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100),
     db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(50),
+    db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable),
+    db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName }).from(wholesaleAccountsTable),
   ]);
+  const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
+  const wsMap   = Object.fromEntries(wsAccounts.map(w => [w.userId, w]));
   const all = [
-    ...customerOrders.map(o => ({ ...o, orderSource: 'customer' as const })),
-    ...wholesaleOrders.map(wo => ({ ...wo, type: 'wholesale', orderSource: 'wholesale' as const })),
+    ...customerOrders.map(o => ({
+      ...o,
+      orderSource:  'customer' as const,
+      customerName: userMap[o.userId]?.name ?? null,
+    })),
+    ...wholesaleOrders.map(wo => ({
+      ...wo,
+      type:         'wholesale',
+      orderSource:  'wholesale' as const,
+      customerName: wsMap[wo.userId]?.companyName ?? userMap[wo.userId]?.name ?? null,
+    })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 150);
   return res.json({ data: all });
 });

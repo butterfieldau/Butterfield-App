@@ -1,10 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Pressable,
-  RefreshControl, StyleSheet, Text, View,
+  ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -14,17 +15,9 @@ const BLUE   = '#40C0F2';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const GREEN  = '#22C55E';
 
-const STATUSES = [
-  { key: 'all',              label: 'All' },
-  { key: 'received',         label: 'Pending' },
-  { key: 'being_prepared',   label: 'Preparing' },
-  { key: 'ready_for_pickup', label: 'Ready' },
-  { key: 'completed',        label: 'Done' },
-  { key: 'wholesale',        label: 'Wholesale' },
-  { key: 'cancelled',        label: 'Cancelled' },
-];
-
+// ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   received:         { bg: '#FEF9C3', text: '#854D0E' },
   being_prepared:   { bg: '#EDE9FE', text: '#5B21B6' },
@@ -38,203 +31,635 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   dispatched:       { bg: '#EDE9FE', text: '#5B21B6' },
   delivered:        { bg: '#DCFCE7', text: '#166534' },
 };
-
-const CUSTOMER_NEXT: Record<string, string[]> = {
-  received:         ['being_prepared','cancelled'],
-  being_prepared:   ['ready_for_pickup','cancelled'],
-  ready_for_pickup: ['completed','out_for_delivery'],
-  out_for_delivery: ['completed'],
-  completed:        [],
-  cancelled:        [],
-};
-
-const WHOLESALE_NEXT: Record<string, string[]> = {
-  pending:    ['processing','cancelled'],
-  processing: ['dispatched','cancelled'],
-  dispatched: ['delivered'],
-  delivered:  [],
-  cancelled:  [],
-};
-
 const STATUS_LABEL: Record<string, string> = {
   received: 'Pending', being_prepared: 'Preparing',
-  ready_for_pickup: 'Ready for Pickup', out_for_delivery: 'Out for Delivery',
+  ready_for_pickup: 'Ready', out_for_delivery: 'Out for Delivery',
   completed: 'Completed', cancelled: 'Cancelled', refunded: 'Refunded',
   pending: 'Pending', processing: 'Processing',
   dispatched: 'Dispatched', delivered: 'Delivered',
 };
+const CUSTOMER_NEXT: Record<string, string[]> = {
+  received:         ['being_prepared', 'cancelled'],
+  being_prepared:   ['ready_for_pickup', 'cancelled'],
+  ready_for_pickup: ['completed', 'out_for_delivery'],
+  out_for_delivery: ['completed'],
+  completed: [], cancelled: [], refunded: [],
+};
+const WHOLESALE_NEXT: Record<string, string[]> = {
+  pending:    ['processing', 'cancelled'],
+  processing: ['dispatched', 'cancelled'],
+  dispatched: ['delivered'],
+  delivered: [], cancelled: [],
+};
 
+const FILTER_TABS = [
+  { key: 'all',              label: 'All' },
+  { key: 'active',           label: 'Active' },
+  { key: 'received',         label: 'Pending' },
+  { key: 'being_prepared',   label: 'Preparing' },
+  { key: 'ready_for_pickup', label: 'Ready' },
+  { key: 'completed',        label: 'Done' },
+  { key: 'wholesale',        label: 'Wholesale' },
+  { key: 'cancelled',        label: 'Cancelled' },
+];
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function startOfDay(d: Date) {
+  const r = new Date(d); r.setHours(0,0,0,0); return r;
+}
+function isSameDay(a: Date | string, b: Date) {
+  const ad = new Date(a);
+  return ad.getFullYear() === b.getFullYear() &&
+    ad.getMonth() === b.getMonth() && ad.getDate() === b.getDate();
+}
+function isThisWeek(d: Date | string) {
+  const date = new Date(d);
+  const now  = new Date();
+  const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+  return date >= weekAgo;
+}
+function fmtTime(d: Date | string) {
+  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDateChip(d: Date) {
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  if (isSameDay(d, today)) return 'Today';
+  if (isSameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function getPastDays(n: number) {
+  const days: Date[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
+    days.push(d);
+  }
+  return days;
+}
+
+// ── Order Detail Modal ────────────────────────────────────────────────────────
+function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
+  order: any; visible: boolean; onClose: () => void;
+  onStatusChange: (id: string, status: string) => Promise<void>;
+}) {
+  const insets = useSafeAreaInsets();
+  const [updating, setUpdating] = useState(false);
+  if (!order) return null;
+
+  const isWholesale = order.orderSource === 'wholesale';
+  const items = Array.isArray(order.items) ? order.items : [];
+  const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
+  const label  = STATUS_LABEL[order.status] ?? order.status;
+  const next   = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
+
+  const handleChangeStatus = () => {
+    if (next.length === 0) {
+      Alert.alert('Status', `This order is ${label} and cannot be advanced further.`); return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Update Status', 'Move to:', [
+      ...next.map(s => ({
+        text: STATUS_LABEL[s] ?? s,
+        onPress: async () => {
+          setUpdating(true);
+          await onStatusChange(order.id, s);
+          setUpdating(false);
+        },
+      })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  };
+
+  const discountCents = order.discountCents ?? 0;
+  const loyaltyUsed  = order.loyaltyPointsUsed ?? 0;
+  const loyaltyEarned = order.loyaltyPointsEarned ?? 0;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        {/* Header */}
+        <View style={[styles.modalHeader, { paddingTop: insets.top + 12, backgroundColor: CARD, borderBottomColor: BORDER }]}>
+          <Pressable onPress={onClose} style={styles.closeBtn}>
+            <Feather name="x" size={20} color={TEXT} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.modalTitle}>
+              {isWholesale
+                ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
+                : `#BC-${order.id.slice(-6).toUpperCase()}`}
+            </Text>
+            <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>
+              {new Date(order.createdAt).toLocaleDateString('en-AU', {
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+              })} · {fmtTime(order.createdAt)}
+            </Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+
+          {/* Status + change button */}
+          <View style={[styles.section, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View>
+              <Text style={styles.sectionLabel}>Status</Text>
+              <View style={[styles.statusPill, { backgroundColor: colors.bg, marginTop: 4 }]}>
+                <Text style={[styles.statusPillText, { color: colors.text }]}>{label}</Text>
+              </View>
+            </View>
+            {next.length > 0 && (
+              <Pressable onPress={handleChangeStatus} disabled={updating}
+                style={[styles.updateStatusBtn, { backgroundColor: updating ? MUTED : BLUE }]}>
+                {updating
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <>
+                      <Feather name="edit-3" size={13} color="#fff" />
+                      <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Update Status</Text>
+                    </>}
+              </Pressable>
+            )}
+          </View>
+
+          {/* Customer / Account */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{isWholesale ? 'Account' : 'Customer'}</Text>
+            <View style={{ gap: 4, marginTop: 6 }}>
+              {order.customerName && (
+                <View style={styles.detailRow}>
+                  <Feather name={isWholesale ? 'briefcase' : 'user'} size={14} color={MUTED} />
+                  <Text style={styles.detailText}>{order.customerName}</Text>
+                </View>
+              )}
+              {order.customerEmail && (
+                <View style={styles.detailRow}>
+                  <Feather name="mail" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>{order.customerEmail}</Text>
+                </View>
+              )}
+              {order.customerPhone && (
+                <View style={styles.detailRow}>
+                  <Feather name="phone" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>{order.customerPhone}</Text>
+                </View>
+              )}
+              {order.companyAbn && (
+                <View style={styles.detailRow}>
+                  <Feather name="hash" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>ABN: {order.companyAbn}</Text>
+                </View>
+              )}
+              {isWholesale && order.poReference && (
+                <View style={styles.detailRow}>
+                  <Feather name="file-text" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>PO: {order.poReference}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Delivery / Pickup */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>
+              {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery Details' : 'Pickup Details'}
+            </Text>
+            <View style={{ gap: 4, marginTop: 6 }}>
+              <View style={styles.detailRow}>
+                <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={MUTED} />
+                <Text style={styles.detailText}>
+                  {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
+                </Text>
+              </View>
+              {(order.deliveryAddress || order.street) && (
+                <View style={styles.detailRow}>
+                  <Feather name="navigation" size={14} color={MUTED} />
+                  <Text style={[styles.detailText, { flex: 1 }]}>
+                    {order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ')}
+                  </Text>
+                </View>
+              )}
+              {order.scheduledDate && (
+                <View style={styles.detailRow}>
+                  <Feather name="calendar" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>
+                    {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </Text>
+                </View>
+              )}
+              {order.contactName && (
+                <View style={styles.detailRow}>
+                  <Feather name="user" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>{order.contactName}</Text>
+                </View>
+              )}
+              {order.contactPhone && (
+                <View style={styles.detailRow}>
+                  <Feather name="phone" size={14} color={MUTED} />
+                  <Text style={styles.detailText}>{order.contactPhone}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Items */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Items ({items.length})</Text>
+            <View style={{ gap: 0, marginTop: 6 }}>
+              {items.map((item: any, i: number) => {
+                const qty  = item.qty ?? item.quantity ?? 0;
+                const name = item.productName ?? item.name ?? `Item ${i + 1}`;
+                const unit = item.unitPriceCents ?? item.priceCents ?? 0;
+                const line = item.totalCents ?? (unit * qty);
+                return (
+                  <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 14 }]}>{name}</Text>
+                      <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>
+                        {qty} × ${(unit / 100).toFixed(2)}
+                        {item.priceLabel ? ` · ${item.priceLabel}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
+                      ${(line / 100).toFixed(2)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Financial summary */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Summary</Text>
+            <View style={{ gap: 6, marginTop: 6 }}>
+              {discountCents > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Discount</Text>
+                  <Text style={[{ color: GREEN, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>−${(discountCents / 100).toFixed(2)}</Text>
+                </View>
+              )}
+              {loyaltyUsed > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Points redeemed</Text>
+                  <Text style={[{ color: GREEN, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>−{loyaltyUsed} pts</Text>
+                </View>
+              )}
+              <View style={[{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }]}>
+                <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }]}>Total</Text>
+                <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 15 }]}>
+                  AUD ${((order.totalCents ?? 0) / 100).toFixed(2)}
+                </Text>
+              </View>
+              {loyaltyEarned > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Points earned</Text>
+                  <Text style={[{ color: '#F59E0B', fontFamily: 'Inter_500Medium', fontSize: 12 }]}>+{loyaltyEarned} pts</Text>
+                </View>
+              )}
+              {isWholesale && order.isPaid != null && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Payment</Text>
+                  <Text style={[{ color: order.isPaid ? GREEN : '#EF4444', fontFamily: 'Inter_500Medium', fontSize: 12 }]}>
+                    {order.isPaid ? 'Paid' : 'Awaiting Payment'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Notes */}
+          {order.notes ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Notes</Text>
+              <Text style={[{ color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
+                {order.notes}
+              </Text>
+            </View>
+          ) : null}
+
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Order Card (compact list item) ───────────────────────────────────────────
+function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
+  const isWholesale = order.orderSource === 'wholesale';
+  const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
+  const label  = STATUS_LABEL[order.status] ?? order.status;
+  const items  = Array.isArray(order.items) ? order.items : [];
+  const next   = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
+
+  const itemSummary = items.slice(0, 3).map((it: any) => {
+    const name = it.productName ?? it.name ?? 'Item';
+    const qty  = it.qty ?? it.quantity ?? 1;
+    return `${qty}× ${name}`;
+  }).join(', ') + (items.length > 3 ? ` +${items.length - 3} more` : '');
+
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, { opacity: pressed ? 0.92 : 1 }]}>
+      <View style={[styles.orderCardAccent, { backgroundColor: colors.bg }]}>
+        <View style={styles.orderCardTop}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.orderId}>
+                {isWholesale
+                  ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
+                  : `#BC-${order.id.slice(-6).toUpperCase()}`}
+              </Text>
+              {isWholesale && (
+                <View style={{ backgroundColor: '#DCFCE7', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                  <Text style={{ color: '#166534', fontFamily: 'Inter_700Bold', fontSize: 9 }}>WHOLESALE</Text>
+                </View>
+              )}
+            </View>
+            {order.customerName && (
+              <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12 }]}>{order.customerName}</Text>
+            )}
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            <View style={[{ backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.text + '40', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }]}>
+              <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>{label}</Text>
+            </View>
+            <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>
+              ${((order.totalCents ?? 0) / 100).toFixed(2)}
+            </Text>
+          </View>
+        </View>
+        <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
+          {itemSummary || 'No items'}
+        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={11} color={MUTED} />
+            <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+              {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'} · {fmtTime(order.createdAt)}
+            </Text>
+          </View>
+          {next.length > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Feather name="chevron-right" size={12} color={BLUE} />
+              <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>Tap to manage</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Section header ────────────────────────────────────────────────────────────
+function SectionHeader({ title, count }: { title: string; count: number }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{title}</Text>
+      <View style={[{ backgroundColor: `${BLUE}18`, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }]}>
+        <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 11 }]}>{count}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter]         = useState('all');
+  const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['director-orders'],
     queryFn: () => api.director.orders(),
-    refetchInterval: 15000,
+    refetchInterval: 20000,
   });
 
   const allOrders = data?.data ?? [];
-  const orders = (() => {
+
+  // Apply status filter
+  const statusFiltered = useMemo(() => {
     if (filter === 'all') return allOrders;
+    if (filter === 'active') return allOrders.filter((o: any) =>
+      ['received','being_prepared','ready_for_pickup','pending','processing','dispatched'].includes(o.status)
+    );
     if (filter === 'wholesale') return allOrders.filter((o: any) => o.orderSource === 'wholesale');
     return allOrders.filter((o: any) => o.status === filter);
-  })();
+  }, [allOrders, filter]);
 
-  const changeStatus = async (orderId: string, status: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+
+  const todayOrders = useMemo(() =>
+    statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)),
+    [statusFiltered, today]
+  );
+  const thisWeekOrders = useMemo(() =>
+    statusFiltered.filter((o: any) => isThisWeek(o.createdAt) && !isSameDay(o.createdAt, today)),
+    [statusFiltered, today]
+  );
+  const dateOrders = useMemo(() =>
+    statusFiltered.filter((o: any) => isSameDay(o.createdAt, selectedDate)),
+    [statusFiltered, selectedDate]
+  );
+
+  const pastDays = useMemo(() => getPastDays(30), []);
+
+  const handleStatusChange = async (orderId: string, status: string) => {
     try {
       await api.director.updateOrderStatus(orderId, status);
       await qc.invalidateQueries({ queryKey: ['director-orders'] });
       await qc.invalidateQueries({ queryKey: ['director-stats'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Update selectedOrder state locally so modal reflects new status
+      setSelectedOrder((prev: any) => prev ? { ...prev, status } : null);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
   };
 
-  const promptStatus = (order: any) => {
-    const isWholesale = order.orderSource === 'wholesale';
-    const next = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
-    if (next.length === 0) return;
-    const ref = isWholesale
-      ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()} (Wholesale)`
-      : `#BC-${order.id.slice(-6).toUpperCase()}`;
-    Alert.alert(
-      `Update ${ref}`,
-      'Move to:',
-      [
-        ...next.map((s) => ({ text: STATUS_LABEL[s] ?? s, onPress: () => changeStatus(order.id, s) })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ],
-    );
-  };
+  const totalToday = statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Status filter chips */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
           horizontal
-          data={STATUSES}
+          data={FILTER_TABS}
           keyExtractor={(s) => s.key}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
           renderItem={({ item }) => {
             const active = filter === item.key;
-            const color = item.key === 'wholesale' ? '#22C55E' : BLUE;
+            const color = item.key === 'wholesale' ? GREEN : item.key === 'active' ? '#F59E0B' : BLUE;
             return (
               <Pressable
                 onPress={() => { setFilter(item.key); Haptics.selectionAsync(); }}
-                style={[styles.filterChip, {
-                  backgroundColor: active ? color : BG,
-                  borderColor: active ? color : BORDER,
-                }]}
+                style={[styles.filterChip, { backgroundColor: active ? color : BG, borderColor: active ? color : BORDER }]}
               >
-                <Text style={[styles.filterChipText, { color: active ? '#fff' : MUTED }]}>{item.label}</Text>
+                <Text style={[{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: active ? '#fff' : MUTED }]}>
+                  {item.label}
+                </Text>
               </Pressable>
             );
           }}
         />
       </View>
 
+      {/* Date view selector */}
+      <View style={[styles.dateBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+        {([
+          { key: 'today', label: `Today (${totalToday})` },
+          { key: 'week',  label: 'This Week' },
+          { key: 'date',  label: 'Pick Date' },
+        ] as const).map((m) => {
+          const active = viewMode === m.key;
+          return (
+            <Pressable
+              key={m.key}
+              onPress={() => { setViewMode(m.key); if (m.key === 'date') setShowDatePicker(v => !v); else setShowDatePicker(false); Haptics.selectionAsync(); }}
+              style={[styles.dateTab, { borderBottomWidth: 2, borderBottomColor: active ? BLUE : 'transparent' }]}
+            >
+              <Text style={[{ fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular', fontSize: 13, color: active ? BLUE : MUTED }]}>
+                {m.key === 'date' && viewMode === 'date' ? fmtDateChip(selectedDate) : m.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Date picker row (shown when Pick Date is active) */}
+      {viewMode === 'date' && (
+        <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
+            {pastDays.map((d) => {
+              const isActive = isSameDay(d, selectedDate);
+              const label = fmtDateChip(d);
+              const count = statusFiltered.filter((o: any) => isSameDay(o.createdAt, d)).length;
+              return (
+                <Pressable
+                  key={d.toISOString()}
+                  onPress={() => { setSelectedDate(d); Haptics.selectionAsync(); }}
+                  style={[styles.dayChip, { backgroundColor: isActive ? BLUE : BG, borderColor: isActive ? BLUE : BORDER }]}
+                >
+                  <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: isActive ? '#fff' : TEXT }]}>{label}</Text>
+                  <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 10, color: isActive ? 'rgba(255,255,255,0.8)' : MUTED }]}>
+                    {count} order{count !== 1 ? 's' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Content */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={BLUE} />
+          <ActivityIndicator color={BLUE} size="large" />
         </View>
       ) : (
-        <FlatList
-          data={orders}
-          keyExtractor={(o: any) => o.id}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 0, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
-              <Feather name="inbox" size={40} color={MUTED} />
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>No orders</Text>
-            </View>
-          }
-          renderItem={({ item: order }) => {
-            const isWholesale = (order as any).orderSource === 'wholesale';
-            const colors = STATUS_COLORS[(order as any).status] ?? { bg: '#F3F4F6', text: '#6B7280' };
-            const label  = STATUS_LABEL[(order as any).status] ?? (order as any).status;
-            const next   = isWholesale
-              ? (WHOLESALE_NEXT[(order as any).status] ?? [])
-              : (CUSTOMER_NEXT[(order as any).status] ?? []);
-            const total  = (((order as any).totalCents ?? 0) / 100).toFixed(2);
-            const items  = Array.isArray((order as any).items) ? (order as any).items : [];
-            return (
-              <Pressable
-                onPress={() => promptStatus(order)}
-                style={[styles.orderCard, { backgroundColor: CARD, borderColor: BORDER }]}
-              >
-                <View style={styles.orderTop}>
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.orderId}>
-                        {isWholesale
-                          ? `#${(order as any).poReference ?? (order as any).id.slice(0, 8).toUpperCase()}`
-                          : `#BC-${(order as any).id.slice(-6).toUpperCase()}`}
-                      </Text>
-                      {isWholesale && (
-                        <View style={{ backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                          <Text style={{ color: '#166534', fontFamily: 'Inter_700Bold', fontSize: 9 }}>WHOLESALE</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.orderMeta}>
-                      {new Date((order as any).createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      {' · '}{isWholesale ? ((order as any).deliveryType ?? 'delivery') : ((order as any).type ?? 'pickup')}
-                    </Text>
-                    {items.length > 0 && (
-                      <Text style={[styles.orderMeta, { marginTop: 2 }]}>
-                        {items.slice(0, 2).map((it: any) =>
-                          `${it.qty ?? it.quantity ?? '?'}× ${it.productName ?? it.name ?? 'Item'}`
-                        ).join(', ')}
-                        {items.length > 2 ? ` +${items.length - 2} more` : ''}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                    <View style={[styles.statusPill, { backgroundColor: colors.bg }]}>
-                      <Text style={[styles.statusPillText, { color: colors.text }]}>{label}</Text>
-                    </View>
-                    <Text style={styles.totalText}>AUD ${total}</Text>
-                  </View>
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        >
+          {viewMode === 'today' && (
+            <>
+              <SectionHeader title="Today's Orders" count={todayOrders.length} />
+              {todayOrders.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Feather name="coffee" size={28} color={BORDER} />
+                  <Text style={styles.emptyText}>No orders today yet</Text>
                 </View>
-                {(order as any).deliveryAddress && (
-                  <View style={styles.addrRow}>
-                    <Feather name="map-pin" size={11} color={MUTED} />
-                    <Text style={styles.addrText} numberOfLines={1}>{(order as any).deliveryAddress}</Text>
-                  </View>
-                )}
-                {next.length > 0 && (
-                  <View style={[styles.actionHint, { borderTopColor: BORDER }]}>
-                    <Feather name="edit-3" size={11} color={BLUE} />
-                    <Text style={[styles.actionHintText, { color: BLUE }]}>Tap to update status</Text>
-                  </View>
-                )}
-              </Pressable>
-            );
-          }}
-        />
+              ) : (
+                todayOrders.map((o: any) => (
+                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                ))
+              )}
+            </>
+          )}
+
+          {viewMode === 'week' && (
+            <>
+              <SectionHeader title="Today's Orders" count={todayOrders.length} />
+              {todayOrders.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Text style={styles.emptyText}>No orders today yet</Text>
+                </View>
+              ) : (
+                todayOrders.map((o: any) => (
+                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                ))
+              )}
+              <View style={{ height: 8 }} />
+              <SectionHeader title="Earlier This Week" count={thisWeekOrders.length} />
+              {thisWeekOrders.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Text style={styles.emptyText}>No other orders this week</Text>
+                </View>
+              ) : (
+                thisWeekOrders.map((o: any) => (
+                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                ))
+              )}
+            </>
+          )}
+
+          {viewMode === 'date' && (
+            <>
+              <SectionHeader title={fmtDateChip(selectedDate)} count={dateOrders.length} />
+              {dateOrders.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Feather name="calendar" size={28} color={BORDER} />
+                  <Text style={styles.emptyText}>No orders on this date</Text>
+                </View>
+              ) : (
+                dateOrders.map((o: any) => (
+                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                ))
+              )}
+            </>
+          )}
+        </ScrollView>
       )}
+
+      {/* Order detail modal */}
+      <OrderDetailModal
+        order={selectedOrder}
+        visible={!!selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        onStatusChange={handleStatusChange}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  filterChip:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  filterChipText:  { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  orderCard:       { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
-  orderTop:        { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  orderId:         { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  orderMeta:       { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  statusPill:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  statusPillText:  { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  totalText:       { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  addrRow:         { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  addrText:        { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  actionHint:      { flexDirection: 'row', alignItems: 'center', gap: 5, borderTopWidth: 1, paddingTop: 8 },
-  actionHintText:  { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  filterChip:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  dateBar:        { flexDirection: 'row', borderBottomWidth: 1 },
+  dateTab:        { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  dayChip:        { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, minWidth: 80 },
+  orderCard:      { marginBottom: 10 },
+  orderCardAccent:{ borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  orderCardTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  orderId:        { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT },
+  sectionHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 4 },
+  sectionHeaderText: { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT, flex: 1 },
+  emptySection:   { alignItems: 'center', paddingVertical: 28, gap: 8 },
+  emptyText:      { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 },
+  // Modal
+  modalHeader:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
+  modalTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT },
+  closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  section:        { backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  sectionLabel:   { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statusPill:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' },
+  statusPillText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  updateStatusBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
+  detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  detailText:     { color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
+  itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },
 });

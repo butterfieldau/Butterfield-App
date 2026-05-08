@@ -148,16 +148,34 @@ router.get('/activity', async (req, res) => {
   return res.json({ data: events });
 });
 
-// ── All orders (customer + wholesale merged) ─────────────────────────────────
+// ── All orders (customer + wholesale merged, enriched with customer info) ─────
 router.get('/orders', async (req, res) => {
-  const [customerOrders, wholesaleOrders] = await Promise.all([
-    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(200),
-    db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(100),
+  const [customerOrders, wholesaleOrders, allUsers, wsAccounts] = await Promise.all([
+    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(300),
+    db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(150),
+    db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone }).from(usersTable),
+    db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName, abn: wholesaleAccountsTable.abn }).from(wholesaleAccountsTable),
   ]);
+  const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
+  const wsMap   = Object.fromEntries(wsAccounts.map(w => [w.userId, w]));
   const all = [
-    ...customerOrders.map(o => ({ ...o, orderSource: 'customer' as const })),
-    ...wholesaleOrders.map(wo => ({ ...wo, type: 'wholesale', orderSource: 'wholesale' as const })),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 200);
+    ...customerOrders.map(o => ({
+      ...o,
+      orderSource:   'customer' as const,
+      customerName:  userMap[o.userId]?.name  ?? null,
+      customerEmail: userMap[o.userId]?.email ?? null,
+      customerPhone: userMap[o.userId]?.phone ?? null,
+    })),
+    ...wholesaleOrders.map(wo => ({
+      ...wo,
+      type:          'wholesale',
+      orderSource:   'wholesale' as const,
+      customerName:  wsMap[wo.userId]?.companyName ?? userMap[wo.userId]?.name ?? null,
+      customerEmail: userMap[wo.userId]?.email ?? null,
+      customerPhone: userMap[wo.userId]?.phone ?? null,
+      companyAbn:    wsMap[wo.userId]?.abn ?? null,
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 300);
   return res.json({ data: all });
 });
 
