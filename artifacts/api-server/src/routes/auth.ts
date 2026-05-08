@@ -170,28 +170,36 @@ router.post('/seed-demo', async (req, res) => {
 
   for (const demo of demos) {
     const [ex] = await db.select().from(usersTable).where(eq(usersTable.email, demo.email));
-    if (ex) { existing.push(demo.email); continue; }
 
-    const userId = randomUUID();
-    await db.insert(usersTable).values({ id: userId, email: demo.email, passwordHash: hash, role: demo.role as any, name: demo.name });
+    let userId: string;
+    if (ex) {
+      userId = ex.id;
+      existing.push(demo.email);
+    } else {
+      userId = randomUUID();
+      await db.insert(usersTable).values({ id: userId, email: demo.email, passwordHash: hash, role: demo.role as any, name: demo.name });
+      created.push(demo.email);
+    }
 
     if (demo.role === 'customer') {
-      await db.insert(customerProfilesTable).values({
-        userId, loyaltyPoints: 150, loyaltyTier: 'silver', referralCode: 'DEMO1234',
-      });
+      await db.insert(customerProfilesTable)
+        .values({ userId, loyaltyPoints: 150, loyaltyTier: 'silver', referralCode: 'DEMO1234' })
+        .onConflictDoUpdate({ target: customerProfilesTable.userId, set: { loyaltyTier: 'silver' } });
     } else if (demo.role === 'staff') {
-      await db.insert(staffProfilesTable).values({
-        userId, employeeId: 'EMP-DEMO-001', position: 'Senior Crew', department: 'floor',
-        isManager: true, approvedByAdmin: true, hourlyRateCents: 2800,
-      });
+      await db.insert(staffProfilesTable)
+        .values({ userId, employeeId: 'EMP-DEMO-001', position: 'Senior Crew', department: 'floor', isManager: true, approvedByAdmin: true, hourlyRateCents: 2800 })
+        .onConflictDoUpdate({ target: staffProfilesTable.userId, set: { approvedByAdmin: true } });
     } else if (demo.role === 'wholesale') {
-      const accountId = randomUUID();
-      await db.insert(wholesaleAccountsTable).values({
-        id: accountId, userId, companyName: 'Demo Wholesale Co.', abn: '12 345 678 901',
-        contactName: demo.name, phone: '0400000000', status: 'approved',
-      });
+      const [existingWholesale] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, userId));
+      if (existingWholesale) {
+        await db.update(wholesaleAccountsTable).set({ status: 'approved', isSuspended: false, suspendedReason: null }).where(eq(wholesaleAccountsTable.userId, userId));
+      } else {
+        await db.insert(wholesaleAccountsTable).values({
+          id: randomUUID(), userId, companyName: 'Demo Wholesale Co.', abn: '12 345 678 901',
+          contactName: demo.name, phone: '0400000000', status: 'approved',
+        });
+      }
     }
-    created.push(demo.email);
   }
 
   return res.json({

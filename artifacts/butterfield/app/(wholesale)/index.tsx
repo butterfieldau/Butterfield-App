@@ -42,7 +42,7 @@ export default function WholesaleDashboard() {
       <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' }]}>Welcome back,</Text>
         <Text style={[{ color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
-        {account && <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_500Medium' }]}>{account.companyName} · {account.tier?.toUpperCase() ?? 'STANDARD'}</Text>}
+        {account && <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_500Medium' }]}>{account.companyName} · {account.pricingTier?.toUpperCase() ?? 'STANDARD'}</Text>}
       </LinearGradient>
 
       <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
