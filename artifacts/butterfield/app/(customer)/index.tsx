@@ -215,9 +215,17 @@ export default function CustomerHome() {
   }, []);
 
   const handleMerchPress = useCallback((item: typeof MERCH[number]) => {
-    addItem({ id: item.id, name: item.name, category: 'merch', price: item.price, description: '', available: true, gradient: ['#A8C8E8', '#5A90C0'] });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [addItem]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedProduct({
+      id: item.id,
+      name: item.name,
+      description: 'Butterfield Cookies branded merchandise. Available in-store only.',
+      images: [item.image],
+      prices: [{ id: `price-${item.id}`, unit_amount: item.price * 100, currency: 'aud' }] as any,
+      metadata: { category: 'merch', available: 'true' },
+    } as any);
+    router.push('/product');
+  }, []);
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hour = new Date().getHours();
@@ -292,17 +300,17 @@ export default function CustomerHome() {
 
         <View style={styles.quickRow}>
           {[
-            { label: 'Order cookies', emoji: '🍪', bg: '#E6F4FF', onPress: () => router.push('/(customer)/menu') },
-            { label: 'Coffee Club', emoji: '☕', bg: '#FFE8E8', onPress: () => router.push('/(customer)/loyalty') },
-            { label: 'My order', emoji: '🛍️', bg: '#F5EDE6', onPress: () => router.push('/(customer)/cart') },
-          ].map(({ label, emoji, bg, onPress }) => (
+            { label: 'Order cookies', icon: 'package'     , bg: '#E6F4FF', color: '#2A80D2', onPress: () => router.push('/(customer)/menu') },
+            { label: 'Coffee Club',   icon: 'coffee'      , bg: '#FFE8E8', color: '#C0392B', onPress: () => router.push('/(customer)/loyalty') },
+            { label: 'My order',      icon: 'shopping-bag', bg: '#F5EDE6', color: '#B45309', onPress: () => router.push('/(customer)/cart') },
+          ].map(({ label, icon, bg, color, onPress }) => (
             <Pressable
               key={label}
               style={[styles.quickTile, { backgroundColor: colors.card, borderRadius: colors.radius }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
             >
               <View style={[styles.quickIconCircle, { backgroundColor: bg }]}>
-                <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                <Feather name={icon as any} size={22} color={color} />
               </View>
               <Text style={[styles.quickTileLabel, { fontFamily: 'Inter_600SemiBold', color: colors.foreground }]}>{label}</Text>
             </Pressable>
