@@ -13,20 +13,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
-
-function getSydneyNow(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-}
-
-function isStoreOpen(): boolean {
-  const syd = getSydneyNow();
-  const day = syd.getDay();
-  const mins = syd.getHours() * 60 + syd.getMinutes();
-  if (day === 0) return mins >= 480 && mins < 1320;                                // Sun  8am–10pm
-  if (day >= 1 && day <= 3) return (mins >= 390 && mins < 900) || (mins >= 1020 && mins < 1260); // Mon–Wed  6:30am–3pm, 5–9pm
-  return mins >= 390 && mins < 1320;                                                // Thu–Sat 6:30am–10pm
-}
+import { api } from '@/lib/api';
 
 const STORE_LAT = -33.8360;
 const STORE_LNG = 150.9878;
@@ -57,7 +46,17 @@ function openInMaps() {
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const storeOpen = isStoreOpen();
+  const { data: storeStatusData } = useQuery({
+    queryKey: ['store-status'],
+    queryFn: () => api.misc.storeStatus(),
+    refetchInterval: 60000,
+    retry: 1,
+  });
+  const storeStatus = storeStatusData?.data;
+  const storeOpen = storeStatus?.isOpen ?? false;
+  const storeHint = storeOpen
+    ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
+    : (storeStatus?.opensAt ? `Closed · Opens ${storeStatus.opensAt}` : 'Closed · See hours below');
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -96,7 +95,7 @@ export default function StoreScreen() {
           <View style={[styles.openBadge, { backgroundColor: storeOpen ? '#DCFCE7' : '#FEE2E2' }]}>
             <View style={[styles.openDot, { backgroundColor: storeOpen ? '#22C55E' : '#EF4444' }]} />
             <Text style={[styles.openText, { color: storeOpen ? '#15803D' : '#DC2626', fontFamily: 'Inter_600SemiBold' }]}>
-              {storeOpen ? 'Open now' : 'Closed · See hours below'}
+              {storeHint}
             </Text>
           </View>
 
