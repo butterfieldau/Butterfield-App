@@ -13,6 +13,7 @@ import directorRouter from "./director.js";
 import directorPricingRouter from "./director-pricing.js";
 import managerRouter from "./manager.js";
 import storageRouter from "./storage.js";
+import notificationsRouter from "./notifications.js";
 
 const router: IRouter = Router();
 
@@ -28,6 +29,7 @@ router.use("/addresses", addressesRouter);
 router.use("/director", directorPricingRouter);
 router.use("/director", directorRouter);
 router.use("/manager", managerRouter);
+router.use("/notifications", notificationsRouter);
 router.use(storageRouter);
 router.use(miscRouter);
 

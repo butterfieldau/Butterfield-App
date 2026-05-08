@@ -9,6 +9,7 @@ import {
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { notifyUser } from '../lib/notificationService.js';
 
 const router = Router();
 router.use(requireRole('director', 'manager'));
@@ -185,17 +186,46 @@ router.patch('/orders/:id/status', async (req, res) => {
   const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
   const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
 
-  const [customerOrder] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.id, id));
+  const CUSTOMER_STATUS_MSG: Record<string, string> = {
+    being_prepared:   'Your order is being prepared. ☕',
+    ready_for_pickup: 'Your order is ready for pickup! 🎉',
+    out_for_delivery: 'Your order is on its way! 🚚',
+    completed:        'Your order is complete. Thanks for visiting! 🍪',
+    cancelled:        'Your order has been cancelled.',
+    refunded:         'Your order has been refunded.',
+  };
+  const WHOLESALE_STATUS_MSG: Record<string, string> = {
+    processing: 'Your wholesale order is being processed.',
+    dispatched: 'Your wholesale order has been dispatched. 🚚',
+    delivered:  'Your wholesale order has been delivered. ✅',
+    cancelled:  'Your wholesale order has been cancelled.',
+  };
+
+  const [customerOrder] = await db
+    .select({ id: ordersTable.id, userId: ordersTable.userId })
+    .from(ordersTable).where(eq(ordersTable.id, id));
   if (customerOrder) {
     if (!CUSTOMER_VALID.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
+    const msg = CUSTOMER_STATUS_MSG[status];
+    if (msg) {
+      notifyUser(customerOrder.userId, 'order_status', 'Butterfield Cookies', msg,
+        { orderId: id, status, screen: '/(customer)/orders' }).catch(() => {});
+    }
     return res.json({ data: updated });
   }
 
-  const [wholesaleOrder] = await db.select({ id: wholesaleOrdersTable.id }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  const [wholesaleOrder] = await db
+    .select({ id: wholesaleOrdersTable.id, userId: wholesaleOrdersTable.userId })
+    .from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
   if (wholesaleOrder) {
     if (!WHOLESALE_VALID.includes(status)) return res.status(400).json({ error: 'Invalid wholesale order status.' });
     const [updated] = await db.update(wholesaleOrdersTable).set({ status, updatedAt: new Date() }).where(eq(wholesaleOrdersTable.id, id)).returning();
+    const msg = WHOLESALE_STATUS_MSG[status];
+    if (msg) {
+      notifyUser(wholesaleOrder.userId, 'order_status', 'Butterfield Wholesale', msg,
+        { orderId: id, status, screen: '/(wholesale)/orders' }).catch(() => {});
+    }
     return res.json({ data: { ...updated, orderSource: 'wholesale' } });
   }
 

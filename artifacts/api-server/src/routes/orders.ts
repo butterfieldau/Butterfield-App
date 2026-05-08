@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { db, ordersTable, customerProfilesTable, loyaltyTransactionsTable } from '@workspace/db';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
+import { notifyRole, notifyUser } from '../lib/notificationService.js';
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.post('/', async (req, res) => {
     deliveryAddress,
   }).returning();
 
+  // Update customer profile
   const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
   if (profile) {
     const newPoints = profile.loyaltyPoints + pointsEarned - (loyaltyPointsUsed ?? 0);
@@ -70,12 +72,22 @@ router.post('/', async (req, res) => {
       referenceId: orderId,
     });
   }
+
+  // Notify staff of new order (fire-and-forget)
+  const itemCount = Array.isArray(items) ? items.length : 1;
+  notifyRole('staff', 'new_order', 'New Order In', `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(totalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
+    { orderId, screen: '/(staff)/orders' }).catch(() => {});
+
+  // Confirm to customer
+  notifyUser(req.user!.id, 'order_confirmed', 'Order Received 🍪', 'We\'ve got your order and will have it ready soon!',
+    { orderId, screen: '/(customer)/orders' }).catch(() => {});
+
   return res.status(201).json({ data: order });
 });
 
 router.patch('/:id/status', async (req, res) => {
   const { status } = req.body;
-  const validStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'completed', 'cancelled', 'refunded'];
+  const validStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'refunded'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
@@ -83,6 +95,22 @@ router.patch('/:id/status', async (req, res) => {
     .set({ status, updatedAt: new Date() })
     .where(eq(ordersTable.id, req.params.id))
     .returning();
+
+  // Notify customer of status change
+  const STATUS_MSG: Record<string, string> = {
+    being_prepared:   'Your order is being prepared. ☕',
+    ready_for_pickup: 'Your order is ready for pickup! 🎉',
+    out_for_delivery: 'Your order is on its way! 🚚',
+    completed:        'Your order is complete. Thanks for visiting! 🍪',
+    cancelled:        'Your order has been cancelled.',
+    refunded:         'Your order has been refunded.',
+  };
+  const msg = STATUS_MSG[status];
+  if (order && msg) {
+    notifyUser(order.userId, 'order_status', 'Butterfield Cookies', msg,
+      { orderId: order.id, status, screen: '/(customer)/orders' }).catch(() => {});
+  }
+
   return res.json({ data: order });
 });
 

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, saveToken, clearToken, getToken, type ApiUser } from '@/lib/api';
+import { registerPushToken, deregisterPushToken } from '@/lib/pushNotifications';
 import type { UserRole } from '@/types';
 
 export interface AuthContextUser {
@@ -37,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthContextUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore session on app launch
   useEffect(() => {
     (async () => {
       try {
@@ -45,9 +47,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const cached = await AsyncStorage.getItem(USER_KEY);
           if (cached) setUser(JSON.parse(cached));
           const { user: fresh } = await api.auth.me();
-          const u: AuthContextUser = { id: fresh.id, name: fresh.name, email: fresh.email, role: fresh.role as UserRole, phone: fresh.phone };
+          const u: AuthContextUser = {
+            id: fresh.id, name: fresh.name, email: fresh.email,
+            role: fresh.role as UserRole, phone: fresh.phone,
+          };
           setUser(u);
           await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+          // Re-register push token silently on app reopen
+          registerPushToken(token).catch(() => {});
         }
       } catch {
         await clearToken();
@@ -70,25 +77,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let res;
       if (role === 'staff') {
         res = await api.auth.staffLogin({
-          email: email.trim(),
-          password,
-          latitude: coords?.latitude,
-          longitude: coords?.longitude,
+          email: email.trim(), password,
+          latitude: coords?.latitude, longitude: coords?.longitude,
         });
       } else {
         res = await api.auth.login({ email: email.trim(), password });
       }
       await saveToken(res.token);
-      const u: AuthContextUser = { id: res.user.id, name: res.user.name, email: res.user.email, role: res.user.role as UserRole };
+      const u: AuthContextUser = {
+        id: res.user.id, name: res.user.name,
+        email: res.user.email, role: res.user.role as UserRole,
+      };
       setUser(u);
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+      // Register for push notifications after successful login
+      registerPushToken(res.token).catch(() => {});
       return { success: true, role: res.user.role as UserRole };
     } catch (e: any) {
       return { success: false, error: e.message ?? 'Login failed.' };
     }
   }, []);
 
-  // Unified internal login — figures out role from credentials, handles geo for staff
+  // Unified internal login for staff / director / manager
   const internalLogin = useCallback(async (
     email: string,
     password: string,
@@ -96,34 +106,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     if (!email.trim() || !password.trim()) return { success: false, error: 'Email and password are required.' };
     try {
-      // Use staff-login endpoint which handles geo check server-side
       const res = await api.auth.staffLogin({
-        email: email.trim(),
-        password,
-        latitude: coords?.latitude,
-        longitude: coords?.longitude,
+        email: email.trim(), password,
+        latitude: coords?.latitude, longitude: coords?.longitude,
       });
       const returnedRole = res.user.role as UserRole;
       if (!['staff', 'director', 'manager'].includes(returnedRole)) {
         return { success: false, error: 'This account does not have internal access.' };
       }
       await saveToken(res.token);
-      const u: AuthContextUser = { id: res.user.id, name: res.user.name, email: res.user.email, role: returnedRole };
+      const u: AuthContextUser = {
+        id: res.user.id, name: res.user.name,
+        email: res.user.email, role: returnedRole,
+      };
       setUser(u);
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+      // Register for push notifications after successful login
+      registerPushToken(res.token).catch(() => {});
       return { success: true, role: returnedRole };
     } catch (e: any) {
       return { success: false, error: e.message ?? 'Login failed.' };
     }
   }, []);
 
-  const register = useCallback(async (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => {
+  const register = useCallback(async (data: {
+    email: string; password: string; name: string; phone?: string; birthday?: string
+  }) => {
     try {
       const res = await api.auth.register(data);
       await saveToken(res.token);
-      const u: AuthContextUser = { id: res.user.id, name: res.user.name, email: res.user.email, role: 'customer' };
+      const u: AuthContextUser = {
+        id: res.user.id, name: res.user.name,
+        email: res.user.email, role: 'customer',
+      };
       setUser(u);
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+      registerPushToken(res.token).catch(() => {});
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message ?? 'Registration failed.' };
@@ -140,12 +158,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Best-effort: deregister push token before clearing session
+    const token = await getToken();
+    if (token) deregisterPushToken(token).catch(() => {});
     await clearToken();
     await AsyncStorage.removeItem(USER_KEY);
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, isLoading, login, internalLogin, register, wholesaleApply, logout }), [user, isLoading, login, internalLogin, register, wholesaleApply, logout]);
+  const value = useMemo(
+    () => ({ user, isLoading, login, internalLogin, register, wholesaleApply, logout }),
+    [user, isLoading, login, internalLogin, register, wholesaleApply, logout],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

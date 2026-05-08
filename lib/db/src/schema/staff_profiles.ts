@@ -7,14 +7,25 @@ export const staffProfilesTable = pgTable("staff_profiles", {
   employeeId: text("employee_id").notNull().unique(),
   position: text("position").notNull().default("crew"),
   department: text("department").notNull().default("floor"),
+  // employment_status: full-time | part-time | casual
+  employmentStatus: text("employment_status").notNull().default("casual"),
   isManager: boolean("is_manager").notNull().default(false),
   approvedByAdmin: boolean("approved_by_admin").notNull().default(false),
   hourlyRateCents: integer("hourly_rate_cents").notNull().default(2200),
+  startDate: text("start_date"),
+  // JSON array of task-level permission strings e.g. ["manage_tasks","view_reports"]
+  permissions: text("permissions"),
+  // JSON array of completed training module names
+  trainingCompleted: text("training_completed"),
+  // JSON object: { name, phone, relationship }
+  emergencyContact: text("emergency_contact"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 export const insertStaffProfileSchema = createInsertSchema(staffProfilesTable).omit({
   createdAt: true,
+  updatedAt: true,
 });
 
 export type InsertStaffProfile = z.infer<typeof insertStaffProfileSchema>;
