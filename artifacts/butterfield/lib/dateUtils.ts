@@ -99,7 +99,7 @@ export interface DeliveryDate {
 export function getDeliveryDates(): DeliveryDate[] {
   const syd = getSydneyNow();
   const results: DeliveryDate[] = [];
-  for (let i = 1; i <= 28 && results.length < 8; i++) {
+  for (let i = 1; i <= 14 && results.length < 8; i++) {
     const d = new Date(syd);
     d.setDate(d.getDate() + i);
     d.setHours(0, 0, 0, 0);

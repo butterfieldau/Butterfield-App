@@ -91,18 +91,9 @@ export default function WholesaleInvoices() {
         if (win) { win.document.write(html); win.document.close(); win.focus(); }
         return;
       }
-      // On native: generate PDF then share/open via system viewer
-      const uri = await getPdfUri(invoice);
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Invoice ${invoice.number}`,
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        await Print.printAsync({ uri });
-      }
+      // On native: open PDF preview via system print viewer (shows PDF, not share sheet)
+      const html = generateInvoiceHtml(buildInvoiceData(invoice));
+      await Print.printAsync({ html });
     } catch (e: any) {
       Alert.alert('View Error', e?.message ?? 'Could not open invoice.');
     } finally {
