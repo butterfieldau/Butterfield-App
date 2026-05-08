@@ -5,13 +5,13 @@ import {
   db, usersTable, customerProfilesTable, staffProfilesTable,
   wholesaleAccountsTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
-  feedbackTable, loyaltyRewardsTable, announcementsTable,
+  feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
-router.use(requireRole('director'));
+router.use(requireRole('director', 'manager'));
 
 // ── Enhanced Dashboard stats ─────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
@@ -572,6 +572,75 @@ router.patch('/feedback/:id/read', async (req, res) => {
     .where(eq(feedbackTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Feedback not found.' });
   return res.json({ data: updated });
+});
+
+// ── Manager management ────────────────────────────────────────────────────────
+// Only directors can manage manager accounts (managers can view their own profile)
+
+function parsePerms(raw?: string | null): string[] {
+  try { return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+
+router.get('/managers', async (req, res) => {
+  if (req.user?.role !== 'director') {
+    return res.status(403).json({ error: 'Director only' });
+  }
+  const managers = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    email: usersTable.email,
+    permissions: managerProfilesTable.permissions,
+    notes: managerProfilesTable.notes,
+    createdAt: managerProfilesTable.createdAt,
+  }).from(managerProfilesTable)
+    .leftJoin(usersTable, eq(usersTable.id, managerProfilesTable.userId))
+    .orderBy(desc(managerProfilesTable.createdAt));
+
+  return res.json({
+    data: managers.map(m => ({
+      ...m,
+      permissions: parsePerms(m.permissions),
+    })),
+  });
+});
+
+router.post('/managers', async (req, res) => {
+  if (req.user?.role !== 'director') return res.status(403).json({ error: 'Director only' });
+  const { name, email, password, permissions = [], notes } = req.body;
+  if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+  if (existing) return res.status(409).json({ error: 'An account with this email already exists.' });
+  const passwordHash = await bcrypt.hash(password, 12);
+  const userId = randomUUID();
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'manager', name });
+  await db.insert(managerProfilesTable).values({
+    userId,
+    permissions: JSON.stringify(permissions),
+    createdByUserId: req.user!.id,
+    notes: notes ?? null,
+  });
+  return res.status(201).json({ data: { id: userId, name, email: email.toLowerCase(), permissions, notes } });
+});
+
+router.patch('/managers/:id/permissions', async (req, res) => {
+  if (req.user?.role !== 'director') return res.status(403).json({ error: 'Director only' });
+  const { permissions, notes } = req.body;
+  const updates: Record<string, any> = {};
+  if (Array.isArray(permissions)) updates.permissions = JSON.stringify(permissions);
+  if (notes !== undefined) updates.notes = notes;
+  const [updated] = await db.update(managerProfilesTable)
+    .set(updates)
+    .where(eq(managerProfilesTable.userId, req.params.id))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Manager not found' });
+  return res.json({ data: { ...updated, permissions: parsePerms(updated.permissions) } });
+});
+
+router.delete('/managers/:id', async (req, res) => {
+  if (req.user?.role !== 'director') return res.status(403).json({ error: 'Director only' });
+  await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
+  await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
+  return res.json({ success: true });
 });
 
 export default router;

@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useState, useMemo } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
@@ -120,6 +121,33 @@ function Segment({ options, value, onChange }: { options: string[]; value: strin
   );
 }
 
+// ─── Image upload helper ─────────────────────────────────────────────────────
+async function pickAndUploadImage(onUrl: (url: string) => void, onLoading: (v: boolean) => void) {
+  try {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true, quality: 0.85,
+    });
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'photo.jpg';
+    const contentType = asset.mimeType ?? 'image/jpeg';
+    const size = asset.fileSize ?? 0;
+    onLoading(true);
+    const { uploadURL, objectPath } = await api.storage.requestUploadUrl({ name: filename, size, contentType });
+    const blob = await fetch(asset.uri).then(r => r.blob());
+    await fetch(uploadURL, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
+    const baseUrl = process.env.EXPO_PUBLIC_DOMAIN ?? '';
+    onUrl(`${baseUrl}/api/storage${objectPath}`);
+  } catch (e: any) {
+    Alert.alert('Upload failed', e.message ?? 'Could not upload image');
+  } finally { onLoading(false); }
+}
+
 // ─── Default form state ────────────────────────────────────────────────────────
 const BLANK = () => ({
   name: '', shortDescription: '', description: '',
@@ -144,6 +172,7 @@ function ProductModal({
 }: { visible: boolean; onClose: () => void; onSave: (d: any) => Promise<void>; initial?: any; editing?: boolean }) {
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [f, setF] = useState<FormState>(BLANK());
 
   // Populate when editing
@@ -327,8 +356,18 @@ function ProductModal({
               <SectionHeader title="Photos" icon="image" color={BLUE} />
 
               {/* Hero image */}
-              <Field label="Hero Image URL">
-                <TextF value={f.imageUrl} onChange={v => upd('imageUrl', v)} placeholder="https://example.com/hero.jpg" />
+              <Field label="Hero Image">
+                <View style={{ gap: 8 }}>
+                  <TextF value={f.imageUrl} onChange={v => upd('imageUrl', v)} placeholder="https://example.com/hero.jpg" />
+                  <Pressable
+                    onPress={() => pickAndUploadImage(url => upd('imageUrl', url), setUploading)}
+                    disabled={uploading}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: BLUE + '15', borderWidth: 1, borderColor: BLUE, alignSelf: 'flex-start' }}
+                  >
+                    {uploading ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="upload" size={14} color={BLUE} />}
+                    <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: BLUE }}>{uploading ? 'Uploading…' : 'Upload from camera roll'}</Text>
+                  </Pressable>
+                </View>
               </Field>
               {f.imageUrl.trim() ? (
                 <Image
@@ -346,15 +385,25 @@ function ProductModal({
               <View style={{ height: 1, backgroundColor: BORDER }} />
 
               {/* Gallery */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED }]}>Gallery Images</Text>
-                <Pressable
-                  onPress={() => { Haptics.selectionAsync(); upd('galleryUrls', [...f.galleryUrls, '']); }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                >
-                  <Feather name="plus-circle" size={14} color={BLUE} />
-                  <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Add image</Text>
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <Pressable
+                    onPress={() => pickAndUploadImage(url => { Haptics.selectionAsync(); upd('galleryUrls', [...f.galleryUrls, url]); }, setUploading)}
+                    disabled={uploading}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    <Feather name="upload" size={14} color={BLUE} />
+                    <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Upload</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); upd('galleryUrls', [...f.galleryUrls, '']); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    <Feather name="plus-circle" size={14} color={MUTED} />
+                    <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_600SemiBold' }}>Add URL</Text>
+                  </Pressable>
+                </View>
               </View>
 
               {f.galleryUrls.length === 0 ? (

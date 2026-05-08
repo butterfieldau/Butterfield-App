@@ -1,4 +1,4 @@
-export type UserRole = 'customer' | 'staff' | 'wholesale' | 'director';
+export type UserRole = 'customer' | 'staff' | 'wholesale' | 'director' | 'manager';
 
 export interface User {
   id: string;
@@ -75,3 +75,29 @@ export interface LoyaltyTransaction {
   points: number;
   type: 'earn' | 'redeem';
 }
+
+export const ALL_MANAGER_PERMISSIONS = [
+  'dashboard',
+  'orders',
+  'users',
+  'products',
+  'reports',
+  'rewards',
+  'announcements',
+  'settings',
+  'pricing',
+] as const;
+
+export type ManagerPermission = typeof ALL_MANAGER_PERMISSIONS[number];
+
+export const MANAGER_PERMISSION_LABELS: Record<ManagerPermission, { label: string; desc: string; icon: string }> = {
+  dashboard:     { label: 'Dashboard',     desc: 'View KPI stats and activity feed',          icon: 'grid' },
+  orders:        { label: 'Orders',        desc: 'View and update order statuses',             icon: 'shopping-bag' },
+  users:         { label: 'Users',         desc: 'Approve staff & manage wholesale accounts',  icon: 'users' },
+  products:      { label: 'Products',      desc: 'Edit availability, photos and details',      icon: 'package' },
+  reports:       { label: 'Reports',       desc: 'Revenue, timesheets and feedback reports',   icon: 'bar-chart-2' },
+  rewards:       { label: 'Rewards',       desc: 'Create and edit loyalty rewards',            icon: 'gift' },
+  announcements: { label: 'Announcements', desc: 'Publish and manage push announcements',      icon: 'bell' },
+  settings:      { label: 'Settings',      desc: 'Change store hours and geo settings',        icon: 'settings' },
+  pricing:       { label: 'Pricing',       desc: 'Manage wholesale tiers and price breaks',    icon: 'dollar-sign' },
+};

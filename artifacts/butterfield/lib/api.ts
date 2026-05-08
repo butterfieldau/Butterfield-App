@@ -220,7 +220,32 @@ export const api = {
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
       request<{ data: any }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
+
+    // Manager management (director only)
+    managers: {
+      list:              () => request<{ data: any[] }>('/director/managers'),
+      create:            (data: { name: string; email: string; password: string; permissions?: string[]; notes?: string }) =>
+        request<{ data: any }>('/director/managers', { method: 'POST', body: JSON.stringify(data) }),
+      updatePermissions: (id: string, data: { permissions: string[]; notes?: string }) =>
+        request<{ data: any }>(`/director/managers/${id}/permissions`, { method: 'PATCH', body: JSON.stringify(data) }),
+      delete:            (id: string) =>
+        request<{ success: boolean }>(`/director/managers/${id}`, { method: 'DELETE' }),
+    },
   },
+
+  // Manager's own profile endpoint
+  manager: {
+    profile: () => request<{ data: { userId: string; permissions: string[]; notes?: string | null; name?: string; email?: string } }>('/manager/profile'),
+  },
+
+  // Storage — image upload helpers
+  storage: {
+    requestUploadUrl: (data: { name: string; size: number; contentType: string }) =>
+      request<{ uploadURL: string; objectPath: string; metadata: any }>('/storage/uploads/request-url', {
+        method: 'POST', body: JSON.stringify(data),
+      }),
+  },
+
   seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
 };
 

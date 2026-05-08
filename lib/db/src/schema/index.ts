@@ -12,3 +12,4 @@ export * from "./products";
 export * from "./pricing_tiers";
 export * from "./quantity_price_breaks";
 export * from "./customer_pricing";
+export * from "./manager_permissions";

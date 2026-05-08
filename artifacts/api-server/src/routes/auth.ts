@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable } from '@workspace/db';
 import { eq } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 
-const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com'];
+const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
 
 const router = Router();
 
@@ -80,11 +80,11 @@ router.post('/staff-login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || (user.role !== 'staff' && user.role !== 'director')) {
-    return res.status(401).json({ error: 'Staff or Director account not found.' });
+  if (!user || !['staff', 'director', 'manager'].includes(user.role)) {
+    return res.status(401).json({ error: 'Staff, Manager, or Director account not found.' });
   }
 
-  // Staff accounts require admin approval; directors do not
+  // Staff accounts require admin approval; directors and managers do not
   if (user.role === 'staff') {
     const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
     if (!staffProfile?.approvedByAdmin) {
@@ -163,6 +163,7 @@ router.post('/seed-demo', async (req, res) => {
     { email: 'staff@demo.com',    role: 'staff'    as const, name: 'Demo Staff' },
     { email: 'wholesale@demo.com',role: 'wholesale' as const,name: 'Demo Wholesale' },
     { email: 'director@demo.com', role: 'director' as const, name: 'Demo Director' },
+    { email: 'manager@demo.com',  role: 'manager'  as const, name: 'Demo Manager' },
   ];
 
   const created: string[] = [];
@@ -199,6 +200,14 @@ router.post('/seed-demo', async (req, res) => {
           contactName: demo.name, phone: '0400000000', status: 'approved',
         });
       }
+    } else if (demo.role === 'manager') {
+      await db.insert(managerProfilesTable)
+        .values({
+          userId,
+          permissions: JSON.stringify(['dashboard','orders','products','reports']),
+          notes: 'Demo manager account',
+        })
+        .onConflictDoUpdate({ target: managerProfilesTable.userId, set: { permissions: JSON.stringify(['dashboard','orders','products','reports']) } });
     }
   }
 
@@ -213,6 +222,7 @@ router.post('/seed-demo', async (req, res) => {
         { email: 'staff@demo.com',     role: 'staff',     portal: 'Staff portal (no geo restriction)' },
         { email: 'wholesale@demo.com', role: 'wholesale', portal: 'Wholesale portal' },
         { email: 'director@demo.com',  role: 'director',  portal: 'Director portal (full backend)' },
+        { email: 'manager@demo.com',   role: 'manager',   portal: 'Manager portal (director-configured access)' },
       ],
     },
   });

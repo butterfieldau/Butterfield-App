@@ -32,6 +32,7 @@ const DEMO_CREDS = [
   { role: 'wholesale' as UserRole, email: 'wholesale@demo.com', label: 'Wholesale', color: '#166534', bg: '#DCFCE7', internal: false },
   { role: 'staff'     as UserRole, email: 'staff@demo.com',     label: 'Staff',     color: '#5B21B6', bg: '#EDE9FE', internal: true  },
   { role: 'director'  as UserRole, email: 'director@demo.com',  label: 'Director',  color: '#854D0E', bg: '#FEF9C3', internal: true  },
+  { role: 'manager'   as UserRole, email: 'manager@demo.com',   label: 'Manager',   color: '#3730A3', bg: '#E0E7FF', internal: true  },
 ];
 
 const DEMO_PW        = 'Demo1234!';

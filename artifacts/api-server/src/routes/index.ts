@@ -11,6 +11,8 @@ import paymentRouter from "./payment.js";
 import addressesRouter from "./addresses.js";
 import directorRouter from "./director.js";
 import directorPricingRouter from "./director-pricing.js";
+import managerRouter from "./manager.js";
+import storageRouter from "./storage.js";
 
 const router: IRouter = Router();
 
@@ -25,6 +27,8 @@ router.use("/payment", paymentRouter);
 router.use("/addresses", addressesRouter);
 router.use("/director", directorPricingRouter);
 router.use("/director", directorRouter);
+router.use("/manager", managerRouter);
+router.use(storageRouter);
 router.use(miscRouter);
 
 export default router;

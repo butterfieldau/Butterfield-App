@@ -152,7 +152,7 @@ scripts/
 - Customers: register via app; Staff/Wholesale: created via admin or seeded
 
 ## Demo Accounts (seeded via POST /api/auth/seed-demo)
-All demo accounts use password `Demo1234!`. Staff geo-check is bypassed for all demo emails.
+All demo accounts use password `Demo1234!`. Staff/Manager/Director geo-check is bypassed for all demo emails.
 
 | Role | Email | Portal |
 |------|-------|--------|
@@ -160,6 +160,7 @@ All demo accounts use password `Demo1234!`. Staff geo-check is bypassed for all 
 | Staff | staff@demo.com | Staff portal (approvedByAdmin: true) |
 | Wholesale | wholesale@demo.com | Wholesale portal (status: approved) |
 | Director | director@demo.com | Director portal (full backend access) |
+| Manager | manager@demo.com | Manager portal (permissions: dashboard, orders, products, reports) |
 
 Login screen has a **Demo accounts** strip with one-tap auto-fill for each role.
 
@@ -180,10 +181,24 @@ Login screen has a **Demo accounts** strip with one-tap auto-fill for each role.
 - **State**: @tanstack/react-query for all API calls, React Context for auth/cart
 - **Currency**: AUD, all prices stored as cents integers
 
+## Image Upload (Object Storage)
+- Provisioned via Replit Object Storage (GCS-backed)
+- Director Products → edit any product → Photos section → "Upload from camera roll" (hero) or "Upload" (gallery)
+- Flow: expo-image-picker → POST /api/storage/uploads/request-url (presigned URL) → PUT to GCS → serving URL stored in product
+- Serving: GET /api/storage/objects/:path (private), GET /api/storage/public-objects/:path (public)
+
+## Manager Role
+- **Schema**: `manager_profiles` table — `userId` (PK), `permissions` (JSON array), `createdByUserId`, `notes`
+- **Auth**: managers log in via the Staff/Director login flow (`POST /api/auth/staff-login`)
+- **Portal**: `/(manager)/` — indigo-themed, dynamic tabs based on permissions set by director
+- **Permissions**: dashboard, orders, users, products, reports, rewards, announcements, settings, pricing
+- **Director management**: Settings → Managers tab — create managers, toggle permissions per tab, remove
+- **API**: director-only CRUD at `/api/director/managers` (PATCH permissions, DELETE downgrades to staff role)
+- **Permissions enforced**: UI level (which tabs appear). All director API routes accept `requireRole('director', 'manager')`.
+
 ## Pending Items
 - **Stripe integration**: Connect via Replit Integrations → run `pnpm --filter @workspace/scripts run seed-products` to sync real Stripe products
 - **Push notifications**: expo-notifications scaffolded but not wired to backend
-- **Image uploads**: expo-image-picker available but product images use gradient placeholders
 
 ## Key Files
 - `artifacts/butterfield/lib/api.ts` — typed fetch wrapper for all API calls
