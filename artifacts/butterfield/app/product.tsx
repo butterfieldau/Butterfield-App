@@ -191,8 +191,22 @@ export default function ProductDetailScreen() {
   return (
     <View style={s.root}>
 
-      {/* ── HERO: coloured background with floating photo ──────────────── */}
-      <View style={[s.hero, { height: HERO_H, backgroundColor: BLUE }]}>
+      {/* ── HERO: full-bleed product photo ─────────────────────────────── */}
+      <View style={[s.hero, { height: HERO_H }]}>
+
+        {/* Full-bleed image or fallback */}
+        {photoUrl ? (
+          <Image
+            source={{ uri: photoUrl }}
+            style={s.photo}
+            contentFit="cover"
+            transition={300}
+          />
+        ) : (
+          <View style={[s.photoFallback, { backgroundColor: palette.bg }]}>
+            <Text style={s.fallbackEmoji}>{palette.emoji}</Text>
+          </View>
+        )}
 
         {/* Back button */}
         <Pressable
@@ -218,23 +232,7 @@ export default function ProductDetailScreen() {
           />
         </Pressable>
 
-        {/* Floating product photo card */}
-        <View style={s.photoCard}>
-          {photoUrl ? (
-            <Image
-              source={{ uri: photoUrl }}
-              style={s.photo}
-              contentFit="contain"
-              transition={300}
-            />
-          ) : (
-            <View style={[s.photoFallback, { backgroundColor: palette.bg }]}>
-              <Text style={s.fallbackEmoji}>{palette.emoji}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Status pills — top-right of photo, inside hero */}
+        {/* Status pills */}
         {(isNew || isLimited || isComingSoon || isSoldOut) && (
           <View style={s.pillRow}>
             {isNew       && <StatusPill label="NEW"          color="#1C1C1E" />}
@@ -413,12 +411,11 @@ const s = StyleSheet.create({
   root:         { flex: 1, backgroundColor: '#F5F6FA' },
 
   // Hero
-  hero:         { position: 'relative', width: W, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 28 },
+  hero:         { position: 'relative', width: W, overflow: 'hidden' },
   navBtn:       { position: 'absolute', zIndex: 10, backgroundColor: 'rgba(255,255,255,0.92)', borderRadius: 20, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  photoCard:    { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 24, backgroundColor: '#fff', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8, alignItems: 'center', justifyContent: 'center' },
-  photo:        { width: '100%', height: '100%' },
-  photoFallback:{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  fallbackEmoji:{ fontSize: 72 },
+  photo:        { ...StyleSheet.absoluteFillObject },
+  photoFallback:{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  fallbackEmoji:{ fontSize: 96 },
   pillRow:      { position: 'absolute', top: 12, right: 16, flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', zIndex: 5 },
 
   // Sheet
