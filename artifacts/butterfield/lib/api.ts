@@ -195,6 +195,28 @@ export const api = {
     setProductWholesaleAccess: (id: string, data: any) =>
       request<{ data: any }>(`/director/products/${id}/wholesale-access`, { method: 'PATCH', body: JSON.stringify(data) }),
 
+    // Rewards CRUD
+    rewards:             () => request<{ data: DirectorReward[] }>('/director/rewards'),
+    createReward:        (data: Partial<DirectorReward>) => request<{ data: DirectorReward }>('/director/rewards', { method: 'POST', body: JSON.stringify(data) }),
+    updateReward:        (id: string, data: Partial<DirectorReward>) => request<{ data: DirectorReward }>(`/director/rewards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteReward:        (id: string) => request<{ success: boolean }>(`/director/rewards/${id}`, { method: 'DELETE' }),
+
+    // Announcements / Notifications
+    allAnnouncements:    () => request<{ data: DirectorAnnouncement[] }>('/director/announcements'),
+    createAnnouncement:  (data: Partial<DirectorAnnouncement>) => request<{ data: DirectorAnnouncement }>('/director/announcements', { method: 'POST', body: JSON.stringify(data) }),
+    updateAnnouncement:  (id: string, data: Partial<DirectorAnnouncement>) => request<{ data: DirectorAnnouncement }>(`/director/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteAnnouncement:  (id: string) => request<{ success: boolean }>(`/director/announcements/${id}`, { method: 'DELETE' }),
+
+    // Reports
+    reports:             () => request<{ data: DirectorReports }>('/director/reports'),
+
+    // Timesheets
+    timesheets:          () => request<{ data: DirectorShift[] }>('/director/timesheets'),
+
+    // Feedback
+    allFeedback:         () => request<{ data: DirectorFeedback[] }>('/director/feedback'),
+    markFeedbackRead:    (id: string) => request<{ data: DirectorFeedback }>(`/director/feedback/${id}/read`, { method: 'PATCH' }),
+
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
       request<{ data: any }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
@@ -315,4 +337,68 @@ export interface StaffMember {
   position?: string | null;
   isManager?: boolean;
   hourlyRateCents: number;
+}
+
+export interface DirectorReward {
+  id: string;
+  name: string;
+  description: string;
+  pointsCost: number;
+  category: string;
+  imageUrl?: string | null;
+  isActive: boolean;
+  isAppOnly: boolean;
+  stock?: number | null;
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface DirectorAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  targetRoles: string[];
+  isActive: boolean;
+  isPinned: boolean;
+  imageUrl?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
+export interface DirectorReports {
+  revenue: { today: number; week: number; month: number };
+  orders:  { today: number; week: number; month: number; avgValueCents: number };
+  byType:  { type: string; count: number }[];
+  byStatus:{ status: string; count: number }[];
+  dailyRevenue: { day: string; totalCents: number; count: number }[];
+  recentOrders: any[];
+  feedback:  DirectorFeedback[];
+  unreadFeedback: number;
+  customers: { total: number; newWeek: number };
+}
+
+export interface DirectorShift {
+  id: string;
+  userId: string;
+  clockIn: string;
+  clockOut?: string | null;
+  hoursWorked?: string | null;
+  unpaidBreakMins?: number | null;
+  hourlyRateCents?: number | null;
+  name?: string | null;
+  email?: string | null;
+  position?: string | null;
+  isManager?: boolean | null;
+  createdAt?: string;
+}
+
+export interface DirectorFeedback {
+  id: string;
+  userId?: string | null;
+  category: string;
+  message: string;
+  rating?: number | null;
+  orderId?: string | null;
+  isRead: boolean;
+  createdAt: string;
 }

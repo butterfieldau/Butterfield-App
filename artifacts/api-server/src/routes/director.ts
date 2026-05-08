@@ -5,7 +5,7 @@ import {
   db, usersTable, customerProfilesTable, staffProfilesTable,
   wholesaleAccountsTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
-  feedbackTable,
+  feedbackTable, loyaltyRewardsTable, announcementsTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -367,6 +367,211 @@ router.post('/create-wholesale', async (req, res) => {
     status:      'approved',
   }).returning();
   return res.status(201).json({ data: { userId, email, name, role: 'wholesale', account } });
+});
+
+// ── Rewards CRUD ──────────────────────────────────────────────────────────────
+router.get('/rewards', async (req, res) => {
+  const rewards = await db.select().from(loyaltyRewardsTable).orderBy(loyaltyRewardsTable.pointsCost);
+  return res.json({ data: rewards });
+});
+
+router.post('/rewards', async (req, res) => {
+  const b = req.body ?? {};
+  if (!b.name?.trim()) return res.status(400).json({ error: 'Reward name is required.' });
+  if (typeof b.pointsCost !== 'number') return res.status(400).json({ error: 'pointsCost must be a number.' });
+  const [reward] = await db.insert(loyaltyRewardsTable).values({
+    id:          randomUUID(),
+    name:        b.name.trim(),
+    description: b.description?.trim() ?? '',
+    pointsCost:  b.pointsCost,
+    category:    b.category ?? 'food',
+    imageUrl:    b.imageUrl ?? null,
+    isActive:    b.isActive !== false,
+    isAppOnly:   b.isAppOnly === true,
+    stock:       typeof b.stock === 'number' ? b.stock : null,
+    expiresAt:   b.expiresAt ? new Date(b.expiresAt) : null,
+  }).returning();
+  return res.status(201).json({ data: reward });
+});
+
+router.patch('/rewards/:id', async (req, res) => {
+  const b = req.body ?? {};
+  const allowed = ['name','description','pointsCost','category','imageUrl','isActive','isAppOnly','stock'];
+  const updates: Record<string, any> = {};
+  for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
+  if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update.' });
+  const [updated] = await db.update(loyaltyRewardsTable).set(updates)
+    .where(eq(loyaltyRewardsTable.id, req.params.id)).returning();
+  if (!updated) return res.status(404).json({ error: 'Reward not found.' });
+  return res.json({ data: updated });
+});
+
+router.delete('/rewards/:id', async (req, res) => {
+  await db.update(loyaltyRewardsTable).set({ isActive: false })
+    .where(eq(loyaltyRewardsTable.id, req.params.id));
+  return res.json({ success: true });
+});
+
+// ── Announcements / Notifications CRUD ───────────────────────────────────────
+router.get('/announcements', async (req, res) => {
+  const rows = await db.select().from(announcementsTable).orderBy(desc(announcementsTable.createdAt));
+  return res.json({ data: rows });
+});
+
+router.post('/announcements', async (req, res) => {
+  const b = req.body ?? {};
+  if (!b.title?.trim()) return res.status(400).json({ error: 'Title is required.' });
+  if (!b.body?.trim())  return res.status(400).json({ error: 'Body is required.' });
+  const [announcement] = await db.insert(announcementsTable).values({
+    id:          randomUUID(),
+    title:       b.title.trim(),
+    body:        b.body.trim(),
+    targetRoles: Array.isArray(b.targetRoles) ? b.targetRoles : ['customer'],
+    isActive:    b.isActive !== false,
+    isPinned:    b.isPinned === true,
+    imageUrl:    b.imageUrl ?? null,
+    expiresAt:   b.expiresAt ? new Date(b.expiresAt) : null,
+  }).returning();
+  return res.status(201).json({ data: announcement });
+});
+
+router.patch('/announcements/:id', async (req, res) => {
+  const b = req.body ?? {};
+  const allowed = ['title','body','targetRoles','isActive','isPinned','imageUrl'];
+  const updates: Record<string, any> = {};
+  for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
+  if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;
+  if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update.' });
+  const [updated] = await db.update(announcementsTable).set(updates)
+    .where(eq(announcementsTable.id, req.params.id)).returning();
+  if (!updated) return res.status(404).json({ error: 'Announcement not found.' });
+  return res.json({ data: updated });
+});
+
+router.delete('/announcements/:id', async (req, res) => {
+  await db.delete(announcementsTable).where(eq(announcementsTable.id, req.params.id));
+  return res.json({ success: true });
+});
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+router.get('/reports', async (req, res) => {
+  const now = new Date();
+  const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const startOfToday = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate());
+  const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
+  const startOfMonth = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1);
+  const start30      = new Date(startOfToday); start30.setDate(startOfToday.getDate() - 29);
+
+  const [
+    [todayRev], [weekRev], [monthRev],
+    [todayCount], [weekCount], [monthCount],
+    [todayAvg],
+    typeRows, statusRows, recentOrders,
+    feedbackRows, [unreadFeedback],
+    [totalCustomers], [newCustomersWeek],
+  ] = await Promise.all([
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable)
+      .where(and(gte(ordersTable.createdAt, startOfToday), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable)
+      .where(and(gte(ordersTable.createdAt, startOfWeek), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable)
+      .where(and(gte(ordersTable.createdAt, startOfMonth), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfToday)),
+    db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfWeek)),
+    db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfMonth)),
+    db.select({ avg: sql<string>`AVG(${ordersTable.totalCents})` }).from(ordersTable)
+      .where(and(gte(ordersTable.createdAt, startOfWeek), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    db.select({ type: ordersTable.type, count: count() }).from(ordersTable)
+      .where(gte(ordersTable.createdAt, startOfMonth)).groupBy(ordersTable.type),
+    db.select({ status: ordersTable.status, count: count() }).from(ordersTable)
+      .where(gte(ordersTable.createdAt, startOfMonth)).groupBy(ordersTable.status),
+    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(5),
+    db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt)).limit(20),
+    db.select({ count: count() }).from(feedbackTable).where(eq(feedbackTable.isRead, false)),
+    db.select({ count: count() }).from(usersTable).where(eq(usersTable.role, 'customer' as any)),
+    db.select({ count: count() }).from(usersTable)
+      .where(and(eq(usersTable.role, 'customer' as any), gte(usersTable.createdAt, startOfWeek))),
+  ]);
+
+  // Revenue per day for last 30 days
+  const dailyRevRows = await db.select({
+    day: sql<string>`DATE_TRUNC('day', ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`,
+    total: sum(ordersTable.totalCents),
+    count: count(),
+  }).from(ordersTable)
+    .where(and(gte(ordersTable.createdAt, start30), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`))
+    .groupBy(sql`DATE_TRUNC('day', ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`)
+    .orderBy(sql`DATE_TRUNC('day', ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`);
+
+  return res.json({
+    data: {
+      revenue: {
+        today: Number(todayRev.total ?? 0),
+        week:  Number(weekRev.total  ?? 0),
+        month: Number(monthRev.total ?? 0),
+      },
+      orders: {
+        today: todayCount.count,
+        week:  weekCount.count,
+        month: monthCount.count,
+        avgValueCents: Math.round(parseFloat(todayAvg.avg ?? '0')),
+      },
+      byType:   typeRows,
+      byStatus: statusRows,
+      dailyRevenue: dailyRevRows.map(r => ({
+        day: r.day,
+        totalCents: Number(r.total ?? 0),
+        count: r.count,
+      })),
+      recentOrders,
+      feedback: feedbackRows,
+      unreadFeedback: unreadFeedback.count,
+      customers: {
+        total:   totalCustomers.count,
+        newWeek: newCustomersWeek.count,
+      },
+    },
+  });
+});
+
+// ── Timesheets ────────────────────────────────────────────────────────────────
+router.get('/timesheets', async (req, res) => {
+  const rows = await db
+    .select({
+      id:              staffShiftsTable.id,
+      userId:          staffShiftsTable.userId,
+      clockIn:         staffShiftsTable.clockIn,
+      clockOut:        staffShiftsTable.clockOut,
+      hoursWorked:     staffShiftsTable.hoursWorked,
+      unpaidBreakMins: staffShiftsTable.unpaidBreakMins,
+      createdAt:       staffShiftsTable.createdAt,
+      name:            usersTable.name,
+      email:           usersTable.email,
+      position:        staffProfilesTable.position,
+      isManager:       staffProfilesTable.isManager,
+      hourlyRateCents: staffProfilesTable.hourlyRateCents,
+    })
+    .from(staffShiftsTable)
+    .leftJoin(usersTable,         eq(usersTable.id,     staffShiftsTable.userId))
+    .leftJoin(staffProfilesTable, eq(staffProfilesTable.userId, staffShiftsTable.userId))
+    .orderBy(desc(staffShiftsTable.clockIn))
+    .limit(200);
+
+  return res.json({ data: rows });
+});
+
+// ── Feedback management ───────────────────────────────────────────────────────
+router.get('/feedback', async (req, res) => {
+  const rows = await db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt)).limit(100);
+  return res.json({ data: rows });
+});
+
+router.patch('/feedback/:id/read', async (req, res) => {
+  const [updated] = await db.update(feedbackTable).set({ isRead: true })
+    .where(eq(feedbackTable.id, req.params.id)).returning();
+  if (!updated) return res.status(404).json({ error: 'Feedback not found.' });
+  return res.json({ data: updated });
 });
 
 export default router;

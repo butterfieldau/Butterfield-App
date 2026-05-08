@@ -205,7 +205,7 @@ export default function DirectorControlCentre() {
                 <QuickBtn icon="shopping-bag"  label="View Orders"    color={AMBER}  onPress={() => router.navigate('/(director)/orders' as any)} />
                 <QuickBtn icon="star"          label="Rewards"        color={PINK}   onPress={() => router.navigate('/(director)/settings' as any)} />
                 <QuickBtn icon="bell"          label="Notifications"  color="#06B6D4" onPress={() => router.navigate('/(director)/settings' as any)} />
-                <QuickBtn icon="bar-chart-2"   label="Reports"        color={NAVY}   onPress={() => router.navigate('/(director)/orders' as any)} />
+                <QuickBtn icon="bar-chart-2"   label="Reports"        color={NAVY}   onPress={() => router.navigate('/(director)/reports' as any)} />
                 <QuickBtn icon="settings"      label="App Settings"   color={MUTED}  onPress={() => router.navigate('/(director)/settings' as any)} />
               </View>
             </View>

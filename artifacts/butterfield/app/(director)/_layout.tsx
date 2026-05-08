@@ -44,7 +44,8 @@ export default function DirectorLayout() {
         <Tabs.Screen name="orders"   options={{ title: 'Orders',    tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} /> }} />
         <Tabs.Screen name="users"    options={{ title: 'Users',     tabBarIcon: ({ color }) => <Feather name="users"      size={22} color={color} /> }} />
         <Tabs.Screen name="products" options={{ title: 'Products',  tabBarIcon: ({ color }) => <Feather name="package"    size={22} color={color} /> }} />
-        <Tabs.Screen name="pricing"  options={{ title: 'Pricing',   tabBarIcon: ({ color }) => <Feather name="tag"        size={22} color={color} /> }} />
+        <Tabs.Screen name="pricing"  options={{ href: null }} />
+        <Tabs.Screen name="reports"  options={{ title: 'Reports',   tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} /> }} />
         <Tabs.Screen name="settings" options={{ title: 'Settings',  tabBarIcon: ({ color }) => <Feather name="settings"   size={22} color={color} /> }} />
       </Tabs>
     </View>
