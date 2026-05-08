@@ -134,6 +134,7 @@ export const api = {
       request<{ success: boolean }>(`/addresses/${id}`, { method: 'DELETE' }),
   },
   misc: {
+    storeStatus: () => request<{ data: { isOpen: boolean; openUntil: string | null; opensAt: string | null; manualOverride: boolean } }>('/store-status'),
     announcements: () => request<{ data: any[] }>('/announcements'),
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
       request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),

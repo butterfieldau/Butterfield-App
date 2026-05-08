@@ -1,10 +1,68 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable } from '@workspace/db';
+import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable, storeSettingsTable } from '@workspace/db';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
 
 const router = Router();
+
+// ── Public store status (no auth) ────────────────────────────────────────────
+function computeStoreStatus(manualOverride: boolean): {
+  isOpen: boolean; openUntil: string | null; opensAt: string | null;
+} {
+  if (!manualOverride) return { isOpen: false, openUntil: null, opensAt: null };
+
+  const syd  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const day  = syd.getDay();   // 0=Sun
+  const mins = syd.getHours() * 60 + syd.getMinutes();
+
+  // Trading hours (minutes since midnight)
+  // Mon–Wed (1-3): 6:30am–3pm  AND  5pm–9pm
+  // Thu–Sat (4-6): 6:30am–10pm
+  // Sun    (0):    8am–10pm
+  type Span = { open: number; close: number };
+  const spans: Record<number, Span[]> = {
+    0: [{ open: 480, close: 1320 }],
+    1: [{ open: 390, close: 900 }, { open: 1020, close: 1260 }],
+    2: [{ open: 390, close: 900 }, { open: 1020, close: 1260 }],
+    3: [{ open: 390, close: 900 }, { open: 1020, close: 1260 }],
+    4: [{ open: 390, close: 1320 }],
+    5: [{ open: 390, close: 1320 }],
+    6: [{ open: 390, close: 1320 }],
+  };
+
+  const fmt = (m: number) => {
+    const h = Math.floor(m / 60), mn = m % 60;
+    const suffix = h < 12 ? 'am' : 'pm';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return mn === 0 ? `${h12}${suffix}` : `${h12}:${String(mn).padStart(2, '0')}${suffix}`;
+  };
+
+  const todaySpans = spans[day] ?? [];
+  for (const s of todaySpans) {
+    if (mins >= s.open && mins < s.close) return { isOpen: true, openUntil: fmt(s.close), opensAt: null };
+  }
+
+  // Find next opening time (today first, then scan ahead up to 7 days)
+  for (let d = 0; d <= 7; d++) {
+    const checkDay = (day + d) % 7;
+    const daySpans = spans[checkDay] ?? [];
+    for (const s of daySpans) {
+      if (d === 0 && s.open <= mins) continue; // already passed today
+      const daysLabel = d === 0 ? 'today' : d === 1 ? 'tomorrow' : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][checkDay];
+      return { isOpen: false, openUntil: null, opensAt: `${fmt(s.open)} ${daysLabel}` };
+    }
+  }
+  return { isOpen: false, openUntil: null, opensAt: null };
+}
+
+router.get('/store-status', async (_req, res) => {
+  const rows = await db.select().from(storeSettingsTable);
+  const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
+  const manualOverride = settings['store_open'] !== 'false';
+  const status = computeStoreStatus(manualOverride);
+  return res.json({ data: { ...status, manualOverride } });
+});
 
 router.get('/announcements', requireAuth, async (req, res) => {
   const role = req.user!.role;

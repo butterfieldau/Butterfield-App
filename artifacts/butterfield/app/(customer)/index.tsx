@@ -23,14 +23,6 @@ import { getPalette } from '@/constants/categoryColors';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { api, type ApiProduct } from '@/lib/api';
 
-function isStoreOpen(): boolean {
-  const syd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const day = syd.getDay();
-  const mins = syd.getHours() * 60 + syd.getMinutes();
-  if (day === 0) return mins >= 480 && mins < 1320;                               // Sun  8am–10pm
-  if (day >= 1 && day <= 3) return (mins >= 390 && mins < 900) || (mins >= 1020 && mins < 1260); // Mon–Wed  6:30am–3pm, 5–9pm
-  return mins >= 390 && mins < 1320;                                               // Thu–Sat 6:30am–10pm
-}
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
@@ -203,6 +195,12 @@ export default function CustomerHome() {
     queryFn: () => api.loyalty.profile(),
     retry: 1,
   });
+  const { data: storeStatusData } = useQuery({
+    queryKey: ['store-status'],
+    queryFn: () => api.misc.storeStatus(),
+    refetchInterval: 60000,
+    retry: 1,
+  });
 
   const products = productsData?.data ?? [];
   const loyaltyPoints = loyaltyData?.data?.loyaltyPoints ?? 0;
@@ -224,7 +222,11 @@ export default function CustomerHome() {
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const open = isStoreOpen();
+  const storeStatus = storeStatusData?.data;
+  const open = storeStatus?.isOpen ?? false;
+  const storeHint = open
+    ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
+    : (storeStatus?.opensAt ? `Opens ${storeStatus.opensAt}` : 'Closed');
 
   return (
     <ScrollView
@@ -281,7 +283,7 @@ export default function CustomerHome() {
             <View style={styles.openRow}>
               <View style={[styles.openDot, { backgroundColor: open ? '#22C55E' : '#EF4444' }]} />
               <Text style={[styles.openText, { color: open ? '#15803D' : '#DC2626', fontFamily: 'Inter_500Medium' }]}>
-                {open ? 'Open now' : 'Closed'}
+                {storeHint}
               </Text>
             </View>
           </View>
