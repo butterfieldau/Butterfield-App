@@ -43,7 +43,7 @@ export default function WholesaleProfileScreen() {
         </View>
         <Text style={[{ color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' }]}>{account?.companyName ?? user?.name}</Text>
         <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_500Medium' }]}>
-          {account?.tier?.toUpperCase() ?? 'STANDARD'} Account · {account?.accountNumber ?? '—'}
+          {(account?.tier?.name ?? account?.pricingTier ?? 'Standard').toUpperCase()} Account · {account?.accountNumber ?? '—'}
         </Text>
       </LinearGradient>
 

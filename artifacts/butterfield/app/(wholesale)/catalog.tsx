@@ -231,10 +231,8 @@ export default function WholesaleCatalog() {
         : undefined;
       await api.wholesale.createOrder({
         items: cart.map((e) => ({
-          productStripeId: e.product.id,
-          productName:     e.product.name,
-          quantity:        e.quantity,
-          unitPriceCents:  Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * 100),
+          productId: e.product.id,
+          qty:       e.quantity,
         })),
         poReference:   poRef.trim() || undefined,
         notes:         [notes.trim(), contactName.trim(), contactPhone.trim()].filter(Boolean).join(' | ') || undefined,
