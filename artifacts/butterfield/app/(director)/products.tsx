@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useMemo } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
@@ -133,7 +133,7 @@ const BLANK = () => ({
   ingredients: '', nutritionInfo: '', storageInstructions: '', servingInstructions: '',
   minOrderQty: '1', maxOrderQty: '', leadTimeMins: '', availableTimes: '',
   availableDays: [] as string[], stockCount: '', lowStockThreshold: '10',
-  sortOrder: '0', imageUrl: '',
+  sortOrder: '0', imageUrl: '', galleryUrls: [] as string[],
 });
 
 type FormState = ReturnType<typeof BLANK>;
@@ -162,6 +162,7 @@ function ProductModal({
         gstIncluded: initial.gstIncluded ?? true,
         sku: initial.sku ?? '', barcode: initial.barcode ?? '',
         imageUrl: initial.imageUrl ?? '',
+        galleryUrls: parseJsonField(initial.galleryUrls),
         isAvailable: initial.isAvailable ?? true,
         isFeatured: initial.isFeatured ?? false,
         isNew: initial.isNew ?? false,
@@ -220,6 +221,9 @@ function ProductModal({
         sku:    f.sku.trim()    || null,
         barcode:f.barcode.trim()|| null,
         imageUrl: f.imageUrl.trim() || null,
+        galleryUrls: f.galleryUrls.filter(u => u.trim()).length
+          ? JSON.stringify(f.galleryUrls.filter(u => u.trim()))
+          : null,
         isAvailable: f.isAvailable, isFeatured: f.isFeatured, isNew: f.isNew,
         isWholesaleAvailable: f.isWholesaleAvailable, isStaffOnly: f.isStaffOnly,
         isAppOnly: f.isAppOnly, isLimitedDrop: f.isLimitedDrop, isSoldOut: f.isSoldOut,
@@ -318,7 +322,75 @@ function ProductModal({
               <Toggle label="GST Included" value={f.gstIncluded} onChange={v => upd('gstIncluded', v)} color={GREEN} desc="Price displayed is GST-inclusive" />
             </View>
 
-            {/* ── 3. Identifiers ─────────────────────────────────── */}
+            {/* ── 3. Photos ──────────────────────────────────────── */}
+            <View style={form.card}>
+              <SectionHeader title="Photos" icon="image" color={BLUE} />
+
+              {/* Hero image */}
+              <Field label="Hero Image URL">
+                <TextF value={f.imageUrl} onChange={v => upd('imageUrl', v)} placeholder="https://example.com/hero.jpg" />
+              </Field>
+              {f.imageUrl.trim() ? (
+                <Image
+                  source={{ uri: f.imageUrl.trim() }}
+                  style={{ width: '100%', height: 180, borderRadius: 12, backgroundColor: '#F3F4F6' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={form.photoPlaceholder}>
+                  <Feather name="image" size={28} color={MUTED} />
+                  <Text style={[form.photoPlaceholderText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Hero image preview</Text>
+                </View>
+              )}
+
+              <View style={{ height: 1, backgroundColor: BORDER }} />
+
+              {/* Gallery */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED }]}>Gallery Images</Text>
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); upd('galleryUrls', [...f.galleryUrls, '']); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Feather name="plus-circle" size={14} color={BLUE} />
+                  <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Add image</Text>
+                </Pressable>
+              </View>
+
+              {f.galleryUrls.length === 0 ? (
+                <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>No gallery images — tap Add image to include more photos</Text>
+              ) : (
+                f.galleryUrls.map((url, idx) => (
+                  <View key={idx} style={{ gap: 6 }}>
+                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                      <TextInput
+                        value={url}
+                        onChangeText={v => {
+                          const next = [...f.galleryUrls];
+                          next[idx] = v;
+                          upd('galleryUrls', next);
+                        }}
+                        placeholder={`Gallery photo ${idx + 1} URL`}
+                        placeholderTextColor={MUTED}
+                        style={[form.input, { flex: 1, fontFamily: 'Inter_400Regular', color: TEXT, height: 46, textAlignVertical: 'center' }]}
+                      />
+                      <Pressable onPress={() => { Haptics.selectionAsync(); upd('galleryUrls', f.galleryUrls.filter((_, i) => i !== idx)); }}>
+                        <Feather name="x-circle" size={20} color={RED} />
+                      </Pressable>
+                    </View>
+                    {url.trim() ? (
+                      <Image
+                        source={{ uri: url.trim() }}
+                        style={{ width: '100%', height: 100, borderRadius: 8, backgroundColor: '#F3F4F6' }}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* ── 4. Identifiers ─────────────────────────────────── */}
             <View style={form.card}>
               <SectionHeader title="Identifiers" icon="hash" color={PURPLE} />
               <View style={form.row2}>
@@ -333,9 +405,6 @@ function ProductModal({
                   </Field>
                 </View>
               </View>
-              <Field label="Image URL">
-                <TextF value={f.imageUrl} onChange={v => upd('imageUrl', v)} placeholder="https://…" />
-              </Field>
             </View>
 
             {/* ── 4. Availability ────────────────────────────────── */}
@@ -605,16 +674,20 @@ export default function DirectorProductsScreen() {
                   </View>
                 </View>
 
-                {/* Toggle row */}
-                <View style={[styles.toggleRow, { borderTopColor: BORDER }]}>
+                {/* Toggle 2×2 grid */}
+                <View style={[styles.toggleGrid, { borderTopColor: BORDER }]}>
                   {[
                     { label: 'Available', field: 'isAvailable', value: p.isAvailable ?? true,  color: GREEN },
                     { label: 'Featured',  field: 'isFeatured',  value: p.isFeatured  ?? false, color: BLUE  },
                     { label: 'New',       field: 'isNew',       value: p.isNew       ?? false, color: PINK  },
                     { label: 'Sold Out',  field: 'isSoldOut',   value: p.isSoldOut   ?? false, color: RED   },
                   ].map((t, i) => (
-                    <View key={t.field} style={[styles.toggleItem, i > 0 && { borderLeftWidth: 1, borderLeftColor: BORDER }]}>
-                      <Text style={[styles.toggleLabel, { fontFamily: 'Inter_500Medium', color: MUTED }]}>{t.label}</Text>
+                    <View key={t.field} style={[
+                      styles.toggleGridItem,
+                      i % 2 === 1 && { borderLeftWidth: 1, borderLeftColor: BORDER },
+                      i >= 2      && { borderTopWidth: 1,  borderTopColor: BORDER  },
+                    ]}>
+                      <Text style={[styles.toggleLabel, { fontFamily: 'Inter_600SemiBold', color: TEXT, fontSize: 13 }]}>{t.label}</Text>
                       <Switch value={t.value} onValueChange={v => toggle(p, t.field, v)}
                         trackColor={{ false: '#D1D5DB', true: t.color }}
                         thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
@@ -685,9 +758,9 @@ const styles = StyleSheet.create({
   price:         { fontSize: 16 },
   wsPrice:       { fontSize: 12 },
   profit:        { fontSize: 11 },
-  toggleRow:     { flexDirection: 'row', borderTopWidth: 1 },
-  toggleItem:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 8 },
-  toggleLabel:   { fontSize: 11 },
+  toggleGrid:     { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1 },
+  toggleGridItem: { width: '50%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 },
+  toggleLabel:    { fontSize: 11 },
   actionRow:     { flexDirection: 'row', borderTopWidth: 1 },
   actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10 },
   actionText:    { fontSize: 12 },
@@ -716,7 +789,9 @@ const form = StyleSheet.create({
   toggleRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: BORDER },
   toggleLabel:   { fontSize: 14 },
   toggleDesc:    { fontSize: 12, marginTop: 2 },
-  tagGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  tagGrid:            { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  photoPlaceholder:   { height: 120, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: BORDER },
+  photoPlaceholderText:{ fontSize: 12 },
 });
 
 const seg = StyleSheet.create({
