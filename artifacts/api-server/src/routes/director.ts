@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import {
   db, usersTable, customerProfilesTable, staffProfilesTable,
-  wholesaleAccountsTable, ordersTable, storeSettingsTable, productsTable,
+  wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
 } from '@workspace/db';
@@ -148,19 +148,40 @@ router.get('/activity', async (req, res) => {
   return res.json({ data: events });
 });
 
-// ── All orders ───────────────────────────────────────────────────────────────
+// ── All orders (customer + wholesale merged) ─────────────────────────────────
 router.get('/orders', async (req, res) => {
-  const orders = await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(200);
-  return res.json({ data: orders });
+  const [customerOrders, wholesaleOrders] = await Promise.all([
+    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(200),
+    db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(100),
+  ]);
+  const all = [
+    ...customerOrders.map(o => ({ ...o, orderSource: 'customer' as const })),
+    ...wholesaleOrders.map(wo => ({ ...wo, type: 'wholesale', orderSource: 'wholesale' as const })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 200);
+  return res.json({ data: all });
 });
 
 router.patch('/orders/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
-  if (!VALID.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
-  const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
-  return res.json({ data: updated });
+  const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
+  const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
+
+  const [customerOrder] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.id, id));
+  if (customerOrder) {
+    if (!CUSTOMER_VALID.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+    const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
+    return res.json({ data: updated });
+  }
+
+  const [wholesaleOrder] = await db.select({ id: wholesaleOrdersTable.id }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  if (wholesaleOrder) {
+    if (!WHOLESALE_VALID.includes(status)) return res.status(400).json({ error: 'Invalid wholesale order status.' });
+    const [updated] = await db.update(wholesaleOrdersTable).set({ status, updatedAt: new Date() }).where(eq(wholesaleOrdersTable.id, id)).returning();
+    return res.json({ data: { ...updated, orderSource: 'wholesale' } });
+  }
+
+  return res.status(404).json({ error: 'Order not found.' });
 });
 
 // ── All users ────────────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ const STATUSES = [
   { key: 'being_prepared',   label: 'Preparing' },
   { key: 'ready_for_pickup', label: 'Ready' },
   { key: 'completed',        label: 'Done' },
+  { key: 'wholesale',        label: 'Wholesale' },
   { key: 'cancelled',        label: 'Cancelled' },
 ];
 
@@ -31,8 +32,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   out_for_delivery: { bg: '#DBEAFE', text: '#1E40AF' },
   completed:        { bg: '#F3F4F6', text: '#6B7280' },
   cancelled:        { bg: '#FEE2E2', text: '#991B1B' },
+  refunded:         { bg: '#F3E8FF', text: '#6B21A8' },
+  pending:          { bg: '#DBEAFE', text: '#1E40AF' },
+  processing:       { bg: '#FEF3C7', text: '#92400E' },
+  dispatched:       { bg: '#EDE9FE', text: '#5B21B6' },
+  delivered:        { bg: '#DCFCE7', text: '#166534' },
 };
-const STATUS_NEXT: Record<string, string[]> = {
+
+const CUSTOMER_NEXT: Record<string, string[]> = {
   received:         ['being_prepared','cancelled'],
   being_prepared:   ['ready_for_pickup','cancelled'],
   ready_for_pickup: ['completed','out_for_delivery'],
@@ -40,10 +47,21 @@ const STATUS_NEXT: Record<string, string[]> = {
   completed:        [],
   cancelled:        [],
 };
+
+const WHOLESALE_NEXT: Record<string, string[]> = {
+  pending:    ['processing','cancelled'],
+  processing: ['dispatched','cancelled'],
+  dispatched: ['delivered'],
+  delivered:  [],
+  cancelled:  [],
+};
+
 const STATUS_LABEL: Record<string, string> = {
   received: 'Pending', being_prepared: 'Preparing',
   ready_for_pickup: 'Ready for Pickup', out_for_delivery: 'Out for Delivery',
-  completed: 'Completed', cancelled: 'Cancelled',
+  completed: 'Completed', cancelled: 'Cancelled', refunded: 'Refunded',
+  pending: 'Pending', processing: 'Processing',
+  dispatched: 'Dispatched', delivered: 'Delivered',
 };
 
 export default function DirectorOrdersScreen() {
@@ -57,7 +75,11 @@ export default function DirectorOrdersScreen() {
   });
 
   const allOrders = data?.data ?? [];
-  const orders = filter === 'all' ? allOrders : allOrders.filter((o: any) => o.status === filter);
+  const orders = (() => {
+    if (filter === 'all') return allOrders;
+    if (filter === 'wholesale') return allOrders.filter((o: any) => o.orderSource === 'wholesale');
+    return allOrders.filter((o: any) => o.status === filter);
+  })();
 
   const changeStatus = async (orderId: string, status: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -72,10 +94,14 @@ export default function DirectorOrdersScreen() {
   };
 
   const promptStatus = (order: any) => {
-    const next = STATUS_NEXT[order.status] ?? [];
+    const isWholesale = order.orderSource === 'wholesale';
+    const next = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
     if (next.length === 0) return;
+    const ref = isWholesale
+      ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()} (Wholesale)`
+      : `#BC-${order.id.slice(-6).toUpperCase()}`;
     Alert.alert(
-      `Update #BC-${order.id.slice(-6).toUpperCase()}`,
+      `Update ${ref}`,
       'Move to:',
       [
         ...next.map((s) => ({ text: STATUS_LABEL[s] ?? s, onPress: () => changeStatus(order.id, s) })),
@@ -86,7 +112,6 @@ export default function DirectorOrdersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Filter chips */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
           horizontal
@@ -96,12 +121,13 @@ export default function DirectorOrdersScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}
           renderItem={({ item }) => {
             const active = filter === item.key;
+            const color = item.key === 'wholesale' ? '#22C55E' : BLUE;
             return (
               <Pressable
                 onPress={() => { setFilter(item.key); Haptics.selectionAsync(); }}
                 style={[styles.filterChip, {
-                  backgroundColor: active ? BLUE : BG,
-                  borderColor: active ? BLUE : BORDER,
+                  backgroundColor: active ? color : BG,
+                  borderColor: active ? color : BORDER,
                 }]}
               >
                 <Text style={[styles.filterChipText, { color: active ? '#fff' : MUTED }]}>{item.label}</Text>
@@ -129,10 +155,14 @@ export default function DirectorOrdersScreen() {
             </View>
           }
           renderItem={({ item: order }) => {
-            const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
-            const label  = STATUS_LABEL[order.status] ?? order.status;
-            const next   = STATUS_NEXT[order.status] ?? [];
-            const total  = ((order.totalCents ?? 0) / 100).toFixed(2);
+            const isWholesale = (order as any).orderSource === 'wholesale';
+            const colors = STATUS_COLORS[(order as any).status] ?? { bg: '#F3F4F6', text: '#6B7280' };
+            const label  = STATUS_LABEL[(order as any).status] ?? (order as any).status;
+            const next   = isWholesale
+              ? (WHOLESALE_NEXT[(order as any).status] ?? [])
+              : (CUSTOMER_NEXT[(order as any).status] ?? []);
+            const total  = (((order as any).totalCents ?? 0) / 100).toFixed(2);
+            const items  = Array.isArray((order as any).items) ? (order as any).items : [];
             return (
               <Pressable
                 onPress={() => promptStatus(order)}
@@ -140,11 +170,30 @@ export default function DirectorOrdersScreen() {
               >
                 <View style={styles.orderTop}>
                   <View style={{ flex: 1, gap: 3 }}>
-                    <Text style={styles.orderId}>#BC-{order.id.slice(-6).toUpperCase()}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.orderId}>
+                        {isWholesale
+                          ? `#${(order as any).poReference ?? (order as any).id.slice(0, 8).toUpperCase()}`
+                          : `#BC-${(order as any).id.slice(-6).toUpperCase()}`}
+                      </Text>
+                      {isWholesale && (
+                        <View style={{ backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ color: '#166534', fontFamily: 'Inter_700Bold', fontSize: 9 }}>WHOLESALE</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.orderMeta}>
-                      {new Date(order.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-                      {' · '}{order.type ?? 'pickup'}
+                      {new Date((order as any).createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {' · '}{isWholesale ? ((order as any).deliveryType ?? 'delivery') : ((order as any).type ?? 'pickup')}
                     </Text>
+                    {items.length > 0 && (
+                      <Text style={[styles.orderMeta, { marginTop: 2 }]}>
+                        {items.slice(0, 2).map((it: any) =>
+                          `${it.qty ?? it.quantity ?? '?'}× ${it.productName ?? it.name ?? 'Item'}`
+                        ).join(', ')}
+                        {items.length > 2 ? ` +${items.length - 2} more` : ''}
+                      </Text>
+                    )}
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
                     <View style={[styles.statusPill, { backgroundColor: colors.bg }]}>
@@ -153,10 +202,10 @@ export default function DirectorOrdersScreen() {
                     <Text style={styles.totalText}>AUD ${total}</Text>
                   </View>
                 </View>
-                {order.deliveryAddress && (
+                {(order as any).deliveryAddress && (
                   <View style={styles.addrRow}>
                     <Feather name="map-pin" size={11} color={MUTED} />
-                    <Text style={styles.addrText} numberOfLines={1}>{order.deliveryAddress}</Text>
+                    <Text style={styles.addrText} numberOfLines={1}>{(order as any).deliveryAddress}</Text>
                   </View>
                 )}
                 {next.length > 0 && (
@@ -187,5 +236,5 @@ const styles = StyleSheet.create({
   addrRow:         { flexDirection: 'row', alignItems: 'center', gap: 5 },
   addrText:        { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
   actionHint:      { flexDirection: 'row', alignItems: 'center', gap: 5, borderTopWidth: 1, paddingTop: 8 },
-  actionHintText:  { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  actionHintText:  { fontSize: 12, fontFamily: 'Inter_400Regular' },
 });

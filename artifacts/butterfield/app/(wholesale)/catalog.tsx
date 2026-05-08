@@ -130,8 +130,9 @@ function ProductRow({ product, cartEntry, onAdd }: {
 export default function WholesaleCatalog() {
   const insets = useSafeAreaInsets();
   const qc     = useQueryClient();
-  const [search, setSearch]   = useState('');
-  const [cart, setCart]       = useState<CartEntry[]>([]);
+  const [search, setSearch]       = useState('');
+  const [category, setCategory]   = useState('All');
+  const [cart, setCart]           = useState<CartEntry[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState(0);
 
@@ -152,9 +153,18 @@ export default function WholesaleCatalog() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.catalog(), retry: 1 });
   const products = data?.data ?? [];
-  const filtered = useMemo(() => products.filter((p) =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase())
-  ), [products, search]);
+
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    products.forEach((p) => { if (p.metadata?.category) cats.add(p.metadata.category); });
+    return ['All', ...Array.from(cats).sort()];
+  }, [products]);
+
+  const filtered = useMemo(() => products.filter((p) => {
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+    const matchCat = category === 'All' || p.metadata?.category === category;
+    return matchSearch && matchCat;
+  }), [products, search, category]);
 
   const addToCart = (product: ApiProduct, qty: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -247,7 +257,10 @@ export default function WholesaleCatalog() {
       setSelectedDate(null); setSelectedTimeMins(null);
       setStreet(''); setSuburb(''); setPostcode('');
       setShowCheckout(false); setCheckoutStep(0);
-      Alert.alert('Order Submitted!', "Your wholesale order has been received. We'll confirm within 1 business day.");
+      Alert.alert(
+        'Order Submitted!',
+        'Thank you, your order has been submitted. Our team will confirm availability and send your invoice shortly.',
+      );
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally { setSubmitting(false); }
@@ -636,7 +649,31 @@ export default function WholesaleCatalog() {
         <View style={[styles.searchBar, { backgroundColor: BG, borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}>
           <Feather name="search" size={14} color={MUTED} />
           <TextInput style={{ flex: 1, color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14 }} placeholder="Search products..." placeholderTextColor={MUTED} value={search} onChangeText={setSearch} />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')}>
+              <Feather name="x" size={14} color={MUTED} />
+            </Pressable>
+          )}
         </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {categories.map((cat) => {
+            const active = category === cat;
+            const label = cat === 'All' ? 'All Products' : cat.charAt(0).toUpperCase() + cat.slice(1);
+            return (
+              <Pressable
+                key={cat}
+                onPress={() => { setCategory(cat); Haptics.selectionAsync(); }}
+                style={[styles.tierTag, {
+                  backgroundColor: active ? BLUE : `${BLUE}12`,
+                  borderRadius: 20, borderWidth: 1,
+                  borderColor: active ? BLUE : `${BLUE}30`,
+                }]}
+              >
+                <Text style={{ color: active ? '#fff' : BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {WHOLESALE_TIERS.map((tier) => (
             <View key={tier.label} style={[styles.tierTag, { backgroundColor: `${BLUE}12`, borderRadius: 10, borderWidth: 1, borderColor: `${BLUE}30` }]}>

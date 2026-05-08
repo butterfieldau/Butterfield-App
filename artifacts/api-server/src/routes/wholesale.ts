@@ -140,20 +140,26 @@ router.post('/orders', async (req, res) => {
     const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
     if (!account) return res.status(404).json({ error: 'Account not found' });
 
+    const itemsWithNames = await Promise.all(priced.lines.map(async (l) => {
+      const [product] = await db.select({ name: productsTable.name }).from(productsTable).where(eq(productsTable.id, l.productId));
+      return {
+        productId: l.productId,
+        productName: product?.name ?? 'Unknown Product',
+        qty: l.qty,
+        unitPriceCents: l.unitCents,
+        totalCents: l.totalCents,
+        priceSource: l.source,
+        priceLabel: l.sourceLabel,
+      };
+    }));
+
     const [order] = await db.insert(wholesaleOrdersTable).values({
       id: randomUUID(),
       accountId: account.id,
       userId: req.user!.id,
       status: 'pending',
       poReference: poReference ?? null,
-      items: priced.lines.map(l => ({
-        productId: l.productId,
-        qty: l.qty,
-        unitPriceCents: l.unitCents,
-        totalCents: l.totalCents,
-        priceSource: l.source,
-        priceLabel: l.sourceLabel,
-      })) as any,
+      items: itemsWithNames as any,
       notes: notes ?? null,
       totalCents: priced.totalCents,
       deliveryType: deliveryType ?? 'pickup',

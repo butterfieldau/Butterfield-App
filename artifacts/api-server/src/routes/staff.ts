@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, storeSettingsTable } from '@workspace/db';
+import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, storeSettingsTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
@@ -262,8 +262,15 @@ router.post('/leave', async (req, res) => {
 });
 
 router.get('/orders', async (req, res) => {
-  const orders = await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100);
-  return res.json({ data: orders });
+  const [customerOrders, wholesaleOrders] = await Promise.all([
+    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100),
+    db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(50),
+  ]);
+  const all = [
+    ...customerOrders.map(o => ({ ...o, orderSource: 'customer' as const })),
+    ...wholesaleOrders.map(wo => ({ ...wo, type: 'wholesale', orderSource: 'wholesale' as const })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 150);
+  return res.json({ data: all });
 });
 
 router.get('/profile', async (req, res) => {
