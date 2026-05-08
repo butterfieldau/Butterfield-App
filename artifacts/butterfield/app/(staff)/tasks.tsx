@@ -57,7 +57,7 @@ export default function StaffTasksScreen() {
     if (!wastageForm.productName || !wastageForm.quantity || !wastageForm.reason) { Alert.alert('Fill all fields'); return; }
     setSubmitting(true);
     try {
-      await api.staff.logWastage(wastageForm);
+      await api.staff.submitWastage(wastageForm);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setWastageForm({ productName: '', quantity: '', unit: 'units', reason: '' });
       qc.invalidateQueries({ queryKey: ['staff-wastage'] });
@@ -69,7 +69,7 @@ export default function StaffTasksScreen() {
     if (!issueForm.title || !issueForm.description) { Alert.alert('Fill all fields'); return; }
     setSubmitting(true);
     try {
-      await api.staff.reportIssue(issueForm);
+      await api.staff.submitIssue(issueForm);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIssueForm({ title: '', description: '', priority: 'medium' });
       Alert.alert('Reported', 'Issue submitted to management.');
@@ -80,7 +80,7 @@ export default function StaffTasksScreen() {
     if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) { Alert.alert('Fill all fields'); return; }
     setSubmitting(true);
     try {
-      await api.staff.requestLeave(leaveForm);
+      await api.staff.submitLeave(leaveForm);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLeaveForm({ startDate: '', endDate: '', type: 'annual', reason: '' });
       Alert.alert('Submitted', 'Leave request sent to management.');

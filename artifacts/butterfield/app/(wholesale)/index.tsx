@@ -25,7 +25,7 @@ export default function WholesaleDashboard() {
 
   const { data: accountData } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
   const { data: ordersData, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-orders'], queryFn: () => api.wholesale.orders(), retry: 1 });
-  const { data: announcementsData } = useQuery({ queryKey: ['announcements'], queryFn: () => api.announcements(), retry: 1 });
+  const { data: announcementsData } = useQuery({ queryKey: ['announcements'], queryFn: () => api.misc.announcements(), retry: 1 });
 
   const account = accountData?.data;
   const orders = ordersData?.data ?? [];

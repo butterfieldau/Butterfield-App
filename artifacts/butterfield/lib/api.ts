@@ -68,6 +68,8 @@ export const api = {
     rewards: () => request<{ data: LoyaltyReward[] }>('/loyalty/rewards'),
     redeem: (rewardId: string) =>
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
+    updateBirthday: (birthday: string) =>
+      request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
   staff: {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
@@ -81,6 +83,7 @@ export const api = {
     completeTask: (taskId: string, isCompleted: boolean) =>
       request<{ data: any }>(`/staff/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
     allOrders:    () => request<{ data: any[] }>('/staff/orders'),
+    wastage:      () => request<{ data: any[] }>('/staff/wastage'),
     submitWastage:(data: any) =>
       request<{ data: any }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
     submitIssue:  (data: any) =>
@@ -137,7 +140,7 @@ export const api = {
   },
   payment: {
     createIntent: (data: { amountCents: number; currency?: string }) =>
-      request<{ clientSecret: string; paymentIntentId: string }>('/payment/create-intent', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ clientSecret: string; paymentIntentId: string }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
     stats:               () => request<{ data: any }>('/director/stats'),
