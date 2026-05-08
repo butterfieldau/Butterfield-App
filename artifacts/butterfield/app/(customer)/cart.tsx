@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -273,8 +274,10 @@ export default function CartScreen() {
     );
   }
 
+  const showNativeTabBar = isLiquidGlassAvailable();
+
   // ── Cart step ────────────────────────────────────────────────────────────
-  const CartStepContent = () => (
+  const renderCartStep = () => (
     <View style={styles.stepWrap}>
       {items.map((item) => {
         const palette = getPalette((item.product as any).category ?? item.product.name);
@@ -333,7 +336,7 @@ export default function CartScreen() {
   );
 
   // ── Shipping step ────────────────────────────────────────────────────────
-  const ShippingStepContent = () => (
+  const renderShippingStep = () => (
     <View style={styles.stepWrap}>
       <SectionLabel title="HOW WOULD YOU LIKE TO RECEIVE YOUR ORDER?" />
 
@@ -630,7 +633,7 @@ export default function CartScreen() {
   );
 
   // ── Payment step ─────────────────────────────────────────────────────────
-  const PaymentStepContent = () => (
+  const renderPaymentStep = () => (
     <View style={styles.stepWrap}>
       <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
@@ -748,14 +751,14 @@ export default function CartScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {step === 0 && <CartStepContent />}
-          {step === 1 && <ShippingStepContent />}
-          {step === 2 && <PaymentStepContent />}
+          {step === 0 && renderCartStep()}
+          {step === 1 && renderShippingStep()}
+          {step === 2 && renderPaymentStep()}
         </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Sticky bottom bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 + (showNativeTabBar ? 49 : 0), backgroundColor: CARD, borderTopColor: BORDER }]}>
         <View style={styles.bottomTotal}>
           <Text style={styles.bottomTotalLabel}>TOTAL</Text>
           <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
