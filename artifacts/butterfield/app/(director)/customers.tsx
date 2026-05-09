@@ -72,6 +72,29 @@ function fmtDate(iso: string) {
 function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+function fmtBirthday(iso: string | null | undefined): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso + (iso.includes('T') ? '' : 'T00:00:00'));
+    return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+  } catch { return iso; }
+}
+function isoToDdMmYyyy(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = iso.slice(0, 10).split('-');
+  return d.length === 3 ? `${d[2]}/${d[1]}/${d[0]}` : '';
+}
+function ddMmYyyyToIso(s: string): string | null {
+  const parts = s.trim().split('/');
+  if (parts.length !== 3 || parts[2].length !== 4) return null;
+  return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+}
+function autoFormatBdEdit(v: string): string {
+  const digits = v.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0,2)}/${digits.slice(2)}`;
+  return `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4)}`;
+}
 const STATUS_ORDER_COLOR: Record<string, string> = {
   received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: GREEN,
   out_for_delivery: '#8B5CF6', completed: MUTED, cancelled: RED, refunded: RED,
@@ -148,6 +171,12 @@ function CustomerModal({ customerId, onClose }: { customerId: string; onClose: (
   const [noteText, setNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [editStatus, setEditStatus] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [savingDetails, setSavingDetails]   = useState(false);
+  const [eName,     setEName]     = useState('');
+  const [ePhone,    setEPhone]    = useState('');
+  const [eEmail,    setEEmail]    = useState('');
+  const [eBirthday, setEBirthday] = useState('');
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['customer-detail', customerId],
@@ -220,6 +249,32 @@ function CustomerModal({ customerId, onClose }: { customerId: string; onClose: (
     ]);
   };
 
+  const startEditDetails = (c: any) => {
+    setEName(c.name ?? '');
+    setEPhone(c.phone ?? '');
+    setEEmail(c.email ?? '');
+    setEBirthday(isoToDdMmYyyy(c.profile?.birthday));
+    setEditingDetails(true);
+  };
+
+  const saveDetails = async () => {
+    setSavingDetails(true);
+    try {
+      const birthdayISO = eBirthday.trim() ? ddMmYyyyToIso(eBirthday) : '';
+      await api.director.customers.update(customerId, {
+        name:     eName.trim(),
+        phone:    ePhone.trim() || null,
+        email:    eEmail.trim(),
+        birthday: birthdayISO,
+      });
+      setEditingDetails(false);
+      refetch();
+      qc.invalidateQueries({ queryKey: ['director-customers'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSavingDetails(false); }
+  };
+
   const TABS = [
     { key: 'overview', label: 'Overview', icon: 'user' },
     { key: 'orders',   label: 'Orders',   icon: 'shopping-bag' },
@@ -271,36 +326,71 @@ function CustomerModal({ customerId, onClose }: { customerId: string; onClose: (
                 <>
                   {/* Identity card */}
                   <View style={[sec.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-                    <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 14, alignItems: 'flex-start' }}>
                       <View style={[sec.bigAvatar, { backgroundColor: customer.wholesaleAccount ? '#DCFCE7' : '#EBF8FF' }]}>
                         <Text style={[sec.bigAvatarTx, { color: customer.wholesaleAccount ? '#166534' : '#0369A1' }]}>
-                          {initials(customer.name)}
+                          {initials(editingDetails ? eName : customer.name)}
                         </Text>
                       </View>
-                      <View style={{ flex: 1, gap: 4 }}>
-                        <Text style={sec.bigName}>{customer.name}</Text>
-                        <Text style={sec.sub}>{customer.email}</Text>
-                        {customer.phone && <Text style={sec.sub}>{customer.phone}</Text>}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                          <View style={[chip.pill, { backgroundColor: STATUS_CFG[customer.status]?.color + '20' ?? '#F3F4F6' }]}>
-                            <Text style={[chip.text, { color: STATUS_CFG[customer.status]?.color ?? MUTED }]}>
-                              {STATUS_CFG[customer.status]?.label ?? customer.status}
-                            </Text>
-                          </View>
-                          <Pressable
-                            onPress={() => Alert.alert('Change Status', 'Select new status', [
-                              { text: 'Active',    onPress: () => changeStatus('active')    },
-                              { text: 'Inactive',  onPress: () => changeStatus('inactive')  },
-                              { text: 'Suspended', onPress: () => changeStatus('suspended') },
-                              { text: 'Cancel', style: 'cancel' },
-                            ])}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
-                          >
-                            <Text style={{ color: BLUE, fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>Change</Text>
-                            <Feather name="edit-2" size={11} color={BLUE} />
+                      <View style={{ flex: 1, gap: 6 }}>
+                        {editingDetails ? (
+                          <>
+                            <TextInput style={[mdl.editInput, { borderColor: BORDER, color: TEXT }]} value={eName} onChangeText={setEName} placeholder="Full name" placeholderTextColor={MUTED} />
+                            <TextInput style={[mdl.editInput, { borderColor: BORDER, color: TEXT }]} value={eEmail} onChangeText={setEEmail} placeholder="Email" placeholderTextColor={MUTED} keyboardType="email-address" autoCapitalize="none" />
+                            <TextInput style={[mdl.editInput, { borderColor: BORDER, color: TEXT }]} value={ePhone} onChangeText={setEPhone} placeholder="Phone (optional)" placeholderTextColor={MUTED} keyboardType="phone-pad" />
+                            <TextInput style={[mdl.editInput, { borderColor: BORDER, color: TEXT }]} value={eBirthday} onChangeText={v => setEBirthday(autoFormatBdEdit(v))} placeholder="Birthday DD/MM/YYYY" placeholderTextColor={MUTED} keyboardType="number-pad" maxLength={10} />
+                          </>
+                        ) : (
+                          <>
+                            <Text style={sec.bigName}>{customer.name}</Text>
+                            <Text style={sec.sub}>{customer.email}</Text>
+                            {customer.phone && <Text style={sec.sub}>{customer.phone}</Text>}
+                            {customer.profile?.birthday
+                              ? <Text style={sec.sub}>🎂 {fmtBirthday(customer.profile.birthday)}</Text>
+                              : <Text style={[sec.sub, { color: MUTED, fontStyle: 'italic' }]}>No birthday set</Text>
+                            }
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                              <View style={[chip.pill, { backgroundColor: (STATUS_CFG[customer.status]?.color ?? MUTED) + '20' }]}>
+                                <Text style={[chip.text, { color: STATUS_CFG[customer.status]?.color ?? MUTED }]}>
+                                  {STATUS_CFG[customer.status]?.label ?? customer.status}
+                                </Text>
+                              </View>
+                              <Pressable
+                                onPress={() => Alert.alert('Change Status', 'Select new status', [
+                                  { text: 'Active',    onPress: () => changeStatus('active')    },
+                                  { text: 'Inactive',  onPress: () => changeStatus('inactive')  },
+                                  { text: 'Suspended', onPress: () => changeStatus('suspended') },
+                                  { text: 'Cancel', style: 'cancel' },
+                                ])}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}
+                              >
+                                <Text style={{ color: BLUE, fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>Change</Text>
+                                <Feather name="edit-2" size={11} color={BLUE} />
+                              </Pressable>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                      {/* Edit / Save / Cancel */}
+                      {editingDetails ? (
+                        <View style={{ gap: 6 }}>
+                          <Pressable onPress={saveDetails} disabled={savingDetails}
+                            style={[mdl.smBtn, { backgroundColor: NAVY }]}>
+                            {savingDetails
+                              ? <ActivityIndicator size="small" color="#fff" />
+                              : <Text style={mdl.smBtnTxt}>Save</Text>}
+                          </Pressable>
+                          <Pressable onPress={() => setEditingDetails(false)}
+                            style={[mdl.smBtn, { backgroundColor: BG, borderWidth: 1, borderColor: BORDER }]}>
+                            <Text style={[mdl.smBtnTxt, { color: TEXT }]}>Cancel</Text>
                           </Pressable>
                         </View>
-                      </View>
+                      ) : (
+                        <Pressable onPress={() => startEditDetails(customer)}
+                          style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#EBF8FF', alignItems: 'center', justifyContent: 'center' }}>
+                          <Feather name="edit-2" size={14} color={BLUE} />
+                        </Pressable>
+                      )}
                     </View>
 
                     <View style={[sec.divider, { borderTopColor: BORDER }]}>
@@ -322,29 +412,55 @@ function CustomerModal({ customerId, onClose }: { customerId: string; onClose: (
                   {/* Badges */}
                   <View style={[sec.card, { backgroundColor: CARD, borderColor: BORDER }]}>
                     <Text style={sec.sectionTitle}>Badges</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {customer.badges.map((b: string) => {
-                        const mb = customer.manualBadges.find((m: any) => m.badge === b);
-                        return (
-                          <Pressable
-                            key={b}
-                            onLongPress={() => mb && removeBadge(mb.id, b)}
-                            style={{ opacity: 1 }}
-                          >
-                            <BadgeChip badge={b} />
+                    {(() => {
+                      const manualSet = new Set(customer.manualBadges.map((m: any) => m.badge));
+                      const autoBadges   = customer.badges.filter((b: string) => !manualSet.has(b));
+                      const manualBadges = customer.badges.filter((b: string) =>  manualSet.has(b));
+                      return (
+                        <>
+                          {autoBadges.length > 0 && (
+                            <>
+                              <Text style={[sec.metaLabel, { marginBottom: 6 }]}>⚡ Auto-assigned</Text>
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                {autoBadges.map((b: string) => <BadgeChip key={b} badge={b} />)}
+                              </View>
+                            </>
+                          )}
+                          {manualBadges.length > 0 && (
+                            <>
+                              <Text style={[sec.metaLabel, { marginBottom: 6 }]}>✋ Manual — tap to remove</Text>
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                {manualBadges.map((b: string) => {
+                                  const mb  = customer.manualBadges.find((m: any) => m.badge === b);
+                                  const cfg = BADGE_CFG[b] ?? { label: b, bg: BG, text: MUTED };
+                                  return (
+                                    <Pressable key={b} onPress={() => mb && removeBadge(mb.id, b)}
+                                      style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: cfg.bg, paddingLeft: 8, paddingRight: 5, paddingVertical: 4, borderRadius: 20 }}>
+                                      <Text style={{ fontSize: 11, fontFamily: 'Inter_700Bold', color: cfg.text }}>{cfg.label}</Text>
+                                      <Feather name="x" size={11} color={cfg.text} />
+                                    </Pressable>
+                                  );
+                                })}
+                              </View>
+                            </>
+                          )}
+                          {customer.badges.length === 0 && <Text style={{ color: MUTED, fontSize: 13, marginBottom: 4 }}>No badges yet.</Text>}
+                        </>
+                      );
+                    })()}
+                    <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER, gap: 8 }}>
+                      <Text style={sec.metaLabel}>Add manual badge:</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                        {MANUAL_BADGES.filter(b => !customer.badges.includes(b)).map(b => (
+                          <Pressable key={b} onPress={() => addBadge(b)}
+                            style={[chip.pill, { backgroundColor: BADGE_CFG[b]?.bg ?? BG, borderWidth: 1, borderColor: BORDER }]}>
+                            <Text style={[chip.text, { color: BADGE_CFG[b]?.text ?? MUTED }]}>+ {BADGE_CFG[b]?.label ?? b}</Text>
                           </Pressable>
-                        );
-                      })}
-                    </View>
-                    {customer.badges.length === 0 && <Text style={{ color: MUTED, fontSize: 13 }}>No badges yet.</Text>}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
-                      <Text style={[sec.metaLabel, { width: '100%' }]}>Add manual badge:</Text>
-                      {MANUAL_BADGES.filter(b => !customer.badges.includes(b)).map(b => (
-                        <Pressable key={b} onPress={() => addBadge(b)}
-                          style={[chip.pill, { backgroundColor: BADGE_CFG[b]?.bg ?? BG, borderWidth: 1, borderColor: BORDER }]}>
-                          <Text style={[chip.text, { color: BADGE_CFG[b]?.text ?? MUTED }]}>+ {BADGE_CFG[b]?.label ?? b}</Text>
-                        </Pressable>
-                      ))}
+                        ))}
+                        {MANUAL_BADGES.filter(b => !customer.badges.includes(b)).length === 0 && (
+                          <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>All badges assigned.</Text>
+                        )}
+                      </View>
                     </View>
                   </View>
 
@@ -720,4 +836,7 @@ const mdl = StyleSheet.create({
   tabTxt:     { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   noteInput:  { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', fontFamily: 'Inter_400Regular', marginBottom: 10 },
   addNoteBtn: { height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  editInput:  { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: BG },
+  smBtn:      { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, alignItems: 'center', justifyContent: 'center', minWidth: 60 },
+  smBtnTxt:   { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#fff' },
 });

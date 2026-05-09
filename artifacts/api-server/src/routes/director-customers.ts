@@ -214,12 +214,23 @@ router.get('/customers/:id', async (req, res) => {
 
 // ── PATCH /director/customers/:id ─────────────────────────────────────────────
 router.patch('/customers/:id', async (req, res) => {
-  const allowed = ['name', 'phone', 'status'] as const;
-  const updates: Record<string, any> = { updatedAt: new Date() };
-  for (const key of allowed) {
-    if (req.body[key] !== undefined) updates[key] = req.body[key];
+  const id = req.params.id;
+  const userAllowed = ['name', 'phone', 'email', 'status'] as const;
+  const userUpdates: Record<string, any> = { updatedAt: new Date() };
+  for (const key of userAllowed) {
+    if (req.body[key] !== undefined) userUpdates[key] = req.body[key];
   }
-  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.params.id)).returning();
+  const ops: Promise<any>[] = [
+    db.update(usersTable).set(userUpdates).where(eq(usersTable.id, id)).returning(),
+  ];
+  if (req.body.birthday !== undefined) {
+    ops.push(
+      db.update(customerProfilesTable)
+        .set({ birthday: req.body.birthday || null })
+        .where(eq(customerProfilesTable.userId, id))
+    );
+  }
+  const [[updated]] = await Promise.all(ops);
   return res.json({ data: { ...updated, passwordHash: undefined } });
 });
 
