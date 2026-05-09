@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router, Tabs } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
+import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { NewOrderBanner } from '@/components/NewOrderBanner';
 import { useOrderNotifications, type NewOrderInfo } from '@/hooks/useOrderNotifications';
@@ -10,6 +11,7 @@ const STAFF_DARK = '#1A0A04';
 const BLUE       = '#40C0F2';
 
 export default function StaffLayout() {
+  const { logout } = useAuth();
   const [pendingOrders, setPendingOrders] = useState<NewOrderInfo[]>([]);
   const [showBanner, setShowBanner] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -31,7 +33,12 @@ export default function StaffLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: STAFF_DARK }}>
-      <PortalHeader badge="STAFF" badgeColor="#3058A8" backgroundColor={STAFF_DARK} />
+      <PortalHeader
+        badge="STAFF"
+        badgeColor="#3058A8"
+        backgroundColor={STAFF_DARK}
+        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+      />
 
       <Tabs
         screenOptions={{

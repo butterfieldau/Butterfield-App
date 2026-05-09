@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -59,8 +58,6 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
-
   const operations: Row[] = [
     {
       icon: 'bar-chart-2',
@@ -116,16 +113,6 @@ export default function MoreScreen() {
     },
   ];
 
-  const account: Row[] = [
-    {
-      icon: 'log-out',
-      label: 'Sign Out',
-      color: RED,
-      danger: true,
-      onPress: () => logout().then(() => router.replace('/(auth)/login')),
-    },
-  ];
-
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
@@ -140,7 +127,6 @@ export default function MoreScreen() {
       <View style={{ paddingHorizontal: 16, gap: 0 }}>
         <Section title="OPERATIONS" rows={operations} />
         <Section title="STORE"      rows={store} />
-        <Section title="ACCOUNT"    rows={account} />
       </View>
 
       <Text style={s.footer}>Butterfield Director Portal</Text>

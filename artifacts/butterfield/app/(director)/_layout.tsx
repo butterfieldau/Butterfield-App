@@ -1,16 +1,24 @@
 import { Feather } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 
 const BLUE = '#40C0F2';
 const NAVY = '#1A2B4A';
 
 export default function DirectorLayout() {
+  const { logout } = useAuth();
+
   return (
     <View style={{ flex: 1, backgroundColor: NAVY }}>
-      <PortalHeader badge="DIRECTOR" badgeColor="#EF4444" backgroundColor={NAVY} />
+      <PortalHeader
+        badge="DIRECTOR"
+        badgeColor="#EF4444"
+        backgroundColor={NAVY}
+        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+      />
 
       <Tabs
         screenOptions={{

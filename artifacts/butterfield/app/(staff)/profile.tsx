@@ -184,12 +184,6 @@ export default function StaffProfileScreen() {
           ))}
         </View>
 
-        {/* Sign out */}
-        <Pressable onPress={handleLogout} style={[styles.signOutBtn, { backgroundColor: CARD, borderColor: '#FECACA' }]}>
-          <Feather name="log-out" size={16} color='#DC2626' />
-          <Text style={[styles.signOutText, { color: '#DC2626' }]}>Sign Out</Text>
-        </Pressable>
-
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Staff · Version 1.0.0</Text>
       </View>
 
