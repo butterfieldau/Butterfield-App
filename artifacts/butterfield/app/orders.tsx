@@ -79,8 +79,10 @@ function fmtShort(iso: string) {
   };
 }
 
+type StageItem = typeof STAGES_PICKUP[0];
+
 // ── Animated progress step ───────────────────────────────────────────────────
-function StageStep({ stage, index, currentIndex }: { stage: typeof STAGES[0]; index: number; currentIndex: number }) {
+function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageItem; index: number; currentIndex: number; totalStages: number }) {
   const isCompleted = index < currentIndex;
   const isActive    = index === currentIndex;
   const isPending   = index > currentIndex;
@@ -113,7 +115,7 @@ function StageStep({ stage, index, currentIndex }: { stage: typeof STAGES[0]; in
         }]}>
           <Feather name={stage.icon} size={16} color={isCompleted || isActive ? '#fff' : MUTED} />
         </Animated.View>
-        {index < STAGES.length - 1 && (
+        {index < totalStages - 1 && (
           <View style={[d.stageLine, { backgroundColor: isCompleted ? color : BORDER }]} />
         )}
       </View>
@@ -292,7 +294,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 <Text style={d.sectionTitle}>Order progress</Text>
                 <View style={{ marginTop: 8 }}>
                   {STAGES.map((stage, i) => (
-                    <StageStep key={stage.key} stage={stage} index={i} currentIndex={stageIndex} />
+                    <StageStep key={stage.key} stage={stage} index={i} currentIndex={stageIndex} totalStages={STAGES.length} />
                   ))}
                 </View>
                 {isActive && (
