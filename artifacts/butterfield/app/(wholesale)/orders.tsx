@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -255,10 +256,10 @@ export default function WholesaleOrdersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+      <LinearGradient colors={['#40C0F2', '#2AA8DC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: TEXT, fontSize: 26, fontFamily: 'Inter_700Bold' }}>My Orders</Text>
-          <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>{allOrders.length} total</Text>
+          <Text style={{ color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' }}>My Orders</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 13 }}>{allOrders.length} total</Text>
         </View>
         <FlatList
           data={FILTERS}
@@ -269,17 +270,15 @@ export default function WholesaleOrdersScreen() {
           renderItem={({ item: f }) => {
             const active = filter === f;
             const isOverdueFilter = f === 'Overdue';
-            const color = isOverdueFilter ? RED : (STATUS_CONFIG[f]?.color ?? BLUE);
-            const bgColor = isOverdueFilter ? '#FEE2E2' : (STATUS_CONFIG[f]?.bg ?? `${BLUE}18`);
             return (
               <Pressable
                 onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
                 style={[styles.filterPill, {
-                  backgroundColor: active ? bgColor : BG,
-                  borderColor: active ? color : BORDER,
+                  backgroundColor: active ? (isOverdueFilter ? '#FEE2E2' : 'rgba(255,255,255,0.92)') : 'rgba(255,255,255,0.18)',
+                  borderColor: active ? (isOverdueFilter ? '#FCA5A5' : 'rgba(255,255,255,0.9)') : 'rgba(255,255,255,0.3)',
                 }]}
               >
-                <Text style={{ color: active ? color : MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                <Text style={{ color: active ? (isOverdueFilter ? RED : BLUE) : 'rgba(255,255,255,0.85)', fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
                   {FILTER_LABELS[f] ?? f}
                   {isOverdueFilter && overdueCount > 0 ? ` (${overdueCount})` : ''}
                 </Text>
@@ -287,7 +286,7 @@ export default function WholesaleOrdersScreen() {
             );
           }}
         />
-      </View>
+      </LinearGradient>
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
@@ -404,7 +403,7 @@ export default function WholesaleOrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  header:     { paddingHorizontal: 16, paddingBottom: 12, gap: 10 },
+  header:     { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
   filterPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   orderCard:  {
     padding: 16, backgroundColor: '#fff', borderRadius: 14,

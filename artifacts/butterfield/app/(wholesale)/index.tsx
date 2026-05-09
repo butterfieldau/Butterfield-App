@@ -48,13 +48,8 @@ export default function WholesaleDashboard() {
   const goOrders  = () => { Haptics.selectionAsync(); router.push('/(wholesale)/orders' as any); };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: 120 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#fff" />}
-    >
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
       <LinearGradient
         colors={['#40C0F2', '#2AA8DC']}
         style={[s.hero, { paddingTop: insets.top + 18 }]}
@@ -80,6 +75,11 @@ export default function WholesaleDashboard() {
         </View>
       </LinearGradient>
 
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      >
       <View style={{ paddingHorizontal: 16, gap: 14, paddingTop: 16 }}>
 
         {/* ── PRIMARY CTA ────────────────────────────────────────────────── */}
@@ -183,7 +183,8 @@ export default function WholesaleDashboard() {
           <Text style={s.footerText}>Account details, payment methods & support in the Account tab</Text>
         </Pressable>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

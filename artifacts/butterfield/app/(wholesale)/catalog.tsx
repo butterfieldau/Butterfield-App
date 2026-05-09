@@ -682,22 +682,22 @@ export default function WholesaleCatalog() {
   // ── Catalog list ─────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.catalogHeader, { paddingTop: insets.top + 16, backgroundColor: CARD, borderBottomColor: BORDER }]}>
+      <LinearGradient colors={['#40C0F2', '#2AA8DC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: insets.top + 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: TEXT, fontSize: 26, fontFamily: 'Inter_700Bold' }}>Wholesale Catalog</Text>
+          <Text style={{ color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' }}>Wholesale Catalog</Text>
           {cart.length > 0 && (
-            <Pressable onPress={handleOpenCheckout} style={[styles.cartBtn, { backgroundColor: BLUE, borderRadius: 12 }]}>
+            <Pressable onPress={handleOpenCheckout} style={[styles.cartBtn, { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 12 }]}>
               <Feather name="shopping-cart" size={16} color="#fff" />
               <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>{totalQty}</Text>
             </Pressable>
           )}
         </View>
-        <View style={[styles.searchBar, { backgroundColor: BG, borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}>
-          <Feather name="search" size={14} color={MUTED} />
-          <TextInput style={{ flex: 1, color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14 }} placeholder="Search products..." placeholderTextColor={MUTED} value={search} onChangeText={setSearch} />
+        <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 }]}>
+          <Feather name="search" size={14} color="rgba(255,255,255,0.8)" />
+          <TextInput style={{ flex: 1, color: '#fff', fontFamily: 'Inter_400Regular', fontSize: 14 }} placeholder="Search products..." placeholderTextColor="rgba(255,255,255,0.6)" value={search} onChangeText={setSearch} />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
-              <Feather name="x" size={14} color={MUTED} />
+              <Feather name="x" size={14} color="rgba(255,255,255,0.8)" />
             </Pressable>
           )}
         </View>
@@ -710,25 +710,25 @@ export default function WholesaleCatalog() {
                 key={cat}
                 onPress={() => { setCategory(cat); Haptics.selectionAsync(); }}
                 style={[styles.tierTag, {
-                  backgroundColor: active ? BLUE : `${BLUE}12`,
+                  backgroundColor: active ? '#fff' : 'rgba(255,255,255,0.18)',
                   borderRadius: 20, borderWidth: 1,
-                  borderColor: active ? BLUE : `${BLUE}30`,
+                  borderColor: active ? '#fff' : 'rgba(255,255,255,0.3)',
                 }]}
               >
-                <Text style={{ color: active ? '#fff' : BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{label}</Text>
+                <Text style={{ color: active ? BLUE : '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{label}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {WHOLESALE_TIERS.map((tier) => (
-            <View key={tier.label} style={[styles.tierTag, { backgroundColor: `${BLUE}12`, borderRadius: 10, borderWidth: 1, borderColor: `${BLUE}30` }]}>
-              <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}</Text>
-              {tier.discount > 0 && <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
+            <View key={tier.label} style={[styles.tierTag, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }]}>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}</Text>
+              {tier.discount > 0 && <Text style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
             </View>
           ))}
         </ScrollView>
-      </View>
+      </LinearGradient>
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
@@ -775,7 +775,7 @@ export default function WholesaleCatalog() {
 
 const styles = StyleSheet.create({
   // Catalog
-  catalogHeader:  { paddingHorizontal: 16, paddingBottom: 14, gap: 10, borderBottomWidth: 1 },
+  catalogHeader:  { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
   searchBar:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42 },
   cartBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
   tierTag:        { paddingHorizontal: 10, paddingVertical: 6, gap: 2, alignItems: 'center' },

@@ -122,12 +122,8 @@ export default function WholesaleAccount() {
   const statusLabel = account?.status === 'approved' ? 'Approved' : account?.status === 'pending' ? 'Pending' : account?.status ?? '—';
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: 120 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
       <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[s.hero, { paddingTop: insets.top + 18 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={s.avatar}>
           <Text style={s.avatarText}>{initial}</Text>
@@ -146,6 +142,7 @@ export default function WholesaleAccount() {
         </View>
       </LinearGradient>
 
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 16, gap: 18, paddingTop: 14 }}>
 
         {/* ── STATS STRIP ────────────────────────────────────────────────── */}
@@ -275,7 +272,8 @@ export default function WholesaleAccount() {
 
         <Text style={s.versionText}>Butterfield Wholesale · v1.0</Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 

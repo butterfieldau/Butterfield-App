@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
@@ -329,12 +330,12 @@ export default function WholesaleInvoices() {
       />
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <View style={[ss.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={ss.title}>Invoices</Text>
+      <LinearGradient colors={['#40C0F2', '#2AA8DC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[ss.header, { paddingTop: insets.top + 16 }]}>
+        <Text style={[ss.title, { color: '#fff' }]}>Invoices</Text>
         <View style={ss.summaryRow}>
-          <View style={[ss.summaryCard, { backgroundColor: '#E0F5FE', borderColor: BLUE }]}>
-            <Text style={[ss.summaryLabel, { color: BLUE }]}>OUTSTANDING</Text>
-            <Text style={[ss.summaryValue, { color: TEXT }]}>
+          <View style={[ss.summaryCard, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' }]}>
+            <Text style={[ss.summaryLabel, { color: 'rgba(255,255,255,0.8)' }]}>OUTSTANDING</Text>
+            <Text style={[ss.summaryValue, { color: '#fff' }]}>
               ${totalPending.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
             </Text>
           </View>
@@ -347,7 +348,7 @@ export default function WholesaleInvoices() {
             </View>
           )}
         </View>
-      </View>
+      </LinearGradient>
 
       <FlatList
         data={MOCK_INVOICES}
@@ -465,7 +466,7 @@ const mdl = StyleSheet.create({
 });
 
 const ss = StyleSheet.create({
-  header:           { paddingHorizontal: 16, paddingBottom: 16, gap: 12, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
+  header:           { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
   title:            { fontSize: 26, fontFamily: 'Inter_700Bold', color: TEXT },
   summaryRow:       { flexDirection: 'row', gap: 10 },
   summaryCard:      { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, gap: 3 },
