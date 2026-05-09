@@ -157,6 +157,9 @@ export const api = {
     orders:              () => request<{ data: any[] }>('/director/orders'),
     updateOrderStatus:   (id: string, status: string) => request<{ data: any }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     users:               () => request<{ data: any[] }>('/director/users'),
+    staffMember:         (userId: string) => request<{ data: any }>(`/director/staff/${userId}`),
+    updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
+      request<{ data: any }>(`/director/staff/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     approveStaff:        (userId: string, approved: boolean) => request<{ data: any }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     setWholesaleStatus:  (accountId: string, status: string) => request<{ data: any }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     products:            () => request<{ data: any[] }>('/director/products'),

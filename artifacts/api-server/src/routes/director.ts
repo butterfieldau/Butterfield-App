@@ -248,6 +248,49 @@ router.get('/users', async (req, res) => {
   return res.json({ data: result });
 });
 
+// ── Staff member detail (GET + full PATCH) ───────────────────────────────────
+router.get('/staff/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) return res.status(404).json({ error: 'User not found.' });
+  const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, userId));
+  const recentShifts = await db.select().from(staffShiftsTable)
+    .where(eq(staffShiftsTable.userId, userId))
+    .orderBy(desc(staffShiftsTable.clockIn))
+    .limit(10);
+  const { passwordHash: _, ...safeUser } = user;
+  return res.json({ data: { ...safeUser, staffProfile: profile ?? null, recentShifts } });
+});
+
+router.patch('/staff/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { name, email, phone, address, taxFileNumber, position, department, hourlyRateCents, employmentStatus } = req.body;
+
+  const userUpdates: Record<string, any> = { updatedAt: new Date() };
+  if (name  !== undefined) userUpdates.name  = String(name).trim();
+  if (email !== undefined) userUpdates.email = String(email).trim().toLowerCase();
+  if (phone !== undefined) userUpdates.phone = String(phone).trim() || null;
+  if (Object.keys(userUpdates).length > 1) {
+    await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, userId));
+  }
+
+  const profileUpdates: Record<string, any> = { updatedAt: new Date() };
+  if (address         !== undefined) profileUpdates.address         = String(address).trim() || null;
+  if (taxFileNumber   !== undefined) profileUpdates.taxFileNumber   = String(taxFileNumber).trim() || null;
+  if (position        !== undefined) profileUpdates.position        = String(position).trim();
+  if (department      !== undefined) profileUpdates.department      = String(department).trim();
+  if (hourlyRateCents !== undefined) profileUpdates.hourlyRateCents = Number(hourlyRateCents);
+  if (employmentStatus !== undefined) profileUpdates.employmentStatus = String(employmentStatus);
+  if (Object.keys(profileUpdates).length > 1) {
+    await db.update(staffProfilesTable).set(profileUpdates).where(eq(staffProfilesTable.userId, userId));
+  }
+
+  const [updatedUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const [updatedProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, userId));
+  const { passwordHash: _, ...safeUser } = updatedUser;
+  return res.json({ data: { ...safeUser, staffProfile: updatedProfile ?? null } });
+});
+
 // ── Staff approval ───────────────────────────────────────────────────────────
 router.patch('/staff/:userId/approve', async (req, res) => {
   const { userId } = req.params;
