@@ -5,15 +5,15 @@ import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BLUE = '#40C0F2';
-const BG   = '#F5F6FA';
+const NAVY = '#1A2B4A';
 
 export default function DirectorLayout() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Fills the status-bar / Dynamic Island area with the screen background */}
-      <View style={{ height: insets.top, backgroundColor: BG }} />
+    <View style={{ flex: 1, backgroundColor: NAVY }}>
+      {/* Fills the status-bar / Dynamic Island area with the brand navy */}
+      <View style={{ height: insets.top, backgroundColor: NAVY }} />
 
       <Tabs
         screenOptions={{

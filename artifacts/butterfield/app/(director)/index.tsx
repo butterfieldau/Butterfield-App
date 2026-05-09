@@ -267,21 +267,21 @@ export default function DirectorHome() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={BLUE} />}
     >
-      {/* Identity strip */}
-      <View style={[styles.identityStrip, { paddingTop: insets.top > 0 ? insets.top + 8 : 24 }]}>
+      {/* Identity strip — navy, no extra top padding (layout already offsets for status bar) */}
+      <View style={styles.identityStrip}>
         <Image
-          source={require('@/assets/images/logo-blue.png')}
-          style={{ width: 130, height: 44, alignSelf: 'center', marginBottom: 8 }}
+          source={require('@/assets/images/logo-white.png')}
+          style={{ width: 130, height: 44, alignSelf: 'center', marginBottom: 10 }}
           resizeMode="contain"
         />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View>
-            <Text style={[styles.todayDate, { fontFamily: 'Inter_400Regular' }]}>{todayStr}</Text>
-            <Text style={[styles.userName,  { fontFamily: 'Inter_700Bold' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
+            <Text style={[styles.todayDate, { fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.55)' }]}>{todayStr}</Text>
+            <Text style={[styles.userName,  { fontFamily: 'Inter_700Bold', color: '#FFFFFF' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
           </View>
-          <View style={styles.clockBox}>
-            <Feather name="clock" size={12} color={BLUE} />
-            <Text style={[styles.clockText, { fontFamily: 'Inter_700Bold' }]}>{clock}</Text>
+          <View style={[styles.clockBox, { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.18)' }]}>
+            <Feather name="clock" size={12} color="rgba(255,255,255,0.7)" />
+            <Text style={[styles.clockText, { fontFamily: 'Inter_700Bold', color: '#FFFFFF' }]}>{clock}</Text>
           </View>
         </View>
       </View>
@@ -458,10 +458,10 @@ export default function DirectorHome() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  identityStrip: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'column', backgroundColor: BG },
+  identityStrip: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, flexDirection: 'column', backgroundColor: NAVY },
   todayDate:     { fontSize: 12, color: MUTED },
   userName:      { fontSize: 20, color: TEXT },
-  clockBox:      { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER },
+  clockBox:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   clockText:     { fontSize: 14, color: BLUE },
   revCard:       { borderRadius: 20, padding: 20, gap: 16 },
   revHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
