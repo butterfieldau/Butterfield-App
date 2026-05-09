@@ -110,7 +110,7 @@ export default function StaffOrdersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+      <View style={[styles.header, { paddingTop: 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }]}>
         <Text style={styles.title}>Order Queue</Text>
         <View style={[styles.searchBar, { backgroundColor: BG, borderColor: BORDER }]}>
           <Feather name="search" size={14} color={MUTED} />

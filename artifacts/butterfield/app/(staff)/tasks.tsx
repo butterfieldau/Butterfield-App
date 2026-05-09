@@ -94,7 +94,7 @@ export default function StaffTasksScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+      <View style={[styles.header, { paddingTop: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: BORDER }]}>
         <Text style={[styles.title, { fontFamily: 'Inter_700Bold', color: TEXT }]}>Staff Tools</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {TABS.map((t) => (
