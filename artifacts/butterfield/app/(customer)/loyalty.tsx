@@ -288,41 +288,27 @@ export default function LoyaltyScreen() {
 
         <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
           {profile?.birthday ? (
-            // ── Birthday already set: show countdown, no editing here ──────
+            // ── Birthday set: countdown card matching coffee card layout ────
             (() => {
               const bdInfo = getBirthdayInfo(profile.birthday!);
+              const isBd = bdInfo.isBirthday;
               return (
                 <View style={[
                   styles.birthdayCard,
-                  bdInfo.isBirthday && { borderColor: '#F9A8D4', borderStyle: 'solid', backgroundColor: '#FFF0F8' },
+                  isBd ? { backgroundColor: '#FFF0F8', borderColor: '#F9A8D4', borderStyle: 'solid' } : {},
                 ]}>
-                  {/* Emoji + countdown pill row */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                    <View style={[styles.birthdayIcon, {
-                      backgroundColor: bdInfo.isBirthday ? '#FCE7F3' : '#EEF2FB',
-                      width: 48, height: 48, borderRadius: 14,
-                    }]}>
-                      <Text style={{ fontSize: 22 }}>{bdInfo.emoji}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_700Bold', fontSize: 16,
-                        color: bdInfo.isBirthday ? '#BE185D' : TEXT }]}>
-                        {bdInfo.message}
-                      </Text>
-                      {!bdInfo.isBirthday && (
-                        <View style={styles.countdownPill}>
-                          <Text style={[styles.countdownPillText, { fontFamily: 'Inter_700Bold' }]}>
-                            {bdInfo.daysUntil === 1 ? '1 day' : `${bdInfo.daysUntil} days`}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  {/* Sub message */}
-                  <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular', lineHeight: 18 }]}>
+                  <Text style={[styles.bdSectionLabel, { fontFamily: 'Inter_600SemiBold',
+                    color: isBd ? '#E879A0' : MUTED }]}>
+                    BIRTHDAY
+                  </Text>
+                  <Text style={[styles.bdHeading, { fontFamily: 'Inter_700Bold',
+                    color: isBd ? '#BE185D' : TEXT }]}>
+                    {bdInfo.emoji} {bdInfo.message}
+                  </Text>
+                  <Text style={[styles.bdDesc, { fontFamily: 'Inter_400Regular',
+                    color: isBd ? '#9D174D' : MUTED }]}>
                     {bdInfo.sub}
                   </Text>
-                  {/* Hint to edit */}
                   <View style={styles.bdEditHint}>
                     <Feather name="settings" size={11} color={MUTED} />
                     <Text style={[styles.bdEditHintText, { fontFamily: 'Inter_400Regular' }]}>
@@ -333,26 +319,26 @@ export default function LoyaltyScreen() {
               );
             })()
           ) : (
-            // ── No birthday set: tap to add ─────────────────────────────────
+            // ── No birthday: tap to add, same card layout ───────────────────
             <Pressable
-              style={styles.birthdayCard}
+              style={[styles.birthdayCard, { borderStyle: 'dashed' }]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push('/edit-details');
               }}
             >
-              <View style={[styles.birthdayIcon, { backgroundColor: '#EEF2FB' }]}>
-                <Text style={{ fontSize: 18 }}>🎂</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_600SemiBold' }]}>
-                  Add your birthday
+              <Text style={[styles.bdSectionLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>
+                BIRTHDAY
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={[styles.bdHeading, { fontFamily: 'Inter_700Bold', color: TEXT, flex: 1 }]}>
+                  🎂 Add your birthday
                 </Text>
-                <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular' }]}>
-                  Get a free cookie every birthday week — on us!
-                </Text>
+                <Feather name="chevron-right" size={20} color={MUTED} />
               </View>
-              <Feather name="chevron-right" size={18} color={MUTED} />
+              <Text style={[styles.bdDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                Get a free cookie every birthday week — on us!
+              </Text>
             </Pressable>
           )}
         </View>
@@ -492,16 +478,13 @@ const styles = StyleSheet.create({
   stampRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   stampCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
 
-  birthdayCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, borderWidth: 1.5, borderColor: BORDER, borderStyle: 'dashed', gap: 0 },
-  birthdayIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  birthdayTitle: { fontSize: 15, color: TEXT },
-  birthdaySub: { fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 18 },
+  birthdayCard: { backgroundColor: WHITE, borderRadius: 20, padding: 20, gap: 4, borderWidth: 1.5, borderColor: BORDER },
+  bdSectionLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 2 },
+  bdHeading:      { fontSize: 32, lineHeight: 40, marginBottom: 2 },
+  bdDesc:         { fontSize: 13, lineHeight: 18, marginTop: 4 },
 
-  countdownPill: { marginTop: 5, alignSelf: 'flex-start', backgroundColor: '#EEF2FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  countdownPillText: { fontSize: 11, color: BRAND, letterSpacing: 0.3 },
-
-  bdEditHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
-  bdEditHintText: { fontSize: 11, color: MUTED, lineHeight: 15 },
+  bdEditHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
+  bdEditHintText: { fontSize: 11, color: MUTED, lineHeight: 15, flex: 1 },
 
   rewardCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
   rewardIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
