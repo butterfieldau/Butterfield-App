@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -63,6 +63,11 @@ export default function WholesaleDashboard() {
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
     >
       <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <Image
+          source={require('@/assets/images/logo-white.png')}
+          style={{ width: 140, height: 48, alignSelf: 'center', marginBottom: 10 }}
+          resizeMode="contain"
+        />
         <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' }]}>Welcome back,</Text>
         <Text style={[{ color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
         {account && (

@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Image, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -109,14 +109,21 @@ export default function DirectorControlCentre() {
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchActivity(); }} tintColor={BLUE} />}
     >
       {/* Identity strip */}
-      <View style={[styles.identityStrip, { paddingTop: insets.top > 0 ? 8 : 16 }]}>
-        <View>
-          <Text style={[styles.todayDate, { fontFamily: 'Inter_400Regular' }]}>{todayStr}</Text>
-          <Text style={[styles.userName, { fontFamily: 'Inter_700Bold' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
-        </View>
-        <View style={styles.clockBox}>
-          <Feather name="clock" size={12} color={BLUE} />
-          <Text style={[styles.clockText, { fontFamily: 'Inter_700Bold' }]}>{clock}</Text>
+      <View style={[styles.identityStrip, { paddingTop: insets.top > 0 ? insets.top + 8 : 24 }]}>
+        <Image
+          source={require('@/assets/images/logo-blue.png')}
+          style={{ width: 130, height: 44, alignSelf: 'center', marginBottom: 8 }}
+          resizeMode="contain"
+        />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <View>
+            <Text style={[styles.todayDate, { fontFamily: 'Inter_400Regular' }]}>{todayStr}</Text>
+            <Text style={[styles.userName, { fontFamily: 'Inter_700Bold' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
+          </View>
+          <View style={styles.clockBox}>
+            <Feather name="clock" size={12} color={BLUE} />
+            <Text style={[styles.clockText, { fontFamily: 'Inter_700Bold' }]}>{clock}</Text>
+          </View>
         </View>
       </View>
 
@@ -275,7 +282,7 @@ export default function DirectorControlCentre() {
 }
 
 const styles = StyleSheet.create({
-  identityStrip: { paddingHorizontal: 16, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: BG },
+  identityStrip: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'column', backgroundColor: BG },
   todayDate:     { fontSize: 12, color: MUTED },
   userName:      { fontSize: 20, color: TEXT },
   clockBox:      { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER },

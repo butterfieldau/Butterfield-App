@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -163,10 +163,11 @@ export default function LoginScreen() {
 
         {/* Hero gradient */}
         <LinearGradient colors={['#4B72C4', '#3058A8']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
-          <View style={s.logoBox}>
-            <Feather name="coffee" size={30} color="#fff" />
-          </View>
-          <Text style={[s.brand, { fontFamily: 'Inter_700Bold' }]}>Butterfield</Text>
+          <Image
+            source={require('@/assets/images/logo-white.png')}
+            style={{ width: 240, height: 88, marginBottom: 4 }}
+            resizeMode="contain"
+          />
           <Text style={[s.tagline, { fontFamily: 'Inter_400Regular' }]}>Cookies · Coffee · Desserts</Text>
         </LinearGradient>
 
@@ -390,8 +391,6 @@ export default function LoginScreen() {
 
 const s = StyleSheet.create({
   hero:          { alignItems: 'center', paddingBottom: 36, gap: 6 },
-  logoBox:       { width: 68, height: 68, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  brand:         { color: '#fff', fontSize: 30, letterSpacing: -0.5 },
   tagline:       { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
   body:          { flex: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
   signInAs:      { fontSize: 15, color: TEXT },
