@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
+  ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,6 +62,15 @@ const FILTER_TABS = [
   { key: 'wholesale',        label: 'Wholesale' },
   { key: 'cancelled',        label: 'Cancelled' },
 ];
+
+// ── Map helper ────────────────────────────────────────────────────────────────
+function openMap(address: string) {
+  const q = encodeURIComponent(address);
+  const url = Platform.OS === 'ios'
+    ? `maps://maps.apple.com/?q=${q}`
+    : `https://maps.google.com/?q=${q}`;
+  Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
+}
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function startOfDay(d: Date) {
@@ -229,14 +238,19 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
                   {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
                 </Text>
               </View>
-              {(order.deliveryAddress || order.street) && (
-                <View style={styles.detailRow}>
-                  <Feather name="navigation" size={14} color={MUTED} />
-                  <Text style={[styles.detailText, { flex: 1 }]}>
-                    {order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ')}
-                  </Text>
-                </View>
-              )}
+              {(order.deliveryAddress || order.street) && (() => {
+                const addr = order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ');
+                return (
+                  <Pressable
+                    onPress={() => { openMap(addr); Haptics.selectionAsync(); }}
+                    style={[styles.detailRow, { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#BFDBFE' }]}
+                  >
+                    <Feather name="navigation" size={14} color="#1E40AF" />
+                    <Text style={[styles.detailText, { flex: 1, color: '#1E40AF' }]}>{addr}</Text>
+                    <Feather name="external-link" size={13} color="#1E40AF" />
+                  </Pressable>
+                );
+              })()}
               {order.scheduledDate && (
                 <View style={styles.detailRow}>
                   <Feather name="calendar" size={14} color={MUTED} />
@@ -386,16 +400,40 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
             </Text>
           </View>
         </View>
+        {/* Delivery / Pickup type pill */}
+        {!isWholesale && (() => {
+          const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
+                backgroundColor: isDelivery ? '#DBEAFE' : '#DCFCE7', borderRadius: 8,
+                paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={11} color={isDelivery ? '#1E40AF' : '#166534'} />
+                <Text style={{ fontSize: 11, fontFamily: 'Inter_700Bold', color: isDelivery ? '#1E40AF' : '#166534' }}>
+                  {isDelivery ? 'Delivery' : 'Pickup'}
+                </Text>
+              </View>
+              {/* Delivery address preview — tappable */}
+              {isDelivery && (order.deliveryAddress || order.street) && (() => {
+                const addr = order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ');
+                return (
+                  <Pressable onPress={(e) => { e.stopPropagation?.(); openMap(addr); Haptics.selectionAsync(); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 }}>
+                    <Text style={{ fontSize: 11, color: '#1E40AF', fontFamily: 'Inter_400Regular', flex: 1 }} numberOfLines={1}>{addr}</Text>
+                    <Feather name="external-link" size={10} color="#1E40AF" />
+                  </Pressable>
+                );
+              })()}
+            </View>
+          );
+        })()}
         <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
           {itemSummary || 'No items'}
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={11} color={MUTED} />
-            <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
-              {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'} · {fmtTime(order.createdAt)}
-            </Text>
-          </View>
+          <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+            {fmtTime(order.createdAt)}
+          </Text>
           {next.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
               <Feather name="chevron-right" size={12} color={BLUE} />

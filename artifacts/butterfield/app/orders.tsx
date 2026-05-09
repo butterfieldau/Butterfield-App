@@ -53,13 +53,20 @@ const STAGE_COLOR: Record<string, string> = {
   refunded:         '#EF4444',
 };
 
-const STAGES = [
+const STAGES_PICKUP = [
   { key: 'received',          label: 'Received',         icon: 'check-circle' as const, desc: 'Your order has been placed successfully.' },
   { key: 'being_prepared',    label: 'In Preparation',   icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
   { key: 'ready_for_pickup',  label: 'Ready for Pickup', icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
   { key: 'completed',         label: 'Collected',        icon: 'star'         as const, desc: 'Enjoy your Butterfield goodies! See you next time.' },
 ];
-const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup'];
+const STAGES_DELIVERY = [
+  { key: 'received',          label: 'Received',         icon: 'check-circle' as const, desc: 'Your order has been placed successfully.' },
+  { key: 'being_prepared',    label: 'In Preparation',   icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
+  { key: 'ready_for_pickup',  label: 'Packed & Ready',   icon: 'box'          as const, desc: 'Your order is packed and ready to leave the kitchen.' },
+  { key: 'out_for_delivery',  label: 'Out for Delivery', icon: 'truck'        as const, desc: 'Your order is on its way to you!' },
+  { key: 'completed',         label: 'Delivered',        icon: 'star'         as const, desc: 'Your order has been delivered. Enjoy!' },
+];
+const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery'];
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -138,6 +145,8 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
 
   const order       = data?.data;
   const status      = order?.status ?? 'received';
+  const isDelivery  = order?.type === 'delivery';
+  const STAGES      = isDelivery ? STAGES_DELIVERY : STAGES_PICKUP;
   const stageIndex  = STAGES.findIndex(s => s.key === status);
   const isCancelled = status === 'cancelled' || status === 'refunded';
   const isActive    = ACTIVE_STATUSES.includes(status);
