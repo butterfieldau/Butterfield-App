@@ -848,7 +848,7 @@ export default function DirectorProductsScreen() {
 
       {/* FAB */}
       <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
-        style={[styles.fab, { backgroundColor: NAVY, bottom: insets.bottom + 65 }]}>
+        style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
         <Feather name="plus" size={22} color="#fff" />
         <Text style={[styles.fabText, { fontFamily: 'Inter_700Bold' }]}>Add Product</Text>
       </Pressable>
