@@ -62,6 +62,10 @@ router.patch('/birthday', requireAuth, async (req, res) => {
   }
   const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  // Once a birthday is set it is locked — contact admin to change it
+  if (profile.birthday) {
+    return res.status(403).json({ error: 'Birthday is already set and cannot be changed through the app. Please contact hello@butterfield.com.au to update it.' });
+  }
   await db.update(customerProfilesTable).set({ birthday }).where(eq(customerProfilesTable.userId, req.user!.id));
   return res.json({ data: { birthday } });
 });

@@ -66,6 +66,10 @@ export default function EditDetailsScreen() {
   const isLoading = meLoading || loyaltyLoading;
   const email     = meData?.user?.email ?? user?.email ?? '';
 
+  // Track whether the birthday was already saved when this screen opened.
+  // Once locked the field becomes read-only and the API will also reject changes.
+  const birthdayLocked = Boolean(loyaltyData?.data?.birthday);
+
   // Populate fields once data arrives
   useEffect(() => {
     if (meData?.user) {
@@ -87,7 +91,7 @@ export default function EditDetailsScreen() {
       Alert.alert('Name required', 'Please enter your full name.');
       return;
     }
-    if (birthday.trim() && birthday.length < 10) {
+    if (!birthdayLocked && birthday.trim() && birthday.length < 10) {
       Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY (e.g. 15/06/1995).');
       return;
     }
@@ -102,8 +106,8 @@ export default function EditDetailsScreen() {
         phone: phone.trim() || undefined,
       });
 
-      // Save birthday if provided
-      if (birthday.trim()) {
+      // Only attempt to save birthday if it hasn't been locked yet
+      if (!birthdayLocked && birthday.trim()) {
         const iso = birthdayToISO(birthday);
         if (!iso) {
           Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY (e.g. 15/06/1995).');
@@ -115,7 +119,7 @@ export default function EditDetailsScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      // Invalidate all caches that show customer details so every screen updates
+      // Invalidate all caches so every screen shows updated data
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['me'] }),
         qc.invalidateQueries({ queryKey: ['loyalty-profile'] }),
@@ -195,26 +199,45 @@ export default function EditDetailsScreen() {
           {/* ── Birthday ───────────────────────────────────────────────── */}
           <View>
             <Text style={styles.groupLabel}>BIRTHDAY</Text>
-            <View style={styles.card}>
+            <View style={[styles.card, birthdayLocked && { borderColor: '#D1D5DB', backgroundColor: '#FAFAFA' }]}>
               <View style={styles.fieldRow}>
-                <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={{ fontSize: 16 }}>🎂</Text>
+                <View style={[styles.iconCircle, { backgroundColor: birthdayLocked ? '#F3F4F6' : '#FEF3C7' }]}>
+                  {birthdayLocked
+                    ? <Feather name="lock" size={16} color={MUTED} />
+                    : <Text style={{ fontSize: 16 }}>🎂</Text>
+                  }
                 </View>
                 <View style={{ flex: 1, gap: 6 }}>
                   <Text style={styles.fieldLabel}>Date of birth</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={birthday}
-                    onChangeText={(t) => setBirthday(autoFormatBirthday(t))}
-                    placeholder="DD/MM/YYYY"
-                    placeholderTextColor={MUTED}
-                    keyboardType="number-pad"
-                    maxLength={10}
-                    returnKeyType="done"
-                  />
-                  <Text style={styles.fieldHint}>
-                    🍪 You'll receive a free cookie during your birthday week!
-                  </Text>
+                  {birthdayLocked ? (
+                    <>
+                      <View style={[styles.input, { backgroundColor: '#F3F4F6', justifyContent: 'center' }]}>
+                        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: MUTED }}>
+                          {birthday}
+                        </Text>
+                      </View>
+                      <Text style={[styles.fieldHint, { color: '#EF4444' }]}>
+                        Birthday is locked. To update it, email{' '}
+                        <Text style={{ fontFamily: 'Inter_600SemiBold' }}>hello@butterfield.com.au</Text>
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <TextInput
+                        style={styles.input}
+                        value={birthday}
+                        onChangeText={(t) => setBirthday(autoFormatBirthday(t))}
+                        placeholder="DD/MM/YYYY"
+                        placeholderTextColor={MUTED}
+                        keyboardType="number-pad"
+                        maxLength={10}
+                        returnKeyType="done"
+                      />
+                      <Text style={styles.fieldHint}>
+                        🍪 You'll receive a free cookie during your birthday week!
+                      </Text>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
