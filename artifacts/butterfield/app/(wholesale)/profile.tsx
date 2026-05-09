@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -125,9 +126,13 @@ export default function WholesaleAccount() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
       <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[s.hero, { paddingTop: insets.top + 18 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View style={s.avatar}>
-          <Text style={s.avatarText}>{initial}</Text>
-        </View>
+        <AvatarPicker
+          initial={initial}
+          size={68}
+          bgColor="rgba(255,255,255,0.22)"
+          textColor="#fff"
+          borderColor="rgba(255,255,255,0.4)"
+        />
         <Text style={s.heroName} numberOfLines={1}>{account?.companyName ?? user?.name}</Text>
         <Text style={s.heroSub} numberOfLines={1}>{user?.email}</Text>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>

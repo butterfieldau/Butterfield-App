@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { AvatarPicker } from '@/components/AvatarPicker';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -85,9 +86,12 @@ export default function AccountScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <View style={styles.userCardAvatar}>
-            <Text style={styles.userCardInitial}>{initial}</Text>
-          </View>
+          <AvatarPicker
+            initial={initial}
+            size={56}
+            bgColor="rgba(255,255,255,0.25)"
+            textColor="#fff"
+          />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.userCardName}>{displayName}</Text>
             <Text style={styles.userCardEmail}>{displayEmail}</Text>
@@ -186,7 +190,6 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   userCard:       { borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
   userCardAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  userCardInitial:{ color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' },
   userCardName:   { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
   userCardEmail:  { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' },
   userCardPhone:  { color: 'rgba(255,255,255,0.7)',  fontSize: 12, fontFamily: 'Inter_400Regular' },

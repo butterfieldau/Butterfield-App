@@ -230,19 +230,20 @@ router.get('/me', requireAuth, async (req, res) => {
     try { notifPrefs = JSON.parse(dbUser.notificationPreferences); } catch {}
   }
   return res.json({
-    user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone, notificationPreferences: notifPrefs },
+    user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone, profileImage: dbUser.profileImage, notificationPreferences: notifPrefs },
     profile,
   });
 });
 
-// ── PATCH /me — update name, phone, notification prefs ────────────────────────
+// ── PATCH /me — update name, phone, profileImage, notification prefs ──────────
 router.patch('/me', requireAuth, async (req, res) => {
   const user = req.user!;
-  const { name, phone, notificationPreferences } = req.body;
+  const { name, phone, notificationPreferences, profileImage } = req.body;
 
   const updates: Record<string, any> = { updatedAt: new Date() };
   if (name !== undefined && name.trim()) updates.name = name.trim();
   if (phone !== undefined) updates.phone = phone?.trim() || null;
+  if (profileImage !== undefined) updates.profileImage = profileImage ?? null;
   if (notificationPreferences !== undefined) {
     updates.notificationPreferences = typeof notificationPreferences === 'string'
       ? notificationPreferences
@@ -255,6 +256,12 @@ router.patch('/me', requireAuth, async (req, res) => {
   if (updated.role === 'customer') {
     const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
     profile = cp;
+  } else if (updated.role === 'staff') {
+    const [sp] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
+    profile = sp;
+  } else if (updated.role === 'wholesale') {
+    const [wa] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, user.id));
+    profile = wa;
   }
 
   let notifPrefs: Record<string, boolean> | null = null;
@@ -263,7 +270,7 @@ router.patch('/me', requireAuth, async (req, res) => {
   }
 
   return res.json({
-    user: { id: updated.id, email: updated.email, role: updated.role, name: updated.name, phone: updated.phone, notificationPreferences: notifPrefs },
+    user: { id: updated.id, email: updated.email, role: updated.role, name: updated.name, phone: updated.phone, profileImage: updated.profileImage, notificationPreferences: notifPrefs },
     profile,
   });
 });

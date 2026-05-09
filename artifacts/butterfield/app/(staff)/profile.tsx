@@ -5,6 +5,7 @@ import {
   ActivityIndicator, Alert, Modal, Pressable,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -102,11 +103,12 @@ export default function StaffProfileScreen() {
 
         {/* Identity card */}
         <View style={[styles.idCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={[styles.avatar, { backgroundColor: `${BLUE}18` }]}>
-            <Text style={[styles.avatarText, { color: BLUE }]}>
-              {user?.name?.charAt(0).toUpperCase() ?? 'S'}
-            </Text>
-          </View>
+          <AvatarPicker
+            initial={user?.name?.charAt(0).toUpperCase() ?? 'S'}
+            size={60}
+            bgColor={`${BLUE}18`}
+            textColor={BLUE}
+          />
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={[styles.idName, { color: TEXT }]}>{user?.name ?? 'Staff Member'}</Text>
             <Text style={[styles.idEmail, { color: MUTED }]}>{user?.email}</Text>
@@ -294,7 +296,6 @@ const styles = StyleSheet.create({
   screenTitle: { fontSize: 28, fontFamily: 'Inter_700Bold' },
   idCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 16, borderWidth: 1 },
   avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 24, fontFamily: 'Inter_700Bold' },
   idName: { fontSize: 17, fontFamily: 'Inter_700Bold' },
   idEmail: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   roleBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
