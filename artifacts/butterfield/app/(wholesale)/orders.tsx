@@ -187,7 +187,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
           {/* Reorder */}
           {order.status !== 'cancelled' && (
             <Pressable
-              onPress={() => { onReorder(order); onClose(); }}
+              onPress={() => onReorder(order)}
               style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16, backgroundColor: BLUE, borderRadius: 14 }}
             >
               <Feather name="repeat" size={16} color="#fff" />
@@ -250,7 +250,7 @@ export default function WholesaleOrdersScreen() {
 
     await AsyncStorage.setItem(WS_REORDER_KEY, JSON.stringify(reorderItems));
     setSelectedOrder(null);
-    router.push('/(wholesale)/catalog');
+    router.navigate('/(wholesale)/catalog');
   };
 
   return (
