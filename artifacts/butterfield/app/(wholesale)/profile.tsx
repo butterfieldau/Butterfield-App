@@ -3,12 +3,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -16,205 +17,314 @@ const BLUE   = '#40C0F2';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const GREEN  = '#22C55E';
+const RED    = '#DC2626';
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+// Apple-style grouped section header
+function SectionLabel({ children }: { children: string }) {
+  return <Text style={s.sectionLabel}>{children.toUpperCase()}</Text>;
+}
+
+// Disclosure row in a grouped list
+function Row({
+  icon, iconBg, label, value, onPress, last, danger, chevron = true, rightSlot,
+}: {
+  icon?: any; iconBg?: string; label: string; value?: string; onPress?: () => void;
+  last?: boolean; danger?: boolean; chevron?: boolean; rightSlot?: React.ReactNode;
+}) {
+  const Wrap: any = onPress ? Pressable : View;
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-      <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, flex: 1 }}>{label}</Text>
-      <Text style={{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: '60%', textAlign: 'right' }}>{value}</Text>
+    <Wrap onPress={onPress} style={[s.row, !last && s.rowBorder]}>
+      {icon && (
+        <View style={[s.rowIcon, { backgroundColor: iconBg ?? '#E0F5FE' }]}>
+          <Feather name={icon} size={14} color={danger ? RED : BLUE} />
+        </View>
+      )}
+      <Text style={[s.rowLabel, danger && { color: RED }]} numberOfLines={1}>{label}</Text>
+      {value !== undefined && (
+        <Text style={s.rowValue} numberOfLines={1}>{value}</Text>
+      )}
+      {rightSlot}
+      {onPress && chevron && <Feather name="chevron-right" size={15} color={MUTED} />}
+    </Wrap>
+  );
+}
+
+// Expandable section card
+function Group({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <View style={{ gap: 6 }}>
+      {title && <SectionLabel>{title}</SectionLabel>}
+      <View style={s.group}>{children}</View>
     </View>
   );
 }
 
-export default function WholesaleProfileScreen() {
+export default function WholesaleAccount() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
   const { data: accountData } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
-  const { data: ordersData } = useQuery({ queryKey: ['wholesale-orders'], queryFn: () => api.wholesale.orders(), retry: 1 });
+  const { data: ordersData }  = useQuery({ queryKey: ['wholesale-orders'],  queryFn: () => api.wholesale.orders(),  retry: 1 });
 
-  const account = accountData?.data;
-  const orders = ordersData?.data ?? [];
-  const creditUsed = account?.creditUsedCents ?? 0;
-  const creditLimit = account?.creditLimitCents ?? 0;
-  const tierName = account?.tier?.name ?? account?.pricingTier ?? 'Standard';
+  const account       = accountData?.data;
+  const orders        = ordersData?.data ?? [];
+  const completed     = orders.filter((o: any) => o.status === 'delivered').length;
+  const totalSpent    = orders.reduce((s: number, o: any) => s + (o.totalCents ?? 0), 0);
+  const creditUsed    = account?.currentBalanceCents ?? 0;
+  const creditLimit   = account?.creditLimitCents ?? 0;
+  const tierName      = account?.tier?.name ?? account?.pricingTier ?? 'Standard';
+  const paymentTermsRaw = account?.tier?.paymentTermsDays ?? account?.paymentTerms;
+  const paymentTerms  = typeof paymentTermsRaw === 'number'
+    ? `${paymentTermsRaw} days`
+    : (paymentTermsRaw ?? 'Net 14').toString().replace(/^net/i, 'Net ');
+  const discount      = account?.tier?.discountPercent;
+  const accountMgr    = account?.accountManager;
+  const accountMgrEmail = account?.accountManagerEmail;
+  const fullAddress   = [account?.deliveryAddress, [account?.suburb, account?.state, account?.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+
+  const [showBusiness, setShowBusiness] = useState(false);
+  const [showBilling,  setShowBilling]  = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure?', [
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out', style: 'destructive', onPress: async () => {
+      { text: 'Sign Out', style: 'destructive', onPress: async () => {
           await logout(); qc.clear(); router.replace('/(auth)/login');
-        },
-      },
+      }},
     ]);
   };
 
   const openPhone = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Linking.openURL('tel:0290001234').catch(() =>
-      Alert.alert('Sales Representative', 'Phone: (02) 9000 1234\nEmail: wholesale@butterfield.com.au\n\nAvailable Mon–Fri, 8:00am – 4:00pm AEST')
+      Alert.alert('Sales Representative', 'Phone: (02) 9000 1234\nEmail: wholesale@butterfield.com.au\n\nMon–Fri, 8am – 4pm AEST')
     );
   };
-
   const openEmail = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL('mailto:wholesale@butterfield.com.au?subject=Wholesale Account Enquiry').catch(() =>
-      Alert.alert('Email', 'wholesale@butterfield.com.au')
+    const addr = accountMgrEmail ?? 'wholesale@butterfield.com.au';
+    Linking.openURL(`mailto:${addr}?subject=Wholesale Account Enquiry`).catch(() =>
+      Alert.alert('Email', addr)
+    );
+  };
+  const openFaqs = () => {
+    Alert.alert(
+      'Wholesale FAQs',
+      `Cut-off times:\n  Monday delivery → Friday 12pm AEST\n  Thursday delivery → Tuesday 12pm AEST\n\nMinimum order: $50\nLead time: 2 business days\nPayment terms: ${paymentTerms} from invoice`
     );
   };
 
-  const totalSpent = orders.reduce((s: number, o: any) => s + (o.totalCents ?? 0), 0);
-  const completedOrders = orders.filter((o: any) => o.status === 'delivered').length;
+  const initial = account?.companyName?.charAt(0) ?? user?.name?.charAt(0) ?? 'W';
+  const statusColor = account?.status === 'approved' ? GREEN : account?.status === 'rejected' ? RED : '#F59E0B';
+  const statusLabel = account?.status === 'approved' ? 'Approved' : account?.status === 'pending' ? 'Pending' : account?.status ?? '—';
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View style={[styles.avatar, { backgroundColor: 'rgba(255,255,255,0.25)', borderColor: 'rgba(255,255,255,0.5)', borderWidth: 2 }]}>
-          <Text style={{ color: '#fff', fontSize: 28, fontFamily: 'Inter_700Bold' }}>
-            {account?.companyName?.charAt(0) ?? user?.name?.charAt(0) ?? 'W'}
-          </Text>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: BG }}
+      contentContainerStyle={{ paddingBottom: 120 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[s.hero, { paddingTop: insets.top + 18 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <View style={s.avatar}>
+          <Text style={s.avatarText}>{initial}</Text>
         </View>
-        <Text style={{ color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' }}>{account?.companyName ?? user?.name}</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_500Medium' }}>
-          {tierName.toUpperCase()} Account
-        </Text>
-        {account?.status && (
-          <View style={{ backgroundColor: account.status === 'approved' ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginTop: 4 }}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>
-              {account.status === 'approved' ? '✓ Approved' : account.status === 'pending' ? 'Pending Approval' : account.status}
-            </Text>
+        <Text style={s.heroName} numberOfLines={1}>{account?.companyName ?? user?.name}</Text>
+        <Text style={s.heroSub} numberOfLines={1}>{user?.email}</Text>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+          <View style={s.heroPill}>
+            <Feather name="award" size={10} color="#fff" />
+            <Text style={s.heroPillText}>{tierName.toUpperCase()}{discount != null ? ` · −${discount}%` : ''}</Text>
           </View>
-        )}
+          <View style={[s.heroPill, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: account?.status === 'approved' ? '#86efac' : '#fde68a' }} />
+            <Text style={s.heroPillText}>{statusLabel.toUpperCase()}</Text>
+          </View>
+        </View>
       </LinearGradient>
 
-      <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 20 }}>
+      <View style={{ paddingHorizontal: 16, gap: 18, paddingTop: 14 }}>
 
-        {/* Quick stats */}
+        {/* ── STATS STRIP ────────────────────────────────────────────────── */}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {[
-            { label: 'Total Orders',   value: String(orders.length) },
-            { label: 'Delivered',      value: String(completedOrders) },
-            { label: 'Total Spent',    value: `$${(totalSpent / 100).toFixed(0)}` },
-          ].map((s) => (
-            <View key={s.label} style={{ flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: BORDER }}>
-              <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 18 }}>{s.value}</Text>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textAlign: 'center' }}>{s.label}</Text>
+            { label: 'Orders',    value: String(orders.length) },
+            { label: 'Delivered', value: String(completed) },
+            { label: 'Spent',     value: `$${(totalSpent / 100).toFixed(0)}` },
+          ].map((stat) => (
+            <View key={stat.label} style={s.stat}>
+              <Text style={s.statValue}>{stat.value}</Text>
+              <Text style={s.statLabel}>{stat.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* Business details */}
-        {account && (
-          <View style={styles.card}>
-            <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15, marginBottom: 4 }}>Business Details</Text>
-            <InfoRow label="Company" value={account.companyName ?? '—'} />
-            <InfoRow label="ABN" value={account.abn ?? '—'} />
-            <InfoRow label="Account Number" value={account.accountNumber ?? '—'} />
-            <InfoRow label="Status" value={account.status ? account.status.charAt(0).toUpperCase() + account.status.slice(1) : '—'} />
-          </View>
-        )}
-
-        {/* Contact details */}
-        {account && (
-          <View style={styles.card}>
-            <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15, marginBottom: 4 }}>Contact Details</Text>
-            <InfoRow label="Name" value={user?.name ?? '—'} />
-            <InfoRow label="Email" value={user?.email ?? '—'} />
-            <InfoRow label="Phone" value={user?.phone ?? account.phone ?? '—'} />
-          </View>
-        )}
-
-        {/* Billing & delivery */}
-        {account && (
-          <View style={styles.card}>
-            <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15, marginBottom: 4 }}>Billing & Delivery</Text>
-            <InfoRow label="Delivery Address" value={account.deliveryAddress ?? '—'} />
-            <InfoRow label="Payment Terms" value={account.tier?.paymentTermsDays != null ? `${account.tier.paymentTermsDays} days` : (account.paymentTerms ?? '30 days')} />
-            <InfoRow label="Pricing Tier" value={tierName} />
-            {account.tier?.discountPercent != null && (
-              <InfoRow label="Discount" value={`${account.tier.discountPercent}% off all products`} />
-            )}
-          </View>
-        )}
-
-        {/* Credit utilisation */}
-        {account && creditLimit > 0 && (
-          <View style={styles.card}>
-            <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15, marginBottom: 10 }}>Credit Utilisation</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>${(creditUsed / 100).toFixed(2)} used</Text>
-              <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }}>${(creditLimit / 100).toFixed(2)} limit</Text>
+        {/* ── CREDIT (only if a credit limit exists) ─────────────────────── */}
+        {creditLimit > 0 && (
+          <View style={s.creditCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View>
+                <Text style={s.creditLabel}>Credit available</Text>
+                <Text style={s.creditAvail}>${((creditLimit - creditUsed) / 100).toFixed(0)}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={s.creditLabel}>Used / Limit</Text>
+                <Text style={s.creditUsed}>${(creditUsed / 100).toFixed(0)} / ${(creditLimit / 100).toFixed(0)}</Text>
+              </View>
             </View>
-            <View style={{ height: 8, borderRadius: 4, backgroundColor: BG, overflow: 'hidden' }}>
-              <View style={{
-                height: '100%', borderRadius: 4,
-                backgroundColor: creditUsed / creditLimit > 0.8 ? '#EF4444' : BLUE,
+            <View style={s.barTrack}>
+              <View style={[s.barFill, {
                 width: `${Math.min(100, (creditUsed / creditLimit) * 100)}%`,
-              }} />
+                backgroundColor: creditUsed / creditLimit > 0.8 ? '#EF4444' : BLUE,
+              }]} />
             </View>
           </View>
         )}
 
-        {/* Order cut-off schedule */}
-        <View style={styles.card}>
-          <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15, marginBottom: 8 }}>Order Cut-Off Schedule</Text>
-          {[
-            { delivery: 'Monday', cutOff: 'Friday 12pm AEST' },
-            { delivery: 'Thursday', cutOff: 'Tuesday 12pm AEST' },
-          ].map((row) => (
-            <View key={row.delivery} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>{row.delivery} delivery</Text>
-              <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{row.cutOff}</Text>
+        {/* ── PAYMENT METHODS (cards live here now) ──────────────────────── */}
+        <View style={{ gap: 6 }}>
+          <SectionLabel>Payment Methods</SectionLabel>
+          <PaymentMethods />
+        </View>
+
+        {/* ── BUSINESS DETAILS (collapsible) ─────────────────────────────── */}
+        <Group title="Business">
+          <Row
+            icon="briefcase"
+            label="Business Details"
+            onPress={() => { Haptics.selectionAsync(); setShowBusiness(v => !v); }}
+            rightSlot={<Feather name={showBusiness ? 'chevron-up' : 'chevron-down'} size={15} color={MUTED} />}
+            chevron={false}
+            last={!showBusiness}
+          />
+          {showBusiness && (
+            <View style={s.expand}>
+              <Detail label="Company"        value={account?.companyName ?? '—'} />
+              <Detail label="ABN"            value={account?.abn ?? '—'} />
+              <Detail label="Contact"        value={account?.contactName ?? user?.name ?? '—'} />
+              <Detail label="Account Status" value={statusLabel} valueColor={statusColor} last />
             </View>
-          ))}
-          <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 8 }}>
-            Minimum order $50 · Lead time 2 business days
-          </Text>
-        </View>
+          )}
+          <Row
+            icon="dollar-sign"
+            iconBg="#DCFCE7"
+            label="Billing & Delivery"
+            onPress={() => { Haptics.selectionAsync(); setShowBilling(v => !v); }}
+            rightSlot={<Feather name={showBilling ? 'chevron-up' : 'chevron-down'} size={15} color={MUTED} />}
+            chevron={false}
+            last={!showBilling}
+          />
+          {showBilling && (
+            <View style={s.expand}>
+              <Detail label="Pricing Tier"     value={tierName} />
+              {discount != null && <Detail label="Discount" value={`${discount}% off all products`} />}
+              <Detail label="Payment Terms"   value={paymentTerms} />
+              <Detail label="Delivery Address" value={fullAddress || '—'} last />
+            </View>
+          )}
+          <Row
+            icon="calendar"
+            iconBg="#FEF3C7"
+            label="Order Schedule"
+            onPress={() => { Haptics.selectionAsync(); setShowSchedule(v => !v); }}
+            rightSlot={<Feather name={showSchedule ? 'chevron-up' : 'chevron-down'} size={15} color={MUTED} />}
+            chevron={false}
+            last
+          />
+          {showSchedule && (
+            <View style={s.expand}>
+              <Detail label="Monday delivery"   value="Order by Fri 12pm" />
+              <Detail label="Thursday delivery" value="Order by Tue 12pm" />
+              <Detail label="Minimum order"     value="$50 AUD" />
+              <Detail label="Lead time"         value="2 business days" last />
+            </View>
+          )}
+        </Group>
 
-        {/* Support actions */}
-        <View style={[{ backgroundColor: CARD, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }]}>
-          {[
-            { icon: 'phone' as const,      label: 'Call Sales Rep',         sub: '(02) 9000 1234',                  onPress: openPhone },
-            { icon: 'mail' as const,       label: 'Email Support',          sub: 'wholesale@butterfield.com.au',    onPress: openEmail },
-            { icon: 'file-text' as const,  label: 'View Invoices',          sub: 'Download your invoice history',   onPress: () => router.push('/(wholesale)/invoices' as any) },
-            { icon: 'help-circle' as const,label: 'Wholesale FAQs',         sub: 'Cut-offs, payment & delivery',    onPress: () => Alert.alert('Wholesale FAQs', 'Cut-off times:\nMonday delivery → Friday 12pm AEST\nThursday delivery → Tuesday 12pm AEST\n\nMinimum order: $50\nLead time: 2 business days\nPayment terms: 30 days') },
-          ].map((item, i, arr) => (
-            <Pressable
-              key={item.label}
-              onPress={item.onPress}
-              style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
-            >
-              <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E0F5FE' }}>
-                <Feather name={item.icon} size={16} color={BLUE} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 14 }}>{item.label}</Text>
-                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 1 }}>{item.sub}</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={MUTED} />
-            </Pressable>
-          ))}
-        </View>
+        {/* ── ACCESS LINKS ───────────────────────────────────────────────── */}
+        <Group title="Quick Links">
+          <Row
+            icon="file-text"
+            label="Invoices"
+            onPress={() => { Haptics.selectionAsync(); router.push('/(wholesale)/invoices' as any); }}
+          />
+          <Row
+            icon="package"
+            iconBg="#FEF3C7"
+            label="Order History"
+            onPress={() => { Haptics.selectionAsync(); router.push('/(wholesale)/orders' as any); }}
+            last
+          />
+        </Group>
 
-        {/* Sign out */}
-        <Pressable
-          onPress={handleLogout}
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, backgroundColor: CARD, borderRadius: 16, borderColor: '#DC2626', borderWidth: 1 }}
-        >
-          <Feather name="log-out" size={16} color="#DC2626" />
-          <Text style={{ color: '#DC2626', fontFamily: 'Inter_600SemiBold', fontSize: 15 }}>Sign Out</Text>
+        {/* ── SUPPORT ────────────────────────────────────────────────────── */}
+        <Group title="Support">
+          <Row icon="phone" label={accountMgr ? `Call ${accountMgr}` : 'Call Sales Rep'} value="(02) 9000 1234" onPress={openPhone} />
+          <Row icon="mail"  label="Email Support" value={accountMgrEmail ? accountMgrEmail.split('@')[0] + '@…' : 'wholesale@…'} onPress={openEmail} />
+          <Row icon="help-circle" iconBg="#FEF3C7" label="Wholesale FAQs" onPress={openFaqs} last />
+        </Group>
+
+        {/* ── SIGN OUT ───────────────────────────────────────────────────── */}
+        <Pressable onPress={handleLogout} style={s.signOut}>
+          <Feather name="log-out" size={15} color={RED} />
+          <Text style={s.signOutText}>Sign Out</Text>
         </Pressable>
 
+        <Text style={s.versionText}>Butterfield Wholesale · v1.0</Text>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 28, gap: 8, alignItems: 'center' },
-  avatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  card:   { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+function Detail({ label, value, valueColor, last }: { label: string; value: string; valueColor?: string; last?: boolean }) {
+  return (
+    <View style={[s.detail, !last && s.detailBorder]}>
+      <Text style={s.detailLabel}>{label}</Text>
+      <Text style={[s.detailValue, valueColor && { color: valueColor }]} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  hero:            { paddingHorizontal: 20, paddingBottom: 22, alignItems: 'center', gap: 4 },
+  avatar:          { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', marginBottom: 6 },
+  avatarText:      { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
+  heroName:        { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
+  heroSub:         { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  heroPill:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  heroPillText:    { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 9, letterSpacing: 0.5 },
+
+  stat:            { flex: 1, backgroundColor: CARD, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: BORDER, gap: 2 },
+  statValue:       { color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 18 },
+  statLabel:       { color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  creditCard:      { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 10 },
+  creditLabel:     { color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  creditAvail:     { color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 22, marginTop: 2 },
+  creditUsed:      { color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 },
+  barTrack:        { height: 6, borderRadius: 3, backgroundColor: BG, overflow: 'hidden' },
+  barFill:         { height: '100%', borderRadius: 3 },
+
+  sectionLabel:    { color: MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 0.7, marginLeft: 4 },
+
+  group:           { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+
+  row:             { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: 50 },
+  rowBorder:       { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  rowIcon:         { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  rowLabel:        { flex: 1, color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 14 },
+  rowValue:        { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, maxWidth: 140 },
+
+  expand:          { backgroundColor: '#FAFBFC', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+  detail:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 8, gap: 12 },
+  detailBorder:    { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  detailLabel:     { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, flex: 1 },
+  detailValue:     { color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 12, maxWidth: '60%', textAlign: 'right' },
+
+  signOut:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: '#FECACA' },
+  signOutText:     { color: RED, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  versionText:     { textAlign: 'center', color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 4 },
 });

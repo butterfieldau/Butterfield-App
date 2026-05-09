@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import React from 'react';
-import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -15,254 +15,216 @@ const BLUE   = '#40C0F2';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const RED    = '#EF4444';
+const AMBER  = '#F59E0B';
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  pending:    { label: 'Pending',    color: '#3B82F6' },
-  processing: { label: 'Processing', color: '#F59E0B' },
-  dispatched: { label: 'Dispatched', color: '#8B5CF6' },
-  delivered:  { label: 'Delivered',  color: '#22C55E' },
-  cancelled:  { label: 'Cancelled',  color: '#EF4444' },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  pending:    { label: 'Pending',    color: '#3B82F6', bg: '#DBEAFE' },
+  processing: { label: 'Processing', color: '#F59E0B', bg: '#FEF3C7' },
+  dispatched: { label: 'Dispatched', color: '#8B5CF6', bg: '#EDE9FE' },
+  delivered:  { label: 'Delivered',  color: '#22C55E', bg: '#DCFCE7' },
+  cancelled:  { label: 'Cancelled',  color: '#EF4444', bg: '#FEE2E2' },
 };
 
 export default function WholesaleDashboard() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  const { data: accountData } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
+  const { data: accountData }       = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
   const { data: ordersData, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-orders'], queryFn: () => api.wholesale.orders(), retry: 1 });
   const { data: announcementsData } = useQuery({ queryKey: ['announcements'], queryFn: () => api.misc.announcements(), retry: 1 });
 
-  const account = accountData?.data;
-  const orders = ordersData?.data ?? [];
+  const account       = accountData?.data;
+  const orders        = ordersData?.data ?? [];
   const announcements = announcementsData?.data ?? [];
-  const recentOrders = orders.slice(0, 3);
-  const pendingOrders = orders.filter((o: any) => !['delivered', 'cancelled'].includes(o.status)).length;
+  const recentOrders  = orders.slice(0, 3);
+  const pendingCount  = orders.filter((o: any) => !['delivered', 'cancelled'].includes(o.status)).length;
 
-  const tierName = account?.tier?.name ?? account?.pricingTier ?? null;
+  const tierName = account?.tier?.name ?? account?.pricingTier ?? 'Standard';
   const firstName = user?.name?.split(' ')[0] ?? 'Partner';
+  const isPending = account?.status === 'pending';
 
-  const handleContactPhone = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL('tel:0290001234').catch(() =>
-      Alert.alert('Wholesale Support', 'Phone: (02) 9000 1234\nEmail: wholesale@butterfield.com.au')
-    );
-  };
-
-  const handleContactEmail = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL('mailto:wholesale@butterfield.com.au?subject=Wholesale Enquiry').catch(() =>
-      Alert.alert('Email', 'wholesale@butterfield.com.au')
-    );
-  };
+  const goCatalog = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/(wholesale)/catalog' as any); };
+  const goOrders  = () => { Haptics.selectionAsync(); router.push('/(wholesale)/orders' as any); };
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#fff" />}
     >
-      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <LinearGradient
+        colors={['#40C0F2', '#2AA8DC']}
+        style={[s.hero, { paddingTop: insets.top + 18 }]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      >
         <Image
           source={require('@/assets/images/logo-white.png')}
-          style={{ width: 140, height: 48, alignSelf: 'center', marginBottom: 10 }}
+          style={{ width: 130, height: 42, alignSelf: 'center', marginBottom: 14 }}
           resizeMode="contain"
         />
-        <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' }]}>Welcome back,</Text>
-        <Text style={[{ color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' }]}>{firstName}</Text>
-        {account && (
-          <Text style={[{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_500Medium' }]}>
-            {account.companyName}{tierName ? ` · ${tierName.toUpperCase()}` : ''}
-          </Text>
-        )}
-        {account?.status === 'pending' && (
-          <View style={{ backgroundColor: 'rgba(255,255,0,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginTop: 4, alignSelf: 'flex-start' }}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Account Pending Approval</Text>
+        <Text style={s.heroGreeting}>Good day, {firstName}</Text>
+        {account?.companyName && <Text style={s.heroCompany}>{account.companyName}</Text>}
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, alignItems: 'center' }}>
+          <View style={s.tierBadge}>
+            <Feather name="award" size={11} color="#fff" />
+            <Text style={s.tierBadgeText}>{tierName.toUpperCase()} TIER</Text>
           </View>
-        )}
+          {isPending && (
+            <View style={[s.tierBadge, { backgroundColor: 'rgba(255,200,0,0.3)' }]}>
+              <Text style={s.tierBadgeText}>PENDING APPROVAL</Text>
+            </View>
+          )}
+        </View>
       </LinearGradient>
 
-      <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
+      <View style={{ paddingHorizontal: 16, gap: 14, paddingTop: 16 }}>
 
-        {/* Account overview stats */}
-        {account && (
-          <View style={[styles.card, { backgroundColor: CARD }]}>
-            <Text style={[styles.sectionTitle, { color: TEXT, fontFamily: 'Inter_600SemiBold', marginBottom: 12 }]}>Account Overview</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              {[
-                { label: 'Credit Limit',   value: `$${((account.creditLimitCents ?? 0) / 100).toFixed(0)}` },
-                { label: 'Used',           value: `$${((account.creditUsedCents ?? 0) / 100).toFixed(0)}` },
-                { label: 'Total Orders',   value: String(orders.length) },
-                { label: 'In Progress',    value: String(pendingOrders) },
-              ].map((s) => (
-                <View key={s.label} style={[styles.miniStat, { backgroundColor: BG, borderRadius: 10 }]}>
-                  <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 16 }]}>{s.value}</Text>
-                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 10, textAlign: 'center' }]}>{s.label}</Text>
-                </View>
-              ))}
+        {/* ── PRIMARY CTA ────────────────────────────────────────────────── */}
+        <Pressable onPress={goCatalog} style={s.ctaWrap}>
+          <LinearGradient
+            colors={['#40C0F2', '#2398D8']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={s.cta}
+          >
+            <View style={s.ctaIcon}>
+              <Feather name="shopping-bag" size={20} color={BLUE} />
             </View>
-          </View>
-        )}
-
-        {/* Pricing tier card */}
-        {account && (
-          <View style={[styles.card, { backgroundColor: CARD }]}>
-            <Text style={[styles.sectionTitle, { color: TEXT, fontFamily: 'Inter_600SemiBold', marginBottom: 10 }]}>Pricing Tier</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 18 }}>
-                  {account.tier?.name ?? tierName ?? 'Standard'}
-                </Text>
-                {account.tier?.discountPercent != null && (
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, marginTop: 2 }}>
-                    {account.tier.discountPercent}% discount on all products
-                  </Text>
-                )}
-                {account.tier?.minOrderCents != null && (
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }}>
-                    Min. order: ${(account.tier.minOrderCents / 100).toFixed(0)}
-                  </Text>
-                )}
-                {account.tier?.paymentTermsDays != null && (
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }}>
-                    Payment terms: {account.tier.paymentTermsDays} days
-                  </Text>
-                )}
-              </View>
-              <View style={{ backgroundColor: `${BLUE}15`, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 }}>
-                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }}>
-                  {account.tier?.name ? account.tier.name.toUpperCase() : 'STANDARD'}
-                </Text>
-              </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.ctaTitle}>Place a New Order</Text>
+              <Text style={s.ctaSub}>Browse catalog · {tierName} pricing applied</Text>
             </View>
+            <Feather name="chevron-right" size={20} color="#fff" />
+          </LinearGradient>
+        </Pressable>
 
-            {/* Credit utilisation bar */}
-            {account.creditLimitCents > 0 && (
-              <View style={{ marginTop: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Credit used</Text>
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>
-                    ${((account.creditUsedCents ?? 0) / 100).toFixed(0)} / ${(account.creditLimitCents / 100).toFixed(0)}
-                  </Text>
-                </View>
-                <View style={{ height: 6, borderRadius: 3, backgroundColor: BG, overflow: 'hidden' }}>
-                  <View style={{
-                    height: '100%', borderRadius: 3,
-                    backgroundColor: (account.creditUsedCents ?? 0) / account.creditLimitCents > 0.8 ? '#EF4444' : BLUE,
-                    width: `${Math.min(100, ((account.creditUsedCents ?? 0) / account.creditLimitCents) * 100)}%`,
-                  }} />
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Order cut-off times */}
-        <View style={[styles.card, { backgroundColor: CARD }]}>
-          <Text style={[styles.sectionTitle, { color: TEXT, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>Order Cut-Off Times</Text>
-          {[
-            { day: 'Monday delivery',   cutOff: 'Friday 12pm AEST',  icon: 'calendar' as const },
-            { day: 'Thursday delivery', cutOff: 'Tuesday 12pm AEST', icon: 'calendar' as const },
-          ].map((c) => (
-            <View key={c.day} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Feather name={c.icon} size={14} color={MUTED} />
-                <Text style={[{ color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>{c.day}</Text>
-              </View>
-              <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>{c.cutOff}</Text>
-            </View>
-          ))}
-          <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 10 }]}>
-            Minimum order: $50 · Lead time: 2 business days
-          </Text>
+        {/* ── KEY METRICS (2 only) ───────────────────────────────────────── */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Pressable onPress={goOrders} style={[s.metric, { borderLeftColor: BLUE }]}>
+            <Text style={s.metricLabel}>Active orders</Text>
+            <Text style={[s.metricValue, { color: pendingCount > 0 ? BLUE : TEXT }]}>{pendingCount}</Text>
+            <Text style={s.metricHint}>{pendingCount === 0 ? 'All caught up' : 'In progress'}</Text>
+          </Pressable>
+          <Pressable onPress={goOrders} style={[s.metric, { borderLeftColor: '#22C55E' }]}>
+            <Text style={s.metricLabel}>Total orders</Text>
+            <Text style={[s.metricValue, { color: TEXT }]}>{orders.length}</Text>
+            <Text style={s.metricHint}>All-time</Text>
+          </Pressable>
         </View>
 
-        {/* Announcements */}
+        {/* ── ANNOUNCEMENTS (only if present) ────────────────────────────── */}
         {announcements.length > 0 && (
-          <View style={[styles.card, { backgroundColor: CARD }]}>
-            <Text style={[styles.sectionTitle, { color: TEXT, fontFamily: 'Inter_600SemiBold', marginBottom: 8 }]}>
-              <Feather name="bell" size={14} color={TEXT} /> Announcements
-            </Text>
-            {announcements.map((a: any) => (
-              <View key={a.id} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-                <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>{a.title}</Text>
-                <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 3, lineHeight: 18 }]}>{a.body}</Text>
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <Feather name="bell" size={14} color={AMBER} />
+              <Text style={s.sectionTitle}>Latest News</Text>
+            </View>
+            {announcements.slice(0, 2).map((a: any, i: number) => (
+              <View key={a.id} style={[s.announce, i > 0 && { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 8, paddingTop: 10 }]}>
+                <Text style={s.announceTitle}>{a.title}</Text>
+                <Text style={s.announceBody} numberOfLines={3}>{a.body}</Text>
               </View>
             ))}
           </View>
         )}
 
-        {/* Recent orders */}
-        {recentOrders.length > 0 && (
-          <View style={[styles.card, { backgroundColor: CARD }]}>
-            <Text style={[styles.sectionTitle, { color: TEXT, fontFamily: 'Inter_600SemiBold', marginBottom: 12 }]}>Recent Orders</Text>
-            {recentOrders.map((order: any) => {
-              const cfg = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280' };
+        {/* ── RECENT ORDERS ──────────────────────────────────────────────── */}
+        {recentOrders.length > 0 ? (
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionTitle}>Recent Orders</Text>
+              <Pressable onPress={goOrders} hitSlop={8}>
+                <Text style={s.linkText}>See all</Text>
+              </Pressable>
+            </View>
+            {recentOrders.map((order: any, i: number) => {
+              const cfg = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
               return (
-                <View key={order.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>
-                      #{order.poReference ?? order.id.slice(0, 8).toUpperCase()}
-                    </Text>
-                    <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }]}>
-                      {new Date(order.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {' · '}{Array.isArray(order.items) ? `${order.items.length} items` : ''}
+                <Pressable
+                  key={order.id}
+                  onPress={goOrders}
+                  style={[s.orderRow, i < recentOrders.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
+                >
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={s.orderNum}>#{order.poReference ?? order.id.slice(0, 8).toUpperCase()}</Text>
+                    <Text style={s.orderDate}>
+                      {new Date(order.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                      {Array.isArray(order.items) ? ` · ${order.items.length} item${order.items.length !== 1 ? 's' : ''}` : ''}
                     </Text>
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <View style={[{ backgroundColor: `${cfg.color}15`, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }]}>
-                      <Text style={[{ color: cfg.color, fontFamily: 'Inter_600SemiBold', fontSize: 10 }]}>{cfg.label}</Text>
+                    <View style={[s.statusPill, { backgroundColor: cfg.bg, borderColor: cfg.color }]}>
+                      <Text style={[s.statusPillText, { color: cfg.color }]}>{cfg.label}</Text>
                     </View>
-                    <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
+                    <Text style={s.orderAmount}>${(order.totalCents / 100).toFixed(2)}</Text>
                   </View>
-                </View>
+                </Pressable>
               );
             })}
           </View>
+        ) : (
+          <View style={[s.section, { alignItems: 'center', paddingVertical: 28 }]}>
+            <View style={s.emptyIcon}>
+              <Feather name="package" size={22} color={MUTED} />
+            </View>
+            <Text style={s.emptyTitle}>No orders yet</Text>
+            <Text style={s.emptySub}>Place your first wholesale order from the catalog.</Text>
+          </View>
         )}
 
-        {/* Contact Butterfield */}
-        <View style={[styles.card, { backgroundColor: CARD }]}>
-          <Text style={[styles.sectionTitle, { color: TEXT, fontFamily: 'Inter_600SemiBold', marginBottom: 10 }]}>Contact Butterfield</Text>
-          <View style={{ gap: 8 }}>
-            <Pressable
-              onPress={handleContactPhone}
-              style={[styles.contactBtn, { backgroundColor: '#E0F5FE', borderColor: `${BLUE}30` }]}
-            >
-              <View style={[{ width: 36, height: 36, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' }]}>
-                <Feather name="phone" size={16} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>Call Wholesale Team</Text>
-                <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>(02) 9000 1234 · Mon–Fri 8am–4pm</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={MUTED} />
-            </Pressable>
-            <Pressable
-              onPress={handleContactEmail}
-              style={[styles.contactBtn, { backgroundColor: BG, borderColor: BORDER }]}
-            >
-              <View style={[{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }]}>
-                <Feather name="mail" size={16} color={BLUE} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]}>Email Support</Text>
-                <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>wholesale@butterfield.com.au</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={MUTED} />
-            </Pressable>
-          </View>
-        </View>
-
+        {/* ── SUBTLE FOOTER ──────────────────────────────────────────────── */}
+        <Pressable
+          onPress={() => router.push('/(wholesale)/profile' as any)}
+          style={s.footer}
+        >
+          <Feather name="info" size={12} color={MUTED} />
+          <Text style={s.footerText}>Account details, payment methods & support in the Account tab</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  header:     { paddingHorizontal: 20, paddingBottom: 24, gap: 6 },
-  card:       { borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  sectionTitle: { fontSize: 15 },
-  miniStat:   { flex: 1, padding: 10, alignItems: 'center', gap: 3 },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
+const s = StyleSheet.create({
+  hero:            { paddingHorizontal: 20, paddingBottom: 22 },
+  heroGreeting:    { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontFamily: 'Inter_400Regular' },
+  heroCompany:     { color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold', marginTop: 2 },
+  tierBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  tierBadgeText:   { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 0.5 },
+
+  ctaWrap:         { borderRadius: 16, shadowColor: BLUE, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6 },
+  cta:             { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 16 },
+  ctaIcon:         { width: 44, height: 44, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  ctaTitle:        { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16 },
+  ctaSub:          { color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 },
+
+  metric:          { flex: 1, backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3, gap: 4 },
+  metricLabel:     { color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
+  metricValue:     { fontFamily: 'Inter_700Bold', fontSize: 28 },
+  metricHint:      { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 },
+
+  section:         { backgroundColor: CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER },
+  sectionHeader:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, justifyContent: 'space-between' },
+  sectionTitle:    { color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15, flex: 1 },
+  linkText:        { color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+
+  announce:        { gap: 4 },
+  announceTitle:   { color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  announceBody:    { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17 },
+
+  orderRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
+  orderNum:        { color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 14 },
+  orderDate:       { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 },
+  orderAmount:     { color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 },
+  statusPill:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1 },
+  statusPillText:  { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+
+  emptyIcon:       { width: 52, height: 52, borderRadius: 26, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  emptyTitle:      { color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  emptySub:        { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 3, textAlign: 'center' },
+
+  footer:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: 12, marginTop: 4 },
+  footerText:      { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center' },
 });
