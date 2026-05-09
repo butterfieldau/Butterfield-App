@@ -2,7 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -160,14 +161,19 @@ export default function WholesaleCatalog() {
   const [pendingReorder, setPendingReorder] = useState<{ productId: string; qty: number; productName: string }[] | null>(null);
   const reorderProcessed = useRef(false);
 
-  useEffect(() => {
-    AsyncStorage.getItem(WS_REORDER_KEY).then((val) => {
-      if (val) {
-        setPendingReorder(JSON.parse(val));
-        AsyncStorage.removeItem(WS_REORDER_KEY);
-      }
-    });
-  }, []);
+  // Re-check AsyncStorage on every focus so reorder works even when the
+  // catalog tab is already mounted (tabs don't unmount on tab switches).
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem(WS_REORDER_KEY).then((val) => {
+        if (val) {
+          reorderProcessed.current = false; // allow the second effect to re-run
+          setPendingReorder(JSON.parse(val));
+          AsyncStorage.removeItem(WS_REORDER_KEY);
+        }
+      });
+    }, []),
+  );
 
   useEffect(() => {
     if (!pendingReorder || products.length === 0 || reorderProcessed.current) return;
