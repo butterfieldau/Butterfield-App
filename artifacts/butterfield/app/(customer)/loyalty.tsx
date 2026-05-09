@@ -31,6 +31,66 @@ const BORDER = '#D0E8F5';
 
 const STAMP_COUNT = 6;
 
+function getBirthdayInfo(isoDate: string): {
+  daysUntil: number;
+  message: string;
+  sub: string;
+  emoji: string;
+  isBirthday: boolean;
+} {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m, d] = isoDate.split('-').map(Number);
+
+  // Next birthday this or next year
+  let next = new Date(today.getFullYear(), m - 1, d);
+  if (next < today) next = new Date(today.getFullYear() + 1, m - 1, d);
+  const diff = Math.round((next.getTime() - today.getTime()) / 86400000);
+
+  const formatted = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+
+  if (diff === 0) return {
+    daysUntil: 0, isBirthday: true, emoji: '🎂',
+    message: 'Happy Birthday!',
+    sub: 'Your free cookie is ready — show this to any Butterfield team member! 🍪',
+  };
+  if (diff === 1) return {
+    daysUntil: 1, isBirthday: false, emoji: '🥳',
+    message: 'Your birthday is tomorrow!',
+    sub: 'Get excited — your free birthday cookie is almost here!',
+  };
+  if (diff <= 3) return {
+    daysUntil: diff, isBirthday: false, emoji: '🎉',
+    message: `Only ${diff} days to go!`,
+    sub: 'Your birthday is just around the corner. We can\'t wait to celebrate with you!',
+  };
+  if (diff <= 6) return {
+    daysUntil: diff, isBirthday: false, emoji: '🎈',
+    message: `${diff} days until your birthday!`,
+    sub: 'Your free cookie is almost within reach. Hold tight!',
+  };
+  if (diff === 7) return {
+    daysUntil: 7, isBirthday: false, emoji: '⏳',
+    message: 'One week to go!',
+    sub: 'Exactly one week until your birthday. Mark your calendar! 📅',
+  };
+  if (diff <= 14) return {
+    daysUntil: diff, isBirthday: false, emoji: '📅',
+    message: `${diff} days to birthday!`,
+    sub: `Counting down — your free birthday cookie awaits you on ${formatted}.`,
+  };
+  if (diff <= 30) return {
+    daysUntil: diff, isBirthday: false, emoji: '🍪',
+    message: `${diff} days until ${formatted}!`,
+    sub: 'Your birthday is coming up this month. Keep earning those loyalty points!',
+  };
+  return {
+    daysUntil: diff, isBirthday: false, emoji: '🎂',
+    message: `Birthday on ${formatted}`,
+    sub: `${diff} days to go — your free cookie will be waiting for you!`,
+  };
+}
+
 const TIERS = [
   { key: 'bronze', label: 'BRONZE', threshold: 0 },
   { key: 'silver', label: 'SILVER', threshold: 1000 },
@@ -227,25 +287,74 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          <Pressable style={styles.birthdayCard} onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/edit-details');
-          }}>
-            <View style={[styles.birthdayIcon, { backgroundColor: '#EEF2FB' }]}>
-              <Text style={{ fontSize: 18 }}>🎂</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_600SemiBold' }]}>
-                {profile?.birthday ? 'Your birthday' : 'Add your birthday'}
-              </Text>
-              <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular' }]}>
-                {profile?.birthday
-                  ? (() => { const [y, m, d] = profile.birthday!.split('-'); return `${d}/${m}/${y} · Free cookie on your birthday week`; })()
-                  : 'Get a free cookie every birthday week'}
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={18} color={MUTED} />
-          </Pressable>
+          {profile?.birthday ? (
+            // ── Birthday already set: show countdown, no editing here ──────
+            (() => {
+              const bdInfo = getBirthdayInfo(profile.birthday!);
+              return (
+                <View style={[
+                  styles.birthdayCard,
+                  bdInfo.isBirthday && { borderColor: '#F9A8D4', borderStyle: 'solid', backgroundColor: '#FFF0F8' },
+                ]}>
+                  {/* Emoji + countdown pill row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                    <View style={[styles.birthdayIcon, {
+                      backgroundColor: bdInfo.isBirthday ? '#FCE7F3' : '#EEF2FB',
+                      width: 48, height: 48, borderRadius: 14,
+                    }]}>
+                      <Text style={{ fontSize: 22 }}>{bdInfo.emoji}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_700Bold', fontSize: 16,
+                        color: bdInfo.isBirthday ? '#BE185D' : TEXT }]}>
+                        {bdInfo.message}
+                      </Text>
+                      {!bdInfo.isBirthday && (
+                        <View style={styles.countdownPill}>
+                          <Text style={[styles.countdownPillText, { fontFamily: 'Inter_700Bold' }]}>
+                            {bdInfo.daysUntil === 1 ? '1 day' : `${bdInfo.daysUntil} days`}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  {/* Sub message */}
+                  <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular', lineHeight: 18 }]}>
+                    {bdInfo.sub}
+                  </Text>
+                  {/* Hint to edit */}
+                  <View style={styles.bdEditHint}>
+                    <Feather name="settings" size={11} color={MUTED} />
+                    <Text style={[styles.bdEditHintText, { fontFamily: 'Inter_400Regular' }]}>
+                      To update your birthday, go to Account → Edit Profile
+                    </Text>
+                  </View>
+                </View>
+              );
+            })()
+          ) : (
+            // ── No birthday set: tap to add ─────────────────────────────────
+            <Pressable
+              style={styles.birthdayCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/edit-details');
+              }}
+            >
+              <View style={[styles.birthdayIcon, { backgroundColor: '#EEF2FB' }]}>
+                <Text style={{ fontSize: 18 }}>🎂</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.birthdayTitle, { fontFamily: 'Inter_600SemiBold' }]}>
+                  Add your birthday
+                </Text>
+                <Text style={[styles.birthdaySub, { fontFamily: 'Inter_400Regular' }]}>
+                  Get a free cookie every birthday week — on us!
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={MUTED} />
+            </Pressable>
+          )}
         </View>
 
         {rewards.length > 0 && (
@@ -383,10 +492,16 @@ const styles = StyleSheet.create({
   stampRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   stampCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
 
-  birthdayCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, borderStyle: 'dashed' },
+  birthdayCard: { backgroundColor: WHITE, borderRadius: 16, padding: 16, borderWidth: 1.5, borderColor: BORDER, borderStyle: 'dashed', gap: 0 },
   birthdayIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   birthdayTitle: { fontSize: 15, color: TEXT },
-  birthdaySub: { fontSize: 12, color: MUTED, marginTop: 2 },
+  birthdaySub: { fontSize: 13, color: MUTED, marginTop: 2, lineHeight: 18 },
+
+  countdownPill: { marginTop: 5, alignSelf: 'flex-start', backgroundColor: '#EEF2FB', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  countdownPillText: { fontSize: 11, color: BRAND, letterSpacing: 0.3 },
+
+  bdEditHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
+  bdEditHintText: { fontSize: 11, color: MUTED, lineHeight: 15 },
 
   rewardCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
   rewardIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
