@@ -149,7 +149,7 @@ export default function StaffOrdersScreen() {
         data={orders}
         keyExtractor={(o: any) => o.id}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
             <Feather name="inbox" size={32} color={BORDER} />

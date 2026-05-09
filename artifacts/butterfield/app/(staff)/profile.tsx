@@ -93,7 +93,7 @@ export default function StaffProfileScreen() {
   const currentGeoRadius = geoData?.data?.radiusMeters ?? 20;
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
       <View style={[styles.topSection, { paddingTop: insets.top + 20 }]}>
         <Text style={[styles.screenTitle, { color: TEXT }]}>Profile</Text>
       </View>

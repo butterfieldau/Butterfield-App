@@ -120,7 +120,7 @@ export default function StaffTasksScreen() {
             data={tasks}
             keyExtractor={(t) => t.id}
             refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingBottom: 100 }}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingBottom: 40 }}
             ListEmptyComponent={<Text style={[{ color: MUTED, textAlign: 'center', marginTop: 40, fontFamily: 'Inter_400Regular' }]}>No tasks in this category.</Text>}
             renderItem={({ item: task }) => (
               <Pressable onPress={() => handleCompleteTask(task.id, task.isCompleted)}

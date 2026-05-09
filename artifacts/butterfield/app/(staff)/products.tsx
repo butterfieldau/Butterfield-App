@@ -34,7 +34,7 @@ export default function StaffProductsScreen() {
           data={products}
           keyExtractor={(p) => p.id}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 12 }}>
               <Feather name="box" size={36} color={BORDER} />

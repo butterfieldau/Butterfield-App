@@ -171,7 +171,7 @@ export default function StaffDashboard() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: 120 }}
+      contentContainerStyle={{ paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -183,11 +183,6 @@ export default function StaffDashboard() {
     >
       {/* Header */}
       <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <Image
-          source={require('@/assets/images/logo-white.png')}
-          style={{ width: 130, height: 44, alignSelf: 'center', marginBottom: 10 }}
-          resizeMode="contain"
-        />
         <View style={styles.headerTop}>
           <View>
             <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>Good shift,</Text>
