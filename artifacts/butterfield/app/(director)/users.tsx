@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
+import DirectorCustomersScreen from './customers';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -600,21 +601,26 @@ export default function DirectorUsersScreen() {
           })}
         </ScrollView>
 
-        {/* Quick-add strip */}
-        <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
-          <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
-          <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
-            <Feather name="user-plus" size={13} color="#5B21B6" />
-            <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
-          </Pressable>
-          <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
-            <Feather name="package" size={13} color="#166534" />
-            <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale</Text>
-          </Pressable>
-        </View>
+        {/* Quick-add strip — only for Staff + Wholesale */}
+        {tab !== 'Customers' && (
+          <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
+            <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
+            <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
+              <Feather name="user-plus" size={13} color="#5B21B6" />
+              <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
+            </Pressable>
+            <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
+              <Feather name="package" size={13} color="#166534" />
+              <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
-      {isLoading ? (
+      {/* Customers → full Shopify-style CRM screen */}
+      {tab === 'Customers' ? (
+        <DirectorCustomersScreen />
+      ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
         </View>

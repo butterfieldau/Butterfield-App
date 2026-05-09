@@ -246,10 +246,12 @@ export const api = {
       },
       insights:     () => request<{ data: CrmInsights }>('/director/customers/insights'),
       get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
-      update:       (id: string, data: { name?: string; phone?: string; status?: string }) =>
+      update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null }) =>
         request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-      updateStatus: (id: string, status: 'active' | 'inactive' | 'suspended') =>
+      updateStatus:     (id: string, status: 'active' | 'inactive' | 'suspended') =>
         request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      updateMarketing:  (id: string, emailMarketingOptIn: boolean) =>
+        request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ emailMarketingOptIn }) }),
       addNote:      (id: string, content: string) =>
         request<{ data: CrmNote }>(`/director/customers/${id}/notes`, { method: 'POST', body: JSON.stringify({ content }) }),
       deleteNote:   (id: string, noteId: string) =>
@@ -455,12 +457,17 @@ export interface CrmCustomer {
   totalSpentCents: number;
   lastOrderAt?: string | null;
   daysSinceLastOrder?: number | null;
+  emailMarketingOptIn: boolean;
+  suburb?: string | null;
+  state?: string | null;
   profile?: {
     loyaltyPoints: number;
     loyaltyTier: string;
     stampCount: number;
     totalVisits: number;
     referralCode: string;
+    birthday?: string | null;
+    emailMarketingOptIn?: boolean;
   } | null;
   wholesaleAccount?: {
     id: string;

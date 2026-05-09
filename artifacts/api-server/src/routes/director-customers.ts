@@ -83,7 +83,7 @@ router.get('/customers', async (req, res) => {
 
   const userIds = customers.map(c => c.id);
 
-  const [profiles, orderStats, waList, manualBadges] = await Promise.all([
+  const [profiles, orderStats, waList, manualBadges, defaultAddresses] = await Promise.all([
     db.select().from(customerProfilesTable).where(inArray(customerProfilesTable.userId, userIds)),
     db.select({
       userId:      ordersTable.userId,
@@ -98,11 +98,13 @@ router.get('/customers', async (req, res) => {
       .groupBy(ordersTable.userId),
     db.select().from(wholesaleAccountsTable).where(inArray(wholesaleAccountsTable.userId, userIds)),
     db.select().from(customerBadgesTable).where(inArray(customerBadgesTable.userId, userIds)),
+    db.select().from(userAddressesTable).where(and(inArray(userAddressesTable.userId, userIds), eq(userAddressesTable.isDefault, true))),
   ]);
 
   const profileMap  = Object.fromEntries(profiles.map(p => [p.userId, p]));
   const orderMap    = Object.fromEntries(orderStats.map(o => [o.userId, o]));
   const waMap       = Object.fromEntries(waList.map(w => [w.userId, w]));
+  const addrMap     = Object.fromEntries(defaultAddresses.map(a => [a.userId, a]));
   const badgeMap:     Record<string, typeof manualBadges> = {};
   const badgeStrMap:  Record<string, string[]> = {};
   for (const b of manualBadges) {
@@ -126,6 +128,9 @@ router.get('/customers', async (req, res) => {
       id: c.id, name: c.name, email: c.email, phone: c.phone,
       role: c.role, status: c.status, createdAt: c.createdAt, lastLogin: c.lastLogin,
       profile: profileMap[c.id] ?? null,
+      emailMarketingOptIn: profileMap[c.id]?.emailMarketingOptIn ?? false,
+      suburb: addrMap[c.id]?.suburb ?? null,
+      state: addrMap[c.id]?.state ?? null,
       orderCount, totalSpentCents, lastOrderAt, daysSinceLastOrder: daysSince,
       wholesaleAccount: wa,
       badges: [...new Set([...autoBadges, ...manualList])],
@@ -223,10 +228,13 @@ router.patch('/customers/:id', async (req, res) => {
   const ops: Promise<any>[] = [
     db.update(usersTable).set(userUpdates).where(eq(usersTable.id, id)).returning(),
   ];
-  if (req.body.birthday !== undefined) {
+  const profileUpdates: Record<string, any> = {};
+  if (req.body.birthday !== undefined) profileUpdates.birthday = req.body.birthday || null;
+  if (req.body.emailMarketingOptIn !== undefined) profileUpdates.emailMarketingOptIn = Boolean(req.body.emailMarketingOptIn);
+  if (Object.keys(profileUpdates).length > 0) {
     ops.push(
       db.update(customerProfilesTable)
-        .set({ birthday: req.body.birthday || null })
+        .set(profileUpdates)
         .where(eq(customerProfilesTable.userId, id))
     );
   }

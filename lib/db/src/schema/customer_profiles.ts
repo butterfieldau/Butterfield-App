@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const customerProfilesTable = pgTable("customer_profiles", {
   totalVisits: integer("total_visits").notNull().default(0),
   totalSpentCents: integer("total_spent_cents").notNull().default(0),
   deliveryAddress: text("delivery_address"),
+  emailMarketingOptIn: boolean("email_marketing_opt_in").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
