@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 
@@ -24,15 +24,24 @@ type Props = {
   badge?: string;
   badgeColor?: string;
   backgroundColor?: string;
+  onLogout?: () => void;
 };
 
-export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = NAVY }: Props) {
+export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = NAVY, onLogout }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const clock = useLiveClock();
   const todayStr = new Date().toLocaleDateString('en-AU', {
     weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney',
   });
+
+  const handleLogout = () => {
+    if (!onLogout) return;
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log out', style: 'destructive', onPress: onLogout },
+    ]);
+  };
 
   return (
     <View style={{ backgroundColor }}>
@@ -55,9 +64,16 @@ export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = 
             <Text style={styles.date}>{todayStr}</Text>
             <Text style={styles.welcome}>Welcome, {user?.name?.split(' ')[0] ?? 'there'}</Text>
           </View>
-          <View style={styles.clockPill}>
-            <Feather name="clock" size={11} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.clockText}>{clock}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.clockPill}>
+              <Feather name="clock" size={11} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.clockText}>{clock}</Text>
+            </View>
+            {onLogout ? (
+              <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
+                <Feather name="log-out" size={16} color="rgba(255,255,255,0.75)" />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
@@ -66,18 +82,24 @@ export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = 
 }
 
 const styles = StyleSheet.create({
-  strip:     { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
-  logoRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  badge:     { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2 },
-  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  date:      { fontSize: 12, color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular' },
-  welcome:   { fontSize: 19, color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
-  clockPill: {
+  strip:      { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14 },
+  logoRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  badge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  badgeText:  { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1.2 },
+  bottomRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  date:       { fontSize: 12, color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular' },
+  welcome:    { fontSize: 19, color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+  clockPill:  {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12,
     paddingVertical: 7, borderRadius: 20,
   },
-  clockText: { fontSize: 14, color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+  clockText:  { fontSize: 14, color: '#FFFFFF', fontFamily: 'Inter_700Bold' },
+  logoutBtn:  {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });

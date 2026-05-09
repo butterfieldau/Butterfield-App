@@ -35,7 +35,12 @@ export default function ManagerLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: NAVY }}>
-      <PortalHeader badge="MANAGER" badgeColor={PURPLE} backgroundColor={NAVY} />
+      <PortalHeader
+        badge="MANAGER"
+        badgeColor={PURPLE}
+        backgroundColor={NAVY}
+        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+      />
 
       <Tabs
         screenOptions={{
