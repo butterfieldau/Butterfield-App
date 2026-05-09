@@ -247,6 +247,35 @@ router.get('/users', async (req, res) => {
   return res.json({ data: result });
 });
 
+// ── Delete user (director only) ──────────────────────────────────────────────
+router.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  if (id === req.user!.id) return res.status(400).json({ error: 'You cannot delete your own account.' });
+  const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, id));
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  if (target.role === 'director') return res.status(403).json({ error: 'Director accounts cannot be deleted.' });
+  if (req.user!.role !== 'director') return res.status(403).json({ error: 'Only directors can delete accounts.' });
+
+  await db.execute(sql`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id = ${id})`);
+  await db.execute(sql`DELETE FROM loyalty_transactions WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM orders WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM customer_profiles WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM staff_profiles WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM wholesale_accounts WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM manager_profiles WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM staff_shifts WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM staff_wastage WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM staff_issues WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM staff_leave_requests WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM wholesale_orders WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM favourites WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM feedback WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM waitlists WHERE user_id = ${id}`);
+  await db.delete(usersTable).where(eq(usersTable.id, id));
+
+  return res.json({ success: true });
+});
+
 // ── Staff member detail (GET + full PATCH) ───────────────────────────────────
 router.get('/staff/:userId', async (req, res) => {
   const { userId } = req.params;

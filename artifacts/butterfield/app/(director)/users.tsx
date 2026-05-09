@@ -36,8 +36,8 @@ function initials(name: string): string {
 }
 
 // ── Staff Profile Modal ────────────────────────────────────────────────────
-function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
-  userId: string | null; visible: boolean; onClose: () => void; onRefresh: () => void;
+function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
+  userId: string | null; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
 }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -491,6 +491,33 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                   </View>
                 </View>
               )}
+
+              {/* ── Delete account ───────────────────────────────────── */}
+              <Pressable
+                style={sp_s.deleteBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  Alert.alert(
+                    'Delete Account',
+                    `Permanently delete ${u?.name ?? 'this staff member'}?\n\nThis will remove all their shifts, leave requests, and login access. This cannot be undone.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: async () => {
+                        if (!userId) return;
+                        try {
+                          await api.director.deleteUser(userId);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          handleClose();
+                          onDelete();
+                        } catch (e: any) { Alert.alert('Error', e.message); }
+                      }},
+                    ]
+                  );
+                }}
+              >
+                <Feather name="trash-2" size={15} color={RED} />
+                <Text style={sp_s.deleteBtnText}>Delete Account</Text>
+              </Pressable>
             </>
           )}
         </ScrollView>
@@ -547,6 +574,8 @@ const sp_s = StyleSheet.create({
   shiftDate:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium' },
   shiftTime:     { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   shiftHrs:      { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  deleteBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, marginBottom: 32, paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: RED },
+  deleteBtnText: { color: RED, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
 });
 
 // ── Wholesale Detail Modal ──────────────────────────────────────────────────
@@ -554,8 +583,8 @@ const BRAND_BG: Record<string, string> = {
   Visa: '#1A3A8C', Mastercard: '#8C1B1B', Amex: '#1B5C8C',
 };
 
-function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
-  user: any; wa: any; visible: boolean; onClose: () => void; onRefresh: () => void;
+function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete }: {
+  user: any; wa: any; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -917,6 +946,32 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
               <Text style={wdl.saveBtnText}>Save Changes</Text>
             )}
           </Pressable>
+
+          {/* Delete account */}
+          <Pressable
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, paddingVertical: 16 }}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              Alert.alert(
+                'Delete Account',
+                `Permanently delete ${user?.name ?? 'this wholesale customer'} (${wa?.companyName ?? ''})?\n\nAll orders, invoices, and login access will be removed. This cannot be undone.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: async () => {
+                    try {
+                      await api.director.deleteUser(user.id);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      onClose();
+                      onDelete();
+                    } catch (e: any) { Alert.alert('Error', e.message); }
+                  }},
+                ]
+              );
+            }}
+          >
+            <Feather name="trash-2" size={15} color={RED} />
+            <Text style={{ color: RED, fontSize: 14, fontFamily: 'Inter_600SemiBold' }}>Delete Account</Text>
+          </Pressable>
         </ScrollView>
       </View>
     </Modal>
@@ -1257,6 +1312,7 @@ export default function DirectorUsersScreen() {
         wa={selectedWholesaleUser?.wholesaleAccount ?? null}
         onClose={() => setSelectedWholesaleUser(null)}
         onRefresh={handleRefreshUsers}
+        onDelete={() => { setSelectedWholesaleUser(null); handleRefreshUsers(); }}
       />
 
       <StaffProfileModal
@@ -1264,6 +1320,7 @@ export default function DirectorUsersScreen() {
         userId={selectedStaffId}
         onClose={() => setSelectedStaffId(null)}
         onRefresh={handleRefreshUsers}
+        onDelete={() => { setSelectedStaffId(null); handleRefreshUsers(); }}
       />
     </View>
   );

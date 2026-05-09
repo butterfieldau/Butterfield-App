@@ -119,7 +119,7 @@ function ShopifyCustomerRow({ item, onPress, isLast }: { item: any; onPress: () 
 }
 
 // ── Shopify-style customer detail modal ───────────────────────────────────────
-export function ShopifyCustomerDetailModal({ customerId, onClose }: { customerId: string; onClose: () => void }) {
+export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { customerId: string; onClose: () => void; onDelete?: () => void }) {
   const insets  = useSafeAreaInsets();
   const qc      = useQueryClient();
   const [noteText, setNoteText] = useState('');
@@ -243,6 +243,23 @@ export function ShopifyCustomerDetailModal({ customerId, onClose }: { customerId
                 { text: 'Cancel', style: 'cancel' },
               ])},
               { text: 'Edit contact info', onPress: () => customer && startEdit(customer) },
+              { text: 'Delete account', style: 'destructive', onPress: () =>
+                Alert.alert(
+                  'Delete Customer',
+                  `Permanently delete ${customer.name}?\n\nAll orders, loyalty points, and login access will be removed. This cannot be undone.`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: async () => {
+                      try {
+                        await api.director.deleteUser(customerId);
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        onClose();
+                        onDelete?.();
+                      } catch (e: any) { Alert.alert('Error', e.message); }
+                    }},
+                  ]
+                )
+              },
               { text: 'Cancel', style: 'cancel' },
             ])}>
             <Feather name="more-horizontal" size={20} color={TEXT} />
