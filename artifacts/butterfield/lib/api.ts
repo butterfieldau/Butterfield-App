@@ -134,8 +134,9 @@ export const api = {
       request<{ success: boolean }>(`/addresses/${id}`, { method: 'DELETE' }),
   },
   misc: {
-    storeStatus: () => request<{ data: { isOpen: boolean; openUntil: string | null; opensAt: string | null; manualOverride: boolean } }>('/store-status'),
+    storeStatus:   () => request<{ data: { isOpen: boolean; openUntil: string | null; opensAt: string | null; manualOverride: boolean } }>('/store-status'),
     announcements: () => request<{ data: any[] }>('/announcements'),
+    homeContent:   () => request<{ data: { hero: any; promo: any; specials: any[] } }>('/home-content'),
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
       request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
   },
@@ -157,6 +158,11 @@ export const api = {
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    updateHomeContent:   (data: Record<string, any>) => request<{ ok: boolean }>('/director/home-content', { method: 'PATCH', body: JSON.stringify(data) }),
+    homeSpecialsList:    () => request<{ data: any[] }>('/director/home-specials'),
+    homeSpecialsCreate:  (data: any) => request<{ data: any }>('/director/home-specials', { method: 'POST', body: JSON.stringify(data) }),
+    homeSpecialsUpdate:  (id: string, data: any) => request<{ data: any }>(`/director/home-specials/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    homeSpecialsDelete:  (id: string) => request<{ ok: boolean }>(`/director/home-specials/${id}`, { method: 'DELETE' }),
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number }) =>
       request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),

@@ -6,6 +6,7 @@ import {
   wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
+  homeSpecialsTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -710,6 +711,73 @@ router.delete('/managers/:id', async (req, res) => {
   await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
   await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
   return res.json({ success: true });
+});
+
+// ── Homepage content management ───────────────────────────────────────────────
+const HOME_CONTENT_KEYS = [
+  'hero_bg_color', 'hero_image_url', 'hero_campaign_tag', 'hero_campaign_title',
+  'hero_campaign_subtitle', 'hero_button_text', 'hero_button_link',
+  'promo_image_url', 'promo_title', 'promo_subtitle',
+] as const;
+
+router.patch('/home-content', async (req, res) => {
+  const updates: Array<Promise<any>> = [];
+  for (const key of HOME_CONTENT_KEYS) {
+    if (req.body[key] !== undefined) {
+      const value = req.body[key] === null ? '' : String(req.body[key]);
+      updates.push(
+        db.insert(storeSettingsTable)
+          .values({ key, value, updatedBy: req.user!.id })
+          .onConflictDoUpdate({
+            target: storeSettingsTable.key,
+            set: { value, updatedAt: new Date(), updatedBy: req.user!.id },
+          })
+      );
+    }
+  }
+  await Promise.all(updates);
+  return res.json({ ok: true });
+});
+
+// ── Home specials CRUD ────────────────────────────────────────────────────────
+router.get('/home-specials', async (_req, res) => {
+  const specials = await db.select().from(homeSpecialsTable)
+    .orderBy(homeSpecialsTable.sortOrder, desc(homeSpecialsTable.createdAt));
+  return res.json({ data: specials });
+});
+
+router.post('/home-specials', async (req, res) => {
+  const { title, subtitle, imageUrl, badgeText, linkTo, sortOrder } = req.body;
+  if (!title?.trim()) return res.status(400).json({ error: 'Title is required.' });
+  const [special] = await db.insert(homeSpecialsTable).values({
+    id:        randomUUID(),
+    title:     title.trim(),
+    subtitle:  subtitle  ?? null,
+    imageUrl:  imageUrl  ?? null,
+    badgeText: badgeText ?? null,
+    linkTo:    linkTo    ?? null,
+    sortOrder: sortOrder ?? 0,
+  }).returning();
+  return res.status(201).json({ data: special });
+});
+
+router.patch('/home-specials/:id', async (req, res) => {
+  const allowed = ['title', 'subtitle', 'imageUrl', 'badgeText', 'linkTo', 'isActive', 'sortOrder'] as const;
+  const updates: Record<string, any> = { updatedAt: new Date() };
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) updates[key] = req.body[key];
+  }
+  const [updated] = await db.update(homeSpecialsTable)
+    .set(updates)
+    .where(eq(homeSpecialsTable.id, req.params.id))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Special not found.' });
+  return res.json({ data: updated });
+});
+
+router.delete('/home-specials/:id', async (req, res) => {
+  await db.delete(homeSpecialsTable).where(eq(homeSpecialsTable.id, req.params.id));
+  return res.json({ ok: true });
 });
 
 export default router;
