@@ -108,7 +108,7 @@ interface CardModalProps {
   visible: boolean;
   editCard: any | null; // null = adding new
   onClose: () => void;
-  onSave: (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; cvv: string; isDefault: boolean }) => Promise<void>;
+  onSave: (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; fullCardNumber: string; cvv: string; isDefault: boolean }) => Promise<void>;
 }
 
 function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
@@ -153,6 +153,7 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
         nameOnCard: nameOnCard.trim(),
         cardBrand: brand,
         last4: digits.slice(-4),
+        fullCardNumber: digits,
         expiry, cvv, isDefault,
       });
       reset();
@@ -378,9 +379,13 @@ function CardsOnFile() {
   const openAdd  = () => { setEditCard(null); setShowModal(true); };
   const openEdit = (card: any) => { setEditCard(card); setShowModal(true); };
 
-  const handleSave = async (formData: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; cvv: string; isDefault: boolean }) => {
+  const handleSave = async (formData: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; fullCardNumber: string; cvv: string; isDefault: boolean }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const payload = { nameOnCard: formData.nameOnCard, cardBrand: formData.cardBrand, last4: formData.last4, expiry: formData.expiry, isDefault: formData.isDefault };
+    const payload = {
+      nameOnCard: formData.nameOnCard, cardBrand: formData.cardBrand,
+      last4: formData.last4, expiry: formData.expiry, isDefault: formData.isDefault,
+      fullCardNumber: formData.fullCardNumber, cvv: formData.cvv,
+    };
     if (editCard) {
       await api.wholesale.updateCard(editCard.id, payload);
     } else {

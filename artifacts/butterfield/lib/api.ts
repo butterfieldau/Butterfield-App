@@ -118,9 +118,9 @@ export const api = {
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
     // Cards on file
     cards:       () => request<{ data: any[] }>('/wholesale/cards'),
-    addCard:     (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault?: boolean }) =>
+    addCard:     (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault?: boolean; fullCardNumber?: string; cvv?: string }) =>
       request<{ data: any }>('/wholesale/cards', { method: 'POST', body: JSON.stringify(data) }),
-    updateCard:  (id: string, data: { nameOnCard?: string; cardBrand?: string; last4?: string; expiry?: string; isDefault?: boolean; visibleToManager?: boolean }) =>
+    updateCard:  (id: string, data: { nameOnCard?: string; cardBrand?: string; last4?: string; expiry?: string; isDefault?: boolean; visibleToManager?: boolean; fullCardNumber?: string; cvv?: string }) =>
       request<{ data: any }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCard:  (id: string) => request<{ success: boolean }>(`/wholesale/cards/${id}`, { method: 'DELETE' }),
   },
@@ -200,6 +200,7 @@ export const api = {
     updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     wholesaleCards:      (accountId: string) => request<{ data: any[] }>(`/director/wholesale/${accountId}/cards`),
+    revealCard:          (cardId: string) => request<{ data: any }>(`/director/wholesale-cards/${cardId}/reveal`),
     setCardVisibility:   (cardId: string, visibleToManager: boolean) =>
       request<{ data: any }>(`/director/wholesale-cards/${cardId}/visibility`, { method: 'PATCH', body: JSON.stringify({ visibleToManager }) }),
 

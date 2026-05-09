@@ -50,7 +50,9 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
   const [suspended, setSuspended]     = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [saving, setSaving]           = useState(false);
-  const [togglingCard, setTogglingCard] = useState<string | null>(null);
+  const [togglingCard, setTogglingCard]   = useState<string | null>(null);
+  const [revealingCard, setRevealingCard] = useState<string | null>(null);
+  const [revealedCards, setRevealedCards] = useState<Record<string, any>>({});
 
   const { data: cardsData, isLoading: cardsLoading, refetch: refetchCards } = useQuery({
     queryKey: ['director-ws-cards', wa?.id],
@@ -125,6 +127,20 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setTogglingCard(null); }
+  };
+
+  const handleReveal = async (cardId: string) => {
+    if (revealedCards[cardId]) {
+      setRevealedCards(prev => { const n = { ...prev }; delete n[cardId]; return n; });
+      return;
+    }
+    setRevealingCard(cardId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const res = await api.director.revealCard(cardId);
+      setRevealedCards(prev => ({ ...prev, [cardId]: res.data }));
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setRevealingCard(null); }
   };
 
   return (
@@ -263,29 +279,80 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
               <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>No cards saved by this account yet.</Text>
             )}
             {cards.map((card: any) => {
-              const bg = BRAND_BG[card.cardBrand] ?? '#1A3A8C';
+              const bg         = BRAND_BG[card.cardBrand] ?? '#1A3A8C';
               const isToggling = togglingCard === card.id;
+              const isRevealing = revealingCard === card.id;
+              const revealed   = revealedCards[card.id];
+              const isRevealed = !!revealed;
+
+              // Format full card number for display (groups of 4)
+              const formatFull = (num: string | null) => {
+                if (!num) return '•••• •••• •••• ••••';
+                return num.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
+              };
+
               return (
-                <View key={card.id} style={{ marginBottom: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }}>
-                  {/* Mini card face */}
-                  <View style={{ backgroundColor: bg, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 2 }}>
-                          •••• {card.last4}
-                        </Text>
-                        {card.isDefault && (
-                          <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' }}>DEFAULT</Text>
+                <View key={card.id} style={{ marginBottom: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }}>
+                  {/* Card face */}
+                  <View style={{ backgroundColor: bg, padding: 14 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16, letterSpacing: isRevealed ? 2 : 3 }}>
+                            {isRevealed ? formatFull(revealed.fullCardNumber) : `•••• •••• •••• ${card.last4}`}
+                          </Text>
+                        </View>
+                        {isRevealed && (
+                          <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+                            <View>
+                              <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>EXPIRY</Text>
+                              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>{revealed.expiry}</Text>
+                            </View>
+                            <View>
+                              <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>CVV</Text>
+                              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>{revealed.cvv ?? '•••'}</Text>
+                            </View>
                           </View>
                         )}
                       </View>
-                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 3 }}>
-                        {card.cardBrand}  ·  {card.nameOnCard}  ·  {card.expiry}
-                      </Text>
+                      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                        {card.isDefault && (
+                          <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' }}>DEFAULT</Text>
+                          </View>
+                        )}
+                        <Text style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{card.cardBrand}</Text>
+                      </View>
                     </View>
-                    <Feather name="credit-card" size={18} color="rgba(255,255,255,0.4)" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{card.nameOnCard}</Text>
+                      {!isRevealed && (
+                        <Text style={{ color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>Exp {card.expiry}</Text>
+                      )}
+                    </View>
                   </View>
+
+                  {/* Reveal / Hide button */}
+                  <Pressable
+                    onPress={() => handleReveal(card.id)}
+                    disabled={isRevealing}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      paddingVertical: 10,
+                      backgroundColor: isRevealed ? '#FEF3C7' : '#F0F9FF',
+                      borderBottomWidth: 1, borderBottomColor: BORDER,
+                    }}
+                  >
+                    {isRevealing
+                      ? <ActivityIndicator size="small" color={BLUE} />
+                      : <>
+                          <Feather name={isRevealed ? 'eye-off' : 'eye'} size={14} color={isRevealed ? AMBER : BLUE} />
+                          <Text style={{ color: isRevealed ? AMBER : BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
+                            {isRevealed ? 'Hide Card Details' : 'Reveal Full Number & CVV'}
+                          </Text>
+                        </>
+                    }
+                  </Pressable>
 
                   {/* Manager visibility toggle */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: CARD }}>

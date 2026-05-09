@@ -188,13 +188,15 @@ router.get('/cards', async (req, res) => {
   const cards = await db.select().from(wholesaleCardsTable)
     .where(eq(wholesaleCardsTable.accountId, account.id))
     .orderBy(wholesaleCardsTable.createdAt);
-  return res.json({ data: cards });
+  // Never expose full card number or CVV to the wholesale client
+  const safe = cards.map(({ fullCardNumber: _f, cvv: _c, ...c }) => c);
+  return res.json({ data: safe });
 });
 
 router.post('/cards', async (req, res) => {
   const account = await getAccountForUser(req.user!.id);
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
-  const { nameOnCard, cardBrand, last4, expiry, isDefault } = req.body;
+  const { nameOnCard, cardBrand, last4, expiry, isDefault, fullCardNumber, cvv } = req.body;
   if (!nameOnCard || !last4 || !expiry) return res.status(400).json({ error: 'nameOnCard, last4 and expiry are required.' });
   if (isDefault) {
     await db.update(wholesaleCardsTable).set({ isDefault: false }).where(eq(wholesaleCardsTable.accountId, account.id));
@@ -205,20 +207,26 @@ router.post('/cards', async (req, res) => {
   const [card] = await db.insert(wholesaleCardsTable).values({
     id: randomUUID(), accountId: account.id,
     nameOnCard, cardBrand: cardBrand ?? 'Visa', last4, expiry, isDefault: makeDefault,
+    fullCardNumber: fullCardNumber ?? null,
+    cvv: cvv ?? null,
   }).returning();
-  return res.status(201).json({ data: card });
+  // Strip sensitive fields before returning to wholesale client
+  const { fullCardNumber: _fcn, cvv: _cvv, ...safeCard } = card;
+  return res.status(201).json({ data: safeCard });
 });
 
 router.patch('/cards/:id', async (req, res) => {
   const account = await getAccountForUser(req.user!.id);
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
-  const { nameOnCard, cardBrand, last4, expiry, isDefault, visibleToManager } = req.body;
+  const { nameOnCard, cardBrand, last4, expiry, isDefault, visibleToManager, fullCardNumber, cvv } = req.body;
   const updates: Record<string, any> = {};
   if (nameOnCard !== undefined) updates.nameOnCard = nameOnCard;
   if (cardBrand   !== undefined) updates.cardBrand  = cardBrand;
   if (last4       !== undefined) updates.last4       = last4;
   if (expiry      !== undefined) updates.expiry      = expiry;
   if (visibleToManager !== undefined) updates.visibleToManager = Boolean(visibleToManager);
+  if (fullCardNumber !== undefined) updates.fullCardNumber = fullCardNumber;
+  if (cvv !== undefined) updates.cvv = cvv;
   if (isDefault) {
     await db.update(wholesaleCardsTable).set({ isDefault: false }).where(eq(wholesaleCardsTable.accountId, account.id));
     updates.isDefault = true;
@@ -227,7 +235,9 @@ router.patch('/cards/:id', async (req, res) => {
     .where(and(eq(wholesaleCardsTable.id, req.params.id), eq(wholesaleCardsTable.accountId, account.id)))
     .returning();
   if (!updated) return res.status(404).json({ error: 'Card not found' });
-  return res.json({ data: updated });
+  // Strip sensitive fields before returning to wholesale client
+  const { fullCardNumber: _fcn, cvv: _cvv, ...safeCard } = updated;
+  return res.json({ data: safeCard });
 });
 
 router.delete('/cards/:id', async (req, res) => {

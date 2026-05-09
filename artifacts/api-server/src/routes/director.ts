@@ -731,7 +731,30 @@ router.get('/wholesale/:accountId/cards', async (req, res) => {
   const cards = await db.select().from(wholesaleCardsTable)
     .where(eq(wholesaleCardsTable.accountId, req.params.accountId))
     .orderBy(wholesaleCardsTable.createdAt);
-  return res.json({ data: cards });
+  // Strip sensitive fields from the list — use the /reveal endpoint for full details
+  const safe = cards.map(({ fullCardNumber: _f, cvv: _c, ...c }) => c);
+  return res.json({ data: safe });
+});
+
+// ── Reveal full card details (director only, or manager if visibleToManager) ─
+router.get('/wholesale-cards/:cardId/reveal', async (req, res) => {
+  const [card] = await db.select().from(wholesaleCardsTable).where(eq(wholesaleCardsTable.id, req.params.cardId));
+  if (!card) return res.status(404).json({ error: 'Card not found' });
+  if (req.user?.role === 'manager' && !card.visibleToManager) {
+    return res.status(403).json({ error: 'This card is not visible to managers.' });
+  }
+  return res.json({
+    data: {
+      id:             card.id,
+      nameOnCard:     card.nameOnCard,
+      cardBrand:      card.cardBrand,
+      last4:          card.last4,
+      expiry:         card.expiry,
+      fullCardNumber: card.fullCardNumber,
+      cvv:            card.cvv,
+      isDefault:      card.isDefault,
+    },
+  });
 });
 
 router.patch('/wholesale-cards/:cardId/visibility', async (req, res) => {
