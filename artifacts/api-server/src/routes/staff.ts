@@ -291,22 +291,6 @@ router.get('/profile', async (req, res) => {
   return res.json({ data: profile ?? null });
 });
 
-router.patch('/profile/hourly-rate', async (req, res) => {
-  const { userId, hourlyRateCents } = req.body;
-  if (!hourlyRateCents || typeof hourlyRateCents !== 'number') {
-    return res.status(400).json({ error: 'hourlyRateCents must be a number' });
-  }
-  const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
-  const targetId = userId ?? req.user!.id;
-  if (!profile?.isManager && targetId !== req.user!.id) {
-    return res.status(403).json({ error: 'Only managers can update other staff rates' });
-  }
-  const [updated] = await db.update(staffProfilesTable)
-    .set({ hourlyRateCents })
-    .where(eq(staffProfilesTable.userId, targetId))
-    .returning();
-  return res.json({ data: updated });
-});
 
 router.get('/members', async (req, res) => {
   const [myProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));

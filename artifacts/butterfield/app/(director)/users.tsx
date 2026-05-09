@@ -49,6 +49,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
   const [eAddress, setEAddress] = useState('');
   const [eTfn,     setETfn]     = useState('');
   const [ePos,     setEPos]     = useState('');
+  const [eRate,    setERate]    = useState('');
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
 
@@ -69,6 +70,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
       setEAddress(sp?.address ?? '');
       setETfn(sp?.taxFileNumber ?? '');
       setEPos(sp?.position ?? '');
+      setERate(sp?.hourlyRateCents ? String((sp.hourlyRateCents / 100).toFixed(2)) : '');
     }
   }, [u, sp]);
 
@@ -79,9 +81,11 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
     setSaving(true); setSaveErr('');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
+      const rateVal = parseFloat(eRate);
       await api.director.updateStaff(userId, {
         name: eName.trim(), email: eEmail.trim(), phone: ePhone.trim(),
         address: eAddress.trim(), taxFileNumber: eTfn.trim(), position: ePos.trim(),
+        hourlyRateCents: eRate.trim() && !isNaN(rateVal) ? Math.round(rateVal * 100) : undefined,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refetch();
@@ -300,6 +304,15 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                       <TextInput style={sp_s.fieldInput} value={ePos} onChangeText={setEPos}
                         placeholder="e.g. Barista, Crew" placeholderTextColor={MUTED} autoCapitalize="words" />
                     </View>
+                  </View>
+                  <View style={sp_s.fieldWrap}>
+                    <Text style={sp_s.fieldLabel}>Hourly Rate (AUD)</Text>
+                    <View style={sp_s.fieldRow}>
+                      <Feather name="dollar-sign" size={14} color={MUTED} />
+                      <TextInput style={sp_s.fieldInput} value={eRate} onChangeText={setERate}
+                        placeholder="e.g. 25.00" placeholderTextColor={MUTED} keyboardType="decimal-pad" />
+                    </View>
+                    <Text style={sp_s.fieldHint}>Director-only · staff cannot edit their own rate</Text>
                   </View>
                   <View style={sp_s.fieldWrap}>
                     <Text style={sp_s.fieldLabel}>Tax File Number (optional)</Text>
