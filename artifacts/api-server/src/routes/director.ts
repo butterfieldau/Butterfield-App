@@ -8,7 +8,7 @@ import {
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable,
 } from '@workspace/db';
-import { eq, desc, count, sum, gte, lte, isNull, isNotNull, and, sql } from 'drizzle-orm';
+import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 
@@ -496,7 +496,13 @@ router.post('/create-wholesale', async (req, res) => {
 });
 
 // ── Rewards CRUD ──────────────────────────────────────────────────────────────
+const REWARD_PURGE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+
 router.get('/rewards', async (req, res) => {
+  // Auto-purge hard-delete rewards older than 14 days
+  const cutoff = new Date(Date.now() - REWARD_PURGE_MS);
+  await db.delete(loyaltyRewardsTable)
+    .where(and(isNotNull(loyaltyRewardsTable.deletedAt), lt(loyaltyRewardsTable.deletedAt, cutoff)));
   const rewards = await db.select().from(loyaltyRewardsTable).orderBy(loyaltyRewardsTable.pointsCost);
   return res.json({ data: rewards });
 });
@@ -528,15 +534,26 @@ router.patch('/rewards/:id', async (req, res) => {
   if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update.' });
   const [updated] = await db.update(loyaltyRewardsTable).set(updates)
-    .where(eq(loyaltyRewardsTable.id, req.params.id)).returning();
+    .where(and(eq(loyaltyRewardsTable.id, req.params.id), isNull(loyaltyRewardsTable.deletedAt))).returning();
   if (!updated) return res.status(404).json({ error: 'Reward not found.' });
   return res.json({ data: updated });
 });
 
+// Soft-delete: set deletedAt timestamp (customer-facing /loyalty/rewards already filters deletedAt IS NULL)
 router.delete('/rewards/:id', async (req, res) => {
-  await db.update(loyaltyRewardsTable).set({ isActive: false })
+  await db.update(loyaltyRewardsTable)
+    .set({ isActive: false, deletedAt: new Date() })
     .where(eq(loyaltyRewardsTable.id, req.params.id));
   return res.json({ success: true });
+});
+
+// Restore a soft-deleted reward (clears deletedAt, re-activates)
+router.post('/rewards/:id/restore', async (req, res) => {
+  const [restored] = await db.update(loyaltyRewardsTable)
+    .set({ deletedAt: null, isActive: true })
+    .where(eq(loyaltyRewardsTable.id, req.params.id)).returning();
+  if (!restored) return res.status(404).json({ error: 'Reward not found.' });
+  return res.json({ data: restored });
 });
 
 // ── Announcements / Notifications CRUD ───────────────────────────────────────

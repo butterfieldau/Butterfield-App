@@ -261,31 +261,82 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
 }
 
 // ─── Rewards Tab ──────────────────────────────────────────────────────────────
+const REWARD_TABS = ['Active', 'Deactivated', 'Deleted'] as const;
+type RewardTabKey = typeof REWARD_TABS[number];
+
+function daysUntilPurge(deletedAt: string): number {
+  const deletedMs = new Date(deletedAt).getTime();
+  const purgeMs   = deletedMs + 14 * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((purgeMs - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
 function RewardsTab() {
   const qc = useQueryClient();
-  const [modal, setModal]   = useState(false);
+  const [modal,   setModal]   = useState(false);
   const [editing, setEditing] = useState<DirectorReward | null>(null);
+  const [rTab,    setRTab]    = useState<RewardTabKey>('Active');
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['director-rewards'],
-    queryFn: () => api.director.rewards(),
+    queryFn:  () => api.director.rewards(),
   });
-  const rewards = data?.data ?? [];
+  const allRewards = data?.data ?? [];
 
-  const deleteReward = useMutation({
+  const activeRewards      = allRewards.filter(r => !r.deletedAt && r.isActive);
+  const deactivatedRewards = allRewards.filter(r => !r.deletedAt && !r.isActive);
+  const deletedRewards     = allRewards.filter(r => !!r.deletedAt);
+
+  const visibleRewards =
+    rTab === 'Active'      ? activeRewards :
+    rTab === 'Deactivated' ? deactivatedRewards :
+                             deletedRewards;
+
+  const deactivateMut = useMutation({
+    mutationFn: (id: string) => api.director.updateReward(id, { isActive: false }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['director-rewards'] }),
+  });
+
+  const deleteMut = useMutation({
     mutationFn: (id: string) => api.director.deleteReward(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['director-rewards'] }),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['director-rewards'] }); setRTab('Deleted'); },
   });
 
-  const confirmDelete = (r: DirectorReward) => {
-    Alert.alert('Deactivate Reward', `"${r.name}" will be hidden from customers.`, [
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => api.director.restoreReward(id),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['director-rewards'] }); setRTab('Active'); },
+  });
+
+  const activateMut = useMutation({
+    mutationFn: (id: string) => api.director.updateReward(id, { isActive: true }),
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['director-rewards'] }); setRTab('Active'); },
+  });
+
+  const confirmDeactivate = (r: DirectorReward) =>
+    Alert.alert('Deactivate Reward', `"${r.name}" will be hidden from customers but kept in your system.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Deactivate', style: 'destructive', onPress: () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        deleteReward.mutate(r.id);
+        deactivateMut.mutate(r.id);
       }},
     ]);
-  };
+
+  const confirmDelete = (r: DirectorReward) =>
+    Alert.alert('Delete Reward', `"${r.name}" will be moved to the Deleted tab and permanently removed after 14 days.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        deleteMut.mutate(r.id);
+      }},
+    ]);
+
+  const confirmRestore = (r: DirectorReward) =>
+    Alert.alert('Restore Reward', `"${r.name}" will be restored and made active again.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Restore', onPress: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        restoreMut.mutate(r.id);
+      }},
+    ]);
 
   const openEdit = (r: DirectorReward) => { setEditing(r); setModal(true); };
   const openNew  = ()                   => { setEditing(null); setModal(true); };
@@ -294,59 +345,136 @@ function RewardsTab() {
     return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
   }
 
+  const tabCounts: Record<RewardTabKey, number> = {
+    Active:      activeRewards.length,
+    Deactivated: deactivatedRewards.length,
+    Deleted:     deletedRewards.length,
+  };
+
   return (
     <>
+      {/* Sub-tabs */}
+      <View style={[rwStyles.subTabBar, { borderBottomColor: BORDER }]}>
+        {REWARD_TABS.map(t => (
+          <Pressable key={t} onPress={() => { setRTab(t); Haptics.selectionAsync(); }}
+            style={[rwStyles.subTab, rTab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}>
+            <Text style={[rwStyles.subTabText, { color: rTab === t ? BLUE : MUTED }]}>{t}</Text>
+            <View style={[rwStyles.subTabBadge, {
+              backgroundColor: t === 'Deleted' ? (tabCounts[t] > 0 ? '#FEE2E2' : '#F3F4F6')
+                             : t === 'Deactivated' ? (tabCounts[t] > 0 ? '#FEF9C3' : '#F3F4F6')
+                             : (tabCounts[t] > 0 ? '#DCFCE7' : '#F3F4F6'),
+            }]}>
+              <Text style={[rwStyles.subTabBadgeText, {
+                color: t === 'Deleted'      ? (tabCounts[t] > 0 ? '#991B1B' : MUTED)
+                     : t === 'Deactivated'  ? (tabCounts[t] > 0 ? '#854D0E' : MUTED)
+                     : (tabCounts[t] > 0 ? '#166534' : MUTED),
+              }]}>{tabCounts[t]}</Text>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+
       <FlatList
-        data={rewards}
+        data={visibleRewards}
         keyExtractor={r => r.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-        ListHeaderComponent={
+        ListHeaderComponent={rTab === 'Active' ? (
           <Pressable style={[styles.addBtn, { backgroundColor: BLUE }]} onPress={openNew}>
             <Feather name="plus" size={16} color="#fff" />
             <Text style={styles.addBtnText}>New Reward</Text>
           </Pressable>
-        }
+        ) : rTab === 'Deleted' && deletedRewards.length > 0 ? (
+          <View style={[rwStyles.purgeNote, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
+            <Feather name="clock" size={14} color={RED} />
+            <Text style={[rwStyles.purgeNoteText, { color: '#991B1B' }]}>
+              Deleted rewards are permanently removed after 14 days.
+            </Text>
+          </View>
+        ) : null}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Feather name="star" size={32} color={MUTED} />
-            <Text style={styles.emptyText}>No rewards yet</Text>
+            <Feather name={rTab === 'Deleted' ? 'trash-2' : rTab === 'Deactivated' ? 'eye-off' : 'star'} size={32} color={MUTED} />
+            <Text style={styles.emptyText}>
+              {rTab === 'Deleted' ? 'No deleted rewards' : rTab === 'Deactivated' ? 'No deactivated rewards' : 'No active rewards'}
+            </Text>
           </View>
         }
-        renderItem={({ item: r }: { item: DirectorReward }) => (
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: r.isActive ? BORDER : '#FEE2E2' }]}>
-            <View style={styles.rewardHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rewardName}>{r.name}</Text>
-                <Text style={styles.rewardDesc} numberOfLines={1}>{r.description}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                <Text style={[styles.rewardPts, { color: BLUE }]}>{r.pointsCost.toLocaleString()} pts</Text>
-                <View style={[styles.chip, { backgroundColor: r.isActive ? '#DCFCE7' : '#FEE2E2', borderColor: 'transparent' }]}>
-                  <Text style={[styles.chipText, { color: r.isActive ? '#166534' : '#991B1B', fontSize: 10 }]}>
-                    {r.isActive ? 'ACTIVE' : 'INACTIVE'}
+        renderItem={({ item: r }: { item: DirectorReward }) => {
+          const isDeleted = !!r.deletedAt;
+          const days      = isDeleted ? daysUntilPurge(r.deletedAt!) : null;
+          return (
+            <View style={[styles.card, {
+              backgroundColor: isDeleted ? '#FFF5F5' : CARD,
+              borderColor: isDeleted ? '#FCA5A5' : !r.isActive ? '#FDE68A' : BORDER,
+              opacity: isDeleted ? 0.9 : 1,
+            }]}>
+              {isDeleted && (
+                <View style={[rwStyles.deletedBanner, { backgroundColor: '#FEE2E2' }]}>
+                  <Feather name="clock" size={12} color={RED} />
+                  <Text style={[rwStyles.deletedBannerText, { color: '#991B1B' }]}>
+                    Permanently deleted in {days} day{days !== 1 ? 's' : ''}
                   </Text>
                 </View>
+              )}
+              <View style={styles.rewardHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rewardName, isDeleted && { color: MUTED, textDecorationLine: 'line-through' }]}>{r.name}</Text>
+                  <Text style={styles.rewardDesc} numberOfLines={1}>{r.description}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <Text style={[styles.rewardPts, { color: isDeleted ? MUTED : BLUE }]}>{r.pointsCost.toLocaleString()} pts</Text>
+                  <View style={[styles.chip, { backgroundColor: isDeleted ? '#FEE2E2' : r.isActive ? '#DCFCE7' : '#FEF9C3', borderColor: 'transparent' }]}>
+                    <Text style={[styles.chipText, { color: isDeleted ? '#991B1B' : r.isActive ? '#166534' : '#854D0E', fontSize: 10 }]}>
+                      {isDeleted ? 'DELETED' : r.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.rewardMeta}>
+                <Text style={styles.rewardMetaText}>#{r.category}</Text>
+                {r.isAppOnly     && <Text style={styles.rewardMetaText}>· App only</Text>}
+                {r.stock != null && <Text style={styles.rewardMetaText}>· Stock: {r.stock}</Text>}
+              </View>
+              <View style={styles.rewardActions}>
+                {isDeleted ? (
+                  <Pressable onPress={() => confirmRestore(r)}
+                    style={[styles.actionBtn, { borderColor: GREEN + '60', backgroundColor: '#F0FDF4', flex: 1 }]}>
+                    <Feather name="rotate-ccw" size={13} color={GREEN} />
+                    <Text style={[styles.actionBtnText, { color: GREEN }]}>Restore</Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    <Pressable onPress={() => openEdit(r)}
+                      style={[styles.actionBtn, { borderColor: BLUE + '40', backgroundColor: '#EBF8FF' }]}>
+                      <Feather name="edit-2" size={13} color={BLUE} />
+                      <Text style={[styles.actionBtnText, { color: BLUE }]}>Edit</Text>
+                    </Pressable>
+                    {r.isActive ? (
+                      <Pressable onPress={() => confirmDeactivate(r)}
+                        style={[styles.actionBtn, { borderColor: AMBER + '60', backgroundColor: '#FFFBEB' }]}>
+                        <Feather name="eye-off" size={13} color={AMBER} />
+                        <Text style={[styles.actionBtnText, { color: AMBER }]}>Deactivate</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable onPress={() => { Haptics.selectionAsync(); activateMut.mutate(r.id); }}
+                        style={[styles.actionBtn, { borderColor: GREEN + '60', backgroundColor: '#F0FDF4' }]}>
+                        <Feather name="eye" size={13} color={GREEN} />
+                        <Text style={[styles.actionBtnText, { color: GREEN }]}>Activate</Text>
+                      </Pressable>
+                    )}
+                    <Pressable onPress={() => confirmDelete(r)}
+                      style={[styles.actionBtn, { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }]}>
+                      <Feather name="trash-2" size={13} color={RED} />
+                      <Text style={[styles.actionBtnText, { color: RED }]}>Delete</Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             </View>
-            <View style={styles.rewardMeta}>
-              <Text style={styles.rewardMetaText}>#{r.category}</Text>
-              {r.isAppOnly    && <Text style={styles.rewardMetaText}>· App only</Text>}
-              {r.stock != null && <Text style={styles.rewardMetaText}>· Stock: {r.stock}</Text>}
-            </View>
-            <View style={styles.rewardActions}>
-              <Pressable onPress={() => openEdit(r)} style={[styles.actionBtn, { borderColor: BLUE + '40', backgroundColor: '#EBF8FF' }]}>
-                <Feather name="edit-2" size={13} color={BLUE} />
-                <Text style={[styles.actionBtnText, { color: BLUE }]}>Edit</Text>
-              </Pressable>
-              <Pressable onPress={() => confirmDelete(r)} style={[styles.actionBtn, { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' }]}>
-                <Feather name="eye-off" size={13} color={RED} />
-                <Text style={[styles.actionBtnText, { color: RED }]}>Deactivate</Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
+          );
+        }}
       />
       <RewardModal
         visible={modal} reward={editing}
@@ -356,6 +484,18 @@ function RewardsTab() {
     </>
   );
 }
+
+const rwStyles = StyleSheet.create({
+  subTabBar:       { flexDirection: 'row', borderBottomWidth: 1 },
+  subTab:          { flex: 1, alignItems: 'center', paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  subTabText:      { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  subTabBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
+  subTabBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  purgeNote:       { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
+  purgeNoteText:   { fontSize: 12, fontFamily: 'Inter_500Medium', flex: 1 },
+  deletedBanner:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#FCA5A520' },
+  deletedBannerText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+});
 
 // ─── Notification Form Modal ──────────────────────────────────────────────────
 function AnnouncementModal({ visible, announcement, onClose, onSuccess }: {

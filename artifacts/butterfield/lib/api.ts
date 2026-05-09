@@ -217,6 +217,7 @@ export const api = {
     createReward:        (data: Partial<DirectorReward>) => request<{ data: DirectorReward }>('/director/rewards', { method: 'POST', body: JSON.stringify(data) }),
     updateReward:        (id: string, data: Partial<DirectorReward>) => request<{ data: DirectorReward }>(`/director/rewards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteReward:        (id: string) => request<{ success: boolean }>(`/director/rewards/${id}`, { method: 'DELETE' }),
+    restoreReward:       (id: string) => request<{ data: DirectorReward }>(`/director/rewards/${id}/restore`, { method: 'POST' }),
 
     // Announcements / Notifications
     allAnnouncements:    () => request<{ data: DirectorAnnouncement[] }>('/director/announcements'),
@@ -421,6 +422,7 @@ export interface DirectorReward {
   stock?: number | null;
   expiresAt?: string | null;
   createdAt: string;
+  deletedAt?: string | null;
 }
 
 export interface DirectorAnnouncement {

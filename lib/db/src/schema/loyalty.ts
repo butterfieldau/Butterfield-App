@@ -24,6 +24,7 @@ export const loyaltyRewardsTable = pgTable("loyalty_rewards", {
   stock: integer("stock"),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {

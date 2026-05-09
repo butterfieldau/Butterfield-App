@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, loyaltyTransactionsTable, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable } from '@workspace/db';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 
 const router = Router();
@@ -21,7 +21,8 @@ router.get('/transactions', requireAuth, async (req, res) => {
 });
 
 router.get('/rewards', async (_req, res) => {
-  const rewards = await db.select().from(loyaltyRewardsTable).where(eq(loyaltyRewardsTable.isActive, true));
+  const rewards = await db.select().from(loyaltyRewardsTable)
+    .where(and(eq(loyaltyRewardsTable.isActive, true), isNull(loyaltyRewardsTable.deletedAt)));
   return res.json({ data: rewards });
 });
 
