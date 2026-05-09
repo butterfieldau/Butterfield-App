@@ -71,7 +71,10 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
   cartEntry?: CartEntry;
   onAdd: (product: ApiProduct, qty: number) => void;
 }) {
-  const [qty, setQty]  = useState(String((product as any).minOrderQty ?? 12));
+  const defaultQty     = String((product as any).minOrderQty ?? 12);
+  const [qty, setQty]  = useState(defaultQty);
+  const [added, setAdded] = useState(false);
+  const addedTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const basePrice      = getPrice(product);
   const parsedQty      = Math.max(1, parseInt(qty) || 1);
   const wsPrice        = getWholesalePrice(basePrice, parsedQty);
@@ -80,8 +83,19 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
   const imageUrl       = (product as any).images?.[0];
   const inCart         = !!cartEntry;
 
+  useEffect(() => () => { if (addedTimer.current) clearTimeout(addedTimer.current); }, []);
+
   const increment = () => { const n = parsedQty + 1; setQty(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
   const decrement = () => { const n = Math.max(1, parsedQty - 1); setQty(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
+
+  const handleAdd = () => {
+    onAdd(product, parsedQty);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setQty(defaultQty);
+    setAdded(true);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAdded(false), 2000);
+  };
 
   return (
     <View style={styles.compactRow}>
@@ -135,11 +149,11 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
           </Pressable>
         </View>
         <Pressable
-          onPress={() => { onAdd(product, parsedQty); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
-          style={[styles.addBtn, { backgroundColor: inCart ? '#22C55E' : BLUE }]}
+          onPress={handleAdd}
+          style={[styles.addBtn, { backgroundColor: added ? '#22C55E' : BLUE }]}
         >
-          <Feather name={inCart ? 'check' : 'plus'} size={11} color="#fff" />
-          <Text style={styles.addBtnText}>{inCart ? 'Added' : 'Add'}</Text>
+          <Feather name={added ? 'check' : 'plus'} size={11} color="#fff" />
+          <Text style={styles.addBtnText}>{added ? 'Added' : 'Add'}</Text>
         </Pressable>
       </View>
     </View>
@@ -811,22 +825,24 @@ export default function WholesaleCatalog() {
       )}
 
       {cart.length > 0 && (
-        <Pressable onPress={handleOpenCheckout} style={[styles.floatingCart, { paddingBottom: insets.bottom + 6 }]}>
-          <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={styles.floatingCartBadge}>
-                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{totalQty}</Text>
+        <View style={[styles.floatingCartOuter, { paddingBottom: insets.bottom + 8 }]}>
+          <Pressable onPress={handleOpenCheckout}>
+            <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={styles.floatingCartBadge}>
+                  <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{totalQty}</Text>
+                </View>
+                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>
+                  {cart.length} item{cart.length !== 1 ? 's' : ''} · View Cart
+                </Text>
               </View>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>
-                {cart.length} item{cart.length !== 1 ? 's' : ''} · View Cart
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>${(subtotalCents / 100).toFixed(2)}</Text>
-              <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.85)" />
-            </View>
-          </LinearGradient>
-        </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>${(subtotalCents / 100).toFixed(2)}</Text>
+                <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.85)" />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </View>
       )}
     </KeyboardAvoidingView>
   );
@@ -855,7 +871,7 @@ const styles = StyleSheet.create({
   stepQty:          { width: 32, height: 28, textAlign: 'center', fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT },
   addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   addBtnText:       { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
-  floatingCart:     { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, backgroundColor: 'rgba(245,246,250,0.97)', borderTopWidth: 1, borderTopColor: BORDER },
+  floatingCartOuter:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
   floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 14, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
   floatingCartBadge:{ backgroundColor: '#fff', borderRadius: 8, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   // Checkout header
