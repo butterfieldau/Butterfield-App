@@ -23,6 +23,8 @@ export const wholesaleAccountsTable = pgTable("wholesale_accounts", {
   creditLimitCents: integer("credit_limit_cents").notNull().default(500000),
   currentBalanceCents: integer("current_balance_cents").notNull().default(0),
   paymentTerms: text("payment_terms").notNull().default("net14"),
+  // delivery fee charged to this customer (cents, 0 = free)
+  deliveryFeeCents: integer("delivery_fee_cents").notNull().default(0),
   // whether delivery orders are permitted for this account
   deliveryAllowed: boolean("delivery_allowed").notNull().default(true),
   minimumOrderCents: integer("minimum_order_cents").notNull().default(20000),

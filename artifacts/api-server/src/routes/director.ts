@@ -358,13 +358,14 @@ router.patch('/wholesale/:accountId/status', async (req, res) => {
   return res.json({ data: updated });
 });
 
-// ── Wholesale account general update (credit limit, payment terms, delivery address) ──
+// ── Wholesale account general update (credit limit, payment terms, delivery address, delivery fee) ──
 router.patch('/wholesale/:accountId', async (req, res) => {
   const { accountId } = req.params;
   const updates: Record<string, any> = {};
-  if (req.body.creditLimitCents !== undefined) updates.creditLimitCents = Number(req.body.creditLimitCents);
-  if (req.body.paymentTerms      !== undefined) updates.paymentTerms    = String(req.body.paymentTerms);
-  if (req.body.deliveryAddress   !== undefined) updates.deliveryAddress = String(req.body.deliveryAddress);
+  if (req.body.creditLimitCents  !== undefined) updates.creditLimitCents  = Number(req.body.creditLimitCents);
+  if (req.body.paymentTerms      !== undefined) updates.paymentTerms      = String(req.body.paymentTerms);
+  if (req.body.deliveryAddress   !== undefined) updates.deliveryAddress   = String(req.body.deliveryAddress);
+  if (req.body.deliveryFeeCents  !== undefined) updates.deliveryFeeCents  = Number(req.body.deliveryFeeCents);
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No updatable fields provided.' });
   const [updated] = await db.update(wholesaleAccountsTable).set(updates).where(eq(wholesaleAccountsTable.id, accountId)).returning();
   if (!updated) return res.status(404).json({ error: 'Wholesale account not found.' });

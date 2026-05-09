@@ -112,7 +112,7 @@ export const api = {
     account:     () => request<{ data: any }>('/wholesale/account'),
     orders:      () => request<{ data: any[] }>('/wholesale/orders'),
     order:       (id: string) => request<{ data: any }>(`/wholesale/orders/${id}`),
-    createOrder: (data: { items: { productId: string; qty: number }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string }) =>
+    createOrder: (data: { items: { productId: string; qty: number }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string; deliveryAddress?: string }) =>
       request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
     invoices:    () => request<{ data: any[] }>('/wholesale/invoices'),
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
@@ -205,7 +205,7 @@ export const api = {
       request<{ data: any }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
     suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
-    updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string }) =>
+    updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string; deliveryFeeCents?: number }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     wholesaleCards:      (accountId: string) => request<{ data: any[] }>(`/director/wholesale/${accountId}/cards`),
     revealCard:          (cardId: string) => request<{ data: any }>(`/director/wholesale-cards/${cardId}/reveal`),

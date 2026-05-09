@@ -562,6 +562,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
   const [creditAud, setCreditAud]     = useState('');
   const [payTerms, setPayTerms]       = useState('');
   const [deliveryAddr, setDeliveryAddr] = useState('');
+  const [deliveryFeeAud, setDeliveryFeeAud] = useState('');
   const [suspended, setSuspended]     = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [saving, setSaving]           = useState(false);
@@ -582,6 +583,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
       setCreditAud(wa.creditLimitCents ? String(wa.creditLimitCents / 100) : '');
       setPayTerms(wa.paymentTerms ?? '30 days');
       setDeliveryAddr(wa.deliveryAddress ?? '');
+      setDeliveryFeeAud(wa.deliveryFeeCents ? String(wa.deliveryFeeCents / 100) : '');
       setSuspended(wa.isSuspended ?? false);
       setSuspendReason(wa.suspendedReason ?? '');
     }
@@ -619,11 +621,13 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const creditCents = creditAud ? Math.round(parseFloat(creditAud) * 100) : undefined;
+      const creditCents  = creditAud    ? Math.round(parseFloat(creditAud)    * 100) : undefined;
+      const deliveryCents = deliveryFeeAud ? Math.round(parseFloat(deliveryFeeAud) * 100) : 0;
       await api.director.updateWholesale(wa.id, {
         creditLimitCents: isNaN(creditCents as number) ? undefined : creditCents,
         paymentTerms: payTerms.trim() || undefined,
         deliveryAddress: deliveryAddr.trim() || undefined,
+        deliveryFeeCents: isNaN(deliveryCents) ? 0 : deliveryCents,
       });
       onRefresh();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -752,6 +756,18 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
                 value={deliveryAddr}
                 onChangeText={setDeliveryAddr}
                 multiline
+              />
+            </View>
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Delivery Fee (AUD)</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>$</Text>
+              <TextInput
+                style={[wdl.input, { color: TEXT }]}
+                placeholder="0.00 — free delivery"
+                placeholderTextColor={MUTED}
+                value={deliveryFeeAud}
+                onChangeText={setDeliveryFeeAud}
+                keyboardType="decimal-pad"
               />
             </View>
           </View>

@@ -66,66 +66,81 @@ function getWholesalePrice(basePrice: number, qty: number): number {
 
 interface CartEntry { product: ApiProduct; quantity: number }
 
-function ProductRow({ product, cartEntry, onAdd }: {
+function CompactProductRow({ product, cartEntry, onAdd }: {
   product: ApiProduct;
   cartEntry?: CartEntry;
   onAdd: (product: ApiProduct, qty: number) => void;
 }) {
-  const [qty, setQty]  = useState('12');
+  const [qty, setQty]  = useState(String((product as any).minOrderQty ?? 12));
   const basePrice      = getPrice(product);
-  const parsedQty      = parseInt(qty) || 1;
+  const parsedQty      = Math.max(1, parseInt(qty) || 1);
   const wsPrice        = getWholesalePrice(basePrice, parsedQty);
   const tier           = [...WHOLESALE_TIERS].reverse().find((t) => parsedQty >= t.minQty);
   const palette        = getPalette(product.metadata?.category);
   const imageUrl       = (product as any).images?.[0];
+  const inCart         = !!cartEntry;
+
+  const increment = () => { const n = parsedQty + 1; setQty(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
+  const decrement = () => { const n = Math.max(1, parsedQty - 1); setQty(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
   return (
-    <View style={[styles.productCard, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
-      {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={styles.productThumbLg} resizeMode="cover" />
-      ) : (
-        <View style={[styles.productThumbLg, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }]}>
-          <Text style={{ fontSize: 36 }}>{palette.emoji}</Text>
-          {cartEntry && (
-            <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 11 }}>In cart: {cartEntry.quantity}</Text>
-            </View>
-          )}
-        </View>
-      )}
-      <View style={{ padding: 14, gap: 10 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }}>{product.name}</Text>
-            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }} numberOfLines={2}>{product.description}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 16 }}>${wsPrice.toFixed(2)}</Text>
-            {tier && tier.discount > 0 && (
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 10, textDecorationLine: 'line-through' }}>${basePrice.toFixed(2)}</Text>
-            )}
-          </View>
-        </View>
-        {tier && (
-          <View style={{ backgroundColor: `${BLUE}15`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' }}>
-            <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}{tier.discount > 0 ? ` −${tier.discount * 100}%` : ''}</Text>
+    <View style={styles.compactRow}>
+      {/* Thumbnail */}
+      <View style={styles.compactThumbWrap}>
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.compactThumb} resizeMode="cover" />
+        ) : (
+          <View style={[styles.compactThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
+            <Text style={{ fontSize: 22 }}>{palette.emoji}</Text>
           </View>
         )}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flex: 1, borderWidth: 1, borderColor: BORDER }}>
-            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>Qty:</Text>
-            <TextInput
-              style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 16, flex: 1 }}
-              value={qty}
-              onChangeText={setQty}
-              keyboardType="number-pad"
-              selectTextOnFocus
-            />
+        {inCart && (
+          <View style={styles.inCartBadge}>
+            <Text style={styles.inCartBadgeText}>{cartEntry!.quantity}</Text>
           </View>
-          <Pressable onPress={() => onAdd(product, parsedQty)} style={{ backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>Add</Text>
+        )}
+      </View>
+
+      {/* Name + price info */}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.compactName} numberOfLines={1}>{product.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={styles.compactPrice}>${wsPrice.toFixed(2)}</Text>
+          {tier && tier.discount > 0 && (
+            <>
+              <Text style={styles.compactStrike}>${basePrice.toFixed(2)}</Text>
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountBadgeText}>−{tier.discount * 100}%</Text>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+
+      {/* Qty stepper + Add */}
+      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+        <View style={styles.stepperRow}>
+          <Pressable onPress={decrement} style={styles.stepBtn}>
+            <Text style={styles.stepBtnText}>−</Text>
+          </Pressable>
+          <TextInput
+            style={styles.stepQty}
+            value={qty}
+            onChangeText={(v) => setQty(v.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad"
+            selectTextOnFocus
+          />
+          <Pressable onPress={increment} style={styles.stepBtn}>
+            <Text style={styles.stepBtnText}>+</Text>
           </Pressable>
         </View>
+        <Pressable
+          onPress={() => { onAdd(product, parsedQty); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+          style={[styles.addBtn, { backgroundColor: inCart ? '#22C55E' : BLUE }]}
+        >
+          <Feather name={inCart ? 'check' : 'plus'} size={11} color="#fff" />
+          <Text style={styles.addBtnText}>{inCart ? 'Added' : 'Add'}</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -145,6 +160,10 @@ export default function WholesaleCatalog() {
     pagerRef.current?.scrollTo({ x: step * SCREEN_W, animated: true });
     setCheckoutStep(step);
   }, [SCREEN_W]);
+
+  const { data: accountData } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), staleTime: 60_000 });
+  const account = accountData?.data ?? null;
+  const deliveryFeeCents: number = account?.deliveryFeeCents ?? 0;
 
   // Shipping
   const [orderType, setOrderType]           = useState<'pickup' | 'delivery'>('delivery');
@@ -239,8 +258,9 @@ export default function WholesaleCatalog() {
     else setCart((prev) => prev.map((e) => e.product.id === productId ? { ...e, quantity: qty } : e));
   };
 
-  const totalCents = cart.reduce((sum, e) => sum + Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * e.quantity * 100), 0);
-  const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
+  const subtotalCents = cart.reduce((sum, e) => sum + Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * e.quantity * 100), 0);
+  const totalCents    = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
+  const totalQty      = cart.reduce((s, e) => s + e.quantity, 0);
 
   const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
@@ -266,7 +286,7 @@ export default function WholesaleCatalog() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (checkoutStep === 0) {
       if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
-      if (totalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is AUD 50.'); return; }
+      if (subtotalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is AUD 50.'); return; }
       goToStep(1);
       return;
     }
@@ -305,7 +325,6 @@ export default function WholesaleCatalog() {
         })),
         poReference:   poRef.trim() || undefined,
         notes:         [notes.trim(), contactName.trim(), contactPhone.trim()].filter(Boolean).join(' | ') || undefined,
-        totalCents,
         deliveryType:  orderType,
         scheduledDate: scheduledForDate?.toISOString(),
         deliveryAddress,
@@ -428,14 +447,14 @@ export default function WholesaleCatalog() {
               <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryRowLabel}>Subtotal</Text>
-                  <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  <Text style={styles.summaryRowValue}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
                 </View>
                 <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
-                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
                 </View>
-                {totalCents < 5000 && (
+                {subtotalCents < 5000 && (
                   <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
                     Minimum wholesale order is AUD 50.00
                   </Text>
@@ -450,7 +469,7 @@ export default function WholesaleCatalog() {
 
               <View style={styles.orderTypeRow}>
                 {[
-                  { id: 'delivery', label: 'Delivery', sub: 'AUD 0.00 (invoiced)', icon: 'truck' as const },
+                  { id: 'delivery', label: 'Delivery', sub: deliveryFeeCents > 0 ? `AUD ${(deliveryFeeCents / 100).toFixed(2)}` : 'Free delivery', icon: 'truck' as const },
                   { id: 'pickup',   label: 'Pickup',   sub: 'In-store, free',      icon: 'shopping-bag' as const },
                 ].map((t) => {
                   const active = orderType === t.id;
@@ -614,8 +633,16 @@ export default function WholesaleCatalog() {
               <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryRowLabel}>Subtotal</Text>
-                  <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  <Text style={styles.summaryRowValue}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
                 </View>
+                {orderType === 'delivery' && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryRowLabel}>Delivery fee</Text>
+                    <Text style={styles.summaryRowValue}>
+                      {deliveryFeeCents > 0 ? `AUD ${(deliveryFeeCents / 100).toFixed(2)}` : 'Free'}
+                    </Text>
+                  </View>
+                )}
                 <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
@@ -637,6 +664,19 @@ export default function WholesaleCatalog() {
                     </View>
                   );
                 })}
+                <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryRowLabel}>Subtotal</Text>
+                  <Text style={styles.summaryRowValue}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
+                </View>
+                {orderType === 'delivery' && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryRowLabel}>Delivery fee</Text>
+                    <Text style={styles.summaryRowValue}>
+                      {deliveryFeeCents > 0 ? `AUD ${(deliveryFeeCents / 100).toFixed(2)}` : 'Free'}
+                    </Text>
+                  </View>
+                )}
                 <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
@@ -690,8 +730,8 @@ export default function WholesaleCatalog() {
             <Text style={styles.bottomTotalLabel}>TOTAL</Text>
             <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
           </View>
-          <Pressable onPress={handleContinue} disabled={submitting || (checkoutStep === 0 && totalCents < 5000)}
-            style={[styles.continueBtn, { backgroundColor: (checkoutStep === 0 && totalCents < 5000) ? '#C7C7CC' : BLUE, opacity: submitting ? 0.8 : 1 }]}>
+          <Pressable onPress={handleContinue} disabled={submitting || (checkoutStep === 0 && subtotalCents < 5000)}
+            style={[styles.continueBtn, { backgroundColor: (checkoutStep === 0 && subtotalCents < 5000) ? '#C7C7CC' : BLUE, opacity: submitting ? 0.8 : 1 }]}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>}
           </Pressable>
         </View>
@@ -765,26 +805,25 @@ export default function WholesaleCatalog() {
             </View>
           }
           renderItem={({ item: product }) => (
-            <ProductRow product={product} cartEntry={cart.find((e) => e.product.id === product.id)} onAdd={addToCart} />
+            <CompactProductRow product={product} cartEntry={cart.find((e) => e.product.id === product.id)} onAdd={addToCart} />
           )}
         />
       )}
 
       {cart.length > 0 && (
-        <Pressable onPress={handleOpenCheckout} style={[styles.floatingCart, { paddingBottom: insets.bottom + 10 }]}>
+        <Pressable onPress={handleOpenCheckout} style={[styles.floatingCart, { paddingBottom: insets.bottom + 6 }]}>
           <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={styles.floatingCartBadge}>
-                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }}>{totalQty}</Text>
+                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{totalQty}</Text>
               </View>
-              <View>
-                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>View Cart</Text>
-                <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{cart.length} line item{cart.length !== 1 ? 's' : ''}</Text>
-              </View>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>
+                {cart.length} item{cart.length !== 1 ? 's' : ''} · View Cart
+              </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17 }}>${(totalCents / 100).toFixed(2)}</Text>
-              <Feather name="chevron-right" size={20} color="rgba(255,255,255,0.85)" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>${(subtotalCents / 100).toFixed(2)}</Text>
+              <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.85)" />
             </View>
           </LinearGradient>
         </Pressable>
@@ -799,11 +838,26 @@ const styles = StyleSheet.create({
   searchBar:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42 },
   cartBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
   tierTag:        { paddingHorizontal: 10, paddingVertical: 6, gap: 2, alignItems: 'center' },
-  productCard:    { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  productThumbLg: { height: 120, borderRadius: 12 },
-  floatingCart:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: 'rgba(245,246,250,0.95)', borderTopWidth: 1, borderTopColor: BORDER },
-  floatingCartInner:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderRadius: 18, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8 },
-  floatingCartBadge:  { backgroundColor: '#fff', borderRadius: 10, minWidth: 30, height: 30, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  // Compact product row
+  compactRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 14, padding: 10, borderWidth: 1, borderColor: BORDER },
+  compactThumbWrap: { position: 'relative' },
+  compactThumb:     { width: 56, height: 56, borderRadius: 10 },
+  inCartBadge:      { position: 'absolute', top: -5, right: -5, backgroundColor: '#22C55E', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: CARD },
+  inCartBadgeText:  { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  compactName:      { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  compactPrice:     { fontSize: 14, fontFamily: 'Inter_700Bold', color: BLUE },
+  compactStrike:    { fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED, textDecorationLine: 'line-through' },
+  discountBadge:    { backgroundColor: `${BLUE}18`, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
+  discountBadgeText:{ fontSize: 10, fontFamily: 'Inter_700Bold', color: BLUE },
+  stepperRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, overflow: 'hidden' },
+  stepBtn:          { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:      { fontSize: 17, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 20 },
+  stepQty:          { width: 32, height: 28, textAlign: 'center', fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT },
+  addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  addBtnText:       { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  floatingCart:     { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, backgroundColor: 'rgba(245,246,250,0.97)', borderTopWidth: 1, borderTopColor: BORDER },
+  floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 14, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
+  floatingCartBadge:{ backgroundColor: '#fff', borderRadius: 8, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   // Checkout header
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
   checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
