@@ -27,16 +27,7 @@ const PUBLIC_ROLES = [
   { role: 'wholesale' as UserRole, label: 'Wholesale', subtitle: 'Bulk orders\n& account tools',   icon: 'package' },
 ];
 
-const DEMO_CREDS = [
-  { role: 'customer'  as UserRole, email: 'customer@demo.com',  label: 'Customer',  color: '#0369A1', bg: '#EBF8FF', internal: false },
-  { role: 'wholesale' as UserRole, email: 'wholesale@demo.com', label: 'Wholesale', color: '#166534', bg: '#DCFCE7', internal: false },
-  { role: 'staff'     as UserRole, email: 'staff@demo.com',     label: 'Staff',     color: '#5B21B6', bg: '#EDE9FE', internal: true  },
-  { role: 'director'  as UserRole, email: 'director@demo.com',  label: 'Director',  color: '#854D0E', bg: '#FEF9C3', internal: true  },
-  { role: 'manager'   as UserRole, email: 'manager@demo.com',   label: 'Manager',   color: '#3730A3', bg: '#E0E7FF', internal: true  },
-];
-
-const DEMO_PW        = 'Demo1234!';
-const INTERNAL_EMAILS = DEMO_CREDS.filter(d => d.internal).map(d => d.email);
+const INTERNAL_EMAILS: string[] = [];
 
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
 
@@ -72,16 +63,6 @@ export default function LoginScreen() {
   const clearPublic = () => {
     setEmail(''); setPassword(''); setName(''); setCompanyName(''); setAbn('');
     setError(''); setSuccessMsg(''); setShowPw(false);
-  };
-
-  const fillDemo = (d: typeof DEMO_CREDS[0]) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (d.internal) {
-      setShowInternal(true); setIEmail(d.email); setIPassword(DEMO_PW); setIError(''); setGeoStatus('idle');
-    } else {
-      setShowInternal(false); setSelectedRole(d.role); setMode('login');
-      setEmail(d.email); setPassword(DEMO_PW); setError('');
-    }
   };
 
   // ── Public submit ──────────────────────────────────────────────────────────
@@ -276,19 +257,6 @@ export default function LoginScreen() {
                 </Pressable>
               )}
 
-              {/* Demo accounts */}
-              <View style={[s.demoSection, { borderColor: BORDER }]}>
-                <Text style={[s.demoTitle, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>Demo accounts</Text>
-                <Text style={[s.demoSub, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Tap to auto-fill · password: Demo1234!</Text>
-                <View style={s.demoGrid}>
-                  {DEMO_CREDS.map((d) => (
-                    <Pressable key={d.role} onPress={() => fillDemo(d)} style={[s.demoPill, { backgroundColor: d.bg }]}>
-                      <Text style={[s.demoPillText, { color: d.color, fontFamily: 'Inter_700Bold' }]}>{d.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
               {/* Internal access link */}
               <Pressable
                 onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); setGeoStatus('idle'); Haptics.selectionAsync(); }}
@@ -370,20 +338,8 @@ export default function LoginScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 2 }}>
                 <Feather name="map-pin" size={11} color={MUTED} style={{ marginTop: 1 }} />
                 <Text style={[s.geoNote, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
-                  Staff must be within range of Butterfield Merrylands. Demo accounts bypass this check.
+                  Staff must be within range of Butterfield Merrylands to sign in.
                 </Text>
-              </View>
-
-              {/* Internal demo strip */}
-              <View style={[s.demoSection, { borderColor: BORDER }]}>
-                <Text style={[s.demoTitle, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>Demo accounts</Text>
-                <View style={s.demoGrid}>
-                  {DEMO_CREDS.filter(d => d.internal).map((d) => (
-                    <Pressable key={d.role} onPress={() => fillDemo(d)} style={[s.demoPill, { backgroundColor: d.bg }]}>
-                      <Text style={[s.demoPillText, { color: d.color, fontFamily: 'Inter_700Bold' }]}>{d.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
               </View>
             </>
           )}
@@ -415,12 +371,6 @@ const s = StyleSheet.create({
   submitBtn:     { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   submitBtnText: { color: '#fff', fontSize: 16 },
   toggleText:    { fontSize: 14, textAlign: 'center' },
-  demoSection:   { borderTopWidth: 1, paddingTop: 16, gap: 8 },
-  demoTitle:     { fontSize: 12, letterSpacing: 0.5 },
-  demoSub:       { fontSize: 11 },
-  demoGrid:      { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  demoPill:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  demoPillText:  { fontSize: 13, letterSpacing: 0.3 },
   internalLink:  { fontSize: 13 },
   backBtn:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   backText:      { fontSize: 15 },
