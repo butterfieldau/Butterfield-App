@@ -221,6 +221,30 @@ export const api = {
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
       request<{ data: any }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
 
+    // CRM — Customer profiles
+    customers: {
+      list:         (params?: { search?: string; filter?: string }) => {
+        const qs = new URLSearchParams();
+        if (params?.search) qs.set('search', params.search);
+        if (params?.filter) qs.set('filter', params.filter);
+        return request<{ data: CrmCustomer[] }>(`/director/customers${qs.toString() ? `?${qs}` : ''}`);
+      },
+      insights:     () => request<{ data: CrmInsights }>('/director/customers/insights'),
+      get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
+      update:       (id: string, data: { name?: string; phone?: string; status?: string }) =>
+        request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      updateStatus: (id: string, status: 'active' | 'inactive' | 'suspended') =>
+        request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      addNote:      (id: string, content: string) =>
+        request<{ data: CrmNote }>(`/director/customers/${id}/notes`, { method: 'POST', body: JSON.stringify({ content }) }),
+      deleteNote:   (id: string, noteId: string) =>
+        request<{ ok: boolean }>(`/director/customers/${id}/notes/${noteId}`, { method: 'DELETE' }),
+      addBadge:     (id: string, badge: string, note?: string) =>
+        request<{ data: any }>(`/director/customers/${id}/badges`, { method: 'POST', body: JSON.stringify({ badge, note }) }),
+      deleteBadge:  (id: string, badgeId: string) =>
+        request<{ ok: boolean }>(`/director/customers/${id}/badges/${badgeId}`, { method: 'DELETE' }),
+    },
+
     // Manager management (director only)
     managers: {
       list:              () => request<{ data: any[] }>('/director/managers'),
@@ -400,6 +424,82 @@ export interface DirectorReports {
   feedback:  DirectorFeedback[];
   unreadFeedback: number;
   customers: { total: number; newWeek: number };
+}
+
+// ── CRM types ─────────────────────────────────────────────────────────────────
+export interface CrmCustomer {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  role: string;
+  status: string;
+  createdAt: string;
+  lastLogin?: string | null;
+  orderCount: number;
+  totalSpentCents: number;
+  lastOrderAt?: string | null;
+  daysSinceLastOrder?: number | null;
+  profile?: {
+    loyaltyPoints: number;
+    loyaltyTier: string;
+    stampCount: number;
+    totalVisits: number;
+    referralCode: string;
+  } | null;
+  wholesaleAccount?: {
+    id: string;
+    companyName: string;
+    status: string;
+    pricingTier: string;
+  } | null;
+  badges: string[];
+  manualBadges: CrmBadge[];
+}
+
+export interface CrmInsights {
+  totalCustomers: number;
+  newThisWeek: number;
+  totalWholesale: number;
+  topSpenders: { userId: string; name: string; totalSpentCents: number; totalVisits: number }[];
+}
+
+export interface CrmNote {
+  id: string;
+  userId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CrmBadge {
+  id: string;
+  userId: string;
+  badge: string;
+  addedByUserId: string;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface CrmCustomerDetail extends CrmCustomer {
+  addresses: {
+    id: string; label: string; street: string; apt?: string | null;
+    suburb: string; postcode: string; state: string; isDefault: boolean;
+  }[];
+  orders: ApiOrder[];
+  orderStats: {
+    orderCount: number;
+    totalSpentCents: number;
+    avgOrderCents: number;
+    cancelledCount: number;
+    refundedCount: number;
+    lastOrderAt?: string | null;
+    daysSinceLastOrder?: number | null;
+    topProducts: { name: string; qty: number }[];
+  };
+  notes: CrmNote[];
+  wholesaleAccount: any | null;
 }
 
 export interface DirectorShift {
