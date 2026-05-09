@@ -291,6 +291,53 @@ router.patch('/staff/:userId', async (req, res) => {
   return res.json({ data: { ...safeUser, staffProfile: updatedProfile ?? null } });
 });
 
+// ── Director clock-in/out on behalf of a staff member ────────────────────────
+router.post('/staff/:userId/clock-in', async (req, res) => {
+  const { userId } = req.params;
+  const existing = await db.select().from(staffShiftsTable)
+    .where(and(eq(staffShiftsTable.userId, userId), isNull(staffShiftsTable.clockOut)));
+  if (existing.length > 0) {
+    return res.status(400).json({ error: 'Staff member is already clocked in.', shift: existing[0] });
+  }
+  const [shift] = await db.insert(staffShiftsTable).values({
+    id: randomUUID(), userId, clockIn: new Date(), unpaidBreakMins: 0,
+  }).returning();
+  return res.status(201).json({ data: shift });
+});
+
+router.post('/staff/:userId/clock-out', async (req, res) => {
+  const { userId } = req.params;
+  const [active] = await db.select().from(staffShiftsTable)
+    .where(and(eq(staffShiftsTable.userId, userId), isNull(staffShiftsTable.clockOut)));
+  if (!active) return res.status(400).json({ error: 'No active shift for this staff member.' });
+  const now = new Date();
+  const diffMs  = now.getTime() - active.clockIn.getTime();
+  const hrs = (diffMs / 3_600_000).toFixed(2);
+  const [shift] = await db.update(staffShiftsTable)
+    .set({ clockOut: now, hoursWorked: hrs, unpaidBreakMins: 0 })
+    .where(eq(staffShiftsTable.id, active.id)).returning();
+  return res.json({ data: shift });
+});
+
+// ── Staff leave requests (per user) ──────────────────────────────────────────
+router.get('/staff/:userId/leave', async (req, res) => {
+  const rows = await db.select().from(staffLeaveRequestsTable)
+    .where(eq(staffLeaveRequestsTable.userId, req.params.userId))
+    .orderBy(desc(staffLeaveRequestsTable.createdAt))
+    .limit(20);
+  return res.json({ data: rows });
+});
+
+router.patch('/staff/leave/:leaveId/review', async (req, res) => {
+  const { approved } = req.body;
+  const newStatus = approved ? 'approved' : 'rejected';
+  const [updated] = await db.update(staffLeaveRequestsTable)
+    .set({ status: newStatus, reviewedBy: req.user!.id, reviewedAt: new Date() })
+    .where(eq(staffLeaveRequestsTable.id, req.params.leaveId)).returning();
+  if (!updated) return res.status(404).json({ error: 'Leave request not found.' });
+  return res.json({ data: updated });
+});
+
 // ── Staff approval ───────────────────────────────────────────────────────────
 router.patch('/staff/:userId/approve', async (req, res) => {
   const { userId } = req.params;

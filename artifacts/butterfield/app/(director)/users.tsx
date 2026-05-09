@@ -3,12 +3,12 @@ import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
 import DirectorCustomersScreen from './customers';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 const BG     = '#F5F6FA';
@@ -92,27 +92,89 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
     finally { setSaving(false); }
   };
 
+  const [showLeave, setShowLeave] = useState(false);
+
   const inits = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+
+  // hoursWorked is stored as text in two formats: "1h 30m" or "1.50" — parse both
+  const parseHrs = (h: any): number => {
+    if (h == null) return 0;
+    const s = String(h);
+    const hm = s.match(/(\d+)h\s*(\d+)m/);
+    if (hm) return parseInt(hm[1]) + parseInt(hm[2]) / 60;
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  };
 
   const recentShifts: any[] = u?.recentShifts ?? [];
   const hasActiveShift = recentShifts.some((s: any) => !s.clockOut);
   const hoursThisWeek = (() => {
-    const mon = new Date(); mon.setDate(mon.getDate() - mon.getDay() + 1); mon.setHours(0,0,0,0);
+    const mon = new Date(); mon.setDate(mon.getDate() - mon.getDay() + 1); mon.setHours(0, 0, 0, 0);
     return recentShifts
       .filter((s: any) => s.clockOut && new Date(s.clockIn) >= mon)
-      .reduce((sum: number, s: any) => sum + (s.hoursWorked ?? 0), 0);
+      .reduce((sum: number, s: any) => sum + parseHrs(s.hoursWorked), 0);
   })();
 
-  const ROW_ITEMS = [
-    { label: 'Upcoming shifts',  icon: 'calendar' },
-    { label: 'Timesheets',       icon: 'clock' },
-    { label: 'Leave',            icon: 'umbrella' },
-    { label: 'Availability',     icon: 'check-circle' },
-    { label: 'Journals',         icon: 'book-open' },
-  ];
+  // Leave data — fetch when showLeave opens
+  const { data: leaveData, isLoading: leaveLoading } = useQuery({
+    queryKey: ['director-staff-leave', userId],
+    queryFn: () => api.director.staffLeave(userId!),
+    enabled: showLeave && !!userId,
+  });
+  const leaveRequests: any[] = leaveData?.data ?? [];
 
-  // parse hoursWorked safely — stored as text in the DB
-  const parseHrs = (h: any) => (h != null ? parseFloat(String(h)) || 0 : 0);
+  const clockInMut = useMutation({
+    mutationFn: () => api.director.staffClockIn(userId!),
+    onSuccess: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); refetch(); },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+  const clockOutMut = useMutation({
+    mutationFn: () => api.director.staffClockOut(userId!),
+    onSuccess: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); refetch(); },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+  const approveLeave = useMutation({
+    mutationFn: ({ id, approved }: { id: string; approved: boolean }) => api.director.approveLeave(id, approved),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['director-staff-leave', userId] }),
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
+  const handleMessage = () => {
+    const email = u?.email;
+    if (!email) { Alert.alert('No email', 'This staff member has no email on file.'); return; }
+    Haptics.selectionAsync();
+    Linking.openURL(`mailto:${email}`).catch(() => Alert.alert('Error', 'Could not open mail app.'));
+  };
+
+  const handleContact = () => {
+    const phone = u?.phone;
+    if (!phone) { Alert.alert('No phone', 'This staff member has no phone number on file.'); return; }
+    Haptics.selectionAsync();
+    Alert.alert(`Call ${u?.name}`, phone, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Call', onPress: () => Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() => Alert.alert('Error', 'Could not open phone app.')) },
+    ]);
+  };
+
+  const handleShiftToggle = () => {
+    if (hasActiveShift) {
+      Alert.alert('Clock out', `End ${u?.name ?? 'this staff member'}'s active shift now?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Clock Out', style: 'destructive', onPress: () => clockOutMut.mutate() },
+      ]);
+    } else {
+      Alert.alert('Start shift', `Start an unscheduled shift for ${u?.name ?? 'this staff member'} right now?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Start Shift', onPress: () => clockInMut.mutate() },
+      ]);
+    }
+  };
+
+  const LEAVE_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+    pending:  { bg: '#FEF9C3', text: '#854D0E' },
+    approved: { bg: '#DCFCE7', text: '#166534' },
+    rejected: { bg: '#FEE2E2', text: '#991B1B' },
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleClose}>
@@ -161,26 +223,42 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                 </View>
               </View>
 
-              {/* ── Start shift button ───────────────────────────────── */}
-              {!hasActiveShift && (
-                <Pressable style={sp_s.startShiftBtn} onPress={() => Haptics.selectionAsync()}>
-                  <Feather name="play-circle" size={16} color={NAVY} />
-                  <Text style={sp_s.startShiftText}>Start unscheduled shift</Text>
-                </Pressable>
-              )}
+              {/* ── Clock in / out button ────────────────────────────── */}
+              <Pressable
+                style={[sp_s.startShiftBtn, hasActiveShift && { borderColor: RED }]}
+                onPress={handleShiftToggle}
+                disabled={clockInMut.isPending || clockOutMut.isPending}
+              >
+                {(clockInMut.isPending || clockOutMut.isPending)
+                  ? <ActivityIndicator color={hasActiveShift ? RED : NAVY} size="small" />
+                  : <>
+                      <Feather name={hasActiveShift ? 'stop-circle' : 'play-circle'} size={16} color={hasActiveShift ? RED : NAVY} />
+                      <Text style={[sp_s.startShiftText, hasActiveShift && { color: RED }]}>
+                        {hasActiveShift ? 'End active shift' : 'Start unscheduled shift'}
+                      </Text>
+                    </>
+                }
+              </Pressable>
 
               {/* ── Action buttons ───────────────────────────────────── */}
               <View style={sp_s.actionRow}>
-                {[
-                  { icon: 'message-circle', label: 'Message' },
-                  { icon: 'check-square',   label: 'Task' },
-                  { icon: 'phone',          label: 'Contact' },
-                ].map(({ icon, label }) => (
-                  <Pressable key={label} style={sp_s.actionBtn} onPress={() => Haptics.selectionAsync()}>
-                    <Feather name={icon as any} size={20} color={NAVY} />
-                    <Text style={sp_s.actionLabel}>{label}</Text>
-                  </Pressable>
-                ))}
+                <Pressable style={sp_s.actionBtn} onPress={handleMessage}>
+                  <Feather name="mail" size={20} color={NAVY} />
+                  <Text style={sp_s.actionLabel}>Email</Text>
+                </Pressable>
+                <Pressable style={sp_s.actionBtn} onPress={handleContact}>
+                  <Feather name="phone" size={20} color={NAVY} />
+                  <Text style={sp_s.actionLabel}>Call</Text>
+                </Pressable>
+                <Pressable style={sp_s.actionBtn} onPress={() => {
+                  Haptics.selectionAsync();
+                  const sms = u?.phone?.replace(/\s/g, '');
+                  if (!sms) { Alert.alert('No phone', 'No phone number on file.'); return; }
+                  Linking.openURL(`sms:${sms}`).catch(() => Alert.alert('Error', 'Could not open messages.'));
+                }}>
+                  <Feather name="message-circle" size={20} color={NAVY} />
+                  <Text style={sp_s.actionLabel}>Message</Text>
+                </Pressable>
               </View>
 
               {/* ── Edit Profile Form ────────────────────────────────── */}
@@ -272,25 +350,117 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
 
               {/* ── Menu rows ────────────────────────────────────────── */}
               <View style={sp_s.menuSection}>
-                {ROW_ITEMS.map(({ label, icon }, idx) => (
-                  <Pressable key={label}
-                    style={[sp_s.menuRow, idx < ROW_ITEMS.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
-                    onPress={() => Haptics.selectionAsync()}
-                  >
-                    <Feather name={icon as any} size={17} color={BLUE} style={{ marginRight: 14 }} />
-                    <Text style={sp_s.menuLabel}>{label}</Text>
-                    <Feather name="chevron-right" size={16} color={MUTED} />
-                  </Pressable>
-                ))}
+                {/* Timesheets — scrolls to recent shifts below */}
+                <Pressable style={[sp_s.menuRow, { borderBottomWidth: 1, borderBottomColor: BORDER }]}
+                  onPress={() => { Haptics.selectionAsync(); }}>
+                  <Feather name="clock" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={sp_s.menuLabel}>Timesheets</Text>
+                    <Text style={sp_s.menuSub}>{recentShifts.length} recent shifts · {hoursThisWeek.toFixed(1)}h this week</Text>
+                  </View>
+                  <Feather name="chevron-down" size={16} color={MUTED} />
+                </Pressable>
+
+                {/* Leave — opens leave sheet */}
+                <Pressable style={[sp_s.menuRow, { borderBottomWidth: 1, borderBottomColor: BORDER }]}
+                  onPress={() => { Haptics.selectionAsync(); setShowLeave(v => !v); }}>
+                  <Feather name="umbrella" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={sp_s.menuLabel}>Leave requests</Text>
+                    <Text style={sp_s.menuSub}>Tap to review and approve</Text>
+                  </View>
+                  <Feather name={showLeave ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+
+                {/* Upcoming shifts placeholder */}
+                <Pressable style={[sp_s.menuRow, { borderBottomWidth: 1, borderBottomColor: BORDER }]}
+                  onPress={() => Alert.alert('Upcoming Shifts', 'Shift scheduling will be available in a future update.')}>
+                  <Feather name="calendar" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={sp_s.menuLabel}>Upcoming shifts</Text>
+                    <Text style={sp_s.menuSub}>Scheduling coming soon</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={MUTED} />
+                </Pressable>
+
+                {/* Availability placeholder */}
+                <Pressable style={[sp_s.menuRow, { borderBottomWidth: 1, borderBottomColor: BORDER }]}
+                  onPress={() => Alert.alert('Availability', 'Staff availability management coming soon.')}>
+                  <Feather name="check-circle" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={sp_s.menuLabel}>Availability</Text>
+                    <Text style={sp_s.menuSub}>Preferred days & hours</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={MUTED} />
+                </Pressable>
+
+                {/* Journals placeholder */}
+                <Pressable style={sp_s.menuRow}
+                  onPress={() => Alert.alert('Journals', 'Staff journals and notes coming soon.')}>
+                  <Feather name="book-open" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={sp_s.menuLabel}>Journals</Text>
+                    <Text style={sp_s.menuSub}>Performance notes & reviews</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={MUTED} />
+                </Pressable>
               </View>
+
+              {/* ── Leave requests (expandable) ───────────────────────── */}
+              {showLeave && (
+                <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+                  <Text style={[sp_s.sectionLabel, { marginBottom: 10 }]}>LEAVE REQUESTS</Text>
+                  {leaveLoading ? (
+                    <ActivityIndicator color={BLUE} />
+                  ) : leaveRequests.length === 0 ? (
+                    <View style={[sp_s.infoCard, { padding: 20, alignItems: 'center' }]}>
+                      <Feather name="umbrella" size={24} color={MUTED} />
+                      <Text style={[sp_s.menuSub, { marginTop: 8 }]}>No leave requests on file</Text>
+                    </View>
+                  ) : (
+                    <View style={sp_s.infoCard}>
+                      {leaveRequests.map((lr: any, idx: number) => {
+                        const sc = LEAVE_STATUS_COLORS[lr.status] ?? { bg: '#F3F4F6', text: MUTED };
+                        const isPending = lr.status === 'pending';
+                        return (
+                          <View key={lr.id} style={[sp_s.leaveRow, idx < leaveRequests.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                            <View style={{ flex: 1, gap: 2 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text style={sp_s.leaveType}>{lr.type.replace('_', ' ')}</Text>
+                                <View style={[sp_s.statusPill, { backgroundColor: sc.bg }]}>
+                                  <Text style={[sp_s.statusPillText, { color: sc.text }]}>{lr.status.toUpperCase()}</Text>
+                                </View>
+                              </View>
+                              <Text style={sp_s.leaveDates}>{lr.startDate} → {lr.endDate}</Text>
+                              {lr.reason ? <Text style={sp_s.leaveReason} numberOfLines={2}>{lr.reason}</Text> : null}
+                            </View>
+                            {isPending && (
+                              <View style={{ gap: 6, marginLeft: 10 }}>
+                                <Pressable style={[sp_s.leaveBtn, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}
+                                  onPress={() => approveLeave.mutate({ id: lr.id, approved: true })}>
+                                  <Text style={[sp_s.leaveBtnText, { color: '#166534' }]}>Approve</Text>
+                                </Pressable>
+                                <Pressable style={[sp_s.leaveBtn, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}
+                                  onPress={() => approveLeave.mutate({ id: lr.id, approved: false })}>
+                                  <Text style={[sp_s.leaveBtnText, { color: '#991B1B' }]}>Reject</Text>
+                                </Pressable>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* ── Recent shifts ─────────────────────────────────────── */}
               {recentShifts.length > 0 && (
                 <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 16 }}>
                   <Text style={[sp_s.sectionLabel, { marginBottom: 10 }]}>RECENT SHIFTS</Text>
                   <View style={sp_s.infoCard}>
-                    {recentShifts.slice(0, 5).map((shift: any, idx: number) => (
-                      <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 5) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                    {recentShifts.slice(0, 10).map((shift: any, idx: number) => (
+                      <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 10) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={sp_s.shiftDate}>
                             {new Date(shift.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
@@ -340,7 +510,16 @@ const sp_s = StyleSheet.create({
   infoValue:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium', flex: 2, textAlign: 'right' },
   menuSection:   { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
   menuRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
-  menuLabel:     { flex: 1, color: TEXT, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  menuLabel:     { color: TEXT, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  menuSub:       { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  leaveRow:      { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 14 },
+  leaveType:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' },
+  statusPill:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
+  statusPillText:{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
+  leaveDates:    { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  leaveReason:   { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4, fontStyle: 'italic' },
+  leaveBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  leaveBtnText:  { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   editSection:   { marginHorizontal: 16, marginBottom: 16, gap: 4 },
   fieldWrap:     { marginBottom: 8 },
   fieldLabel:    { color: MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8, marginBottom: 6 },

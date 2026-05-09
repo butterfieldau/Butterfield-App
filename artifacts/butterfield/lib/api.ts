@@ -160,6 +160,10 @@ export const api = {
     staffMember:         (userId: string) => request<{ data: any }>(`/director/staff/${userId}`),
     updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
       request<{ data: any }>(`/director/staff/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    staffClockIn:        (userId: string) => request<{ data: any }>(`/director/staff/${userId}/clock-in`, { method: 'POST' }),
+    staffClockOut:       (userId: string) => request<{ data: any }>(`/director/staff/${userId}/clock-out`, { method: 'POST' }),
+    staffLeave:          (userId: string) => request<{ data: any[] }>(`/director/staff/${userId}/leave`),
+    approveLeave:        (leaveId: string, approved: boolean) => request<{ data: any }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     approveStaff:        (userId: string, approved: boolean) => request<{ data: any }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     setWholesaleStatus:  (accountId: string, status: string) => request<{ data: any }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     products:            () => request<{ data: any[] }>('/director/products'),
