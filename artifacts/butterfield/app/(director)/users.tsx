@@ -23,14 +23,6 @@ const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 
 const TABS = ['Customers', 'Staff', 'Wholesale'];
-const DARK_BG   = '#0D0D1A';
-const DARK_CARD = '#16162A';
-const DARK_ROW  = '#1C1C32';
-const DARK_TEXT = '#FFFFFF';
-const DARK_MUTED= 'rgba(255,255,255,0.45)';
-const DARK_BORD = 'rgba(255,255,255,0.08)';
-const DARK_PURP = '#7C6FCD';
-const DARK_GREEN= '#22C55E';
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
@@ -119,29 +111,30 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
     { label: 'Journals',         icon: 'book-open' },
   ];
 
+  // parse hoursWorked safely — stored as text in the DB
+  const parseHrs = (h: any) => (h != null ? parseFloat(String(h)) || 0 : 0);
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleClose}>
-      <View style={{ flex: 1, backgroundColor: DARK_BG }}>
-        {/* ── Header ─────────────────────────────────────────────────── */}
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        {/* ── Navy header strip ──────────────────────────────────────── */}
         <View style={sp_s.header}>
           <Pressable onPress={handleClose} style={sp_s.backBtn}>
-            <Feather name="chevron-left" size={20} color={DARK_TEXT} />
+            <Feather name="chevron-left" size={22} color="#fff" />
           </Pressable>
           <Text style={sp_s.headerTitle} numberOfLines={1}>{u?.name ?? '…'}</Text>
           <Pressable
             onPress={() => { setEditing(e => !e); setSaveErr(''); Haptics.selectionAsync(); }}
-            style={[sp_s.editBtn, editing && { backgroundColor: DARK_PURP + '30', borderColor: DARK_PURP }]}
+            style={[sp_s.editBtn, editing && { backgroundColor: 'rgba(255,255,255,0.25)' }]}
           >
-            <Text style={[sp_s.editBtnText, editing && { color: DARK_PURP }]}>
-              {editing ? 'Cancel' : 'Edit Profile'}
-            </Text>
+            <Text style={sp_s.editBtnText}>{editing ? 'Cancel' : 'Edit Profile'}</Text>
           </Pressable>
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {isLoading ? (
             <View style={{ alignItems: 'center', marginTop: 80 }}>
-              <ActivityIndicator color={DARK_PURP} size="large" />
+              <ActivityIndicator color={BLUE} size="large" />
             </View>
           ) : (
             <>
@@ -150,20 +143,20 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                 <View style={sp_s.avatarCircle}>
                   <Text style={sp_s.avatarText}>{inits(u?.name ?? 'S')}</Text>
                 </View>
-                <View style={{ flex: 1, gap: 3 }}>
+                <View style={{ flex: 1, gap: 4 }}>
                   {hasActiveShift ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: DARK_GREEN }} />
-                      <Text style={[sp_s.shiftStatus, { color: DARK_GREEN }]}>Currently clocked in</Text>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN }} />
+                      <Text style={[sp_s.shiftStatus, { color: GREEN }]}>Currently clocked in</Text>
                     </View>
                   ) : (
-                    <Text style={sp_s.shiftStatus}>No scheduled shifts</Text>
+                    <Text style={sp_s.shiftStatus}>Not clocked in</Text>
                   )}
                   <Text style={sp_s.shiftSub}>
                     {sp?.position ?? 'Staff'} · {hoursThisWeek.toFixed(1)}h this week
                   </Text>
                   {sp?.employeeId ? (
-                    <Text style={sp_s.empId}>ID: {sp.employeeId}</Text>
+                    <Text style={sp_s.empId}>Employee ID: {sp.employeeId}</Text>
                   ) : null}
                 </View>
               </View>
@@ -171,7 +164,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
               {/* ── Start shift button ───────────────────────────────── */}
               {!hasActiveShift && (
                 <Pressable style={sp_s.startShiftBtn} onPress={() => Haptics.selectionAsync()}>
-                  <Feather name="play-circle" size={16} color={DARK_GREEN} />
+                  <Feather name="play-circle" size={16} color={NAVY} />
                   <Text style={sp_s.startShiftText}>Start unscheduled shift</Text>
                 </Pressable>
               )}
@@ -183,12 +176,8 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                   { icon: 'check-square',   label: 'Task' },
                   { icon: 'phone',          label: 'Contact' },
                 ].map(({ icon, label }) => (
-                  <Pressable
-                    key={label}
-                    style={sp_s.actionBtn}
-                    onPress={() => Haptics.selectionAsync()}
-                  >
-                    <Feather name={icon as any} size={20} color={DARK_PURP} />
+                  <Pressable key={label} style={sp_s.actionBtn} onPress={() => Haptics.selectionAsync()}>
+                    <Feather name={icon as any} size={20} color={NAVY} />
                     <Text style={sp_s.actionLabel}>{label}</Text>
                   </Pressable>
                 ))}
@@ -198,25 +187,18 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
               {editing && (
                 <View style={sp_s.editSection}>
                   <Text style={sp_s.sectionLabel}>CONTACT DETAILS</Text>
-
                   {[
-                    { label: 'Full name',     value: eName,    setter: setEName,    icon: 'user',  kbType: 'default',       cap: 'words'  as const },
-                    { label: 'Email address', value: eEmail,   setter: setEEmail,   icon: 'mail',  kbType: 'email-address', cap: 'none'   as const },
-                    { label: 'Phone number',  value: ePhone,   setter: setEPhone,   icon: 'phone', kbType: 'phone-pad',     cap: 'none'   as const },
+                    { label: 'Full name',     value: eName,    setter: setEName,    icon: 'user',  kbType: 'default',       cap: 'words' as const },
+                    { label: 'Email address', value: eEmail,   setter: setEEmail,   icon: 'mail',  kbType: 'email-address', cap: 'none'  as const },
+                    { label: 'Phone number',  value: ePhone,   setter: setEPhone,   icon: 'phone', kbType: 'phone-pad',     cap: 'none'  as const },
                   ].map(({ label, value, setter, icon, kbType, cap }) => (
                     <View key={label} style={sp_s.fieldWrap}>
                       <Text style={sp_s.fieldLabel}>{label}</Text>
                       <View style={sp_s.fieldRow}>
-                        <Feather name={icon as any} size={14} color={DARK_MUTED} />
-                        <TextInput
-                          style={sp_s.fieldInput}
-                          value={value}
-                          onChangeText={setter}
-                          placeholder={label}
-                          placeholderTextColor={DARK_MUTED}
-                          keyboardType={kbType as any}
-                          autoCapitalize={cap}
-                        />
+                        <Feather name={icon as any} size={14} color={MUTED} />
+                        <TextInput style={sp_s.fieldInput} value={value} onChangeText={setter}
+                          placeholder={label} placeholderTextColor={MUTED}
+                          keyboardType={kbType as any} autoCapitalize={cap} />
                       </View>
                     </View>
                   ))}
@@ -225,16 +207,10 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                   <View style={sp_s.fieldWrap}>
                     <Text style={sp_s.fieldLabel}>Home address</Text>
                     <View style={sp_s.fieldRow}>
-                      <Feather name="map-pin" size={14} color={DARK_MUTED} />
-                      <TextInput
-                        style={sp_s.fieldInput}
-                        value={eAddress}
-                        onChangeText={setEAddress}
-                        placeholder="Street, suburb, state, postcode"
-                        placeholderTextColor={DARK_MUTED}
-                        autoCapitalize="words"
-                        multiline
-                      />
+                      <Feather name="map-pin" size={14} color={MUTED} />
+                      <TextInput style={sp_s.fieldInput} value={eAddress} onChangeText={setEAddress}
+                        placeholder="Street, suburb, state, postcode" placeholderTextColor={MUTED}
+                        autoCapitalize="words" multiline />
                     </View>
                   </View>
 
@@ -242,15 +218,17 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
                   <View style={sp_s.fieldWrap}>
                     <Text style={sp_s.fieldLabel}>Position</Text>
                     <View style={sp_s.fieldRow}>
-                      <Feather name="briefcase" size={14} color={DARK_MUTED} />
-                      <TextInput style={sp_s.fieldInput} value={ePos} onChangeText={setEPos} placeholder="e.g. Barista, Crew" placeholderTextColor={DARK_MUTED} autoCapitalize="words" />
+                      <Feather name="briefcase" size={14} color={MUTED} />
+                      <TextInput style={sp_s.fieldInput} value={ePos} onChangeText={setEPos}
+                        placeholder="e.g. Barista, Crew" placeholderTextColor={MUTED} autoCapitalize="words" />
                     </View>
                   </View>
                   <View style={sp_s.fieldWrap}>
                     <Text style={sp_s.fieldLabel}>Tax File Number (optional)</Text>
                     <View style={sp_s.fieldRow}>
-                      <Feather name="hash" size={14} color={DARK_MUTED} />
-                      <TextInput style={sp_s.fieldInput} value={eTfn} onChangeText={setETfn} placeholder="xxx xxx xxx" placeholderTextColor={DARK_MUTED} keyboardType="numeric" secureTextEntry />
+                      <Feather name="hash" size={14} color={MUTED} />
+                      <TextInput style={sp_s.fieldInput} value={eTfn} onChangeText={setETfn}
+                        placeholder="xxx xxx xxx" placeholderTextColor={MUTED} keyboardType="numeric" secureTextEntry />
                     </View>
                     <Text style={sp_s.fieldHint}>Stored securely · not shared</Text>
                   </View>
@@ -275,14 +253,14 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
               {!editing && (
                 <View style={sp_s.infoCard}>
                   {[
-                    { label: 'Email',     value: u?.email },
-                    { label: 'Phone',     value: u?.phone  || '—' },
-                    { label: 'Address',   value: sp?.address || '—' },
-                    { label: 'Position',  value: sp?.position },
-                    { label: 'Dept',      value: sp?.department },
-                    { label: 'Status',    value: sp?.employmentStatus },
-                    { label: 'Rate',      value: sp?.hourlyRateCents ? `$${(sp.hourlyRateCents / 100).toFixed(2)}/hr` : '—' },
-                    { label: 'TFN',       value: sp?.taxFileNumber ? '••• ••• •••' : 'Not set' },
+                    { label: 'Email',    value: u?.email },
+                    { label: 'Phone',    value: u?.phone  || '—' },
+                    { label: 'Address',  value: sp?.address || '—' },
+                    { label: 'Position', value: sp?.position },
+                    { label: 'Dept',     value: sp?.department },
+                    { label: 'Status',   value: sp?.employmentStatus },
+                    { label: 'Rate',     value: sp?.hourlyRateCents ? `$${(sp.hourlyRateCents / 100).toFixed(2)}/hr` : '—' },
+                    { label: 'TFN',      value: sp?.taxFileNumber ? '••• ••• •••' : 'Not set' },
                   ].map(({ label, value }) => (
                     <View key={label} style={sp_s.infoRow}>
                       <Text style={sp_s.infoLabel}>{label}</Text>
@@ -295,38 +273,39 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
               {/* ── Menu rows ────────────────────────────────────────── */}
               <View style={sp_s.menuSection}>
                 {ROW_ITEMS.map(({ label, icon }, idx) => (
-                  <Pressable
-                    key={label}
-                    style={[sp_s.menuRow, idx < ROW_ITEMS.length - 1 && { borderBottomWidth: 1, borderBottomColor: DARK_BORD }]}
+                  <Pressable key={label}
+                    style={[sp_s.menuRow, idx < ROW_ITEMS.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
                     onPress={() => Haptics.selectionAsync()}
                   >
-                    <Feather name={icon as any} size={17} color={DARK_PURP} style={{ marginRight: 14 }} />
+                    <Feather name={icon as any} size={17} color={BLUE} style={{ marginRight: 14 }} />
                     <Text style={sp_s.menuLabel}>{label}</Text>
-                    <Feather name="chevron-right" size={16} color={DARK_MUTED} />
+                    <Feather name="chevron-right" size={16} color={MUTED} />
                   </Pressable>
                 ))}
               </View>
 
-              {/* ── Recent shifts summary ─────────────────────────────── */}
+              {/* ── Recent shifts ─────────────────────────────────────── */}
               {recentShifts.length > 0 && (
-                <View style={{ marginHorizontal: 16, marginTop: 16 }}>
+                <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 16 }}>
                   <Text style={[sp_s.sectionLabel, { marginBottom: 10 }]}>RECENT SHIFTS</Text>
-                  {recentShifts.slice(0, 5).map((shift: any) => (
-                    <View key={shift.id} style={[sp_s.shiftRow, { borderBottomColor: DARK_BORD }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={sp_s.shiftDate}>
-                          {new Date(shift.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
-                        </Text>
-                        <Text style={sp_s.shiftTime}>
-                          {new Date(shift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                          {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
+                  <View style={sp_s.infoCard}>
+                    {recentShifts.slice(0, 5).map((shift: any, idx: number) => (
+                      <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 5) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={sp_s.shiftDate}>
+                            {new Date(shift.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          </Text>
+                          <Text style={sp_s.shiftTime}>
+                            {new Date(shift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
+                          </Text>
+                        </View>
+                        <Text style={[sp_s.shiftHrs, { color: shift.clockOut ? TEXT : GREEN }]}>
+                          {shift.hoursWorked != null ? `${parseHrs(shift.hoursWorked).toFixed(1)}h` : '•'}
                         </Text>
                       </View>
-                      <Text style={[sp_s.shiftHrs, { color: shift.clockOut ? DARK_TEXT : DARK_GREEN }]}>
-                        {shift.hoursWorked != null ? `${shift.hoursWorked.toFixed(1)}h` : '•'}
-                      </Text>
-                    </View>
-                  ))}
+                    ))}
+                  </View>
                 </View>
               )}
             </>
@@ -338,44 +317,44 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh }: {
 }
 
 const sp_s = StyleSheet.create({
-  header:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, gap: 12 },
-  backBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: DARK_CARD, alignItems: 'center', justifyContent: 'center' },
-  headerTitle:    { flex: 1, color: DARK_TEXT, fontSize: 17, fontFamily: 'Inter_700Bold', textAlign: 'center' },
-  editBtn:        { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: DARK_BORD },
-  editBtnText:    { color: DARK_TEXT, fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  avatarSection:  { flexDirection: 'row', alignItems: 'center', gap: 16, marginHorizontal: 16, marginVertical: 20 },
-  avatarCircle:   { width: 64, height: 64, borderRadius: 32, backgroundColor: DARK_PURP + '40', borderWidth: 2, borderColor: DARK_PURP, alignItems: 'center', justifyContent: 'center' },
-  avatarText:     { color: DARK_TEXT, fontSize: 22, fontFamily: 'Inter_700Bold' },
-  shiftStatus:    { color: DARK_MUTED, fontSize: 14, fontFamily: 'Inter_500Medium' },
-  shiftSub:       { color: DARK_MUTED, fontSize: 12, fontFamily: 'Inter_400Regular' },
-  empId:          { color: DARK_MUTED, fontSize: 11, fontFamily: 'Inter_400Regular' },
-  startShiftBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: DARK_GREEN },
-  startShiftText: { color: DARK_GREEN, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  actionRow:      { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 20 },
-  actionBtn:      { flex: 1, backgroundColor: DARK_CARD, borderRadius: 14, paddingVertical: 16, alignItems: 'center', gap: 8 },
-  actionLabel:    { color: DARK_TEXT, fontSize: 12, fontFamily: 'Inter_500Medium' },
-  sectionLabel:   { color: DARK_MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2, marginBottom: 8 },
-  infoCard:       { backgroundColor: DARK_CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, overflow: 'hidden' },
-  infoRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: DARK_BORD },
-  infoLabel:      { color: DARK_MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
-  infoValue:      { color: DARK_TEXT, fontSize: 13, fontFamily: 'Inter_500Medium', flex: 2, textAlign: 'right' },
-  menuSection:    { backgroundColor: DARK_CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, overflow: 'hidden' },
-  menuRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
-  menuLabel:      { flex: 1, color: DARK_TEXT, fontSize: 15, fontFamily: 'Inter_500Medium' },
-  editSection:    { marginHorizontal: 16, marginBottom: 16, gap: 4 },
-  fieldWrap:      { marginBottom: 8 },
-  fieldLabel:     { color: DARK_MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8, marginBottom: 6 },
-  fieldRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, minHeight: 52, borderWidth: 1, borderColor: DARK_BORD, borderRadius: 12, backgroundColor: DARK_CARD },
-  fieldInput:     { flex: 1, color: DARK_TEXT, fontSize: 15, fontFamily: 'Inter_400Regular', paddingVertical: 10 },
-  fieldHint:      { color: DARK_MUTED, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 4, marginLeft: 2 },
-  errBox:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, marginTop: 8 },
-  errText:        { flex: 1, color: RED, fontSize: 13, fontFamily: 'Inter_400Regular' },
-  saveBtn:        { backgroundColor: DARK_PURP, borderRadius: 14, height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  saveBtnText:    { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
-  shiftRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1 },
-  shiftDate:      { color: DARK_TEXT, fontSize: 13, fontFamily: 'Inter_500Medium' },
-  shiftTime:      { color: DARK_MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  shiftHrs:       { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  header:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 18, gap: 12, backgroundColor: NAVY },
+  backBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  headerTitle:   { flex: 1, color: '#fff', fontSize: 17, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  editBtn:       { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
+  editBtnText:   { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 16, marginHorizontal: 16, marginVertical: 20 },
+  avatarCircle:  { width: 64, height: 64, borderRadius: 32, backgroundColor: NAVY + '18', borderWidth: 2, borderColor: NAVY, alignItems: 'center', justifyContent: 'center' },
+  avatarText:    { color: NAVY, fontSize: 22, fontFamily: 'Inter_700Bold' },
+  shiftStatus:   { color: MUTED, fontSize: 14, fontFamily: 'Inter_500Medium' },
+  shiftSub:      { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular' },
+  empId:         { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular' },
+  startShiftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: NAVY },
+  startShiftText:{ color: NAVY, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  actionRow:     { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 20 },
+  actionBtn:     { flex: 1, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, paddingVertical: 16, alignItems: 'center', gap: 8 },
+  actionLabel:   { color: TEXT, fontSize: 12, fontFamily: 'Inter_500Medium' },
+  sectionLabel:  { color: MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2, marginBottom: 8 },
+  infoCard:      { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  infoRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER },
+  infoLabel:     { color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
+  infoValue:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium', flex: 2, textAlign: 'right' },
+  menuSection:   { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  menuRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
+  menuLabel:     { flex: 1, color: TEXT, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  editSection:   { marginHorizontal: 16, marginBottom: 16, gap: 4 },
+  fieldWrap:     { marginBottom: 8 },
+  fieldLabel:    { color: MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8, marginBottom: 6 },
+  fieldRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, minHeight: 52, borderWidth: 1, borderColor: BORDER, borderRadius: 12, backgroundColor: CARD },
+  fieldInput:    { flex: 1, color: TEXT, fontSize: 15, fontFamily: 'Inter_400Regular', paddingVertical: 10 },
+  fieldHint:     { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 4, marginLeft: 2 },
+  errBox:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, marginTop: 8 },
+  errText:       { flex: 1, color: RED, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  saveBtn:       { backgroundColor: NAVY, borderRadius: 14, height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  saveBtnText:   { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  shiftRow:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  shiftDate:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium' },
+  shiftTime:     { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  shiftHrs:      { fontSize: 14, fontFamily: 'Inter_700Bold' },
 });
 
 // ── Wholesale Detail Modal ──────────────────────────────────────────────────
