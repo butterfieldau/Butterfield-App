@@ -17,6 +17,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -138,6 +139,12 @@ export default function WholesaleCatalog() {
   const [cart, setCart]           = useState<CartEntry[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState(0);
+  const { width: SCREEN_W } = useWindowDimensions();
+  const pagerRef = useRef<ScrollView>(null);
+  const goToStep = useCallback((step: number) => {
+    pagerRef.current?.scrollTo({ x: step * SCREEN_W, animated: true });
+    setCheckoutStep(step);
+  }, [SCREEN_W]);
 
   // Shipping
   const [orderType, setOrderType]           = useState<'pickup' | 'delivery'>('delivery');
@@ -260,7 +267,7 @@ export default function WholesaleCatalog() {
     if (checkoutStep === 0) {
       if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
       if (totalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is AUD 50.'); return; }
-      setCheckoutStep(1);
+      goToStep(1);
       return;
     }
     if (checkoutStep === 1) {
@@ -269,7 +276,7 @@ export default function WholesaleCatalog() {
       } else {
         if (!selectedDate) { Alert.alert('Select delivery date', 'Please choose a delivery date.'); return; }
       }
-      setCheckoutStep(2);
+      goToStep(2);
       return;
     }
     if (checkoutStep === 2) {
@@ -334,7 +341,7 @@ export default function WholesaleCatalog() {
         <View style={[styles.checkoutHeader, { paddingTop: insets.top + 12, borderBottomColor: BORDER }]}>
           <View style={styles.checkoutHeaderTop}>
             {checkoutStep > 0 ? (
-              <Pressable onPress={() => setCheckoutStep((s) => s - 1)} style={styles.backBtn}>
+              <Pressable onPress={() => goToStep(checkoutStep - 1)} style={styles.backBtn}>
                 <Feather name="chevron-left" size={22} color={TEXT} />
               </Pressable>
             ) : (
@@ -354,7 +361,7 @@ export default function WholesaleCatalog() {
               const active = checkoutStep === i;
               const done   = checkoutStep > i;
               return (
-                <View key={tab.label} style={styles.tabItem}>
+                <Pressable key={tab.label} style={styles.tabItem} onPress={() => { if (i <= checkoutStep) goToStep(i); }}>
                   <View style={styles.tabInner}>
                     <Feather name={tab.icon as any} size={13} color={active || done ? BLUE : MUTED} />
                     <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
@@ -362,311 +369,318 @@ export default function WholesaleCatalog() {
                     </Text>
                   </View>
                   {active && <View style={[styles.tabUnderline, { backgroundColor: BLUE }]} />}
-                </View>
+                </Pressable>
               );
             })}
           </View>
         </View>
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 160 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-            {/* ── CART STEP ── */}
-            {checkoutStep === 0 && (
-              <>
-                {cart.map((entry) => {
-                  const wsPrice  = getWholesalePrice(getPrice(entry.product), entry.quantity);
-                  const palette  = getPalette(entry.product.metadata?.category);
-                  const imageUrl = (entry.product as any).images?.[0];
-                  return (
-                    <View key={entry.product.id} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                      {imageUrl ? (
-                        <Image source={{ uri: imageUrl }} style={styles.itemThumb} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
-                          <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
-                        </View>
-                      )}
-                      <Pressable onPress={() => removeFromCart(entry.product.id)} style={styles.removeBtn}>
-                        <Feather name="x" size={12} color={MUTED} />
-                      </Pressable>
-                      <View style={styles.itemBody}>
-                        <Text style={styles.itemName}>{entry.product.name}</Text>
-                        <Text style={styles.itemPrice}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
-                        <View style={styles.qtyRow}>
-                          <Pressable onPress={() => updateCartQty(entry.product.id, entry.quantity - 1)} style={styles.qtyBtn}>
-                            <Text style={styles.qtyBtnText}>–</Text>
-                          </Pressable>
-                          <Text style={styles.qtyLabel}>QTY: {entry.quantity}</Text>
-                          <Pressable onPress={() => updateCartQty(entry.product.id, entry.quantity + 1)} style={styles.qtyBtn}>
-                            <Text style={styles.qtyBtnText}>+</Text>
-                          </Pressable>
-                        </View>
+          {/* Horizontal pager — swipe left/right between CART · SHIPPING · ORDER */}
+          <ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            scrollEventThrottle={16}
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onMomentumScrollEnd={(e) => {
+              const newStep = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+              if (newStep !== checkoutStep) setCheckoutStep(newStep);
+            }}
+            style={{ flex: 1 }}
+          >
+            {/* ── PAGE 0: CART ── */}
+            <ScrollView style={{ width: SCREEN_W, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {cart.map((entry) => {
+                const wsPrice  = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                const palette  = getPalette(entry.product.metadata?.category);
+                const imageUrl = (entry.product as any).images?.[0];
+                return (
+                  <View key={entry.product.id} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                    {imageUrl ? (
+                      <Image source={{ uri: imageUrl }} style={styles.itemThumb} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
+                      </View>
+                    )}
+                    <Pressable onPress={() => removeFromCart(entry.product.id)} style={styles.removeBtn}>
+                      <Feather name="x" size={12} color={MUTED} />
+                    </Pressable>
+                    <View style={styles.itemBody}>
+                      <Text style={styles.itemName}>{entry.product.name}</Text>
+                      <Text style={styles.itemPrice}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
+                      <View style={styles.qtyRow}>
+                        <Pressable onPress={() => updateCartQty(entry.product.id, entry.quantity - 1)} style={styles.qtyBtn}>
+                          <Text style={styles.qtyBtnText}>–</Text>
+                        </Pressable>
+                        <Text style={styles.qtyLabel}>QTY: {entry.quantity}</Text>
+                        <Pressable onPress={() => updateCartQty(entry.product.id, entry.quantity + 1)} style={styles.qtyBtn}>
+                          <Text style={styles.qtyBtnText}>+</Text>
+                        </Pressable>
                       </View>
                     </View>
+                  </View>
+                );
+              })}
+
+              <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryRowLabel}>Subtotal</Text>
+                  <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                </View>
+                <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
+                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                </View>
+                {totalCents < 5000 && (
+                  <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                    Minimum wholesale order is AUD 50.00
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.shippingNote}>Choose pickup or delivery on the next step.</Text>
+            </ScrollView>
+
+            {/* ── PAGE 1: SHIPPING ── */}
+            <ScrollView style={{ width: SCREEN_W, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.sectionLabel}>HOW WOULD YOU LIKE TO RECEIVE YOUR ORDER?</Text>
+
+              <View style={styles.orderTypeRow}>
+                {[
+                  { id: 'delivery', label: 'Delivery', sub: 'AUD 0.00 (invoiced)', icon: 'truck' as const },
+                  { id: 'pickup',   label: 'Pickup',   sub: 'In-store, free',      icon: 'shopping-bag' as const },
+                ].map((t) => {
+                  const active = orderType === t.id;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+                      style={[styles.orderTypeCard, {
+                        backgroundColor: active ? LIGHT_BLUE : CARD,
+                        borderColor:     active ? BLUE : BORDER,
+                        borderWidth:     active ? 2 : 1,
+                      }]}
+                    >
+                      <View style={[styles.orderTypeIcon, { backgroundColor: active ? BLUE : BG }]}>
+                        <Feather name={t.icon} size={18} color={active ? '#fff' : MUTED} />
+                      </View>
+                      <View>
+                        <Text style={styles.orderTypeLabel}>{t.label}</Text>
+                        <Text style={[styles.orderTypeSub, { color: active ? BLUE : MUTED }]}>{t.sub}</Text>
+                      </View>
+                    </Pressable>
                   );
                 })}
+              </View>
 
-                <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryRowLabel}>Subtotal</Text>
-                    <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+              {orderType === 'delivery' && (
+                <View style={[styles.deliveryInfoCard, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+                  <View style={[styles.deliveryInfoIcon, { backgroundColor: BLUE }]}>
+                    <Feather name="truck" size={16} color="#fff" />
                   </View>
-                  <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
-                  <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
-                    <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.deliveryInfoTag, { color: BLUE }]}>SYDNEY DELIVERY</Text>
+                    <Text style={styles.deliveryInfoTitle}>Invoiced on dispatch</Text>
+                    <Text style={styles.deliveryInfoSub}>Mondays &amp; Thursdays, 8am – 5pm. 24 hours notice required.</Text>
                   </View>
-                  {totalCents < 5000 && (
-                    <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
-                      Minimum wholesale order is AUD 50.00
-                    </Text>
-                  )}
                 </View>
-                <Text style={styles.shippingNote}>Choose pickup or delivery on the next step.</Text>
-              </>
-            )}
+              )}
 
-            {/* ── SHIPPING STEP ── */}
-            {checkoutStep === 1 && (
-              <>
-                <Text style={styles.sectionLabel}>HOW WOULD YOU LIKE TO RECEIVE YOUR ORDER?</Text>
+              <View style={styles.chooseDateHeader}>
+                <Feather name="calendar" size={18} color={TEXT} />
+                <Text style={styles.chooseDateTitle}>
+                  {orderType === 'delivery' ? 'Choose a delivery date' : 'Choose a pickup date'}
+                </Text>
+              </View>
 
-                <View style={styles.orderTypeRow}>
-                  {[
-                    { id: 'delivery', label: 'Delivery', sub: 'AUD 0.00 (invoiced)', icon: 'truck' as const },
-                    { id: 'pickup',   label: 'Pickup',   sub: 'In-store, free',      icon: 'shopping-bag' as const },
-                  ].map((t) => {
-                    const active = orderType === t.id;
-                    return (
-                      <Pressable
-                        key={t.id}
-                        onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
-                        style={[styles.orderTypeCard, {
-                          backgroundColor: active ? LIGHT_BLUE : CARD,
-                          borderColor:     active ? BLUE : BORDER,
-                          borderWidth:     active ? 2 : 1,
-                        }]}
-                      >
-                        <View style={[styles.orderTypeIcon, { backgroundColor: active ? BLUE : BG }]}>
-                          <Feather name={t.icon} size={18} color={active ? '#fff' : MUTED} />
-                        </View>
-                        <View>
-                          <Text style={styles.orderTypeLabel}>{t.label}</Text>
-                          <Text style={[styles.orderTypeSub, { color: active ? BLUE : MUTED }]}>{t.sub}</Text>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {orderType === 'delivery' && (
-                  <View style={[styles.deliveryInfoCard, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
-                    <View style={[styles.deliveryInfoIcon, { backgroundColor: BLUE }]}>
-                      <Feather name="truck" size={16} color="#fff" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.deliveryInfoTag, { color: BLUE }]}>SYDNEY DELIVERY</Text>
-                      <Text style={styles.deliveryInfoTitle}>Invoiced on dispatch</Text>
-                      <Text style={styles.deliveryInfoSub}>Mondays &amp; Thursdays, 8am – 5pm. 24 hours notice required.</Text>
-                    </View>
+              {orderType === 'delivery' ? (
+                deliveryPairs.map((pair, ri) => (
+                  <View key={ri} style={styles.dateGrid}>
+                    {pair.map((slot, ci) => {
+                      if (!slot) return <View key={ci} style={{ flex: 1 }} />;
+                      const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
+                      const dayName    = slot.date.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
+                      const dayDate    = slot.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+                      return (
+                        <Pressable
+                          key={ci}
+                          onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
+                          disabled={!slot.available}
+                          style={[styles.dateCard, {
+                            backgroundColor: isSelected ? LIGHT_BLUE : CARD,
+                            borderColor:     isSelected ? BLUE : BORDER,
+                            borderWidth:     isSelected ? 2 : 1,
+                            opacity:         slot.available ? 1 : 0.4,
+                          }]}
+                        >
+                          <Text style={[styles.dateDayName, { color: BLUE }]}>{dayName}</Text>
+                          <Text style={styles.dateDayNum}>{dayDate}</Text>
+                          <Text style={styles.dateTimeRange}>8am – 5pm</Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
-                )}
-
-                <View style={styles.chooseDateHeader}>
-                  <Feather name="calendar" size={18} color={TEXT} />
-                  <Text style={styles.chooseDateTitle}>
-                    {orderType === 'delivery' ? 'Choose a delivery date' : 'Choose a pickup date'}
-                  </Text>
-                </View>
-
-                {orderType === 'delivery' ? (
-                  deliveryPairs.map((pair, ri) => (
+                ))
+              ) : (
+                <>
+                  {pickupPairs.map((pair, ri) => (
                     <View key={ri} style={styles.dateGrid}>
-                      {pair.map((slot, ci) => {
-                        if (!slot) return <View key={ci} style={{ flex: 1 }} />;
-                        const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
-                        const dayName    = slot.date.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
-                        const dayDate    = slot.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+                      {pair.map((d, ci) => {
+                        if (!d) return <View key={ci} style={{ flex: 1 }} />;
+                        const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
+                        const lbl        = formatDateChip(sydNow, d);
+                        const dayFull    = d.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
+                        const dayDate    = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
                         return (
                           <Pressable
                             key={ci}
-                            onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
-                            disabled={!slot.available}
+                            onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
                             style={[styles.dateCard, {
                               backgroundColor: isSelected ? LIGHT_BLUE : CARD,
                               borderColor:     isSelected ? BLUE : BORDER,
                               borderWidth:     isSelected ? 2 : 1,
-                              opacity:         slot.available ? 1 : 0.4,
                             }]}
                           >
-                            <Text style={[styles.dateDayName, { color: BLUE }]}>{dayName}</Text>
+                            <Text style={[styles.dateDayName, { color: BLUE }]}>
+                              {lbl === 'Today' ? 'TODAY' : lbl === 'Tomorrow' ? 'TOMORROW' : dayFull}
+                            </Text>
                             <Text style={styles.dateDayNum}>{dayDate}</Text>
-                            <Text style={styles.dateTimeRange}>8am – 5pm</Text>
+                            <Text style={styles.dateTimeRange}>10am – 7pm</Text>
                           </Pressable>
                         );
                       })}
                     </View>
-                  ))
-                ) : (
-                  <>
-                    {pickupPairs.map((pair, ri) => (
-                      <View key={ri} style={styles.dateGrid}>
-                        {pair.map((d, ci) => {
-                          if (!d) return <View key={ci} style={{ flex: 1 }} />;
-                          const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
-                          const lbl        = formatDateChip(sydNow, d);
-                          const dayFull    = d.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
-                          const dayDate    = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+                  ))}
+                  {selectedDate && (
+                    <>
+                      <Text style={styles.pickupTimeLabel}>Select a time</Text>
+                      <View style={styles.timeGrid}>
+                        {pickupTimes.length === 0 ? (
+                          <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No slots available</Text>
+                        ) : pickupTimes.map((mins) => {
+                          const lbl = formatTime(mins);
+                          const isSel = selectedTimeMins === mins;
                           return (
-                            <Pressable
-                              key={ci}
-                              onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
-                              style={[styles.dateCard, {
-                                backgroundColor: isSelected ? LIGHT_BLUE : CARD,
-                                borderColor:     isSelected ? BLUE : BORDER,
-                                borderWidth:     isSelected ? 2 : 1,
-                              }]}
-                            >
-                              <Text style={[styles.dateDayName, { color: BLUE }]}>
-                                {lbl === 'Today' ? 'TODAY' : lbl === 'Tomorrow' ? 'TOMORROW' : dayFull}
-                              </Text>
-                              <Text style={styles.dateDayNum}>{dayDate}</Text>
-                              <Text style={styles.dateTimeRange}>10am – 7pm</Text>
+                            <Pressable key={mins} onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
+                              style={[styles.timePill, { backgroundColor: isSel ? BLUE : CARD, borderColor: isSel ? BLUE : BORDER }]}>
+                              <Text style={[styles.timePillText, { color: isSel ? '#fff' : TEXT }]}>{lbl}</Text>
                             </Pressable>
                           );
                         })}
                       </View>
-                    ))}
-                    {selectedDate && (
-                      <>
-                        <Text style={styles.pickupTimeLabel}>Select a time</Text>
-                        <View style={styles.timeGrid}>
-                          {pickupTimes.length === 0 ? (
-                            <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No slots available</Text>
-                          ) : pickupTimes.map((mins) => {
-                            const lbl = formatTime(mins);
-                            const isSel = selectedTimeMins === mins;
-                            return (
-                              <Pressable key={mins} onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
-                                style={[styles.timePill, { backgroundColor: isSel ? BLUE : CARD, borderColor: isSel ? BLUE : BORDER }]}>
-                                <Text style={[styles.timePillText, { color: isSel ? '#fff' : TEXT }]}>{lbl}</Text>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </>
-                    )}
-                  </>
-                )}
-
-                {orderType === 'delivery' && (
-                  <>
-                    <Text style={styles.sectionLabel}>DELIVERY ADDRESS</Text>
-                    <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                      <Text style={styles.formFieldLabel}>Street address</Text>
-                      <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="Street address" placeholderTextColor={MUTED} value={street} onChangeText={setStreet} autoCapitalize="words" />
-                      <View style={styles.formRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.formFieldLabel}>Suburb</Text>
-                          <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="Suburb" placeholderTextColor={MUTED} value={suburb} onChangeText={setSuburb} autoCapitalize="words" />
-                        </View>
-                        <View style={{ width: 110 }}>
-                          <Text style={styles.formFieldLabel}>Postcode</Text>
-                          <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="2160" placeholderTextColor={MUTED} value={postcode} onChangeText={setPostcode} keyboardType="number-pad" maxLength={4} />
-                        </View>
-                      </View>
-                      <Text style={[styles.formNote, { color: MUTED }]}>We currently only deliver in Sydney NSW.</Text>
-                    </View>
-                  </>
-                )}
-
-                <Text style={styles.sectionLabel}>YOUR DETAILS</Text>
-                <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                  {[
-                    { label: 'Full name',     value: contactName,  setter: setContactName,  placeholder: 'Contact name',    keyboard: 'default' as const,       autoCapitalize: 'words' as const },
-                    { label: 'Mobile number', value: contactPhone, setter: setContactPhone, placeholder: '04XX XXX XXX',   keyboard: 'phone-pad' as const,     autoCapitalize: 'none' as const  },
-                    { label: 'Email',         value: contactEmail, setter: setContactEmail, placeholder: 'you@company.com', keyboard: 'email-address' as const, autoCapitalize: 'none' as const  },
-                  ].map((f) => (
-                    <View key={f.label} style={styles.formFieldWrap}>
-                      <Text style={styles.formFieldLabel}>{f.label}</Text>
-                      <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder={f.placeholder} placeholderTextColor={MUTED} value={f.value} onChangeText={f.setter} keyboardType={f.keyboard} autoCapitalize={f.autoCapitalize} />
-                    </View>
-                  ))}
-                </View>
-
-                <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryRowLabel}>Subtotal</Text>
-                    <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
-                  </View>
-                  <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
-                  <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
-                    <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
-                  </View>
-                </View>
-              </>
-            )}
-
-            {/* ── ORDER STEP ── */}
-            {checkoutStep === 2 && (
-              <>
-                <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                  <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
-                  {cart.map((entry) => {
-                    const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
-                    return (
-                      <View key={entry.product.id} style={styles.paymentItem}>
-                        <Text style={[styles.paymentItemName, { color: TEXT }]}>{entry.product.name} × {entry.quantity}</Text>
-                        <Text style={[styles.paymentItemPrice, { color: MUTED }]}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
-                      </View>
-                    );
-                  })}
-                  <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
-                  <View style={styles.summaryRow}>
-                    <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
-                    <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
-                  </View>
-                </View>
-
-                <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                  <View style={styles.formFieldWrap}>
-                    <Text style={styles.formFieldLabel}>PO Reference (optional)</Text>
-                    <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="e.g. PO-2024-001" placeholderTextColor={MUTED} value={poRef} onChangeText={setPoRef} />
-                  </View>
-                  <View style={styles.formFieldWrap}>
-                    <Text style={styles.formFieldLabel}>Notes (optional)</Text>
-                    <TextInput style={[styles.formInput, styles.notesInput, { color: TEXT, borderColor: BORDER }]} placeholder="Delivery instructions, special requests..." placeholderTextColor={MUTED} value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
-                  </View>
-                </View>
-
-                <View style={[styles.orderDetailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-                  <View style={styles.orderDetailRow}>
-                    <Feather name={orderType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={BLUE} />
-                    <Text style={[styles.orderDetailText, { color: TEXT }]}>
-                      {orderType === 'delivery' ? `Delivery${street ? ` · ${street}, ${suburb} NSW` : ''}` : 'In-store Pickup'}
-                    </Text>
-                  </View>
-                  {selectedDate && (
-                    <View style={styles.orderDetailRow}>
-                      <Feather name="calendar" size={14} color={BLUE} />
-                      <Text style={[styles.orderDetailText, { color: TEXT }]}>
-                        {selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        {orderType === 'pickup' && selectedTimeMins !== null ? ` at ${formatTime(selectedTimeMins)}` : ''}
-                      </Text>
-                    </View>
+                    </>
                   )}
-                </View>
+                </>
+              )}
 
-                <View style={[styles.secureCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-                  <Feather name="file-text" size={14} color="#22C55E" />
-                  <Text style={[styles.secureText, { color: '#166534' }]}>
-                    Your order will be confirmed within 1 business day. An invoice will be issued on approval.
+              {orderType === 'delivery' && (
+                <>
+                  <Text style={styles.sectionLabel}>DELIVERY ADDRESS</Text>
+                  <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                    <Text style={styles.formFieldLabel}>Street address</Text>
+                    <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="Street address" placeholderTextColor={MUTED} value={street} onChangeText={setStreet} autoCapitalize="words" />
+                    <View style={styles.formRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.formFieldLabel}>Suburb</Text>
+                        <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="Suburb" placeholderTextColor={MUTED} value={suburb} onChangeText={setSuburb} autoCapitalize="words" />
+                      </View>
+                      <View style={{ width: 110 }}>
+                        <Text style={styles.formFieldLabel}>Postcode</Text>
+                        <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="2160" placeholderTextColor={MUTED} value={postcode} onChangeText={setPostcode} keyboardType="number-pad" maxLength={4} />
+                      </View>
+                    </View>
+                    <Text style={[styles.formNote, { color: MUTED }]}>We currently only deliver in Sydney NSW.</Text>
+                  </View>
+                </>
+              )}
+
+              <Text style={styles.sectionLabel}>YOUR DETAILS</Text>
+              <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                {[
+                  { label: 'Full name',     value: contactName,  setter: setContactName,  placeholder: 'Contact name',    keyboard: 'default' as const,       autoCapitalize: 'words' as const },
+                  { label: 'Mobile number', value: contactPhone, setter: setContactPhone, placeholder: '04XX XXX XXX',   keyboard: 'phone-pad' as const,     autoCapitalize: 'none' as const  },
+                  { label: 'Email',         value: contactEmail, setter: setContactEmail, placeholder: 'you@company.com', keyboard: 'email-address' as const, autoCapitalize: 'none' as const  },
+                ].map((f) => (
+                  <View key={f.label} style={styles.formFieldWrap}>
+                    <Text style={styles.formFieldLabel}>{f.label}</Text>
+                    <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder={f.placeholder} placeholderTextColor={MUTED} value={f.value} onChangeText={f.setter} keyboardType={f.keyboard} autoCapitalize={f.autoCapitalize} />
+                  </View>
+                ))}
+              </View>
+
+              <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryRowLabel}>Subtotal</Text>
+                  <Text style={styles.summaryRowValue}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                </View>
+                <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
+                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* ── PAGE 2: ORDER ── */}
+            <ScrollView style={{ width: SCREEN_W, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
+                {cart.map((entry) => {
+                  const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                  return (
+                    <View key={entry.product.id} style={styles.paymentItem}>
+                      <Text style={[styles.paymentItemName, { color: TEXT }]}>{entry.product.name} × {entry.quantity}</Text>
+                      <Text style={[styles.paymentItemPrice, { color: MUTED }]}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
+                <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
+                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
+                </View>
+              </View>
+
+              <View style={[styles.formCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.formFieldWrap}>
+                  <Text style={styles.formFieldLabel}>PO Reference (optional)</Text>
+                  <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="e.g. PO-2024-001" placeholderTextColor={MUTED} value={poRef} onChangeText={setPoRef} />
+                </View>
+                <View style={styles.formFieldWrap}>
+                  <Text style={styles.formFieldLabel}>Notes (optional)</Text>
+                  <TextInput style={[styles.formInput, styles.notesInput, { color: TEXT, borderColor: BORDER }]} placeholder="Delivery instructions, special requests..." placeholderTextColor={MUTED} value={notes} onChangeText={setNotes} multiline numberOfLines={3} />
+                </View>
+              </View>
+
+              <View style={[styles.orderDetailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.orderDetailRow}>
+                  <Feather name={orderType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={BLUE} />
+                  <Text style={[styles.orderDetailText, { color: TEXT }]}>
+                    {orderType === 'delivery' ? `Delivery${street ? ` · ${street}, ${suburb} NSW` : ''}` : 'In-store Pickup'}
                   </Text>
                 </View>
-              </>
-            )}
+                {selectedDate && (
+                  <View style={styles.orderDetailRow}>
+                    <Feather name="calendar" size={14} color={BLUE} />
+                    <Text style={[styles.orderDetailText, { color: TEXT }]}>
+                      {selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      {orderType === 'pickup' && selectedTimeMins !== null ? ` at ${formatTime(selectedTimeMins)}` : ''}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={[styles.secureCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                <Feather name="file-text" size={14} color="#22C55E" />
+                <Text style={[styles.secureText, { color: '#166534' }]}>
+                  Your order will be confirmed within 1 business day. An invoice will be issued on approval.
+                </Text>
+              </View>
+            </ScrollView>
+
           </ScrollView>
         </KeyboardAvoidingView>
 
