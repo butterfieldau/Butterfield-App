@@ -785,6 +785,91 @@ router.patch('/timesheets/:id', async (req, res) => {
   return res.json({ data: updated });
 });
 
+// ── Staff hub: all wastage, issues, leave (director/manager view) ─────────────
+router.get('/wastage', async (req, res) => {
+  const rows = await db
+    .select({
+      id: staffWastageTable.id,
+      userId: staffWastageTable.userId,
+      productName: staffWastageTable.productName,
+      quantity: staffWastageTable.quantity,
+      unit: staffWastageTable.unit,
+      reason: staffWastageTable.reason,
+      estimatedCostCents: staffWastageTable.estimatedCostCents,
+      notes: staffWastageTable.notes,
+      createdAt: staffWastageTable.createdAt,
+      staffName: usersTable.name,
+      staffEmail: usersTable.email,
+    })
+    .from(staffWastageTable)
+    .leftJoin(usersTable, eq(staffWastageTable.userId, usersTable.id))
+    .orderBy(desc(staffWastageTable.createdAt))
+    .limit(200);
+  return res.json({ data: rows });
+});
+
+router.get('/issues', async (req, res) => {
+  const rows = await db
+    .select({
+      id: staffIssuesTable.id,
+      userId: staffIssuesTable.userId,
+      title: staffIssuesTable.title,
+      description: staffIssuesTable.description,
+      category: staffIssuesTable.category,
+      priority: staffIssuesTable.priority,
+      status: staffIssuesTable.status,
+      resolvedAt: staffIssuesTable.resolvedAt,
+      createdAt: staffIssuesTable.createdAt,
+      staffName: usersTable.name,
+      staffEmail: usersTable.email,
+    })
+    .from(staffIssuesTable)
+    .leftJoin(usersTable, eq(staffIssuesTable.userId, usersTable.id))
+    .orderBy(desc(staffIssuesTable.createdAt))
+    .limit(200);
+  return res.json({ data: rows });
+});
+
+router.patch('/issues/:id/status', async (req, res) => {
+  const { status } = req.body;
+  if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  const updates: any = { status };
+  if (status === 'resolved' || status === 'closed') {
+    updates.resolvedAt = new Date();
+    updates.resolvedBy = req.user!.id;
+  }
+  const [updated] = await db.update(staffIssuesTable)
+    .set(updates)
+    .where(eq(staffIssuesTable.id, req.params.id))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Issue not found' });
+  return res.json({ data: updated });
+});
+
+router.get('/leave', async (req, res) => {
+  const rows = await db
+    .select({
+      id: staffLeaveRequestsTable.id,
+      userId: staffLeaveRequestsTable.userId,
+      startDate: staffLeaveRequestsTable.startDate,
+      endDate: staffLeaveRequestsTable.endDate,
+      type: staffLeaveRequestsTable.type,
+      reason: staffLeaveRequestsTable.reason,
+      status: staffLeaveRequestsTable.status,
+      reviewedAt: staffLeaveRequestsTable.reviewedAt,
+      createdAt: staffLeaveRequestsTable.createdAt,
+      staffName: usersTable.name,
+      staffEmail: usersTable.email,
+    })
+    .from(staffLeaveRequestsTable)
+    .leftJoin(usersTable, eq(staffLeaveRequestsTable.userId, usersTable.id))
+    .orderBy(desc(staffLeaveRequestsTable.createdAt))
+    .limit(200);
+  return res.json({ data: rows });
+});
+
 // ── Feedback management ───────────────────────────────────────────────────────
 router.get('/feedback', async (req, res) => {
   const rows = await db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt)).limit(100);

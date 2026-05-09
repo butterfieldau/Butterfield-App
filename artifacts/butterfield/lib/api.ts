@@ -241,6 +241,12 @@ export const api = {
     allFeedback:         () => request<{ data: DirectorFeedback[] }>('/director/feedback'),
     markFeedbackRead:    (id: string) => request<{ data: DirectorFeedback }>(`/director/feedback/${id}/read`, { method: 'PATCH' }),
 
+    // Staff hub
+    allWastage:          () => request<{ data: any[] }>('/director/wastage'),
+    allIssues:           () => request<{ data: any[] }>('/director/issues'),
+    resolveIssue:        (id: string, status: string) => request<{ data: any }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    allLeave:            () => request<{ data: any[] }>('/director/leave'),
+
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
       request<{ data: any }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),

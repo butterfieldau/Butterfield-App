@@ -362,23 +362,26 @@ export default function DirectorHome() {
               <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>TODAY'S OVERVIEW</Text>
               <View style={styles.kpiGrid}>
                 <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today      ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
-                <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active     ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} />
-                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} />
-                <KpiTile icon="alert-triangle" label="Long shifts"      value={s?.staff.longShifts  ?? 0} color={AMBER}  alert={(s?.staff.longShifts ?? 0) > 0} />
+                <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active     ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
+                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} onPress={() => router.navigate('/(director)/timesheets' as any)} />
+                <KpiTile icon="alert-triangle" label="Long shifts"      value={s?.staff.longShifts  ?? 0} color={AMBER}  alert={(s?.staff.longShifts ?? 0) > 0} onPress={() => router.navigate('/(director)/timesheets' as any)} />
                 <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut  ?? 0} color={RED}    alert={(s?.products.soldOut ?? 0) > 0}  onPress={() => router.navigate('/(director)/products' as any)} />
                 <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock ?? 0} color={AMBER}  alert={(s?.products.lowStock ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
-                <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0} />
-                <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} />
-                <KpiTile icon="gift"           label="Birthdays today"  value={s?.customers.birthdayToday ?? 0} color={PINK} />
-                <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave ?? 0} color={AMBER} />
-                <KpiTile icon="message-circle" label="New feedback"     value={s?.customers.unreadFeedback ?? 0} color={BLUE} />
-                <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={GREEN} alert={(s?.orders.wholesaleNew ?? 0) > 0} />
+                <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any)} />
+                <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)} />
+                <KpiTile icon="gift"           label="Birthdays today"  value={s?.customers.birthdayToday ?? 0} color={PINK}   onPress={() => router.navigate('/(director)/customers' as any)} />
+                <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave ?? 0} color={AMBER}  onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any)} />
+                <KpiTile icon="message-circle" label="New feedback"     value={s?.customers.unreadFeedback ?? 0} color={BLUE}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'feedback' } } as any)} />
+                <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={GREEN} alert={(s?.orders.wholesaleNew ?? 0) > 0} onPress={() => router.navigate('/(director)/users' as any)} />
               </View>
             </View>
 
             {/* ── Wastage cost banner ───────────────────────────── */}
             {(s?.wastage.costToday ?? 0) > 0 && (
-              <View style={[styles.wastageCard, { backgroundColor: '#FDF4FF', borderColor: '#E9D5FF' }]}>
+              <Pressable
+                onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)}
+                style={[styles.wastageCard, { backgroundColor: '#FDF4FF', borderColor: '#E9D5FF' }]}
+              >
                 <Feather name="trash-2" size={16} color={PURPLE} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.wastageTitle, { fontFamily: 'Inter_600SemiBold', color: PURPLE }]}>Today's Wastage Cost</Text>
@@ -386,7 +389,8 @@ export default function DirectorHome() {
                     {s?.wastage.countToday} item{s?.wastage.countToday !== 1 ? 's' : ''} logged — estimated {fmtAUD(s?.wastage.costToday ?? 0)} lost
                   </Text>
                 </View>
-              </View>
+                <Feather name="chevron-right" size={16} color={PURPLE} />
+              </Pressable>
             )}
 
             {/* ── Activity feed ─────────────────────────────────── */}

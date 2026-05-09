@@ -39,12 +39,13 @@ export default function DirectorLayout() {
         <Tabs.Screen name="products" options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"     size={size} color={color} /> }} />
         <Tabs.Screen name="more"     options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"        size={size} color={color} /> }} />
 
-        {/* Hidden — accessed via router.push from More screen */}
+        {/* Hidden — accessed via router.push from Home/More screens */}
         <Tabs.Screen name="customers"  options={{ href: null }} />
         <Tabs.Screen name="pricing"    options={{ href: null }} />
         <Tabs.Screen name="reports"    options={{ href: null }} />
         <Tabs.Screen name="timesheets" options={{ href: null }} />
         <Tabs.Screen name="settings"   options={{ href: null }} />
+        <Tabs.Screen name="staffhub"   options={{ href: null }} />
       </Tabs>
     </View>
   );

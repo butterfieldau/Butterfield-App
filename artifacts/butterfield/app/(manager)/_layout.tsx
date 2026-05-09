@@ -100,6 +100,7 @@ export default function ManagerLayout() {
             tabBarIcon: ({ color }) => <Feather name="settings" size={20} color={color} />,
           }}
         />
+        <Tabs.Screen name="staffhub" options={{ href: null }} />
       </Tabs>
     </View>
   );
