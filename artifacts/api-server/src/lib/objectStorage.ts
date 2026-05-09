@@ -106,6 +106,30 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
+  async uploadBuffer(buffer: Buffer, contentType: string): Promise<{ objectPath: string; servingUrl: string }> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const gcsFile = bucket.file(objectName);
+
+    await new Promise<void>((resolve, reject) => {
+      const writeStream = gcsFile.createWriteStream({ contentType, resumable: false });
+      writeStream.on("finish", resolve);
+      writeStream.on("error", reject);
+      writeStream.end(buffer);
+    });
+
+    const objectPath = `/objects/uploads/${objectId}`;
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "";
+    const servingUrl = domain
+      ? `https://${domain}/api/storage${objectPath}`
+      : `/api/storage${objectPath}`;
+
+    return { objectPath, servingUrl };
+  }
+
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {

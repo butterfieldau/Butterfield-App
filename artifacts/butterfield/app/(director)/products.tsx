@@ -136,14 +136,8 @@ async function pickAndUploadImage(onUrl: (url: string) => void, onLoading: (v: b
     const asset = result.assets[0];
     const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'photo.jpg';
     const contentType = asset.mimeType ?? 'image/jpeg';
-    const size = asset.fileSize ?? 0;
     onLoading(true);
-    const { uploadURL, objectPath } = await api.storage.requestUploadUrl({ name: filename, size, contentType });
-    const blob = await fetch(asset.uri).then(r => r.blob());
-    await fetch(uploadURL, { method: 'PUT', headers: { 'Content-Type': contentType }, body: blob });
-    const servingUrl = process.env.EXPO_PUBLIC_DOMAIN
-      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api/storage${objectPath}`
-      : `/api/storage${objectPath}`;
+    const { servingUrl } = await api.storage.uploadFile(asset.uri, filename, contentType);
     onUrl(servingUrl);
   } catch (e: any) {
     Alert.alert('Upload failed', e.message ?? 'Could not upload image');

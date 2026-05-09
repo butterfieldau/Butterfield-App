@@ -294,6 +294,21 @@ export const api = {
       request<{ uploadURL: string; objectPath: string; metadata: any }>('/storage/uploads/request-url', {
         method: 'POST', body: JSON.stringify(data),
       }),
+    uploadFile: async (fileUri: string, filename: string, contentType: string): Promise<{ objectPath: string; servingUrl: string }> => {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append('file', { uri: fileUri, name: filename, type: contentType } as any);
+      const res = await fetch(`${BASE}/storage/uploads`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      return res.json();
+    },
   },
 
   seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
