@@ -477,7 +477,7 @@ export default function DirectorTimesheetsScreen() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
       >
         {/* ── Header ──────────────────────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <View style={[styles.header, { paddingTop: 16 }]}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>Timesheet</Text>
             <Pressable
