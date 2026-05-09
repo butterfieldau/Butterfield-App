@@ -1,12 +1,10 @@
 import { Feather } from '@expo/vector-icons';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Google from 'expo-auth-session/providers/google';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -15,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import type { UserRole } from '@/types';
 
-WebBrowser.maybeCompleteAuthSession();
+// Loaded lazily so a missing native module never crashes the login screen
+let AppleAuthentication: typeof import('expo-apple-authentication') | null = null;
+try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 
 const BG      = '#F5F6FA';
 const CARD    = '#FFFFFF';
@@ -53,6 +53,14 @@ export default function LoginScreen() {
   const [successMsg, setSuccessMsg]     = useState('');
   const [showPw, setShowPw]             = useState(false);
   const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  // Check Apple availability without crashing if native module is absent
+  React.useEffect(() => {
+    if (AppleAuthentication && Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
+    }
+  }, []);
 
   const [showInternal, setShowInternal]   = useState(false);
   const [iEmail, setIEmail]               = useState('');
@@ -71,33 +79,41 @@ export default function LoginScreen() {
     setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
-  // ── Google OAuth ────────────────────────────────────────────────────────────
-  const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_CLIENT_ID ?? 'not-configured',
-    scopes: ['openid', 'profile', 'email'],
-  });
-
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const token = googleResponse.authentication?.accessToken;
-      if (token) handleGoogleToken(token);
+  // ── Google OAuth (via WebBrowser implicit flow — no native crypto needed) ───
+  const handleGoogleSignIn = async () => {
+    if (!GOOGLE_CLIENT_ID) {
+      setError('Google sign-in is not configured yet.');
+      return;
     }
-  }, [googleResponse]);
-
-  const handleGoogleToken = async (accessToken: string) => {
+    setError('');
     setSocialLoading('google');
     try {
+      const redirectUri = 'butterfield://';
+      const state = Math.random().toString(36).substring(2);
+      const url =
+        `https://accounts.google.com/o/oauth2/v2/auth` +
+        `?client_id=${GOOGLE_CLIENT_ID}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&response_type=token` +
+        `&scope=${encodeURIComponent('openid profile email')}` +
+        `&state=${state}`;
+      const result = await WebBrowser.openAuthSessionAsync(url, redirectUri);
+      if (result.type !== 'success') { setSocialLoading(null); return; }
+      const fragment = result.url.split('#')[1] ?? '';
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get('access_token');
+      if (!accessToken) { setError('Google sign-in failed — no token received.'); return; }
       const infoRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const gUser = await infoRes.json();
-      const result = await socialLogin({
+      const loginResult = await socialLogin({
         provider: 'google',
         providerId: gUser.id,
         email: gUser.email,
         name: gUser.name,
       });
-      if (!result.success) { setError(result.error ?? 'Google sign-in failed.'); return; }
+      if (!loginResult.success) { setError(loginResult.error ?? 'Google sign-in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -109,6 +125,7 @@ export default function LoginScreen() {
 
   // ── Apple Sign-In ───────────────────────────────────────────────────────────
   const handleAppleSignIn = async () => {
+    if (!AppleAuthentication) return;
     setSocialLoading('apple');
     setError('');
     try {
@@ -275,7 +292,7 @@ export default function LoginScreen() {
               {showSocial && (
                 <>
                   <View style={s.socialRow}>
-                    {Platform.OS === 'ios' && (
+                    {appleAvailable && (
                       <Pressable
                         onPress={handleAppleSignIn}
                         disabled={socialLoading !== null}
@@ -291,18 +308,14 @@ export default function LoginScreen() {
                       </Pressable>
                     )}
                     <Pressable
-                      onPress={() => {
-                        if (!GOOGLE_CLIENT_ID) { setError('Google sign-in is not configured yet.'); return; }
-                        setError('');
-                        googlePromptAsync();
-                      }}
+                      onPress={handleGoogleSignIn}
                       disabled={socialLoading !== null}
                       style={[s.socialBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, flex: 1 }]}
                     >
                       {socialLoading === 'google'
                         ? <ActivityIndicator color={GOOGLE_RED} size="small" />
                         : <>
-                            <Text style={{ fontSize: 15, lineHeight: 18 }}>G</Text>
+                            <Text style={{ fontSize: 15, lineHeight: 18, fontFamily: 'Inter_700Bold', color: '#4285F4' }}>G</Text>
                             <Text style={[s.socialBtnText, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Google</Text>
                           </>
                       }
