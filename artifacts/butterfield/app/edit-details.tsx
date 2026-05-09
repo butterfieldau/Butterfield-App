@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 
@@ -46,38 +46,63 @@ export default function EditDetailsScreen() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  const [name, setName] = useState(user?.name ?? '');
-  const [email] = useState(user?.email ?? '');
-  const [phone, setPhone] = useState((user as any)?.phone ?? '');
+  const [name,     setName]     = useState('');
+  const [phone,    setPhone]    = useState('');
   const [birthday, setBirthday] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [saving,   setSaving]   = useState(false);
+
+  // Load fresh data from the API — never trust the stale auth context
+  const { data: meData, isLoading: meLoading } = useQuery({
+    queryKey: ['me'],
+    queryFn:  () => api.auth.me(),
+    retry: 1,
+  });
+  const { data: loyaltyData, isLoading: loyaltyLoading } = useQuery({
+    queryKey: ['loyalty-profile'],
+    queryFn:  () => api.loyalty.profile(),
+    retry: 1,
+  });
+
+  const isLoading = meLoading || loyaltyLoading;
+  const email     = meData?.user?.email ?? user?.email ?? '';
+
+  // Populate fields once data arrives
+  useEffect(() => {
+    if (meData?.user) {
+      setName( (meData.user as any).name  ?? '');
+      setPhone((meData.user as any).phone ?? '');
+    }
+  }, [meData?.user?.name, meData?.user?.phone]);
 
   useEffect(() => {
-    api.loyalty.profile().then((res) => {
-      const bd = res?.data?.birthday;
-      if (bd) {
-        const [y, m, d] = bd.split('-');
-        setBirthday(`${d}/${m}/${y}`);
-      }
-    }).catch(() => {}).finally(() => setLoadingProfile(false));
-  }, []);
-
-  const handleBirthdayChange = (text: string) => {
-    setBirthday(autoFormatBirthday(text));
-  };
+    const bd = loyaltyData?.data?.birthday;
+    if (bd) {
+      const [y, m, d] = bd.split('-');
+      setBirthday(`${d}/${m}/${y}`);
+    }
+  }, [loyaltyData?.data?.birthday]);
 
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Name required', 'Please enter your full name.');
       return;
     }
+    if (birthday.trim() && birthday.length < 10) {
+      Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY (e.g. 15/06/1995).');
+      return;
+    }
 
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await api.auth.updateMe({ name: name.trim(), phone: phone.trim() || undefined });
 
+    try {
+      // Save name + phone
+      await api.auth.updateMe({
+        name:  name.trim(),
+        phone: phone.trim() || undefined,
+      });
+
+      // Save birthday if provided
       if (birthday.trim()) {
         const iso = birthdayToISO(birthday);
         if (!iso) {
@@ -89,10 +114,15 @@ export default function EditDetailsScreen() {
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
-      qc.invalidateQueries({ queryKey: ['auth-me'] });
-      Alert.alert('Saved! 🎉', 'Your details have been updated.', [
-        { text: 'OK', onPress: () => router.back() },
+
+      // Invalidate all caches that show customer details so every screen updates
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['me'] }),
+        qc.invalidateQueries({ queryKey: ['loyalty-profile'] }),
+      ]);
+
+      Alert.alert('Saved!', 'Your details have been updated.', [
+        { text: 'Done', onPress: () => router.back() },
       ]);
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not save your details. Please try again.');
@@ -102,105 +132,142 @@ export default function EditDetailsScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: CARD }]}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: BG }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* ── Header ──────────────────────────────────────────────────────── */}
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
           <Feather name="chevron-left" size={24} color={TEXT} />
         </Pressable>
-        <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold', color: TEXT }]}>Edit Profile</Text>
-        <Text style={[styles.brandText, { fontFamily: 'Inter_700Bold', color: BLUE, fontStyle: 'italic' }]}>Butterfield</Text>
+        <Text style={styles.headerTitle}>Edit Profile</Text>
+        <Text style={styles.brandText}>Butterfield</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-
-        {/* Personal info card */}
-        <View>
-          <Text style={[styles.groupLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>PERSONAL INFO</Text>
-          <View style={[styles.card]}>
-            <FieldRow icon="user"  label="Full name"     value={name}  onChangeText={setName}  placeholder="Your full name" autoCapitalize="words" />
-            <View style={styles.divider} />
-            <FieldRow icon="mail"  label="Email"         value={email} onChangeText={() => {}} placeholder="Email" editable={false} dimmed hint="Email cannot be changed" />
-            <View style={styles.divider} />
-            <FieldRow icon="phone" label="Mobile number" value={phone} onChangeText={setPhone} placeholder="04xx xxx xxx" keyboardType="phone-pad" />
-          </View>
+      {isLoading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={BLUE} size="large" />
         </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 130 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Personal info ──────────────────────────────────────────── */}
+          <View>
+            <Text style={styles.groupLabel}>PERSONAL INFO</Text>
+            <View style={styles.card}>
+              <FieldRow
+                icon="user"
+                label="Full name"
+                value={name}
+                onChangeText={setName}
+                placeholder="Your full name"
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+              <View style={styles.divider} />
+              <FieldRow
+                icon="mail"
+                label="Email"
+                value={email}
+                onChangeText={() => {}}
+                placeholder="Email"
+                editable={false}
+                dimmed
+                hint="Email address cannot be changed. Contact support if needed."
+              />
+              <View style={styles.divider} />
+              <FieldRow
+                icon="phone"
+                label="Mobile number"
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="04XX XXX XXX"
+                keyboardType="phone-pad"
+                returnKeyType="done"
+              />
+            </View>
+          </View>
 
-        {/* Birthday card */}
-        <View>
-          <Text style={[styles.groupLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>BIRTHDAY</Text>
-          <View style={[styles.card]}>
-            <View style={styles.fieldRow}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
-                <Text style={{ fontSize: 16 }}>🎂</Text>
-              </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 15, color: TEXT }]}>Birthday</Text>
-                {loadingProfile ? (
-                  <ActivityIndicator size="small" color={BLUE} />
-                ) : (
+          {/* ── Birthday ───────────────────────────────────────────────── */}
+          <View>
+            <Text style={styles.groupLabel}>BIRTHDAY</Text>
+            <View style={styles.card}>
+              <View style={styles.fieldRow}>
+                <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                  <Text style={{ fontSize: 16 }}>🎂</Text>
+                </View>
+                <View style={{ flex: 1, gap: 6 }}>
+                  <Text style={styles.fieldLabel}>Date of birth</Text>
                   <TextInput
-                    style={[styles.input, { fontFamily: 'Inter_400Regular', color: TEXT }]}
+                    style={styles.input}
                     value={birthday}
-                    onChangeText={handleBirthdayChange}
+                    onChangeText={(t) => setBirthday(autoFormatBirthday(t))}
                     placeholder="DD/MM/YYYY"
                     placeholderTextColor={MUTED}
                     keyboardType="number-pad"
                     maxLength={10}
+                    returnKeyType="done"
                   />
-                )}
-                <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED }]}>
-                  🍪 You'll receive a free cookie during your birthday week!
-                </Text>
+                  <Text style={styles.fieldHint}>
+                    🍪 You'll receive a free cookie during your birthday week!
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
+
+          <Text style={styles.disclaimer}>
+            Your details are saved securely and used to personalise your Butterfield experience.
+            Changes are reflected everywhere in the app instantly.
+          </Text>
+        </ScrollView>
+      )}
+
+      {/* ── Save button ─────────────────────────────────────────────────── */}
+      {!isLoading && (
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={[styles.saveBtn, { backgroundColor: saving ? '#A0DCF0' : BLUE }]}
+          >
+            {saving ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Feather name="check" size={18} color="#fff" />
+                <Text style={styles.saveBtnText}>Save changes</Text>
+              </>
+            )}
+          </Pressable>
         </View>
-
-        <Text style={[styles.disclaimer, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
-          Your details are saved securely and used to personalise your Butterfield experience.
-        </Text>
-      </ScrollView>
-
-      {/* Save button */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16, backgroundColor: BG }]}>
-        <Pressable
-          onPress={handleSave}
-          disabled={saving}
-          style={[styles.saveBtn, { backgroundColor: saving ? '#A0DCF0' : BLUE }]}
-        >
-          {saving ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <Feather name="check" size={18} color="#fff" />
-              <Text style={[styles.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>Save changes</Text>
-            </>
-          )}
-        </Pressable>
-      </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
 
 function FieldRow({
-  icon, label, value, onChangeText, placeholder, editable = true, dimmed = false,
-  autoCapitalize, keyboardType, hint,
+  icon, label, value, onChangeText, placeholder, editable = true,
+  dimmed = false, autoCapitalize, keyboardType, hint, returnKeyType,
 }: {
   icon: string; label: string; value: string; onChangeText: (v: string) => void;
   placeholder?: string; editable?: boolean; dimmed?: boolean;
-  autoCapitalize?: any; keyboardType?: any; hint?: string;
+  autoCapitalize?: any; keyboardType?: any; hint?: string; returnKeyType?: any;
 }) {
   const iconBgs: Record<string, string> = { user: '#E0F5FE', mail: '#F3F4F6', phone: '#DCFCE7' };
   return (
     <View style={styles.fieldRow}>
       <View style={[styles.iconCircle, { backgroundColor: iconBgs[icon] ?? '#F3F4F6' }]}>
-        <Feather name={icon as any} size={16} color={BLUE} />
+        <Feather name={icon as any} size={16} color={editable ? BLUE : MUTED} />
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: TEXT }]}>{label}</Text>
+        <Text style={styles.fieldLabel}>{label}</Text>
         <TextInput
-          style={[styles.input, { fontFamily: 'Inter_400Regular', color: dimmed ? MUTED : TEXT }]}
+          style={[styles.input, { color: dimmed ? MUTED : TEXT, backgroundColor: dimmed ? '#F9FAFB' : BG }]}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -208,8 +275,9 @@ function FieldRow({
           editable={editable}
           autoCapitalize={autoCapitalize}
           keyboardType={keyboardType}
+          returnKeyType={returnKeyType}
         />
-        {hint && <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 11, color: MUTED }]}>{hint}</Text>}
+        {hint && <Text style={styles.fieldHint}>{hint}</Text>}
       </View>
     </View>
   );
@@ -219,24 +287,30 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: BORDER, gap: 8,
+    backgroundColor: CARD,
   },
-  backBtn: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 20 },
-  brandText: { fontSize: 18 },
+  backBtn:     { padding: 4 },
+  headerTitle: { flex: 1, fontSize: 20, fontFamily: 'Inter_700Bold', color: TEXT },
+  brandText:   { fontSize: 18, fontFamily: 'Inter_700Bold', color: BLUE, fontStyle: 'italic' },
 
-  groupLabel: { fontSize: 11, letterSpacing: 1.2, marginBottom: 8, paddingLeft: 4 },
-  card: { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  divider: { height: 1, backgroundColor: BORDER, marginLeft: 68 },
-
-  fieldRow: { flexDirection: 'row', gap: 14, padding: 16, alignItems: 'flex-start' },
+  groupLabel: { fontSize: 11, letterSpacing: 1.2, marginBottom: 8, paddingLeft: 4, fontFamily: 'Inter_700Bold', color: MUTED },
+  card: {
+    backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER,
+    overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+  },
+  divider:    { height: 1, backgroundColor: BORDER, marginLeft: 68 },
+  fieldRow:   { flexDirection: 'row', gap: 14, padding: 16, alignItems: 'flex-start' },
   iconCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  fieldLabel: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
   input: {
     borderWidth: 1, borderColor: BORDER, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
-    backgroundColor: BG,
+    fontFamily: 'Inter_400Regular', color: TEXT,
   },
-  disclaimer: { fontSize: 13, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
-  footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 17, borderRadius: 16 },
-  saveBtnText: { color: '#fff', fontSize: 16 },
+  fieldHint:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 17 },
+  disclaimer: { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
+  footer:     { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: BG },
+  saveBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 17, borderRadius: 16 },
+  saveBtnText:{ color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
 });

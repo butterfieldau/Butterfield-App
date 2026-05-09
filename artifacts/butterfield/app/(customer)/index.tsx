@@ -201,6 +201,12 @@ export default function CustomerHome() {
     refetchInterval: 60000,
     retry: 1,
   });
+  // Always pull fresh name from the server so edits reflect immediately
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.auth.me(),
+    retry: 1,
+  });
 
   const products = productsData?.data ?? [];
   const loyaltyPoints = loyaltyData?.data?.loyaltyPoints ?? 0;
@@ -227,7 +233,9 @@ export default function CustomerHome() {
     router.push('/product');
   }, []);
 
-  const firstName = user?.name?.split(' ')[0] ?? 'there';
+  // Prefer fresh name from the server; fall back to stale auth context while loading
+  const freshName = (meData?.user as any)?.name ?? user?.name;
+  const firstName = freshName?.split(' ')[0] ?? 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const storeStatus = storeStatusData?.data;
