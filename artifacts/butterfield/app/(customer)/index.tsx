@@ -158,12 +158,6 @@ export default function CustomerHome() {
     queryFn: () => api.loyalty.profile(),
     retry: 1,
   });
-  const { data: storeStatusData } = useQuery({
-    queryKey: ['store-status'],
-    queryFn: () => api.misc.storeStatus(),
-    refetchInterval: 60000,
-    retry: 1,
-  });
   const { data: homeData } = useQuery({
     queryKey: ['home-content'],
     queryFn: () => api.misc.homeContent(),
@@ -188,11 +182,6 @@ export default function CustomerHome() {
 
   const cookieProducts = products.filter((p) => p.metadata?.category === 'cookies');
 
-  const storeStatus = storeStatusData?.data;
-  const open        = storeStatus?.isOpen ?? false;
-  const storeHint   = open
-    ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
-    : (storeStatus?.opensAt   ? `Opens ${storeStatus.opensAt}`       : 'Closed');
 
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const hour      = new Date().getHours();
@@ -300,13 +289,15 @@ export default function CustomerHome() {
               {stampsLeft === 0 ? '☕ Free coffee!' : `${stampsLeft} to free ☕`}
             </Text>
           </View>
-          <Pressable
-            style={styles.qrBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(customer)/loyalty'); }}
-            accessibilityLabel="Open QR code and rewards profile"
-          >
-            <MaterialCommunityIcons name="qrcode-scan" size={24} color="#fff" />
-          </Pressable>
+          <View style={{ paddingRight: 12, paddingLeft: 6, alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable
+              style={styles.qrBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(customer)/loyalty'); }}
+              accessibilityLabel="Open QR code and rewards profile"
+            >
+              <MaterialCommunityIcons name="qrcode-scan" size={20} color="#40C0F2" />
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -327,28 +318,8 @@ export default function CustomerHome() {
         </View>
       ) : null}
 
-      {/* ─────────────── STORE STATUS + QUICK ACTIONS ─────────────── */}
+      {/* ─────────────── QUICK ACTIONS ─────────────── */}
       <View style={styles.quickSection}>
-        <Pressable
-          style={[styles.pickupRow, { backgroundColor: colors.card, borderRadius: 16 }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-        >
-          <View style={styles.pickupIconWrap}>
-            <Feather name="map-pin" size={20} color="#40C0F2" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.pickupLabel, { fontFamily: 'Inter_600SemiBold', color: colors.primary }]}>IN-STORE PICKUP</Text>
-            <Text style={[styles.pickupTitle, { fontFamily: 'Inter_700Bold', color: colors.foreground }]} numberOfLines={1}>
-              Butterfield Cookies — Merrylands
-            </Text>
-            <View style={styles.openRow}>
-              <View style={[styles.openDot, { backgroundColor: open ? '#22C55E' : '#EF4444' }]} />
-              <Text style={[styles.openText, { color: open ? '#15803D' : '#DC2626', fontFamily: 'Inter_500Medium' }]}>{storeHint}</Text>
-            </View>
-          </View>
-          <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-        </Pressable>
-
         <View style={styles.quickRow}>
           {[
             { label: 'Order cookies', icon: 'package',      bg: '#E6F4FF', color: '#2A80D2', onPress: () => router.push('/(customer)/menu') },
@@ -497,8 +468,10 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   qrBtn: {
-    width: 64,
-    backgroundColor: '#40C0F2',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F2F2F7',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,13 +1,152 @@
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
-import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
-import { useColors } from '@/hooks/useColors';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCart } from '@/context/CartContext';
 
+// ─── Floating custom tab bar ───────────────────────────────────────────────────
+function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const { totalItems } = useCart();
+  const current = state.routes[state.index]?.name ?? '';
+
+  const go = (name: string) => {
+    const route = state.routes.find(r => r.name === name);
+    if (!route) return;
+    Haptics.selectionAsync();
+    navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+    if (state.routes[state.index].name !== name) navigation.navigate(name as never);
+  };
+
+  const showLocation = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      'Butterfield Cookies',
+      'Merrylands Court Shopping Centre\nMerrylands NSW 2160\n\nMon–Sun  10am – 10pm',
+      [{ text: 'Got it' }],
+    );
+  };
+
+  return (
+    <View style={[ftStyles.container, { paddingBottom: Math.max(insets.bottom + 4, 16) }]}>
+      <View style={ftStyles.bar}>
+
+        {/* Home */}
+        <Pressable style={ftStyles.iconBtn} onPress={() => go('index')} accessibilityLabel="Home">
+          <Feather name="home" size={22} color={current === 'index' ? '#1C1C1E' : '#AEAEB2'} />
+        </Pressable>
+
+        {/* Location */}
+        <Pressable style={ftStyles.iconBtn} onPress={showLocation} accessibilityLabel="Store location">
+          <Feather name="map-pin" size={22} color="#AEAEB2" />
+        </Pressable>
+
+        {/* Order Now pill */}
+        <Pressable
+          style={ftStyles.pill}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); go('menu'); }}
+          accessibilityLabel="Order Now"
+        >
+          <Feather name="search" size={17} color="#8E8E93" />
+          <Text style={ftStyles.pillText}>Order Now</Text>
+        </Pressable>
+
+        {/* Cart */}
+        <Pressable style={ftStyles.iconBtn} onPress={() => go('cart')} accessibilityLabel="Cart">
+          <View>
+            <Feather name="shopping-cart" size={22} color={current === 'cart' ? '#1C1C1E' : '#AEAEB2'} />
+            {totalItems > 0 && (
+              <View style={ftStyles.badge}>
+                <Text style={ftStyles.badgeNum}>{totalItems > 9 ? '9+' : totalItems}</Text>
+              </View>
+            )}
+          </View>
+        </Pressable>
+
+        {/* Account */}
+        <Pressable style={ftStyles.iconBtn} onPress={() => go('profile')} accessibilityLabel="Account">
+          <Feather name="user" size={22} color={current === 'profile' ? '#1C1C1E' : '#AEAEB2'} />
+        </Pressable>
+
+      </View>
+    </View>
+  );
+}
+
+const ftStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 50,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.13,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  iconBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pill: {
+    flex: 1,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#F2F2F7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pillText: {
+    fontSize: 15,
+    color: '#8E8E93',
+    fontFamily: 'Inter_500Medium',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#22C55E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  badgeNum: {
+    color: '#fff',
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    lineHeight: 12,
+  },
+});
+
+// ─── Native (iOS 26+ liquid glass) customer tabs ──────────────────────────────
 function NativeCustomerTabs() {
   return (
     <NativeTabs>
@@ -35,81 +174,23 @@ function NativeCustomerTabs() {
   );
 }
 
+// ─── Classic (web / older iOS) customer tabs ──────────────────────────────────
 function ClassicCustomerTabs() {
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const isIOS = Platform.OS === 'ios';
-  const isWeb = Platform.OS === 'web';
-
   return (
     <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: false,
-        tabBarStyle: {
-          position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-          ) : null,
-      }}
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <FloatingTabBar {...props} />}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="house" tintColor={color} size={24} /> : <Feather name="home" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="menu"
-        options={{
-          title: 'Menu',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="list.bullet" tintColor={color} size={24} /> : <Feather name="list" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="loyalty"
-        options={{
-          title: 'Rewards',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="star" tintColor={color} size={24} /> : <Feather name="coffee" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          title: 'Order',
-          tabBarStyle: { display: 'none' },
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Account',
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen name="orders" options={{ href: null, title: 'My Orders' }} />
-      <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
-      <Tabs.Screen name="addresses" options={{ href: null, title: 'Saved Addresses' }} />
+      <Tabs.Screen name="index"         options={{ title: 'Home' }} />
+      <Tabs.Screen name="menu"          options={{ title: 'Menu' }} />
+      <Tabs.Screen name="loyalty"       options={{ title: 'Rewards' }} />
+      <Tabs.Screen name="cart"          options={{ title: 'Order' }} />
+      <Tabs.Screen name="profile"       options={{ title: 'Account' }} />
+      <Tabs.Screen name="orders"        options={{ href: null, title: 'My Orders' }} />
+      <Tabs.Screen name="favourites"    options={{ href: null, title: 'Favourites' }} />
+      <Tabs.Screen name="addresses"     options={{ href: null, title: 'Saved Addresses' }} />
       <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
-      <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
+      <Tabs.Screen name="track/[id]"   options={{ href: null, title: 'Track Order' }} />
     </Tabs>
   );
 }
