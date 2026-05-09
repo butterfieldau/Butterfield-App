@@ -1,12 +1,9 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 
@@ -146,36 +143,8 @@ const ftStyles = StyleSheet.create({
   },
 });
 
-// ─── Native (iOS 26+ liquid glass) customer tabs ──────────────────────────────
-function NativeCustomerTabs() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="menu">
-        <Icon sf={{ default: 'menucard', selected: 'menucard.fill' }} />
-        <Label>Menu</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="loyalty">
-        <Icon sf={{ default: 'cup.and.saucer', selected: 'cup.and.saucer.fill' }} />
-        <Label>Rewards</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="cart">
-        <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
-        <Label>Order</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <Label>Account</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-// ─── Classic (web / older iOS) customer tabs ──────────────────────────────────
-function ClassicCustomerTabs() {
+// ─── Customer tabs with custom floating bar (all platforms) ──────────────────
+export default function CustomerTabLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
@@ -193,9 +162,4 @@ function ClassicCustomerTabs() {
       <Tabs.Screen name="track/[id]"   options={{ href: null, title: 'Track Order' }} />
     </Tabs>
   );
-}
-
-export default function CustomerTabLayout() {
-  if (isLiquidGlassAvailable()) return <NativeCustomerTabs />;
-  return <ClassicCustomerTabs />;
 }
