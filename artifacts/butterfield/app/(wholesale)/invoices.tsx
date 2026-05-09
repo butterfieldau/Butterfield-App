@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
@@ -7,9 +8,11 @@ import {
   Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
 import { MOCK_INVOICES } from '@/data/mockData';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
+import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
 
 const BG     = '#F5F6FA';
@@ -72,16 +75,9 @@ function buildInvoiceData(invoice: Invoice): InvoicePdfData {
   };
 }
 
-async function getPdfUri(invoice: Invoice): Promise<string> {
-  const html = generateInvoiceHtml(buildInvoiceData(invoice));
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
-  return uri;
-}
-
 // ── Card utilities ─────────────────────────────────────────────────────────
 function detectBrand(number: string): string {
   const n = number.replace(/\s/g, '');
-  if (/^4/.test(n)) return 'Visa';
   if (/^(34|37)/.test(n)) return 'Amex';
   if (/^5[1-5]/.test(n) || /^2[2-7]/.test(n)) return 'Mastercard';
   return 'Visa';
@@ -92,82 +88,78 @@ function formatCardNumber(raw: string, brand: string): string {
   const maxLen = brand === 'Amex' ? 15 : 16;
   const trimmed = digits.slice(0, maxLen);
   if (brand === 'Amex') {
-    // Amex: 4-6-5
     const p1 = trimmed.slice(0, 4);
     const p2 = trimmed.slice(4, 10);
     const p3 = trimmed.slice(10, 15);
     return [p1, p2, p3].filter(Boolean).join(' ');
   }
-  // Standard: 4-4-4-4
   return trimmed.match(/.{1,4}/g)?.join(' ') ?? trimmed;
 }
 
-function maskCardNumber(fullNumber: string, brand: string): string {
-  const digits = fullNumber.replace(/\s/g, '');
-  const last = digits.slice(-4);
-  if (brand === 'Amex') return `•••• •••••• •${last}`;
-  return `•••• •••• •••• ${last}`;
-}
-
-const BRAND_COLORS: Record<string, string> = {
-  Visa: '#1A1F71', Mastercard: '#EB001B', Amex: '#007BC1',
-};
 const BRAND_BG: Record<string, string> = {
   Visa: '#1A3A8C', Mastercard: '#8C1B1B', Amex: '#1B5C8C',
 };
+const BRAND_ACCENT: Record<string, string> = {
+  Visa: '#4F76CF', Mastercard: '#CF4F4F', Amex: '#4F91CF',
+};
 
-interface SavedCard {
-  nameOnCard: string;
-  fullNumber: string;
-  cvv: string;
-  expiry: string;
-  brand: string;
+// ── Card Modal (Add / Edit) ────────────────────────────────────────────────
+interface CardModalProps {
+  visible: boolean;
+  editCard: any | null; // null = adding new
+  onClose: () => void;
+  onSave: (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; cvv: string; isDefault: boolean }) => Promise<void>;
 }
 
-// ── Card on File Modal ─────────────────────────────────────────────────────
-function CardModal({ visible, card, onClose, onSave }: {
-  visible: boolean; card: SavedCard | null; onClose: () => void; onSave: (c: SavedCard) => void;
-}) {
-  const [nameOnCard, setNameOnCard] = useState(card?.nameOnCard ?? '');
-  const [cardNumber, setCardNumber] = useState(card?.fullNumber ?? '');
-  const [cvv, setCvv]               = useState(card?.cvv ?? '');
-  const [expiry, setExpiry]         = useState(card?.expiry ?? '');
+function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
+  const [nameOnCard, setNameOnCard] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cvv, setCvv]               = useState('');
+  const [expiry, setExpiry]         = useState('');
+  const [isDefault, setIsDefault]   = useState(false);
   const [showCvv, setShowCvv]       = useState(false);
+  const [saving, setSaving]         = useState(false);
 
   const brand  = detectBrand(cardNumber);
   const maxLen = brand === 'Amex' ? 15 : 16;
   const cvvMax = brand === 'Amex' ? 4 : 3;
 
-  const handleClose = () => {
-    setNameOnCard(card?.nameOnCard ?? '');
-    setCardNumber(card?.fullNumber ?? '');
-    setCvv(card?.cvv ?? '');
-    setExpiry(card?.expiry ?? '');
-    onClose();
+  const reset = () => {
+    setNameOnCard(''); setCardNumber(''); setCvv(''); setExpiry('');
+    setIsDefault(false); setShowCvv(false); setSaving(false);
   };
+
+  const handleClose = () => { reset(); onClose(); };
 
   const handleNumberChange = (text: string) => {
     const digits = text.replace(/\D/g, '').slice(0, maxLen);
-    const detected = detectBrand(digits);
-    setCardNumber(formatCardNumber(digits, detected));
-    if (cvv.length > (detected === 'Amex' ? 4 : 3)) setCvv(cvv.slice(0, detected === 'Amex' ? 4 : 3));
+    setCardNumber(formatCardNumber(digits, detectBrand(digits)));
   };
 
   const handleExpiryChange = (text: string) => {
     const digits = text.replace(/\D/g, '').slice(0, 4);
-    if (digits.length > 2) setExpiry(`${digits.slice(0, 2)}/${digits.slice(2)}`);
-    else setExpiry(digits);
+    setExpiry(digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const digits = cardNumber.replace(/\s/g, '');
     if (!nameOnCard.trim()) { Alert.alert('Required', 'Please enter the name on the card.'); return; }
-    if (digits.length < maxLen) { Alert.alert('Invalid', `Please enter a complete ${maxLen}-digit card number.`); return; }
+    if (digits.length < maxLen) { Alert.alert('Invalid', `Please enter your complete ${maxLen}-digit card number.`); return; }
     if (!/^\d{2}\/\d{2}$/.test(expiry)) { Alert.alert('Invalid', 'Enter expiry as MM/YY (e.g. 09/27).'); return; }
-    if (cvv.length < (brand === 'Amex' ? 4 : 3)) { Alert.alert('Invalid', `Please enter the ${brand === 'Amex' ? '4-digit' : '3-digit'} security code from the ${brand === 'Amex' ? 'front' : 'back'} of your card.`); return; }
-    onSave({ nameOnCard: nameOnCard.trim(), fullNumber: cardNumber, cvv, expiry, brand });
-    onClose();
+    if (cvv.length < (brand === 'Amex' ? 4 : 3)) { Alert.alert('Invalid', `Enter the ${brand === 'Amex' ? '4-digit CID on the front' : '3-digit CVV on the back'} of your card.`); return; }
+    setSaving(true);
+    try {
+      await onSave({
+        nameOnCard: nameOnCard.trim(),
+        cardBrand: brand,
+        last4: digits.slice(-4),
+        expiry, cvv, isDefault,
+      });
+      reset();
+    } finally { setSaving(false); }
   };
+
+  const isEditing = !!editCard;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="formSheet" onRequestClose={handleClose}>
@@ -178,7 +170,7 @@ function CardModal({ visible, card, onClose, onSave }: {
             <Feather name="x" size={20} color={TEXT} />
           </Pressable>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT }}>{card ? 'Update Card' : 'Add Card on File'}</Text>
+            <Text style={{ fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT }}>{isEditing ? 'Update Card' : 'Add New Card'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Feather name="lock" size={12} color={GREEN} />
@@ -192,7 +184,9 @@ function CardModal({ visible, card, onClose, onSave }: {
           <View style={{ flexDirection: 'row', gap: 10, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#BBF7D0' }}>
             <Feather name="shield" size={15} color={GREEN} style={{ marginTop: 1 }} />
             <Text style={{ color: '#166534', fontFamily: 'Inter_400Regular', fontSize: 12, flex: 1, lineHeight: 17 }}>
-              Card details are used only for invoice payments. Your full card number is needed to process charges on your behalf.
+              {isEditing
+                ? 'Re-enter your full card number to update the saved card details.'
+                : 'Card details are used only for invoice payments. Your CVV is never stored.'}
             </Text>
           </View>
 
@@ -203,28 +197,28 @@ function CardModal({ visible, card, onClose, onSave }: {
               <Feather name="credit-card" size={20} color="rgba(255,255,255,0.5)" />
             </View>
             <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: 3, marginBottom: 16 }}>
-              {cardNumber || '•••• •••• •••• ••••'}
+              {cardNumber || (isEditing ? `•••• •••• •••• ${editCard?.last4 ?? '••••'}` : '•••• •••• •••• ••••')}
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <View>
                 <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>CARDHOLDER</Text>
-                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 }}>{nameOnCard || '—'}</Text>
+                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 }}>{nameOnCard || (editCard?.nameOnCard ?? '—')}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>EXPIRES</Text>
-                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 }}>{expiry || 'MM/YY'}</Text>
+                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 }}>{expiry || (editCard?.expiry ?? 'MM/YY')}</Text>
               </View>
             </View>
           </View>
 
           {/* Card number */}
           <View>
-            <Text style={cml.label}>Card Number</Text>
+            <Text style={cml.label}>{isEditing ? 'New Card Number' : 'Card Number'}</Text>
             <View style={[cml.inputRow, { borderColor: BORDER }]}>
               <Feather name="credit-card" size={15} color={MUTED} />
               <TextInput
                 style={[cml.input, { color: TEXT, letterSpacing: 2 }]}
-                placeholder="1234 5678 9012 3456"
+                placeholder={isEditing ? `Re-enter full number (currently ••••${editCard?.last4})` : '1234 5678 9012 3456'}
                 placeholderTextColor={MUTED}
                 value={cardNumber}
                 onChangeText={handleNumberChange}
@@ -232,7 +226,7 @@ function CardModal({ visible, card, onClose, onSave }: {
                 maxLength={brand === 'Amex' ? 17 : 19}
               />
               {cardNumber.length > 0 && (
-                <View style={{ backgroundColor: BRAND_COLORS[brand] ?? '#6B7280', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <View style={{ backgroundColor: BRAND_BG[brand] ?? '#6B7280', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                   <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' }}>{brand.toUpperCase()}</Text>
                 </View>
               )}
@@ -246,7 +240,7 @@ function CardModal({ visible, card, onClose, onSave }: {
               <Feather name="user" size={15} color={MUTED} />
               <TextInput
                 style={[cml.input, { color: TEXT }]}
-                placeholder="As it appears on the card"
+                placeholder={editCard?.nameOnCard ?? 'As it appears on the card'}
                 placeholderTextColor={MUTED}
                 value={nameOnCard}
                 onChangeText={setNameOnCard}
@@ -255,7 +249,7 @@ function CardModal({ visible, card, onClose, onSave }: {
             </View>
           </View>
 
-          {/* Expiry + CVV side by side */}
+          {/* Expiry + CVV */}
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Text style={cml.label}>Expiry Date</Text>
@@ -263,7 +257,7 @@ function CardModal({ visible, card, onClose, onSave }: {
                 <Feather name="calendar" size={15} color={MUTED} />
                 <TextInput
                   style={[cml.input, { color: TEXT }]}
-                  placeholder="MM/YY"
+                  placeholder={editCard?.expiry ?? 'MM/YY'}
                   placeholderTextColor={MUTED}
                   value={expiry}
                   onChangeText={handleExpiryChange}
@@ -273,11 +267,11 @@ function CardModal({ visible, card, onClose, onSave }: {
               </View>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={cml.label}>{brand === 'Amex' ? 'CID (4 digits)' : 'CVV (3 digits)'}</Text>
+              <Text style={cml.label}>{brand === 'Amex' ? 'CID (front, 4 digits)' : 'CVV (back, 3 digits)'}</Text>
               <View style={[cml.inputRow, { borderColor: BORDER }]}>
-                <Feather name={brand === 'Amex' ? 'credit-card' : 'shield'} size={15} color={MUTED} />
+                <Feather name="shield" size={15} color={MUTED} />
                 <TextInput
-                  style={[cml.input, { color: TEXT, letterSpacing: showCvv ? 2 : 4 }]}
+                  style={[cml.input, { color: TEXT }]}
                   placeholder={brand === 'Amex' ? '••••' : '•••'}
                   placeholderTextColor={MUTED}
                   value={cvv}
@@ -290,17 +284,29 @@ function CardModal({ visible, card, onClose, onSave }: {
                   <Feather name={showCvv ? 'eye-off' : 'eye'} size={15} color={MUTED} />
                 </Pressable>
               </View>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 4 }}>
-                {brand === 'Amex' ? '4 digits on card front' : '3 digits on card back'}
-              </Text>
             </View>
           </View>
 
+          {/* Make default */}
+          <Pressable
+            onPress={() => setIsDefault((v) => !v)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, backgroundColor: isDefault ? '#E0F5FE' : '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: isDefault ? BLUE : BORDER }}
+          >
+            <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: isDefault ? BLUE : '#D1D5DB', backgroundColor: isDefault ? BLUE : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+              {isDefault && <Feather name="check" size={12} color="#fff" />}
+            </View>
+            <Text style={{ color: isDefault ? BLUE : TEXT, fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 }}>Set as default payment card</Text>
+          </Pressable>
+
           <Pressable
             onPress={handleSave}
-            style={{ height: 54, backgroundColor: BLUE, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 }}
+            disabled={saving}
+            style={{ height: 54, backgroundColor: BLUE, borderRadius: 14, alignItems: 'center', justifyContent: 'center', opacity: saving ? 0.7 : 1 }}
           >
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{card ? 'Update Card' : 'Save Card'}</Text>
+            {saving
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{isEditing ? 'Update Card' : 'Save Card'}</Text>
+            }
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -308,96 +314,147 @@ function CardModal({ visible, card, onClose, onSave }: {
   );
 }
 
-// ── Card on File Display ───────────────────────────────────────────────────
-function CardOnFile({ card, onEdit, onRemove }: { card: SavedCard | null; onEdit: () => void; onRemove: () => void }) {
-  const [revealed, setRevealed] = useState(false);
-
-  if (!card) {
-    return (
-      <Pressable
-        onPress={onEdit}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER, borderStyle: 'dashed' }}
-      >
-        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
-          <Feather name="credit-card" size={18} color={BLUE} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Add Card on File</Text>
-          <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }}>Securely save a card for invoice payments</Text>
-        </View>
-        <Feather name="plus" size={16} color={BLUE} />
-      </Pressable>
-    );
-  }
-
-  const bgColor    = BRAND_BG[card.brand] ?? '#1A3A8C';
-  const cardDigits = revealed ? card.fullNumber : maskCardNumber(card.fullNumber, card.brand);
-  const digits     = card.fullNumber.replace(/\s/g, '');
-  const last4      = digits.slice(-4);
+// ── Saved Card Tile ────────────────────────────────────────────────────────
+function CardTile({ card, onEdit, onRemove, onSetDefault }: {
+  card: any; onEdit: () => void; onRemove: () => void; onSetDefault: () => void;
+}) {
+  const bg     = BRAND_BG[card.cardBrand] ?? '#1A3A8C';
+  const accent = BRAND_ACCENT[card.cardBrand] ?? '#4F76CF';
 
   return (
-    <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER }}>
-      {/* Header row */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Payment Method</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F0FDF4', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+    <View style={{ width: 260, borderRadius: 16, overflow: 'hidden', marginRight: 12 }}>
+      {/* Card face */}
+      <View style={{ backgroundColor: bg, padding: 16, paddingBottom: 14 }}>
+        {card.isDefault && (
+          <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 10 }}>DEFAULT</Text>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_700Bold', fontSize: 14 }}>{card.cardBrand}</Text>
+          <Feather name="credit-card" size={18} color="rgba(255,255,255,0.5)" />
+        </View>
+        <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17, letterSpacing: 3, marginBottom: 14 }}>
+          •••• •••• •••• {card.last4}
+        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>CARDHOLDER</Text>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 1 }} numberOfLines={1}>{card.nameOnCard}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 9, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>EXPIRES</Text>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 1 }}>{card.expiry}</Text>
+          </View>
+        </View>
+      </View>
+      {/* Actions */}
+      <View style={{ flexDirection: 'row', backgroundColor: accent }}>
+        {!card.isDefault && (
+          <Pressable onPress={onSetDefault} style={{ flex: 1, paddingVertical: 9, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12 }}>Set Default</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={onEdit} style={{ flex: 1, paddingVertical: 9, alignItems: 'center', borderLeftWidth: card.isDefault ? 0 : 1, borderLeftColor: 'rgba(255,255,255,0.2)' }}>
+          <Text style={{ color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12 }}>Edit</Text>
+        </Pressable>
+        <Pressable onPress={onRemove} style={{ flex: 1, paddingVertical: 9, alignItems: 'center', borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.2)' }}>
+          <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_500Medium', fontSize: 12 }}>Remove</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+// ── Cards on File Section ──────────────────────────────────────────────────
+function CardsOnFile() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
+  const cards = data?.data ?? [];
+
+  const [showModal, setShowModal] = useState(false);
+  const [editCard, setEditCard]   = useState<any | null>(null);
+
+  const openAdd  = () => { setEditCard(null); setShowModal(true); };
+  const openEdit = (card: any) => { setEditCard(card); setShowModal(true); };
+
+  const handleSave = async (formData: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; cvv: string; isDefault: boolean }) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const payload = { nameOnCard: formData.nameOnCard, cardBrand: formData.cardBrand, last4: formData.last4, expiry: formData.expiry, isDefault: formData.isDefault };
+    if (editCard) {
+      await api.wholesale.updateCard(editCard.id, payload);
+    } else {
+      await api.wholesale.addCard(payload);
+    }
+    qc.invalidateQueries({ queryKey: ['wholesale-cards'] });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowModal(false);
+  };
+
+  const handleSetDefault = async (cardId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await api.wholesale.updateCard(cardId, { isDefault: true });
+    qc.invalidateQueries({ queryKey: ['wholesale-cards'] });
+  };
+
+  const handleRemove = (card: any) => {
+    Alert.alert('Remove Card', `Remove ${card.cardBrand} •••• ${card.last4} from your account?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive', onPress: async () => {
+          await api.wholesale.deleteCard(card.id);
+          qc.invalidateQueries({ queryKey: ['wholesale-cards'] });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }}>Cards on File</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Feather name="lock" size={11} color={GREEN} />
           <Text style={{ color: GREEN, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>PCI Secure</Text>
         </View>
       </View>
 
-      {/* Card visual */}
-      <View style={{ borderRadius: 12, padding: 16, backgroundColor: bgColor, marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_700Bold', fontSize: 15 }}>{card.brand}</Text>
-          <Pressable onPress={() => setRevealed((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Feather name={revealed ? 'eye-off' : 'eye'} size={14} color="rgba(255,255,255,0.65)" />
-            <Text style={{ color: 'rgba(255,255,255,0.65)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{revealed ? 'Hide' : 'Reveal'}</Text>
+      {isLoading ? (
+        <ActivityIndicator color={BLUE} style={{ paddingVertical: 20 }} />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 4 }}>
+          {/* Existing cards */}
+          {cards.map((card: any) => (
+            <CardTile
+              key={card.id}
+              card={card}
+              onEdit={() => openEdit(card)}
+              onRemove={() => handleRemove(card)}
+              onSetDefault={() => handleSetDefault(card.id)}
+            />
+          ))}
+
+          {/* Add card tile */}
+          <Pressable
+            onPress={openAdd}
+            style={{ width: 200, borderRadius: 16, borderWidth: 2, borderColor: BORDER, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', minHeight: 140, gap: 8 }}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="plus" size={20} color={BLUE} />
+            </View>
+            <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Add Card</Text>
+            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, textAlign: 'center', paddingHorizontal: 16 }}>Visa, Mastercard or Amex</Text>
           </Pressable>
-        </View>
-        <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17, letterSpacing: revealed ? 2 : 3, marginBottom: 16 }}>
-          {cardDigits}
-        </Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <View>
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>CARDHOLDER</Text>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 }}>{card.nameOnCard}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 }}>EXPIRES</Text>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 }}>{card.expiry}</Text>
-          </View>
-        </View>
-      </View>
+        </ScrollView>
+      )}
 
-      {/* CVV row */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2, marginBottom: 12 }}>
-        <Feather name="shield" size={13} color={MUTED} />
-        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>
-          {card.brand === 'Amex' ? 'CID:' : 'CVV:'}
-        </Text>
-        <Text style={{ color: revealed ? TEXT : MUTED, fontFamily: 'Inter_700Bold', fontSize: 14, letterSpacing: revealed ? 3 : 4 }}>
-          {revealed ? card.cvv : '•'.repeat(card.cvv.length)}
-        </Text>
-      </View>
-
-      {/* Action buttons */}
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable
-          onPress={onEdit}
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, backgroundColor: '#E0F5FE', borderRadius: 10 }}
-        >
-          <Feather name="edit-2" size={13} color={BLUE} />
-          <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Update Card</Text>
-        </Pressable>
-        <Pressable
-          onPress={onRemove}
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, backgroundColor: '#FEF2F2', borderRadius: 10 }}
-        >
-          <Feather name="trash-2" size={13} color="#EF4444" />
-          <Text style={{ color: '#EF4444', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Remove</Text>
-        </Pressable>
-      </View>
+      <CardModal
+        visible={showModal}
+        editCard={editCard}
+        onClose={() => setShowModal(false)}
+        onSave={handleSave}
+      />
     </View>
   );
 }
@@ -405,26 +462,15 @@ function CardOnFile({ card, onEdit, onRemove }: { card: SavedCard | null; onEdit
 // ── Main Screen ────────────────────────────────────────────────────────────
 export default function WholesaleInvoices() {
   const insets = useSafeAreaInsets();
-  const [loadingId, setLoadingId]         = useState<string | null>(null);
-  const [actionId, setActionId]           = useState<string | null>(null);
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [savedCard, setSavedCard]         = useState<SavedCard | null>({
-    nameOnCard: 'Fresh Bite Café Group',
-    fullNumber: '4532 1234 5678 4321',
-    cvv: '782',
-    expiry: '09/27',
-    brand: 'Visa',
-  });
+  const { data: cardsData } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
+  const cards    = cardsData?.data ?? [];
+  const defCard  = cards.find((c: any) => c.isDefault) ?? cards[0];
+
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [actionId, setActionId]   = useState<string | null>(null);
 
   const totalPending = MOCK_INVOICES.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
   const overdueCount = MOCK_INVOICES.filter((i) => i.status === 'overdue').length;
-
-  const handleRemoveCard = () => {
-    Alert.alert('Remove Card', 'Remove the saved card on file?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => setSavedCard(null) },
-    ]);
-  };
 
   const handleView = async (invoice: Invoice) => {
     setActionId(invoice.id);
@@ -435,11 +481,9 @@ export default function WholesaleInvoices() {
         if (win) { win.document.write(html); win.document.close(); win.focus(); }
         return;
       }
-      const html = generateInvoiceHtml(buildInvoiceData(invoice));
-      await Print.printAsync({ html });
-    } catch (e: any) {
-      Alert.alert('View Error', e?.message ?? 'Could not open invoice.');
-    } finally { setActionId(null); }
+      await Print.printAsync({ html: generateInvoiceHtml(buildInvoiceData(invoice)) });
+    } catch (e: any) { Alert.alert('View Error', e?.message ?? 'Could not open invoice.'); }
+    finally { setActionId(null); }
   };
 
   const handleDownload = async (invoice: Invoice) => {
@@ -451,31 +495,26 @@ export default function WholesaleInvoices() {
         if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 500); }
         return;
       }
-      const uri = await getPdfUri(invoice);
+      const html = generateInvoiceHtml(buildInvoiceData(invoice));
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${invoice.number}`, UTI: 'com.adobe.pdf' });
       } else {
         await Print.printAsync({ uri });
       }
-    } catch (e: any) {
-      Alert.alert('PDF Error', e?.message ?? 'Could not generate PDF.');
-    } finally { setLoadingId(null); }
+    } catch (e: any) { Alert.alert('PDF Error', e?.message ?? 'Could not generate PDF.'); }
+    finally { setLoadingId(null); }
   };
 
   const handlePay = (invoice: Invoice) => {
-    if (!savedCard) {
-      Alert.alert('No Card on File', 'Add a card to pay invoices directly.', [
-        { text: 'Add Card', onPress: () => setShowCardModal(true) },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
+    if (!defCard) {
+      Alert.alert('No Card on File', 'Add a card to pay invoices directly.');
       return;
     }
-    const digits = savedCard.fullNumber.replace(/\s/g, '');
-    const last4  = digits.slice(-4);
     Alert.alert(
       `Pay ${invoice.number}`,
-      `Charge $${invoice.amount.toFixed(2)} to ${savedCard.brand} •••• ${last4}?`,
+      `Charge $${invoice.amount.toFixed(2)} to ${defCard.cardBrand} •••• ${defCard.last4}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Pay Now', onPress: () => Alert.alert('Payment Submitted', 'Your payment has been submitted for processing.') },
@@ -511,15 +550,13 @@ export default function WholesaleInvoices() {
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={{ marginBottom: 4 }}>
-            <CardOnFile card={savedCard} onEdit={() => setShowCardModal(true)} onRemove={handleRemoveCard} />
+          <View style={{ marginBottom: 8 }}>
+            <CardsOnFile />
           </View>
         }
         renderItem={({ item: invoice }) => {
           const isViewing    = actionId === invoice.id;
           const isPdfLoading = loadingId === invoice.id;
-          const digits       = savedCard?.fullNumber.replace(/\s/g, '') ?? '';
-          const last4        = digits.slice(-4);
 
           return (
             <View style={[ss.invoiceCard, {
@@ -576,7 +613,7 @@ export default function WholesaleInvoices() {
                   >
                     <Feather name="credit-card" size={14} color="#fff" />
                     <Text style={[ss.invoiceBtnText, { color: '#fff', fontFamily: 'Inter_700Bold' }]}>
-                      {savedCard ? `Pay •${last4}` : 'Pay Now'}
+                      {defCard ? `Pay •${defCard.last4}` : 'Pay Now'}
                     </Text>
                   </Pressable>
                 )}
@@ -584,13 +621,6 @@ export default function WholesaleInvoices() {
             </View>
           );
         }}
-      />
-
-      <CardModal
-        visible={showCardModal}
-        card={savedCard}
-        onClose={() => setShowCardModal(false)}
-        onSave={(c) => setSavedCard(c)}
       />
     </View>
   );

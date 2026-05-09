@@ -35,16 +35,30 @@ function initials(name: string): string {
 }
 
 // ── Wholesale Detail Modal ──────────────────────────────────────────────────
+const BRAND_BG: Record<string, string> = {
+  Visa: '#1A3A8C', Mastercard: '#8C1B1B', Amex: '#1B5C8C',
+};
+
 function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
   user: any; wa: any; visible: boolean; onClose: () => void; onRefresh: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
   const [creditAud, setCreditAud]     = useState('');
   const [payTerms, setPayTerms]       = useState('');
   const [deliveryAddr, setDeliveryAddr] = useState('');
   const [suspended, setSuspended]     = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [saving, setSaving]           = useState(false);
+  const [togglingCard, setTogglingCard] = useState<string | null>(null);
+
+  const { data: cardsData, isLoading: cardsLoading, refetch: refetchCards } = useQuery({
+    queryKey: ['director-ws-cards', wa?.id],
+    queryFn: () => api.director.wholesaleCards(wa!.id),
+    enabled: visible && !!wa?.id,
+    staleTime: 0,
+  });
+  const cards = cardsData?.data ?? [];
 
   useEffect(() => {
     if (wa) {
@@ -100,6 +114,17 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
       onClose();
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setSaving(false); }
+  };
+
+  const handleCardVisibility = async (cardId: string, current: boolean) => {
+    setTogglingCard(cardId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await api.director.setCardVisibility(cardId, !current);
+      refetchCards();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setTogglingCard(null); }
   };
 
   return (
@@ -226,6 +251,62 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
                 />
               </View>
             )}
+          </View>
+
+          {/* Cards on File */}
+          <View style={wdl.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <Text style={wdl.sectionLabel}>CARDS ON FILE</Text>
+              {cardsLoading && <ActivityIndicator size="small" color={BLUE} />}
+            </View>
+            {!cardsLoading && cards.length === 0 && (
+              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>No cards saved by this account yet.</Text>
+            )}
+            {cards.map((card: any) => {
+              const bg = BRAND_BG[card.cardBrand] ?? '#1A3A8C';
+              const isToggling = togglingCard === card.id;
+              return (
+                <View key={card.id} style={{ marginBottom: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }}>
+                  {/* Mini card face */}
+                  <View style={{ backgroundColor: bg, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13, letterSpacing: 2 }}>
+                          •••• {card.last4}
+                        </Text>
+                        {card.isDefault && (
+                          <View style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' }}>DEFAULT</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 3 }}>
+                        {card.cardBrand}  ·  {card.nameOnCard}  ·  {card.expiry}
+                      </Text>
+                    </View>
+                    <Feather name="credit-card" size={18} color="rgba(255,255,255,0.4)" />
+                  </View>
+
+                  {/* Manager visibility toggle */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: CARD }}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Visible to Manager</Text>
+                      <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Allow manager portal to view this card</Text>
+                    </View>
+                    {isToggling
+                      ? <ActivityIndicator size="small" color={BLUE} style={{ marginLeft: 8 }} />
+                      : <Switch
+                          value={card.visibleToManager}
+                          onValueChange={() => handleCardVisibility(card.id, card.visibleToManager)}
+                          trackColor={{ false: '#D1D5DB', true: BLUE }}
+                          thumbColor="#fff"
+                          ios_backgroundColor="#D1D5DB"
+                        />
+                    }
+                  </View>
+                </View>
+              );
+            })}
           </View>
 
           {/* Save button */}

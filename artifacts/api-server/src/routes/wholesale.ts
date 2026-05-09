@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import {
   db, wholesaleOrdersTable, wholesaleAccountsTable, productsTable, pricingTiersTable,
+  wholesaleCardsTable,
 } from '@workspace/db';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import {
   calculateWholesalePrice,
@@ -174,5 +175,75 @@ router.post('/orders', async (req, res) => {
 function safeParseJson(s: string): any[] {
   try { const r = JSON.parse(s); return Array.isArray(r) ? r : []; } catch { return []; }
 }
+
+// ── Wholesale Cards on File ───────────────────────────────────────────────────
+async function getAccountForUser(userId: string) {
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, userId));
+  return account ?? null;
+}
+
+router.get('/cards', async (req, res) => {
+  const account = await getAccountForUser(req.user!.id);
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
+  const cards = await db.select().from(wholesaleCardsTable)
+    .where(eq(wholesaleCardsTable.accountId, account.id))
+    .orderBy(wholesaleCardsTable.createdAt);
+  return res.json({ data: cards });
+});
+
+router.post('/cards', async (req, res) => {
+  const account = await getAccountForUser(req.user!.id);
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
+  const { nameOnCard, cardBrand, last4, expiry, isDefault } = req.body;
+  if (!nameOnCard || !last4 || !expiry) return res.status(400).json({ error: 'nameOnCard, last4 and expiry are required.' });
+  if (isDefault) {
+    await db.update(wholesaleCardsTable).set({ isDefault: false }).where(eq(wholesaleCardsTable.accountId, account.id));
+  }
+  // If first card, make it default
+  const existing = await db.select().from(wholesaleCardsTable).where(eq(wholesaleCardsTable.accountId, account.id));
+  const makeDefault = isDefault || existing.length === 0;
+  const [card] = await db.insert(wholesaleCardsTable).values({
+    id: randomUUID(), accountId: account.id,
+    nameOnCard, cardBrand: cardBrand ?? 'Visa', last4, expiry, isDefault: makeDefault,
+  }).returning();
+  return res.status(201).json({ data: card });
+});
+
+router.patch('/cards/:id', async (req, res) => {
+  const account = await getAccountForUser(req.user!.id);
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
+  const { nameOnCard, cardBrand, last4, expiry, isDefault, visibleToManager } = req.body;
+  const updates: Record<string, any> = {};
+  if (nameOnCard !== undefined) updates.nameOnCard = nameOnCard;
+  if (cardBrand   !== undefined) updates.cardBrand  = cardBrand;
+  if (last4       !== undefined) updates.last4       = last4;
+  if (expiry      !== undefined) updates.expiry      = expiry;
+  if (visibleToManager !== undefined) updates.visibleToManager = Boolean(visibleToManager);
+  if (isDefault) {
+    await db.update(wholesaleCardsTable).set({ isDefault: false }).where(eq(wholesaleCardsTable.accountId, account.id));
+    updates.isDefault = true;
+  }
+  const [updated] = await db.update(wholesaleCardsTable).set(updates)
+    .where(and(eq(wholesaleCardsTable.id, req.params.id), eq(wholesaleCardsTable.accountId, account.id)))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Card not found' });
+  return res.json({ data: updated });
+});
+
+router.delete('/cards/:id', async (req, res) => {
+  const account = await getAccountForUser(req.user!.id);
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
+  const [deleted] = await db.delete(wholesaleCardsTable)
+    .where(and(eq(wholesaleCardsTable.id, req.params.id), eq(wholesaleCardsTable.accountId, account.id)))
+    .returning();
+  if (!deleted) return res.status(404).json({ error: 'Card not found' });
+  // If deleted was default and there are remaining cards, make newest default
+  if (deleted.isDefault) {
+    const [remaining] = await db.select().from(wholesaleCardsTable)
+      .where(eq(wholesaleCardsTable.accountId, account.id)).orderBy(desc(wholesaleCardsTable.createdAt)).limit(1);
+    if (remaining) await db.update(wholesaleCardsTable).set({ isDefault: true }).where(eq(wholesaleCardsTable.id, remaining.id));
+  }
+  return res.json({ success: true });
+});
 
 export default router;

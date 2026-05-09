@@ -6,6 +6,7 @@ import {
   wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
+  wholesaleCardsTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -723,6 +724,25 @@ router.delete('/managers/:id', async (req, res) => {
   await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
   await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
   return res.json({ success: true });
+});
+
+// ── Director: Wholesale Cards ─────────────────────────────────────────────────
+router.get('/wholesale/:accountId/cards', async (req, res) => {
+  const cards = await db.select().from(wholesaleCardsTable)
+    .where(eq(wholesaleCardsTable.accountId, req.params.accountId))
+    .orderBy(wholesaleCardsTable.createdAt);
+  return res.json({ data: cards });
+});
+
+router.patch('/wholesale-cards/:cardId/visibility', async (req, res) => {
+  const { visibleToManager } = req.body;
+  if (visibleToManager === undefined) return res.status(400).json({ error: 'visibleToManager required.' });
+  const [updated] = await db.update(wholesaleCardsTable)
+    .set({ visibleToManager: Boolean(visibleToManager) })
+    .where(eq(wholesaleCardsTable.id, req.params.cardId))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Card not found' });
+  return res.json({ data: updated });
 });
 
 export default router;
