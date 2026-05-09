@@ -7,6 +7,7 @@ import {
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorReward, type DirectorAnnouncement } from '@/lib/api';
 
@@ -790,7 +791,15 @@ function ManagersTab() {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorSettingsScreen() {
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<TabKey>('Store');
+
+  // Jump to the requested tab when navigated from More screen
+  useEffect(() => {
+    if (tabParam && TABS.includes(tabParam as TabKey)) {
+      setTab(tabParam as TabKey);
+    }
+  }, [tabParam]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>

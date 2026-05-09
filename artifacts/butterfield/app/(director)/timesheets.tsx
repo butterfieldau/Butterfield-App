@@ -34,13 +34,7 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 function fmtDateGroup(iso: string) {
-  const d = new Date(iso);
-  const today     = new Date(); today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-  d.setHours(0, 0, 0, 0);
-  if (d.getTime() === today.getTime())     return 'Today';
-  if (d.getTime() === yesterday.getTime()) return 'Yesterday';
-  return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 function toDateKey(iso: string) {
   const d = new Date(iso);
@@ -51,14 +45,10 @@ function calcPay(s: DirectorShift): number | null {
   const hrs = s.hoursWorked ? parseFloat(s.hoursWorked) : 0;
   return Math.round(hrs * s.hourlyRateCents);
 }
-
-// Convert ISO timestamp to "HH:MM" for editing
 function isoToHHMM(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
-
-// Build a new ISO from a base date and "HH:MM" input
 function applyHHMM(base: string, hhmm: string): string | null {
   const match = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
@@ -67,35 +57,101 @@ function applyHHMM(base: string, hhmm: string): string | null {
   return d.toISOString();
 }
 
-// ── Period filter ─────────────────────────────────────────────────────────────
-type Period = 'all' | 'today' | 'week' | 'month';
+// ── Week calculation (Mon–Sun) ─────────────────────────────────────────────────
+type WeekOption = { offset: number; label: string; short: string; start: Date; end: Date };
 
-function filterByPeriod(shifts: DirectorShift[], period: Period) {
-  if (period === 'all') return shifts;
-  const now  = new Date();
-  const from = new Date();
-  if (period === 'today') { from.setHours(0, 0, 0, 0); }
-  else if (period === 'week')  { from.setDate(now.getDate() - 7); }
-  else if (period === 'month') { from.setDate(now.getDate() - 30); }
-  return shifts.filter(s => new Date(s.clockIn) >= from);
+function buildWeekOptions(count = 6): WeekOption[] {
+  const now = new Date();
+  // Find this Monday (0=Sun → 6 days back, 1=Mon → 0 days, etc.)
+  const dow = now.getDay(); // 0=Sun
+  const daysToMon = dow === 0 ? 6 : dow - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setHours(0, 0, 0, 0);
+  thisMonday.setDate(now.getDate() - daysToMon);
+
+  return Array.from({ length: count }, (_, i) => {
+    const offset = -i; // 0=this week, -1=last week, etc.
+    const start  = new Date(thisMonday);
+    start.setDate(thisMonday.getDate() + offset * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+
+    const fmtShort = (d: Date) =>
+      d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+
+    let label: string;
+    let short: string;
+    if (i === 0) { label = 'This Week'; short = 'This Week'; }
+    else if (i === 1) { label = 'Last Week'; short = 'Last Week'; }
+    else {
+      label = `${fmtShort(start)} – ${fmtShort(end)}`;
+      short = fmtShort(start);
+    }
+
+    return { offset, label, short, start, end };
+  });
 }
 
-// ── Edit / Approve Modal ──────────────────────────────────────────────────────
-function ShiftModal({
-  shift, visible, onClose, onSaved,
-}: {
-  shift: DirectorShift | null;
-  visible: boolean;
-  onClose: () => void;
-  onSaved: () => void;
+function filterByWeek(shifts: DirectorShift[], week: WeekOption) {
+  return shifts.filter(s => {
+    const d = new Date(s.clockIn);
+    return d >= week.start && d <= week.end;
+  });
+}
+
+// ── Payroll summary per staff member for the week ─────────────────────────────
+type StaffPaySummary = {
+  userId: string;
+  name: string;
+  position: string;
+  approvedShifts: number;
+  pendingShifts: number;
+  totalHours: number;
+  totalPayCents: number;
+  hasRate: boolean;
+};
+
+function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
+  const map = new Map<string, StaffPaySummary>();
+  for (const s of shifts) {
+    if (!s.clockOut || !s.userId) continue; // skip active shifts
+    const key = s.userId;
+    if (!map.has(key)) {
+      map.set(key, {
+        userId: s.userId,
+        name: s.name ?? 'Unknown',
+        position: s.position ?? 'Staff',
+        approvedShifts: 0,
+        pendingShifts: 0,
+        totalHours: 0,
+        totalPayCents: 0,
+        hasRate: false,
+      });
+    }
+    const entry = map.get(key)!;
+    const hrs = s.hoursWorked ? parseFloat(s.hoursWorked) : 0;
+    const pay = calcPay(s);
+    entry.totalHours += hrs;
+    if (s.hourlyRateCents) entry.hasRate = true;
+    if (pay != null) entry.totalPayCents += pay;
+    if (s.approvedAt) entry.approvedShifts++;
+    else entry.pendingShifts++;
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ── Edit / Approve Modal ───────────────────────────────────────────────────────
+function ShiftModal({ shift, visible, onClose, onSaved }: {
+  shift: DirectorShift | null; visible: boolean; onClose: () => void; onSaved: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [inTime,   setInTime]   = useState('');
-  const [outTime,  setOutTime]  = useState('');
-  const [brk,      setBrk]      = useState('');
-  const [saving,   setSaving]   = useState(false);
-  const [tab,      setTab]      = useState<'details' | 'edit'>('details');
+  const [inTime,  setInTime]  = useState('');
+  const [outTime, setOutTime] = useState('');
+  const [brk,     setBrk]     = useState('');
+  const [saving,  setSaving]  = useState(false);
+  const [tab,     setTab]     = useState<'details' | 'edit'>('details');
 
   React.useEffect(() => {
     if (shift) {
@@ -115,11 +171,6 @@ function ShiftModal({
     },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
-
-  const handleApprove = (a: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    approve.mutate(a);
-  };
 
   const handleSaveEdit = async () => {
     if (!shift) return;
@@ -143,14 +194,13 @@ function ShiftModal({
   if (!shift) return null;
 
   const isApproved = !!shift.approvedAt;
-  const hrs  = shift.hoursWorked ? parseFloat(shift.hoursWorked).toFixed(2) : null;
-  const pay  = calcPay(shift);
-  const active = !shift.clockOut;
+  const hrs        = shift.hoursWorked ? parseFloat(shift.hoursWorked).toFixed(2) : null;
+  const pay        = calcPay(shift);
+  const active     = !shift.clockOut;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {/* Header */}
         <View style={[sm.header, { paddingTop: insets.top + 8, backgroundColor: CARD, borderBottomColor: BORDER }]}>
           <Pressable onPress={onClose} style={sm.closeBtn}>
             <Feather name="x" size={20} color={TEXT} />
@@ -162,9 +212,8 @@ function ShiftModal({
           <View style={{ width: 36 }} />
         </View>
 
-        {/* Sub-tabs */}
         <View style={[sm.subTabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
-          {(['details', 'edit'] as const).map((t) => (
+          {(['details', 'edit'] as const).map(t => (
             <Pressable key={t} onPress={() => setTab(t)} style={[sm.subTab, tab === t && { borderBottomColor: BLUE }]}>
               <Text style={[sm.subTabText, { color: tab === t ? BLUE : MUTED }]}>
                 {t === 'details' ? 'Details' : 'Edit Times'}
@@ -174,10 +223,8 @@ function ShiftModal({
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-
           {tab === 'details' ? (
             <>
-              {/* Status banner */}
               <View style={[sm.statusBanner, { backgroundColor: active ? '#EBF8FF' : isApproved ? '#DCFCE7' : '#FFF7ED', borderColor: active ? BLUE : isApproved ? GREEN : AMBER }]}>
                 <Feather name={active ? 'zap' : isApproved ? 'check-circle' : 'clock'} size={16} color={active ? BLUE : isApproved ? GREEN : AMBER} />
                 <Text style={[sm.statusBannerText, { color: active ? BLUE : isApproved ? GREEN : AMBER }]}>
@@ -185,7 +232,6 @@ function ShiftModal({
                 </Text>
               </View>
 
-              {/* Info rows */}
               <View style={sm.card}>
                 <Text style={sm.sectionLabel}>SHIFT DETAILS</Text>
                 {[
@@ -193,9 +239,9 @@ function ShiftModal({
                   { label: 'Clock Out', value: shift.clockOut ? new Date(shift.clockOut).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active' },
                   { label: 'Break',     value: `${shift.unpaidBreakMins ?? 0} min unpaid` },
                   { label: 'Hours',     value: active ? '—' : hrs ? `${hrs} hrs` : '—' },
-                  { label: 'Est. Pay',  value: pay ? fmtAUD(pay) : '—' },
+                  { label: 'Est. Pay',  value: pay ? fmtAUD(pay) : (shift.hourlyRateCents ? fmtAUD(0) : 'No rate set') },
                   ...(isApproved ? [{ label: 'Approved', value: new Date(shift.approvedAt!).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }] : []),
-                ].map((row) => (
+                ].map(row => (
                   <View key={row.label} style={sm.infoRow}>
                     <Text style={sm.infoLabel}>{row.label}</Text>
                     <Text style={sm.infoValue}>{row.value}</Text>
@@ -203,7 +249,6 @@ function ShiftModal({
                 ))}
               </View>
 
-              {/* Approve / unapprove */}
               {!active && (
                 <View style={sm.card}>
                   <Text style={sm.sectionLabel}>APPROVAL</Text>
@@ -214,7 +259,7 @@ function ShiftModal({
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                     <Pressable
-                      onPress={() => handleApprove(true)}
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(true); }}
                       disabled={approve.isPending}
                       style={[sm.actionBtn, { backgroundColor: isApproved ? '#DCFCE7' : BG, borderColor: isApproved ? GREEN : BORDER, flex: 1 }]}
                     >
@@ -224,7 +269,7 @@ function ShiftModal({
                       }
                     </Pressable>
                     <Pressable
-                      onPress={() => handleApprove(false)}
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(false); }}
                       disabled={approve.isPending}
                       style={[sm.actionBtn, { backgroundColor: !isApproved ? '#FFF7ED' : BG, borderColor: !isApproved ? AMBER : BORDER, flex: 1 }]}
                     >
@@ -239,36 +284,30 @@ function ShiftModal({
             </>
           ) : (
             <>
-              {/* Edit times */}
               <View style={sm.card}>
                 <Text style={sm.sectionLabel}>CLOCK TIMES</Text>
                 <Text style={[sm.approvalHint, { color: MUTED, marginBottom: 14 }]}>
                   Enter times in 24-hour format (HH:MM). Times apply to the same calendar day as the original clock-in.
                 </Text>
-                <Text style={sm.fieldLabel}>Clock In</Text>
-                <View style={[sm.inputRow, { borderColor: BORDER }]}>
-                  <Feather name="log-in" size={15} color={MUTED} />
-                  <TextInput
-                    style={[sm.input, { color: TEXT }]}
-                    value={inTime}
-                    onChangeText={setInTime}
-                    placeholder="09:00"
-                    placeholderTextColor={MUTED}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
-                <Text style={[sm.fieldLabel, { marginTop: 12 }]}>Clock Out</Text>
-                <View style={[sm.inputRow, { borderColor: BORDER }]}>
-                  <Feather name="log-out" size={15} color={MUTED} />
-                  <TextInput
-                    style={[sm.input, { color: TEXT }]}
-                    value={outTime}
-                    onChangeText={setOutTime}
-                    placeholder="17:00"
-                    placeholderTextColor={MUTED}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
+                {[
+                  { label: 'Clock In',  icon: 'log-in',  val: inTime,  set: setInTime,  ph: '09:00' },
+                  { label: 'Clock Out', icon: 'log-out', val: outTime, set: setOutTime, ph: '17:00' },
+                ].map((f, i) => (
+                  <View key={f.label} style={i > 0 ? { marginTop: 12 } : {}}>
+                    <Text style={sm.fieldLabel}>{f.label}</Text>
+                    <View style={[sm.inputRow, { borderColor: BORDER }]}>
+                      <Feather name={f.icon as any} size={15} color={MUTED} />
+                      <TextInput
+                        style={[sm.input, { color: TEXT }]}
+                        value={f.val}
+                        onChangeText={f.set}
+                        placeholder={f.ph}
+                        placeholderTextColor={MUTED}
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </View>
+                  </View>
+                ))}
                 <Text style={[sm.fieldLabel, { marginTop: 12 }]}>Unpaid Break (minutes)</Text>
                 <View style={[sm.inputRow, { borderColor: BORDER }]}>
                   <Feather name="coffee" size={15} color={MUTED} />
@@ -282,34 +321,92 @@ function ShiftModal({
                   />
                 </View>
               </View>
-
-              <Pressable onPress={handleSaveEdit} disabled={saving} style={[sm.saveBtn, { opacity: saving ? 0.8 : 1 }]}>
+              <Pressable onPress={handleSaveEdit} disabled={saving} style={[sm.saveBtn, { opacity: saving ? 0.8 : 1, backgroundColor: NAVY }]}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={sm.saveBtnText}>Save Changes</Text>}
               </Pressable>
             </>
           )}
-
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-// ── Main Screen ───────────────────────────────────────────────────────────────
-const PERIODS: { key: Period; label: string }[] = [
-  { key: 'today', label: 'Today'      },
-  { key: 'week',  label: 'This Week'  },
-  { key: 'month', label: 'This Month' },
-  { key: 'all',   label: 'All'        },
-];
+// ── Payroll Summary Card ───────────────────────────────────────────────────────
+function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySummary[]; weekLabel: string }) {
+  if (summaries.length === 0) return null;
+  const totalPay   = summaries.reduce((a, s) => a + s.totalPayCents, 0);
+  const totalHours = summaries.reduce((a, s) => a + s.totalHours, 0);
+  const pending    = summaries.reduce((a, s) => a + s.pendingShifts, 0);
+
+  return (
+    <View style={[pay.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+      <View style={pay.cardHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={pay.title}>Payroll — {weekLabel}</Text>
+          <Text style={[pay.sub, { color: MUTED }]}>
+            {totalHours.toFixed(1)} total hrs · {summaries.length} staff
+            {pending > 0 ? ` · ${pending} shift${pending !== 1 ? 's' : ''} pending` : ''}
+          </Text>
+        </View>
+        <View style={[pay.totalBadge, { backgroundColor: NAVY + '12' }]}>
+          <Text style={[pay.totalAmt, { color: NAVY }]}>{fmtAUD(totalPay)}</Text>
+        </View>
+      </View>
+
+      {summaries.map((s, i) => (
+        <View key={s.userId} style={[pay.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
+          <View style={[pay.avatar, { backgroundColor: s.pendingShifts > 0 ? '#FFF7ED' : '#DCFCE7' }]}>
+            <Text style={[pay.avatarText, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{initials(s.name)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={pay.name}>{s.name}</Text>
+            <Text style={[pay.pos, { color: MUTED }]}>
+              {s.position} · {s.totalHours.toFixed(1)}h
+              {s.pendingShifts > 0 && (
+                <Text style={{ color: AMBER }}> · {s.pendingShifts} pending</Text>
+              )}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            {s.hasRate ? (
+              <Text style={[pay.amt, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>
+                {fmtAUD(s.totalPayCents)}
+              </Text>
+            ) : (
+              <Text style={[pay.noRate, { color: MUTED }]}>No rate</Text>
+            )}
+            <Text style={[pay.shifts, { color: MUTED }]}>
+              {s.approvedShifts + s.pendingShifts} shift{s.approvedShifts + s.pendingShifts !== 1 ? 's' : ''}
+            </Text>
+          </View>
+        </View>
+      ))}
+
+      {pending > 0 && (
+        <View style={[pay.warning, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+          <Feather name="alert-circle" size={13} color={AMBER} />
+          <Text style={[pay.warningText, { color: '#92400E' }]}>
+            Approve all shifts before processing payroll
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Main Screen ────────────────────────────────────────────────────────────────
+const WEEK_OPTIONS = buildWeekOptions(8);
 
 export default function DirectorTimesheetsScreen() {
-  const [period,       setPeriod]       = useState<Period>('week');
+  const [weekIdx,      setWeekIdx]      = useState(0); // 0 = this week, 1 = last week, …
   const [personFilter, setPersonFilter] = useState<string>('all');
   const [selected,     setSelected]     = useState<DirectorShift | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const selectedWeek = WEEK_OPTIONS[weekIdx];
+
+  const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['director-timesheets'],
     queryFn: () => api.director.timesheets(),
     staleTime: 30_000,
@@ -317,26 +414,28 @@ export default function DirectorTimesheetsScreen() {
 
   const allShifts: DirectorShift[] = data?.data ?? [];
 
-  // Unique people
+  // Filter to selected Mon-Sun week
+  const weekShifts = useMemo(() => filterByWeek(allShifts, selectedWeek), [allShifts, selectedWeek]);
+
+  // Unique people IN this week
   const people = useMemo(() => {
     const seen = new Map<string, string>();
-    allShifts.forEach(s => { if (s.userId && s.name) seen.set(s.userId, s.name); });
+    weekShifts.forEach(s => { if (s.userId && s.name) seen.set(s.userId, s.name); });
     return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [allShifts]);
+  }, [weekShifts]);
 
-  const filtered = useMemo(() => {
-    let s = filterByPeriod(allShifts, period);
-    if (personFilter !== 'all') s = s.filter(sh => sh.userId === personFilter);
-    return s;
-  }, [allShifts, period, personFilter]);
+  // Apply person filter
+  const filtered = useMemo(() =>
+    personFilter === 'all' ? weekShifts : weekShifts.filter(s => s.userId === personFilter),
+    [weekShifts, personFilter]
+  );
 
   // Group by date
   const sections = useMemo(() => {
     const map = new Map<string, { label: string; shifts: DirectorShift[] }>();
     filtered.forEach(s => {
-      const key   = toDateKey(s.clockIn);
-      const label = fmtDateGroup(s.clockIn);
-      if (!map.has(key)) map.set(key, { label, shifts: [] });
+      const key = toDateKey(s.clockIn);
+      if (!map.has(key)) map.set(key, { label: fmtDateGroup(s.clockIn), shifts: [] });
       map.get(key)!.shifts.push(s);
     });
     return Array.from(map.entries())
@@ -344,10 +443,13 @@ export default function DirectorTimesheetsScreen() {
       .map(([, v]) => v);
   }, [filtered]);
 
-  // Summary stats
+  // Payroll summary (all staff for selected week, not filtered by person)
+  const payrollSummary = useMemo(() => buildPayrollSummary(weekShifts), [weekShifts]);
+
+  // Stats for selected week
   const stats = useMemo(() => {
-    const done   = filtered.filter(s => s.clockOut);
-    const active = filtered.filter(s => !s.clockOut);
+    const done    = filtered.filter(s => s.clockOut);
+    const active  = filtered.filter(s => !s.clockOut);
     const pending  = done.filter(s => !s.approvedAt);
     const approved = done.filter(s => !!s.approvedAt);
     const totalHrs = done.reduce((sum, s) => sum + (s.hoursWorked ? parseFloat(s.hoursWorked) : 0), 0);
@@ -355,8 +457,7 @@ export default function DirectorTimesheetsScreen() {
   }, [filtered]);
 
   const openShift = (s: DirectorShift) => {
-    setSelected(s);
-    setModalVisible(true);
+    setSelected(s); setModalVisible(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -366,54 +467,59 @@ export default function DirectorTimesheetsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Period filter strip */}
-      <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
-          {PERIODS.map(({ key, label }) => {
-            const active = period === key;
+
+      {/* ── Week selector ─────────────────────────────────────────── */}
+      <View style={{ backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 8 }}>
+          {WEEK_OPTIONS.map((w, i) => {
+            const active = weekIdx === i;
             return (
               <Pressable
-                key={key}
-                onPress={() => { setPeriod(key); Haptics.selectionAsync(); }}
+                key={i}
+                onPress={() => { setWeekIdx(i); setPersonFilter('all'); Haptics.selectionAsync(); }}
                 style={[styles.chip, { backgroundColor: active ? NAVY : BG, borderColor: active ? NAVY : BORDER }]}
               >
-                <Text style={[styles.chipText, { color: active ? '#fff' : MUTED }]}>{label}</Text>
+                <Text style={[styles.chipText, { color: active ? '#fff' : MUTED }]}>{w.short}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
 
         {/* Person filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
-          <Pressable
-            onPress={() => { setPersonFilter('all'); Haptics.selectionAsync(); }}
-            style={[styles.chip, { backgroundColor: personFilter === 'all' ? BLUE : BG, borderColor: personFilter === 'all' ? BLUE : BORDER }]}
-          >
-            <Text style={[styles.chipText, { color: personFilter === 'all' ? '#fff' : MUTED }]}>All Staff</Text>
-          </Pressable>
-          {people.map(p => {
-            const active = personFilter === p.id;
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => { setPersonFilter(p.id); Haptics.selectionAsync(); }}
-                style={[styles.chip, { backgroundColor: active ? BLUE : BG, borderColor: active ? BLUE : BORDER }]}
-              >
-                <Text style={[styles.chipText, { color: active ? '#fff' : MUTED }]}>{p.name.split(' ')[0]}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {people.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 8 }}>
+            <Pressable
+              onPress={() => { setPersonFilter('all'); Haptics.selectionAsync(); }}
+              style={[styles.chip, { backgroundColor: personFilter === 'all' ? BLUE : BG, borderColor: personFilter === 'all' ? BLUE : BORDER }]}
+            >
+              <Text style={[styles.chipText, { color: personFilter === 'all' ? '#fff' : MUTED }]}>All Staff</Text>
+            </Pressable>
+            {people.map(p => {
+              const isActive = personFilter === p.id;
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => { setPersonFilter(p.id); Haptics.selectionAsync(); }}
+                  style={[styles.chip, { backgroundColor: isActive ? BLUE : BG, borderColor: isActive ? BLUE : BORDER }]}
+                >
+                  <Text style={[styles.chipText, { color: isActive ? '#fff' : MUTED }]}>{p.name.split(' ')[0]}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
-      {/* Stats row */}
+      {/* ── Stats row ─────────────────────────────────────────────── */}
       <View style={[styles.statsRow, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {[
-          { label: 'Total',    value: String(stats.total),              color: TEXT  },
-          { label: 'Active',   value: String(stats.active),             color: BLUE  },
-          { label: 'Pending',  value: String(stats.pending),            color: AMBER },
-          { label: 'Approved', value: String(stats.approved),           color: GREEN },
-          { label: 'Hours',    value: `${stats.totalHrs.toFixed(1)}h`,  color: PURPLE},
+          { label: 'Shifts',   value: String(stats.total),              color: TEXT   },
+          { label: 'Active',   value: String(stats.active),             color: BLUE   },
+          { label: 'Pending',  value: String(stats.pending),            color: AMBER  },
+          { label: 'Approved', value: String(stats.approved),           color: GREEN  },
+          { label: 'Hours',    value: `${stats.totalHrs.toFixed(1)}h`,  color: PURPLE },
         ].map((s, i, arr) => (
           <View key={s.label} style={[styles.statCell, i < arr.length - 1 && { borderRightWidth: 1, borderRightColor: BORDER }]}>
             <Text style={[styles.statVal, { color: s.color }]}>{s.value}</Text>
@@ -422,28 +528,33 @@ export default function DirectorTimesheetsScreen() {
         ))}
       </View>
 
-      {/* Shift list grouped by date */}
+      {/* ── Content ───────────────────────────────────────────────── */}
       <FlatList
         data={sections}
         keyExtractor={(_, i) => String(i)}
         contentContainerStyle={{ padding: 16, gap: 0, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        ListHeaderComponent={
+          payrollSummary.length > 0 ? (
+            <PayrollSummaryCard summaries={payrollSummary} weekLabel={selectedWeek.label} />
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.center}>
             <Feather name="clock" size={40} color={MUTED} />
-            <Text style={styles.emptyText}>No shifts in this period</Text>
+            <Text style={styles.emptyText}>No shifts for {selectedWeek.label.toLowerCase()}</Text>
           </View>
         }
         renderItem={({ item: section }) => (
-          <View style={{ marginBottom: 20 }}>
+          <View style={{ marginBottom: 20, marginTop: 12 }}>
             <Text style={styles.sectionHeader}>{section.label}</Text>
             <View style={[styles.sectionCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               {section.shifts.map((s, idx) => {
                 const isActive   = !s.clockOut;
                 const isApproved = !!s.approvedAt;
                 const hrs  = s.hoursWorked ? parseFloat(s.hoursWorked).toFixed(1) : null;
-                const pay  = calcPay(s);
+                const p    = calcPay(s);
                 const brk  = s.unpaidBreakMins && s.unpaidBreakMins > 0 ? s.unpaidBreakMins : null;
 
                 return (
@@ -456,14 +567,12 @@ export default function DirectorTimesheetsScreen() {
                       pressed && { opacity: 0.7 },
                     ]}
                   >
-                    {/* Avatar */}
                     <View style={[styles.avatar, { backgroundColor: isActive ? '#EBF8FF' : isApproved ? '#DCFCE7' : '#F3F4F6' }]}>
                       <Text style={[styles.avatarText, { color: isActive ? BLUE : isApproved ? GREEN : MUTED }]}>
                         {initials(s.name ?? '?')}
                       </Text>
                     </View>
 
-                    {/* Info */}
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={styles.shiftName}>{s.name ?? 'Unknown'}</Text>
@@ -473,9 +582,7 @@ export default function DirectorTimesheetsScreen() {
                             <Text style={[styles.liveText, { color: BLUE }]}>LIVE</Text>
                           </View>
                         )}
-                        {!isActive && isApproved && (
-                          <Feather name="check-circle" size={13} color={GREEN} />
-                        )}
+                        {!isActive && isApproved && <Feather name="check-circle" size={13} color={GREEN} />}
                       </View>
                       <Text style={[styles.shiftPos, { color: MUTED }]}>{s.position ?? 'Staff'}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -492,10 +599,9 @@ export default function DirectorTimesheetsScreen() {
                       </View>
                     </View>
 
-                    {/* Right side */}
                     <View style={{ alignItems: 'flex-end', gap: 3 }}>
                       {hrs && <Text style={styles.shiftHrs}>{hrs}h</Text>}
-                      {pay != null && <Text style={[styles.shiftPay, { color: GREEN }]}>{fmtAUD(pay)}</Text>}
+                      {p != null && <Text style={[styles.shiftPay, { color: GREEN }]}>{fmtAUD(p)}</Text>}
                       {!isActive && !isApproved && (
                         <View style={[styles.pendingPill, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
                           <Text style={[styles.pendingText, { color: AMBER }]}>Review</Text>
@@ -521,9 +627,10 @@ export default function DirectorTimesheetsScreen() {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   center:        { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
-  emptyText:     { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 },
+  emptyText:     { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15, textAlign: 'center' },
   chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   chipText:      { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   statsRow:      { flexDirection: 'row', borderBottomWidth: 1 },
@@ -563,11 +670,30 @@ const sm = StyleSheet.create({
   infoLabel:        { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 },
   infoValue:        { color: TEXT,  fontFamily: 'Inter_500Medium',  fontSize: 13, maxWidth: '55%', textAlign: 'right' },
   approvalHint:     { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
-  actionBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 46, borderRadius: 12, borderWidth: 1 },
+  fieldLabel:       { fontSize: 13, fontFamily: 'Inter_500Medium', color: TEXT, marginBottom: 6 },
+  inputRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#FAFAFA' },
+  input:            { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  actionBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   actionBtnText:    { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  fieldLabel:       { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: MUTED, marginBottom: 6 },
-  inputRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: BG },
-  input:            { flex: 1, fontSize: 16, fontFamily: 'Inter_400Regular' },
-  saveBtn:          { height: 54, borderRadius: 14, backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText:      { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  saveBtn:          { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText:      { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+});
+
+const pay = StyleSheet.create({
+  card:        { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 4, gap: 0 },
+  cardHeader:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+  title:       { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
+  sub:         { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  totalBadge:  { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  totalAmt:    { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  row:         { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  avatar:      { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarText:  { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  name:        { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  pos:         { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  amt:         { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  noRate:      { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  shifts:      { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  warning:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 8 },
+  warningText: { flex: 1, fontSize: 12, fontFamily: 'Inter_500Medium' },
 });

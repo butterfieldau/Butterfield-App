@@ -1,13 +1,20 @@
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BLUE = '#40C0F2';
+const BG   = '#F5F6FA';
 
 export default function DirectorLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Fills the status-bar / Dynamic Island area with the screen background */}
+      <View style={{ height: insets.top, backgroundColor: BG }} />
+
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -27,15 +34,13 @@ export default function DirectorLayout() {
         <Tabs.Screen name="products" options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"     size={size} color={color} /> }} />
         <Tabs.Screen name="more"     options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"        size={size} color={color} /> }} />
 
-        {/* Hidden routes — accessible via router.push */}
-        <Tabs.Screen name="customers"   options={{ href: null }} />
-        <Tabs.Screen name="pricing"     options={{ href: null }} />
-        <Tabs.Screen name="reports"     options={{ href: null }} />
-        <Tabs.Screen name="timesheets"  options={{ href: null }} />
-        <Tabs.Screen name="settings"    options={{ href: null }} />
+        {/* Hidden — accessed via router.push from More screen */}
+        <Tabs.Screen name="customers"  options={{ href: null }} />
+        <Tabs.Screen name="pricing"    options={{ href: null }} />
+        <Tabs.Screen name="reports"    options={{ href: null }} />
+        <Tabs.Screen name="timesheets" options={{ href: null }} />
+        <Tabs.Screen name="settings"   options={{ href: null }} />
       </Tabs>
     </View>
   );
 }
-
-import { StyleSheet } from 'react-native';
