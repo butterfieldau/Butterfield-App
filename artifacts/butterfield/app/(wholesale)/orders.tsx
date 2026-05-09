@@ -1,5 +1,7 @@
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Pressable,
@@ -8,6 +10,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+
+export const WS_REORDER_KEY = '@ws_pending_reorder';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -231,16 +235,22 @@ export default function WholesaleOrdersScreen() {
 
   const overdueCount = allOrders.filter(isOverdue).length;
 
-  const handleReorder = (order: any) => {
+  const handleReorder = async (order: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Reorder',
-      `Reorder the same items from order #${order.poReference ?? order.id.slice(0, 8).toUpperCase()}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Go to Catalog', onPress: () => {} },
-      ],
-    );
+    const rawItems: any[] = Array.isArray(order.items) ? order.items : [];
+    if (rawItems.length === 0) {
+      Alert.alert('No items', 'This order has no items to reorder.');
+      return;
+    }
+    const reorderItems = rawItems.map((item: any) => ({
+      productId: item.productId ?? item.product_id ?? item.id ?? '',
+      qty: Number(item.qty ?? item.quantity ?? 1),
+      productName: item.productName ?? item.name ?? '',
+    })).filter((i) => i.productId);
+
+    await AsyncStorage.setItem(WS_REORDER_KEY, JSON.stringify(reorderItems));
+    setSelectedOrder(null);
+    router.push('/(wholesale)/catalog');
   };
 
   return (

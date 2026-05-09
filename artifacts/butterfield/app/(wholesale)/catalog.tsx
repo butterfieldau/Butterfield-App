@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
+import { WS_REORDER_KEY } from './orders';
 import {
   formatDateChip,
   formatTime,
@@ -153,6 +155,50 @@ export default function WholesaleCatalog() {
 
   const { data, isLoading, refetch, isRefetching } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.catalog(), retry: 1 });
   const products = data?.data ?? [];
+
+  // ── Reorder detection ──────────────────────────────────────────────────
+  const [pendingReorder, setPendingReorder] = useState<{ productId: string; qty: number; productName: string }[] | null>(null);
+  const reorderProcessed = useRef(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(WS_REORDER_KEY).then((val) => {
+      if (val) {
+        setPendingReorder(JSON.parse(val));
+        AsyncStorage.removeItem(WS_REORDER_KEY);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!pendingReorder || products.length === 0 || reorderProcessed.current) return;
+    reorderProcessed.current = true;
+
+    const newCart: CartEntry[] = [];
+    const notFound: string[] = [];
+    for (const item of pendingReorder) {
+      const product = products.find((p) => p.id === item.productId);
+      if (product) {
+        newCart.push({ product, quantity: item.qty });
+      } else if (item.productName) {
+        notFound.push(item.productName);
+      }
+    }
+
+    if (newCart.length > 0) {
+      setCart(newCart);
+      setCheckoutStep(0);
+      setShowCheckout(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const msg = notFound.length > 0
+        ? `${newCart.length} item${newCart.length !== 1 ? 's' : ''} added to cart.\n\nNote: ${notFound.join(', ')} ${notFound.length === 1 ? 'is' : 'are'} no longer available.`
+        : `${newCart.length} item${newCart.length !== 1 ? 's' : ''} added to your cart. Review and place your order below.`;
+      Alert.alert('Cart Ready', msg);
+    } else {
+      Alert.alert('Products Unavailable', 'None of the products from that order are currently available.');
+    }
+    setPendingReorder(null);
+  }, [pendingReorder, products]);
+  // ──────────────────────────────────────────────────────────────────────
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
