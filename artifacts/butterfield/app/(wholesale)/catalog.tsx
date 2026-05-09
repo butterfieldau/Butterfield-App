@@ -825,7 +825,7 @@ export default function WholesaleCatalog() {
       )}
 
       {cart.length > 0 && (
-        <View style={[styles.floatingCartOuter, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={styles.floatingCartOuter}>
           <Pressable onPress={handleOpenCheckout}>
             <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
