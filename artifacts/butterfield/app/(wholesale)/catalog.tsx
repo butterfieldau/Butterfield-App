@@ -739,7 +739,7 @@ export default function WholesaleCatalog() {
         </KeyboardAvoidingView>
 
         {/* Sticky bottom bar */}
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
+        <View style={[styles.bottomBar, { paddingBottom: 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
           <View style={styles.bottomTotal}>
             <Text style={styles.bottomTotalLabel}>TOTAL</Text>
             <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
@@ -865,12 +865,12 @@ const styles = StyleSheet.create({
   compactStrike:    { fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED, textDecorationLine: 'line-through' },
   discountBadge:    { backgroundColor: `${BLUE}18`, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
   discountBadgeText:{ fontSize: 10, fontFamily: 'Inter_700Bold', color: BLUE },
-  stepperRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, overflow: 'hidden' },
-  stepBtn:          { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText:      { fontSize: 17, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 20 },
-  stepQty:          { width: 32, height: 28, textAlign: 'center', fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT },
-  addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  addBtnText:       { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  stepperRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, overflow: 'hidden', height: 34 },
+  stepBtn:          { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:      { fontSize: 18, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 22 },
+  stepQty:          { width: 36, height: 34, textAlign: 'center', fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT },
+  addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, height: 34, borderRadius: 10, justifyContent: 'center' },
+  addBtnText:       { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
   floatingCartOuter:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
   floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 14, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
   floatingCartBadge:{ backgroundColor: '#fff', borderRadius: 8, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
@@ -896,9 +896,9 @@ const styles = StyleSheet.create({
   itemName:   { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: TEXT },
   itemPrice:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
-  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
-  qtyBtnText: { fontSize: 16, color: TEXT, fontFamily: 'Inter_600SemiBold', lineHeight: 20 },
-  qtyLabel:   { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  qtyBtn:     { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
+  qtyBtnText: { fontSize: 18, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 22 },
+  qtyLabel:   { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 24, textAlign: 'center' },
   // Summary
   summaryCard:       { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   summaryRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
