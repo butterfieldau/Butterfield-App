@@ -56,49 +56,56 @@ export default function ManagerLayout() {
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10 },
         }}
       >
         <Tabs.Screen name="index"
           options={{
             title: 'Dashboard',
             href: can('dashboard') ? undefined : null,
-            tabBarIcon: ({ color }) => <Feather name="grid" size={22} color={color} />,
+            tabBarIcon: ({ color }) => <Feather name="grid" size={20} color={color} />,
           }}
         />
         <Tabs.Screen name="orders"
           options={{
             title: 'Orders',
             href: can('orders') ? undefined : null,
-            tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
+            tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={20} color={color} />,
           }}
         />
         <Tabs.Screen name="users"
           options={{
-            title: 'Users',
+            title: 'People',
             href: can('users') ? undefined : null,
-            tabBarIcon: ({ color }) => <Feather name="users" size={22} color={color} />,
+            tabBarIcon: ({ color }) => <Feather name="users" size={20} color={color} />,
+          }}
+        />
+        <Tabs.Screen name="timesheets"
+          options={{
+            title: 'Timesheets',
+            href: can('timesheets') ? undefined : null,
+            tabBarIcon: ({ color }) => <Feather name="clock" size={20} color={color} />,
           }}
         />
         <Tabs.Screen name="products"
           options={{
             title: 'Products',
             href: can('products') ? undefined : null,
-            tabBarIcon: ({ color }) => <Feather name="package" size={22} color={color} />,
+            tabBarIcon: ({ color }) => <Feather name="package" size={20} color={color} />,
           }}
         />
         <Tabs.Screen name="reports"
           options={{
             title: 'Reports',
             href: can('reports') ? undefined : null,
-            tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={22} color={color} />,
+            tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={20} color={color} />,
           }}
         />
         <Tabs.Screen name="settings"
           options={{
             title: 'Settings',
             href: can('settings') ? undefined : null,
-            tabBarIcon: ({ color }) => <Feather name="settings" size={22} color={color} />,
+            tabBarIcon: ({ color }) => <Feather name="settings" size={20} color={color} />,
           }}
         />
       </Tabs>

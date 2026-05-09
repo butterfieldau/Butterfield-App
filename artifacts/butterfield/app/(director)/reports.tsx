@@ -2,11 +2,11 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Pressable,
+  ActivityIndicator, FlatList, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api, type DirectorShift, type DirectorFeedback } from '@/lib/api';
+import { api, type DirectorFeedback } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -19,7 +19,7 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 
-const TABS = ['Revenue', 'Timesheets', 'Feedback'] as const;
+const TABS = ['Revenue', 'Feedback'] as const;
 type TabKey = typeof TABS[number];
 
 function fmtAUD(cents: number) {
@@ -155,75 +155,6 @@ function RevenueTab() {
   );
 }
 
-function TimesheetsTab() {
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['director-timesheets'],
-    queryFn: () => api.director.timesheets(),
-  });
-  const shifts = data?.data ?? [];
-
-  function calcPay(shift: DirectorShift) {
-    if (!shift.clockOut || !shift.hourlyRateCents) return null;
-    const hrs = shift.hoursWorked ? parseFloat(shift.hoursWorked) : 0;
-    return Math.round(hrs * shift.hourlyRateCents);
-  }
-
-  if (isLoading) {
-    return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
-  }
-
-  return (
-    <FlatList
-      data={shifts}
-      keyExtractor={s => s.id}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-      ListEmptyComponent={
-        <View style={styles.center}>
-          <Feather name="clock" size={32} color={MUTED} />
-          <Text style={styles.emptyText}>No shift records</Text>
-        </View>
-      }
-      renderItem={({ item: s }) => {
-        const active = !s.clockOut;
-        const pay = calcPay(s);
-        return (
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: active ? BLUE + '60' : BORDER, borderWidth: active ? 1.5 : 1 }]}>
-            <View style={styles.shiftHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.shiftName}>{s.name ?? 'Unknown'}</Text>
-                <Text style={styles.shiftPos}>{s.position ?? 'Staff'}</Text>
-              </View>
-              {active ? (
-                <View style={[styles.pill, { backgroundColor: '#EBF8FF' }]}>
-                  <View style={[styles.dot, { backgroundColor: BLUE }]} />
-                  <Text style={[styles.pillText, { color: BLUE }]}>ACTIVE</Text>
-                </View>
-              ) : (
-                <Text style={styles.shiftHours}>{s.hoursWorked ? `${parseFloat(s.hoursWorked).toFixed(1)}h` : '—'}</Text>
-              )}
-            </View>
-            <View style={styles.shiftRow}>
-              <Feather name="log-in"  size={12} color={MUTED} />
-              <Text style={styles.shiftTime}>{fmtDate(s.clockIn)}</Text>
-              {s.clockOut && (
-                <>
-                  <Feather name="log-out" size={12} color={MUTED} />
-                  <Text style={styles.shiftTime}>{fmtDate(s.clockOut)}</Text>
-                </>
-              )}
-            </View>
-            {pay != null && (
-              <Text style={styles.shiftPay}>Est. pay: <Text style={{ color: GREEN, fontFamily: 'Inter_600SemiBold' }}>{fmtAUD(pay)}</Text></Text>
-            )}
-          </View>
-        );
-      }}
-    />
-  );
-}
-
 function FeedbackTab() {
   const qc = useQueryClient();
   const { data, isLoading, refetch, isRefetching } = useQuery({
@@ -314,9 +245,8 @@ export default function DirectorReportsScreen() {
         ))}
       </View>
 
-      {tab === 'Revenue'    && <RevenueTab />}
-      {tab === 'Timesheets' && <TimesheetsTab />}
-      {tab === 'Feedback'   && <FeedbackTab />}
+      {tab === 'Revenue'  && <RevenueTab />}
+      {tab === 'Feedback' && <FeedbackTab />}
     </View>
   );
 }
@@ -340,13 +270,6 @@ const styles = StyleSheet.create({
   pill:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   pillText:    { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
   dot:         { width: 6, height: 6, borderRadius: 3 },
-  shiftHeader: { flexDirection: 'row', alignItems: 'center' },
-  shiftName:   { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
-  shiftPos:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  shiftHours:  { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  shiftRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  shiftTime:   { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  shiftPay:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
   fbHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   fbDate:      { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#8E8E93', marginLeft: 'auto' },
   fbMessage:   { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#1C1C1E', lineHeight: 20 },

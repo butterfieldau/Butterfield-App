@@ -628,6 +628,8 @@ router.get('/timesheets', async (req, res) => {
       clockOut:        staffShiftsTable.clockOut,
       hoursWorked:     staffShiftsTable.hoursWorked,
       unpaidBreakMins: staffShiftsTable.unpaidBreakMins,
+      approvedAt:      staffShiftsTable.approvedAt,
+      approvedById:    staffShiftsTable.approvedById,
       createdAt:       staffShiftsTable.createdAt,
       name:            usersTable.name,
       email:           usersTable.email,
@@ -639,9 +641,41 @@ router.get('/timesheets', async (req, res) => {
     .leftJoin(usersTable,         eq(usersTable.id,     staffShiftsTable.userId))
     .leftJoin(staffProfilesTable, eq(staffProfilesTable.userId, staffShiftsTable.userId))
     .orderBy(desc(staffShiftsTable.clockIn))
-    .limit(200);
+    .limit(400);
 
   return res.json({ data: rows });
+});
+
+router.patch('/timesheets/:id', async (req, res) => {
+  const { approve, clockIn, clockOut, unpaidBreakMins } = req.body as {
+    approve?: boolean; clockIn?: string; clockOut?: string | null; unpaidBreakMins?: number;
+  };
+
+  const [existing] = await db.select().from(staffShiftsTable).where(eq(staffShiftsTable.id, req.params.id));
+  if (!existing) return res.status(404).json({ error: 'Shift not found' });
+
+  const updates: Partial<typeof staffShiftsTable.$inferSelect> = {};
+
+  if (typeof approve === 'boolean') {
+    updates.approvedAt   = approve ? new Date() : null;
+    updates.approvedById = approve ? req.user!.id : null;
+  }
+
+  if (clockIn !== undefined)  updates.clockIn  = new Date(clockIn);
+  if (clockOut !== undefined) updates.clockOut = clockOut ? new Date(clockOut) : null;
+  if (typeof unpaidBreakMins === 'number') updates.unpaidBreakMins = unpaidBreakMins;
+
+  const resolvedIn    = (updates.clockIn  ?? existing.clockIn) as Date;
+  const resolvedOut   = (updates.clockOut !== undefined ? updates.clockOut : existing.clockOut) as Date | null;
+  const resolvedBreak = updates.unpaidBreakMins ?? existing.unpaidBreakMins ?? 0;
+  if (resolvedOut) {
+    const diffMs  = resolvedOut.getTime() - resolvedIn.getTime();
+    const breakMs = resolvedBreak * 60_000;
+    updates.hoursWorked = Math.max(0, (diffMs - breakMs) / 3_600_000).toFixed(2);
+  }
+
+  const [updated] = await db.update(staffShiftsTable).set(updates).where(eq(staffShiftsTable.id, req.params.id)).returning();
+  return res.json({ data: updated });
 });
 
 // ── Feedback management ───────────────────────────────────────────────────────

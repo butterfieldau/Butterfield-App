@@ -21,7 +21,7 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 
-const TABS = ['All', 'Staff', 'Wholesale', 'Customers'];
+const TABS = ['Customers', 'Staff', 'Wholesale'];
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
@@ -545,7 +545,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
 
 export default function DirectorUsersScreen() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState('All');
+  const [tab, setTab] = useState('Customers');
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<any | null>(null);
@@ -558,10 +558,9 @@ export default function DirectorUsersScreen() {
   const allUsers: any[] = data?.data ?? [];
 
   const filtered = allUsers.filter((u) => {
-    if (tab === 'All')        return true;
-    if (tab === 'Staff')      return u.role === 'staff';
-    if (tab === 'Wholesale')  return u.role === 'wholesale';
     if (tab === 'Customers')  return u.role === 'customer';
+    if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager';
+    if (tab === 'Wholesale')  return u.role === 'wholesale';
     return true;
   });
 

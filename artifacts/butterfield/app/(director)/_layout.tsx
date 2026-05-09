@@ -37,17 +37,18 @@ export default function DirectorLayout() {
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10 },
         }}
       >
-        <Tabs.Screen name="index"     options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid"        size={20} color={color} /> }} />
-        <Tabs.Screen name="orders"    options={{ title: 'Orders',    tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={20} color={color} /> }} />
-        <Tabs.Screen name="customers" options={{ title: 'Customers', tabBarIcon: ({ color }) => <Feather name="user-check"  size={20} color={color} /> }} />
-        <Tabs.Screen name="users"     options={{ title: 'Team',      tabBarIcon: ({ color }) => <Feather name="users"       size={20} color={color} /> }} />
-        <Tabs.Screen name="products"  options={{ title: 'Products',  tabBarIcon: ({ color }) => <Feather name="package"     size={20} color={color} /> }} />
-        <Tabs.Screen name="pricing"   options={{ href: null }} />
-        <Tabs.Screen name="reports"   options={{ title: 'Reports',   tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={20} color={color} /> }} />
-        <Tabs.Screen name="settings"  options={{ title: 'Settings',  tabBarIcon: ({ color }) => <Feather name="settings"    size={20} color={color} /> }} />
+        <Tabs.Screen name="index"      options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid"        size={20} color={color} /> }} />
+        <Tabs.Screen name="orders"     options={{ title: 'Orders',    tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={20} color={color} /> }} />
+        <Tabs.Screen name="users"      options={{ title: 'People',    tabBarIcon: ({ color }) => <Feather name="users"       size={20} color={color} /> }} />
+        <Tabs.Screen name="timesheets" options={{ title: 'Timesheets',tabBarIcon: ({ color }) => <Feather name="clock"       size={20} color={color} /> }} />
+        <Tabs.Screen name="products"   options={{ title: 'Products',  tabBarIcon: ({ color }) => <Feather name="package"     size={20} color={color} /> }} />
+        <Tabs.Screen name="reports"    options={{ title: 'Reports',   tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={20} color={color} /> }} />
+        <Tabs.Screen name="settings"   options={{ title: 'Settings',  tabBarIcon: ({ color }) => <Feather name="settings"    size={20} color={color} /> }} />
+        <Tabs.Screen name="customers"  options={{ href: null }} />
+        <Tabs.Screen name="pricing"    options={{ href: null }} />
       </Tabs>
     </View>
   );

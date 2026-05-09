@@ -225,6 +225,8 @@ export const api = {
 
     // Timesheets
     timesheets:          () => request<{ data: DirectorShift[] }>('/director/timesheets'),
+    updateShift:         (id: string, data: { approve?: boolean; clockIn?: string; clockOut?: string | null; unpaidBreakMins?: number }) =>
+      request<{ data: DirectorShift }>(`/director/timesheets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
     // Feedback
     allFeedback:         () => request<{ data: DirectorFeedback[] }>('/director/feedback'),
@@ -523,6 +525,8 @@ export interface DirectorShift {
   hoursWorked?: string | null;
   unpaidBreakMins?: number | null;
   hourlyRateCents?: number | null;
+  approvedAt?: string | null;
+  approvedById?: string | null;
   name?: string | null;
   email?: string | null;
   position?: string | null;
