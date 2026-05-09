@@ -3,13 +3,12 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Image, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Animated, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import Svg, {
   Defs, LinearGradient, Path, Stop, Line, Text as SvgText,
 } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -37,17 +36,6 @@ function timeAgo(dateStr: string) {
   if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
-}
-
-function useLiveClock() {
-  const [time, setTime] = useState('');
-  useEffect(() => {
-    const fmt = () => new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
-    setTime(fmt());
-    const id = setInterval(() => setTime(fmt()), 10000);
-    return () => clearInterval(id);
-  }, []);
-  return time;
 }
 
 // ── Smooth bezier path from data points ──────────────────────────────────────
@@ -229,9 +217,7 @@ function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorHome() {
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const clock = useLiveClock();
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['director-stats'],
@@ -256,8 +242,6 @@ export default function DirectorHome() {
   const sess     = sessionsData?.data;
   const hasAlerts = (s?.users.pendingStaff ?? 0) > 0 || (s?.users.pendingWholesale ?? 0) > 0 || (s?.issues.high ?? 0) > 0;
 
-  const todayStr = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' });
-
   const onRefresh = () => { refetch(); refetchActivity(); refetchSessions(); };
 
   return (
@@ -267,25 +251,6 @@ export default function DirectorHome() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={BLUE} />}
     >
-      {/* Identity strip — navy, no extra top padding (layout already offsets for status bar) */}
-      <View style={styles.identityStrip}>
-        <Image
-          source={require('@/assets/images/logo-white.png')}
-          style={{ width: 130, height: 44, alignSelf: 'center', marginBottom: 10 }}
-          resizeMode="contain"
-        />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <View>
-            <Text style={[styles.todayDate, { fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.55)' }]}>{todayStr}</Text>
-            <Text style={[styles.userName,  { fontFamily: 'Inter_700Bold', color: '#FFFFFF' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
-          </View>
-          <View style={[styles.clockBox, { backgroundColor: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.18)' }]}>
-            <Feather name="clock" size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={[styles.clockText, { fontFamily: 'Inter_700Bold', color: '#FFFFFF' }]}>{clock}</Text>
-          </View>
-        </View>
-      </View>
-
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
 
         {isLoading ? (
@@ -458,11 +423,6 @@ export default function DirectorHome() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  identityStrip: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, flexDirection: 'column', backgroundColor: NAVY },
-  todayDate:     { fontSize: 12, color: MUTED },
-  userName:      { fontSize: 20, color: TEXT },
-  clockBox:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  clockText:     { fontSize: 14, color: BLUE },
   revCard:       { borderRadius: 20, padding: 20, gap: 16 },
   revHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   revTitle:      { color: 'rgba(255,255,255,0.5)', fontSize: 11, letterSpacing: 1.5 },

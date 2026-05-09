@@ -2,18 +2,15 @@ import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PortalHeader } from '@/components/PortalHeader';
 
 const BLUE = '#40C0F2';
 const NAVY = '#1A2B4A';
 
 export default function DirectorLayout() {
-  const insets = useSafeAreaInsets();
-
   return (
     <View style={{ flex: 1, backgroundColor: NAVY }}>
-      {/* Fills the status-bar / Dynamic Island area with the brand navy */}
-      <View style={{ height: insets.top, backgroundColor: NAVY }} />
+      <PortalHeader badge="DIRECTOR" badgeColor="#EF4444" backgroundColor={NAVY} />
 
       <Tabs
         screenOptions={{

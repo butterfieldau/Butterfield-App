@@ -1,14 +1,15 @@
 import { Feather } from '@expo/vector-icons';
 import { router, Tabs } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
+import { PortalHeader } from '@/components/PortalHeader';
 import { api } from '@/lib/api';
 import type { ManagerPermission } from '@/types';
 
-const PURPLE = '#6B21A8';
-const INDIGO = '#3730A3';
 const BLUE   = '#40C0F2';
+const NAVY   = '#1A2B4A';
+const PURPLE = '#6B21A8';
 
 export default function ManagerLayout() {
   const { logout } = useAuth();
@@ -24,31 +25,17 @@ export default function ManagerLayout() {
 
   const can = (p: ManagerPermission) => permissions.includes(p);
 
-  const handleLogout = () => logout().then(() => router.replace('/(auth)/login'));
-
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: NAVY }}>
         <ActivityIndicator color={BLUE} size="large" />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* Manager badge header strip */}
-      <View style={{ backgroundColor: INDIGO, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 54, paddingBottom: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ backgroundColor: PURPLE, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-            <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1 }}>MANAGER</Text>
-          </View>
-          <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold', fontStyle: 'italic' }}>Butterfield</Text>
-        </View>
-        <Pressable onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Feather name="log-out" size={14} color="rgba(255,255,255,0.6)" />
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Inter_500Medium' }}>Sign out</Text>
-        </Pressable>
-      </View>
+    <View style={{ flex: 1, backgroundColor: NAVY }}>
+      <PortalHeader badge="MANAGER" badgeColor={PURPLE} backgroundColor={NAVY} />
 
       <Tabs
         screenOptions={{

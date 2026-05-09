@@ -2,8 +2,12 @@ import { Feather } from '@expo/vector-icons';
 import { router, Tabs } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
+import { PortalHeader } from '@/components/PortalHeader';
 import { NewOrderBanner } from '@/components/NewOrderBanner';
 import { useOrderNotifications, type NewOrderInfo } from '@/hooks/useOrderNotifications';
+
+const STAFF_DARK = '#1A0A04';
+const BLUE       = '#40C0F2';
 
 export default function StaffLayout() {
   const [pendingOrders, setPendingOrders] = useState<NewOrderInfo[]>([]);
@@ -26,11 +30,13 @@ export default function StaffLayout() {
   }, []);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: STAFF_DARK }}>
+      <PortalHeader badge="STAFF" badgeColor="#3058A8" backgroundColor={STAFF_DARK} />
+
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#40C0F2',
+          tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
           tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
