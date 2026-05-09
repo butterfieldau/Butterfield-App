@@ -1,10 +1,12 @@
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Platform, Pressable, StyleSheet, Text, View,
+  ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -20,9 +22,16 @@ const BLUE   = '#40C0F2';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const RED    = '#EF4444';
 
 const BRAND_BG: Record<string, string> = {
   Visa: '#1A3A8C', Mastercard: '#8C1B1B', Amex: '#1B5C8C',
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  paid:    { label: 'Paid',    color: '#22C55E', bg: '#DCFCE7' },
+  pending: { label: 'Pending', color: '#F59E0B', bg: '#FEF3C7' },
+  overdue: { label: 'Overdue', color: '#DC2626', bg: '#FEE2E2' },
 };
 
 const INVOICE_LINES: Record<string, InvoiceLine[]> = {
@@ -77,31 +86,190 @@ function buildInvoiceData(invoice: Invoice): InvoicePdfData {
   };
 }
 
+// ── Invoice Detail Modal ─────────────────────────────────────────────────────
+function InvoiceDetailModal({
+  invoice,
+  defCard,
+  onClose,
+  onPdf,
+  onPay,
+  pdfLoading,
+}: {
+  invoice: Invoice | null;
+  defCard: any;
+  onClose: () => void;
+  onPdf: (inv: Invoice) => void;
+  onPay: (inv: Invoice) => void;
+  pdfLoading: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  if (!invoice) return null;
+
+  const lines    = INVOICE_LINES[invoice.id] ?? [{ description: 'Wholesale Cookie Order', qty: 1, unitPrice: invoice.amount }];
+  const subtotal = invoice.amount;
+  const gst      = subtotal / 11;
+  const excGst   = subtotal - gst;
+  const cfg      = STATUS_CONFIG[invoice.status] ?? { label: invoice.status, color: MUTED, bg: '#F3F4F6' };
+  const isOverdue = invoice.status === 'overdue';
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+
+        {/* Header */}
+        <View style={[mdl.header, { paddingTop: insets.top + 8 }]}>
+          <Pressable onPress={onClose} style={mdl.closeBtn}>
+            <Feather name="x" size={20} color={TEXT} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={mdl.title}>{invoice.number}</Text>
+            <Text style={mdl.subtitle}>Issued {invoice.date}</Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 48 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Overdue banner */}
+          {isOverdue && (
+            <View style={mdl.overdueBanner}>
+              <Feather name="alert-circle" size={15} color={RED} />
+              <Text style={{ color: RED, fontFamily: 'Inter_600SemiBold', fontSize: 13, flex: 1 }}>
+                This invoice is overdue — please contact your account manager
+              </Text>
+            </View>
+          )}
+
+          {/* Status + due */}
+          <View style={mdl.card}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View>
+                <Text style={mdl.sectionTitle}>Invoice Status</Text>
+                <Text style={[mdl.dueText, isOverdue && { color: RED }]}>Due {invoice.dueDate}</Text>
+              </View>
+              <View style={[mdl.statusPill, { backgroundColor: cfg.bg, borderColor: cfg.color }]}>
+                <Text style={[mdl.statusPillText, { color: cfg.color }]}>{cfg.label}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Line items */}
+          <View style={mdl.card}>
+            <Text style={[mdl.sectionTitle, { marginBottom: 4 }]}>Items ({lines.length})</Text>
+            {lines.map((line, i) => {
+              const lineTotal = line.qty * line.unitPrice;
+              return (
+                <View
+                  key={i}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    paddingVertical: 10,
+                    borderBottomWidth: i < lines.length - 1 ? 1 : 0,
+                    borderBottomColor: BORDER,
+                    gap: 10,
+                  }}
+                >
+                  <View style={mdl.qtyBadge}>
+                    <Text style={mdl.qtyText}>{line.qty}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 13 }}>{line.description}</Text>
+                    <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }}>
+                      ${line.unitPrice.toFixed(2)} each
+                    </Text>
+                  </View>
+                  <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>
+                    ${lineTotal.toFixed(2)}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+
+          {/* Totals */}
+          <View style={mdl.card}>
+            <Text style={[mdl.sectionTitle, { marginBottom: 8 }]}>Invoice Total</Text>
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>Subtotal (ex. GST)</Text>
+                <Text style={{ color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 13 }}>${excGst.toFixed(2)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>GST (10%)</Text>
+                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>${gst.toFixed(2)}</Text>
+              </View>
+              <View style={{ height: 1, backgroundColor: BORDER }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }}>Total (AUD)</Text>
+                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 15 }}>
+                  ${subtotal.toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Billing details */}
+          <View style={mdl.card}>
+            <Text style={[mdl.sectionTitle, { marginBottom: 4 }]}>Billing Details</Text>
+            <InfoRow label="Billed To"      value="Fresh Bite Café Group" />
+            <InfoRow label="ABN"            value="98 765 432 100" />
+            <InfoRow label="Delivery"       value="12 Market Street, Parramatta NSW 2150" />
+            <InfoRow label="Account #"      value="WH-2891" last />
+          </View>
+
+          {/* Actions */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={() => onPdf(invoice)}
+              disabled={pdfLoading}
+              style={[mdl.actionBtn, mdl.ghostBtn, { opacity: pdfLoading ? 0.7 : 1 }]}
+            >
+              {pdfLoading
+                ? <ActivityIndicator size="small" color={BLUE} />
+                : <Feather name="download" size={15} color={BLUE} />
+              }
+              <Text style={mdl.ghostBtnText}>{pdfLoading ? 'Saving…' : 'Download PDF'}</Text>
+            </Pressable>
+
+            {invoice.status !== 'paid' && (
+              <Pressable onPress={() => onPay(invoice)} style={[mdl.actionBtn, mdl.solidBtn]}>
+                <Feather name="credit-card" size={15} color="#fff" />
+                <Text style={mdl.solidBtnText}>
+                  {defCard ? `Pay •${defCard.last4}` : 'Pay Invoice'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 9, borderBottomWidth: last ? 0 : 1, borderBottomColor: BORDER }}>
+      <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: '55%', textAlign: 'right' }}>{value}</Text>
+    </View>
+  );
+}
+
+// ── Main Screen ──────────────────────────────────────────────────────────────
 export default function WholesaleInvoices() {
   const insets = useSafeAreaInsets();
   const { data: cardsData } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
-  const cards    = cardsData?.data ?? [];
-  const defCard  = cards.find((c: any) => c.isDefault) ?? cards[0];
+  const cards   = cardsData?.data ?? [];
+  const defCard = cards.find((c: any) => c.isDefault) ?? cards[0];
 
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [actionId, setActionId]   = useState<string | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [loadingId, setLoadingId]             = useState<string | null>(null);
 
   const totalPending = MOCK_INVOICES.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
   const overdueCount = MOCK_INVOICES.filter((i) => i.status === 'overdue').length;
-
-  const handleView = async (invoice: Invoice) => {
-    setActionId(invoice.id);
-    try {
-      if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(buildInvoiceData(invoice));
-        const win = window.open('', '_blank');
-        if (win) { win.document.write(html); win.document.close(); win.focus(); }
-        return;
-      }
-      await Print.printAsync({ html: generateInvoiceHtml(buildInvoiceData(invoice)) });
-    } catch (e: any) { Alert.alert('View Error', e?.message ?? 'Could not open invoice.'); }
-    finally { setActionId(null); }
-  };
 
   const handleDownload = async (invoice: Invoice) => {
     setLoadingId(invoice.id);
@@ -131,7 +299,7 @@ export default function WholesaleInvoices() {
         'Add a payment card from the Account tab to pay invoices directly.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Go to Account', onPress: () => router.push('/(wholesale)/profile' as any) },
+          { text: 'Go to Account', onPress: () => { setSelectedInvoice(null); router.push('/(wholesale)/profile' as any); } },
         ],
       );
       return;
@@ -150,6 +318,16 @@ export default function WholesaleInvoices() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Detail modal */}
+      <InvoiceDetailModal
+        invoice={selectedInvoice}
+        defCard={defCard}
+        onClose={() => setSelectedInvoice(null)}
+        onPdf={handleDownload}
+        onPay={handlePay}
+        pdfLoading={loadingId === selectedInvoice?.id}
+      />
+
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
       <View style={[ss.header, { paddingTop: insets.top + 16 }]}>
         <Text style={ss.title}>Invoices</Text>
@@ -205,19 +383,23 @@ export default function WholesaleInvoices() {
           </Pressable>
         }
         renderItem={({ item: invoice }) => {
-          const isViewing    = actionId === invoice.id;
           const isPdfLoading = loadingId === invoice.id;
           const isOverdue    = invoice.status === 'overdue';
+          const lineCount    = INVOICE_LINES[invoice.id]?.length ?? 1;
 
           return (
-            <View style={[ss.invoiceCard, { borderLeftColor: isOverdue ? '#EF4444' : BLUE }]}>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedInvoice(invoice); }}
+              style={({ pressed }) => [ss.invoiceCard, { borderLeftColor: isOverdue ? RED : BLUE, opacity: pressed ? 0.92 : 1 }]}
+            >
+              {/* Top row */}
               <View style={ss.invoiceTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={ss.invoiceNum}>{invoice.number}</Text>
                   <Text style={ss.invoiceMeta}>
-                    {invoice.date} · {(INVOICE_LINES[invoice.id]?.length ?? 1)} line{(INVOICE_LINES[invoice.id]?.length ?? 1) !== 1 ? 's' : ''}
+                    {invoice.date} · {lineCount} line{lineCount !== 1 ? 's' : ''}
                   </Text>
-                  <Text style={[ss.invoiceDue, isOverdue && { color: '#EF4444' }]}>
+                  <Text style={[ss.invoiceDue, isOverdue && { color: RED }]}>
                     Due {invoice.dueDate}
                   </Text>
                 </View>
@@ -229,39 +411,58 @@ export default function WholesaleInvoices() {
                 </View>
               </View>
 
+              {/* Action buttons — stop propagation so they don't open the modal */}
               <View style={ss.invoiceActions}>
                 <Pressable
-                  onPress={() => handleView(invoice)}
-                  disabled={isViewing || isPdfLoading}
-                  style={[ss.actionBtn, ss.actionGhost, { opacity: isViewing ? 0.7 : 1 }]}
+                  onPress={(e) => { e.stopPropagation?.(); handleDownload(invoice); }}
+                  disabled={isPdfLoading}
+                  style={[ss.actionBtn, ss.actionGhost, { opacity: isPdfLoading ? 0.7 : 1, flex: invoice.status !== 'paid' ? 1 : 2 }]}
                 >
-                  {isViewing ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="file-text" size={13} color={BLUE} />}
-                  <Text style={ss.actionGhostText}>{isViewing ? 'Opening…' : 'View'}</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => handleDownload(invoice)}
-                  disabled={isPdfLoading || isViewing}
-                  style={[ss.actionBtn, ss.actionGhost, { opacity: isPdfLoading ? 0.7 : 1 }]}
-                >
-                  {isPdfLoading ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="download" size={13} color={BLUE} />}
+                  {isPdfLoading
+                    ? <ActivityIndicator size="small" color={BLUE} />
+                    : <Feather name="download" size={13} color={BLUE} />
+                  }
                   <Text style={ss.actionGhostText}>{isPdfLoading ? 'Saving…' : 'PDF'}</Text>
                 </Pressable>
 
                 {invoice.status !== 'paid' && (
-                  <Pressable onPress={() => handlePay(invoice)} style={[ss.actionBtn, ss.actionPrimary]}>
+                  <Pressable
+                    onPress={(e) => { e.stopPropagation?.(); handlePay(invoice); }}
+                    style={[ss.actionBtn, ss.actionPrimary]}
+                  >
                     <Feather name="credit-card" size={13} color="#fff" />
                     <Text style={ss.actionPrimaryText}>{defCard ? `Pay •${defCard.last4}` : 'Pay'}</Text>
                   </Pressable>
                 )}
               </View>
-            </View>
+            </Pressable>
           );
         }}
       />
     </View>
   );
 }
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+const mdl = StyleSheet.create({
+  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
+  closeBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  title:        { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  subtitle:     { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 },
+  card:         { backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  sectionTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
+  dueText:      { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 4 },
+  statusPill:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  statusPillText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  overdueBanner:{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' },
+  qtyBadge:     { width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' },
+  qtyText:      { color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 },
+  actionBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, flex: 1 },
+  ghostBtn:     { backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: `${BLUE}30` },
+  ghostBtnText: { color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  solidBtn:     { backgroundColor: BLUE },
+  solidBtnText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 },
+});
 
 const ss = StyleSheet.create({
   header:           { paddingHorizontal: 16, paddingBottom: 16, gap: 12, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
