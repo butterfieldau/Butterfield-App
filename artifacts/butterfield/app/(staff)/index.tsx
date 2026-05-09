@@ -181,20 +181,6 @@ export default function StaffDashboard() {
         />
       }
     >
-      {/* Header */}
-      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[styles.header, { paddingTop: insets.top + 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={[styles.greeting, { fontFamily: 'Inter_400Regular' }]}>Good shift,</Text>
-            <Text style={[styles.name, { fontFamily: 'Inter_700Bold' }]}>{user?.name?.split(' ')[0]} 👋</Text>
-          </View>
-          <View style={[styles.shiftIndicator, { backgroundColor: isClocked ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)', borderColor: isClocked ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
-            <View style={[styles.shiftDot, { backgroundColor: isClocked ? '#22C55E' : '#EF4444' }]} />
-            <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: isClocked ? '#22C55E' : '#EF4444' }]}>{isClocked ? 'On Shift' : 'Off Duty'}</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
       <View style={{ paddingHorizontal: 20, gap: 14, paddingTop: 16 }}>
 
         {/* ── Full Clock Card ── */}
