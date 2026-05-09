@@ -9,9 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/logo-white.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FBF7F2"
+      "backgroundColor": "#4B72C4"
     },
     "ios": {
       "supportsTablet": false
@@ -28,7 +28,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

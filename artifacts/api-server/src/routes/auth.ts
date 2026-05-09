@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable } from '@workspace/db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
@@ -273,6 +273,61 @@ router.patch('/me', requireAuth, async (req, res) => {
     user: { id: updated.id, email: updated.email, role: updated.role, name: updated.name, phone: updated.phone, profileImage: updated.profileImage, notificationPreferences: notifPrefs },
     profile,
   });
+});
+
+router.post('/social', async (req, res) => {
+  const { provider, providerId, email, name } = req.body;
+  if (!provider || (!providerId && !email)) {
+    return res.status(400).json({ error: 'Provider and email or provider ID required.' });
+  }
+
+  let user: typeof usersTable.$inferSelect | null = null;
+
+  if (providerId) {
+    const [found] = await db.select().from(usersTable)
+      .where(and(eq(usersTable.socialProvider, provider), eq(usersTable.socialId, providerId)));
+    user = found ?? null;
+  }
+
+  if (!user && email) {
+    const [found] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase()));
+    user = found ?? null;
+    if (user && providerId) {
+      await db.update(usersTable)
+        .set({ socialProvider: provider, socialId: providerId })
+        .where(eq(usersTable.id, user.id));
+    }
+  }
+
+  if (!user) {
+    if (!email) return res.status(400).json({ error: 'Email required to create a new account.' });
+    const userId = randomUUID();
+    const passwordHash = await bcrypt.hash(randomUUID(), 10);
+    const userName = name?.trim() || email.split('@')[0];
+    await db.insert(usersTable).values({
+      id: userId,
+      email: email.toLowerCase(),
+      passwordHash,
+      role: 'customer',
+      name: userName,
+      socialProvider: provider,
+      socialId: providerId ?? null,
+    });
+    await db.insert(customerProfilesTable).values({
+      userId,
+      loyaltyPoints: 100,
+      loyaltyTier: 'bronze',
+      referralCode: generateReferralCode(userName),
+    });
+    const [newUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    user = newUser ?? null;
+  }
+
+  if (!user) return res.status(500).json({ error: 'Failed to resolve user.' });
+
+  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+  return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
 export default router;

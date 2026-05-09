@@ -43,6 +43,8 @@ export const api = {
       email: string; password: string; name: string; phone?: string;
       companyName: string; abn?: string; deliveryAddress?: string;
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
+    socialLogin: (data: { provider: string; providerId: string; email: string; name?: string }) =>
+      request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
     me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
     updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
       request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),

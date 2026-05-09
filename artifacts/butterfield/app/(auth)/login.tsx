@@ -1,9 +1,12 @@
 import { Feather } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Google from 'expo-auth-session/providers/google';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -11,6 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import type { UserRole } from '@/types';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const BG      = '#F5F6FA';
 const CARD    = '#FFFFFF';
@@ -20,22 +25,22 @@ const TEXT    = '#1C1C1E';
 const MUTED   = '#8E8E93';
 const BORDER  = '#E5E7EB';
 const GREEN   = '#22C55E';
+const GOOGLE_RED = '#4285F4';
 
-// Public-facing roles only
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+
 const PUBLIC_ROLES = [
   { role: 'customer'  as UserRole, label: 'Customer',  subtitle: 'Order, earn\nrewards & explore', icon: 'coffee'  },
   { role: 'wholesale' as UserRole, label: 'Wholesale', subtitle: 'Bulk orders\n& account tools',   icon: 'package' },
 ];
 
 const INTERNAL_EMAILS: string[] = [];
-
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, internalLogin, register, wholesaleApply } = useAuth();
+  const { login, internalLogin, register, wholesaleApply, socialLogin } = useAuth();
 
-  // Public portal
   const [selectedRole, setSelectedRole] = useState<UserRole>('customer');
   const [mode, setMode]                 = useState<ScreenMode>('login');
   const [email, setEmail]               = useState('');
@@ -47,8 +52,8 @@ export default function LoginScreen() {
   const [error, setError]               = useState('');
   const [successMsg, setSuccessMsg]     = useState('');
   const [showPw, setShowPw]             = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null);
 
-  // Internal portal
   const [showInternal, setShowInternal]   = useState(false);
   const [iEmail, setIEmail]               = useState('');
   const [iPassword, setIPassword]         = useState('');
@@ -57,15 +62,83 @@ export default function LoginScreen() {
   const [iError, setIError]               = useState('');
   const [geoStatus, setGeoStatus]         = useState<'idle' | 'acquiring' | 'ready' | 'denied'>('idle');
 
-  const isWholesale     = selectedRole === 'wholesale';
+  const isWholesale      = selectedRole === 'wholesale';
   const isWholesaleApply = mode === 'wholesale-apply';
+  const showSocial       = !isWholesale && mode !== 'wholesale-apply' && !showInternal;
 
   const clearPublic = () => {
     setEmail(''); setPassword(''); setName(''); setCompanyName(''); setAbn('');
     setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
-  // ── Public submit ──────────────────────────────────────────────────────────
+  // ── Google OAuth ────────────────────────────────────────────────────────────
+  const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_CLIENT_ID ?? 'not-configured',
+    scopes: ['openid', 'profile', 'email'],
+  });
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const token = googleResponse.authentication?.accessToken;
+      if (token) handleGoogleToken(token);
+    }
+  }, [googleResponse]);
+
+  const handleGoogleToken = async (accessToken: string) => {
+    setSocialLoading('google');
+    try {
+      const infoRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const gUser = await infoRes.json();
+      const result = await socialLogin({
+        provider: 'google',
+        providerId: gUser.id,
+        email: gUser.email,
+        name: gUser.name,
+      });
+      if (!result.success) { setError(result.error ?? 'Google sign-in failed.'); return; }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } catch (e: any) {
+      setError(e.message ?? 'Google sign-in failed.');
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  // ── Apple Sign-In ───────────────────────────────────────────────────────────
+  const handleAppleSignIn = async () => {
+    setSocialLoading('apple');
+    setError('');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      const fullName = [credential.fullName?.givenName, credential.fullName?.familyName]
+        .filter(Boolean).join(' ') || undefined;
+      const result = await socialLogin({
+        provider: 'apple',
+        providerId: credential.user,
+        email: credential.email ?? '',
+        name: fullName,
+      });
+      if (!result.success) { setError(result.error ?? 'Apple sign-in failed.'); return; }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        setError('Apple sign-in failed. Please try again.');
+      }
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  // ── Public submit ───────────────────────────────────────────────────────────
   const handlePublicSubmit = async () => {
     setError(''); setSuccessMsg('');
     if (!email.trim() || !password.trim()) { setError('Please enter your email and password.'); return; }
@@ -98,7 +171,7 @@ export default function LoginScreen() {
     } finally { setLoading(false); }
   };
 
-  // ── Internal submit ────────────────────────────────────────────────────────
+  // ── Internal submit ─────────────────────────────────────────────────────────
   const handleInternalSubmit = async () => {
     setIError('');
     if (!iEmail.trim() || !iPassword.trim()) { setIError('Email and password are required.'); return; }
@@ -146,7 +219,6 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        {/* Hero gradient */}
         <LinearGradient colors={['#4B72C4', '#3058A8']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
           <Image
             source={require('@/assets/images/logo-white.png')}
@@ -159,11 +231,9 @@ export default function LoginScreen() {
         <View style={s.body}>
 
           {!showInternal ? (
-            /* ── Public portal ─────────────────────────────────────────── */
             <>
               <Text style={[s.signInAs, { fontFamily: 'Inter_600SemiBold' }]}>Sign in as</Text>
 
-              {/* 2-card role selector */}
               <View style={s.roleRow}>
                 {PUBLIC_ROLES.map((r) => {
                   const active = selectedRole === r.role;
@@ -185,7 +255,6 @@ export default function LoginScreen() {
                 })}
               </View>
 
-              {/* Wholesale tab switcher */}
               {isWholesale && (
                 <View style={[s.segControl, { backgroundColor: '#EFEFEF' }]}>
                   {(['login', 'wholesale-apply'] as const).map((m) => (
@@ -202,7 +271,52 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* Name field */}
+              {/* Social sign-in — customer only, login/register mode */}
+              {showSocial && (
+                <>
+                  <View style={s.socialRow}>
+                    {Platform.OS === 'ios' && (
+                      <Pressable
+                        onPress={handleAppleSignIn}
+                        disabled={socialLoading !== null}
+                        style={[s.socialBtn, { backgroundColor: '#000', flex: 1 }]}
+                      >
+                        {socialLoading === 'apple'
+                          ? <ActivityIndicator color="#fff" size="small" />
+                          : <>
+                              <Feather name="smartphone" size={16} color="#fff" />
+                              <Text style={[s.socialBtnText, { fontFamily: 'Inter_600SemiBold', color: '#fff' }]}>Apple</Text>
+                            </>
+                        }
+                      </Pressable>
+                    )}
+                    <Pressable
+                      onPress={() => {
+                        if (!GOOGLE_CLIENT_ID) { setError('Google sign-in is not configured yet.'); return; }
+                        setError('');
+                        googlePromptAsync();
+                      }}
+                      disabled={socialLoading !== null}
+                      style={[s.socialBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, flex: 1 }]}
+                    >
+                      {socialLoading === 'google'
+                        ? <ActivityIndicator color={GOOGLE_RED} size="small" />
+                        : <>
+                            <Text style={{ fontSize: 15, lineHeight: 18 }}>G</Text>
+                            <Text style={[s.socialBtnText, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Google</Text>
+                          </>
+                      }
+                    </Pressable>
+                  </View>
+
+                  <View style={s.dividerRow}>
+                    <View style={s.dividerLine} />
+                    <Text style={[s.dividerText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>or continue with email</Text>
+                    <View style={s.dividerLine} />
+                  </View>
+                </>
+              )}
+
               {(mode === 'register' || isWholesaleApply) && (
                 <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="user" size={16} color={MUTED} />
@@ -210,7 +324,6 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* Company + ABN */}
               {isWholesaleApply && (
                 <>
                   <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -224,13 +337,11 @@ export default function LoginScreen() {
                 </>
               )}
 
-              {/* Email */}
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Feather name="mail" size={16} color={MUTED} />
                 <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
               </View>
 
-              {/* Password */}
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Feather name="lock" size={16} color={MUTED} />
                 <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPw} />
@@ -257,7 +368,6 @@ export default function LoginScreen() {
                 </Pressable>
               )}
 
-              {/* Internal access link */}
               <Pressable
                 onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); setGeoStatus('idle'); Haptics.selectionAsync(); }}
                 style={{ alignItems: 'center', paddingVertical: 8 }}
@@ -268,15 +378,12 @@ export default function LoginScreen() {
               </Pressable>
             </>
           ) : (
-            /* ── Internal portal (Staff & Director) ─────────────────── */
             <>
-              {/* Back */}
               <Pressable onPress={() => { setShowInternal(false); setIError(''); setGeoStatus('idle'); Haptics.selectionAsync(); }} style={s.backBtn}>
                 <Feather name="arrow-left" size={18} color={TEXT} />
                 <Text style={[s.backText, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Back</Text>
               </Pressable>
 
-              {/* Dark header */}
               <View style={[s.internalHeader, { backgroundColor: NAVY }]}>
                 <View style={s.internalBadgeRow}>
                   <Feather name="shield" size={13} color="rgba(255,255,255,0.6)" />
@@ -288,7 +395,6 @@ export default function LoginScreen() {
                 </Text>
               </View>
 
-              {/* Geo status banner */}
               {geoStatus === 'acquiring' && (
                 <View style={[s.geoBanner, { backgroundColor: '#EFF6FF', borderColor: '#3B82F680' }]}>
                   <ActivityIndicator size="small" color="#3B82F6" />
@@ -308,13 +414,11 @@ export default function LoginScreen() {
                 </View>
               )}
 
-              {/* Email */}
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Feather name="mail" size={16} color={MUTED} />
                 <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={iEmail} onChangeText={setIEmail} keyboardType="email-address" autoCapitalize="none" autoFocus />
               </View>
 
-              {/* Password */}
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Feather name="lock" size={16} color={MUTED} />
                 <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={iPassword} onChangeText={setIPassword} secureTextEntry={!iShowPw} />
@@ -334,7 +438,6 @@ export default function LoginScreen() {
                 ) : <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>Sign In</Text>}
               </Pressable>
 
-              {/* Geo note */}
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 2 }}>
                 <Feather name="map-pin" size={11} color={MUTED} style={{ marginTop: 1 }} />
                 <Text style={[s.geoNote, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
@@ -350,36 +453,42 @@ export default function LoginScreen() {
 }
 
 const s = StyleSheet.create({
-  hero:          { alignItems: 'center', paddingBottom: 36, gap: 6 },
-  tagline:       { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
-  body:          { flex: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
-  signInAs:      { fontSize: 15, color: TEXT },
-  roleRow:       { flexDirection: 'row', gap: 12 },
-  roleCard:      { flex: 1, padding: 16, gap: 8, alignItems: 'center', borderRadius: 16 },
-  roleIconBox:   { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  roleLabel:     { fontSize: 15 },
-  roleSub:       { fontSize: 11, textAlign: 'center' },
-  segControl:    { flexDirection: 'row', padding: 4, gap: 4, borderRadius: 13 },
-  segBtn:        { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 },
-  segBtnText:    { fontSize: 13 },
-  inputRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1, borderRadius: 12 },
-  input:         { flex: 1, fontSize: 15 },
-  errorBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
-  errorText:     { flex: 1, color: '#EF4444', fontSize: 13 },
-  successBox:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#F0FDF4', borderRadius: 10 },
-  successText:   { flex: 1, color: GREEN, fontSize: 13 },
-  submitBtn:     { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  submitBtnText: { color: '#fff', fontSize: 16 },
-  toggleText:    { fontSize: 14, textAlign: 'center' },
-  internalLink:  { fontSize: 13 },
-  backBtn:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  backText:      { fontSize: 15 },
+  hero:            { alignItems: 'center', paddingBottom: 36, gap: 6 },
+  tagline:         { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
+  body:            { flex: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
+  signInAs:        { fontSize: 15, color: TEXT },
+  roleRow:         { flexDirection: 'row', gap: 12 },
+  roleCard:        { flex: 1, padding: 16, gap: 8, alignItems: 'center', borderRadius: 16 },
+  roleIconBox:     { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  roleLabel:       { fontSize: 15 },
+  roleSub:         { fontSize: 11, textAlign: 'center' },
+  segControl:      { flexDirection: 'row', padding: 4, gap: 4, borderRadius: 13 },
+  segBtn:          { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 9 },
+  segBtnText:      { fontSize: 13 },
+  socialRow:       { flexDirection: 'row', gap: 12 },
+  socialBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 50, borderRadius: 13, paddingHorizontal: 12 },
+  socialBtnText:   { fontSize: 15 },
+  dividerRow:      { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dividerLine:     { flex: 1, height: 1, backgroundColor: BORDER },
+  dividerText:     { fontSize: 12 },
+  inputRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1, borderRadius: 12 },
+  input:           { flex: 1, fontSize: 15 },
+  errorBox:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
+  errorText:       { flex: 1, color: '#EF4444', fontSize: 13 },
+  successBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#F0FDF4', borderRadius: 10 },
+  successText:     { flex: 1, color: GREEN, fontSize: 13 },
+  submitBtn:       { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  submitBtnText:   { color: '#fff', fontSize: 16 },
+  toggleText:      { fontSize: 14, textAlign: 'center' },
+  internalLink:    { fontSize: 13 },
+  backBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  backText:        { fontSize: 15 },
   internalHeader:  { padding: 20, gap: 8, borderRadius: 16 },
   internalBadgeRow:{ flexDirection: 'row', alignItems: 'center', gap: 6 },
   internalBadgeTxt:{ color: 'rgba(255,255,255,0.6)', fontSize: 11, letterSpacing: 1.5 },
   internalTitle:   { color: '#fff', fontSize: 22 },
   internalSub:     { color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 18 },
-  geoBanner:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
-  geoText:       { flex: 1, fontSize: 13 },
-  geoNote:       { flex: 1, fontSize: 11, lineHeight: 16 },
+  geoBanner:       { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
+  geoText:         { flex: 1, fontSize: 13 },
+  geoNote:         { flex: 1, fontSize: 11, lineHeight: 16 },
 });

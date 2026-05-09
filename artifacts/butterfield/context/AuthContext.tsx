@@ -28,6 +28,7 @@ interface AuthContextValue {
   ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
   wholesaleApply: (data: { email: string; password: string; name: string; phone?: string; companyName: string; abn?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
+  socialLogin: (data: { provider: string; providerId: string; email: string; name?: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -157,6 +158,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const socialLogin = useCallback(async (data: { provider: string; providerId: string; email: string; name?: string }) => {
+    try {
+      const res = await api.auth.socialLogin(data);
+      await saveToken(res.token);
+      const u: AuthContextUser = {
+        id: res.user.id, name: res.user.name,
+        email: res.user.email, role: res.user.role as UserRole,
+      };
+      setUser(u);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+      registerPushToken(res.token).catch(() => {});
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message ?? 'Social sign-in failed.' };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     // Best-effort: deregister push token before clearing session
     const token = await getToken();
@@ -167,8 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, login, internalLogin, register, wholesaleApply, logout }),
-    [user, isLoading, login, internalLogin, register, wholesaleApply, logout],
+    () => ({ user, isLoading, login, internalLogin, register, wholesaleApply, socialLogin, logout }),
+    [user, isLoading, login, internalLogin, register, wholesaleApply, socialLogin, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

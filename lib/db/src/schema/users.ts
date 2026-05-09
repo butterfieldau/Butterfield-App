@@ -21,6 +21,8 @@ export const usersTable = pgTable("users", {
   // { orderUpdates, promotions, rewards, staffAlerts, wholesaleAlerts }
   notificationPreferences: text("notification_preferences"),
   lastLogin: timestamp("last_login"),
+  socialProvider: text("social_provider"),
+  socialId:       text("social_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
