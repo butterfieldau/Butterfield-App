@@ -497,11 +497,12 @@ router.delete('/products/:id', async (req, res) => {
 // ── Store settings ───────────────────────────────────────────────────────────
 router.get('/settings', async (req, res) => {
   await db.insert(storeSettingsTable).values([
-    { key: 'geo_radius_meters', value: '20' },
-    { key: 'shop_lat',          value: '-33.8349' },
-    { key: 'shop_lng',          value: '150.9942' },
-    { key: 'store_open',        value: 'true' },
-    { key: 'daily_special',     value: 'Cookie & Cream Sandwich' },
+    { key: 'geo_radius_meters',  value: '20' },
+    { key: 'shop_lat',           value: '-33.8349' },
+    { key: 'shop_lng',           value: '150.9942' },
+    { key: 'store_open',         value: 'true' },
+    { key: 'daily_special',      value: 'Cookie & Cream Sandwich' },
+    { key: 'order_cutoff_time',  value: '' },
   ]).onConflictDoNothing();
   const rows = await db.select().from(storeSettingsTable);
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });

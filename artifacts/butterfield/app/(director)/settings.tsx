@@ -40,6 +40,7 @@ function StoreTab() {
   const [dailySpecial, setDailySpecial] = useState('');
   const [shopLat,      setShopLat]      = useState('');
   const [shopLng,      setShopLng]      = useState('');
+  const [orderCutoff,  setOrderCutoff]  = useState('');
   const [saving,       setSaving]       = useState(false);
 
   useEffect(() => {
@@ -49,6 +50,7 @@ function StoreTab() {
       setDailySpecial(settings.daily_special ?? '');
       setShopLat(settings.shop_lat ?? '-33.8349');
       setShopLng(settings.shop_lng ?? '150.9942');
+      setOrderCutoff(settings.order_cutoff_time ?? '');
     }
   }, [data]);
 
@@ -57,11 +59,12 @@ function StoreTab() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await api.director.updateSettings({
-        geo_radius_meters: geoRadius,
-        store_open:        String(storeOpen),
-        daily_special:     dailySpecial,
-        shop_lat:          shopLat,
-        shop_lng:          shopLng,
+        geo_radius_meters:  geoRadius,
+        store_open:         String(storeOpen),
+        daily_special:      dailySpecial,
+        shop_lat:           shopLat,
+        shop_lng:           shopLng,
+        order_cutoff_time:  orderCutoff.trim(),
       });
       await qc.invalidateQueries({ queryKey: ['director-settings'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -92,6 +95,35 @@ function StoreTab() {
           <Text style={styles.fieldLabel}>Daily special</Text>
           <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={dailySpecial}
             onChangeText={setDailySpecial} placeholder="e.g. Cookie & Cream Sandwich" placeholderTextColor={MUTED} />
+        </View>
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Order cutoff time (24h, Sydney)</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={orderCutoff}
+            onChangeText={setOrderCutoff}
+            placeholder="e.g. 15:00 — leave blank for no cutoff"
+            placeholderTextColor={MUTED}
+            keyboardType="numbers-and-punctuation"
+            autoCorrect={false}
+          />
+          {orderCutoff.trim() ? (
+            <Text style={{ color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+              Orders will be blocked after {(() => {
+                const [h, m] = orderCutoff.split(':').map(Number);
+                if (isNaN(h)) return orderCutoff;
+                const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+                const suf = h < 12 ? 'am' : 'pm';
+                const mn  = m > 0 ? `:${String(m).padStart(2,'0')}` : '';
+                return `${h12}${mn}${suf}`;
+              })()} Sydney time
+            </Text>
+          ) : (
+            <Text style={{ color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+              No cutoff — orders accepted at any hour
+            </Text>
+          )}
         </View>
       </View>
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, loyaltyTransactionsTable } from '@workspace/db';
+import { db, ordersTable, customerProfilesTable, loyaltyTransactionsTable, storeSettingsTable } from '@workspace/db';
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
 import { notifyRole, notifyUser } from '../lib/notificationService.js';
@@ -30,6 +30,22 @@ router.post('/', async (req, res) => {
   const { items, type, scheduledFor, notes, totalCents, stripePaymentIntentId, loyaltyPointsUsed, discountCents, deliveryAddress } = req.body;
   if (!items || !totalCents) {
     return res.status(400).json({ error: 'Items and total are required' });
+  }
+
+  // ── Cutoff time enforcement ────────────────────────────────────────────────
+  const settingsRows = await db.select().from(storeSettingsTable);
+  const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+  const cutoffTime = settings['order_cutoff_time'] ?? '';
+  if (cutoffTime) {
+    const syd  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const mins = syd.getHours() * 60 + syd.getMinutes();
+    const [ch, cm] = cutoffTime.split(':').map(Number);
+    if (!isNaN(ch) && !isNaN(cm) && mins >= ch * 60 + cm) {
+      const h12 = ch > 12 ? ch - 12 : ch === 0 ? 12 : ch;
+      const suffix = ch < 12 ? 'am' : 'pm';
+      const mn = cm > 0 ? `:${String(cm).padStart(2, '0')}` : '';
+      return res.status(400).json({ error: `Orders are closed after ${h12}${mn}${suffix}. Please order again tomorrow.` });
+    }
   }
   const orderId = randomUUID();
   const pointsEarned = Math.floor((totalCents - (discountCents ?? 0)) / 100);

@@ -130,12 +130,12 @@ export default function PricingScreen() {
       description: t.description ?? '',
       status: t.status,
       defaultDiscountPct: String(t.defaultDiscountPct ?? 0),
-      minOrderCents: String(t.minOrderCents ?? 0),
+      minOrderCents: String(((t.minOrderCents ?? 0) / 100).toFixed(2)),
       minOrderQty: String(t.minOrderQty ?? 0),
       paymentTerms: t.paymentTerms ?? 'net14',
       cutOffTime: t.cutOffTime ?? '12:00',
       leadTimeDays: String(t.leadTimeDays ?? 2),
-      freeDeliveryThresholdCents: t.freeDeliveryThresholdCents != null ? String(t.freeDeliveryThresholdCents) : '',
+      freeDeliveryThresholdCents: t.freeDeliveryThresholdCents != null ? String((t.freeDeliveryThresholdCents / 100).toFixed(2)) : '',
       productAccessRule: t.productAccessRule ?? 'all',
       deliveryEnabled: t.deliveryEnabled ?? true,
       pickupEnabled: t.pickupEnabled ?? true,
@@ -153,12 +153,12 @@ export default function PricingScreen() {
         description: tierForm.description,
         status: tierForm.status,
         defaultDiscountPct: parseInt(tierForm.defaultDiscountPct) || 0,
-        minOrderCents: parseInt(tierForm.minOrderCents) || 0,
+        minOrderCents: Math.round((parseFloat(tierForm.minOrderCents) || 0) * 100),
         minOrderQty: parseInt(tierForm.minOrderQty) || 0,
         paymentTerms: tierForm.paymentTerms,
         cutOffTime: tierForm.cutOffTime,
         leadTimeDays: parseInt(tierForm.leadTimeDays) || 2,
-        freeDeliveryThresholdCents: tierForm.freeDeliveryThresholdCents ? parseInt(tierForm.freeDeliveryThresholdCents) : null,
+        freeDeliveryThresholdCents: tierForm.freeDeliveryThresholdCents ? Math.round(parseFloat(tierForm.freeDeliveryThresholdCents) * 100) : null,
         productAccessRule: tierForm.productAccessRule,
         deliveryEnabled: tierForm.deliveryEnabled,
         pickupEnabled: tierForm.pickupEnabled,
@@ -579,7 +579,7 @@ export default function PricingScreen() {
             </View>
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Min order (cents)" value={tierForm.minOrderCents} onChangeText={(v) => setTierForm({ ...tierForm, minOrderCents: v })} keyboardType="number-pad" hint={`= ${fmtAUD(parseInt(tierForm.minOrderCents) || 0)}`} />
+              <Field flex label="Min order ($)" value={tierForm.minOrderCents} onChangeText={(v) => setTierForm({ ...tierForm, minOrderCents: v })} keyboardType="decimal-pad" placeholder="0.00" />
               <Field flex label="Min order qty" value={tierForm.minOrderQty} onChangeText={(v) => setTierForm({ ...tierForm, minOrderQty: v })} keyboardType="number-pad" />
             </View>
 
@@ -595,7 +595,7 @@ export default function PricingScreen() {
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <Field flex label="Cut-off time" value={tierForm.cutOffTime} onChangeText={(v) => setTierForm({ ...tierForm, cutOffTime: v })} placeholder="12:00" />
-              <Field flex label="Free delivery threshold (cents)" value={tierForm.freeDeliveryThresholdCents} onChangeText={(v) => setTierForm({ ...tierForm, freeDeliveryThresholdCents: v })} keyboardType="number-pad" />
+              <Field flex label="Free delivery threshold ($)" value={tierForm.freeDeliveryThresholdCents} onChangeText={(v) => setTierForm({ ...tierForm, freeDeliveryThresholdCents: v })} keyboardType="decimal-pad" placeholder="0.00" />
             </View>
 
             <View style={s.toggleRow}>

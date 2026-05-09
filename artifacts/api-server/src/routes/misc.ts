@@ -60,8 +60,18 @@ router.get('/store-status', async (_req, res) => {
   const rows = await db.select().from(storeSettingsTable);
   const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));
   const manualOverride = settings['store_open'] !== 'false';
+  const cutoffTime = settings['order_cutoff_time'] ?? '';
   const status = computeStoreStatus(manualOverride);
-  return res.json({ data: { ...status, manualOverride } });
+
+  let ordersCutoff = false;
+  if (cutoffTime) {
+    const syd   = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const mins  = syd.getHours() * 60 + syd.getMinutes();
+    const [ch, cm] = cutoffTime.split(':').map(Number);
+    if (!isNaN(ch) && !isNaN(cm)) ordersCutoff = mins >= (ch * 60 + cm);
+  }
+
+  return res.json({ data: { ...status, manualOverride, orderCutoffTime: cutoffTime || null, ordersCutoff } });
 });
 
 router.get('/announcements', requireAuth, async (req, res) => {
