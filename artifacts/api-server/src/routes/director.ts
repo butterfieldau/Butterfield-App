@@ -802,4 +802,56 @@ router.patch('/wholesale-cards/:cardId/visibility', async (req, res) => {
   return res.json({ data: updated });
 });
 
+// ── App Sessions (hourly activity: logins + orders as proxy) ─────────────────
+router.get('/sessions', async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+
+    const [todayOrders, yesterdayOrders, todayLogins, yesterdayLogins] = await Promise.all([
+      db.select({ createdAt: ordersTable.createdAt }).from(ordersTable)
+        .where(gte(ordersTable.createdAt, todayStart)),
+      db.select({ createdAt: ordersTable.createdAt }).from(ordersTable)
+        .where(and(gte(ordersTable.createdAt, yesterdayStart), lte(ordersTable.createdAt, todayStart))),
+      db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
+        .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, todayStart))),
+      db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
+        .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, yesterdayStart), lte(usersTable.lastLogin as any, todayStart))),
+    ]);
+
+    const todayByHour = new Array(24).fill(0);
+    const yesterdayByHour = new Array(24).fill(0);
+
+    for (const o of todayOrders)     todayByHour[new Date(o.createdAt).getHours()]++;
+    for (const o of yesterdayOrders) yesterdayByHour[new Date(o.createdAt).getHours()]++;
+    for (const u of todayLogins)     if (u.lastLogin) todayByHour[new Date(u.lastLogin).getHours()]++;
+    for (const u of yesterdayLogins) if (u.lastLogin) yesterdayByHour[new Date(u.lastLogin).getHours()]++;
+
+    const totalToday     = todayByHour.reduce((a, b) => a + b, 0);
+    const totalYesterday = yesterdayByHour.reduce((a, b) => a + b, 0);
+    const pctChange      = totalYesterday > 0
+      ? Math.round(((totalToday - totalYesterday) / totalYesterday) * 100)
+      : null;
+    const liveCount = todayLogins.filter(u =>
+      u.lastLogin && (Date.now() - new Date(u.lastLogin).getTime()) < 30 * 60 * 1000,
+    ).length;
+
+    res.json({
+      data: {
+        today:          todayByHour.map((count, hour) => ({ hour, count })),
+        yesterday:      yesterdayByHour.map((count, hour) => ({ hour, count })),
+        totalToday,
+        totalYesterday,
+        pctChange,
+        liveCount,
+      },
+    });
+  } catch (e) {
+    req.log.error(e, 'sessions error');
+    res.status(500).json({ error: 'Failed to load sessions' });
+  }
+});
+
 export default router;

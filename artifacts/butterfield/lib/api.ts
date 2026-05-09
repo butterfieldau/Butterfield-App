@@ -153,6 +153,7 @@ export const api = {
   director: {
     stats:               () => request<{ data: any }>('/director/stats'),
     activity:            () => request<{ data: any[] }>('/director/activity'),
+    sessions:            () => request<{ data: { today: {hour:number;count:number}[]; yesterday: {hour:number;count:number}[]; totalToday: number; totalYesterday: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),
     orders:              () => request<{ data: any[] }>('/director/orders'),
     updateOrderStatus:   (id: string, status: string) => request<{ data: any }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     users:               () => request<{ data: any[] }>('/director/users'),

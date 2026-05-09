@@ -1,11 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Animated, Image, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import Svg, {
+  Defs, LinearGradient, Path, Stop, Line, Text as SvgText,
+} from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -30,8 +33,8 @@ function fmtAUD(cents: number) {
 
 function timeAgo(dateStr: string) {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60)  return 'Just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 60)    return 'Just now';
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
@@ -39,10 +42,7 @@ function timeAgo(dateStr: string) {
 function useLiveClock() {
   const [time, setTime] = useState('');
   useEffect(() => {
-    const fmt = () => {
-      const now = new Date();
-      return now.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
-    };
+    const fmt = () => new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
     setTime(fmt());
     const id = setInterval(() => setTime(fmt()), 10000);
     return () => clearInterval(id);
@@ -50,7 +50,156 @@ function useLiveClock() {
   return time;
 }
 
-// KPI Tile
+// ── Smooth bezier path from data points ──────────────────────────────────────
+function makePath(pts: { x: number; y: number }[], close = false, baseY = 0): string {
+  if (pts.length < 2) return '';
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1];
+    const curr = pts[i];
+    const cpx1 = (prev.x + (curr.x - prev.x) * 0.4).toFixed(1);
+    const cpy1 = prev.y.toFixed(1);
+    const cpx2 = (curr.x - (curr.x - prev.x) * 0.4).toFixed(1);
+    const cpy2 = curr.y.toFixed(1);
+    d += ` C ${cpx1} ${cpy1} ${cpx2} ${cpy2} ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
+  }
+  if (close) {
+    d += ` L ${pts[pts.length - 1].x.toFixed(1)} ${baseY.toFixed(1)} L ${pts[0].x.toFixed(1)} ${baseY.toFixed(1)} Z`;
+  }
+  return d;
+}
+
+// ── Sessions line chart ───────────────────────────────────────────────────────
+type HourlyPoint = { hour: number; count: number };
+
+function SessionsChart({
+  today,
+  yesterday,
+  totalToday,
+  pctChange,
+  liveCount,
+}: {
+  today: HourlyPoint[];
+  yesterday: HourlyPoint[];
+  totalToday: number;
+  pctChange: number | null;
+  liveCount: number;
+}) {
+  const W    = 340;
+  const H    = 130;
+  const PAD  = { top: 12, right: 8, bottom: 28, left: 24 };
+  const cW   = W - PAD.left - PAD.right;
+  const cH   = H - PAD.top  - PAD.bottom;
+
+  const maxVal = Math.max(
+    ...today.map(p => p.count),
+    ...yesterday.map(p => p.count),
+    1,
+  );
+
+  const toXY = (pts: HourlyPoint[]) =>
+    pts.map(p => ({
+      x: PAD.left + (p.hour / 23) * cW,
+      y: PAD.top  + cH - (p.count / maxVal) * cH,
+    }));
+
+  const todayPts     = toXY(today);
+  const yesterdayPts = toXY(yesterday);
+
+  const todayLine  = makePath(todayPts);
+  const todayFill  = makePath(todayPts, true, PAD.top + cH);
+  const yestLine   = makePath(yesterdayPts);
+
+  const gridVals = [0, Math.ceil(maxVal / 2), maxVal];
+
+  const xLabels = [
+    { hour: 0,  label: '12 AM' },
+    { hour: 8,  label: '8 AM'  },
+    { hour: 12, label: '12 PM' },
+    { hour: 18, label: '6 PM'  },
+    { hour: 23, label: 'Now'   },
+  ];
+
+  const up = pctChange !== null && pctChange >= 0;
+
+  return (
+    <View style={[ch.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+      {/* Header stats */}
+      <View style={ch.statsRow}>
+        <View style={ch.statBlock}>
+          <Text style={ch.statLabel}>Sessions</Text>
+          <Text style={ch.statVal}>{totalToday}</Text>
+          {pctChange !== null && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Feather name={up ? 'trending-up' : 'trending-down'} size={12} color={up ? GREEN : RED} />
+              <Text style={[ch.pct, { color: up ? GREEN : RED }]}>
+                {up ? '+' : ''}{pctChange}%
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={ch.divider} />
+        <View style={ch.statBlock}>
+          <Text style={ch.statLabel}>Live now</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={ch.liveDot} />
+            <Text style={ch.statVal}>{liveCount}</Text>
+          </View>
+        </View>
+        <View style={ch.divider} />
+        <View style={ch.statBlock}>
+          <Text style={ch.statLabel}>vs Yesterday</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={[ch.legendDash, { borderColor: MUTED }]} />
+            <Text style={[ch.statVal, { color: MUTED }]}>{yesterday.reduce((a, p) => a + p.count, 0)}</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* SVG Chart */}
+      <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <Defs>
+          <LinearGradient id="todayGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0"   stopColor={BLUE} stopOpacity="0.22" />
+            <Stop offset="1"   stopColor={BLUE} stopOpacity="0.0"  />
+          </LinearGradient>
+        </Defs>
+
+        {/* Grid lines */}
+        {gridVals.map((v, i) => {
+          const y = PAD.top + cH - (v / maxVal) * cH;
+          return (
+            <React.Fragment key={i}>
+              <Line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke={BORDER} strokeWidth="0.7" />
+              <SvgText x={PAD.left - 4} y={y + 4} fontSize="8" fill={MUTED} textAnchor="end">{v}</SvgText>
+            </React.Fragment>
+          );
+        })}
+
+        {/* Yesterday dashed line */}
+        <Path d={yestLine} fill="none" stroke={MUTED} strokeWidth="1.2" strokeDasharray="4 3" opacity="0.55" />
+
+        {/* Today gradient fill */}
+        <Path d={todayFill} fill="url(#todayGrad)" />
+
+        {/* Today solid line */}
+        <Path d={todayLine} fill="none" stroke={BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* X-axis labels */}
+        {xLabels.map(({ hour, label }) => {
+          const x = PAD.left + (hour / 23) * cW;
+          return (
+            <SvgText key={hour} x={x} y={H - 4} fontSize="8" fill={MUTED} textAnchor="middle">{label}</SvgText>
+          );
+        })}
+      </Svg>
+
+      <Text style={ch.sub}>App sessions today · logins + orders</Text>
+    </View>
+  );
+}
+
+// ── KPI Tile ──────────────────────────────────────────────────────────────────
 function KpiTile({ icon, label, value, color, alert, onPress }: {
   icon: string; label: string; value: string | number; color: string; alert?: boolean; onPress?: () => void;
 }) {
@@ -66,7 +215,7 @@ function KpiTile({ icon, label, value, color, alert, onPress }: {
   );
 }
 
-// Quick action button
+// ── Quick action button ───────────────────────────────────────────────────────
 function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string; color: string; onPress: () => void }) {
   return (
     <Pressable onPress={() => { Haptics.selectionAsync(); onPress(); }} style={[qa.btn, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -78,7 +227,8 @@ function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string
   );
 }
 
-export default function DirectorControlCentre() {
+// ── Main screen ───────────────────────────────────────────────────────────────
+export default function DirectorHome() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const clock = useLiveClock();
@@ -95,18 +245,27 @@ export default function DirectorControlCentre() {
     refetchInterval: 60000,
   });
 
-  const s = data?.data;
+  const { data: sessionsData, refetch: refetchSessions } = useQuery({
+    queryKey: ['director-sessions'],
+    queryFn: () => api.director.sessions(),
+    refetchInterval: 60000,
+  });
+
+  const s        = data?.data;
   const activity: any[] = activityData?.data ?? [];
+  const sess     = sessionsData?.data;
   const hasAlerts = (s?.users.pendingStaff ?? 0) > 0 || (s?.users.pendingWholesale ?? 0) > 0 || (s?.issues.high ?? 0) > 0;
 
   const todayStr = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' });
+
+  const onRefresh = () => { refetch(); refetchActivity(); refetchSessions(); };
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch(); refetchActivity(); }} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       {/* Identity strip */}
       <View style={[styles.identityStrip, { paddingTop: insets.top > 0 ? insets.top + 8 : 24 }]}>
@@ -118,7 +277,7 @@ export default function DirectorControlCentre() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View>
             <Text style={[styles.todayDate, { fontFamily: 'Inter_400Regular' }]}>{todayStr}</Text>
-            <Text style={[styles.userName, { fontFamily: 'Inter_700Bold' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
+            <Text style={[styles.userName,  { fontFamily: 'Inter_700Bold' }]}>Welcome, {user?.name?.split(' ')[0] ?? 'Director'}</Text>
           </View>
           <View style={styles.clockBox}>
             <Feather name="clock" size={12} color={BLUE} />
@@ -136,7 +295,7 @@ export default function DirectorControlCentre() {
           </View>
         ) : (
           <>
-            {/* ── Revenue hero ────────────────────────────────────── */}
+            {/* ── Revenue hero ─────────────────────────────────── */}
             <View style={[styles.revCard, { backgroundColor: NAVY }]}>
               <View style={styles.revHeader}>
                 <Text style={[styles.revTitle, { fontFamily: 'Inter_700Bold' }]}>REVENUE</Text>
@@ -159,7 +318,25 @@ export default function DirectorControlCentre() {
               </View>
             </View>
 
-            {/* ── Urgent alerts ───────────────────────────────────── */}
+            {/* ── Sessions chart ───────────────────────────────── */}
+            <View>
+              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>APP SESSIONS · TODAY</Text>
+              {sess ? (
+                <SessionsChart
+                  today={sess.today}
+                  yesterday={sess.yesterday}
+                  totalToday={sess.totalToday}
+                  pctChange={sess.pctChange}
+                  liveCount={sess.liveCount}
+                />
+              ) : (
+                <View style={[styles.emptyCard, { backgroundColor: CARD, borderColor: BORDER, paddingVertical: 28 }]}>
+                  <ActivityIndicator color={BLUE} />
+                </View>
+              )}
+            </View>
+
+            {/* ── Urgent alerts ─────────────────────────────────── */}
             {hasAlerts && (
               <View style={[styles.alertCard, { backgroundColor: '#FFF1F0', borderColor: '#FCA5A5' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -170,64 +347,62 @@ export default function DirectorControlCentre() {
                   <Pressable onPress={() => router.navigate('/(director)/users' as any)} style={styles.alertRow}>
                     <Feather name="user-check" size={13} color="#991B1B" />
                     <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.users.pendingStaff} staff account{s?.users.pendingStaff !== 1 ? 's' : ''} awaiting approval</Text>
-                    <Text style={[styles.reviewLink, { fontFamily: 'Inter_700Bold', color: '#991B1B' }]}>Review →</Text>
+                    <Text style={[styles.reviewLink,   { fontFamily: 'Inter_700Bold',   color: '#991B1B' }]}>Review →</Text>
                   </Pressable>
                 )}
                 {(s?.users.pendingWholesale ?? 0) > 0 && (
                   <Pressable onPress={() => router.navigate('/(director)/users' as any)} style={styles.alertRow}>
                     <Feather name="package" size={13} color="#991B1B" />
                     <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.users.pendingWholesale} wholesale application{s?.users.pendingWholesale !== 1 ? 's' : ''} pending</Text>
-                    <Text style={[styles.reviewLink, { fontFamily: 'Inter_700Bold', color: '#991B1B' }]}>Review →</Text>
+                    <Text style={[styles.reviewLink,   { fontFamily: 'Inter_700Bold',   color: '#991B1B' }]}>Review →</Text>
                   </Pressable>
                 )}
                 {(s?.issues.high ?? 0) > 0 && (
                   <Pressable
                     style={styles.alertRow}
-                    onPress={() =>
-                      Alert.alert(
-                        `${s?.issues.high} High-Priority Issue${s?.issues.high !== 1 ? 's' : ''}`,
-                        'Staff-submitted issues are managed through the Staff Portal.\n\nAsk your on-duty manager to review and resolve open issues, or approve a staff account to give them access.',
-                        [
-                          { text: 'View Staff', onPress: () => router.navigate('/(director)/users' as any) },
-                          { text: 'Dismiss', style: 'cancel' },
-                        ],
-                      )
-                    }
+                    onPress={() => Alert.alert(
+                      `${s?.issues.high} High-Priority Issue${s?.issues.high !== 1 ? 's' : ''}`,
+                      'Staff-submitted issues are managed through the Staff Portal.\n\nAsk your on-duty manager to review and resolve open issues, or approve a staff account to give them access.',
+                      [
+                        { text: 'View Staff', onPress: () => router.navigate('/(director)/users' as any) },
+                        { text: 'Dismiss', style: 'cancel' },
+                      ],
+                    )}
                   >
                     <Feather name="alert-triangle" size={13} color="#991B1B" />
                     <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.issues.high} high-priority issue{s?.issues.high !== 1 ? 's' : ''} open</Text>
-                    <Text style={[styles.reviewLink, { fontFamily: 'Inter_700Bold', color: '#991B1B' }]}>View →</Text>
+                    <Text style={[styles.reviewLink,   { fontFamily: 'Inter_700Bold',   color: '#991B1B' }]}>View →</Text>
                   </Pressable>
                 )}
               </View>
             )}
 
-            {/* ── Quick actions ───────────────────────────────────── */}
+            {/* ── Quick actions ──────────────────────────────────── */}
             <View>
               <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
               <View style={styles.qaGrid}>
-                <QuickBtn icon="plus-square"   label="Add Product"    color={BLUE}   onPress={() => router.navigate('/(director)/products' as any)} />
-                <QuickBtn icon="user-plus"     label="Add Staff"      color={PURPLE} onPress={() => router.navigate('/(director)/users' as any)} />
-                <QuickBtn icon="package"       label="Add Wholesale"  color={GREEN}  onPress={() => router.navigate('/(director)/users' as any)} />
-                <QuickBtn icon="shopping-bag"  label="View Orders"    color={AMBER}  onPress={() => router.navigate('/(director)/orders' as any)} />
-                <QuickBtn icon="star"          label="Rewards"        color={PINK}   onPress={() => router.navigate('/(director)/settings' as any)} />
-                <QuickBtn icon="bell"          label="Notifications"  color="#06B6D4" onPress={() => router.navigate('/(director)/settings' as any)} />
-                <QuickBtn icon="bar-chart-2"   label="Reports"        color={NAVY}   onPress={() => router.navigate('/(director)/reports' as any)} />
-                <QuickBtn icon="settings"      label="App Settings"   color={MUTED}  onPress={() => router.navigate('/(director)/settings' as any)} />
+                <QuickBtn icon="plus-square"  label="Add Product"   color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
+                <QuickBtn icon="user-plus"    label="Add Staff"     color={PURPLE}  onPress={() => router.navigate('/(director)/users' as any)} />
+                <QuickBtn icon="package"      label="Add Wholesale" color={GREEN}   onPress={() => router.navigate('/(director)/users' as any)} />
+                <QuickBtn icon="shopping-bag" label="View Orders"   color={AMBER}   onPress={() => router.navigate('/(director)/orders' as any)} />
+                <QuickBtn icon="star"         label="Rewards"       color={PINK}    onPress={() => router.navigate('/(director)/more' as any)} />
+                <QuickBtn icon="bell"         label="Notify"        color="#06B6D4" onPress={() => router.navigate('/(director)/more' as any)} />
+                <QuickBtn icon="bar-chart-2"  label="Reports"       color={NAVY}    onPress={() => router.navigate('/(director)/reports' as any)} />
+                <QuickBtn icon="settings"     label="Settings"      color={MUTED}   onPress={() => router.navigate('/(director)/more' as any)} />
               </View>
             </View>
 
-            {/* ── KPI grid ────────────────────────────────────────── */}
+            {/* ── KPI grid ───────────────────────────────────────── */}
             <View>
               <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>TODAY'S OVERVIEW</Text>
               <View style={styles.kpiGrid}>
-                <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today     ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
-                <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active    ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} />
-                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn  ?? 0} color={PURPLE} />
-                <KpiTile icon="alert-triangle" label="Long shifts"      value={s?.staff.longShifts ?? 0} color={AMBER}  alert={(s?.staff.longShifts ?? 0) > 0} />
-                <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut  ?? 0} color={RED}   alert={(s?.products.soldOut ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
-                <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock ?? 0} color={AMBER} alert={(s?.products.lowStock ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
-                <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}   alert={(s?.issues.open ?? 0) > 0} />
+                <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today      ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
+                <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active     ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} />
+                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} />
+                <KpiTile icon="alert-triangle" label="Long shifts"      value={s?.staff.longShifts  ?? 0} color={AMBER}  alert={(s?.staff.longShifts ?? 0) > 0} />
+                <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut  ?? 0} color={RED}    alert={(s?.products.soldOut ?? 0) > 0}  onPress={() => router.navigate('/(director)/products' as any)} />
+                <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock ?? 0} color={AMBER}  alert={(s?.products.lowStock ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
+                <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0} />
                 <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} />
                 <KpiTile icon="gift"           label="Birthdays today"  value={s?.customers.birthdayToday ?? 0} color={PINK} />
                 <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave ?? 0} color={AMBER} />
@@ -236,7 +411,7 @@ export default function DirectorControlCentre() {
               </View>
             </View>
 
-            {/* ── Wastage cost banner ──────────────────────────────── */}
+            {/* ── Wastage cost banner ───────────────────────────── */}
             {(s?.wastage.costToday ?? 0) > 0 && (
               <View style={[styles.wastageCard, { backgroundColor: '#FDF4FF', borderColor: '#E9D5FF' }]}>
                 <Feather name="trash-2" size={16} color={PURPLE} />
@@ -249,7 +424,7 @@ export default function DirectorControlCentre() {
               </View>
             )}
 
-            {/* ── Activity feed ────────────────────────────────────── */}
+            {/* ── Activity feed ─────────────────────────────────── */}
             <View>
               <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>RECENT ACTIVITY</Text>
               {activity.length === 0 ? (
@@ -281,6 +456,7 @@ export default function DirectorControlCentre() {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   identityStrip: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'column', backgroundColor: BG },
   todayDate:     { fontSize: 12, color: MUTED },
@@ -332,4 +508,17 @@ const qa = StyleSheet.create({
   btn:   { width: '23%', borderRadius: 14, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center' },
   icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 10, fontFamily: 'Inter_500Medium', textAlign: 'center' },
+});
+
+const ch = StyleSheet.create({
+  card:       { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, padding: 16, overflow: 'hidden' },
+  statsRow:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
+  statBlock:  { flex: 1, gap: 3 },
+  statLabel:  { fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED },
+  statVal:    { fontSize: 22, fontFamily: 'Inter_700Bold', color: TEXT },
+  pct:        { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  divider:    { width: 1, backgroundColor: BORDER, marginHorizontal: 12, height: 44, marginTop: 4 },
+  liveDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  legendDash: { width: 14, height: 0, borderTopWidth: 1.5, borderStyle: 'dashed' },
+  sub:        { fontSize: 10, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 6, textAlign: 'center' },
 });

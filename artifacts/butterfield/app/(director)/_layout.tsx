@@ -1,55 +1,41 @@
 import { Feather } from '@expo/vector-icons';
-import { router, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { useAuth } from '@/context/AuthContext';
+import { View } from 'react-native';
 
-const NAVY = '#1A2B4A';
 const BLUE = '#40C0F2';
-const RED  = '#F40009';
 
 export default function DirectorLayout() {
-  const { logout } = useAuth();
-
-  const handleLogout = () => {
-    logout().then(() => router.replace('/(auth)/login'));
-  };
-
   return (
     <View style={{ flex: 1 }}>
-      {/* Director badge header strip */}
-      <View style={{ backgroundColor: NAVY, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 54, paddingBottom: 10 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ backgroundColor: RED, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-            <Text style={{ color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1 }}>DIRECTOR</Text>
-          </View>
-          <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold', fontStyle: 'italic' }}>Butterfield</Text>
-        </View>
-        <Pressable onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Feather name="log-out" size={14} color="rgba(255,255,255,0.6)" />
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Inter_500Medium' }}>Sign out</Text>
-        </Pressable>
-      </View>
-
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
-          tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10 },
+          tabBarStyle: {
+            backgroundColor: '#FFFFFF',
+            borderTopColor: '#E5E7EB',
+            borderTopWidth: StyleSheet.hairlineWidth,
+          },
+          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10, marginBottom: 2 },
         }}
       >
-        <Tabs.Screen name="index"      options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid"        size={20} color={color} /> }} />
-        <Tabs.Screen name="orders"     options={{ title: 'Orders',    tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={20} color={color} /> }} />
-        <Tabs.Screen name="users"      options={{ title: 'People',    tabBarIcon: ({ color }) => <Feather name="users"       size={20} color={color} /> }} />
-        <Tabs.Screen name="timesheets" options={{ title: 'Timesheets',tabBarIcon: ({ color }) => <Feather name="clock"       size={20} color={color} /> }} />
-        <Tabs.Screen name="products"   options={{ title: 'Products',  tabBarIcon: ({ color }) => <Feather name="package"     size={20} color={color} /> }} />
-        <Tabs.Screen name="reports"    options={{ title: 'Reports',   tabBarIcon: ({ color }) => <Feather name="bar-chart-2" size={20} color={color} /> }} />
-        <Tabs.Screen name="settings"   options={{ title: 'Settings',  tabBarIcon: ({ color }) => <Feather name="settings"    size={20} color={color} /> }} />
-        <Tabs.Screen name="customers"  options={{ href: null }} />
-        <Tabs.Screen name="pricing"    options={{ href: null }} />
+        <Tabs.Screen name="index"    options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"        size={size} color={color} /> }} />
+        <Tabs.Screen name="orders"   options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
+        <Tabs.Screen name="users"    options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Feather name="users"       size={size} color={color} /> }} />
+        <Tabs.Screen name="products" options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"     size={size} color={color} /> }} />
+        <Tabs.Screen name="more"     options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"        size={size} color={color} /> }} />
+
+        {/* Hidden routes — accessible via router.push */}
+        <Tabs.Screen name="customers"   options={{ href: null }} />
+        <Tabs.Screen name="pricing"     options={{ href: null }} />
+        <Tabs.Screen name="reports"     options={{ href: null }} />
+        <Tabs.Screen name="timesheets"  options={{ href: null }} />
+        <Tabs.Screen name="settings"    options={{ href: null }} />
       </Tabs>
     </View>
   );
 }
+
+import { StyleSheet } from 'react-native';
