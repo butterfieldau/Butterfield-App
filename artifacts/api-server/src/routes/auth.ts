@@ -132,27 +132,6 @@ router.post('/wholesale-apply', async (req, res) => {
   return res.status(201).json({ message: 'Application received. Our wholesale team will be in touch within 1-2 business days.', userId });
 });
 
-router.patch('/me', requireAuth, async (req, res) => {
-  const user = req.user!;
-  const { name, phone, deliveryAddress } = req.body;
-  const userUpdates: Record<string, any> = {};
-  if (name) userUpdates.name = name.trim();
-  if (phone) userUpdates.phone = phone.trim();
-  if (Object.keys(userUpdates).length > 0) {
-    await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, user.id));
-  }
-  if (typeof deliveryAddress !== 'undefined' && user.role === 'customer') {
-    await db.update(customerProfilesTable).set({ deliveryAddress }).where(eq(customerProfilesTable.userId, user.id));
-  }
-  const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
-  let profile = null;
-  if (dbUser.role === 'customer') {
-    const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
-    profile = cp;
-  }
-  return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone }, profile });
-});
-
 // ── Seed demo accounts ──────────────────────────────────────────────────────
 router.post('/seed-demo', async (req, res) => {
   const DEMO_PW = 'Demo1234!';
@@ -243,7 +222,47 @@ router.get('/me', requireAuth, async (req, res) => {
     const [wa] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, user.id));
     profile = wa;
   }
-  return res.json({ user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone }, profile });
+  let notifPrefs: Record<string, boolean> | null = null;
+  if (dbUser.notificationPreferences) {
+    try { notifPrefs = JSON.parse(dbUser.notificationPreferences); } catch {}
+  }
+  return res.json({
+    user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone, notificationPreferences: notifPrefs },
+    profile,
+  });
+});
+
+// ── PATCH /me — update name, phone, notification prefs ────────────────────────
+router.patch('/me', requireAuth, async (req, res) => {
+  const user = req.user!;
+  const { name, phone, notificationPreferences } = req.body;
+
+  const updates: Record<string, any> = { updatedAt: new Date() };
+  if (name !== undefined && name.trim()) updates.name = name.trim();
+  if (phone !== undefined) updates.phone = phone?.trim() || null;
+  if (notificationPreferences !== undefined) {
+    updates.notificationPreferences = typeof notificationPreferences === 'string'
+      ? notificationPreferences
+      : JSON.stringify(notificationPreferences);
+  }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();
+
+  let profile = null;
+  if (updated.role === 'customer') {
+    const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
+    profile = cp;
+  }
+
+  let notifPrefs: Record<string, boolean> | null = null;
+  if (updated.notificationPreferences) {
+    try { notifPrefs = JSON.parse(updated.notificationPreferences); } catch {}
+  }
+
+  return res.json({
+    user: { id: updated.id, email: updated.email, role: updated.role, name: updated.name, phone: updated.phone, notificationPreferences: notifPrefs },
+    profile,
+  });
 });
 
 export default router;

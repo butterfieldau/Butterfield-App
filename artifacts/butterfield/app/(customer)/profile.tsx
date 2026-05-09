@@ -2,10 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Alert, Modal, Pressable, ScrollView, StyleSheet,
-  Text, TextInput, View,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
+  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -18,34 +18,65 @@ const BLUE   = '#40C0F2';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const RED    = '#EF4444';
 
 export default function AccountScreen() {
-  const insets = useSafeAreaInsets();
+  const insets  = useSafeAreaInsets();
   const { user, logout } = useAuth();
-  const qc = useQueryClient();
+  const qc      = useQueryClient();
+
   const [editModal, setEditModal] = useState(false);
-  const [editName, setEditName] = useState(user?.name ?? '');
+  const [editName,  setEditName]  = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]       = useState(false);
 
+  const { data: meData, refetch: refetchMe } = useQuery({
+    queryKey: ['me'],
+    queryFn:  () => api.auth.me(),
+    retry: 1,
+  });
   const { data: loyaltyData } = useQuery({
-    queryKey: ['loyalty-profile'], queryFn: () => api.loyalty.profile(), retry: 1,
+    queryKey: ['loyalty-profile'],
+    queryFn:  () => api.loyalty.profile(),
+    retry: 1,
   });
-  const { data: meData } = useQuery({
-    queryKey: ['me'], queryFn: () => api.auth.me(), retry: 1,
+  const { data: addressesData } = useQuery({
+    queryKey: ['addresses'],
+    queryFn:  () => api.addresses.list(),
+    retry: 1,
   });
 
-  const profile = loyaltyData?.data;
-  const customerProfile = meData?.profile as any;
-  const deliveryAddress = customerProfile?.deliveryAddress as string | undefined;
-  const hasAddress = !!(deliveryAddress && deliveryAddress.trim());
+  const profile       = loyaltyData?.data;
+  const currentUser   = meData?.user as any;
+  const addressCount  = addressesData?.data?.length ?? 0;
 
-  const initial = (user?.name?.charAt(0) ?? 'B').toUpperCase();
+  // Sync edit fields when user data loads
+  useEffect(() => {
+    if (currentUser) {
+      setEditName(currentUser.name ?? '');
+      setEditPhone(currentUser.phone ?? '');
+    }
+  }, [currentUser?.name, currentUser?.phone]);
+
+  const openEdit = () => {
+    setEditName(currentUser?.name ?? user?.name ?? '');
+    setEditPhone(currentUser?.phone ?? '');
+    setEditModal(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Required', 'Name cannot be empty.');
+      return;
+    }
     setSaving(true);
     try {
-      await api.auth.updateMe({ name: editName.trim() || undefined });
+      await api.auth.updateMe({
+        name:  editName.trim(),
+        phone: editPhone.trim() || undefined,
+      });
+      await refetchMe();
       qc.invalidateQueries({ queryKey: ['me'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditModal(false);
@@ -65,27 +96,15 @@ export default function AccountScreen() {
     ]);
   };
 
+  const displayName = currentUser?.name ?? user?.name ?? 'Guest';
+  const displayEmail = currentUser?.email ?? user?.email ?? '';
+  const initial = displayName.charAt(0).toUpperCase();
+
   const menuItems = [
-    {
-      icon: 'clipboard' as const,
-      label: 'My orders',
-      onPress: () => router.push('/(customer)/orders'),
-    },
-    {
-      icon: 'bell' as const,
-      label: 'Notifications',
-      onPress: () => router.push('/(customer)/notifications' as any),
-    },
-    {
-      icon: 'map-pin' as const,
-      label: 'Saved addresses',
-      onPress: () => router.push('/(customer)/addresses' as any),
-    },
-    {
-      icon: 'help-circle' as const,
-      label: 'Help & support',
-      onPress: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\n\nHours: Mon–Fri 7am–5pm\n\nVisit us at:\n7/2 Merrylands Rd\nMerrylands NSW 2160'),
-    },
+    { icon: 'clipboard'   as const, label: 'My orders',       onPress: () => router.push('/(customer)/orders') },
+    { icon: 'bell'        as const, label: 'Notifications',   onPress: () => router.push('/(customer)/notifications' as any) },
+    { icon: 'map-pin'     as const, label: 'Saved addresses',  onPress: () => router.push('/(customer)/addresses' as any) },
+    { icon: 'help-circle' as const, label: 'Help & support',  onPress: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\n\nHours: Mon–Fri 7am–5pm\n\nVisit us at:\n7/2 Merrylands Rd, Merrylands NSW 2160') },
   ];
 
   return (
@@ -107,13 +126,13 @@ export default function AccountScreen() {
             <Text style={styles.userCardInitial}>{initial}</Text>
           </View>
           <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.userCardName}>{user?.name ?? 'Guest'}</Text>
-            <Text style={styles.userCardEmail}>{user?.email}</Text>
+            <Text style={styles.userCardName}>{displayName}</Text>
+            <Text style={styles.userCardEmail}>{displayEmail}</Text>
+            {currentUser?.phone ? (
+              <Text style={styles.userCardPhone}>{currentUser.phone}</Text>
+            ) : null}
           </View>
-          <Pressable
-            onPress={() => { setEditName(user?.name ?? ''); setEditModal(true); }}
-            style={styles.editBtn}
-          >
+          <Pressable onPress={openEdit} style={styles.editBtn}>
             <Feather name="edit-2" size={15} color={BLUE} />
           </Pressable>
         </LinearGradient>
@@ -139,7 +158,7 @@ export default function AccountScreen() {
               <Feather name="map-pin" size={20} color={BLUE} />
             </View>
             <Text style={[styles.quickTitle, { color: TEXT }]}>
-              {hasAddress ? '1 address' : '0 addresses'}
+              {addressCount === 0 ? 'No addresses' : `${addressCount} address${addressCount > 1 ? 'es' : ''}`}
             </Text>
             <Text style={[styles.quickSub, { color: MUTED }]}>Manage saved addresses</Text>
           </Pressable>
@@ -149,8 +168,8 @@ export default function AccountScreen() {
         <View style={styles.statsRow}>
           {[
             { label: 'Points', value: String(profile?.loyaltyPoints ?? 0) },
-            { label: 'Tier', value: (profile?.loyaltyTier ?? 'Bronze').charAt(0).toUpperCase() + (profile?.loyaltyTier ?? 'bronze').slice(1) },
-            { label: 'Stamps', value: `${profile?.stampCount ?? 0}/6` },
+            { label: 'Tier',   value: (profile?.loyaltyTier ?? 'Bronze').charAt(0).toUpperCase() + (profile?.loyaltyTier ?? 'bronze').slice(1) },
+            { label: 'Stamps', value: `${profile?.stampCount ?? 0}/10` },
           ].map((stat, i, arr) => (
             <View key={stat.label} style={[styles.statItem, i < arr.length - 1 && { borderRightWidth: 1, borderRightColor: BORDER }]}>
               <Text style={[styles.statValue, { color: BLUE }]}>{stat.value}</Text>
@@ -165,10 +184,7 @@ export default function AccountScreen() {
             <Pressable
               key={item.label}
               onPress={() => { Haptics.selectionAsync(); item.onPress(); }}
-              style={[
-                styles.menuRow,
-                i < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER },
-              ]}
+              style={[styles.menuRow, i < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: '#F0FAFF' }]}>
                 <Feather name={item.icon} size={16} color={BLUE} />
@@ -184,79 +200,168 @@ export default function AccountScreen() {
           onPress={handleLogout}
           style={[styles.signOutBtn, { backgroundColor: CARD, borderColor: '#FECACA' }]}
         >
-          <Feather name="log-out" size={16} color="#DC2626" />
-          <Text style={[styles.signOutText, { color: '#DC2626' }]}>Sign Out</Text>
+          <Feather name="log-out" size={16} color={RED} />
+          <Text style={[styles.signOutText, { color: RED }]}>Sign Out</Text>
         </Pressable>
 
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version 1.0.0</Text>
       </View>
 
-      {/* Edit profile modal */}
-      <Modal visible={editModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditModal(false)}>
-        <View style={[styles.modalRoot, { backgroundColor: BG }]}>
+      {/* ── Edit Profile Modal ─────────────────────────────────────────────── */}
+      <Modal
+        visible={editModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setEditModal(false)}
+      >
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalHeader, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
             <Pressable onPress={() => setEditModal(false)}>
               <Text style={[styles.modalCancel, { color: MUTED }]}>Cancel</Text>
             </Pressable>
             <Text style={[styles.modalTitle, { color: TEXT }]}>Edit Profile</Text>
             <Pressable onPress={handleSaveProfile} disabled={saving}>
-              <Text style={[styles.modalSave, { color: BLUE, opacity: saving ? 0.5 : 1 }]}>
-                {saving ? 'Saving…' : 'Save'}
-              </Text>
+              {saving
+                ? <ActivityIndicator size="small" color={BLUE} />
+                : <Text style={[styles.modalSave, { color: BLUE }]}>Save</Text>
+              }
             </Pressable>
           </View>
-          <View style={{ padding: 20, gap: 16 }}>
-            <View style={[styles.inputGroup, { backgroundColor: CARD, borderColor: BORDER }]}>
-              <Text style={[styles.inputLabel, { color: MUTED }]}>Full Name</Text>
-              <TextInput
-                style={[styles.inputField, { color: TEXT }]}
-                value={editName}
-                onChangeText={setEditName}
-                placeholder="Your name"
-                placeholderTextColor={MUTED}
-                autoCapitalize="words"
-              />
+
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+
+            {/* Avatar preview */}
+            <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+              <LinearGradient colors={['#40C0F2', '#2490D0']} style={styles.editAvatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                <Text style={{ color: '#fff', fontSize: 32, fontFamily: 'Inter_700Bold' }}>
+                  {(editName || displayName).charAt(0).toUpperCase()}
+                </Text>
+              </LinearGradient>
             </View>
+
+            {/* Full name */}
+            <View style={[styles.inputGroup, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <Text style={[styles.inputLabel, { color: MUTED }]}>FULL NAME</Text>
+              <View style={styles.inputRow}>
+                <Feather name="user" size={16} color={MUTED} />
+                <TextInput
+                  style={[styles.inputField, { color: TEXT }]}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Your full name"
+                  placeholderTextColor={MUTED}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                />
+              </View>
+            </View>
+
+            {/* Phone number */}
+            <View style={[styles.inputGroup, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <Text style={[styles.inputLabel, { color: MUTED }]}>PHONE NUMBER</Text>
+              <View style={styles.inputRow}>
+                <Feather name="phone" size={16} color={MUTED} />
+                <TextInput
+                  style={[styles.inputField, { color: TEXT }]}
+                  value={editPhone}
+                  onChangeText={setEditPhone}
+                  placeholder="04XX XXX XXX"
+                  placeholderTextColor={MUTED}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+
+            {/* Email — read only */}
+            <View style={[styles.inputGroup, { backgroundColor: '#F9FAFB', borderColor: BORDER }]}>
+              <Text style={[styles.inputLabel, { color: MUTED }]}>EMAIL ADDRESS</Text>
+              <View style={styles.inputRow}>
+                <Feather name="mail" size={16} color={MUTED} />
+                <Text style={[styles.inputField, { color: MUTED }]}>{displayEmail}</Text>
+                <View style={[styles.lockedBadge, { backgroundColor: '#F3F4F6' }]}>
+                  <Feather name="lock" size={11} color={MUTED} />
+                  <Text style={[styles.lockedText, { color: MUTED }]}>Locked</Text>
+                </View>
+              </View>
+            </View>
+
             <Text style={[styles.inputHint, { color: MUTED }]}>
-              Email cannot be changed. Contact support if needed.
+              To change your email address, please contact support at hello@butterfield.com.au
             </Text>
-          </View>
-        </View>
+
+            {/* Delivery addresses shortcut */}
+            <Pressable
+              onPress={() => { setEditModal(false); setTimeout(() => router.push('/(customer)/addresses' as any), 300); }}
+              style={[styles.addressShortcut, { backgroundColor: '#EBF8FF', borderColor: '#BAE6FD' }]}
+            >
+              <Feather name="map-pin" size={16} color={BLUE} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: BLUE }}>Delivery Addresses</Text>
+                <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 1 }}>
+                  {addressCount > 0 ? `You have ${addressCount} saved address${addressCount > 1 ? 'es' : ''}` : 'Add a delivery address'}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={BLUE} />
+            </Pressable>
+
+            {/* Save button */}
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving}
+              style={[styles.saveBtn, { backgroundColor: BLUE, opacity: saving ? 0.7 : 1 }]}
+            >
+              {saving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.saveBtnText}>Save Changes</Text>
+              }
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  userCard: { borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  userCard:       { borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
   userCardAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  userCardInitial: { color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' },
-  userCardName: { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
-  userCardEmail: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontFamily: 'Inter_400Regular' },
-  editBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  quickRow: { flexDirection: 'row', gap: 12 },
-  quickCard: { flex: 1, borderRadius: 16, borderWidth: 1, padding: 16, gap: 6 },
-  quickIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  quickTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  quickSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  statsRow: { flexDirection: 'row', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
-  statItem: { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 3 },
-  statValue: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  menuCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
-  menuIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  menuLabel: { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium' },
-  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 16, borderWidth: 1 },
-  signOutText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  version: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular' },
-  modalRoot: { flex: 1 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
-  modalCancel: { fontSize: 15, fontFamily: 'Inter_400Regular' },
-  modalTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  modalSave: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  inputGroup: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12, gap: 4 },
-  inputLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 },
-  inputField: { fontSize: 16, fontFamily: 'Inter_400Regular' },
-  inputHint: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 18 },
+  userCardInitial:{ color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold' },
+  userCardName:   { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
+  userCardEmail:  { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' },
+  userCardPhone:  { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  editBtn:        { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  quickRow:       { flexDirection: 'row', gap: 12 },
+  quickCard:      { flex: 1, borderRadius: 16, borderWidth: 1, padding: 16, gap: 6 },
+  quickIcon:      { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  quickTitle:     { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  quickSub:       { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  statsRow:       { flexDirection: 'row', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  statItem:       { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 3 },
+  statValue:      { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  statLabel:      { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  menuCard:       { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  menuRow:        { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  menuIconWrap:   { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  menuLabel:      { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  signOutBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 16, borderWidth: 1 },
+  signOutText:    { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  version:        { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular' },
+
+  // Modal
+  editAvatar:       { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
+  modalHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, paddingTop: 54, borderBottomWidth: 1 },
+  modalCancel:      { fontSize: 15, fontFamily: 'Inter_400Regular', minWidth: 60 },
+  modalTitle:       { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  modalSave:        { fontSize: 15, fontFamily: 'Inter_600SemiBold', minWidth: 60, textAlign: 'right' },
+  inputGroup:       { borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, gap: 8 },
+  inputLabel:       { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.8 },
+  inputRow:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inputField:       { flex: 1, fontSize: 16, fontFamily: 'Inter_400Regular' },
+  lockedBadge:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  lockedText:       { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  inputHint:        { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 18, paddingHorizontal: 8 },
+  addressShortcut:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  saveBtn:          { height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  saveBtnText:      { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
 });

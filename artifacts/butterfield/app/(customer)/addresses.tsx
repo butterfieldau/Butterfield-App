@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -53,7 +54,7 @@ export default function AddressesScreen() {
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['addresses'],
     queryFn: () => api.addresses.list(),
     retry: 1,
@@ -118,7 +119,7 @@ export default function AddressesScreen() {
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 120 }} showsVerticalScrollIndicator={false} refreshControl={<ActivityIndicator color={BLUE} />}>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 120 }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}>
           {addresses.length === 0 ? (
             <View style={[s.emptyCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               <View style={[s.emptyIconCircle, { backgroundColor: '#EBF8FF' }]}><Feather name="map-pin" size={28} color={BLUE} /></View>
