@@ -872,7 +872,7 @@ const styles = StyleSheet.create({
   addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, height: 34, borderRadius: 10, justifyContent: 'center' },
   addBtnText:       { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
   floatingCartOuter:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 8, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
-  floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderRadius: 14, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
+  floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 54, borderRadius: 27, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
   floatingCartBadge:{ backgroundColor: '#fff', borderRadius: 8, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   // Checkout header
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
