@@ -94,7 +94,6 @@ router.get('/stats', async (req, res) => {
         pendingStaff:     pendingStaff.count,
         pendingWholesale: pendingWholesale.count,
         totalWholesale:   totalWholesale.count,
-        totalProducts:    totalProducts.count,
       },
       products: {
         total:     totalProducts.count,
@@ -240,8 +239,8 @@ router.get('/users', async (req, res) => {
   const wholesaleAccounts = await db.select().from(wholesaleAccountsTable);
   const spMap = Object.fromEntries(staffProfiles.map(s => [s.userId, s]));
   const waMap = Object.fromEntries(wholesaleAccounts.map(w => [w.userId, w]));
-  const result = users.map(u => ({
-    ...u, passwordHash: undefined,
+  const result = users.map(({ passwordHash: _pw, ...u }) => ({
+    ...u,
     staffProfile:     spMap[u.id] ?? null,
     wholesaleAccount: waMap[u.id] ?? null,
   }));

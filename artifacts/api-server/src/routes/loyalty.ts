@@ -71,7 +71,7 @@ router.patch('/birthday', requireAuth, async (req, res) => {
   return res.json({ data: { birthday } });
 });
 
-router.post('/rewards', requireRole('staff'), async (req, res) => {
+router.post('/rewards', requireRole('director', 'manager'), async (req, res) => {
   const { name, description, pointsCost, category, isAppOnly } = req.body;
   const [reward] = await db.insert(loyaltyRewardsTable).values({
     id: randomUUID(),

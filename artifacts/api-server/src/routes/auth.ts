@@ -132,8 +132,11 @@ router.post('/wholesale-apply', async (req, res) => {
   return res.status(201).json({ message: 'Application received. Our wholesale team will be in touch within 1-2 business days.', userId });
 });
 
-// ── Seed demo accounts ──────────────────────────────────────────────────────
+// ── Seed demo accounts (development only) ────────────────────────────────────
 router.post('/seed-demo', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   const DEMO_PW = 'Demo1234!';
   const hash = await bcrypt.hash(DEMO_PW, 10);
 

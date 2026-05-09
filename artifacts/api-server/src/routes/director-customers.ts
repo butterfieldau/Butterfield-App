@@ -239,7 +239,8 @@ router.patch('/customers/:id', async (req, res) => {
     );
   }
   const [[updated]] = await Promise.all(ops);
-  return res.json({ data: { ...updated, passwordHash: undefined } });
+  const { passwordHash: _pw, ...safeUser } = updated;
+  return res.json({ data: safeUser });
 });
 
 // ── POST /director/customers/:id/notes ────────────────────────────────────────

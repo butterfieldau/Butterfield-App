@@ -28,16 +28,7 @@ router.get('/account', async (req, res) => {
 });
 
 // Alias kept for client compatibility
-router.get('/profile', async (req, res) => {
-  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
-  if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
-  let tier: any = null;
-  if (account.tierId) {
-    const [t] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, account.tierId));
-    tier = t ?? null;
-  }
-  return res.json({ data: { ...account, tier } });
-});
+router.get('/profile', (_req, res) => res.redirect(307, '/api/wholesale/account'));
 
 // Tier-aware catalog: returns only products this customer can access,
 // with the secure unit price computed for qty=1.

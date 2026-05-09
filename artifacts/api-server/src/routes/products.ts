@@ -83,40 +83,15 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
   };
 }
 
-// Public product list — excludes staff-only, inactive, and archived products.
-// isAvailable=false products are included but flagged (shows as sold out).
+// Public product list — active, non-staff-only products (includes app-only products).
 router.get('/', async (_req, res) => {
   try {
     const products = await db
       .select()
       .from(productsTable)
-      .where(
-        and(
-          eq(productsTable.isActive, true),
-          eq(productsTable.isStaffOnly, false),
-          eq(productsTable.isAppOnly, false),  // app-only products are public
-        ),
-      )
+      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false)))
       .orderBy(productsTable.sortOrder, productsTable.name);
-
-    // Re-include isAppOnly — they should still show publicly in the app
-    const appProducts = await db
-      .select()
-      .from(productsTable)
-      .where(
-        and(
-          eq(productsTable.isActive, true),
-          eq(productsTable.isStaffOnly, false),
-          eq(productsTable.isAppOnly, true),
-        ),
-      )
-      .orderBy(productsTable.sortOrder, productsTable.name);
-
-    const all = [...products, ...appProducts].sort(
-      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
-    );
-
-    return res.json({ data: all.map(mapProduct) });
+    return res.json({ data: products.map(mapProduct) });
   } catch {
     return res.json({ data: [] });
   }

@@ -16,10 +16,16 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.SESSION_SECRET ?? 'butterfield-dev-secret-2024';
+const JWT_SECRET = process.env.SESSION_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_SECRET environment variable must be set in production');
+  }
+}
+const SECRET = JWT_SECRET ?? 'butterfield-dev-only-not-for-production';
 
 export function signToken(payload: AuthUser): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, SECRET, { expiresIn: '7d' });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -30,7 +36,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   const token = header.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as AuthUser;
+    const payload = jwt.verify(token, SECRET) as AuthUser;
     req.user = payload;
     next();
   } catch {
