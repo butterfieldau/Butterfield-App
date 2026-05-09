@@ -254,7 +254,7 @@ export default function CartScreen() {
         <Pressable onPress={() => { setConfirmation(null); setStep(0); setSelectedDate(null); setSelectedTimeMins(null); setStreet(''); setSuburb(''); setPostcode(''); setNotes(''); }} style={styles.trackBtn}>
           <Text style={styles.trackBtnText}>Continue Shopping</Text>
         </Pressable>
-        <Pressable onPress={() => router.push('/(customer)/orders')} style={[styles.trackBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, marginTop: 0 }]}>
+        <Pressable onPress={() => router.push('/orders')} style={[styles.trackBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, marginTop: 0 }]}>
           <Text style={[styles.trackBtnText, { color: BLUE }]}>Track Order</Text>
         </Pressable>
       </View>
@@ -500,7 +500,7 @@ export default function CartScreen() {
                 );
               })}
               <Pressable
-                onPress={() => router.push('/(customer)/addresses')}
+                onPress={() => router.push('/addresses')}
                 style={[styles.savedAddrChip, { backgroundColor: CARD, borderColor: BORDER }]}
               >
                 <Feather name="plus" size={12} color={MUTED} />
