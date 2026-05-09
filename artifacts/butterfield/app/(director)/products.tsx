@@ -121,27 +121,10 @@ function Segment({ options, value, onChange }: { options: string[]; value: strin
   );
 }
 
-// ─── Image upload helper ─────────────────────────────────────────────────────
-async function pickAndUploadImage(onUrl: (url: string) => void, onLoading: (v: boolean) => void) {
-  try {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true, quality: 0.85,
-    });
-    if (result.canceled || !result.assets?.length) return;
-    const asset = result.assets[0];
-    const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'photo.jpg';
-    const contentType = asset.mimeType ?? 'image/jpeg';
-    onLoading(true);
-    const { servingUrl } = await api.storage.uploadFile(asset.uri, filename, contentType);
-    onUrl(servingUrl);
-  } catch (e: any) {
-    Alert.alert('Upload failed', e.message ?? 'Could not upload image');
-  } finally { onLoading(false); }
+// ─── Derive objectPath from a servingUrl for deletion ─────────────────────
+function getObjectPath(servingUrl: string): string | null {
+  const match = servingUrl.match(/\/api\/storage(\/objects\/.+?)(\?|$)/);
+  return match ? match[1] : null;
 }
 
 // ─── Default form state ────────────────────────────────────────────────────────
@@ -225,6 +208,77 @@ function ProductModal({
       const arr = p[k] as string[];
       return { ...p, [k]: arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val] };
     });
+  };
+
+  // ── Product image upload ──────────────────────────────────────────────────
+  const handlePickProductImage = async (isReplace: boolean) => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow photo library access in Settings.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], allowsEditing: true, quality: 0.88,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) {
+        Alert.alert('File too large', 'Please choose an image under 8 MB.');
+        return;
+      }
+      const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'product.jpg';
+      const contentType = asset.mimeType ?? 'image/jpeg';
+      const oldUrl = f.imageUrl.trim();
+      setUploading(true);
+      const { servingUrl } = await api.storage.uploadProductImage(
+        asset.uri, filename, contentType, f.category, f.name.trim() || 'product'
+      );
+      if (isReplace && oldUrl) {
+        const oldPath = getObjectPath(oldUrl);
+        if (oldPath) api.storage.deleteProductImage(oldPath).catch(() => {});
+      }
+      upd('imageUrl', servingUrl);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message ?? 'Could not upload image. Please try again.');
+    } finally { setUploading(false); }
+  };
+
+  const handleRemoveProductImage = () => {
+    Alert.alert('Remove Photo', 'Remove this product photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive', onPress: () => {
+          const url = f.imageUrl.trim();
+          if (url) {
+            const path = getObjectPath(url);
+            if (path) api.storage.deleteProductImage(path).catch(() => {});
+          }
+          upd('imageUrl', '');
+        },
+      },
+    ]);
+  };
+
+  const handlePickGalleryImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.85 });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) { Alert.alert('File too large', 'Please choose an image under 8 MB.'); return; }
+      const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'gallery.jpg';
+      const contentType = asset.mimeType ?? 'image/jpeg';
+      setUploading(true);
+      const { servingUrl } = await api.storage.uploadProductImage(
+        asset.uri, filename, contentType, f.category, (f.name.trim() || 'product') + '-gallery'
+      );
+      Haptics.selectionAsync();
+      upd('galleryUrls', [...f.galleryUrls, servingUrl]);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message ?? 'Could not upload image.');
+    } finally { setUploading(false); }
   };
 
   const handleSave = async () => {
@@ -351,84 +405,106 @@ function ProductModal({
             <View style={form.card}>
               <SectionHeader title="Photos" icon="image" color={BLUE} />
 
-              {/* Hero image */}
-              <Field label="Hero Image">
-                <View style={{ gap: 8 }}>
-                  <TextF value={f.imageUrl} onChange={v => upd('imageUrl', v)} placeholder="https://example.com/hero.jpg" />
-                  <Pressable
-                    onPress={() => pickAndUploadImage(url => upd('imageUrl', url), setUploading)}
-                    disabled={uploading}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: BLUE + '15', borderWidth: 1, borderColor: BLUE, alignSelf: 'flex-start' }}
-                  >
-                    {uploading ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="upload" size={14} color={BLUE} />}
-                    <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: BLUE }}>{uploading ? 'Uploading…' : 'Upload from camera roll'}</Text>
-                  </Pressable>
-                </View>
-              </Field>
+              {/* Hero image — upload only, no URL input */}
+              <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED, marginBottom: 8 }]}>
+                Hero Image
+              </Text>
+
               {f.imageUrl.trim() ? (
-                <Image
-                  source={{ uri: f.imageUrl.trim() }}
-                  style={{ width: '100%', height: 180, borderRadius: 12, backgroundColor: '#F3F4F6' }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={form.photoPlaceholder}>
-                  <Feather name="image" size={28} color={MUTED} />
-                  <Text style={[form.photoPlaceholderText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Hero image preview</Text>
+                <View style={{ gap: 10 }}>
+                  <Image
+                    source={{ uri: f.imageUrl.trim() }}
+                    style={{ width: '100%', height: 200, borderRadius: 12, backgroundColor: '#F3F4F6' }}
+                    resizeMode="cover"
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable
+                      onPress={() => handlePickProductImage(true)}
+                      disabled={uploading}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: BLUE + '15', borderWidth: 1, borderColor: BLUE }}
+                    >
+                      {uploading
+                        ? <ActivityIndicator size="small" color={BLUE} />
+                        : <Feather name="refresh-cw" size={14} color={BLUE} />}
+                      <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: BLUE }}>
+                        {uploading ? 'Uploading…' : 'Replace Photo'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleRemoveProductImage}
+                      disabled={uploading}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 10, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '60' }}
+                    >
+                      <Feather name="trash-2" size={14} color={RED} />
+                      <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED }}>Remove</Text>
+                    </Pressable>
+                  </View>
                 </View>
+              ) : (
+                <Pressable
+                  onPress={() => handlePickProductImage(false)}
+                  disabled={uploading}
+                  style={form.uploadArea}
+                >
+                  {uploading ? (
+                    <ActivityIndicator size="large" color={BLUE} />
+                  ) : (
+                    <>
+                      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                        <Feather name="upload-cloud" size={26} color={BLUE} />
+                      </View>
+                      <Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: TEXT, marginBottom: 4 }}>
+                        Upload Product Photo
+                      </Text>
+                      <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED }}>
+                        JPG · PNG · WebP · HEIC  ·  Max 8 MB
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
               )}
 
-              <View style={{ height: 1, backgroundColor: BORDER }} />
+              <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 4 }} />
 
               {/* Gallery */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED }]}>Gallery Images</Text>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <Pressable
-                    onPress={() => pickAndUploadImage(url => { Haptics.selectionAsync(); upd('galleryUrls', [...f.galleryUrls, url]); }, setUploading)}
-                    disabled={uploading}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                  >
-                    <Feather name="upload" size={14} color={BLUE} />
-                    <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Upload</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => { Haptics.selectionAsync(); upd('galleryUrls', [...f.galleryUrls, '']); }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                  >
-                    <Feather name="plus-circle" size={14} color={MUTED} />
-                    <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_600SemiBold' }}>Add URL</Text>
-                  </Pressable>
-                </View>
+                <Pressable
+                  onPress={handlePickGalleryImage}
+                  disabled={uploading}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Feather name="upload" size={13} color={BLUE} />
+                  <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Upload</Text>
+                </Pressable>
               </View>
 
               {f.galleryUrls.length === 0 ? (
-                <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>No gallery images — tap Add image to include more photos</Text>
+                <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                  No gallery images — tap Upload to add more photos
+                </Text>
               ) : (
                 f.galleryUrls.map((url, idx) => (
                   <View key={idx} style={{ gap: 6 }}>
-                    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                      <TextInput
-                        value={url}
-                        onChangeText={v => {
-                          const next = [...f.galleryUrls];
-                          next[idx] = v;
-                          upd('galleryUrls', next);
-                        }}
-                        placeholder={`Gallery photo ${idx + 1} URL`}
-                        placeholderTextColor={MUTED}
-                        style={[form.input, { flex: 1, fontFamily: 'Inter_400Regular', color: TEXT, height: 46, textAlignVertical: 'center' }]}
-                      />
-                      <Pressable onPress={() => { Haptics.selectionAsync(); upd('galleryUrls', f.galleryUrls.filter((_, i) => i !== idx)); }}>
-                        <Feather name="x-circle" size={20} color={RED} />
-                      </Pressable>
-                    </View>
                     {url.trim() ? (
-                      <Image
-                        source={{ uri: url.trim() }}
-                        style={{ width: '100%', height: 100, borderRadius: 8, backgroundColor: '#F3F4F6' }}
-                        resizeMode="cover"
-                      />
+                      <View style={{ position: 'relative' }}>
+                        <Image
+                          source={{ uri: url.trim() }}
+                          style={{ width: '100%', height: 120, borderRadius: 10, backgroundColor: '#F3F4F6' }}
+                          resizeMode="cover"
+                        />
+                        <Pressable
+                          onPress={() => {
+                            const path = getObjectPath(url);
+                            if (path) api.storage.deleteProductImage(path).catch(() => {});
+                            Haptics.selectionAsync();
+                            upd('galleryUrls', f.galleryUrls.filter((_, i) => i !== idx));
+                          }}
+                          style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 14, padding: 5 }}
+                        >
+                          <Feather name="x" size={14} color="#fff" />
+                        </Pressable>
+                      </View>
                     ) : null}
                   </View>
                 ))
@@ -699,9 +775,18 @@ export default function DirectorProductsScreen() {
                 </View>
 
                 <View style={styles.productTop}>
-                  <View style={[styles.catBox, { backgroundColor: catColor + '18', borderColor: catColor + '40' }]}>
-                    <Feather name="package" size={14} color={catColor} />
-                  </View>
+                  {/* Thumbnail / category icon */}
+                  {p.imageUrl ? (
+                    <Image
+                      source={{ uri: p.imageUrl }}
+                      style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: '#F3F4F6' }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.catBox, { backgroundColor: catColor + '18', borderColor: catColor + '40' }]}>
+                      <Feather name="package" size={14} color={catColor} />
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.productName, { fontFamily: 'Inter_700Bold', color: TEXT }]} numberOfLines={1}>{p.name}</Text>
                     {p.shortDescription && <Text style={[styles.productSub, { fontFamily: 'Inter_400Regular', color: MUTED }]} numberOfLines={1}>{p.shortDescription}</Text>}
@@ -837,6 +922,11 @@ const form = StyleSheet.create({
   tagGrid:            { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   photoPlaceholder:   { height: 120, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: BORDER },
   photoPlaceholderText:{ fontSize: 12 },
+  uploadArea: {
+    height: 160, borderRadius: 14, backgroundColor: BLUE + '08', borderWidth: 1.5,
+    borderColor: BLUE + '40', borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 4,
+  },
 });
 
 const seg = StyleSheet.create({

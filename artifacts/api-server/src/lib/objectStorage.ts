@@ -130,6 +130,47 @@ export class ObjectStorageService {
     return { objectPath, servingUrl };
   }
 
+  async uploadToPath(
+    buffer: Buffer,
+    contentType: string,
+    subPath: string
+  ): Promise<{ objectPath: string; servingUrl: string }> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const fullPath = `${privateObjectDir}/${subPath}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const gcsFile = bucket.file(objectName);
+
+    await new Promise<void>((resolve, reject) => {
+      const writeStream = gcsFile.createWriteStream({ contentType, resumable: false });
+      writeStream.on("finish", resolve);
+      writeStream.on("error", reject);
+      writeStream.end(buffer);
+    });
+
+    const objectPath = `/objects/${subPath}`;
+    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "";
+    const servingUrl = domain
+      ? `https://${domain}/api/storage${objectPath}`
+      : `/api/storage${objectPath}`;
+
+    return { objectPath, servingUrl };
+  }
+
+  async deleteObjectByPath(objectPath: string): Promise<void> {
+    if (!objectPath.startsWith("/objects/")) throw new Error("Invalid object path");
+    const parts = objectPath.slice(1).split("/");
+    const entityId = parts.slice(1).join("/");
+    let entityDir = this.getPrivateObjectDir();
+    if (!entityDir.endsWith("/")) entityDir = `${entityDir}/`;
+    const fullPath = `${entityDir}${entityId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const gcsFile = bucket.file(objectName);
+    const [exists] = await gcsFile.exists();
+    if (exists) await gcsFile.delete();
+  }
+
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {

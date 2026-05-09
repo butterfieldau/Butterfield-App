@@ -315,6 +315,41 @@ export const api = {
       }
       return res.json();
     },
+    uploadProductImage: async (
+      fileUri: string, filename: string, contentType: string,
+      category: string, productName: string
+    ): Promise<{ objectPath: string; servingUrl: string }> => {
+      const token = await getToken();
+      const formData = new FormData();
+      formData.append('file', { uri: fileUri, name: filename, type: contentType } as any);
+      formData.append('category', category);
+      formData.append('productName', productName);
+      const res = await fetch(`${BASE}/storage/products/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Upload failed (HTTP ${res.status})`);
+      }
+      return res.json();
+    },
+    deleteProductImage: async (objectPath: string): Promise<void> => {
+      const token = await getToken();
+      const res = await fetch(`${BASE}/storage/product-image`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ objectPath }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Delete failed (HTTP ${res.status})`);
+      }
+    },
   },
 
   seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
