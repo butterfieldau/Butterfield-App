@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable, storeSettingsTable, homeSpecialsTable } from '@workspace/db';
-import { eq, and, asc } from 'drizzle-orm';
+import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable, storeSettingsTable } from '@workspace/db';
+import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
 
 const router = Router();
@@ -55,36 +55,6 @@ function computeStoreStatus(manualOverride: boolean): {
   }
   return { isOpen: false, openUntil: null, opensAt: null };
 }
-
-// ── Public homepage content ───────────────────────────────────────────────────
-router.get('/home-content', async (_req, res) => {
-  const [settingsRows, specials] = await Promise.all([
-    db.select().from(storeSettingsTable),
-    db.select().from(homeSpecialsTable)
-      .where(eq(homeSpecialsTable.isActive, true))
-      .orderBy(asc(homeSpecialsTable.sortOrder), asc(homeSpecialsTable.createdAt)),
-  ]);
-  const s = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
-  return res.json({
-    data: {
-      hero: {
-        bgColor:          s['hero_bg_color']         ?? '#40C0F2',
-        imageUrl:         s['hero_image_url']         ?? null,
-        campaignTag:      s['hero_campaign_tag']      ?? '🍪 DAILY SPECIAL',
-        campaignTitle:    s['hero_campaign_title']    ?? 'Cookie & Cream Sandwich',
-        campaignSubtitle: s['hero_campaign_subtitle'] ?? 'Two warm cookies + vanilla cream',
-        buttonText:       s['hero_button_text']       ?? 'Order now',
-        buttonLink:       s['hero_button_link']       ?? 'menu',
-      },
-      promo: {
-        imageUrl: s['promo_image_url'] ?? null,
-        title:    s['promo_title']     ?? null,
-        subtitle: s['promo_subtitle']  ?? null,
-      },
-      specials,
-    },
-  });
-});
 
 router.get('/store-status', async (_req, res) => {
   const rows = await db.select().from(storeSettingsTable);

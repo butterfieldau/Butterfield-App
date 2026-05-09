@@ -16,4 +16,3 @@ export * from "./manager_permissions";
 export * from "./notifications";
 export * from "./staff_roster";
 export * from "./customer_crm";
-export * from "./home_content";
