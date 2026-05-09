@@ -136,7 +136,11 @@ export default function LoginScreen() {
           setIError('Location permission is required for staff sign-in.');
           setILoading(false); return;
         }
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Location timed out')), 10000)
+        );
+        const locPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const loc = await Promise.race([locPromise, timeout]);
         coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setGeoStatus('ready');
       } catch {

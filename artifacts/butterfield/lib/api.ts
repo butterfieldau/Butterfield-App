@@ -190,6 +190,8 @@ export const api = {
       request<{ data: any }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
     suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
+    updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string }) =>
+      request<{ data: any }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
     // Product wholesale access
     setProductWholesaleAccess: (id: string, data: any) =>

@@ -1,11 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -31,6 +32,216 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
 
 function initials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+// ── Wholesale Detail Modal ──────────────────────────────────────────────────
+function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh }: {
+  user: any; wa: any; visible: boolean; onClose: () => void; onRefresh: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [creditAud, setCreditAud]     = useState('');
+  const [payTerms, setPayTerms]       = useState('');
+  const [deliveryAddr, setDeliveryAddr] = useState('');
+  const [suspended, setSuspended]     = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [saving, setSaving]           = useState(false);
+
+  useEffect(() => {
+    if (wa) {
+      setCreditAud(wa.creditLimitCents ? String(wa.creditLimitCents / 100) : '');
+      setPayTerms(wa.paymentTerms ?? '30 days');
+      setDeliveryAddr(wa.deliveryAddress ?? '');
+      setSuspended(wa.isSuspended ?? false);
+      setSuspendReason(wa.suspendedReason ?? '');
+    }
+  }, [wa]);
+
+  if (!wa || !user) return null;
+
+  const STATUS_CFG: Record<string, { color: string; bg: string; label: string }> = {
+    approved: { color: GREEN,  bg: '#DCFCE7', label: 'Approved' },
+    pending:  { color: AMBER,  bg: '#FEF3C7', label: 'Pending' },
+    rejected: { color: RED,    bg: '#FEE2E2', label: 'Rejected' },
+  };
+  const cfg = STATUS_CFG[wa.status] ?? STATUS_CFG.pending;
+
+  const handleStatus = async (status: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.director.setWholesaleStatus(wa.id, status);
+      onRefresh();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  const handleSuspend = async (val: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSuspended(val);
+    try {
+      await api.director.suspendWholesale(wa.id, { isSuspended: val, suspendedReason: val ? suspendReason : undefined });
+      onRefresh();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) { Alert.alert('Error', e.message); setSuspended(!val); }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const creditCents = creditAud ? Math.round(parseFloat(creditAud) * 100) : undefined;
+      await api.director.updateWholesale(wa.id, {
+        creditLimitCents: isNaN(creditCents as number) ? undefined : creditCents,
+        paymentTerms: payTerms.trim() || undefined,
+        deliveryAddress: deliveryAddr.trim() || undefined,
+      });
+      onRefresh();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Wholesale account updated.');
+      onClose();
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        {/* Header */}
+        <View style={[wdl.header, { paddingTop: insets.top + 8, backgroundColor: CARD, borderBottomColor: BORDER }]}>
+          <Pressable onPress={onClose} style={wdl.closeBtn}>
+            <Feather name="x" size={20} color={TEXT} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={wdl.title}>{wa.companyName}</Text>
+            <View style={[wdl.statusBadge, { backgroundColor: cfg.bg, borderColor: cfg.color }]}>
+              <Text style={[wdl.statusBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
+            </View>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {/* Company info */}
+          <View style={wdl.card}>
+            <Text style={wdl.sectionLabel}>ACCOUNT INFO</Text>
+            {[
+              { label: 'Company',  value: wa.companyName },
+              { label: 'ABN',      value: wa.abn ?? '—' },
+              { label: 'Contact',  value: user.name },
+              { label: 'Email',    value: user.email },
+              { label: 'Tier',     value: wa.tier?.name ?? wa.pricingTier ?? 'Standard' },
+              { label: 'Credit Used', value: wa.creditUsedCents ? `$${(wa.creditUsedCents / 100).toFixed(2)}` : '$0.00' },
+            ].map((row) => (
+              <View key={row.label} style={wdl.infoRow}>
+                <Text style={wdl.infoLabel}>{row.label}</Text>
+                <Text style={wdl.infoValue}>{row.value}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Status controls */}
+          <View style={wdl.card}>
+            <Text style={wdl.sectionLabel}>ACCOUNT STATUS</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              {[
+                { key: 'approved', label: 'Approve',  color: GREEN,  bg: '#DCFCE7' },
+                { key: 'pending',  label: 'Pending',  color: AMBER,  bg: '#FEF3C7' },
+                { key: 'rejected', label: 'Reject',   color: RED,    bg: '#FEE2E2' },
+              ].map((s) => {
+                const active = wa.status === s.key;
+                return (
+                  <Pressable
+                    key={s.key}
+                    onPress={() => handleStatus(s.key)}
+                    style={[wdl.statusBtn, { backgroundColor: active ? s.bg : '#F3F4F6', borderColor: active ? s.color : BORDER, borderWidth: 1 }]}
+                  >
+                    <Text style={[wdl.statusBtnText, { color: active ? s.color : MUTED }]}>{s.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Edit fields */}
+          <View style={wdl.card}>
+            <Text style={wdl.sectionLabel}>ACCOUNT SETTINGS</Text>
+            <Text style={wdl.fieldLabel}>Credit Limit (AUD)</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>$</Text>
+              <TextInput
+                style={[wdl.input, { color: TEXT }]}
+                placeholder="e.g. 5000"
+                placeholderTextColor={MUTED}
+                value={creditAud}
+                onChangeText={setCreditAud}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Payment Terms</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput
+                style={[wdl.input, { color: TEXT }]}
+                placeholder="e.g. 30 days"
+                placeholderTextColor={MUTED}
+                value={payTerms}
+                onChangeText={setPayTerms}
+              />
+            </View>
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Delivery Address</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER, height: 72, alignItems: 'flex-start', paddingTop: 12 }]}>
+              <TextInput
+                style={[wdl.input, { color: TEXT }]}
+                placeholder="Street, suburb, postcode"
+                placeholderTextColor={MUTED}
+                value={deliveryAddr}
+                onChangeText={setDeliveryAddr}
+                multiline
+              />
+            </View>
+          </View>
+
+          {/* Suspend */}
+          <View style={wdl.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Suspend Account</Text>
+                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>Prevents new orders while suspended</Text>
+              </View>
+              <Switch
+                value={suspended}
+                onValueChange={handleSuspend}
+                trackColor={{ false: '#D1D5DB', true: RED }}
+                thumbColor="#fff"
+                ios_backgroundColor="#D1D5DB"
+              />
+            </View>
+            {suspended && (
+              <View style={[wdl.inputRow, { borderColor: '#FECACA', marginTop: 12 }]}>
+                <TextInput
+                  style={[wdl.input, { color: TEXT }]}
+                  placeholder="Suspension reason (optional)"
+                  placeholderTextColor={MUTED}
+                  value={suspendReason}
+                  onChangeText={setSuspendReason}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* Save button */}
+          <Pressable
+            onPress={handleSave}
+            disabled={saving}
+            style={[wdl.saveBtn, { opacity: saving ? 0.8 : 1 }]}
+          >
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+              <Text style={wdl.saveBtnText}>Save Changes</Text>
+            )}
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
 }
 
 type CreateType = 'staff' | 'wholesale';
@@ -189,6 +400,7 @@ export default function DirectorUsersScreen() {
   const [tab, setTab] = useState('All');
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
+  const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<any | null>(null);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['director-users'],
@@ -218,24 +430,8 @@ export default function DirectorUsersScreen() {
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
-  const setWholesaleStatus = async (accountId: string, status: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await api.director.setWholesaleStatus(accountId, status);
-      await qc.invalidateQueries({ queryKey: ['director-users'] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) { Alert.alert('Error', e.message); }
-  };
-
-  const wholesalePrompt = (u: any) => {
-    const wa = u.wholesaleAccount;
-    if (!wa) return;
-    Alert.alert(wa.companyName, `Current status: ${wa.status}`, [
-      { text: 'Approve', onPress: () => setWholesaleStatus(wa.id, 'approved') },
-      { text: 'Pending', onPress: () => setWholesaleStatus(wa.id, 'pending') },
-      { text: 'Reject',  style: 'destructive', onPress: () => setWholesaleStatus(wa.id, 'rejected') },
-      { text: 'Cancel',  style: 'cancel' },
-    ]);
+  const handleRefreshUsers = async () => {
+    await qc.invalidateQueries({ queryKey: ['director-users'] });
   };
 
   return (
@@ -331,16 +527,23 @@ export default function DirectorUsersScreen() {
 
                 {/* Wholesale status */}
                 {wa && (
-                  <Pressable onPress={() => wholesalePrompt(u)} style={[styles.subRow, { borderTopColor: BORDER }]}>
+                  <Pressable
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedWholesaleUser(u); }}
+                    style={[styles.subRow, { borderTopColor: BORDER }]}
+                  >
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={styles.subTitle}>{wa.companyName}</Text>
                       <Text style={[styles.subSub, {
                         color: wa.status === 'approved' ? GREEN : wa.status === 'rejected' ? RED : AMBER,
                       }]}>
                         {wa.status === 'approved' ? '✓ Approved' : wa.status === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
+                        {wa.isSuspended ? ' · Suspended' : ''}
                       </Text>
                     </View>
-                    <Text style={{ color: BLUE, fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>Change →</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={{ color: BLUE, fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>Manage</Text>
+                      <Feather name="chevron-right" size={13} color={BLUE} />
+                    </View>
                   </Pressable>
                 )}
               </View>
@@ -358,6 +561,14 @@ export default function DirectorUsersScreen() {
           qc.invalidateQueries({ queryKey: ['director-users'] });
           Alert.alert('Account created', `The new ${createType} account is ready to use.`);
         }}
+      />
+
+      <WholesaleDetailModal
+        visible={!!selectedWholesaleUser}
+        user={selectedWholesaleUser}
+        wa={selectedWholesaleUser?.wholesaleAccount ?? null}
+        onClose={() => setSelectedWholesaleUser(null)}
+        onRefresh={handleRefreshUsers}
       />
     </View>
   );
@@ -401,4 +612,24 @@ const modal = StyleSheet.create({
   errorText:      { flex: 1, fontSize: 13 },
   submitBtn:      { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   submitBtnText:  { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+});
+
+const wdl = StyleSheet.create({
+  header:          { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
+  closeBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
+  title:           { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
+  statusBadge:     { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, borderWidth: 1, marginTop: 4 },
+  statusBadgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  card:            { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', gap: 0 },
+  sectionLabel:    { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2, color: '#8E8E93', marginBottom: 8 },
+  infoRow:         { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  infoLabel:       { color: '#8E8E93', fontFamily: 'Inter_400Regular', fontSize: 13 },
+  infoValue:       { color: '#1C1C1E', fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: '55%', textAlign: 'right' },
+  statusBtn:       { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  statusBtnText:   { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  fieldLabel:      { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#8E8E93', marginBottom: 6 },
+  inputRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: '#F5F6FA' },
+  input:           { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  saveBtn:         { height: 54, borderRadius: 14, backgroundColor: '#40C0F2', alignItems: 'center', justifyContent: 'center' },
+  saveBtnText:     { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
 });
