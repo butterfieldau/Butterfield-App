@@ -193,7 +193,7 @@ export default function LoyaltyScreen() {
       </Modal>
 
       <ScrollView
-        style={{ flex: 1, backgroundColor: BG }}
+        style={{ flex: 1, backgroundColor: WHITE }}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BRAND} />}

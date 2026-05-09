@@ -70,6 +70,7 @@ export default function AccountScreen() {
   ];
 
   return (
+    <View style={{ flex: 1, backgroundColor: '#40C0F2' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
@@ -178,6 +179,7 @@ export default function AccountScreen() {
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version 1.0.0</Text>
       </View>
     </ScrollView>
+    </View>
   );
 }
 

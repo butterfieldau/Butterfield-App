@@ -230,7 +230,7 @@ export default function MenuScreen() {
 }
 
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F5F6FA' },
+  root:        { flex: 1, backgroundColor: '#fff' },
   header:      { paddingHorizontal: 16, paddingBottom: 14, gap: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#EFEFEF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, zIndex: 10 },
   headerTitle: { fontSize: 26, color: '#1C1C1E' },
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F5F6FA', borderRadius: 14 },

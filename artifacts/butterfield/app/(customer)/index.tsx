@@ -245,6 +245,7 @@ export default function CustomerHome() {
     : (storeStatus?.opensAt ? `Opens ${storeStatus.opensAt}` : 'Closed');
 
   return (
+    <View style={{ flex: 1, backgroundColor: '#40C0F2' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: 120 }}
@@ -411,6 +412,7 @@ export default function CustomerHome() {
         )}
       </View>
     </ScrollView>
+    </View>
   );
 }
 
