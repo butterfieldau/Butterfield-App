@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef } from 'react';
 import {
@@ -17,8 +17,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 
-const { height: SCREEN_H } = Dimensions.get('window');
-const SHEET_H = Math.min(SCREEN_H * 0.72, 560);
+const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
+const SHEET_H  = Math.min(SCREEN_H * 0.82, 640);
+const MAP_H    = 190;
+
+function staticMapUrl(lat: number, lng: number, w: number): string {
+  const px = Math.round(w);
+  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=${px}x${MAP_H}&markers=${lat},${lng},red-pushpin`;
+}
 
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -130,21 +136,48 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
         {/* Drag handle */}
         <View style={s.handle} />
 
-        {/* Blue gradient header */}
-        <LinearGradient
-          colors={isOpen ? ['#4B72C4', '#3058A8'] : ['#8E8E93', '#6B6B6B']}
-          style={s.header}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={s.headerLabel}>IN-STORE PICKUP</Text>
-            <Text style={s.headerName} numberOfLines={1}>{store.name}</Text>
-          </View>
-          <View style={s.statusBadge}>
-            <View style={[s.dot, { backgroundColor: sc }]} />
-            <Text style={s.statusText}>{store.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
-          </View>
-        </LinearGradient>
+        {/* ── Map area ─────────────────────────────────────────────── */}
+        <Pressable style={s.mapWrap} onPress={handleDirections}>
+          {store.latitude && store.longitude ? (
+            <Image
+              source={{ uri: staticMapUrl(store.latitude, store.longitude, SCREEN_W) }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={300}
+            />
+          ) : (
+            <LinearGradient
+              colors={isOpen ? ['#4B72C4', '#3058A8'] : ['#8E8E93', '#6B6B6B']}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            />
+          )}
+
+          {/* Scrim so text is readable over the map */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.52)']}
+            style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end' }]}
+          >
+            <View style={s.mapOverlay}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.headerLabel}>IN-STORE PICKUP</Text>
+                <Text style={s.headerName} numberOfLines={1}>{store.name}</Text>
+              </View>
+              <View style={[s.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.85)' : 'rgba(100,100,100,0.75)' }]}>
+                <View style={[s.dot, { backgroundColor: '#fff' }]} />
+                <Text style={s.statusText}>{store.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          {/* Directions chip top-right */}
+          {store.latitude && store.longitude && (
+            <View style={s.dirChip}>
+              <Feather name="navigation" size={11} color="#3058A8" />
+              <Text style={s.dirChipText}>Directions</Text>
+            </View>
+          )}
+        </Pressable>
 
         <ScrollView
           style={{ flex: 1 }}
@@ -262,12 +295,16 @@ const s = StyleSheet.create({
   sheet:      { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24 },
   handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginTop: 10, marginBottom: 6 },
 
-  header:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 16, gap: 12 },
-  headerLabel:{ fontFamily: 'Inter_600SemiBold', fontSize: 10, color: 'rgba(255,255,255,0.75)', letterSpacing: 0.8, marginBottom: 2 },
+  // ── Map ──────────────────────────────────────────────────────────────────────
+  mapWrap:    { height: MAP_H, overflow: 'hidden', backgroundColor: '#C8D8E8' },
+  mapOverlay: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  headerLabel:{ fontFamily: 'Inter_600SemiBold', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
   headerName: { fontFamily: 'Inter_700Bold', fontSize: 17, color: '#fff' },
-  statusBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  statusBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   dot:        { width: 7, height: 7, borderRadius: 4 },
   statusText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#fff' },
+  dirChip:    { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  dirChipText:{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#3058A8' },
 
   infoRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   infoIcon:   { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
