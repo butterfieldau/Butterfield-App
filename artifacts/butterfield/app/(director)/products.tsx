@@ -243,6 +243,14 @@ function VariantsCard({ productId }: { productId: string }) {
   );
 }
 
+type ModalTab = 'core' | 'status' | 'details' | 'inventory';
+const MODAL_TABS: { id: ModalTab; label: string; icon: string }[] = [
+  { id: 'core',      label: 'Core',      icon: 'package'        },
+  { id: 'status',    label: 'Status',    icon: 'toggle-right'   },
+  { id: 'details',   label: 'Details',   icon: 'file-text'      },
+  { id: 'inventory', label: 'Inventory', icon: 'box'            },
+];
+
 // ─── Add/Edit Modal ────────────────────────────────────────────────────────────
 function ProductModal({
   visible, onClose, onSave, initial, editing, categories = [],
@@ -250,7 +258,13 @@ function ProductModal({
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [modalTab, setModalTab] = useState<ModalTab>('core');
   const [f, setF] = useState<FormState>(BLANK());
+
+  // Reset to first tab whenever modal opens
+  React.useEffect(() => {
+    if (visible) setModalTab('core');
+  }, [visible]);
 
   // Populate when editing
   React.useEffect(() => {
@@ -441,9 +455,28 @@ function ProductModal({
             </Pressable>
           </View>
 
+          {/* ── Tab bar ──────────────────────────────────────────── */}
+          <View style={{ flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+            {MODAL_TABS.map(t => {
+              const active = modalTab === t.id;
+              return (
+                <Pressable key={t.id} onPress={() => { setModalTab(t.id); Haptics.selectionAsync(); }}
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, borderBottomWidth: 2.5, borderBottomColor: active ? BLUE : 'transparent' }}>
+                  <Feather name={t.icon as any} size={15} color={active ? BLUE : MUTED} />
+                  <Text style={{ fontSize: 10, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? BLUE : MUTED }}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
 
-            {/* ── 1. Basic Info ──────────────────────────────────── */}
+            {/* ════════════════════════════════════════════════════════
+                TAB 1 — CORE: Basic info, category, pricing, photos
+               ════════════════════════════════════════════════════════ */}
+            {modalTab === 'core' && <>
+
+            {/* ── Basic Info ─────────────────────────────────────── */}
             <View style={form.card}>
               <SectionHeader title="Basic Information" icon="info" color={BLUE} />
               <Field label="Product Name" required>
@@ -609,7 +642,38 @@ function ProductModal({
               )}
             </View>
 
-            {/* ── 4. Identifiers ─────────────────────────────────── */}
+            {/* close core tab fragment */}
+            </>}
+
+            {/* ════════════════════════════════════════════════════════
+                TAB 2 — STATUS: All visibility / sale toggles
+               ════════════════════════════════════════════════════════ */}
+            {modalTab === 'status' && <>
+            <View style={form.card}>
+              <SectionHeader title="Sale & Visibility" icon="eye" color={GREEN} />
+              <Toggle label="Available for sale"    value={f.isAvailable}          onChange={v => upd('isAvailable', v)}          color={GREEN}  desc="Show this product to customers" />
+              <Toggle label="Featured"              value={f.isFeatured}           onChange={v => upd('isFeatured', v)}           color={BLUE}   desc="Show in featured sections on home" />
+              <Toggle label="New product badge"     value={f.isNew}                onChange={v => upd('isNew', v)}                color={PINK}   desc="Shows a 'NEW' label on the tile" />
+              <Toggle label="Wholesale available"   value={f.isWholesaleAvailable} onChange={v => upd('isWholesaleAvailable', v)} color={PURPLE} desc="Visible to wholesale accounts" />
+            </View>
+            <View style={form.card}>
+              <SectionHeader title="Stock Status" icon="alert-circle" color={RED} />
+              <Toggle label="Limited drop"          value={f.isLimitedDrop}        onChange={v => upd('isLimitedDrop', v)}        color={RED}    desc="Shows 'LIMITED' badge on tile" />
+              <Toggle label="Sold out"              value={f.isSoldOut}            onChange={v => upd('isSoldOut', v)}            color={RED}    desc="Displays as sold out, blocks ordering" />
+              <Toggle label="Coming soon"           value={f.isComingSoon}         onChange={v => upd('isComingSoon', v)}         color={AMBER}  desc="Teaser before launch" />
+            </View>
+            <View style={form.card}>
+              <SectionHeader title="Access Restrictions" icon="lock" color={MUTED} />
+              <Toggle label="Pickup only"           value={f.isPickupOnly}         onChange={v => upd('isPickupOnly', v)}         color={MUTED}  desc="Cannot be delivered" />
+              <Toggle label="Staff only visibility" value={f.isStaffOnly}          onChange={v => upd('isStaffOnly', v)}          color={MUTED}  desc="Hidden from public menu" />
+              <Toggle label="App only"              value={f.isAppOnly}            onChange={v => upd('isAppOnly', v)}            color={MUTED}  desc="Not shown on website" />
+            </View>
+            </>}
+
+            {/* ════════════════════════════════════════════════════════
+                TAB 3 — DETAILS: Allergens, dietary, ingredients, IDs
+               ════════════════════════════════════════════════════════ */}
+            {modalTab === 'details' && <>
             <View style={form.card}>
               <SectionHeader title="Identifiers" icon="hash" color={PURPLE} />
               <View style={form.row2}>
@@ -625,23 +689,6 @@ function ProductModal({
                 </View>
               </View>
             </View>
-
-            {/* ── 4. Availability ────────────────────────────────── */}
-            <View style={form.card}>
-              <SectionHeader title="Availability" icon="toggle-right" color={AMBER} />
-              <Toggle label="Available for sale"   value={f.isAvailable}          onChange={v => upd('isAvailable', v)}          color={GREEN}  desc="Show this product to customers" />
-              <Toggle label="Featured"             value={f.isFeatured}           onChange={v => upd('isFeatured', v)}           color={BLUE}   desc="Show in featured sections" />
-              <Toggle label="New product badge"    value={f.isNew}                onChange={v => upd('isNew', v)}                color={PINK}   />
-              <Toggle label="Wholesale available"  value={f.isWholesaleAvailable} onChange={v => upd('isWholesaleAvailable', v)} color={PURPLE} desc="Visible to wholesale accounts" />
-              <Toggle label="Limited drop"         value={f.isLimitedDrop}        onChange={v => upd('isLimitedDrop', v)}        color={RED}    desc="Shows 'Limited' badge" />
-              <Toggle label="Sold out"             value={f.isSoldOut}            onChange={v => upd('isSoldOut', v)}            color={RED}    desc="Displays as sold out" />
-              <Toggle label="Coming soon"          value={f.isComingSoon}         onChange={v => upd('isComingSoon', v)}         color={AMBER}  />
-              <Toggle label="Pickup only"          value={f.isPickupOnly}         onChange={v => upd('isPickupOnly', v)}         color={MUTED}  />
-              <Toggle label="Staff only visibility" value={f.isStaffOnly}         onChange={v => upd('isStaffOnly', v)}          color={MUTED}  desc="Hidden from public" />
-              <Toggle label="App only"             value={f.isAppOnly}            onChange={v => upd('isAppOnly', v)}            color={MUTED}  desc="Not on website" />
-            </View>
-
-            {/* ── 5. Allergens & Dietary ─────────────────────────── */}
             <View style={form.card}>
               <SectionHeader title="Allergens" icon="alert-triangle" color={RED} />
               <View style={form.tagGrid}>
@@ -649,7 +696,7 @@ function ProductModal({
                   <TagChip key={a} label={a} active={f.allergens.includes(a)} color={RED} onPress={() => toggleArr('allergens', a)} />
                 ))}
               </View>
-              <View style={{ height: 1, backgroundColor: BORDER, marginTop: 8 }} />
+              <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 12 }} />
               <SectionHeader title="Dietary Tags" icon="heart" color={GREEN} />
               <View style={form.tagGrid}>
                 {DIETARY_LIST.map(d => (
@@ -657,10 +704,8 @@ function ProductModal({
                 ))}
               </View>
             </View>
-
-            {/* ── 6. Product Details ─────────────────────────────── */}
             <View style={form.card}>
-              <SectionHeader title="Product Details" icon="file-text" color={PURPLE} />
+              <SectionHeader title="Product Info" icon="file-text" color={PURPLE} />
               <Field label="Ingredients">
                 <TextF value={f.ingredients} onChange={v => upd('ingredients', v)} placeholder="Flour, Butter, Sugar, Chocolate chips…" multiline lines={3} />
               </Field>
@@ -674,8 +719,30 @@ function ProductModal({
                 <TextF value={f.servingInstructions} onChange={v => upd('servingInstructions', v)} placeholder="Best served at room temperature…" multiline lines={2} />
               </Field>
             </View>
+            </>}
 
-            {/* ── 7. Order Rules ─────────────────────────────────── */}
+            {/* ════════════════════════════════════════════════════════
+                TAB 4 — INVENTORY: Stock, order rules, variants
+               ════════════════════════════════════════════════════════ */}
+            {modalTab === 'inventory' && <>
+            <View style={form.card}>
+              <SectionHeader title="Stock Management" icon="box" color={PURPLE} />
+              <View style={form.row2}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Current Stock">
+                    <TextF value={f.stockCount} onChange={v => upd('stockCount', v)} placeholder="Empty = unlimited" numeric />
+                  </Field>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="Low Stock Alert At">
+                    <TextF value={f.lowStockThreshold} onChange={v => upd('lowStockThreshold', v)} placeholder="10" numeric />
+                  </Field>
+                </View>
+              </View>
+              <Field label="Sort Order">
+                <TextF value={f.sortOrder} onChange={v => upd('sortOrder', v)} placeholder="0 = default" numeric />
+              </Field>
+            </View>
             <View style={form.card}>
               <SectionHeader title="Order Rules" icon="sliders" color={AMBER} />
               <View style={form.row2}>
@@ -704,32 +771,8 @@ function ProductModal({
                 <TextF value={f.availableTimes} onChange={v => upd('availableTimes', v)} placeholder="e.g. 07:00-15:00" />
               </Field>
             </View>
-
-            {/* ── 8. Stock ───────────────────────────────────────── */}
-            <View style={form.card}>
-              <SectionHeader title="Stock Management" icon="box" color={PURPLE} />
-              <View style={form.row2}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Current Stock">
-                    <TextF value={f.stockCount} onChange={v => upd('stockCount', v)} placeholder="Leave empty = unlimited" numeric />
-                  </Field>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Low Stock Alert At">
-                    <TextF value={f.lowStockThreshold} onChange={v => upd('lowStockThreshold', v)} placeholder="10" numeric />
-                  </Field>
-                </View>
-              </View>
-              <View style={form.row2}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Sort Order">
-                    <TextF value={f.sortOrder} onChange={v => upd('sortOrder', v)} placeholder="0" numeric />
-                  </Field>
-                </View>
-              </View>
-            </View>
-
             {editing && initial?.id && <VariantsCard productId={initial.id} />}
+            </>}
 
           </ScrollView>
         </View>

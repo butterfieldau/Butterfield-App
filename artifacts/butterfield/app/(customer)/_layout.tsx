@@ -20,7 +20,7 @@ function NativeCustomerTabs() {
         <Label>Menu</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="loyalty">
-        <Icon sf={{ default: 'cup.and.saucer', selected: 'cup.and.saucer.fill' }} />
+        <Icon sf={{ default: 'star', selected: 'star.fill' }} />
         <Label>Rewards</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="cart">
@@ -85,7 +85,7 @@ function ClassicCustomerTabs() {
         options={{
           title: 'Rewards',
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="star" tintColor={color} size={24} /> : <Feather name="coffee" size={22} color={color} />,
+            isIOS ? <SymbolView name="star" tintColor={color} size={24} /> : <Feather name="star" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
