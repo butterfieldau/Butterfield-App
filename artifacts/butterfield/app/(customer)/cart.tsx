@@ -801,7 +801,7 @@ const styles = StyleSheet.create({
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
   checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:           { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  checkoutTitle:     { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#1C1C1E', letterSpacing: 1.5 },
+  checkoutTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#1C1C1E', letterSpacing: 1.5 },
   checkoutSub:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
   // Tab bar
   tabBar:       { flexDirection: 'row' },
@@ -882,9 +882,9 @@ const styles = StyleSheet.create({
   bottomBar:       { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   bottomTotal:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bottomTotalLabel:{ fontSize: 13, fontFamily: 'Inter_700Bold', color: '#1C1C1E', letterSpacing: 1 },
-  bottomTotalAmount:{ fontSize: 24, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  continueBtn:     { height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
-  continueBtnText: { color: '#fff', fontSize: 17, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 },
+  bottomTotalAmount:{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
+  continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  continueBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   // Success
   successWrap:    { flex: 1, alignItems: 'center', paddingHorizontal: 32, gap: 16 },
   successIcon:    { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },

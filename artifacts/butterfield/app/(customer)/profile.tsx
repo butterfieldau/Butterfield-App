@@ -192,7 +192,7 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   userCard:       { borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
   userCardAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  userCardName:   { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  userCardName:   { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
   userCardEmail:  { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' },
   userCardPhone:  { color: 'rgba(255,255,255,0.7)',  fontSize: 12, fontFamily: 'Inter_400Regular' },
   editBtn:        { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
 
   statsRow:   { flexDirection: 'row', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
   statItem:   { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 3 },
-  statValue:  { fontSize: 24, fontFamily: 'Inter_700Bold' },
+  statValue:  { fontSize: 20, fontFamily: 'Inter_700Bold' },
   statLabel:  { fontSize: 11, fontFamily: 'Inter_400Regular' },
 
   menuCard:     { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },

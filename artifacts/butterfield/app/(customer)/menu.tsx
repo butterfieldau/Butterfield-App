@@ -251,7 +251,7 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },
   headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 44, color: '#1C1C1E', textTransform: 'uppercase', letterSpacing: -0.5 },
+  headerTitle: { fontSize: 32, color: '#1C1C1E' },
   skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   skipBadgeText:{ fontSize: 12, color: '#E07B00' },
 
@@ -277,7 +277,7 @@ const s = StyleSheet.create({
   viewCartText:    { fontSize: 13, color: '#40C0F2' },
   frequentTile:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F9F9FB', borderRadius: 14, padding: 10, marginBottom: 8 },
   frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  frequentName:    { fontSize: 15, color: '#1C1C1E', fontFamily: 'Inter_700Bold' },
+  frequentName:    { fontSize: 14, color: '#1C1C1E' },
   frequentPrice:   { fontSize: 13, color: '#8E8E93' },
   frequentAdd:     { width: 34, height: 34, borderRadius: 17, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
   frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
