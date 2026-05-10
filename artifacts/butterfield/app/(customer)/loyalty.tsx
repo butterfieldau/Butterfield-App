@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
+import { TIERS_ORDERED, getTierByPoints, getNextTier } from '@/constants/tierConfig';
 
 const BG = '#F5F6FA';
 const BLUE_CARD = '#40C0F2';
@@ -91,11 +92,6 @@ function getBirthdayInfo(isoDate: string): {
   };
 }
 
-const TIERS = [
-  { key: 'bronze', label: 'BRONZE', threshold: 0 },
-  { key: 'silver', label: 'SILVER', threshold: 1000 },
-  { key: 'gold', label: 'GOLD', threshold: 3000 },
-];
 
 const HOW_IT_WORKS = [
   { icon: 'coffee', title: 'Earn 1 pt per $1', desc: 'Every dollar you spend earns 1 point automatically.' },
@@ -132,10 +128,10 @@ export default function LoyaltyScreen() {
   const stamps = Math.min(profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
 
-  const currentTier = pts >= 3000 ? TIERS[2] : pts >= 1000 ? TIERS[1] : TIERS[0];
-  const nextTier = TIERS.find((t) => t.threshold > pts);
-  const ptsToNext = nextTier ? nextTier.threshold - pts : 0;
-  const progress = nextTier ? Math.min(pts / nextTier.threshold, 1) : 1;
+  const currentTier = getTierByPoints(pts);
+  const nextTier    = getNextTier(pts);
+  const ptsToNext   = nextTier ? nextTier.threshold - pts : 0;
+  const progress    = nextTier ? Math.min(pts / nextTier.threshold, 1) : 1;
 
   const qrValue = `BUTTERFIELD:${user?.id ?? ''}:${profile?.referralCode ?? ''}`;
 
@@ -204,9 +200,9 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 16 }}>
-          <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.loyaltyCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <LinearGradient colors={currentTier.gradient} style={styles.loyaltyCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <Text style={[styles.memberLabel, { fontFamily: 'Inter_600SemiBold' }]}>
-              MEMBER · {currentTier.label}
+              MEMBER · {currentTier.label.toUpperCase()}
             </Text>
             <Text style={[styles.bigPoints, { fontFamily: 'Inter_700Bold' }]}>{pts.toLocaleString()}</Text>
             <Text style={[styles.ptsWorth, { fontFamily: 'Inter_400Regular' }]}>
@@ -230,16 +226,19 @@ export default function LoyaltyScreen() {
             )}
 
             <View style={styles.tierRow}>
-              {TIERS.map((tier, i) => {
+              {TIERS_ORDERED.map((tier, i) => {
                 const active = tier.key === currentTier.key;
                 return (
                   <View
                     key={tier.key}
-                    style={[styles.tierBtn, active && styles.tierBtnActive, i < TIERS.length - 1 && { marginRight: 8 }]}
+                    style={[
+                      styles.tierBtn,
+                      active && { backgroundColor: 'rgba(255,255,255,0.25)', borderColor: 'rgba(255,255,255,0.65)' },
+                      i < TIERS_ORDERED.length - 1 && { marginRight: 6 },
+                    ]}
                   >
-                    <Feather name="award" size={12} color={active ? BRAND : 'rgba(255,255,255,0.6)'} />
-                    <Text style={[styles.tierBtnLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular', color: active ? BRAND : 'rgba(255,255,255,0.7)' }]}>
-                      {tier.label}
+                    <Text style={[styles.tierBtnLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular', color: active ? '#fff' : 'rgba(255,255,255,0.5)' }]}>
+                      {tier.label.toUpperCase()}
                     </Text>
                   </View>
                 );

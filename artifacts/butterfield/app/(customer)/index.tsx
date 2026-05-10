@@ -22,6 +22,7 @@ import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
+import { getTierConfig } from '@/constants/tierConfig';
 import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
@@ -360,7 +361,7 @@ export default function CustomerHome() {
     router.push(route as any);
   }, [banner]);
 
-  const tierLabel = loyaltyTier.charAt(0).toUpperCase() + loyaltyTier.slice(1);
+  const tierCfg = getTierConfig(loyaltyTier);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -392,11 +393,16 @@ export default function CustomerHome() {
             <Text style={[s.greetLine1, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{greeting.line1}</Text>
             <Text style={[s.greetLine2, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{greeting.line2}</Text>
           </View>
-          <View style={s.loyaltyChip}>
-            <Feather name="star" size={12} color="#FFE4A0" />
-            <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints} pts</Text>
-            <Text style={[s.loyaltyMember, { fontFamily: 'Inter_400Regular' }]}>· {tierLabel}</Text>
-          </View>
+          <LinearGradient
+            colors={tierCfg.gradient}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={s.loyaltyChip}
+          >
+            <Feather name="star" size={11} color="rgba(255,255,255,0.9)" />
+            <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints.toLocaleString()} pts</Text>
+            <View style={s.tierDivider} />
+            <Text style={[s.loyaltyMember, { fontFamily: 'Inter_700Bold' }]}>{tierCfg.label.toUpperCase()}</Text>
+          </LinearGradient>
         </View>
       </View>
 
@@ -575,9 +581,10 @@ const s = StyleSheet.create({
   greetLine2:   { color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, marginTop: 1 },
   cartBadge:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16 },
   cartCount:    { color: '#fff', fontSize: 12 },
-  loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexShrink: 0 },
-  loyaltyPts:   { color: '#FFE4A0', fontSize: 13 },
-  loyaltyMember:{ color: 'rgba(255,255,255,0.82)', fontSize: 12 },
+  loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexShrink: 0 },
+  loyaltyPts:   { color: '#fff', fontSize: 13 },
+  loyaltyMember:{ color: '#fff', fontSize: 11, letterSpacing: 0.5 },
+  tierDivider:  { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.4)' },
 
   // ── Hero banner ─────────────────────────────────────────────────────────────
   heroBanner:      { height: 180, borderRadius: 18, overflow: 'hidden' },
