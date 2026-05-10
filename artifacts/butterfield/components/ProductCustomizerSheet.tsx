@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Modal, Pressable,
+  ActivityIndicator, Linking, Modal, Pressable,
   StyleSheet, Text, TextInput,
   useWindowDimensions, View,
 } from 'react-native';
@@ -205,12 +205,13 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
   if (!product) return null;
 
-  const raw      = product as any;
-  const palette  = getPalette(raw.category ?? raw.metadata?.category ?? 'default');
-  const imageUrl = raw.images?.[0] ?? raw.imageUrl ?? null;
-  const isNew    = raw.metadata?.isNew === 'true' || raw.isNew;
-  const isLim    = raw.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
-  const category = raw.category ?? raw.metadata?.category ?? '';
+  const raw        = product as any;
+  const palette    = getPalette(raw.category ?? raw.metadata?.category ?? 'default');
+  const imageUrl   = raw.images?.[0] ?? raw.imageUrl ?? null;
+  const isNew      = raw.metadata?.isNew === 'true' || raw.isNew;
+  const isLim      = raw.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
+  const category   = raw.category ?? raw.metadata?.category ?? '';
+  const productUrl = raw.productUrl ?? detail?.productUrl ?? null;
 
   return (
     <Modal
@@ -273,6 +274,16 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
               {product.description ? (
                 <Text style={s.desc} numberOfLines={2}>{product.description}</Text>
+              ) : null}
+
+              {productUrl ? (
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); Linking.openURL(productUrl).catch(() => {}); }}
+                  style={s.websiteLink}
+                >
+                  <Text style={s.websiteLinkText}>View on Website</Text>
+                  <Text style={{ fontSize: 11, color: BTN_CLR, fontFamily: 'Inter_400Regular', marginLeft: 2 }}>↗</Text>
+                </Pressable>
               ) : null}
 
               {/* ── Options (scroll-aware) ─────────────────────────── */}
@@ -438,7 +449,10 @@ const s = StyleSheet.create({
   name:        { flex: 1, fontSize: 26, fontFamily: 'Inter_700Bold', color: TEXT, lineHeight: 32 },
   catChip:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 5 },
   catChipText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  desc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 18, marginBottom: 14 },
+  desc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 18, marginBottom: 6 },
+
+  websiteLink:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  websiteLinkText: { fontSize: 13, color: BTN_CLR, fontFamily: 'Inter_600SemiBold' },
 
   // ── Options ───────────────────────────────────────────────────────────────────
   scroll:     { flexShrink: 1 },

@@ -53,6 +53,7 @@ function BannerTab() {
   const [subtext,         setSubtext]         = useState('');
   const [buttonText,      setButtonText]      = useState('Order Now');
   const [buttonRoute,     setButtonRoute]     = useState('menu');
+  const [buttonUrl,       setButtonUrl]       = useState('');
   const [saving,          setSaving]          = useState(false);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ function BannerTab() {
       setSubtext(banner.subtext ?? '');
       setButtonText(banner.buttonText ?? 'Order Now');
       setButtonRoute(banner.buttonRoute ?? 'menu');
+      setButtonUrl(banner.buttonUrl ?? '');
     }
   }, [data]);
 
@@ -79,6 +81,7 @@ function BannerTab() {
         subtext:        subtext.trim() || undefined,
         buttonText:     buttonText.trim() || 'Order Now',
         buttonRoute:    buttonRoute || 'menu',
+        buttonUrl:      buttonUrl.trim() || undefined,
       });
       await qc.invalidateQueries({ queryKey: ['director-home-banner'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -181,8 +184,25 @@ function BannerTab() {
           />
         </View>
         <View style={[styles.divider, { backgroundColor: BORDER }]} />
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Button URL (optional — overrides destination below)</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={buttonUrl}
+            onChangeText={setButtonUrl}
+            placeholder="https://... (leave blank to use in-app destination)"
+            placeholderTextColor={MUTED}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: MUTED }}>
+            Set a URL to open any webpage or deep link. When set, the in-app destination below is ignored.
+          </Text>
+        </View>
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
         <View style={{ gap: 8 }}>
-          <Text style={styles.fieldLabel}>Button destination</Text>
+          <Text style={styles.fieldLabel}>Button destination (in-app)</Text>
           {BANNER_ROUTE_OPTIONS.map(opt => (
             <Pressable
               key={opt.value}

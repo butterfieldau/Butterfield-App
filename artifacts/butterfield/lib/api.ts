@@ -474,6 +474,7 @@ export interface HomeBannerConfig {
   subtext?: string;
   buttonText?: string;
   buttonRoute?: string;
+  buttonUrl?: string;
 }
 
 export interface LoyaltyProfile {

@@ -448,7 +448,7 @@ router.post('/products', async (req, res) => {
   const {
     name, description, shortDescription, category, productType,
     priceCents, salePriceCents, costPriceCents, wholesalePriceCents, gstIncluded,
-    sku, barcode, imageUrl,
+    sku, barcode, imageUrl, productUrl,
     isAvailable, isFeatured, isNew, isWholesaleAvailable, isStaffOnly, isAppOnly,
     isLimitedDrop, isSoldOut, isComingSoon, isPickupOnly,
     tags, allergens, dietaryTags, ingredients, nutritionInfo,
@@ -474,6 +474,7 @@ router.post('/products', async (req, res) => {
     sku:                sku                ?? null,
     barcode:            barcode            ?? null,
     imageUrl:           imageUrl           ?? null,
+    productUrl:         productUrl         ?? null,
     isAvailable:        isAvailable        ?? true,
     isFeatured:         isFeatured         ?? false,
     isNew:              isNew              ?? false,
@@ -508,7 +509,7 @@ router.patch('/products/:id', async (req, res) => {
   const allowed = [
     'name','description','shortDescription','category','productType',
     'priceCents','salePriceCents','costPriceCents','wholesalePriceCents','gstIncluded',
-    'sku','barcode','imageUrl',
+    'sku','barcode','imageUrl','galleryUrls','productUrl',
     'isAvailable','isActive','isFeatured','isNew','isWholesaleAvailable','isStaffOnly',
     'isAppOnly','isLimitedDrop','isSoldOut','isComingSoon','isPickupOnly',
     'tags','allergens','dietaryTags','ingredients','nutritionInfo',

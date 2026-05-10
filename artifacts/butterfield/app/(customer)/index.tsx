@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -365,6 +366,10 @@ export default function CustomerHome() {
   }, []);
 
   const handleBannerPress = useCallback(() => {
+    if (banner?.buttonUrl) {
+      Linking.openURL(banner.buttonUrl).catch(() => {});
+      return;
+    }
     if (!banner?.buttonRoute) {
       router.push('/(customer)/menu');
       return;

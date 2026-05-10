@@ -26,6 +26,9 @@ export const productsTable = pgTable("products", {
   imageUrl:             text("image_url"),
   galleryUrls:          text("gallery_urls"),  // JSON: string[]
 
+  // External link
+  productUrl:           text("product_url"),
+
   // Availability flags
   isAvailable:          boolean("is_available").notNull().default(true),
   isActive:             boolean("is_active").notNull().default(true),

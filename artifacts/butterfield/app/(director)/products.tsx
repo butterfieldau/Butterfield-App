@@ -141,6 +141,7 @@ const BLANK = () => ({
   minOrderQty: '1', maxOrderQty: '', leadTimeMins: '', availableTimes: '',
   availableDays: [] as string[], stockCount: '', lowStockThreshold: '10',
   sortOrder: '0', imageUrl: '', galleryUrls: [] as string[],
+  productUrl: '',
 });
 
 type FormState = ReturnType<typeof BLANK>;
@@ -283,6 +284,7 @@ function ProductModal({
         sku: initial.sku ?? '', barcode: initial.barcode ?? '',
         imageUrl: initial.imageUrl ?? '',
         galleryUrls: parseJsonField(initial.galleryUrls),
+        productUrl: (initial as any).productUrl ?? '',
         isAvailable: initial.isAvailable ?? true,
         isFeatured: initial.isFeatured ?? false,
         isNew: initial.isNew ?? false,
@@ -415,6 +417,7 @@ function ProductModal({
         galleryUrls: f.galleryUrls.filter(u => u.trim()).length
           ? JSON.stringify(f.galleryUrls.filter(u => u.trim()))
           : null,
+        productUrl: f.productUrl.trim() || null,
         isAvailable: f.isAvailable, isFeatured: f.isFeatured, isNew: f.isNew,
         isWholesaleAvailable: f.isWholesaleAvailable, isStaffOnly: f.isStaffOnly,
         isAppOnly: f.isAppOnly, isLimitedDrop: f.isLimitedDrop, isSoldOut: f.isSoldOut,
@@ -688,6 +691,21 @@ function ProductModal({
                   </Field>
                 </View>
               </View>
+              <Field label="Product URL">
+                <TextInput
+                  value={f.productUrl}
+                  onChangeText={v => upd('productUrl', v)}
+                  placeholder="https://butterfieldcookies.com.au/products/…"
+                  placeholderTextColor={MUTED}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]}
+                />
+                <Text style={[form.label, { fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 4, fontSize: 11 }]}>
+                  Shown as a "View on Website" link in the product sheet. Leave blank to hide.
+                </Text>
+              </Field>
             </View>
             <View style={form.card}>
               <SectionHeader title="Allergens" icon="alert-triangle" color={RED} />
