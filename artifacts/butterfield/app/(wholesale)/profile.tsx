@@ -100,13 +100,13 @@ export default function WholesaleAccount() {
 
   const openPhone = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL('tel:0290001234').catch(() =>
-      Alert.alert('Sales Representative', 'Phone: (02) 9000 1234\nEmail: wholesale@butterfield.com.au\n\nMon–Fri, 8am – 4pm AEST')
+    Linking.openURL('tel:0480769995').catch(() =>
+      Alert.alert('Sales Representative', 'Phone: 0480 769 995\nEmail: accounts@butterfieldcookies.com.au\n\nMon–Fri, 8am – 4pm AEST')
     );
   };
   const openEmail = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const addr = accountMgrEmail ?? 'wholesale@butterfield.com.au';
+    const addr = accountMgrEmail ?? 'accounts@butterfieldcookies.com.au';
     Linking.openURL(`mailto:${addr}?subject=Wholesale Account Enquiry`).catch(() =>
       Alert.alert('Email', addr)
     );
@@ -264,8 +264,8 @@ export default function WholesaleAccount() {
 
         {/* ── SUPPORT ────────────────────────────────────────────────────── */}
         <Group title="Support">
-          <Row icon="phone" label={accountMgr ? `Call ${accountMgr}` : 'Call Sales Rep'} value="(02) 9000 1234" onPress={openPhone} />
-          <Row icon="mail"  label="Email Support" value={accountMgrEmail ? accountMgrEmail.split('@')[0] + '@…' : 'wholesale@…'} onPress={openEmail} />
+          <Row icon="phone" label={accountMgr ? `Call ${accountMgr}` : 'Call Sales Rep'} value="0480 769 995" onPress={openPhone} />
+          <Row icon="mail"  label="Email Support" value={accountMgrEmail ? accountMgrEmail.split('@')[0] + '@…' : 'accounts@…'} onPress={openEmail} />
           <Row icon="help-circle" iconBg="#FEF3C7" label="Wholesale FAQs" onPress={openFaqs} last />
         </Group>
 

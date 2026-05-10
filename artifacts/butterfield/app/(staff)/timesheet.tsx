@@ -44,10 +44,11 @@ function formatTime12(iso: string | Date): string {
   const d = new Date(iso);
   let h = d.getHours();
   const m = d.getMinutes().toString().padStart(2, '0');
+  const s = d.getSeconds().toString().padStart(2, '0');
   const ampm = h >= 12 ? 'pm' : 'am';
   if (h > 12) h -= 12;
   if (h === 0) h = 12;
-  return `${h}:${m} ${ampm}`;
+  return `${h}:${m}:${s} ${ampm}`;
 }
 
 function parseHoursWorked(raw: string | null | undefined): number {
@@ -196,8 +197,16 @@ export default function TimesheetScreen() {
       const staffName = selectedStaff?.name ?? user?.name ?? 'Staff';
       const html = buildTimesheetHtml(displayedShifts, weekStart, weekEnd, staffName, hourlyRateCents, isManager && !!selectedUserId === false);
       if (Platform.OS === 'web') {
-        const win = window.open('', '_blank');
-        if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 300); }
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;';
+        document.body.appendChild(iframe);
+        iframe.contentDocument!.open();
+        iframe.contentDocument!.write(html);
+        iframe.contentDocument!.close();
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+          setTimeout(() => document.body.removeChild(iframe), 1500);
+        }, 400);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html, base64: false });

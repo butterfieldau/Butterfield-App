@@ -46,10 +46,11 @@ function fmtTime(iso: string) {
   const d = new Date(iso);
   let h = d.getHours();
   const m = d.getMinutes().toString().padStart(2, '0');
+  const s = d.getSeconds().toString().padStart(2, '0');
   const ampm = h >= 12 ? 'pm' : 'am';
   if (h > 12) h -= 12;
   if (h === 0) h = 12;
-  return `${h}:${m} ${ampm}`;
+  return `${h}:${m}:${s} ${ampm}`;
 }
 function fmtDateGroup(iso: string) {
   return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -265,8 +266,8 @@ function ShiftModal({ shift, visible, onClose, onSaved }: {
               <View style={sm.card}>
                 <Text style={sm.sectionLabel}>SHIFT DETAILS</Text>
                 {[
-                  { label: 'Clock In',      value: new Date(shift.clockIn).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) },
-                  { label: 'Clock Out',     value: shift.clockOut ? new Date(shift.clockOut).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Active' },
+                  { label: 'Clock In',      value: new Date(shift.clockIn).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
+                  { label: 'Clock Out',     value: shift.clockOut ? new Date(shift.clockOut).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Active' },
                   { label: 'Break',         value: `${shift.unpaidBreakMins ?? 0} min unpaid` },
                   { label: 'Hours Worked',  value: active ? '—' : hrs ? `${hrs.toFixed(2)} hrs` : '—' },
                   { label: 'Owing',         value: pay ? fmtAUD(pay) : (shift.hourlyRateCents ? fmtAUD(0) : 'No rate set') },
@@ -464,8 +465,16 @@ export default function DirectorTimesheetsScreen() {
     try {
       const html = buildTimesheetHtml(filtered.filter(s => s.clockOut), weekStart, weekEnd);
       if (Platform.OS === 'web') {
-        const win = window.open('', '_blank');
-        if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 300); }
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;';
+        document.body.appendChild(iframe);
+        iframe.contentDocument!.open();
+        iframe.contentDocument!.write(html);
+        iframe.contentDocument!.close();
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+          setTimeout(() => document.body.removeChild(iframe), 1500);
+        }, 400);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html, base64: false });

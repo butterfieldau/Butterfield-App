@@ -330,7 +330,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                   <Text style={[d.sectionTitle, { color: '#EF4444' }]}>Order {status === 'refunded' ? 'Refunded' : 'Cancelled'}</Text>
                 </View>
                 <Text style={{ fontSize: 13, color: '#EF4444', opacity: 0.8, marginTop: 6, fontFamily: 'Inter_400Regular', lineHeight: 18 }}>
-                  This order was {status === 'refunded' ? 'refunded' : 'cancelled'}. Contact us at hello@butterfield.com.au if you need help.
+                  This order was {status === 'refunded' ? 'refunded' : 'cancelled'}. Contact us at hello@butterfieldcookies.com.au if you need help.
                 </Text>
               </View>
             )}

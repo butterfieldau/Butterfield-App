@@ -218,7 +218,7 @@ export default function EditDetailsScreen() {
                       </View>
                       <Text style={[styles.fieldHint, { color: '#EF4444' }]}>
                         Birthday is locked. To update it, email{' '}
-                        <Text style={{ fontFamily: 'Inter_600SemiBold' }}>hello@butterfield.com.au</Text>
+                        <Text style={{ fontFamily: 'Inter_600SemiBold' }}>hello@butterfieldcookies.com.au</Text>
                       </Text>
                     </>
                   ) : (
