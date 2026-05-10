@@ -237,23 +237,25 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 <Text style={d.sectionTitle}>Items ordered</Text>
                 <View style={{ gap: 0 }}>
                   {items.map((item: any, i: number) => {
-                    const lineCents = (item.priceCents ?? 0) * (item.quantity ?? 1);
+                    const unitCents = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
+                    const qty = item.quantity ?? item.qty ?? 1;
+                    const lineCents = item.totalCents ?? item.totalPriceCents ?? (unitCents * qty);
                     return (
                       <View key={i} style={[d.itemRow, { borderBottomColor: BORDER, borderBottomWidth: i < items.length - 1 ? 1 : 0 }]}>
                         <View style={[d.qtyBadge, { backgroundColor: BLUE }]}>
-                          <Text style={{ color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{item.quantity ?? 1}</Text>
+                          <Text style={{ color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{qty}</Text>
                         </View>
                         <View style={{ flex: 1, gap: 1 }}>
                           <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT }}>
-                            {item.productName ?? item.name ?? 'Item'}
+                            {item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item'}
                           </Text>
-                          {item.priceCents && (
+                          {unitCents > 0 && (
                             <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
-                              ${(item.priceCents / 100).toFixed(2)} each
+                              ${(unitCents / 100).toFixed(2)} each
                             </Text>
                           )}
                         </View>
-                        {item.priceCents && (
+                        {lineCents > 0 && (
                           <Text style={{ fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT }}>
                             ${(lineCents / 100).toFixed(2)}
                           </Text>
@@ -381,7 +383,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       {/* Item summary */}
       {items.length > 0 && (
         <Text style={s.itemSummary} numberOfLines={1}>
-          {items.slice(0, 3).map((it: any) => `${it.quantity ?? 1}× ${it.productName ?? it.name ?? 'Item'}`).join(' · ')}
+          {items.slice(0, 3).map((it: any) => `${it.quantity ?? 1}× ${it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item'}`).join(' · ')}
           {items.length > 3 ? ` +${items.length - 3} more` : ''}
         </Text>
       )}

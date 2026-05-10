@@ -280,9 +280,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
             <View style={{ gap: 0, marginTop: 6 }}>
               {items.map((item: any, i: number) => {
                 const qty  = item.qty ?? item.quantity ?? 0;
-                const name = item.productName ?? item.name ?? `Item ${i + 1}`;
-                const unit = item.unitPriceCents ?? item.priceCents ?? 0;
-                const line = item.totalCents ?? (unit * qty);
+                const name = item.productName ?? item.productNameSnapshot ?? item.name ?? `Item ${i + 1}`;
+                const unit = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
+                const line = item.totalCents ?? item.totalPriceCents ?? (unit * qty);
                 return (
                   <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                     <View style={{ flex: 1, gap: 2 }}>
@@ -365,7 +365,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
   const next   = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
 
   const itemSummary = items.slice(0, 3).map((it: any) => {
-    const name = it.productName ?? it.name ?? 'Item';
+    const name = it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item';
     const qty  = it.qty ?? it.quantity ?? 1;
     return `${qty}× ${name}`;
   }).join(', ') + (items.length > 3 ? ` +${items.length - 3} more` : '');
