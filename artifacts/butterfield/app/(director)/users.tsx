@@ -794,10 +794,11 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [creditAud, setCreditAud]     = useState('');
-  const [payTerms, setPayTerms]       = useState('');
+  const [creditAud, setCreditAud]       = useState('');
+  const [payTerms, setPayTerms]         = useState('');
   const [deliveryAddr, setDeliveryAddr] = useState('');
   const [deliveryFeeAud, setDeliveryFeeAud] = useState('');
+  const [minOrderAud, setMinOrderAud]   = useState('');
   const [suspended, setSuspended]     = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
   const [saving, setSaving]           = useState(false);
@@ -819,6 +820,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       setPayTerms(wa.paymentTerms ?? '30 days');
       setDeliveryAddr(wa.deliveryAddress ?? '');
       setDeliveryFeeAud(wa.deliveryFeeCents ? String(wa.deliveryFeeCents / 100) : '');
+      setMinOrderAud((wa.minimumOrderCents ?? wa.minOrderCents) ? String((wa.minimumOrderCents ?? wa.minOrderCents) / 100) : '');
       setSuspended(wa.isSuspended ?? false);
       setSuspendReason(wa.suspendedReason ?? '');
     }
@@ -856,13 +858,15 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const creditCents  = creditAud    ? Math.round(parseFloat(creditAud)    * 100) : undefined;
-      const deliveryCents = deliveryFeeAud ? Math.round(parseFloat(deliveryFeeAud) * 100) : 0;
+      const creditCents   = creditAud       ? Math.round(parseFloat(creditAud)       * 100) : undefined;
+      const deliveryCents = deliveryFeeAud  ? Math.round(parseFloat(deliveryFeeAud)  * 100) : 0;
+      const minOrderCents = minOrderAud     ? Math.round(parseFloat(minOrderAud)     * 100) : undefined;
       await api.director.updateWholesale(wa.id, {
-        creditLimitCents: isNaN(creditCents as number) ? undefined : creditCents,
-        paymentTerms: payTerms.trim() || undefined,
-        deliveryAddress: deliveryAddr.trim() || undefined,
-        deliveryFeeCents: isNaN(deliveryCents) ? 0 : deliveryCents,
+        creditLimitCents:  isNaN(creditCents as number)   ? undefined : creditCents,
+        paymentTerms:      payTerms.trim()   || undefined,
+        deliveryAddress:   deliveryAddr.trim() || undefined,
+        deliveryFeeCents:  isNaN(deliveryCents) ? 0 : deliveryCents,
+        minimumOrderCents: isNaN(minOrderCents as number) ? undefined : minOrderCents,
       });
       onRefresh();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1002,6 +1006,18 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                 placeholderTextColor={MUTED}
                 value={deliveryFeeAud}
                 onChangeText={setDeliveryFeeAud}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Minimum Order (AUD)</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>$</Text>
+              <TextInput
+                style={[wdl.input, { color: TEXT }]}
+                placeholder="e.g. 200.00"
+                placeholderTextColor={MUTED}
+                value={minOrderAud}
+                onChangeText={setMinOrderAud}
                 keyboardType="decimal-pad"
               />
             </View>

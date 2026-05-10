@@ -264,7 +264,7 @@ export const api = {
       request<{ data: any }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
     suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
-    updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string; deliveryFeeCents?: number }) =>
+    updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string; deliveryFeeCents?: number; minimumOrderCents?: number }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     wholesaleCards:      (accountId: string) => request<{ data: any[] }>(`/director/wholesale/${accountId}/cards`),
     revealCard:          (cardId: string) => request<{ data: any }>(`/director/wholesale-cards/${cardId}/reveal`),
