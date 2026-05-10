@@ -293,13 +293,24 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
 };
 
 const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
-  morning: [
-    ['Morning.', 'Your coffee is ready. Best in the area.'],
-    ['Coffee first?', 'Hot coffee and fresh cookies. We\'ve got you.'],
+  earlyMorning: [
     ['Early start?', 'Coffee, matcha, or cookies — all sorted.'],
-    ['Start the day properly.', 'A fresh cookie and a great coffee. That\'s us.'],
+    ['Up before the city.', 'Your coffee is ready. Best in the area.'],
+    ['Early bird?', 'Hot coffee and fresh cookies are waiting.'],
+    ['Starting early?', 'A great coffee sorts the morning right out.'],
+    ['First one in?', 'Matcha or coffee — we\'ve got you covered.'],
+  ],
+  morning: [
+    ['Good morning.', 'Your coffee is ready. Best in the area.'],
+    ['Good morning! ☀️', 'Fresh cookies and great coffee are waiting.'],
     ['Good morning.', 'Matcha or coffee? Either way, come grab one.'],
+    ['Good morning! ☀️', 'Start the day properly — a coffee and a warm cookie.'],
+    ['Good morning.', 'Hot coffee and fresh cookies. We\'ve got you.'],
     ['Morning sorted.', 'Hot coffee and warm cookies are waiting.'],
+    ['Good morning! ☀️', 'A flat white and a fresh cookie. That\'s the move.'],
+    ['Good morning.', 'Best coffee in the area. Come find out why.'],
+    ['Morning.', 'Cookies are baking. Coffee is on. Come in.'],
+    ['Good morning! ☀️', 'Matcha, coffee, or a frappe — whatever starts your day.'],
   ],
   afternoon: [
     ['Afternoon pick-me-up?', 'Iced coffee, frappe, or a Red Bull Fusion — sorted.'],
@@ -558,13 +569,19 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
   }
 
   // 12. Time of day
-  const timePeriod =
-    hour < 5  ? 'night'     :
-    hour < 12 ? 'morning'   :
-    hour < 17 ? 'afternoon' : 'evening';
+  const minute = now.getMinutes();
+  const isAfter630 = hour > 6 || (hour === 6 && minute >= 30);
 
-  if (timePeriod === 'morning' && Math.random() < 0.4 && name) {
-    return { line1: `Good morning, ${name} ☀️`, line2: pick(TIME_MESSAGES.morning)[1] };
+  const timePeriod =
+    hour < 5                        ? 'night'       :
+    hour < 6 || !isAfter630         ? 'earlyMorning' :
+    hour < 12                       ? 'morning'     :
+    hour < 17                       ? 'afternoon'   : 'evening';
+
+  // Good morning personalised greeting — 6:30am onwards only
+  if (timePeriod === 'morning' && name && Math.random() < 0.45) {
+    const sub = pick(TIME_MESSAGES.morning)[1];
+    return { line1: `Good morning, ${name}! ☀️`, line2: sub };
   }
 
   const [l1, l2] = pick(TIME_MESSAGES[timePeriod] ?? TIME_MESSAGES.morning);
