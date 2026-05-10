@@ -160,6 +160,7 @@ export const api = {
     announcements: () => request<{ data: any[] }>('/announcements'),
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
       request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
+    homeBanner: () => request<{ data: HomeBannerConfig | null }>('/home-banner'),
   },
   payment: {
     createIntent: (data: { amountCents: number; currency?: string }) =>
@@ -226,6 +227,8 @@ export const api = {
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
+    updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
       request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
@@ -459,6 +462,16 @@ export interface ApiOrder {
   loyaltyPointsUsed?: number;
   discountCents?: number;
   deliveryAddress?: string;
+}
+
+export interface HomeBannerConfig {
+  isActive: boolean;
+  imageUrl?: string;
+  headline?: string;
+  headlineAccent?: string;
+  subtext?: string;
+  buttonText?: string;
+  buttonRoute?: string;
 }
 
 export interface LoyaltyProfile {

@@ -121,6 +121,19 @@ router.post('/feedback', requireAuth, async (req, res) => {
   return res.status(201).json({ data: fb });
 });
 
+// ── Public home banner ────────────────────────────────────────────────────────
+router.get('/home-banner', async (_req, res) => {
+  const rows = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'home_banner'));
+  if (!rows.length) return res.json({ data: null });
+  try {
+    const config = JSON.parse(rows[0].value);
+    if (!config.isActive) return res.json({ data: null });
+    return res.json({ data: config });
+  } catch {
+    return res.json({ data: null });
+  }
+});
+
 router.post('/waitlist', requireAuth, async (req, res) => {
   const { productStripeId } = req.body;
   if (!productStripeId) return res.status(400).json({ error: 'Product ID required' });

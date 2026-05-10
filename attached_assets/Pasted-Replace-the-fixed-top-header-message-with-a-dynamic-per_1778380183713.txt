@@ -1,0 +1,170 @@
+Replace the fixed top header message with a dynamic personalised message system.
+Current example:
+Good to see you, Omar!
+Ready for coffee today?
+The app should automatically change the message based on:
+Customer name
+Time of day
+Day of the week
+Australian seasons
+Public holidays and special days
+Weather
+Customer behaviour
+Store opening hours
+Promotions
+Loyalty points
+Birthday
+Last order history
+The message should feel warm, premium, personal and natural. Not robotic.
+Message Categories
+Morning Messages
+Good morning, Omar ☀️
+Coffee first?
+Morning, Omar
+Your usual coffee is calling.
+Early start?
+We’ve got you covered.
+Coffee, cookies, or both?
+Start the day properly.
+Afternoon Messages
+Afternoon pick-me-up?
+A warm cookie fixes a lot.
+Midday cravings are real.
+We’re ready when you are.
+Need a little treat?
+Coffee and cookies are waiting.
+Evening Messages
+Evening, Omar
+Warm cookies hit different at night.
+Night cravings?
+We’re still baking.
+A coffee, a cookie, and a slow night.
+Sounds about right.
+Still thinking about cookies?
+So are we.
+Weekend Messages
+Weekend mode is on.
+Cookies are baking.
+Saturday cravings?
+You know where to find us.
+Sunday treats taste better.
+Come warm up with us.
+Weekend coffee run?
+Make it Butterfield.
+Weather-Based Messages
+Cold Weather
+Bit cold today, Omar?
+Warm cookie and coffee weather.
+Cold outside.
+Warm cookies inside.
+This weather needs coffee.
+And probably a cookie too.
+Come warm up properly.
+Rainy Weather
+Rainy day cravings?
+We’ve got the warm stuff.
+Rain outside.
+Cookies inside.
+A rainy day and a hot coffee
+Name a better combo.
+Wet weather calls for warm cookies.
+Hot Weather
+Hot one today.
+Soft serve or iced coffee?
+Sydney heat is doing too much.
+Come cool down.
+Cold drinks are ready.
+So is the soft serve.
+Hot day?
+Vanilla bean soft serve is waiting.
+Australian Season Messages
+Summer
+Summer cravings sorted.
+Iced coffee, soft serve, cookies.
+Too hot to think.
+Just order the iced coffee.
+Summer at Butterfield
+Cold drinks and warm cookies.
+Autumn
+Autumn weather, warm cookies.
+Perfect match.
+Cosy season is here.
+You know what that means.
+A warm cookie just makes sense today.
+Winter
+Winter cravings hit different.
+Come warm up.
+Cold hands, warm cookie.
+Problem solved.
+Winter was made for coffee runs.
+Spring
+Spring day, sweet mood.
+Treat yourself.
+Fresh day, fresh coffee.
+Let’s go.
+Spring feels better with Butterfield.
+Holiday & Special Day Messages
+Mother’s Day
+Happy Mother’s Day 💐
+Mum deserves the good coffee today.
+For Mum, always the best.
+Coffee’s on the menu.
+Father’s Day
+Happy Father’s Day
+Dad deserves a warm cookie today.
+Treat Dad properly today.
+Coffee and cookies sorted.
+Valentine’s Day
+Valentine’s cravings?
+Share a cookie. Or don’t.
+Love is sweet.
+So are our cookies.
+Easter
+Easter treats?
+We’ve got you covered.
+Long weekend cravings are real.
+Come through.
+Christmas
+Christmas cravings?
+We’re baking something special.
+Festive mood is on.
+Cookies make it better.
+New Year
+New year, same cravings.
+Start it with Butterfield.
+Fresh year.
+Fresh coffee. Warm cookies.
+Loyalty-Based Messages
+Customer Has Points
+Omar, you’ve got points waiting.
+Time to treat yourself.
+Your rewards are building nicely.
+Coffee run?
+You’re getting closer to your next reward.
+Customer Has Free Reward
+Omar, your reward is ready.
+Come claim it.
+Free treat unlocked.
+You know what to do.
+Your next one’s on us.
+Customer Has Not Ordered in a While
+We’ve missed you, Omar.
+Come grab something warm.
+Been a minute.
+Your coffee misses you.
+Your usual spot is waiting.
+Customer Ordered Coffee Before
+Your coffee order is ready when you are.
+Coffee again today, Omar?
+We like your style.
+Your usual coffee run starts here.
+Customer Ordered Cookies Before
+Still thinking about that cookie?
+We don’t blame you.
+Warm cookies are back on your mind.
+Your cookie cravings know where to go.
+Birthday Message
+Happy birthday, Omar 🎉
+Your birthday treat is waiting.
+Birthday cravings?
+We’ve got you today.

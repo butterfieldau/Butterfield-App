@@ -1095,6 +1095,26 @@ router.patch('/wholesale-cards/:cardId/visibility', async (req, res) => {
   return res.json({ data: updated });
 });
 
+// ── Home Banner (director-configurable hero card) ─────────────────────────────
+router.get('/home-banner', async (_req, res) => {
+  const rows = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'home_banner'));
+  if (!rows.length) return res.json({ data: null });
+  try { return res.json({ data: JSON.parse(rows[0].value) }); }
+  catch { return res.json({ data: null }); }
+});
+
+router.patch('/home-banner', async (req, res) => {
+  const config = req.body;
+  const value = JSON.stringify(config);
+  const existing = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'home_banner'));
+  if (existing.length) {
+    await db.update(storeSettingsTable).set({ value, updatedAt: new Date(), updatedBy: req.user?.id }).where(eq(storeSettingsTable.key, 'home_banner'));
+  } else {
+    await db.insert(storeSettingsTable).values({ key: 'home_banner', value, updatedBy: req.user?.id });
+  }
+  return res.json({ data: config });
+});
+
 // ── App Sessions (hourly activity: logins + orders as proxy) ─────────────────
 router.get('/sessions', async (req, res) => {
   try {

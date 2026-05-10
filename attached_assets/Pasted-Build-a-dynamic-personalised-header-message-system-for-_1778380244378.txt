@@ -1,0 +1,72 @@
+Build a dynamic personalised header message system for the app.
+
+The current fixed header message says:
+“Good to see you, Omar! Ready for coffee today?”
+
+I want this replaced with a smart rotating message system that changes based on the customer and live conditions.
+
+The header should use the customer’s first name when available. If no name is available, use a general friendly message.
+
+Messages should change based on:
+- Time of day: morning, afternoon, evening, night
+- Day of week: weekday or weekend
+- Australian seasons: summer, autumn, winter, spring
+- Australian public holidays and special days
+- Weather: hot, cold, rainy, windy, sunny
+- Customer loyalty points
+- Available rewards
+- Birthday
+- Last order history
+- If the customer has not ordered in a while
+- Current store promotions
+- Store opening hours
+
+The message should feel warm, premium, personal and natural. It should not feel robotic.
+
+Create a backend section where directors can:
+- Add new header messages
+- Edit existing header messages
+- Turn messages on or off
+- Set message priority
+- Set start and end dates
+- Assign messages to seasons
+- Assign messages to holidays
+- Assign messages to weather conditions
+- Assign messages to time of day
+- Assign messages to customer types
+- Add promotional messages
+- Preview how the message will appear in the app
+
+The app should automatically choose the most relevant message using priority rules.
+
+Priority order should be:
+1. Birthday message
+2. Active promotion
+3. Holiday or special day
+4. Weather-based message
+5. Loyalty or reward message
+6. Time-of-day message
+7. General default message
+
+The header should never feel repetitive, so it should rotate between multiple approved messages and avoid showing the exact same message too many times in a row.
+
+Keep the design clean:
+- First line should be short
+- Second line should be warm and action-based
+- Maximum 2 lines
+- No long paragraphs
+- No broken spacing
+- Works neatly on iPhone and Android
+- Safe area padding must be respected so the message does not sit under the iPhone status bar
+
+Example format:
+“Good morning, Omar ☀️
+Coffee first?”
+
+Another example:
+“Cold outside.
+Warm cookies inside.”
+
+Another example:
+“Omar, your reward is ready.
+Come claim it.”

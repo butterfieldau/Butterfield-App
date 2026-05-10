@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api, type DirectorReward, type DirectorAnnouncement } from '@/lib/api';
+import { api, type DirectorReward, type DirectorAnnouncement, type HomeBannerConfig } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
@@ -22,12 +22,225 @@ const GREEN  = '#22C55E';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
 
-const BASE_TABS   = ['Store', 'Rewards', 'Notify', 'Managers'] as const;
-const MASTER_TABS = ['Store', 'Rewards', 'Notify', 'Managers', 'Directors'] as const;
-type TabKey = 'Store' | 'Rewards' | 'Notify' | 'Managers' | 'Directors';
+const BASE_TABS   = ['Store', 'Banner', 'Rewards', 'Notify', 'Managers'] as const;
+const MASTER_TABS = ['Store', 'Banner', 'Rewards', 'Notify', 'Managers', 'Directors'] as const;
+type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Managers' | 'Directors';
 
 const REWARD_CATEGORIES = ['food', 'drink', 'discount', 'experience', 'merchandise'];
 const TARGET_ROLES      = ['customer', 'staff', 'wholesale'];
+
+// ─── Banner Tab ───────────────────────────────────────────────────────────────
+const BANNER_ROUTE_OPTIONS = [
+  { value: 'menu',    label: 'Menu (order cookies)' },
+  { value: 'loyalty', label: 'Rewards / Coffee Club' },
+  { value: 'stores',  label: 'Our Stores' },
+  { value: 'cart',    label: 'Cart' },
+  { value: 'profile', label: 'Account / Profile' },
+];
+
+function BannerTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['director-home-banner'],
+    queryFn:  () => api.director.homeBanner(),
+  });
+  const banner = data?.data;
+
+  const [isActive,        setIsActive]        = useState(false);
+  const [imageUrl,        setImageUrl]        = useState('');
+  const [headline,        setHeadline]        = useState('');
+  const [headlineAccent,  setHeadlineAccent]  = useState('');
+  const [subtext,         setSubtext]         = useState('');
+  const [buttonText,      setButtonText]      = useState('Order Now');
+  const [buttonRoute,     setButtonRoute]     = useState('menu');
+  const [saving,          setSaving]          = useState(false);
+
+  useEffect(() => {
+    if (banner) {
+      setIsActive(banner.isActive ?? false);
+      setImageUrl(banner.imageUrl ?? '');
+      setHeadline(banner.headline ?? '');
+      setHeadlineAccent(banner.headlineAccent ?? '');
+      setSubtext(banner.subtext ?? '');
+      setButtonText(banner.buttonText ?? 'Order Now');
+      setButtonRoute(banner.buttonRoute ?? 'menu');
+    }
+  }, [data]);
+
+  const save = async () => {
+    setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.director.updateHomeBanner({
+        isActive,
+        imageUrl:       imageUrl.trim() || undefined,
+        headline:       headline.trim() || undefined,
+        headlineAccent: headlineAccent.trim() || undefined,
+        subtext:        subtext.trim() || undefined,
+        buttonText:     buttonText.trim() || 'Order Now',
+        buttonRoute:    buttonRoute || 'menu',
+      });
+      await qc.invalidateQueries({ queryKey: ['director-home-banner'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Home banner updated. Customers will see the change immediately.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally { setSaving(false); }
+  };
+
+  if (isLoading) return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+
+      <View style={[styles.card, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+          <Feather name="image" size={14} color={BLUE} />
+          <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', color: BLUE, lineHeight: 18 }}>
+            The hero banner appears at the top of the customer home screen. Leave image URL blank for a solid gradient fallback.
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.section}>VISIBILITY</Text>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Show banner</Text>
+            <Text style={styles.rowSub}>Toggle to show or hide the hero banner on the home screen</Text>
+          </View>
+          <Switch value={isActive} onValueChange={v => { setIsActive(v); Haptics.selectionAsync(); }}
+            trackColor={{ false: '#D1D5DB', true: GREEN }} thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
+        </View>
+      </View>
+
+      <Text style={styles.section}>BACKGROUND IMAGE</Text>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 8 }]}>
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Image URL</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={imageUrl}
+            onChangeText={setImageUrl}
+            placeholder="https://... (leave blank for gradient)"
+            placeholderTextColor={MUTED}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+        </View>
+        <Text style={[styles.hint, { color: MUTED }]}>Use a high-contrast landscape image (e.g. coffee splash, cookies). Best at 1200×600px.</Text>
+      </View>
+
+      <Text style={styles.section}>HEADLINE TEXT</Text>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Main headline</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={headline}
+            onChangeText={setHeadline}
+            placeholder="e.g. 20% Off On All Espresso!"
+            placeholderTextColor={MUTED}
+          />
+        </View>
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Accent word / phrase (shown in orange)</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={headlineAccent}
+            onChangeText={setHeadlineAccent}
+            placeholder="e.g. 20%  (must appear in headline above)"
+            placeholderTextColor={MUTED}
+          />
+        </View>
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Subtext (below headline)</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={subtext}
+            onChangeText={setSubtext}
+            placeholder="e.g. Today Only! Limited Offer."
+            placeholderTextColor={MUTED}
+          />
+        </View>
+      </View>
+
+      <Text style={styles.section}>CALL TO ACTION BUTTON</Text>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Button label</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={buttonText}
+            onChangeText={setButtonText}
+            placeholder="Order Now"
+            placeholderTextColor={MUTED}
+          />
+        </View>
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
+        <View style={{ gap: 8 }}>
+          <Text style={styles.fieldLabel}>Button destination</Text>
+          {BANNER_ROUTE_OPTIONS.map(opt => (
+            <Pressable
+              key={opt.value}
+              onPress={() => { setButtonRoute(opt.value); Haptics.selectionAsync(); }}
+              style={[
+                styles.row,
+                { padding: 10, borderRadius: 10, borderWidth: 1,
+                  borderColor: buttonRoute === opt.value ? BLUE : BORDER,
+                  backgroundColor: buttonRoute === opt.value ? '#EBF8FF' : '#FAFAFA' }
+              ]}
+            >
+              <View style={{
+                width: 18, height: 18, borderRadius: 9, borderWidth: 2,
+                borderColor: buttonRoute === opt.value ? BLUE : BORDER,
+                backgroundColor: buttonRoute === opt.value ? BLUE : 'transparent',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                {buttonRoute === opt.value && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' }} />}
+              </View>
+              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 14, color: buttonRoute === opt.value ? BLUE : TEXT }}>
+                {opt.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {/* Live preview summary */}
+      {(headline || subtext) && (
+        <>
+          <Text style={styles.section}>PREVIEW</Text>
+          <View style={[styles.card, { backgroundColor: '#1A0F07', borderColor: '#333', gap: 6 }]}>
+            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: 'Inter_400Regular' }}>Banner preview (not to scale)</Text>
+            {headline ? (
+              <Text style={{ color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' }}>
+                {headlineAccent && headline.includes(headlineAccent) ? (
+                  <>
+                    <Text style={{ color: '#F59E0B' }}>{headlineAccent}</Text>
+                    {headline.split(headlineAccent)[1]}
+                  </>
+                ) : headline}
+              </Text>
+            ) : null}
+            {subtext ? <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: 'Inter_400Regular' }}>{subtext}</Text> : null}
+            <View style={{ backgroundColor: '#C4793A', alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 4 }}>
+              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{buttonText || 'Order Now'}</Text>
+            </View>
+          </View>
+        </>
+      )}
+
+      <Pressable onPress={save} disabled={saving}
+        style={[styles.saveBtn, { backgroundColor: BLUE, opacity: saving ? 0.8 : 1 }]}>
+        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Banner</Text>}
+      </Pressable>
+    </ScrollView>
+  );
+}
 
 // ─── Store Settings ──────────────────────────────────────────────────────────
 function StoreTab() {
@@ -1128,6 +1341,7 @@ export default function DirectorSettingsScreen() {
         </View>
       </ScrollView>
       {tab === 'Store'     && <StoreTab />}
+      {tab === 'Banner'    && <BannerTab />}
       {tab === 'Rewards'   && <RewardsTab />}
       {tab === 'Notify'    && <NotifyTab />}
       {tab === 'Managers'  && <ManagersTab />}
