@@ -227,6 +227,7 @@ export const api = {
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    testPrinter:         (printerIp: string, printerPort?: string) => request<{ success: boolean; message: string }>('/director/printer/test', { method: 'POST', body: JSON.stringify({ printerIp, printerPort }) }),
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
     updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),

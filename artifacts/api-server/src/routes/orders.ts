@@ -4,6 +4,7 @@ import { db, ordersTable, customerProfilesTable, loyaltyTransactionsTable, store
 import { eq, desc } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
 import { notifyRole, notifyUser } from '../lib/notificationService.js';
+import { printReceipt } from '../lib/printer.js';
 
 const router = Router();
 
@@ -97,6 +98,37 @@ router.post('/', async (req, res) => {
   // Confirm to customer
   notifyUser(req.user!.id, 'order_confirmed', 'Order Received 🍪', 'We\'ve got your order and will have it ready soon!',
     { orderId, screen: '/(customer)/orders' }).catch(() => {});
+
+  // Auto-print receipt on Star Micronics printer (fire-and-forget)
+  const printerIp   = settings['printer_ip']   ?? '';
+  const printerPort = parseInt(settings['printer_port'] ?? '9100', 10);
+  if (printerIp) {
+    const printItems = Array.isArray(items)
+      ? items.map((i: any) => ({
+          name:           i.productName ?? i.name ?? 'Item',
+          quantity:       i.quantity    ?? 1,
+          unitPriceCents: i.unitPriceCents ?? i.priceCents ?? 0,
+          variantName:    i.variantName,
+        }))
+      : [];
+    printReceipt(
+      {
+        orderId,
+        customerName:        req.user!.name,
+        type:                (type ?? 'pickup') as 'pickup' | 'delivery',
+        items:               printItems,
+        totalCents,
+        discountCents:       discountCents ?? 0,
+        loyaltyPointsEarned: pointsEarned,
+        notes,
+        scheduledFor:        scheduledFor ? new Date(scheduledFor) : null,
+      },
+      printerIp,
+      isNaN(printerPort) ? 9100 : printerPort,
+    ).catch((err: Error) => {
+      req.log.error({ err }, 'Receipt print failed');
+    });
+  }
 
   return res.status(201).json({ data: order });
 });

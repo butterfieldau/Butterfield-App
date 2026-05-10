@@ -256,7 +256,10 @@ function StoreTab() {
   const [shopLat,      setShopLat]      = useState('');
   const [shopLng,      setShopLng]      = useState('');
   const [orderCutoff,  setOrderCutoff]  = useState('');
+  const [printerIp,    setPrinterIp]    = useState('');
+  const [printerPort,  setPrinterPort]  = useState('9100');
   const [saving,       setSaving]       = useState(false);
+  const [testing,      setTesting]      = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -266,6 +269,8 @@ function StoreTab() {
       setShopLat(settings.shop_lat ?? '-33.8349');
       setShopLng(settings.shop_lng ?? '150.9942');
       setOrderCutoff(settings.order_cutoff_time ?? '');
+      setPrinterIp(settings.printer_ip ?? '');
+      setPrinterPort(settings.printer_port ?? '9100');
     }
   }, [data]);
 
@@ -280,6 +285,8 @@ function StoreTab() {
         shop_lat:           shopLat,
         shop_lng:           shopLng,
         order_cutoff_time:  orderCutoff.trim(),
+        printer_ip:         printerIp.trim(),
+        printer_port:       printerPort.trim() || '9100',
       });
       await qc.invalidateQueries({ queryKey: ['director-settings'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -287,6 +294,23 @@ function StoreTab() {
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally { setSaving(false); }
+  };
+
+  const testPrint = async () => {
+    if (!printerIp.trim()) {
+      Alert.alert('No IP Set', 'Enter the printer IP address first.');
+      return;
+    }
+    setTesting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const res = await api.director.testPrinter(printerIp.trim(), printerPort.trim());
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Print Sent', res.message);
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Print Failed', e.message ?? 'Could not reach the printer. Check the IP address and that the printer is on the same network.');
+    } finally { setTesting(false); }
   };
 
   if (isLoading) {
@@ -369,6 +393,59 @@ function StoreTab() {
           </View>
         </View>
         <Text style={[styles.hint, { color: MUTED }]}>Butterfield Merrylands: –33.8349, 150.9942</Text>
+      </View>
+
+      <Text style={styles.section}>RECEIPT PRINTER</Text>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 12 }]}>
+        <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
+          <Feather name="printer" size={13} color={BLUE} />
+          <Text style={[styles.infoBannerText, { color: BLUE }]}>
+            Star Micronics printer on your network. Enter its IP address to auto-print pickup receipts on every order.
+          </Text>
+        </View>
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Printer IP address</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={printerIp}
+            onChangeText={setPrinterIp}
+            placeholder="e.g. 192.168.1.50"
+            placeholderTextColor={MUTED}
+            keyboardType="decimal-pad"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+        </View>
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
+        <View style={{ gap: 6 }}>
+          <Text style={styles.fieldLabel}>Port (default 9100)</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={printerPort}
+            onChangeText={setPrinterPort}
+            placeholder="9100"
+            placeholderTextColor={MUTED}
+            keyboardType="number-pad"
+          />
+        </View>
+        <Pressable
+          onPress={testPrint}
+          disabled={testing || !printerIp.trim()}
+          style={[styles.saveBtn, {
+            backgroundColor: printerIp.trim() ? '#22C55E' : '#D1D5DB',
+            opacity: testing ? 0.7 : 1,
+            marginTop: 4,
+          }]}
+        >
+          {testing
+            ? <ActivityIndicator color="#fff" />
+            : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="printer" size={16} color="#fff" />
+                <Text style={styles.saveBtnText}>Send Test Print</Text>
+              </View>
+            )}
+        </Pressable>
       </View>
 
       <Text style={styles.section}>DEMO ACCOUNTS</Text>

@@ -536,6 +536,8 @@ router.get('/settings', async (req, res) => {
     { key: 'store_open',         value: 'true' },
     { key: 'daily_special',      value: 'Cookie & Cream Sandwich' },
     { key: 'order_cutoff_time',  value: '' },
+    { key: 'printer_ip',         value: '' },
+    { key: 'printer_port',       value: '9100' },
   ]).onConflictDoNothing();
   const rows = await db.select().from(storeSettingsTable);
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });
@@ -549,6 +551,38 @@ router.patch('/settings', async (req, res) => {
   }
   const rows = await db.select().from(storeSettingsTable);
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });
+});
+
+// ── Printer test ─────────────────────────────────────────────────────────────
+router.post('/printer/test', async (req, res) => {
+  const { printerIp, printerPort } = req.body as { printerIp?: string; printerPort?: string };
+  const ip   = printerIp?.trim() ?? '';
+  const port = parseInt(printerPort ?? '9100', 10);
+  if (!ip) {
+    return res.status(400).json({ error: 'printerIp is required' });
+  }
+  try {
+    const { printReceipt } = await import('../lib/printer.js');
+    await printReceipt(
+      {
+        orderId:             'test-0000-0000-0000',
+        customerName:        req.user!.name,
+        type:                'pickup',
+        items:               [
+          { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
+          { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
+        ],
+        totalCents:          1550,
+        loyaltyPointsEarned: 15,
+        notes:               'Test print — Butterfield POS',
+      },
+      ip,
+      isNaN(port) ? 9100 : port,
+    );
+    return res.json({ success: true, message: `Test receipt sent to ${ip}:${port}` });
+  } catch (err: any) {
+    return res.status(502).json({ error: err.message ?? 'Print failed' });
+  }
 });
 
 // ── Wholesale accounts list ──────────────────────────────────────────────────
