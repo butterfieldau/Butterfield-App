@@ -8,7 +8,7 @@ import { NewOrderBanner } from '@/components/NewOrderBanner';
 import { useOrderNotifications, type NewOrderInfo } from '@/hooks/useOrderNotifications';
 import { api } from '@/lib/api';
 
-const STAFF_DARK = '#1A0A04';
+const STAFF_DARK = '#3058A8';
 const BLUE       = '#40C0F2';
 
 export default function StaffLayout() {
