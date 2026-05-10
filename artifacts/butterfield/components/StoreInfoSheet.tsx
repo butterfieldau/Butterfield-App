@@ -80,30 +80,35 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     }
   }, [visible]);
 
-  if (!store) return null;
+  // Derive store data — fall back to Merrylands constants so the Modal is
+  // always usable even when the API hasn't responded yet.
+  const FALLBACK_PHONE   = '0480 769 995';
+  const FALLBACK_ADDRESS = '2 Main Lane, Merrylands NSW 2160';
 
-  const sc = statusColor(store.openStatus ?? '');
-  const isOpen = store.openStatus === 'open' || store.openStatus === 'closing_soon';
+  const sc      = store ? statusColor(store.openStatus ?? '') : '#8E8E93';
+  const isOpen  = store
+    ? (store.openStatus === 'open' || store.openStatus === 'closing_soon')
+    : false;
 
-  const todayHours = store.todayHours;
+  const todayHours   = store?.todayHours;
   const todayDisplay = todayHours?.isClosed
     ? 'Closed today'
     : todayHours?.openTime && todayHours?.closeTime
       ? `${fmt12(todayHours.openTime)} – ${fmt12(todayHours.closeTime)}`
       : null;
 
-  const address = [store.address, store.suburb, store.state, store.postcode]
-    .filter(Boolean).join(', ');
+  const address = store
+    ? [store.address, store.suburb, store.state, store.postcode].filter(Boolean).join(', ')
+    : FALLBACK_ADDRESS;
 
   const handleDirections = () => {
-    // Use full address string so Apple Maps geocodes it correctly
     const fullAddress = `${address}, Australia`;
     Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent('Butterfield Cookies')}&address=${encodeURIComponent(fullAddress)}`);
   };
 
   const handleCall = () => {
-    if (!store.phone) return;
-    Linking.openURL(`tel:${store.phone.replace(/\s/g, '')}`);
+    const phone = store?.phone ?? FALLBACK_PHONE;
+    Linking.openURL(`tel:${phone.replace(/\s/g, '')}`);
   };
 
   const handleOrder = () => {
@@ -116,7 +121,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     setTimeout(() => router.push('/(customer)/stores'), 300);
   };
 
-  const weekHours: any[] = store.openingHours ?? [];
+  const weekHours: any[] = store?.openingHours ?? [];
 
   return (
     <Modal
@@ -148,7 +153,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 
         {/* ── Map area ─────────────────────────────────────────────── */}
         <Pressable style={s.mapWrap} onPress={handleDirections}>
-          {store.latitude && store.longitude ? (
+          {store?.latitude && store?.longitude ? (
             <Image
               source={{ uri: staticMapUrl(store.latitude, store.longitude, SCREEN_W) }}
               style={StyleSheet.absoluteFill}
@@ -171,17 +176,17 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             <View style={s.mapOverlay}>
               <View style={{ flex: 1 }}>
                 <Text style={s.headerLabel}>IN-STORE PICKUP</Text>
-                <Text style={s.headerName} numberOfLines={1}>{store.name}</Text>
+                <Text style={s.headerName} numberOfLines={1}>{store?.name ?? 'Butterfield Cookies — Merrylands'}</Text>
               </View>
               <View style={[s.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.85)' : 'rgba(100,100,100,0.75)' }]}>
                 <View style={[s.dot, { backgroundColor: '#fff' }]} />
-                <Text style={s.statusText}>{store.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
+                <Text style={s.statusText}>{store?.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
               </View>
             </View>
           </LinearGradient>
 
           {/* Directions chip top-right */}
-          {store.latitude && store.longitude && (
+          {store?.latitude && store?.longitude && (
             <View style={s.dirChip}>
               <Feather name="navigation" size={11} color="#40C0F2" />
               <Text style={s.dirChipText}>Directions</Text>
@@ -222,24 +227,22 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           ) : null}
 
           {/* Phone */}
-          {store.phone ? (
-            <Pressable style={s.infoRow} onPress={handleCall}>
-              <View style={s.infoIcon}>
-                <Feather name="phone" size={15} color="#40C0F2" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.infoLabel, { color: colors.mutedForeground }]}>Phone</Text>
-                <Text style={[s.infoVal, { color: colors.foreground }]}>{store.phone}</Text>
-              </View>
-              <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
-            </Pressable>
-          ) : null}
+          <Pressable style={s.infoRow} onPress={handleCall}>
+            <View style={s.infoIcon}>
+              <Feather name="phone" size={15} color="#40C0F2" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.infoLabel, { color: colors.mutedForeground }]}>Phone</Text>
+              <Text style={[s.infoVal, { color: colors.foreground }]}>{store?.phone ?? FALLBACK_PHONE}</Text>
+            </View>
+            <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+          </Pressable>
 
           {/* Services */}
-          {(store.pickupAvailable || store.deliveryAvailable) ? (
+          {(store?.pickupAvailable || store?.deliveryAvailable) ? (
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              {store.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color="#40C0F2" /><Text style={[s.chipText, { color: '#40C0F2' }]}>Pickup available</Text></View>}
-              {store.deliveryAvailable && <View style={[s.chip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[s.chipText, { color: '#7C3AED' }]}>Delivery available</Text></View>}
+              {store?.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color="#40C0F2" /><Text style={[s.chipText, { color: '#40C0F2' }]}>Pickup available</Text></View>}
+              {store?.deliveryAvailable && <View style={[s.chip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[s.chipText, { color: '#7C3AED' }]}>Delivery available</Text></View>}
             </View>
           ) : null}
 
@@ -267,7 +270,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           </View>
 
           {/* Public notes */}
-          {store.publicNotes ? (
+          {store?.publicNotes ? (
             <Text style={[s.notes, { color: colors.mutedForeground }]}>{store.publicNotes}</Text>
           ) : null}
 
@@ -296,18 +299,16 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 
         {/* Bottom action row */}
         <View style={s.footer}>
-          {store.latitude && store.longitude ? (
+          {store?.latitude && store?.longitude ? (
             <Pressable style={[s.actionBtn, { borderColor: colors.border }]} onPress={handleDirections}>
               <Feather name="map" size={15} color="#40C0F2" />
               <Text style={s.actionBtnText}>Directions</Text>
             </Pressable>
           ) : null}
-          {store.phone ? (
-            <Pressable style={[s.actionBtn, { borderColor: colors.border }]} onPress={handleCall}>
-              <Feather name="phone" size={15} color="#16A34A" />
-              <Text style={[s.actionBtnText, { color: '#16A34A' }]}>Call</Text>
-            </Pressable>
-          ) : null}
+          <Pressable style={[s.actionBtn, { borderColor: colors.border }]} onPress={handleCall}>
+            <Feather name="phone" size={15} color="#16A34A" />
+            <Text style={[s.actionBtnText, { color: '#16A34A' }]}>Call</Text>
+          </Pressable>
           <Pressable style={[s.orderBtn, { flex: 1 }]} onPress={handleOrder}>
             <Feather name="shopping-bag" size={15} color="#fff" />
             <Text style={s.orderBtnText}>Order Pickup</Text>

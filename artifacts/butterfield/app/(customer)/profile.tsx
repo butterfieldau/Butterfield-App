@@ -69,7 +69,7 @@ export default function AccountScreen() {
     { icon: 'bell'        as const, label: 'Notifications',   onPress: () => router.push('/notifications') },
     { icon: 'map-pin'     as const, label: 'Saved addresses', onPress: () => router.push('/addresses') },
     { icon: 'navigation'  as const, label: 'Find a store',    onPress: () => router.push('/(customer)/stores' as any) },
-    { icon: 'help-circle' as const, label: 'Help & support',  onPress: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\n\nHours: Mon–Fri 7am–5pm\n\nVisit us at:\n7/2 Merrylands Rd, Merrylands NSW 2160') },
+    { icon: 'help-circle' as const, label: 'Help & support',  onPress: () => Alert.alert('Help & Support', 'Phone: 0480 769 995\nEmail: hello@butterfieldcookies.com.au\n\nHours: Mon–Sat 9am–5pm\n\nVisit us at:\n2 Main Lane, Merrylands NSW 2160') },
   ];
 
   return (
