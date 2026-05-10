@@ -59,6 +59,7 @@ export const api = {
     list:       ()         => request<{ data: ApiProduct[] }>('/products'),
     get:        (id: string) => request<{ data: any }>(`/products/${id}`),
     categories: ()         => request<{ data: any[] }>('/products/categories'),
+    topSellers: ()         => request<{ data: ApiProduct[] }>('/products/top-sellers'),
   },
   orders: {
     list: () => request<{ data: ApiOrder[] }>('/orders'),

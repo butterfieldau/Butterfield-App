@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db, productsTable, productVariantsTable, productOptionGroupsTable, productOptionsTable } from '@workspace/db';
-import { eq, and, asc } from 'drizzle-orm';
+import { db, productsTable, productVariantsTable, productOptionGroupsTable, productOptionsTable, ordersTable } from '@workspace/db';
+import { eq, and, asc, ne, sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -117,6 +117,71 @@ async function getProductOptionGroups(productId: string, categoryId: string | nu
     options: allOptions.filter(o => o.groupId === g.id),
   }));
 }
+
+// ── Top-sellers cache (15-minute TTL) ─────────────────────────────────────
+let topSellersCache: { data: ReturnType<typeof mapProduct>[]; fetchedAt: number } | null = null;
+const TOP_SELLERS_TTL = 15 * 60 * 1000;
+
+// ── GET /products/top-sellers — ranked by real order frequency ────────────
+router.get('/top-sellers', async (_req, res) => {
+  try {
+    const now = Date.now();
+    if (topSellersCache && now - topSellersCache.fetchedAt < TOP_SELLERS_TTL) {
+      return res.json({ data: topSellersCache.data });
+    }
+
+    // Unnest the JSONB items array across all non-cancelled orders,
+    // count how many times each productId appears, return top 10 IDs.
+    const rows = await db.execute<{ product_id: string; order_count: string }>(
+      sql`
+        SELECT elem->>'productId' AS product_id,
+               COUNT(*) AS order_count
+        FROM ${ordersTable},
+             jsonb_array_elements(items::jsonb) AS elem
+        WHERE status != 'cancelled'
+          AND elem->>'productId' IS NOT NULL
+          AND elem->>'productId' != ''
+        GROUP BY product_id
+        ORDER BY order_count DESC
+        LIMIT 10
+      `
+    );
+
+    const ranked = (rows.rows ?? (rows as unknown as any[])) as { product_id: string; order_count: string }[];
+
+    if (ranked.length === 0) {
+      // Fallback: return featured products so the carousel is never empty
+      const featured = await db
+        .select()
+        .from(productsTable)
+        .where(and(eq(productsTable.isActive, true), eq(productsTable.isFeatured, true), eq(productsTable.isStaffOnly, false)))
+        .orderBy(asc(productsTable.sortOrder))
+        .limit(10);
+      const data = featured.map(mapProduct);
+      topSellersCache = { data, fetchedAt: now };
+      return res.json({ data });
+    }
+
+    const idSet = new Set(ranked.map(r => r.product_id));
+    const products = await db
+      .select()
+      .from(productsTable)
+      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false)));
+
+    const orderMap = new Map(ranked.map(r => [r.product_id, parseInt(r.order_count, 10)]));
+
+    const data = products
+      .filter(p => idSet.has(p.id))
+      .map(p => ({ ...mapProduct(p), orderCount: orderMap.get(p.id) ?? 0 }))
+      .sort((a, b) => b.orderCount - a.orderCount)
+      .slice(0, 10);
+
+    topSellersCache = { data, fetchedAt: now };
+    return res.json({ data });
+  } catch {
+    return res.json({ data: [] });
+  }
+});
 
 // ── GET /products — public list (with variants, no options for perf) ───────
 router.get('/', async (_req, res) => {

@@ -249,6 +249,12 @@ export default function CustomerHome() {
     staleTime: 120000,
     retry: 1,
   });
+  const { data: topSellersData } = useQuery({
+    queryKey: ['top-sellers'],
+    queryFn: () => api.products.topSellers(),
+    staleTime: 15 * 60 * 1000,
+    retry: 1,
+  });
 
   const products       = productsData?.data ?? [];
   const loyaltyPoints  = loyaltyData?.data?.loyaltyPoints ?? 0;
@@ -257,6 +263,7 @@ export default function CustomerHome() {
   const rewards        = rewardsData?.data ?? [];
   const banner         = bannerData?.data ?? null;
   const featuredStore  = (storesData?.data ?? [])[0] ?? null;
+  const topSellers     = topSellersData?.data ?? [];
 
   const hasClaimableReward = useMemo(
     () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
@@ -429,17 +436,36 @@ export default function CustomerHome() {
           />
         </View>
 
-        {/* Merch */}
+        {/* Top Sellers */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Merch</Text>
-          <FlatList
-            data={MERCH}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(m) => m.id}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-            renderItem={({ item }) => <MerchTile item={item} onPress={() => handleMerchPress(item)} />}
-          />
+          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Top Sellers</Text>
+          {topSellers.length > 0 ? (
+            <FlatList
+              data={topSellers}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(p) => p.id}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              renderItem={({ item: p }) => (
+                <View style={{ width: 160 }}>
+                  <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                </View>
+              )}
+            />
+          ) : (
+            <FlatList
+              data={popular.length > 0 ? popular : products.slice(0, 6)}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(p) => p.id}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              renderItem={({ item: p }) => (
+                <View style={{ width: 160 }}>
+                  <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                </View>
+              )}
+            />
+          )}
         </View>
 
         {/* Fan Favourites */}
@@ -523,6 +549,19 @@ export default function CustomerHome() {
               ))}
             </View>
           )}
+        </View>
+
+        {/* Merch — moved to bottom */}
+        <View style={s.section}>
+          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Merch</Text>
+          <FlatList
+            data={MERCH}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(m) => m.id}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+            renderItem={({ item }) => <MerchTile item={item} onPress={() => handleMerchPress(item)} />}
+          />
         </View>
       </ScrollView>
     </View>
