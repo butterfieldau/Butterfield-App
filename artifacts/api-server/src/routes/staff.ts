@@ -166,8 +166,6 @@ router.post('/shifts/clock-out', async (req, res) => {
   const totalMins = Math.floor(ms / 60000);
   const unpaidMins = typeof unpaidBreakMins === 'number' ? unpaidBreakMins : 0;
   const paidMins = Math.max(0, totalMins - unpaidMins);
-  const hrs = Math.floor(paidMins / 60);
-  const mins = paidMins % 60;
   const { latitude: coLat, longitude: coLng } = req.body ?? {};
   const clockOutDist = (coLat != null && coLng != null && active.storeId)
     ? await (async () => {
@@ -179,7 +177,7 @@ router.post('/shifts/clock-out', async (req, res) => {
 
   const [shift] = await db.update(staffShiftsTable)
     .set({
-      clockOut: now, hoursWorked: `${hrs}h ${mins}m`, unpaidBreakMins: unpaidMins,
+      clockOut: now, hoursWorked: (paidMins / 60).toFixed(2), unpaidBreakMins: unpaidMins,
       clockOutLat: coLat ?? null, clockOutLng: coLng ?? null, clockOutDistanceMeters: clockOutDist,
     })
     .where(eq(staffShiftsTable.id, active.id))

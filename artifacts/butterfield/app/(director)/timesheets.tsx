@@ -61,6 +61,17 @@ function toDateKey(iso: string) {
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+function parseHoursWorked(raw: string | null | undefined): number {
+  if (!raw) return 0;
+  const legacyMatch = raw.match(/^(\d+)h\s*(\d+)m$/);
+  if (legacyMatch) return parseInt(legacyMatch[1]) + parseInt(legacyMatch[2]) / 60;
+  const hOnly = raw.match(/^(\d+)h$/);
+  if (hOnly) return parseInt(hOnly[1]);
+  const mOnly = raw.match(/^(\d+)m$/);
+  if (mOnly) return parseInt(mOnly[1]) / 60;
+  const decimal = parseFloat(raw);
+  return isNaN(decimal) ? 0 : decimal;
+}
 function formatHours(hrs: number): string {
   const h = Math.floor(hrs);
   const m = Math.round((hrs - h) * 60);
@@ -74,7 +85,7 @@ function initials(name: string) {
 }
 function calcPay(s: DirectorShift): number | null {
   if (!s.clockOut || !s.hourlyRateCents) return null;
-  const hrs = s.hoursWorked ? parseFloat(s.hoursWorked) : 0;
+  const hrs = parseHoursWorked(s.hoursWorked);
   return Math.round(hrs * s.hourlyRateCents);
 }
 function isoToHHMM(iso: string): string {
@@ -108,7 +119,7 @@ function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
         approvedShifts: 0, pendingShifts: 0, totalHours: 0, totalPayCents: 0, hasRate: false });
     }
     const entry = map.get(s.userId)!;
-    const hrs = s.hoursWorked ? parseFloat(s.hoursWorked) : 0;
+    const hrs = parseHoursWorked(s.hoursWorked);
     const pay = calcPay(s);
     entry.totalHours += hrs;
     if (s.hourlyRateCents) entry.hasRate = true;
@@ -120,7 +131,7 @@ function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
 
 function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): string {
   const rows = shifts.map(s => {
-    const hrs = s.hoursWorked ? parseFloat(s.hoursWorked) : 0;
+    const hrs = parseHoursWorked(s.hoursWorked);
     const pay = calcPay(s);
     const dateStr = new Date(s.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
     return `<tr>
@@ -133,7 +144,7 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
       <td>${pay != null ? fmtAUD(pay) : '—'}</td>
     </tr>`;
   }).join('');
-  const totalHrs = shifts.reduce((a, s) => a + (s.hoursWorked ? parseFloat(s.hoursWorked) : 0), 0);
+  const totalHrs = shifts.reduce((a, s) => a + parseHoursWorked(s.hoursWorked), 0);
   const totalPay = shifts.reduce((a, s) => { const p = calcPay(s); return a + (p ?? 0); }, 0);
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
   <style>
@@ -214,7 +225,7 @@ function ShiftModal({ shift, visible, onClose, onSaved }: {
 
   if (!shift) return null;
   const isApproved = !!shift.approvedAt;
-  const hrs = shift.hoursWorked ? parseFloat(shift.hoursWorked) : null;
+  const hrs = shift.hoursWorked ? parseHoursWorked(shift.hoursWorked) : null;
   const pay = calcPay(shift);
   const active = !shift.clockOut;
 
@@ -443,7 +454,7 @@ export default function DirectorTimesheetsScreen() {
 
   const stats = useMemo(() => {
     const done = filtered.filter(s => s.clockOut);
-    const totalHrs = done.reduce((sum, s) => sum + (s.hoursWorked ? parseFloat(s.hoursWorked) : 0), 0);
+    const totalHrs = done.reduce((sum, s) => sum + parseHoursWorked(s.hoursWorked), 0);
     const totalOwingCents = done.reduce((sum, s) => { const p = calcPay(s); return sum + (p ?? 0); }, 0);
     return { completed: done.length, totalHrs, totalOwingCents };
   }, [filtered]);
@@ -591,7 +602,7 @@ export default function DirectorTimesheetsScreen() {
                   {section.shifts.map(shift => {
                     const isActive   = !shift.clockOut;
                     const isApproved = !!shift.approvedAt;
-                    const hrs  = shift.hoursWorked ? parseFloat(shift.hoursWorked) : 0;
+                    const hrs  = parseHoursWorked(shift.hoursWorked);
                     const p    = calcPay(shift);
                     const brk  = shift.unpaidBreakMins && shift.unpaidBreakMins > 0 ? shift.unpaidBreakMins : null;
 

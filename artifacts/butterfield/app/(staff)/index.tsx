@@ -39,6 +39,18 @@ function formatDuration(totalMins: number): string {
   return `${h}h ${m}m`;
 }
 
+function formatDecimalHours(raw: string | null | undefined): string {
+  if (!raw) return '0m';
+  const decimal = parseFloat(raw);
+  if (isNaN(decimal)) return raw;
+  const h = Math.floor(decimal);
+  const m = Math.round((decimal - h) * 60);
+  if (h === 0 && m === 0) return '0m';
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function formatTime12(iso: string): string {
   const d = new Date(iso);
   let h = d.getHours();
@@ -189,8 +201,9 @@ export default function StaffDashboard() {
           // Notifications: cancel clock-out reminder, reschedule daily clock-in, confirm
           cancelClockOutReminder();
           scheduleClockInReminder();
-          sendClockOutConfirmation(res.data.hoursWorked ?? '0h');
-          Alert.alert('Shift ended', `Total paid time: ${res.data.hoursWorked}`);
+          const fmtWorked = formatDecimalHours(res.data.hoursWorked);
+          sendClockOutConfirmation(fmtWorked);
+          Alert.alert('Shift ended', `Total paid time: ${fmtWorked}`);
         } catch (e: any) { Alert.alert('Error', e.message); }
       }},
     ]);
