@@ -245,7 +245,7 @@ export default function CustomerHome() {
   const { data: contextData } = useQuery({
     queryKey: ['live-context'],
     queryFn: () => api.misc.context(),
-    staleTime: 4 * 60 * 60 * 1000,
+    staleTime: 30 * 60 * 1000, // 30 minutes — matches server cache
     retry: 1,
   });
   const { data: storesData } = useQuery({
@@ -324,6 +324,9 @@ export default function CustomerHome() {
 
   const favouriteCategory = useFavouriteCategory(products);
 
+  const storeStatus = storeStatusData?.data;
+  const open = storeStatus?.isOpen ?? false;
+
   const greeting = useMemo(() => buildGreeting({
     firstName,
     loyaltyPoints,
@@ -333,10 +336,9 @@ export default function CustomerHome() {
     stampCount,
     liveContext,
     favouriteCategory,
-  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory]);
-
-  const storeStatus = storeStatusData?.data;
-  const open = storeStatus?.isOpen ?? false;
+    isOpen: storeStatus?.isOpen ?? true,
+    opensAt: storeStatus?.opensAt ?? null,
+  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt]);
   const storeHint = open
     ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
     : (storeStatus?.opensAt   ? `Opens ${storeStatus.opensAt}`         : 'Closed');

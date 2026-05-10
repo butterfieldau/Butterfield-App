@@ -29,6 +29,8 @@ export interface GreetingContext {
   stampCount?: number;
   liveContext?: LiveContext | null;
   favouriteCategory?: string | null;
+  isOpen?: boolean;        // if false, skip dynamic/weather greetings
+  opensAt?: string | null; // e.g. "6:30am today" — shown in closed greeting
 }
 
 export interface Greeting {
@@ -408,7 +410,7 @@ const WEEKEND_MESSAGES: Array<[string, string]> = [
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export function buildGreeting(ctx: GreetingContext): Greeting {
-  const { firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate, loyaltyTier, liveContext, favouriteCategory } = ctx;
+  const { firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate, loyaltyTier, liveContext, favouriteCategory, isOpen, opensAt } = ctx;
 
   const name      = firstName && firstName !== 'there' ? firstName : null;
   const now       = getSydneyNow();
@@ -433,6 +435,30 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
     return { line1: `${name}, ${l1.charAt(0).toLowerCase()}${l1.slice(1)}`, line2: l2 };
   }
   const raw = (pair: [string, string]): Greeting => ({ line1: pair[0], line2: pair[1] });
+
+  // ── Closed-hours gate ─────────────────────────────────────────────────────
+  // When the store is not currently open, skip all dynamic/weather/loyalty
+  // personalisation and show a simple, consistent greeting instead.
+  if (isOpen === false) {
+    const timePeriod =
+      hour < 5  ? 'night'     :
+      hour < 12 ? 'morning'   :
+      hour < 17 ? 'afternoon' : 'evening';
+
+    const openLine = opensAt ? `We open at ${opensAt}.` : 'Check back when we\'re open.';
+    const subLine  =
+      timePeriod === 'morning'   ? 'Fresh cookies and great coffee will be ready soon.' :
+      timePeriod === 'afternoon' ? 'Come back soon — cookies and coffee are worth it.'  :
+      timePeriod === 'evening'   ? 'We\'re closing up — see you next time.'             :
+                                   'Late night craving? We\'ll be back soon.';
+
+    if (isBirthday(birthday) && name) {
+      return { line1: `Happy birthday, ${name}! 🎉`, line2: 'Your birthday treat is waiting when we open.' };
+    }
+    return name
+      ? { line1: `${openLine}`, line2: `${name}, ${subLine.charAt(0).toLowerCase()}${subLine.slice(1)}` }
+      : { line1: openLine, line2: subLine };
+  }
 
   // 1. Birthday
   if (isBirthday(birthday) && name) {

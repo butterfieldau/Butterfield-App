@@ -10,7 +10,7 @@ const router = Router();
 
 const SYD_LAT  = -33.8688;
 const SYD_LNG  = 151.2093;
-const CACHE_MS = 4 * 60 * 60 * 1000;
+const CACHE_MS = 30 * 60 * 1000; // 30 minutes — keeps weather accurate throughout the day
 
 interface WeatherData {
   temp: number;
