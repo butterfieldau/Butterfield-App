@@ -233,158 +233,163 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       <View style={s.overlay}>
         <Pressable style={s.backdrop} onPress={onClose} />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
-        >
-          {/* ── Handle ─────────────────────────────────────────────── */}
-          <View style={s.handleWrap}>
-            <View style={s.handle} />
-          </View>
-
-          {/* ── Product Header ─────────────────────────────────────── */}
-          {imageUrl ? (
-            /* Full image header */
-            <View style={s.imageHeader}>
-              <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.72)']}
-                style={s.imageOverlay}
-              >
-                <Pressable onPress={onClose} style={s.closeBtn}>
-                  <Feather name="x" size={18} color="#fff" />
-                </Pressable>
-                <View style={s.imageHeaderInfo}>
-                  <Text style={s.imageProductName} numberOfLines={2}>{product.name}</Text>
-                  {product.description ? (
-                    <Text style={s.imageProductDesc} numberOfLines={2}>{product.description}</Text>
-                  ) : null}
-                </View>
-              </LinearGradient>
-            </View>
-          ) : (
-            /* Compact no-image header */
-            <View style={[s.compactHeader, { backgroundColor: palette.bg }]}>
-              <View style={s.compactHeaderInner}>
-                <Text style={s.compactEmoji}>{palette.emoji}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.compactName, { color: palette.banner }]}>{product.name}</Text>
-                  {product.description ? (
-                    <Text style={s.compactDesc} numberOfLines={2}>{product.description}</Text>
-                  ) : null}
-                </View>
-              </View>
-              <Pressable onPress={onClose} style={[s.compactClose, { backgroundColor: `${palette.banner}18` }]}>
-                <Feather name="x" size={16} color={palette.banner} />
-              </Pressable>
-            </View>
-          )}
-
-          {/* ── Scrollable body ─────────────────────────────────────── */}
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 12 }}
+        {/* ── Sheet wrapper caps height at 92% ─────────────────────── */}
+        <View style={s.sheetWrapper}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={s.kavFlex}
           >
-            {/* Price + size strip */}
-            <View style={s.priceStrip}>
-              <View>
-                <Text style={s.priceLabel}>Price</Text>
-                <Text style={[s.priceValue, { color: palette.banner }]}>{formatCents(basePriceCents)}</Text>
+            <View style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+
+              {/* ── Handle ───────────────────────────────────────────── */}
+              <View style={s.handleWrap}>
+                <View style={s.handle} />
               </View>
-              {optionsTotalCents !== 0 && (
-                <View style={s.optionsAdj}>
-                  <Text style={s.optionsAdjText}>
-                    Options {optionsTotalCents > 0 ? '+' : ''}{formatCents(optionsTotalCents)}
-                  </Text>
+
+              {/* ── Product Header ────────────────────────────────────── */}
+              {imageUrl ? (
+                <View style={s.imageHeader}>
+                  <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.72)']}
+                    style={s.imageOverlay}
+                  >
+                    <Pressable onPress={onClose} style={s.closeBtn}>
+                      <Feather name="x" size={18} color="#fff" />
+                    </Pressable>
+                    <View style={s.imageHeaderInfo}>
+                      <Text style={s.imageProductName} numberOfLines={2}>{product.name}</Text>
+                      {product.description ? (
+                        <Text style={s.imageProductDesc} numberOfLines={2}>{product.description}</Text>
+                      ) : null}
+                    </View>
+                  </LinearGradient>
+                </View>
+              ) : (
+                <View style={[s.compactHeader, { backgroundColor: palette.bg }]}>
+                  <View style={s.compactHeaderInner}>
+                    <Text style={s.compactEmoji}>{palette.emoji}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.compactName, { color: palette.banner }]}>{product.name}</Text>
+                      {product.description ? (
+                        <Text style={s.compactDesc} numberOfLines={2}>{product.description}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <Pressable onPress={onClose} style={[s.compactClose, { backgroundColor: `${palette.banner}18` }]}>
+                    <Feather name="x" size={16} color={palette.banner} />
+                  </Pressable>
                 </View>
               )}
-              {/* Quantity stepper in price strip */}
-              <View style={s.qtyStepper}>
+
+              {/* ── Price strip ──────────────────────────────────────── */}
+              <View style={[s.priceStrip, { borderBottomColor: BORDER }]}>
+                <View>
+                  <Text style={s.priceLabel}>Price</Text>
+                  <Text style={[s.priceValue, { color: palette.banner }]}>{formatCents(basePriceCents)}</Text>
+                </View>
+                {optionsTotalCents !== 0 && (
+                  <View style={s.optionsAdj}>
+                    <Text style={s.optionsAdjText}>
+                      Options {optionsTotalCents > 0 ? '+' : ''}{formatCents(optionsTotalCents)}
+                    </Text>
+                  </View>
+                )}
+                <View style={s.qtyStepper}>
+                  <Pressable
+                    onPress={() => { if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
+                    style={[s.qtyBtn, { opacity: quantity <= 1 ? 0.35 : 1 }]}
+                    hitSlop={8}
+                  >
+                    <Feather name="minus" size={16} color={TEXT} />
+                  </Pressable>
+                  <Text style={s.qtyNum}>{quantity}</Text>
+                  <Pressable
+                    onPress={() => { setQuantity(q => q + 1); Haptics.selectionAsync(); }}
+                    style={s.qtyBtn}
+                    hitSlop={8}
+                  >
+                    <Feather name="plus" size={16} color={TEXT} />
+                  </Pressable>
+                </View>
+              </View>
+
+              {/* ── Scrollable body ── fills all remaining space ─────── */}
+              <ScrollView
+                style={s.scrollBody}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 12 }}
+              >
+                {/* Variants (size) */}
+                {variants.length > 1 && (
+                  <View style={s.section}>
+                    <Text style={s.sectionLabel}>Size</Text>
+                    <View style={s.variantRow}>
+                      {variants.map((v: any) => {
+                        const active = selectedVariantId === v.id;
+                        return (
+                          <Pressable
+                            key={v.id}
+                            onPress={() => { setVariantId(v.id); Haptics.selectionAsync(); }}
+                            style={[s.variantCard, active && { borderColor: palette.banner, backgroundColor: `${palette.banner}0D` }]}
+                          >
+                            <Text style={[s.variantName, { color: active ? palette.banner : TEXT, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                              {v.name}
+                            </Text>
+                            <Text style={[s.variantPrice, { color: active ? palette.banner : MUTED }]}>
+                              {formatCents(v.priceCents)}
+                            </Text>
+                            {active && (
+                              <View style={[s.variantCheck, { backgroundColor: palette.banner }]}>
+                                <Feather name="check" size={10} color="#fff" />
+                              </View>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Options */}
+                {isLoading && !optGroups.length ? (
+                  <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
+                    <ActivityIndicator color={palette.banner} />
+                    <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>Loading options…</Text>
+                  </View>
+                ) : (
+                  optGroups.map(renderOptionGroup)
+                )}
+
+                {!hasOptions && !isLoading && (
+                  <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+                    <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
+                      No customisations for this item.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* ── Add to Cart footer ───────────────────────────────── */}
+              <View style={[s.footer, { borderTopColor: BORDER }]}>
                 <Pressable
-                  onPress={() => { if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
-                  style={[s.qtyBtn, { opacity: quantity <= 1 ? 0.35 : 1 }]}
-                  hitSlop={8}
+                  style={[s.addBtn, { backgroundColor: palette.banner }]}
+                  onPress={handleAddToCart}
                 >
-                  <Feather name="minus" size={16} color={TEXT} />
-                </Pressable>
-                <Text style={s.qtyNum}>{quantity}</Text>
-                <Pressable
-                  onPress={() => { setQuantity(q => q + 1); Haptics.selectionAsync(); }}
-                  style={s.qtyBtn}
-                  hitSlop={8}
-                >
-                  <Feather name="plus" size={16} color={TEXT} />
+                  <View style={s.addBtnLeft}>
+                    <View style={s.qtyBubble}>
+                      <Text style={s.qtyBubbleText}>{quantity}</Text>
+                    </View>
+                    <Text style={s.addBtnText}>Add to Cart</Text>
+                  </View>
+                  <Text style={s.addBtnPrice}>{formatCents(totalCents)}</Text>
                 </Pressable>
               </View>
+
             </View>
-
-            {/* Variants (size) */}
-            {variants.length > 1 && (
-              <View style={s.section}>
-                <Text style={s.sectionLabel}>Size</Text>
-                <View style={s.variantRow}>
-                  {variants.map((v: any) => {
-                    const active = selectedVariantId === v.id;
-                    return (
-                      <Pressable
-                        key={v.id}
-                        onPress={() => { setVariantId(v.id); Haptics.selectionAsync(); }}
-                        style={[s.variantCard, active && { borderColor: palette.banner, backgroundColor: `${palette.banner}0D` }]}
-                      >
-                        <Text style={[s.variantName, { color: active ? palette.banner : TEXT, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
-                          {v.name}
-                        </Text>
-                        <Text style={[s.variantPrice, { color: active ? palette.banner : MUTED }]}>
-                          {formatCents(v.priceCents)}
-                        </Text>
-                        {active && (
-                          <View style={[s.variantCheck, { backgroundColor: palette.banner }]}>
-                            <Feather name="check" size={10} color="#fff" />
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-
-            {/* Options */}
-            {isLoading && !optGroups.length ? (
-              <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
-                <ActivityIndicator color={palette.banner} />
-                <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>Loading options…</Text>
-              </View>
-            ) : (
-              optGroups.map(renderOptionGroup)
-            )}
-
-            {!hasOptions && !isLoading && (
-              <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
-                <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
-                  No customisations for this item.
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* ── Add to Cart footer ──────────────────────────────────── */}
-          <View style={[s.footer, { borderTopColor: BORDER }]}>
-            <Pressable
-              style={[s.addBtn, { backgroundColor: palette.banner }]}
-              onPress={handleAddToCart}
-            >
-              <View style={s.addBtnLeft}>
-                <View style={s.qtyBubble}>
-                  <Text style={s.qtyBubbleText}>{quantity}</Text>
-                </View>
-                <Text style={s.addBtnText}>Add to Cart</Text>
-              </View>
-              <Text style={s.addBtnPrice}>{formatCents(totalCents)}</Text>
-            </Pressable>
-          </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </View>
       </View>
     </Modal>
   );
@@ -393,20 +398,21 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 const s = StyleSheet.create({
   overlay:      { flex: 1, justifyContent: 'flex-end' },
   backdrop:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
-  sheet:        { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', overflow: 'hidden' },
+
+  sheetWrapper: { width: '100%', maxHeight: '92%' },
+  kavFlex:      { flex: 1 },
+  sheet:        { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' },
 
   handleWrap:   { alignItems: 'center', paddingTop: 10, paddingBottom: 4 },
   handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER },
 
-  // Image header
-  imageHeader:   { height: 200, position: 'relative' },
-  imageOverlay:  { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'flex-end', padding: 16, paddingBottom: 14 },
-  imageHeaderInfo: { flex: 1 },
+  imageHeader:      { height: 200, position: 'relative' },
+  imageOverlay:     { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'flex-end', padding: 16, paddingBottom: 14 },
+  imageHeaderInfo:  { flex: 1 },
   imageProductName: { fontSize: 22, color: '#fff', fontFamily: 'Inter_700Bold', lineHeight: 28 },
   imageProductDesc: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', marginTop: 4, lineHeight: 18 },
-  closeBtn:      { position: 'absolute', top: 12, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+  closeBtn:         { position: 'absolute', top: 12, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
 
-  // Compact (no-image) header
   compactHeader:      { paddingHorizontal: 16, paddingVertical: 16 },
   compactHeaderInner: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   compactEmoji:       { fontSize: 44, lineHeight: 52 },
@@ -414,19 +420,18 @@ const s = StyleSheet.create({
   compactDesc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', marginTop: 3, lineHeight: 18 },
   compactClose:       { position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
 
-  // Price strip
-  priceStrip:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 8 },
+  priceStrip:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, gap: 8 },
   priceLabel:   { fontSize: 11, color: MUTED, fontFamily: 'Inter_500Medium', textTransform: 'uppercase', letterSpacing: 0.4 },
   priceValue:   { fontSize: 22, fontFamily: 'Inter_700Bold', marginTop: 1 },
   optionsAdj:   { flex: 1, paddingLeft: 4 },
   optionsAdjText: { fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' },
 
-  // Qty stepper (in strip)
   qtyStepper:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
   qtyBtn:       { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   qtyNum:       { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 30, textAlign: 'center' },
 
-  // Variants
+  scrollBody:   { flex: 1 },
+
   section:      { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
   sectionHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   sectionLabel: { fontSize: 14, color: TEXT, fontFamily: 'Inter_700Bold', marginBottom: 10 },
@@ -440,16 +445,13 @@ const s = StyleSheet.create({
   variantPrice: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   variantCheck: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
 
-  // Option pills
   pillRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   optPill:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },
   optPillText:  { fontSize: 13, color: TEXT, fontFamily: 'Inter_400Regular' },
   optPriceAdj:  { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' },
 
-  // Barista notes
   textInput:    { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', minHeight: 72, textAlignVertical: 'top' },
 
-  // Footer CTA
   footer:       { paddingHorizontal: 16, paddingTop: 14, borderTopWidth: 1 },
   addBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 58, borderRadius: 18, paddingHorizontal: 18 },
   addBtnLeft:   { flexDirection: 'row', alignItems: 'center', gap: 12 },

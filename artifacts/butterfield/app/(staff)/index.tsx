@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,6 +64,8 @@ export default function StaffDashboard() {
   const [breakStartMs, setBreakStartMs] = useState<number>(0);
   const [accUnpaidBreakMs, setAccUnpaidBreakMs] = useState<number>(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [storePickerVisible, setStorePickerVisible] = useState(false);
+  const [pendingCoords, setPendingCoords]           = useState<{ latitude: number; longitude: number } | undefined>();
 
   const { data: shiftData, refetch: refetchShift, isRefetching: shiftRefetching } = useQuery({
     queryKey: ['current-shift'], queryFn: () => api.staff.currentShift(), retry: 1,
@@ -83,6 +85,10 @@ export default function StaffDashboard() {
     queryKey: ['all-orders'], queryFn: () => api.staff.allOrders(), retry: 1, refetchInterval: 60000,
     enabled: canViewOrders,
   });
+  const { data: assignmentsData } = useQuery({
+    queryKey: ['my-store-assignments'], queryFn: () => api.staff.myStoreAssignments(), retry: 1,
+  });
+  const storeAssignments: any[] = assignmentsData?.data ?? [];
 
   const shift = shiftData?.data;
   const stats = statsData?.data;
@@ -111,53 +117,57 @@ export default function StaffDashboard() {
     ? ((liveElapsedMins / 60) * (hourlyRateCents / 100)).toFixed(2)
     : '0.00';
 
-  const handleClockIn = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  const doClockIn = async (coords?: { latitude: number; longitude: number }, storeId?: string) => {
     try {
-      // Request location for geofence validation
-      let coords: { latitude: number; longitude: number } | undefined;
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        try {
-          const pos = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-          coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-        } catch { /* location fetch failed — server will decide based on assignments */ }
-      } else {
-        // Let the user know location is needed if they have store assignments
-        Alert.alert(
-          'Location Required',
-          'Location access helps verify you\'re clocking in at the right store. Please enable it in Settings.',
-          [{ text: 'Continue Anyway', onPress: async () => {
-            try {
-              const res = await api.staff.clockIn(undefined);
-              setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              qc.invalidateQueries({ queryKey: ['current-shift'] });
-              refetchStats();
-              const clockInTime = res?.data?.clockIn ?? new Date().toISOString();
-              cancelClockInReminder(); scheduleClockOutReminder(clockInTime); sendClockInConfirmation();
-            } catch (e2: any) { Alert.alert('Clock-In Error', e2.message); }
-          }},
-          { text: 'Cancel', style: 'cancel' }],
-        );
-        return;
-      }
-
-      const res = await api.staff.clockIn(coords);
+      const res = await api.staff.clockIn(coords ? { storeId, latitude: coords.latitude, longitude: coords.longitude } : { storeId });
       setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['current-shift'] });
       refetchStats();
       const clockInTime = res?.data?.clockIn ?? new Date().toISOString();
-      cancelClockInReminder();
-      scheduleClockOutReminder(clockInTime);
-      sendClockInConfirmation();
+      cancelClockInReminder(); scheduleClockOutReminder(clockInTime); sendClockInConfirmation();
       if (res?.data?.storeName) {
         Alert.alert('Clocked In ✓', `You are now clocked in at ${res.data.storeName}.`);
       }
     } catch (e: any) { Alert.alert('Clock-In Error', e.message); }
+  };
+
+  const handleClockIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    // Request location first
+    let coords: { latitude: number; longitude: number } | undefined;
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === 'granted') {
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      } catch { /* use undefined — server will decide */ }
+    } else {
+      Alert.alert(
+        'Location Required',
+        'Location access helps verify you\'re at the right store. Please enable it in Settings.',
+        [
+          { text: 'Continue Anyway', onPress: async () => {
+            if (storeAssignments.length > 1) {
+              setPendingCoords(undefined); setStorePickerVisible(true);
+            } else {
+              await doClockIn(undefined, storeAssignments[0]?.storeId);
+            }
+          }},
+          { text: 'Cancel', style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
+    // If staff assigned to multiple stores, let them pick
+    if (storeAssignments.length > 1) {
+      setPendingCoords(coords);
+      setStorePickerVisible(true);
+    } else {
+      await doClockIn(coords, storeAssignments[0]?.storeId);
+    }
   };
 
   const handleClockOut = () => {
@@ -232,7 +242,56 @@ export default function StaffDashboard() {
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
+  const activeStoreName = isClocked && shift?.storeId
+    ? storeAssignments.find(a => a.storeId === shift.storeId)?.name ?? null
+    : null;
+
   return (
+    <View style={{ flex: 1, backgroundColor: BG }}>
+
+    {/* ── Store picker modal (shown when staff assigned to multiple stores) ── */}
+    <Modal visible={storePickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setStorePickerVisible(false)}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+          <Pressable onPress={() => setStorePickerVisible(false)} style={{ padding: 4 }} hitSlop={8}>
+            <Feather name="x" size={20} color={TEXT} />
+          </Pressable>
+          <Text style={{ flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 17, color: TEXT }}>Which store?</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={{ padding: 20, gap: 10 }}>
+          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 4 }}>
+            You're assigned to multiple stores. Select the one you're clocking in at.
+          </Text>
+          {storeAssignments.map(a => (
+            <Pressable
+              key={a.id}
+              onPress={async () => {
+                setStorePickerVisible(false);
+                await doClockIn(pendingCoords, a.storeId);
+              }}
+              style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="map-pin" size={18} color={BLUE} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 15, color: TEXT }}>{a.name ?? 'Store'}</Text>
+                {a.suburb ? <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, marginTop: 2 }}>{a.suburb}</Text> : null}
+                {a.address ? <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED }}>{a.address}</Text> : null}
+              </View>
+              {a.isPrimary && (
+                <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 10, fontFamily: 'Inter_600SemiBold', color: BLUE }}>Primary</Text>
+                </View>
+              )}
+              <Feather name="chevron-right" size={16} color={MUTED} />
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </Modal>
+
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 40 }}
@@ -279,6 +338,7 @@ export default function StaffDashboard() {
               </Text>
               <Text style={[styles.shiftSub, { color: MUTED }]}>
                 Started {shift ? formatTime12(shift.clockIn) : '—'} · Earned ${liveEarned}
+                {activeStoreName ? `\n📍 ${activeStoreName}` : ''}
               </Text>
               <View style={styles.breakRow}>
                 <Pressable
@@ -309,7 +369,11 @@ export default function StaffDashboard() {
 
           <View style={styles.locationRow}>
             <Feather name="map-pin" size={11} color={MUTED} />
-            <Text style={[styles.locationText, { color: MUTED }]}>Must be within 150m of the store</Text>
+            <Text style={[styles.locationText, { color: MUTED }]}>
+              {storeAssignments.length > 0
+                ? `Geofence clock-in · ${storeAssignments.length} store${storeAssignments.length > 1 ? 's' : ''} assigned`
+                : 'Must be within range of your assigned store'}
+            </Text>
           </View>
         </View>
 
@@ -423,6 +487,7 @@ export default function StaffDashboard() {
         )}
       </View>
     </ScrollView>
+    </View>
   );
 }
 

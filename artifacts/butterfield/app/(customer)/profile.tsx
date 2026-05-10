@@ -64,10 +64,11 @@ export default function AccountScreen() {
   };
 
   const menuItems = [
-    { icon: 'clipboard'   as const, label: 'My orders',      onPress: () => router.push('/orders') },
-    { icon: 'bell'        as const, label: 'Notifications',  onPress: () => router.push('/notifications') },
+    { icon: 'clipboard'   as const, label: 'My orders',       onPress: () => router.push('/orders') },
+    { icon: 'bell'        as const, label: 'Notifications',   onPress: () => router.push('/notifications') },
     { icon: 'map-pin'     as const, label: 'Saved addresses', onPress: () => router.push('/addresses') },
-    { icon: 'help-circle' as const, label: 'Help & support', onPress: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\n\nHours: Mon–Fri 7am–5pm\n\nVisit us at:\n7/2 Merrylands Rd, Merrylands NSW 2160') },
+    { icon: 'navigation'  as const, label: 'Find a store',    onPress: () => router.push('/(customer)/stores' as any) },
+    { icon: 'help-circle' as const, label: 'Help & support',  onPress: () => Alert.alert('Help & Support', 'Email: hello@butterfield.com.au\nPhone: (02) 9000 0000\n\nHours: Mon–Fri 7am–5pm\n\nVisit us at:\n7/2 Merrylands Rd, Merrylands NSW 2160') },
   ];
 
   return (

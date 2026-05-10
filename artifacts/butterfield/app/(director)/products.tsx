@@ -145,10 +145,108 @@ const BLANK = () => ({
 
 type FormState = ReturnType<typeof BLANK>;
 
+// ─── Variants Card (shown inside edit modal) ───────────────────────────────────
+function VariantsCard({ productId }: { productId: string }) {
+  const qc = useQueryClient();
+  const [addModal, setAddModal] = useState(false);
+  const [editV, setEditV] = useState<any>(null);
+  const [vName, setVName] = useState('');
+  const [vPrice, setVPrice] = useState('');
+  const [vSaving, setVSaving] = useState(false);
+
+  const { data, refetch } = useQuery({
+    queryKey: ['product-variants', productId],
+    queryFn: () => api.director.productVariants(productId),
+    enabled: !!productId,
+  });
+  const variants: any[] = data?.data ?? [];
+
+  const openAdd  = () => { setEditV(null); setVName(''); setVPrice(''); setAddModal(true); };
+  const openEdit = (v: any) => { setEditV(v); setVName(v.name); setVPrice(centsToDisplay(v.priceCents)); setAddModal(true); };
+
+  const save = async () => {
+    if (!vName.trim()) return Alert.alert('Name required');
+    if (!vPrice.trim()) return Alert.alert('Price required');
+    setVSaving(true);
+    try {
+      if (editV) {
+        await api.director.updateVariant(productId, editV.id, { name: vName.trim(), priceCents: displayToCents(vPrice) });
+      } else {
+        await api.director.createVariant(productId, { name: vName.trim(), priceCents: displayToCents(vPrice) });
+      }
+      await qc.invalidateQueries({ queryKey: ['product-variants', productId] });
+      refetch();
+      setAddModal(false);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setVSaving(false); }
+  };
+
+  const deleteV = (v: any) => {
+    Alert.alert('Delete Variant', `Delete "${v.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try { await api.director.deleteVariant(productId, v.id); await qc.invalidateQueries({ queryKey: ['product-variants', productId] }); refetch(); }
+        catch (e: any) { Alert.alert('Error', e.message); }
+      }},
+    ]);
+  };
+
+  return (
+    <View style={form.card}>
+      <SectionHeader title="Variants / Sizes" icon="layers" color={PURPLE} />
+      <Text style={[form.label, { fontFamily: 'Inter_400Regular', color: MUTED, marginBottom: 4 }]}>
+        Variants set separate prices (e.g. Small / Medium / Large). When present the base price is overridden per variant.
+      </Text>
+      {variants.map(v => (
+        <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, marginTop: 6 }}>
+          <Text style={{ flex: 1, fontFamily: 'Inter_600SemiBold', color: TEXT, fontSize: 14 }}>{v.name}</Text>
+          <Text style={{ fontFamily: 'Inter_700Bold', color: GREEN, fontSize: 14 }}>${(v.priceCents / 100).toFixed(2)}</Text>
+          <Pressable onPress={() => openEdit(v)} style={{ padding: 6 }} hitSlop={4}>
+            <Feather name="edit-2" size={14} color={BLUE} />
+          </Pressable>
+          <Pressable onPress={() => deleteV(v)} style={{ padding: 6 }} hitSlop={4}>
+            <Feather name="trash-2" size={14} color={RED} />
+          </Pressable>
+        </View>
+      ))}
+      <Pressable
+        onPress={openAdd}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: PURPLE, borderStyle: 'dashed', backgroundColor: PURPLE + '08', marginTop: 10 }}
+      >
+        <Feather name="plus" size={14} color={PURPLE} />
+        <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: PURPLE }}>Add Variant</Text>
+      </Pressable>
+      <Modal visible={addModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAddModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[modal.header, { paddingTop: 16 }]}>
+            <Pressable onPress={() => setAddModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
+            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editV ? 'Edit Variant' : 'New Variant'}</Text>
+            <Pressable onPress={save} style={[modal.saveBtn, { backgroundColor: vSaving ? MUTED : PURPLE }]} disabled={vSaving}>
+              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{vSaving ? 'Saving…' : 'Save'}</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+            <View style={form.card}>
+              <Field label="Variant Name" required>
+                <TextInput value={vName} onChangeText={setVName} placeholder="e.g. Large" placeholderTextColor={MUTED}
+                  style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+              </Field>
+              <Field label="Price (AUD)" required>
+                <TextInput value={vPrice} onChangeText={setVPrice} placeholder="0.00" placeholderTextColor={MUTED}
+                  keyboardType="decimal-pad" style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+              </Field>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
 // ─── Add/Edit Modal ────────────────────────────────────────────────────────────
 function ProductModal({
-  visible, onClose, onSave, initial, editing,
-}: { visible: boolean; onClose: () => void; onSave: (d: any) => Promise<void>; initial?: any; editing?: boolean }) {
+  visible, onClose, onSave, initial, editing, categories = [],
+}: { visible: boolean; onClose: () => void; onSave: (d: any) => Promise<void>; initial?: any; editing?: boolean; categories?: any[] }) {
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -360,8 +458,8 @@ function ProductModal({
               <Field label="Category">
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {CATEGORIES.map(c => (
-                      <TagChip key={c} label={c} active={f.category === c} color={CAT_COLORS[c] ?? MUTED} onPress={() => upd('category', c)} />
+                    {(categories.length > 0 ? categories : CATEGORIES.map(s => ({ id: s, name: s, slug: s }))).map(c => (
+                      <TagChip key={c.id ?? c} label={c.name ?? c} active={f.category === (c.slug ?? c)} color={CAT_COLORS[c.slug ?? c] ?? MUTED} onPress={() => upd('category', c.slug ?? c)} />
                     ))}
                   </View>
                 </ScrollView>
@@ -631,6 +729,8 @@ function ProductModal({
               </View>
             </View>
 
+            {editing && initial?.id && <VariantsCard productId={initial.id} />}
+
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -680,6 +780,18 @@ function CatalogTab() {
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
+  const deleteCat = (c: any) => {
+    Alert.alert('Delete Category', `Delete "${c.name}"? Products in this category will need to be reassigned.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await api.director.deleteCategory(c.id);
+          await qc.invalidateQueries({ queryKey: ['director-categories'] });
+        } catch (e: any) { Alert.alert('Error', e.message); }
+      }},
+    ]);
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <FlatList
@@ -696,8 +808,11 @@ function CatalogTab() {
               {c.description ? <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
             </View>
             <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
-            <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }}>
+            <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }} hitSlop={4}>
               <Feather name="edit-2" size={16} color={BLUE} />
+            </Pressable>
+            <Pressable onPress={() => deleteCat(c)} style={{ padding: 8 }} hitSlop={4}>
+              <Feather name="trash-2" size={16} color={RED} />
             </Pressable>
           </View>
         )}
@@ -743,80 +858,292 @@ function OptionsTab() {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: AMBER };
+
+  // ── Group CRUD state ────────────────────────────────────────────────────────
+  const [groupModal, setGroupModal] = useState(false);
+  const [editGroup, setEditGroup]   = useState<any>(null);
+  const [gName, setGName]           = useState('');
+  const [gType, setGType]           = useState<'single' | 'multi' | 'text'>('single');
+  const [gRequired, setGRequired]   = useState(false);
+  const [gCatIds, setGCatIds]       = useState<string[]>([]);
+  const [gSaving, setGSaving]       = useState(false);
+
+  // ── Option CRUD state ───────────────────────────────────────────────────────
+  const [optModal, setOptModal]     = useState(false);
+  const [editOpt, setEditOpt]       = useState<any>(null);
+  const [optGroupId, setOptGroupId] = useState('');
+  const [oName, setOName]           = useState('');
+  const [oPrice, setOPrice]         = useState('');
+  const [oDefault, setODefault]     = useState(false);
+  const [oSaving, setOSaving]       = useState(false);
+
   const { data, refetch, isRefetching } = useQuery({
     queryKey: ['director-option-groups'],
     queryFn: () => api.director.optionGroups(),
   });
   const groups: any[] = data?.data ?? [];
 
+  const { data: catData } = useQuery({
+    queryKey: ['director-categories'],
+    queryFn: () => api.director.categories(),
+  });
+  const categories: any[] = catData?.data ?? [];
+
   const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
-  const toggleGroupActive = async (g: any) => {
+  // ── Group actions ───────────────────────────────────────────────────────────
+  const openAddGroup = () => {
+    setEditGroup(null); setGName(''); setGType('single'); setGRequired(false); setGCatIds([]);
+    setGroupModal(true);
+  };
+  const openEditGroup = (g: any) => {
+    setEditGroup(g); setGName(g.name); setGType(g.selectionType);
+    setGRequired(g.isRequired ?? false); setGCatIds(g.appliesToCategoryIds ?? []);
+    setGroupModal(true);
+  };
+  const saveGroup = async () => {
+    if (!gName.trim()) return Alert.alert('Name required');
+    setGSaving(true);
     try {
-      await api.director.updateOptionGroup(g.id, { isActive: !g.isActive });
+      const payload = { name: gName.trim(), selectionType: gType, isRequired: gRequired, appliesToCategoryIds: gCatIds };
+      if (editGroup) { await api.director.updateOptionGroup(editGroup.id, payload); }
+      else           { await api.director.createOptionGroup(payload); }
       await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
+      setGroupModal(false);
     } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setGSaving(false); }
+  };
+  const deleteGroup = (g: any) => {
+    Alert.alert('Delete Group', `Delete "${g.name}" and all its options?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try { await api.director.deleteOptionGroup(g.id); await qc.invalidateQueries({ queryKey: ['director-option-groups'] }); }
+        catch (e: any) { Alert.alert('Error', e.message); }
+      }},
+    ]);
+  };
+  const toggleGroupActive = async (g: any) => {
+    try { await api.director.updateOptionGroup(g.id, { isActive: !g.isActive }); await qc.invalidateQueries({ queryKey: ['director-option-groups'] }); }
+    catch (e: any) { Alert.alert('Error', e.message); }
   };
 
-  const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: AMBER };
+  // ── Option actions ──────────────────────────────────────────────────────────
+  const openAddOpt = (groupId: string) => {
+    setOptGroupId(groupId); setEditOpt(null); setOName(''); setOPrice(''); setODefault(false);
+    setOptModal(true);
+  };
+  const openEditOpt = (groupId: string, opt: any) => {
+    setOptGroupId(groupId); setEditOpt(opt); setOName(opt.name);
+    setOPrice(opt.priceAdjustmentCents ? (Math.abs(opt.priceAdjustmentCents) / 100).toFixed(2) : '');
+    setODefault(opt.isDefault ?? false);
+    setOptModal(true);
+  };
+  const saveOpt = async () => {
+    if (!oName.trim()) return Alert.alert('Name required');
+    setOSaving(true);
+    try {
+      const adj = oPrice ? Math.round(parseFloat(oPrice) * 100) : 0;
+      const payload = { name: oName.trim(), priceAdjustmentCents: adj, isDefault: oDefault };
+      if (editOpt) { await api.director.updateOption(optGroupId, editOpt.id, payload); }
+      else         { await api.director.createOption(optGroupId, payload); }
+      await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
+      setOptModal(false);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setOSaving(false); }
+  };
+  const deleteOpt = (groupId: string, opt: any) => {
+    Alert.alert('Delete Option', `Delete "${opt.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try { await api.director.deleteOption(groupId, opt.id); await qc.invalidateQueries({ queryKey: ['director-option-groups'] }); }
+        catch (e: any) { Alert.alert('Error', e.message); }
+      }},
+    ]);
+  };
 
   return (
-    <FlatList
-      data={groups}
-      keyExtractor={g => g.id}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
-      ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontFamily: 'Inter_400Regular' }}>No option groups yet</Text>}
-      renderItem={({ item: g }) => {
-        const isExp  = expanded[g.id] ?? false;
-        const selCol = SEL_COLORS[g.selectionType] ?? BLUE;
-        const cats   = (g.appliesToCategoryIds ?? []).join(', ') || '—';
-        return (
-          <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
-            <Pressable onPress={() => toggleExpand(g.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={{ fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 14 }}>{g.name}</Text>
-                  {g.isRequired && <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' }}>Required</Text></View>}
-                </View>
-                <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 2 }}>
-                  {g.selectionType} select · {(g.options ?? []).length} options · applies to: {cats}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ backgroundColor: selCol + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 11, color: selCol, fontFamily: 'Inter_600SemiBold' }}>{g.selectionType}</Text>
-                </View>
-                <Switch value={g.isActive ?? true} onValueChange={() => toggleGroupActive(g)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
-                <Feather name={isExp ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
-              </View>
-            </Pressable>
-
-            {isExp && (
-              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 6 }}>
-                {(g.options ?? []).map((opt: any) => (
-                  <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 8 }}>
-                    {opt.isDefault && <Feather name="check-circle" size={12} color={GREEN} />}
-                    <Text style={{ flex: 1, fontFamily: 'Inter_500Medium', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
-                    {opt.priceAdjustmentCents !== 0 && (
-                      <Text style={{ fontFamily: 'Inter_600SemiBold', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 12 }}>
-                        {opt.priceAdjustmentCents > 0 ? '+' : ''}{(opt.priceAdjustmentCents / 100).toFixed(2)}
-                      </Text>
-                    )}
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={groups}
+        keyExtractor={g => g.id}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontFamily: 'Inter_400Regular' }}>No option groups yet. Tap + to add one.</Text>}
+        renderItem={({ item: g }) => {
+          const isExp      = expanded[g.id] ?? false;
+          const selCol     = SEL_COLORS[g.selectionType] ?? BLUE;
+          const appliedCats = categories.filter(c => (g.appliesToCategoryIds ?? []).includes(c.id)).map(c => c.name).join(', ') || 'All products';
+          const activeOpts  = (g.options ?? []).filter((o: any) => o.isActive !== false);
+          return (
+            <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
+              {/* Group header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 14 }}>
+                <Pressable style={{ flex: 1 }} onPress={() => toggleExpand(g.id)}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={{ fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 14 }}>{g.name}</Text>
+                    {g.isRequired && <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' }}>Required</Text></View>}
+                    <View style={{ backgroundColor: selCol + '18', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, color: selCol, fontFamily: 'Inter_600SemiBold' }}>{g.selectionType}</Text>
+                    </View>
                   </View>
-                ))}
-                {(g.options ?? []).length === 0 && g.selectionType !== 'text' && (
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic' }}>No options configured</Text>
-                )}
-                {g.selectionType === 'text' && (
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic' }}>Free text input — no options needed</Text>
-                )}
+                  <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 3 }}>
+                    {activeOpts.length} option{activeOpts.length !== 1 ? 's' : ''} · {appliedCats}
+                  </Text>
+                </Pressable>
+                <Switch value={g.isActive ?? true} onValueChange={() => toggleGroupActive(g)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" ios_backgroundColor={BORDER} />
+                <Pressable onPress={() => openEditGroup(g)} style={{ padding: 6 }} hitSlop={4}>
+                  <Feather name="edit-2" size={15} color={BLUE} />
+                </Pressable>
+                <Pressable onPress={() => deleteGroup(g)} style={{ padding: 6 }} hitSlop={4}>
+                  <Feather name="trash-2" size={15} color={RED} />
+                </Pressable>
+                <Pressable onPress={() => toggleExpand(g.id)} style={{ padding: 4 }} hitSlop={4}>
+                  <Feather name={isExp ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+              </View>
+
+              {/* Expanded options list */}
+              {isExp && (
+                <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 8 }}>
+                  {g.selectionType === 'text' ? (
+                    <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic', paddingVertical: 4 }}>
+                      Free text input — customers type a note. No individual options needed.
+                    </Text>
+                  ) : (
+                    <>
+                      {(g.options ?? []).map((opt: any) => (
+                        <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 10, borderWidth: 1, borderColor: opt.isDefault ? '#86EFAC' : BORDER }}>
+                          {opt.isDefault && <Feather name="check-circle" size={13} color={GREEN} />}
+                          <Text style={{ flex: 1, fontFamily: 'Inter_500Medium', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
+                          {opt.priceAdjustmentCents !== 0 ? (
+                            <Text style={{ fontFamily: 'Inter_700Bold', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 13 }}>
+                              {opt.priceAdjustmentCents > 0 ? '+' : '-'}${(Math.abs(opt.priceAdjustmentCents) / 100).toFixed(2)}
+                            </Text>
+                          ) : (
+                            <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12 }}>Free</Text>
+                          )}
+                          <Pressable onPress={() => openEditOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
+                            <Feather name="edit-2" size={13} color={BLUE} />
+                          </Pressable>
+                          <Pressable onPress={() => deleteOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
+                            <Feather name="trash-2" size={13} color={RED} />
+                          </Pressable>
+                        </View>
+                      ))}
+                      {(g.options ?? []).length === 0 && (
+                        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic' }}>No options yet — tap Add Option below.</Text>
+                      )}
+                      <Pressable
+                        onPress={() => openAddOpt(g.id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: BLUE, borderStyle: 'dashed', backgroundColor: BLUE + '08', marginTop: 2 }}
+                      >
+                        <Feather name="plus" size={14} color={BLUE} />
+                        <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: BLUE }}>Add Option</Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        }}
+      />
+
+      <Pressable onPress={openAddGroup} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
+        <Feather name="plus" size={20} color="#fff" />
+        <Text style={[styles.fabText, { fontFamily: 'Inter_700Bold' }]}>Add Group</Text>
+      </Pressable>
+
+      {/* ── Group Modal ─────────────────────────────────────────────────────── */}
+      <Modal visible={groupModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGroupModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[modal.header, { paddingTop: 16 }]}>
+            <Pressable onPress={() => setGroupModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
+            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editGroup ? 'Edit Option Group' : 'New Option Group'}</Text>
+            <Pressable onPress={saveGroup} style={[modal.saveBtn, { backgroundColor: gSaving ? MUTED : NAVY }]} disabled={gSaving}>
+              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+            <View style={form.card}>
+              <Field label="Group Name" required>
+                <TextInput value={gName} onChangeText={setGName} placeholder="e.g. Milk Type, Size, Extras"
+                  placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+              </Field>
+              <Field label="Selection Type">
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  {(['single', 'multi', 'text'] as const).map(t => (
+                    <Pressable key={t} onPress={() => setGType(t)}
+                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: gType === t ? SEL_COLORS[t] : BORDER, backgroundColor: gType === t ? SEL_COLORS[t] + '12' : CARD, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: gType === t ? SEL_COLORS[t] : MUTED }}>
+                        {t === 'single' ? 'Single' : t === 'multi' ? 'Multiple' : 'Text Note'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </Field>
+              <View style={form.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[form.toggleLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Required</Text>
+                  <Text style={[form.toggleDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Customer must select before adding to cart</Text>
+                </View>
+                <Switch value={gRequired} onValueChange={setGRequired} trackColor={{ false: BORDER, true: AMBER }} thumbColor="#fff" />
+              </View>
+            </View>
+            {categories.length > 0 && (
+              <View style={form.card}>
+                <SectionHeader title="Applies To Categories" icon="grid" color={BLUE} />
+                <Text style={[form.label, { fontFamily: 'Inter_400Regular', color: MUTED, marginBottom: 8 }]}>
+                  This option group appears for all products in the selected categories. Leave none selected for per-product linking.
+                </Text>
+                <View style={form.tagGrid}>
+                  {categories.map(c => (
+                    <TagChip key={c.id} label={c.name} active={gCatIds.includes(c.id)}
+                      color={CAT_COLORS[c.slug] ?? BLUE}
+                      onPress={() => setGCatIds(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} />
+                  ))}
+                </View>
               </View>
             )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* ── Option Modal ─────────────────────────────────────────────────────── */}
+      <Modal visible={optModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOptModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[modal.header, { paddingTop: 16 }]}>
+            <Pressable onPress={() => setOptModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
+            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editOpt ? 'Edit Option' : 'New Option'}</Text>
+            <Pressable onPress={saveOpt} style={[modal.saveBtn, { backgroundColor: oSaving ? MUTED : NAVY }]} disabled={oSaving}>
+              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
+            </Pressable>
           </View>
-        );
-      }}
-    />
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+            <View style={form.card}>
+              <Field label="Option Name" required>
+                <TextInput value={oName} onChangeText={setOName} placeholder="e.g. Oat Milk, Extra Shot, Large"
+                  placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+              </Field>
+              <Field label="Price Adjustment (AUD)">
+                <TextInput value={oPrice} onChangeText={setOPrice}
+                  placeholder="e.g. 0.80 for +$0.80  ·  leave empty for free"
+                  placeholderTextColor={MUTED} keyboardType="decimal-pad"
+                  style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+              </Field>
+              <View style={form.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[form.toggleLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Default Selection</Text>
+                  <Text style={[form.toggleDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Pre-selected when the product sheet opens</Text>
+                </View>
+                <Switch value={oDefault} onValueChange={setODefault} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -834,6 +1161,12 @@ export default function DirectorProductsScreen() {
     queryKey: ['director-products'],
     queryFn: () => api.director.products(),
   });
+
+  const { data: catsData } = useQuery({
+    queryKey: ['director-categories'],
+    queryFn: () => api.director.categories(),
+  });
+  const dbCategories: any[] = catsData?.data ?? [];
 
   const all: any[] = data?.data ?? [];
 
@@ -1069,6 +1402,7 @@ export default function DirectorProductsScreen() {
         onSave={handleSave}
         initial={editTarget}
         editing={!!editTarget}
+        categories={dbCategories}
       />
       </>
       )}
