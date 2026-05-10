@@ -160,6 +160,8 @@ router.post('/seed-demo', async (req, res) => {
     if (ex) {
       userId = ex.id;
       existing.push(demo.email);
+      // Always reset role in case it was changed (e.g. promoted to director)
+      await db.update(usersTable).set({ role: demo.role as any }).where(eq(usersTable.id, userId));
     } else {
       userId = randomUUID();
       await db.insert(usersTable).values({ id: userId, email: demo.email, passwordHash: hash, role: demo.role as any, name: demo.name });
