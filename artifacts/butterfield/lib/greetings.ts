@@ -10,10 +10,11 @@
  *  6. Ramadan period
  *  7. Inactive customer
  *  8. Loyalty cues
- *  9. Weather-aware message (if live weather available)
- * 10. Season
- * 11. Weekend
- * 12. Time of day
+ *  9. Favourite category (derived from order history)
+ * 10. Weather-aware message (if live weather available)
+ * 11. Season
+ * 12. Weekend
+ * 13. Time of day
  */
 
 import type { LiveContext } from './api';
@@ -27,6 +28,7 @@ export interface GreetingContext {
   loyaltyTier?: string;
   stampCount?: number;
   liveContext?: LiveContext | null;
+  favouriteCategory?: string | null;
 }
 
 export interface Greeting {
@@ -342,6 +344,57 @@ const LOYALTY_MESSAGES = {
   ] as Array<[string, string]>,
 };
 
+const CATEGORY_ALIASES: Record<string, string> = {
+  'cold-drinks': 'coffee',
+  'cold drinks': 'coffee',
+  'iced coffee': 'coffee',
+  'matcha':      'coffee',
+  'tea':         'coffee',
+  'drinks':      'coffee',
+  'baked':       'cookies',
+  'cookie':      'cookies',
+  'dessert':     'desserts',
+  'cakes':       'desserts',
+  'sweets':      'desserts',
+  'food':        'sandwiches',
+  'sandwich':    'sandwiches',
+  'bundle':      'bundles',
+  'box':         'bundles',
+};
+
+const FAVOURITE_CATEGORY_MESSAGES: Record<string, Array<[string, string]>> = {
+  cookies: [
+    ['Your usual cookies are fresh.', 'Warm and ready — just how you like them.'],
+    ['Cookie run?', 'Your favourites are fresh out the oven.'],
+    ['Fresh cookies, just for you.', 'Your go-to order is ready whenever you are.'],
+    ['Cookie lover.', 'Your favourites are baking right now.'],
+  ],
+  coffee: [
+    ['Your usual coffee is waiting.', 'Same order, same great taste.'],
+    ['Coffee regular?', 'Your go-to is ready — come grab it.'],
+    ['Coffee run time.', 'Your usual is on. Best in the area.'],
+    ['Your coffee is calling.', 'Same order. Same perfect cup.'],
+  ],
+  desserts: [
+    ['Sweet tooth, as always.', 'Your favourite desserts are ready.'],
+    ['Dessert craving?', 'Your go-to order is waiting for you.'],
+    ['Sweet things are ready.', 'Your usual favourites are on the menu.'],
+    ['Dessert run?', 'Your favourites are fresh and ready.'],
+  ],
+  sandwiches: [
+    ['Your go-to sandwich is ready.', 'Fresh and made to order.'],
+    ['Sandwich run?', 'Your usual is ready whenever you are.'],
+    ['Hungry?', 'Your favourite sandwich is waiting.'],
+    ['Fresh sandwiches today.', 'Your usual order is ready to go.'],
+  ],
+  bundles: [
+    ['Bundle order?', 'Your favourite combo is ready.'],
+    ['Sharing is caring.', 'Your go-to bundle is fresh and ready.'],
+    ['Bundle up.', 'Your favourite order is on — same as always.'],
+    ['Your bundle is ready.', 'Fresh cookies and everything you love.'],
+  ],
+};
+
 const WEEKEND_MESSAGES: Array<[string, string]> = [
   ['Weekend mode is on.', 'Cookies are fresh. Coffee is the best around.'],
   ['Saturday sorted.', 'Soft serve, iced coffee, cookies — all here.'],
@@ -355,7 +408,7 @@ const WEEKEND_MESSAGES: Array<[string, string]> = [
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export function buildGreeting(ctx: GreetingContext): Greeting {
-  const { firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate, loyaltyTier, liveContext } = ctx;
+  const { firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate, loyaltyTier, liveContext, favouriteCategory } = ctx;
 
   const name      = firstName && firstName !== 'there' ? firstName : null;
   const now       = getSydneyNow();
@@ -444,7 +497,17 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
     return { line1: `${name}, ${l1.charAt(0).toLowerCase()}${l1.slice(1)}`, line2: l2 };
   }
 
-  // 9. Live weather (65% chance if weather is available)
+  // 9. Favourite category (60% chance if we know the customer's preferred category)
+  if (favouriteCategory && Math.random() < 0.6) {
+    const normCat = CATEGORY_ALIASES[favouriteCategory.toLowerCase()] ?? favouriteCategory.toLowerCase();
+    const bank = FAVOURITE_CATEGORY_MESSAGES[normCat] ?? [];
+    if (bank.length) {
+      const [l1, l2] = pick(bank);
+      return name ? withName(l1, l2) : raw([l1, l2]);
+    }
+  }
+
+  // 10. Live weather (65% chance if weather is available)
   if (weather && Math.random() < 0.65) {
     const bank = WEATHER_MESSAGES[weather.condition]?.(weather.temp) ?? [];
     if (bank.length) {
