@@ -395,9 +395,8 @@ router.patch('/staff/:userId/approve', async (req, res) => {
 
 // ── Promote staff to director ─────────────────────────────────────────────────
 router.patch('/staff/:userId/promote-director', async (req, res) => {
-  // Only director or master may elevate someone to director (not managers)
-  if (!['director', 'master'].includes(req.user!.role)) {
-    return res.status(403).json({ error: 'Only directors can promote to director.' });
+  if (req.user!.role !== 'master') {
+    return res.status(403).json({ error: 'Only a master account can promote users to director.' });
   }
   const { userId } = req.params;
   const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));

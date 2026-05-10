@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -40,6 +41,8 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   userId: string | null; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
 }) {
   const qc = useQueryClient();
+  const { user: loggedInUser } = useAuth();
+  const isMaster = loggedInUser?.role === 'master';
   const [editing, setEditing] = useState(false);
 
   // Editable fields
@@ -525,8 +528,8 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                 </View>
               )}
 
-              {/* ── Promote to Director ──────────────────────────────── */}
-              <Pressable
+              {/* ── Promote to Director — master accounts only ───────── */}
+              {isMaster && <Pressable
                 style={sp_s.promoteBtn}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -551,7 +554,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
               >
                 <Feather name="shield" size={15} color={AMBER} />
                 <Text style={sp_s.promoteBtnText}>Promote to Director</Text>
-              </Pressable>
+              </Pressable>}
 
               {/* ── Delete account ───────────────────────────────────── */}
               <Pressable
