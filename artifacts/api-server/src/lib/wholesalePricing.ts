@@ -276,6 +276,7 @@ export async function loadPriceContextForAccount(userId: string): Promise<{
   customPricingEnabled: boolean;
   isSuspended: boolean;
   status: string;
+  minOrderCents: number;
 } | null> {
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, userId));
   if (!account) return null;
@@ -286,6 +287,7 @@ export async function loadPriceContextForAccount(userId: string): Promise<{
     customPricingEnabled: account.customPricingEnabled,
     isSuspended: account.isSuspended,
     status: account.status,
+    minOrderCents: account.minOrderCents ?? 0,
   };
 }
 
@@ -354,9 +356,12 @@ export async function priceAndValidateOrder(
     subtotalCents += result.totalCents;
   }
 
-  // Tier minimum order check
-  if (tier && tier.minOrderCents > 0 && subtotalCents < tier.minOrderCents) {
-    throw new Error(`Order below tier minimum of $${(tier.minOrderCents / 100).toFixed(2)}`);
+  // Minimum order check — account-level override takes priority over tier default
+  const effectiveMinOrderCents = ctx.minOrderCents > 0
+    ? ctx.minOrderCents
+    : (tier?.minOrderCents ?? 0);
+  if (effectiveMinOrderCents > 0 && subtotalCents < effectiveMinOrderCents) {
+    throw new Error(`Order below minimum of $${(effectiveMinOrderCents / 100).toFixed(2)} AUD`);
   }
   if (tier && tier.minOrderQty > 0) {
     const totalQty = lines.reduce((s, l) => s + l.qty, 0);
