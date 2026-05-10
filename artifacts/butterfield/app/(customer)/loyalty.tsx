@@ -249,7 +249,7 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Club</Text>
+          <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Rewards Club</Text>
           <View style={styles.buyBadge}>
             <Text style={[styles.buyBadgeText, { fontFamily: 'Inter_500Medium' }]}>Buy 5, get 1 free</Text>
           </View>
@@ -259,7 +259,7 @@ export default function LoyaltyScreen() {
           <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.coffeeCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <View style={styles.coffeeCardTop}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.coffeeLabel, { fontFamily: 'Inter_600SemiBold' }]}>COFFEE CLUB</Text>
+                <Text style={[styles.coffeeLabel, { fontFamily: 'Inter_600SemiBold' }]}>REWARDS CLUB</Text>
                 <Text style={[styles.coffeeToGo, { fontFamily: 'Inter_700Bold' }]}>
                   {stampsLeft > 0 ? `${stampsLeft} to go` : '🎉 Free coffee!'}
                 </Text>

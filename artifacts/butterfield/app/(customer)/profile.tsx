@@ -117,10 +117,10 @@ export default function AccountScreen() {
             style={[styles.quickCard, { backgroundColor: CARD, borderColor: BORDER }]}
             onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/loyalty'); }}
           >
-            <View style={[styles.quickIcon, { backgroundColor: '#E0F5FE' }]}>
-              <Feather name="coffee" size={20} color={BLUE} />
+            <View style={[styles.quickIcon, { backgroundColor: '#FFF7E0' }]}>
+              <Feather name="star" size={20} color="#C07800" />
             </View>
-            <Text style={[styles.quickTitle, { color: TEXT }]}>Coffee Club</Text>
+            <Text style={[styles.quickTitle, { color: TEXT }]}>Rewards Club</Text>
             <Text style={[styles.quickSub, { color: MUTED }]}>View stamps & rewards</Text>
           </Pressable>
 
