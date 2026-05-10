@@ -774,8 +774,8 @@ const s = StyleSheet.create({
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greetingRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  greetLine1:   { color: '#fff', fontSize: 20, lineHeight: 26 },
-  greetLine2:   { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 19, marginTop: 2 },
+  greetLine1:   { color: '#fff', fontSize: 24, lineHeight: 30 },
+  greetLine2:   { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 19, marginTop: 3 },
   loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexShrink: 0 },
   loyaltyPts:   { color: '#fff', fontSize: 13 },
   loyaltyMember:{ color: '#fff', fontSize: 11, letterSpacing: 0.5 },
@@ -784,7 +784,7 @@ const s = StyleSheet.create({
   // ── Hero banner ─────────────────────────────────────────────────────────────
   heroBanner:      { height: 180, borderRadius: 18, overflow: 'hidden' },
   heroBannerInner: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', padding: 18, gap: 12 },
-  heroHeadline:    { color: '#fff', fontSize: 22, lineHeight: 28 },
+  heroHeadline:    { color: '#fff', fontSize: 26, lineHeight: 32 },
   heroSubtext:     { color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 18, marginTop: 2 },
   heroBtn:         { backgroundColor: '#D0312D', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24, alignSelf: 'flex-end' },
   heroBtnText:     { color: '#fff', fontSize: 14 },
@@ -812,8 +812,8 @@ const s = StyleSheet.create({
   quickTileLabel:{ fontSize: 12, textAlign: 'center', lineHeight: 16 },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
-  section:       { marginTop: 26 },
-  sectionTitle:  { fontSize: 22, paddingHorizontal: 16, marginBottom: 12 },
+  section:       { marginTop: 32 },
+  sectionTitle:  { fontSize: 30, paddingHorizontal: 16, marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 },
   catScroll:     { marginTop: 24 },
   catTile:       { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
   catIconWrap:   { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

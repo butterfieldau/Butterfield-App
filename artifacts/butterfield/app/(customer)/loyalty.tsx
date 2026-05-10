@@ -447,9 +447,9 @@ export default function LoyaltyScreen() {
 }
 
 const styles = StyleSheet.create({
-  pageHeader: { paddingHorizontal: 20, paddingBottom: 16, gap: 4, backgroundColor: WHITE },
-  pageLabel: { fontSize: 12, color: MUTED, letterSpacing: 1 },
-  pageTitle: { fontSize: 26, color: TEXT },
+  pageHeader: { paddingHorizontal: 20, paddingBottom: 20, gap: 4, backgroundColor: WHITE },
+  pageLabel: { fontSize: 11, color: MUTED, letterSpacing: 1.5, textTransform: 'uppercase' },
+  pageTitle: { fontSize: 40, color: TEXT, textTransform: 'uppercase', letterSpacing: -0.5 },
 
   loyaltyCard: { borderRadius: 20, padding: 20, gap: 4 },
   memberLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, letterSpacing: 1 },
@@ -465,8 +465,8 @@ const styles = StyleSheet.create({
   tierBtnActive: { backgroundColor: WHITE },
   tierBtnLabel: { fontSize: 11, letterSpacing: 0.5 },
 
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, color: TEXT },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 14 },
+  sectionTitle: { fontSize: 24, color: TEXT, textTransform: 'uppercase', letterSpacing: 0.3 },
   buyBadge: { marginLeft: 'auto', backgroundColor: '#EEF2FB', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   buyBadgeText: { fontSize: 12, color: BRAND },
 
