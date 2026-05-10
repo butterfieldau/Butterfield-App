@@ -30,7 +30,7 @@ function NativeCustomerTabs() {
       <NativeTabs.Trigger name="cart">
         <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
         <Label>Order</Label>
-        <Badge hidden={totalItems === 0}>{String(totalItems)}</Badge>
+        {totalItems > 0 && <Badge selectedBackgroundColor="#3058A8">{String(totalItems)}</Badge>}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
