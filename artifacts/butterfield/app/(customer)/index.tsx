@@ -29,6 +29,7 @@ import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
+import type { SelectedCartOption } from '@/types';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -204,7 +205,7 @@ export default function CustomerHome() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { totalItems } = useCart();
+  const { totalItems, addItemToCart } = useCart();
   const [activeCategory, setActiveCategory] = useState('all');
   const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
@@ -287,12 +288,21 @@ export default function CustomerHome() {
     activeCategory === 'all' ? true : p.metadata?.category === activeCategory,
   );
 
-  const usualProducts = useMemo<ApiProduct[]>(() => {
+  type UsualItem = {
+    product: ApiProduct;
+    variantId?: string;
+    variantName?: string;
+    basePriceCents: number;
+    selectedOptions: SelectedCartOption[];
+    quantity: number;
+  };
+
+  const usualItems = useMemo<UsualItem[]>(() => {
     const orders: ApiOrder[] = ordersData?.data ?? [];
     if (orders.length === 0 || products.length === 0) return [];
     const productMap = new Map(products.map((p) => [p.id, p]));
     const seen = new Set<string>();
-    const result: ApiProduct[] = [];
+    const result: UsualItem[] = [];
     const sorted = [...orders].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
@@ -305,7 +315,18 @@ export default function CustomerHome() {
         const product = productMap.get(pid);
         if (product) {
           seen.add(pid);
-          result.push(product);
+          const raw = item as any;
+          // Derive base price: prefer saved basePriceCents, fall back to product price
+          const basePriceCents: number =
+            raw.basePriceCents ?? raw.unitPriceCents ?? (product.prices?.[0]?.unit_amount ?? 0);
+          result.push({
+            product,
+            variantId:       raw.variantId,
+            variantName:     raw.variantName,
+            basePriceCents,
+            selectedOptions: (raw.selectedOptions ?? []) as SelectedCartOption[],
+            quantity:        raw.quantity ?? 1,
+          });
         }
       }
     }
@@ -537,28 +558,47 @@ export default function CustomerHome() {
         </View>
 
         {/* Your usual */}
-        {usualProducts.length > 0 && (
+        {usualItems.length > 0 && (
           <View style={s.section}>
             <View style={s.usualHeader}>
               <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>Your usual</Text>
               <Text style={[s.usualSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                Tap to reorder
+                1 tap to add
               </Text>
             </View>
             <FlatList
-              data={usualProducts}
+              data={usualItems}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(p) => p.id}
+              keyExtractor={(u) => u.product.id}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
-              renderItem={({ item: p }) => {
+              renderItem={({ item: u }) => {
+                const { product: p, variantId, variantName, basePriceCents, selectedOptions, quantity } = u;
                 const pal = getPalette(p.metadata?.category);
                 const img = p.images?.[0] ?? PRODUCT_IMAGES[p.name] ?? null;
-                const price = (p.prices?.[0]?.unit_amount ?? 0) / 100;
+                const optTotal = (selectedOptions ?? []).reduce((s, o) => s + (o.priceAdjustmentCents ?? 0), 0);
+                const unitCents = basePriceCents + optTotal;
+                const optSummary = [
+                  variantName,
+                  ...(selectedOptions ?? []).map(o => o.textValue ?? o.optionName).filter(Boolean),
+                ].filter(Boolean).join(' · ');
                 return (
                   <Pressable
                     style={[s.usualCard, { backgroundColor: colors.card }]}
-                    onPress={() => handleTilePress(p)}
+                    onPress={() => {
+                      addItemToCart({
+                        productId:       p.id,
+                        productName:     p.name,
+                        variantId,
+                        variantName,
+                        basePriceCents,
+                        selectedOptions: selectedOptions ?? [],
+                        quantity,
+                        imageUrl:        p.images?.[0],
+                        category:        (p as any).metadata?.category,
+                      });
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }}
                     android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
                   >
                     <View style={[s.usualImgWrap, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
@@ -568,11 +608,16 @@ export default function CustomerHome() {
                       }
                     </View>
                     <View style={s.usualInfo}>
-                      <Text style={[s.usualName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={2}>
+                      <Text style={[s.usualName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
                         {p.name}
                       </Text>
+                      {optSummary ? (
+                        <Text style={[s.usualOpts, { color: colors.mutedForeground }]} numberOfLines={1}>
+                          {optSummary}
+                        </Text>
+                      ) : null}
                       <Text style={[s.usualPrice, { color: pal.banner, fontFamily: 'Inter_700Bold' }]}>
-                        ${price.toFixed(2)}
+                        ${(unitCents / 100).toFixed(2)}
                       </Text>
                     </View>
                     <View style={[s.usualAddBtn, { backgroundColor: CHERRY }]}>
@@ -820,6 +865,7 @@ const s = StyleSheet.create({
   usualImgWrap:  { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   usualInfo:     { flex: 1, gap: 2 },
   usualName:     { fontSize: 13, lineHeight: 17 },
+  usualOpts:     { fontSize: 11, lineHeight: 14, fontFamily: 'Inter_400Regular' },
   usualPrice:    { fontSize: 13 },
   usualAddBtn:   { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 

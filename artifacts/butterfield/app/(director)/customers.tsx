@@ -315,7 +315,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 { label: 'Total orders',     value: String(customer.orderStats?.orderCount ?? 0) },
                 { label: 'Avg order',        value: customer.orderStats?.avgOrderCents ? fmtAUD(customer.orderStats.avgOrderCents) : '—' },
                 { label: 'Stamps so far',    value: `${customer.profile?.stampCount ?? 0} / 6` },
-                { label: '☕ Free coffees',  value: String(customer.profile?.freeCoffeesEarned ?? 0) },
+                { label: '☕ Free coffees',  value: String((customer.profile as any)?.freeCoffeesEarned ?? 0) },
               ].map((r, i, arr) => (
                 <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                   <Text style={det.infoLabel}>{r.label}</Text>
