@@ -21,9 +21,9 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
-import { setSelectedProduct } from '@/lib/selectedProduct';
 import { buildGreeting } from '@/lib/greetings';
 import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
+import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3); // 3 tiles, 20px pad each side, 12px total gap
@@ -31,13 +31,13 @@ const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3); // 3 tiles, 20px pad eac
 const BLUE_TOP = '#40C0F2';
 const BLUE_BTM = '#2AA8DC';
 
-const CATEGORIES = [
-  { id: 'all', label: 'All' },
-  { id: 'cookies', label: 'Cookies' },
-  { id: 'coffee', label: 'Coffee' },
-  { id: 'desserts', label: 'Desserts' },
-  { id: 'sandwiches', label: 'Food' },
-  { id: 'bundles', label: 'Bundles' },
+const CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: 'all',        label: 'All',      icon: 'grid'    },
+  { id: 'cookies',    label: 'Cookies',  icon: 'star'    },
+  { id: 'coffee',     label: 'Coffee',   icon: 'coffee'  },
+  { id: 'desserts',   label: 'Desserts', icon: 'heart'   },
+  { id: 'sandwiches', label: 'Food',     icon: 'layers'  },
+  { id: 'bundles',    label: 'Bundles',  icon: 'gift'    },
 ];
 
 const MERCH = [
@@ -264,6 +264,7 @@ export default function CustomerHome() {
   const { user } = useAuth();
   const { totalItems } = useCart();
   const [activeCategory, setActiveCategory] = useState('all');
+  const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
 
   const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['products'],
@@ -335,20 +336,19 @@ export default function CustomerHome() {
     : (storeStatus?.opensAt   ? `Opens ${storeStatus.opensAt}`         : 'Closed');
 
   const handleTilePress = useCallback((p: ApiProduct) => {
-    setSelectedProduct(p);
-    router.push('/product');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCustomizerProduct(p);
   }, []);
 
   const handleMerchPress = useCallback((item: typeof MERCH[number]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedProduct({
+    setCustomizerProduct({
       id: item.id, name: item.name,
       description: 'Butterfield Cookies branded merchandise. Available in-store only.',
       images: [item.image],
       prices: [{ id: `price-${item.id}`, unit_amount: item.price * 100, currency: 'aud' }] as any,
       metadata: { category: 'merch', available: 'true' },
     } as any);
-    router.push('/product');
   }, []);
 
   const handleBannerPress = useCallback(() => {
@@ -364,6 +364,11 @@ export default function CustomerHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ProductCustomizerSheet
+        product={customizerProduct}
+        visible={!!customizerProduct}
+        onClose={() => setCustomizerProduct(null)}
+      />
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 6 }]}>
         {/* Brand script wordmark */}
@@ -507,12 +512,12 @@ export default function CustomerHome() {
           </View>
         )}
 
-        {/* Category filter */}
+        {/* Category carousel — Uber Eats style icon tiles */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={s.catScroll}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
         >
           {CATEGORIES.map((cat) => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
@@ -521,9 +526,12 @@ export default function CustomerHome() {
               <Pressable
                 key={cat.id}
                 onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
-                style={[s.catPill, { backgroundColor: active ? pal.banner : '#EAEAEA' }]}
+                style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
-                <Text style={[s.catLabel, { color: active ? '#fff' : '#8E8E93', fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
+                  <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                </View>
+                <Text style={[s.catTileLabel, { color: active ? pal.banner : '#3C3C43', fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
                   {cat.label}
                 </Text>
               </Pressable>
@@ -603,8 +611,9 @@ const s = StyleSheet.create({
   section:       { marginTop: 24 },
   sectionTitle:  { fontSize: 20, paddingHorizontal: 16, marginBottom: 12 },
   catScroll:     { marginTop: 24 },
-  catPill:       { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  catLabel:      { fontSize: 13 },
+  catTile:       { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
+  catIconWrap:   { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  catTileLabel:  { fontSize: 12, textAlign: 'center' },
   empty:         { textAlign: 'center', marginTop: 40, fontSize: 14 },
 
   tile:          { width: '48%', backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },

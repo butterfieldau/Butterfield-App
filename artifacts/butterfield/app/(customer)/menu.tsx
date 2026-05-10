@@ -22,15 +22,15 @@ import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
 const BLUE = '#40C0F2';
 
-const CATEGORIES: { id: string; label: string; emoji: string }[] = [
-  { id: 'all',        label: 'All',      emoji: '✦'  },
-  { id: 'cookies',    label: 'Cookies',  emoji: '🍪' },
-  { id: 'coffee',     label: 'Coffee',   emoji: '☕' },
-  { id: 'desserts',   label: 'Desserts', emoji: '🍰' },
-  { id: 'sandwiches', label: 'Food',     emoji: '🥪' },
-  { id: 'pastries',   label: 'Pastries', emoji: '🥐' },
-  { id: 'drinks',     label: 'Drinks',   emoji: '🧃' },
-  { id: 'bundles',    label: 'Bundles',  emoji: '🎁' },
+const CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: 'all',        label: 'All',      icon: 'grid'    },
+  { id: 'cookies',    label: 'Cookies',  icon: 'star'    },
+  { id: 'coffee',     label: 'Coffee',   icon: 'coffee'  },
+  { id: 'desserts',   label: 'Desserts', icon: 'heart'   },
+  { id: 'sandwiches', label: 'Food',     icon: 'layers'  },
+  { id: 'pastries',   label: 'Pastries', icon: 'sun'     },
+  { id: 'drinks',     label: 'Drinks',   icon: 'droplet' },
+  { id: 'bundles',    label: 'Bundles',  icon: 'gift'    },
 ];
 
 const DIETARY_ICONS: Record<string, string> = {
@@ -221,8 +221,8 @@ export default function MenuScreen() {
           {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#8E8E93" /></Pressable> : null}
         </View>
 
-        {/* Category pills — Apple style */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
+        {/* Category carousel — Uber Eats style */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2 }}>
           {CATEGORIES.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
@@ -230,12 +230,14 @@ export default function MenuScreen() {
               <Pressable
                 key={cat.id}
                 onPress={() => { setActiveCategory(cat.id); setSearch(''); Haptics.selectionAsync(); }}
-                style={[s.catPill, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}
+                style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
-                <Text style={s.catEmoji}>{cat.emoji}</Text>
+                <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
+                  <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                </View>
                 <Text style={[s.catLabel, {
-                  color: active ? '#fff' : '#3C3C43',
-                  fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium',
+                  color: active ? pal.banner : '#3C3C43',
+                  fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium',
                 }]}>
                   {cat.label}
                 </Text>
@@ -284,7 +286,7 @@ export default function MenuScreen() {
               )}
               <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
                 {filtered.length} item{filtered.length !== 1 ? 's' : ''}
-                {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.emoji} ${CATEGORIES.find(c => c.id === activeCategory)?.label}` : ''}
+                {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
               </Text>
             </>
           }
@@ -323,10 +325,10 @@ const s = StyleSheet.create({
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 12 },
   searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
 
-  // Category pills — Apple style
-  catPill:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22 },
-  catEmoji:    { fontSize: 14 },
-  catLabel:    { fontSize: 14 },
+  // Category carousel — Uber Eats style
+  catTile:     { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
+  catIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  catLabel:    { fontSize: 12, textAlign: 'center' },
 
   // Count row
   count:       { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
