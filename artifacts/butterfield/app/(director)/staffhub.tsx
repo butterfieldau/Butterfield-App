@@ -409,21 +409,23 @@ export default function StaffHubScreen() {
         <Text style={s.headerSub}>Issues · Wastage · Leave · Feedback</Text>
       </View>
 
-      <View style={[s.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
-        {TABS.map(tab => {
-          const active = activeTab === tab.key;
-          return (
-            <Pressable
-              key={tab.key}
-              onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
-              style={[s.tabBtn, active && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
-            >
-              <Feather name={tab.icon as any} size={14} color={active ? BLUE : MUTED} />
-              <Text style={[s.tabLabel, { color: active ? BLUE : MUTED }]}>{tab.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+        <View style={[s.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+          {TABS.map(tab => {
+            const active = activeTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
+                style={[s.tabBtn, active && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
+              >
+                <Feather name={tab.icon as any} size={14} color={active ? BLUE : MUTED} />
+                <Text style={[s.tabLabel, { color: active ? BLUE : MUTED }]}>{tab.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
 
       {activeTab === 'issues'   && <IssuesTab />}
       {activeTab === 'wastage'  && <WastageTab />}
@@ -438,7 +440,7 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: TEXT },
   headerSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 },
   tabBar:      { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
-  tabBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabLabel:    { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   card:        { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
   cardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 12 },

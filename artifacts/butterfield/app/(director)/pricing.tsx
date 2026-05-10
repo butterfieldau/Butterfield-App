@@ -275,20 +275,22 @@ export default function PricingScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Tab strip */}
-      <View style={s.tabBar}>
-        {([
-          { k: 'tiers',  label: 'Tiers',     icon: 'layers' },
-          { k: 'breaks', label: 'Qty Breaks',icon: 'trending-down' },
-          { k: 'custom', label: 'Custom',    icon: 'user-check' },
-          { k: 'assign', label: 'Assign',    icon: 'briefcase' },
-        ] as { k: Tab; label: string; icon: string }[]).map(t => (
-          <Pressable key={t.k} onPress={() => { Haptics.selectionAsync(); setTab(t.k); }}
-            style={[s.tab, tab === t.k && s.tabActive]}>
-            <Feather name={t.icon as any} size={14} color={tab === t.k ? BLUE : MUTED} />
-            <Text style={[s.tabText, { color: tab === t.k ? BLUE : MUTED, fontFamily: tab === t.k ? 'Inter_700Bold' : 'Inter_500Medium' }]}>{t.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+        <View style={s.tabBar}>
+          {([
+            { k: 'tiers',  label: 'Tiers',      icon: 'layers' },
+            { k: 'breaks', label: 'Qty Breaks',  icon: 'trending-down' },
+            { k: 'custom', label: 'Custom',      icon: 'user-check' },
+            { k: 'assign', label: 'Assign',      icon: 'briefcase' },
+          ] as { k: Tab; label: string; icon: string }[]).map(t => (
+            <Pressable key={t.k} onPress={() => { Haptics.selectionAsync(); setTab(t.k); }}
+              style={[s.tab, tab === t.k && s.tabActive]}>
+              <Feather name={t.icon as any} size={14} color={tab === t.k ? BLUE : MUTED} />
+              <Text style={[s.tabText, { color: tab === t.k ? BLUE : MUTED, fontFamily: tab === t.k ? 'Inter_700Bold' : 'Inter_500Medium' }]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
 
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
@@ -797,7 +799,7 @@ function Field({
 
 const s = StyleSheet.create({
   tabBar:        { flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
-  tab:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive:     { borderBottomColor: BLUE },
   tabText:       { fontSize: 12 },
 
