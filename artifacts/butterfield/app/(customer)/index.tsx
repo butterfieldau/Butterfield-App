@@ -23,6 +23,7 @@ import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
 import { getTierByPoints } from '@/constants/tierConfig';
+import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
@@ -266,6 +267,7 @@ export default function CustomerHome() {
   const { totalItems } = useCart();
   const [activeCategory, setActiveCategory] = useState('all');
   const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
+  const [storeSheetVisible, setStoreSheetVisible] = useState(false);
 
   const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['products'],
@@ -299,6 +301,12 @@ export default function CustomerHome() {
     staleTime: 120000,
     retry: 1,
   });
+  const { data: storesData } = useQuery({
+    queryKey: ['stores'],
+    queryFn: () => api.stores.list(),
+    staleTime: 120000,
+    retry: 1,
+  });
 
   const products       = productsData?.data ?? [];
   const loyaltyPoints  = loyaltyData?.data?.loyaltyPoints ?? 0;
@@ -306,6 +314,7 @@ export default function CustomerHome() {
   const stampCount     = loyaltyData?.data?.stampCount ?? 0;
   const rewards        = rewardsData?.data ?? [];
   const banner         = bannerData?.data ?? null;
+  const featuredStore  = (storesData?.data ?? [])[0] ?? null;
 
   const hasClaimableReward = useMemo(
     () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
@@ -371,6 +380,11 @@ export default function CustomerHome() {
         visible={!!customizerProduct}
         onClose={() => setCustomizerProduct(null)}
       />
+      <StoreInfoSheet
+        visible={storeSheetVisible}
+        store={featuredStore}
+        onClose={() => setStoreSheetVisible(false)}
+      />
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
         {/* Row: logo left + cart badge right */}
@@ -423,7 +437,7 @@ export default function CustomerHome() {
         <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
           <Pressable
             style={[s.pickupRow, { backgroundColor: colors.card }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(customer)/stores'); }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStoreSheetVisible(true); }}
           >
             <View style={s.pickupIconWrap}>
               <Feather name="map-pin" size={20} color={BLUE_TOP} />
