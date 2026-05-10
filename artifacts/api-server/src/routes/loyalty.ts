@@ -9,6 +9,21 @@ const router = Router();
 router.get('/profile', requireAuth, async (req, res) => {
   const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+  // Always recompute tier from totalSpentCents so it is the single source of truth.
+  // This corrects any stale data (e.g. seeded demo accounts or missed order updates).
+  const correctTier =
+    profile.totalSpentCents >= 100000 ? 'platinum' :
+    profile.totalSpentCents >= 50000  ? 'gold'     :
+    profile.totalSpentCents >= 15000  ? 'silver'   : 'bronze';
+
+  if (correctTier !== profile.loyaltyTier) {
+    await db.update(customerProfilesTable)
+      .set({ loyaltyTier: correctTier })
+      .where(eq(customerProfilesTable.userId, req.user!.id));
+    return res.json({ data: { ...profile, loyaltyTier: correctTier } });
+  }
+
   return res.json({ data: profile });
 });
 

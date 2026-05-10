@@ -23,7 +23,7 @@ import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
-import { getTierByPoints } from '@/constants/tierConfig';
+import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
@@ -331,8 +331,9 @@ export default function CustomerHome() {
   const firstName = freshName?.split(' ')[0] ?? 'there';
   const birthday  = (loyaltyData?.data as any)?.birthday ?? null;
 
-  // Compute tier from live points — never read the stale DB loyaltyTier field
-  const tierCfg = getTierByPoints(loyaltyPoints);
+  // Use the server-stored tier as the single source of truth.
+  // The server recomputes and persists the correct tier on every profile fetch.
+  const tierCfg = getTierConfig(loyaltyTier);
 
   const greeting = useMemo(() => buildGreeting({
     firstName,

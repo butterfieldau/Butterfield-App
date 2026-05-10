@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
-import { TIERS_ORDERED, getTierByPoints, getNextTier } from '@/constants/tierConfig';
+import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
 
 const BG = '#F5F6FA';
 const BLUE_CARD = '#40C0F2';
@@ -96,7 +96,7 @@ function getBirthdayInfo(isoDate: string): {
 const HOW_IT_WORKS = [
   { icon: 'coffee', title: 'Earn 1 pt per $1', desc: 'Every dollar you spend earns 1 point automatically.' },
   { icon: 'tag', title: '100 pts = $5 credit', desc: 'Save up your points and redeem them for store credit. No minimum spend.' },
-  { icon: 'award', title: 'Climb the tiers', desc: 'Silver at 1,000 pts · Gold at 3,000 pts (lifetime).' },
+  { icon: 'award', title: 'Climb the tiers', desc: 'Silver at $150 spent · Gold at $500 · Platinum at $1,000 (lifetime).' },
   { icon: 'gift', title: 'Birthday treat', desc: 'Free cookie every birthday week, on us.' },
 ];
 
@@ -128,10 +128,12 @@ export default function LoyaltyScreen() {
   const stamps = Math.min(profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
 
-  const currentTier = getTierByPoints(pts);
-  const nextTier    = getNextTier(pts);
-  const ptsToNext   = nextTier ? nextTier.threshold - pts : 0;
-  const progress    = nextTier ? Math.min(pts / nextTier.threshold, 1) : 1;
+  // Use the server-stored tier as the single source of truth (spend-based, never decreases).
+  const totalSpentCents = (profile as any)?.totalSpentCents ?? 0;
+  const currentTier = getTierConfig(profile?.loyaltyTier ?? 'bronze');
+  const nextTier    = getNextTierBySpend(totalSpentCents);
+  const spentToNext = nextTier ? nextTier.spendThreshold - totalSpentCents : 0;
+  const progress    = nextTier ? Math.min(totalSpentCents / nextTier.spendThreshold, 1) : 1;
 
   const qrValue = `BUTTERFIELD:${user?.id ?? ''}:${profile?.referralCode ?? ''}`;
 
@@ -213,10 +215,10 @@ export default function LoyaltyScreen() {
               <View style={styles.progressSection}>
                 <View style={styles.progressLabels}>
                   <Text style={[styles.progressLabelText, { fontFamily: 'Inter_400Regular' }]}>
-                    {ptsToNext.toLocaleString()} pts to {nextTier.label}
+                    ${(spentToNext / 100).toFixed(0)} to go for {nextTier.label}
                   </Text>
                   <Text style={[styles.progressLabelText, { fontFamily: 'Inter_600SemiBold' }]}>
-                    {pts.toLocaleString()} / {nextTier.threshold.toLocaleString()}
+                    ${(totalSpentCents / 100).toFixed(0)} / ${(nextTier.spendThreshold / 100).toFixed(0)}
                   </Text>
                 </View>
                 <View style={styles.progressTrack}>
