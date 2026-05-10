@@ -45,6 +45,12 @@ export const api = {
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
     socialLogin: (data: { provider: string; providerId: string; email: string; name?: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
+    forgotPassword: (data: { email: string }) =>
+      request<{ success: boolean; message: string; devOtp?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
+    verifyResetOtp: (data: { email: string; otp: string }) =>
+      request<{ resetToken: string }>('/auth/verify-reset-otp', { method: 'POST', body: JSON.stringify(data) }),
+    resetPassword: (data: { resetToken: string; newPassword: string }) =>
+      request<{ success: boolean; message: string }>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
     me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
     updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
       request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),

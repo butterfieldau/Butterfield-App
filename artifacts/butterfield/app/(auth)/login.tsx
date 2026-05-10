@@ -361,6 +361,12 @@ export default function LoginScreen() {
                 <Pressable onPress={() => setShowPw(p => !p)}><Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
               </View>
 
+              {mode === 'login' && !isWholesaleApply && (
+                <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={{ alignSelf: 'flex-end', marginTop: -4 }}>
+                  <Text style={[s.forgotText, { fontFamily: 'Inter_500Medium', color: BLUE }]}>Forgot password?</Text>
+                </Pressable>
+              )}
+
               {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text></View> : null}
               {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontFamily: 'Inter_400Regular' }]}>{successMsg}</Text></View> : null}
 
@@ -438,6 +444,10 @@ export default function LoginScreen() {
                 <Pressable onPress={() => setIShowPw(p => !p)}><Feather name={iShowPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
               </View>
 
+              <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={{ alignSelf: 'flex-end', marginTop: -4 }}>
+                <Text style={[s.forgotText, { fontFamily: 'Inter_500Medium', color: '#9CA3AF' }]}>Forgot password?</Text>
+              </Pressable>
+
               {iError ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{iError}</Text></View> : null}
 
               <Pressable onPress={handleInternalSubmit} disabled={iLoading} style={[s.submitBtn, { backgroundColor: NAVY, opacity: iLoading ? 0.8 : 1 }]}>
@@ -493,6 +503,7 @@ const s = StyleSheet.create({
   submitBtn:       { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   submitBtnText:   { color: '#fff', fontSize: 16 },
   toggleText:      { fontSize: 14, textAlign: 'center' },
+  forgotText:      { fontSize: 13 },
   internalLink:    { fontSize: 13 },
   backBtn:         { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   backText:        { fontSize: 15 },

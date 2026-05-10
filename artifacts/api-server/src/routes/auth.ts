@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable } from '@workspace/db';
-import { eq, and } from 'drizzle-orm';
+import jwt from 'jsonwebtoken';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable, passwordResetTokensTable } from '@workspace/db';
+import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
+import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
 
@@ -328,6 +330,133 @@ router.post('/social', async (req, res) => {
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+});
+
+// ── Password reset ────────────────────────────────────────────────────────────
+
+const RESET_SECRET = (process.env.SESSION_SECRET ?? 'butterfield-dev-only-not-for-production') + ':reset';
+
+function generateOtp(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'Email is required.' });
+  }
+  const normalised = email.toLowerCase().trim();
+
+  const [user] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.email, normalised));
+
+  // Always respond with success to prevent user enumeration
+  if (!user) {
+    return res.json({ success: true, message: 'If an account with that email exists, a reset code has been sent.' });
+  }
+
+  // Purge expired / old tokens for this user
+  await db.delete(passwordResetTokensTable)
+    .where(eq(passwordResetTokensTable.userId, user.id));
+
+  const otp = generateOtp();
+  const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await db.insert(passwordResetTokensTable).values({
+    id: randomUUID(),
+    userId: user.id,
+    otpHash,
+    expiresAt,
+  });
+
+  const html = buildPasswordResetEmail(otp, user.name);
+  const emailResult = await sendEmail({
+    to: user.email,
+    subject: 'Your Butterfield Cookies password reset code',
+    html,
+    text: `Your password reset code is: ${otp}\n\nThis code expires in 15 minutes.\n\nIf you didn't request this, ignore this message.`,
+  });
+
+  // In dev (no email service), return OTP in response so it can be pre-filled
+  const isDev = process.env.NODE_ENV !== 'production';
+  const devOtp = (!emailResult.success && isDev) ? otp : undefined;
+
+  return res.json({
+    success: true,
+    message: 'If an account with that email exists, a reset code has been sent.',
+    ...(devOtp ? { devOtp } : {}),
+  });
+});
+
+router.post('/verify-reset-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and code are required.' });
+  }
+  const normalised = email.toLowerCase().trim();
+
+  const [user] = await db.select({ id: usersTable.id, name: usersTable.name })
+    .from(usersTable).where(eq(usersTable.email, normalised));
+  if (!user) return res.status(400).json({ error: 'Invalid or expired code.' });
+
+  const now = new Date();
+  const [token] = await db.select().from(passwordResetTokensTable)
+    .where(
+      and(
+        eq(passwordResetTokensTable.userId, user.id),
+        isNull(passwordResetTokensTable.usedAt),
+      )
+    );
+
+  if (!token || token.expiresAt < now) {
+    return res.status(400).json({ error: 'Code has expired. Please request a new one.' });
+  }
+
+  const valid = await bcrypt.compare(String(otp), token.otpHash);
+  if (!valid) return res.status(400).json({ error: 'Incorrect code. Please try again.' });
+
+  // Mark as used
+  await db.update(passwordResetTokensTable)
+    .set({ usedAt: now })
+    .where(eq(passwordResetTokensTable.id, token.id));
+
+  // Issue a short-lived reset JWT (15 min)
+  const resetToken = jwt.sign(
+    { sub: user.id, purpose: 'password_reset' },
+    RESET_SECRET,
+    { expiresIn: '15m' }
+  );
+
+  return res.json({ resetToken });
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+  if (!resetToken || !newPassword) {
+    return res.status(400).json({ error: 'Reset token and new password are required.' });
+  }
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+  }
+
+  let payload: { sub: string; purpose: string };
+  try {
+    payload = jwt.verify(resetToken, RESET_SECRET) as any;
+  } catch {
+    return res.status(400).json({ error: 'Reset link has expired. Please start over.' });
+  }
+
+  if (payload.purpose !== 'password_reset') {
+    return res.status(400).json({ error: 'Invalid reset token.' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(usersTable)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(usersTable.id, payload.sub));
+
+  return res.json({ success: true, message: 'Password updated successfully.' });
 });
 
 export default router;

@@ -17,3 +17,4 @@ export * from "./notifications";
 export * from "./staff_roster";
 export * from "./customer_crm";
 export * from "./wholesale_cards";
+export * from "./password_reset";
