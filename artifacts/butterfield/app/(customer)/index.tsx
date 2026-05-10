@@ -9,6 +9,7 @@ import {
   Dimensions,
   FlatList,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +17,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -204,6 +206,7 @@ export default function CustomerHome() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['products'],
@@ -270,6 +273,8 @@ export default function CustomerHome() {
   const banner         = bannerData?.data ?? null;
   const featuredStore  = (storesData?.data ?? [])[0] ?? null;
   const topSellers     = topSellersData?.data ?? [];
+  const referralCode   = (loyaltyData?.data as any)?.referralCode ?? '';
+  const qrValue        = `BUTTERFIELD:${user?.id ?? ''}:${referralCode}`;
 
   const hasClaimableReward = useMemo(
     () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
@@ -378,25 +383,85 @@ export default function CustomerHome() {
         onClose={() => setStoreSheetVisible(false)}
       />
       <OfflineBanner />
+
+      {/* ── QR CODE MODAL ──────────────────────────────────────────────── */}
+      <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
+        <Pressable style={s.qrOverlay} onPress={() => setShowQR(false)}>
+          <Pressable style={s.qrCard} onPress={(e) => e.stopPropagation()}>
+            <View style={s.qrHandle} />
+            <Text style={[s.qrTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Stamp Card</Text>
+            <Text style={[s.qrSub, { fontFamily: 'Inter_400Regular' }]}>
+              Show this to staff to earn your stamp
+            </Text>
+            <View style={s.qrBox}>
+              <QRCode
+                value={qrValue || 'BUTTERFIELD:loading'}
+                size={220}
+                color="#1C1C1E"
+                backgroundColor="#FFFFFF"
+              />
+            </View>
+            <View style={s.qrStampsRow}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    s.qrStampDot,
+                    i < stampCount
+                      ? { backgroundColor: BLUE_TOP }
+                      : { backgroundColor: '#E5E5EA', borderColor: '#C7C7CC', borderWidth: 1.5 },
+                  ]}
+                >
+                  {i < stampCount && <Feather name="coffee" size={12} color="#fff" />}
+                </View>
+              ))}
+            </View>
+            <Text style={[s.qrStampLabel, { fontFamily: 'Inter_500Medium' }]}>
+              {stampCount >= 6
+                ? '☕ Free coffee ready — show to staff!'
+                : `${stampCount} of 6 stamps — ${6 - stampCount} to go`}
+            </Text>
+            <Text style={[s.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
+              {referralCode || user?.name}
+            </Text>
+            <Pressable
+              style={[s.qrCloseBtn, { backgroundColor: BLUE_TOP }]}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(false); }}
+            >
+              <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
-        {/* Row 1: logo left + loyalty chip right */}
+        {/* Row 1: logo left · loyalty chip + QR button right */}
         <View style={s.headerTopRow}>
           <Image
             source={require('@/assets/images/logo-white.png')}
             style={{ width: 110, height: 34 }}
             contentFit="contain"
           />
-          <LinearGradient
-            colors={tierCfg.gradient}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={s.loyaltyChip}
-          >
-            <Feather name="star" size={11} color="rgba(255,255,255,0.9)" />
-            <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints.toLocaleString()} pts</Text>
-            <View style={s.tierDivider} />
-            <Text style={[s.loyaltyMember, { fontFamily: 'Inter_700Bold' }]}>{tierCfg.label.toUpperCase()}</Text>
-          </LinearGradient>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <LinearGradient
+              colors={tierCfg.gradient}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={s.loyaltyChip}
+            >
+              <Feather name="star" size={11} color="rgba(255,255,255,0.9)" />
+              <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints.toLocaleString()} pts</Text>
+              <View style={s.tierDivider} />
+              <Text style={[s.loyaltyMember, { fontFamily: 'Inter_700Bold' }]}>{tierCfg.label.toUpperCase()}</Text>
+            </LinearGradient>
+            <Pressable
+              style={s.qrBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }}
+              hitSlop={6}
+            >
+              <Feather name="grid" size={16} color={BLUE_TOP} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Row 2: greeting full width — no chip squeezing it */}
@@ -692,4 +757,45 @@ const s = StyleSheet.create({
   favName:       { fontSize: 12 },
 
   grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+
+  // ── QR button (round, white) ─────────────────────────────────────────────
+  qrBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12, shadowRadius: 4, elevation: 3,
+  },
+
+  // ── QR modal ─────────────────────────────────────────────────────────────
+  qrOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  qrCard: {
+    width: 320, backgroundColor: '#fff', borderRadius: 28,
+    padding: 28, alignItems: 'center', gap: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18, shadowRadius: 24, elevation: 12,
+  },
+  qrHandle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E5', marginBottom: 4 },
+  qrTitle:    { fontSize: 20, color: '#1C1C1E', textAlign: 'center' },
+  qrSub:      { fontSize: 13, color: '#8E8E93', textAlign: 'center', lineHeight: 18 },
+  qrBox: {
+    width: 252, height: 252, borderRadius: 20,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#E8E8ED',
+    marginVertical: 4,
+  },
+  qrStampsRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  qrStampDot: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  qrStampLabel: { fontSize: 13, color: '#3C3C43', textAlign: 'center' },
+  qrCode:     { fontSize: 13, color: '#8E8E93', letterSpacing: 1.5, marginTop: 2 },
+  qrCloseBtn: {
+    marginTop: 6, width: '100%', paddingVertical: 14,
+    borderRadius: 16, alignItems: 'center',
+  },
 });

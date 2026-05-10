@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, loyaltyTransactionsTable, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable } from '@workspace/db';
+import { db, loyaltyTransactionsTable, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable, usersTable } from '@workspace/db';
 import { eq, desc, and, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 
@@ -84,6 +84,62 @@ router.patch('/birthday', requireAuth, async (req, res) => {
   }
   await db.update(customerProfilesTable).set({ birthday }).where(eq(customerProfilesTable.userId, req.user!.id));
   return res.json({ data: { birthday } });
+});
+
+// ── POST /loyalty/scan-stamp — staff scans customer QR to award a coffee stamp
+const STAMP_GOAL = 6;
+
+router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (req, res) => {
+  const { qrPayload } = req.body;
+  if (!qrPayload) return res.status(400).json({ error: 'QR payload required' });
+
+  // Payload format: BUTTERFIELD:userId:referralCode
+  const parts = String(qrPayload).split(':');
+  if (parts.length < 3 || parts[0] !== 'BUTTERFIELD') {
+    return res.status(400).json({ error: 'Invalid QR code' });
+  }
+  const userId      = parts[1];
+  const referralCode = parts[2];
+
+  const [profile] = await db.select().from(customerProfilesTable)
+    .where(and(eq(customerProfilesTable.userId, userId), eq(customerProfilesTable.referralCode, referralCode)));
+  if (!profile) return res.status(404).json({ error: 'Customer not found or QR code mismatch' });
+
+  const [userRow] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
+  const customerName = userRow?.name ?? 'Customer';
+
+  const newRawCount  = profile.stampCount + 1;
+  const earnedFree   = newRawCount >= STAMP_GOAL;
+  const newStampCount = earnedFree ? 0 : newRawCount;
+
+  await db.update(customerProfilesTable)
+    .set({ stampCount: newStampCount, updatedAt: new Date() })
+    .where(eq(customerProfilesTable.userId, userId));
+
+  await db.insert(loyaltyTransactionsTable).values({
+    id: randomUUID(),
+    userId,
+    points: 0,
+    type: 'earn',
+    description: earnedFree
+      ? `Coffee stamp card complete — free coffee earned! ☕ (card reset)`
+      : `Coffee stamp added (${newRawCount}/${STAMP_GOAL})`,
+  });
+
+  if (earnedFree) {
+    await db.insert(loyaltyTransactionsTable).values({
+      id: randomUUID(),
+      userId,
+      points: 50,
+      type: 'bonus',
+      description: 'Free coffee reward — stamp card complete! ☕',
+    });
+    await db.update(customerProfilesTable)
+      .set({ loyaltyPoints: profile.loyaltyPoints + 50 })
+      .where(eq(customerProfilesTable.userId, userId));
+  }
+
+  return res.json({ data: { stampCount: newStampCount, earnedFree, customerName } });
 });
 
 router.post('/rewards', requireRole('director', 'manager'), async (req, res) => {

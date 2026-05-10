@@ -81,6 +81,8 @@ export const api = {
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
     updateBirthday: (birthday: string) =>
       request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
+    scanStamp: (qrPayload: string) =>
+      request<{ data: { stampCount: number; earnedFree: boolean; customerName: string } }>('/loyalty/scan-stamp', { method: 'POST', body: JSON.stringify({ qrPayload }) }),
   },
   staff: {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
