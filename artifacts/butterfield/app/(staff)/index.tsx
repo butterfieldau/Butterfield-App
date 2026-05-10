@@ -39,12 +39,22 @@ function formatDuration(totalMins: number): string {
   return `${h}h ${m}m`;
 }
 
-function formatDecimalHours(raw: string | null | undefined): string {
-  if (!raw) return '0m';
+function parseHoursWorked(raw: string | null | undefined): number {
+  if (!raw) return 0;
+  const legacyMatch = raw.match(/^(\d+)h\s*(\d+)m$/);
+  if (legacyMatch) return parseInt(legacyMatch[1]) + parseInt(legacyMatch[2]) / 60;
+  const hOnly = raw.match(/^(\d+)h$/);
+  if (hOnly) return parseInt(hOnly[1]);
+  const mOnly = raw.match(/^(\d+)m$/);
+  if (mOnly) return parseInt(mOnly[1]) / 60;
   const decimal = parseFloat(raw);
-  if (isNaN(decimal)) return raw;
-  const h = Math.floor(decimal);
-  const m = Math.round((decimal - h) * 60);
+  return isNaN(decimal) ? 0 : decimal;
+}
+
+function formatDecimalHours(raw: string | null | undefined): string {
+  const hrs = parseHoursWorked(raw);
+  const h = Math.floor(hrs);
+  const m = Math.round((hrs - h) * 60);
   if (h === 0 && m === 0) return '0m';
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;

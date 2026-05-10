@@ -50,8 +50,23 @@ function formatTime12(iso: string | Date): string {
   return `${h}:${m} ${ampm}`;
 }
 
+function parseHoursWorked(raw: string | null | undefined): number {
+  if (!raw) return 0;
+  const legacyMatch = raw.match(/^(\d+)h\s*(\d+)m$/);
+  if (legacyMatch) return parseInt(legacyMatch[1]) + parseInt(legacyMatch[2]) / 60;
+  const hOnly = raw.match(/^(\d+)h$/);
+  if (hOnly) return parseInt(hOnly[1]);
+  const mOnly = raw.match(/^(\d+)m$/);
+  if (mOnly) return parseInt(mOnly[1]) / 60;
+  const decimal = parseFloat(raw);
+  return isNaN(decimal) ? 0 : decimal;
+}
+
 function calcPaidMins(shift: StaffShift): number {
   if (!shift.clockOut) return 0;
+  if (shift.hoursWorked != null && shift.hoursWorked !== '') {
+    return Math.round(parseHoursWorked(shift.hoursWorked) * 60);
+  }
   const ms = new Date(shift.clockOut).getTime() - new Date(shift.clockIn).getTime();
   const total = Math.floor(ms / 60000);
   return Math.max(0, total - (shift.unpaidBreakMins ?? 0));

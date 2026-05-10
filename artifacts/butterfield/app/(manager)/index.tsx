@@ -48,6 +48,28 @@ function formatTime12(iso: string): string {
   return `${h}:${m} ${ampm}`;
 }
 
+function parseHoursWorked(raw: string | null | undefined): number {
+  if (!raw) return 0;
+  const legacyMatch = raw.match(/^(\d+)h\s*(\d+)m$/);
+  if (legacyMatch) return parseInt(legacyMatch[1]) + parseInt(legacyMatch[2]) / 60;
+  const hOnly = raw.match(/^(\d+)h$/);
+  if (hOnly) return parseInt(hOnly[1]);
+  const mOnly = raw.match(/^(\d+)m$/);
+  if (mOnly) return parseInt(mOnly[1]) / 60;
+  const decimal = parseFloat(raw);
+  return isNaN(decimal) ? 0 : decimal;
+}
+
+function formatHoursWorked(raw: string | null | undefined): string {
+  const hrs = parseHoursWorked(raw);
+  const h = Math.floor(hrs);
+  const m = Math.round((hrs - h) * 60);
+  if (h === 0 && m === 0) return '0m';
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
@@ -129,8 +151,9 @@ export default function ManagerDashboard() {
           refetchStats();
           cancelClockOutReminder();
           scheduleClockInReminder();
-          sendClockOutConfirmation(res.data.hoursWorked ?? '0h');
-          Alert.alert('Shift ended', `Total paid time: ${res.data.hoursWorked}`);
+          const fmtWorked = formatHoursWorked(res.data.hoursWorked);
+          sendClockOutConfirmation(fmtWorked);
+          Alert.alert('Shift ended', `Total paid time: ${fmtWorked}`);
         } catch (e: any) { Alert.alert('Error', e.message); }
       }},
     ]);
