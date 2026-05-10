@@ -279,18 +279,37 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
             <Text style={styles.sectionLabel}>Items ({items.length})</Text>
             <View style={{ gap: 0, marginTop: 6 }}>
               {items.map((item: any, i: number) => {
-                const qty  = item.qty ?? item.quantity ?? 0;
-                const name = item.productName ?? item.productNameSnapshot ?? item.name ?? `Item ${i + 1}`;
-                const unit = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
-                const line = item.totalCents ?? item.totalPriceCents ?? (unit * qty);
+                const qty     = item.qty ?? item.quantity ?? 0;
+                const name    = item.productName ?? item.productNameSnapshot ?? item.name ?? `Item ${i + 1}`;
+                const variant = item.variantNameSnapshot ?? item.variantName;
+                const unit    = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
+                const line    = item.totalCents ?? item.totalPriceCents ?? (unit * qty);
+                const opts    = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
+                const notable = opts.filter((o: any) => {
+                  const n = o.optionName ?? o.name ?? '';
+                  return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
+                });
+                const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
                 return (
                   <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 14 }]}>{name}</Text>
+                      <Text style={[{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 14 }]}>
+                        {name}{variant ? ` · ${variant}` : ''}
+                      </Text>
                       <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>
                         {qty} × ${(unit / 100).toFixed(2)}
                         {item.priceLabel ? ` · ${item.priceLabel}` : ''}
                       </Text>
+                      {notable.length > 0 && (
+                        <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
+                          {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                        </Text>
+                      )}
+                      {baristaNote ? (
+                        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, fontStyle: 'italic' }}>
+                          "{baristaNote}"
+                        </Text>
+                      ) : null}
                     </View>
                     <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
                       ${(line / 100).toFixed(2)}

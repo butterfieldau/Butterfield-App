@@ -237,23 +237,41 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 <Text style={d.sectionTitle}>Items ordered</Text>
                 <View style={{ gap: 0 }}>
                   {items.map((item: any, i: number) => {
-                    const unitCents = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
-                    const qty = item.quantity ?? item.qty ?? 1;
-                    const lineCents = item.totalCents ?? item.totalPriceCents ?? (unitCents * qty);
+                    const unitCents   = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
+                    const qty         = item.quantity ?? item.qty ?? 1;
+                    const lineCents   = item.totalCents ?? item.totalPriceCents ?? (unitCents * qty);
+                    const variant     = item.variantNameSnapshot ?? item.variantName;
+                    const opts        = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
+                    const notable     = opts.filter((o: any) => {
+                      const n = o.optionName ?? o.name ?? '';
+                      return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
+                    });
+                    const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
                     return (
                       <View key={i} style={[d.itemRow, { borderBottomColor: BORDER, borderBottomWidth: i < items.length - 1 ? 1 : 0 }]}>
                         <View style={[d.qtyBadge, { backgroundColor: BLUE }]}>
                           <Text style={{ color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{qty}</Text>
                         </View>
-                        <View style={{ flex: 1, gap: 1 }}>
+                        <View style={{ flex: 1, gap: 2 }}>
                           <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT }}>
                             {item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item'}
+                            {variant ? <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED }}>{` · ${variant}`}</Text> : null}
                           </Text>
                           {unitCents > 0 && (
                             <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
                               ${(unitCents / 100).toFixed(2)} each
                             </Text>
                           )}
+                          {notable.length > 0 && (
+                            <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_400Regular' }}>
+                              {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                            </Text>
+                          )}
+                          {baristaNote ? (
+                            <Text style={{ fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
+                              "{baristaNote}"
+                            </Text>
+                          ) : null}
                         </View>
                         {lineCents > 0 && (
                           <Text style={{ fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT }}>

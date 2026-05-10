@@ -200,19 +200,45 @@ export default function TrackOrderScreen() {
             <View style={[styles.pipelineCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Items</Text>
               <View style={{ gap: 8, marginTop: 8 }}>
-                {order.items.map((item: any, i: number) => (
-                  <View key={i} style={[styles.itemRow, { borderBottomColor: colors.border }]}>
-                    <View style={[styles.qtyBadge, { backgroundColor: colors.primary }]}>
-                      <Text style={styles.qtyText}>{item.quantity}</Text>
+                {order.items.map((item: any, i: number) => {
+                  const qty         = item.quantity ?? item.qty ?? 1;
+                  const variant     = item.variantNameSnapshot ?? item.variantName;
+                  const opts        = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
+                  const notable     = opts.filter((o: any) => {
+                    const n = o.optionName ?? o.name ?? '';
+                    return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
+                  });
+                  const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
+                  const unitCents   = item.unitPriceCents ?? item.priceCents ?? 0;
+                  return (
+                    <View key={i} style={[styles.itemRow, { borderBottomColor: colors.border }]}>
+                      <View style={[styles.qtyBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.qtyText}>{qty}</Text>
+                      </View>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[styles.itemName, { color: colors.foreground }]}>
+                          {item.productName ?? 'Item'}
+                          {variant ? <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{` · ${variant}`}</Text> : null}
+                        </Text>
+                        {notable.length > 0 && (
+                          <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_400Regular' }}>
+                            {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                          </Text>
+                        )}
+                        {baristaNote ? (
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
+                            "{baristaNote}"
+                          </Text>
+                        ) : null}
+                      </View>
+                      {unitCents > 0 && (
+                        <Text style={[styles.itemPrice, { color: colors.mutedForeground }]}>
+                          ${((unitCents * qty) / 100).toFixed(2)}
+                        </Text>
+                      )}
                     </View>
-                    <Text style={[styles.itemName, { color: colors.foreground, flex: 1 }]}>{item.productName ?? 'Item'}</Text>
-                    {item.priceCents && (
-                      <Text style={[styles.itemPrice, { color: colors.mutedForeground }]}>
-                        ${((item.priceCents * item.quantity) / 100).toFixed(2)}
-                      </Text>
-                    )}
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
