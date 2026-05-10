@@ -35,6 +35,16 @@ function fmt12(t: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+const STORE_PHOTOS = [
+  { label: 'Red Velvet',   uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Red-Velvet-Chunky-Cookie.png?v=1714983850&width=600' },
+  { label: 'Choc Chip',    uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Choc-Chip-Chunky-Cookie.png?v=1714983903&width=600' },
+  { label: 'Double Choc',  uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Double-Choc-Chunky-Cookie.png?v=1714983928&width=600' },
+  { label: 'Pistachio',    uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Pistachio-Chunky-Cookie.png?v=1714983863&width=600' },
+  { label: 'Biscoff',      uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Biscoff-Chunky-Cookie.png?v=1714984042&width=600' },
+  { label: 'Cherry Ripe',  uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Cherry-Ripe-Chunky-Cookie.png?v=1714983878&width=600' },
+  { label: 'Macadamia',    uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Macademia-chunky-cookie.jpg?v=1714983995&width=600' },
+];
+
 function statusColor(status: string) {
   if (status === 'open')               return '#16A34A';
   if (status === 'closing_soon')       return '#F59E0B';
@@ -233,6 +243,29 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             </View>
           ) : null}
 
+          {/* Photo gallery */}
+          <View style={s.gallerySection}>
+            <Text style={[s.gallerySectionTitle, { color: colors.foreground }]}>Our Cookies</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingVertical: 4 }}
+              nestedScrollEnabled
+            >
+              {STORE_PHOTOS.map((photo) => (
+                <View key={photo.label} style={s.galleryItem}>
+                  <Image
+                    source={{ uri: photo.uri }}
+                    style={s.galleryImg}
+                    contentFit="cover"
+                    transition={250}
+                  />
+                  <Text style={[s.galleryLabel, { color: colors.foreground }]}>{photo.label}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+
           {/* Public notes */}
           {store.publicNotes ? (
             <Text style={[s.notes, { color: colors.mutedForeground }]}>{store.publicNotes}</Text>
@@ -331,4 +364,11 @@ const s = StyleSheet.create({
 
   allStores:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
   allStoresText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#3058A8' },
+
+  // ── Photo gallery ─────────────────────────────────────────────────────────────
+  gallerySection:     { gap: 8 },
+  gallerySectionTitle:{ fontFamily: 'Inter_700Bold', fontSize: 13 },
+  galleryItem:        { alignItems: 'center', gap: 5 },
+  galleryImg:         { width: 100, height: 100, borderRadius: 14 },
+  galleryLabel:       { fontFamily: 'Inter_500Medium', fontSize: 11 },
 });
