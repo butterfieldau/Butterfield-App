@@ -409,8 +409,8 @@ export default function StaffHubScreen() {
         <Text style={s.headerSub}>Issues · Wastage · Leave · Feedback</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
-        <View style={[s.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={[s.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER, flex: 1 }]}>
           {TABS.map(tab => {
             const active = activeTab === tab.key;
             return (
@@ -440,7 +440,7 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: TEXT },
   headerSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 },
   tabBar:      { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
-  tabBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabLabel:    { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   card:        { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
   cardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 12 },

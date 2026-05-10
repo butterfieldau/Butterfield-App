@@ -1407,8 +1407,8 @@ export default function DirectorSettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
-        <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={[styles.tabBar, { borderBottomColor: BORDER, flex: 1 }]}>
           {(TABS as readonly string[]).map(t => (
             <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
               onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
@@ -1431,7 +1431,7 @@ const styles = StyleSheet.create({
   center:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
   emptyText:     { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
   tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1 },
-  tabBtn:        { paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:        { flex: 1, paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText:       { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   section:       { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#8E8E93', letterSpacing: 1.5, marginTop: 4 },
   card:          { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },

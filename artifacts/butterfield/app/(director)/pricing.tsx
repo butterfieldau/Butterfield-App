@@ -275,8 +275,8 @@ export default function PricingScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Tab strip */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
-        <View style={s.tabBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
+        <View style={[s.tabBar, { flex: 1 }]}>
           {([
             { k: 'tiers',  label: 'Tiers',      icon: 'layers' },
             { k: 'breaks', label: 'Qty Breaks',  icon: 'trending-down' },
@@ -799,7 +799,7 @@ function Field({
 
 const s = StyleSheet.create({
   tabBar:        { flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
-  tab:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tab:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabActive:     { borderBottomColor: BLUE },
   tabText:       { fontSize: 12 },
 
