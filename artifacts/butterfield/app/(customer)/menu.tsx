@@ -24,7 +24,7 @@ import SharedProductTile from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 
 const BLUE   = '#40C0F2';
-const CHERRY = '#D20001';
+const CHERRY = '#D0312D';
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [
   { id: 'all',        label: 'All',      icon: 'grid'    },
@@ -251,7 +251,7 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },
   headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 28, color: '#1C1C1E' },
+  headerTitle: { fontSize: 32, color: '#1C1C1E' },
   skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   skipBadgeText:{ fontSize: 12, color: '#E07B00' },
 
@@ -279,7 +279,7 @@ const s = StyleSheet.create({
   frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   frequentName:    { fontSize: 14, color: '#1C1C1E' },
   frequentPrice:   { fontSize: 13, color: '#8E8E93' },
-  frequentAdd:     { width: 32, height: 32, borderRadius: 16, backgroundColor: '#D20001', alignItems: 'center', justifyContent: 'center' },
+  frequentAdd:     { width: 34, height: 34, borderRadius: 17, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
   frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
 
   // Product tile

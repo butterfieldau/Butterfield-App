@@ -39,7 +39,7 @@ const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3);
 
 const BLUE_TOP = '#40C0F2';
 const BLUE_BTM = '#2AA8DC';
-const CHERRY   = '#D20001';
+const CHERRY   = '#D0312D';
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [
   { id: 'all',        label: 'All',      icon: 'grid'    },
@@ -774,8 +774,8 @@ const s = StyleSheet.create({
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greetingRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  greetLine1:   { color: '#fff', fontSize: 18, lineHeight: 24 },
-  greetLine2:   { color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, marginTop: 1 },
+  greetLine1:   { color: '#fff', fontSize: 20, lineHeight: 26 },
+  greetLine2:   { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 19, marginTop: 2 },
   loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexShrink: 0 },
   loyaltyPts:   { color: '#fff', fontSize: 13 },
   loyaltyMember:{ color: '#fff', fontSize: 11, letterSpacing: 0.5 },
@@ -786,7 +786,7 @@ const s = StyleSheet.create({
   heroBannerInner: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', padding: 18, gap: 12 },
   heroHeadline:    { color: '#fff', fontSize: 22, lineHeight: 28 },
   heroSubtext:     { color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 18, marginTop: 2 },
-  heroBtn:         { backgroundColor: '#C4793A', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24, alignSelf: 'flex-end' },
+  heroBtn:         { backgroundColor: '#D0312D', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24, alignSelf: 'flex-end' },
   heroBtnText:     { color: '#fff', fontSize: 14 },
 
   fallbackBanner:  { height: 120, borderRadius: 18, padding: 18, overflow: 'hidden', justifyContent: 'center' },
@@ -812,8 +812,8 @@ const s = StyleSheet.create({
   quickTileLabel:{ fontSize: 12, textAlign: 'center', lineHeight: 16 },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
-  section:       { marginTop: 24 },
-  sectionTitle:  { fontSize: 20, paddingHorizontal: 16, marginBottom: 12 },
+  section:       { marginTop: 26 },
+  sectionTitle:  { fontSize: 22, paddingHorizontal: 16, marginBottom: 12 },
   catScroll:     { marginTop: 24 },
   catTile:       { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
   catIconWrap:   { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

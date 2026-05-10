@@ -36,7 +36,7 @@ import { getPalette } from '@/constants/categoryColors';
 const BG       = '#F5F6FA';
 const CARD     = '#FFFFFF';
 const BLUE     = '#40C0F2';
-const CHERRY   = '#D20001';
+const CHERRY   = '#D0312D';
 const TEXT     = '#1C1C1E';
 const MUTED    = '#8E8E93';
 const BORDER   = '#E5E7EB';
@@ -783,7 +783,7 @@ export default function CartScreen() {
         <Pressable
           onPress={handleContinue}
           disabled={loading}
-          style={[styles.continueBtn, { backgroundColor: BLUE, opacity: loading ? 0.8 : 1 }]}
+          style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

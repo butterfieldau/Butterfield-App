@@ -395,7 +395,7 @@ export default function LoginScreen() {
               {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text></View> : null}
               {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontFamily: 'Inter_400Regular' }]}>{successMsg}</Text></View> : null}
 
-              <Pressable onPress={handlePublicSubmit} disabled={loading} style={[s.submitBtn, { backgroundColor: BLUE, opacity: loading ? 0.85 : 1 }]}>
+              <Pressable onPress={handlePublicSubmit} disabled={loading} style={[s.submitBtn, { backgroundColor: '#D0312D', opacity: loading ? 0.85 : 1 }]}>
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : (
                   <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>
                     {isWholesaleApply ? 'Submit Application' : mode === 'register' ? 'Create Account' : 'Sign In'}

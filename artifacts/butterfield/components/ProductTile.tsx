@@ -104,7 +104,7 @@ const s = StyleSheet.create({
     elevation: 4,
   },
   imageArea: {
-    height: 152,
+    height: 165,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -115,10 +115,10 @@ const s = StyleSheet.create({
   badgeText:{ color: '#fff', fontSize: 9 },
   soldOut:  { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
 
-  info:     { padding: 10, gap: 3, backgroundColor: '#fff' },
-  name:     { fontSize: 13, color: '#1C1C1E' },
+  info:     { padding: 12, gap: 3, backgroundColor: '#fff' },
+  name:     { fontSize: 14, color: '#1C1C1E' },
   desc:     { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
-  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
-  price:    { fontSize: 15, color: '#1C1C1E' },
-  addBtn:   { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  price:    { fontSize: 16, color: '#1C1C1E' },
+  addBtn:   { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
 });

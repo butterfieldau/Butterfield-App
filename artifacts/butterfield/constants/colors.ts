@@ -18,7 +18,7 @@ const colors = {
     muted: "#F5EDE6",
     mutedForeground: "#8E8E93",
 
-    accent: "#D20001",
+    accent: "#D0312D",
     accentForeground: "#FFFFFF",
 
     destructive: "#DC2626",
@@ -30,7 +30,7 @@ const colors = {
     blueCard: "#40C0F2",
     blueDark: "#2AA8DC",
 
-    red: "#D20001",
+    red: "#D0312D",
   },
 
   radius: 12,
