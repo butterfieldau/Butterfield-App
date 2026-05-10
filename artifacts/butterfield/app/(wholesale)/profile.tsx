@@ -80,9 +80,14 @@ export default function WholesaleAccount() {
   const paymentTerms  = typeof paymentTermsRaw === 'number'
     ? `${paymentTermsRaw} days`
     : (paymentTermsRaw ?? 'Net 14').toString().replace(/^net/i, 'Net ');
-  const discount      = account?.tier?.discountPercent;
+  const discount      = account?.tier?.defaultDiscountPct ?? account?.tier?.discountPercent;
   const accountMgr    = account?.accountManager;
   const accountMgrEmail = account?.accountManagerEmail;
+  // Effective minimum order: account-level override takes priority over tier default
+  const minOrderCents = account?.minOrderCents || account?.tier?.minOrderCents || 0;
+  const minOrderDisplay = minOrderCents > 0
+    ? `$${(minOrderCents / 100).toFixed(2)} AUD`
+    : '—';
   const fullAddress   = [account?.deliveryAddress, [account?.suburb, account?.state, account?.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 
   const [showBusiness, setShowBusiness] = useState(false);
@@ -114,7 +119,7 @@ export default function WholesaleAccount() {
   const openFaqs = () => {
     Alert.alert(
       'Wholesale FAQs',
-      `Cut-off times:\n  Monday delivery → Friday 12pm AEST\n  Thursday delivery → Tuesday 12pm AEST\n\nMinimum order: $50\nLead time: 2 business days\nPayment terms: ${paymentTerms} from invoice`
+      `Cut-off times:\n  Monday delivery → Friday 12pm AEST\n  Thursday delivery → Tuesday 12pm AEST\n\nMinimum order: ${minOrderDisplay}\nLead time: 2 business days\nPayment terms: ${paymentTerms} from invoice`
     );
   };
 
@@ -240,7 +245,7 @@ export default function WholesaleAccount() {
             <View style={s.expand}>
               <Detail label="Monday delivery"   value="Order by Fri 12pm" />
               <Detail label="Thursday delivery" value="Order by Tue 12pm" />
-              <Detail label="Minimum order"     value="$50 AUD" />
+              <Detail label="Minimum order"     value={minOrderDisplay} />
               <Detail label="Lead time"         value="2 business days" last />
             </View>
           )}
