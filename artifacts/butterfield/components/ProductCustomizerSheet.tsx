@@ -22,10 +22,11 @@ import { api, type ApiProduct } from '@/lib/api';
 import { useCart } from '@/context/CartContext';
 import { getPalette } from '@/constants/categoryColors';
 
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E8E8ED';
-const BG     = '#F5F6FA';
+const TEXT    = '#1C1C1E';
+const MUTED   = '#8E8E93';
+const BORDER  = '#E8E8ED';
+const BG      = '#F5F6FA';
+const BTN_CLR = '#3058A8';   // Butterfield brand blue
 const IMAGE_H = 250;
 
 // Spring config — matches Apple UIKit feel
@@ -60,6 +61,8 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   const scrollRef = useRef(null);
 
   // ── Entry / exit animation driven by `visible` ───────────────────────────────
+  const BACKDROP_MAX = 0.52;   // semi-transparent — underlying screen stays visible
+
   useEffect(() => {
     if (visible) {
       // Reset state
@@ -68,7 +71,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       scrollY.value    = 0;
       // Slide in
       translateY.value = withSpring(0, SPRING);
-      backdropO.value  = withTiming(1, { duration: 220 });
+      backdropO.value  = withTiming(BACKDROP_MAX, { duration: 220 });
     }
   }, [visible]);
 
@@ -83,7 +86,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
         // Only drag down when the scroll view is at its top
         if (e.translationY > 0 && scrollY.value <= 2) {
           translateY.value = e.translationY;
-          backdropO.value  = interpolate(e.translationY, [0, 280], [1, 0], { extrapolateRight: 'clamp' });
+          backdropO.value  = interpolate(e.translationY, [0, 280], [BACKDROP_MAX, 0], { extrapolateRight: 'clamp' });
         }
       })
       .onEnd((e) => {
@@ -98,7 +101,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
           });
         } else {
           translateY.value = withSpring(0, SPRING);
-          backdropO.value  = withTiming(1, { duration: 160 });
+          backdropO.value  = withTiming(BACKDROP_MAX, { duration: 160 });
         }
       }),
   [scrollY, translateY, backdropO, dismiss, SCREEN_H]);
@@ -235,7 +238,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
             ]}
           >
             {/* ── Image header ──────────────────────────────────────── */}
-            <View style={[s.imageArea, { backgroundColor: imageUrl ? '#000' : palette.bg }]}>
+            <View style={[s.imageArea, { backgroundColor: imageUrl ? 'transparent' : palette.bg }]}>
               {imageUrl
                 ? <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
                 : <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.banner, opacity: 0.14 }]} />
@@ -360,32 +363,33 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                 })}
               </GHScrollView>
 
-              {/* ── Footer ─────────────────────────────────────────── */}
-              <View style={s.footer}>
-                <View style={s.qtyStepper}>
-                  <Pressable
-                    onPress={() => { if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
-                    style={[s.qtyBtn, { opacity: quantity <= 1 ? 0.28 : 1 }]}
-                    hitSlop={10}
-                  >
-                    <Feather name="minus" size={15} color={TEXT} />
-                  </Pressable>
-                  <Text style={s.qtyNum}>{quantity}</Text>
-                  <Pressable
-                    onPress={() => { setQuantity(q => q + 1); Haptics.selectionAsync(); }}
-                    style={s.qtyBtn}
-                    hitSlop={10}
-                  >
-                    <Feather name="plus" size={15} color={TEXT} />
-                  </Pressable>
-                </View>
-
-                <Pressable style={[s.addBtn, { backgroundColor: TEXT }]} onPress={handleAddToCart}>
-                  <Text style={s.addPrice}>{fmt(totalCents)}</Text>
-                  <View style={s.addDivider} />
-                  <Text style={s.addLabel}>Add to Cart</Text>
+              {/* ── Footer — unified pill ──────────────────────────── */}
+              <Pressable style={s.footer} onPress={handleAddToCart}>
+                {/* Qty stepper — left side of the pill */}
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
+                  style={[s.qtyBtn, { opacity: quantity <= 1 ? 0.4 : 1 }]}
+                  hitSlop={10}
+                >
+                  <Feather name="minus" size={16} color="#fff" />
                 </Pressable>
-              </View>
+                <Text style={s.qtyNum}>{quantity}</Text>
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); setQuantity(q => q + 1); Haptics.selectionAsync(); }}
+                  style={s.qtyBtn}
+                  hitSlop={10}
+                >
+                  <Feather name="plus" size={16} color="#fff" />
+                </Pressable>
+
+                {/* Vertical divider */}
+                <View style={s.addDivider} />
+
+                {/* Price + label */}
+                <Text style={s.addPrice}>{fmt(totalCents)}</Text>
+                <View style={s.addDivider} />
+                <Text style={s.addLabel}>Add to Cart</Text>
+              </Pressable>
 
             </View>
           </Animated.View>
@@ -451,14 +455,17 @@ const s = StyleSheet.create({
 
   textInput: { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', minHeight: 70, textAlignVertical: 'top' },
 
-  // ── Footer ────────────────────────────────────────────────────────────────────
-  footer:     { flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: BORDER },
-  qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qtyBtn:     { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  qtyNum:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 26, textAlign: 'center' },
-
-  addBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', height: 54, borderRadius: 27, paddingHorizontal: 22 },
+  // ── Footer — unified pill ─────────────────────────────────────────────────────
+  footer: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: BTN_CLR,
+    borderRadius: 32, height: 58,
+    paddingHorizontal: 20, marginTop: 14,
+    gap: 0,
+  },
+  qtyBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  qtyNum:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#fff', minWidth: 28, textAlign: 'center' },
+  addDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 14 },
   addPrice:   { fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold' },
-  addDivider: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.28)', marginHorizontal: 14 },
   addLabel:   { flex: 1, fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold', textAlign: 'center' },
 });
