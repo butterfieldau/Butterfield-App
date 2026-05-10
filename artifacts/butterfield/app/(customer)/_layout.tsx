@@ -58,7 +58,7 @@ function NativeCustomerTabs() {
         <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
         <Label>Order</Label>
         {totalItems > 0 && (
-          <Badge backgroundColor={BLUE} selectedBackgroundColor={BLUE}>
+          <Badge>
             {String(totalItems)}
           </Badge>
         )}

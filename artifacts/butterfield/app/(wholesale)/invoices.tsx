@@ -12,7 +12,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
-import { MOCK_INVOICES } from '@/data/mockData';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
@@ -35,61 +34,64 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   overdue: { label: 'Overdue', color: '#DC2626', bg: '#FEE2E2' },
 };
 
-const INVOICE_LINES: Record<string, InvoiceLine[]> = {
-  inv1: [
-    { description: 'Classic Choc Chip Cookie',   qty: 192, unitPrice: 2.31 },
-    { description: 'Double Chocolate Cookie',     qty: 96,  unitPrice: 2.97 },
-    { description: 'Brown Butter Oat Cookie',     qty: 96,  unitPrice: 2.42 },
-    { description: 'Cookie Dozen Bundle',         qty: 15,  unitPrice: 26.40 },
-    { description: 'Gift Box – Premium Assorted', qty: 10,  unitPrice: 39.60 },
-    { description: 'NY Cheesecake Slice',         qty: 24,  unitPrice: 6.60 },
-  ],
-  inv2: [
-    { description: 'Classic Choc Chip Cookie',   qty: 288, unitPrice: 2.31 },
-    { description: 'Lemon Zest Cookie',           qty: 96,  unitPrice: 2.31 },
-    { description: 'Cookie Dozen Bundle',         qty: 20,  unitPrice: 26.40 },
-    { description: 'Cinnamon Roll',               qty: 24,  unitPrice: 3.96 },
-    { description: 'NY Cheesecake Slice',         qty: 36,  unitPrice: 6.60 },
-    { description: 'Tiramisu Cup',                qty: 12,  unitPrice: 5.50 },
-  ],
-  inv3: [
-    { description: 'Classic Choc Chip Cookie',   qty: 48,  unitPrice: 2.31 },
-    { description: 'Double Chocolate Cookie',     qty: 48,  unitPrice: 2.97 },
-    { description: 'Snickerdoodle Cookie',        qty: 48,  unitPrice: 2.09 },
-    { description: 'Cinnamon Roll',               qty: 12,  unitPrice: 3.96 },
-  ],
-  inv4: [
-    { description: 'Classic Choc Chip Cookie',   qty: 144, unitPrice: 2.31 },
-    { description: 'Brown Butter Oat Cookie',     qty: 96,  unitPrice: 2.42 },
-    { description: 'Cookie Dozen Bundle',         qty: 12,  unitPrice: 26.40 },
-    { description: 'Gift Box – Premium Assorted', qty: 8,   unitPrice: 39.60 },
-    { description: 'NY Cheesecake Slice',         qty: 12,  unitPrice: 6.60 },
-  ],
-  inv5: [
-    { description: 'Classic Choc Chip Cookie',   qty: 48,  unitPrice: 2.31 },
-    { description: 'Double Chocolate Cookie',     qty: 24,  unitPrice: 2.97 },
-    { description: 'Cookie Dozen Bundle',         qty: 10,  unitPrice: 24.20 },
-  ],
-};
+// ── Data helpers ─────────────────────────────────────────────────────────────
 
-function buildInvoiceData(invoice: Invoice): InvoicePdfData {
+function mapOrderToInvoice(order: any): Invoice {
+  const createdAt = new Date(order.createdAt);
+  const dueAt     = new Date(createdAt.getTime() + 30 * 24 * 60 * 60 * 1000); // net-30
+  const now       = new Date();
+  let status: Invoice['status'];
+  if (order.status === 'delivered') {
+    status = 'paid';
+  } else if (order.status === 'cancelled') {
+    status = 'paid';
+  } else if (dueAt < now) {
+    status = 'overdue';
+  } else {
+    status = 'pending';
+  }
   return {
-    number: invoice.number,
-    date: invoice.date,
-    dueDate: invoice.dueDate,
-    status: invoice.status,
-    companyName: 'Fresh Bite Café Group',
-    abn: '98 765 432 100',
-    contactEmail: 'accounts@freshbite.com.au',
-    deliveryAddress: '12 Market Street\nParramatta NSW 2150',
-    accountNumber: 'WH-2891',
-    lines: INVOICE_LINES[invoice.id] ?? [{ description: 'Wholesale Cookie Order', qty: 1, unitPrice: invoice.amount }],
+    id:      order.id,
+    number:  order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
+    date:    createdAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
+    dueDate: dueAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
+    amount:  (order.totalCents ?? 0) / 100,
+    status,
+  };
+}
+
+function getOrderLines(order: any): InvoiceLine[] {
+  const items: any[] = Array.isArray(order?.items) ? order.items : [];
+  if (items.length > 0) {
+    return items.map((item: any) => ({
+      description: item.productName ?? 'Wholesale Product',
+      qty:         item.qty ?? 1,
+      unitPrice:   (item.unitPriceCents ?? 0) / 100,
+    }));
+  }
+  return [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
+}
+
+function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any): InvoicePdfData {
+  return {
+    number:          invoice.number,
+    date:            invoice.date,
+    dueDate:         invoice.dueDate,
+    status:          invoice.status,
+    companyName:     account?.companyName ?? 'Wholesale Customer',
+    abn:             account?.abn ?? '',
+    contactEmail:    '',
+    deliveryAddress: account?.deliveryAddress ?? '',
+    accountNumber:   account?.id?.slice(0, 8).toUpperCase() ?? '',
+    lines,
   };
 }
 
 // ── Invoice Detail Modal ─────────────────────────────────────────────────────
 function InvoiceDetailModal({
   invoice,
+  lines,
+  account,
   defCard,
   onClose,
   onPdf,
@@ -97,6 +99,8 @@ function InvoiceDetailModal({
   pdfLoading,
 }: {
   invoice: Invoice | null;
+  lines: InvoiceLine[];
+  account: any;
   defCard: any;
   onClose: () => void;
   onPdf: (inv: Invoice) => void;
@@ -105,8 +109,6 @@ function InvoiceDetailModal({
 }) {
   const insets = useSafeAreaInsets();
   if (!invoice) return null;
-
-  const lines    = INVOICE_LINES[invoice.id] ?? [{ description: 'Wholesale Cookie Order', qty: 1, unitPrice: invoice.amount }];
   const subtotal = invoice.amount;
   const gst      = subtotal / 11;
   const excGst   = subtotal - gst;
@@ -215,10 +217,10 @@ function InvoiceDetailModal({
           {/* Billing details */}
           <View style={mdl.card}>
             <Text style={[mdl.sectionTitle, { marginBottom: 4 }]}>Billing Details</Text>
-            <InfoRow label="Billed To"      value="Fresh Bite Café Group" />
-            <InfoRow label="ABN"            value="98 765 432 100" />
-            <InfoRow label="Delivery"       value="12 Market Street, Parramatta NSW 2150" />
-            <InfoRow label="Account #"      value="WH-2891" last />
+            {!!account?.companyName    && <InfoRow label="Billed To"  value={account.companyName} />}
+            {!!account?.abn            && <InfoRow label="ABN"        value={account.abn} />}
+            {!!account?.deliveryAddress && <InfoRow label="Delivery"  value={account.deliveryAddress} />}
+            {!!account?.id             && <InfoRow label="Account #"  value={account.id.slice(0, 8).toUpperCase()} last />}
           </View>
 
           {/* Actions */}
@@ -262,26 +264,45 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 export default function WholesaleInvoices() {
   const insets = useSafeAreaInsets();
+
+  const { data: ordersData, isLoading } = useQuery({
+    queryKey: ['wholesale-invoices'],
+    queryFn:  api.wholesale.invoices,
+    retry: 1,
+  });
+  const { data: accountData } = useQuery({
+    queryKey: ['wholesale-account'],
+    queryFn:  api.wholesale.account,
+    retry: 1,
+  });
   const { data: cardsData } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
+
+  const rawOrders: any[] = ordersData?.data ?? [];
+  const invoices: Invoice[] = rawOrders.map(mapOrderToInvoice);
+  const orderMap: Record<string, any> = Object.fromEntries(rawOrders.map(o => [o.id, o]));
+  const account = accountData?.data;
   const cards   = cardsData?.data ?? [];
   const defCard = cards.find((c: any) => c.isDefault) ?? cards[0];
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loadingId, setLoadingId]             = useState<string | null>(null);
 
-  const totalPending = MOCK_INVOICES.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
-  const overdueCount = MOCK_INVOICES.filter((i) => i.status === 'overdue').length;
+  const totalPending = invoices.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
+  const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
+
+  const selectedLines = selectedInvoice ? getOrderLines(orderMap[selectedInvoice.id]) : [];
 
   const handleDownload = async (invoice: Invoice) => {
     setLoadingId(invoice.id);
     try {
+      const lines = getOrderLines(orderMap[invoice.id]);
       if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(buildInvoiceData(invoice));
+        const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
         const win = window.open('', '_blank');
         if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 500); }
         return;
       }
-      const html = generateInvoiceHtml(buildInvoiceData(invoice));
+      const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
@@ -322,6 +343,8 @@ export default function WholesaleInvoices() {
       {/* Detail modal */}
       <InvoiceDetailModal
         invoice={selectedInvoice}
+        lines={selectedLines}
+        account={account}
         defCard={defCard}
         onClose={() => setSelectedInvoice(null)}
         onPdf={handleDownload}
@@ -351,10 +374,21 @@ export default function WholesaleInvoices() {
       </LinearGradient>
 
       <FlatList
-        data={MOCK_INVOICES}
+        data={invoices}
         keyExtractor={(i) => i.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          isLoading
+            ? <ActivityIndicator color={BLUE} style={{ marginTop: 60 }} />
+            : (
+              <View style={{ alignItems: 'center', paddingTop: 60, gap: 8 }}>
+                <Feather name="file-text" size={40} color={MUTED} />
+                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }}>No invoices yet</Text>
+                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>Your invoices will appear here once you place orders</Text>
+              </View>
+            )
+        }
         ListHeaderComponent={
           <Pressable onPress={goManageCards} style={ss.payMethod}>
             {defCard ? (
@@ -386,7 +420,7 @@ export default function WholesaleInvoices() {
         renderItem={({ item: invoice }) => {
           const isPdfLoading = loadingId === invoice.id;
           const isOverdue    = invoice.status === 'overdue';
-          const lineCount    = INVOICE_LINES[invoice.id]?.length ?? 1;
+          const lineCount    = getOrderLines(orderMap[invoice.id]).length;
 
           return (
             <Pressable
