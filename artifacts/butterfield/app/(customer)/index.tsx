@@ -394,12 +394,6 @@ export default function CustomerHome() {
             style={{ width: 110, height: 34 }}
             contentFit="contain"
           />
-          {totalItems > 0 && (
-            <Pressable onPress={() => router.push('/(customer)/cart')} style={s.cartBadge}>
-              <Feather name="shopping-bag" size={14} color="#fff" />
-              <Text style={[s.cartCount, { fontFamily: 'Inter_700Bold' }]}>{totalItems}</Text>
-            </Pressable>
-          )}
         </View>
 
         {/* Greeting + loyalty chip — always pinned at bottom of header */}
@@ -594,8 +588,6 @@ const s = StyleSheet.create({
   greetingRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   greetLine1:   { color: '#fff', fontSize: 18, lineHeight: 24 },
   greetLine2:   { color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, marginTop: 1 },
-  cartBadge:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16 },
-  cartCount:    { color: '#fff', fontSize: 12 },
   loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexShrink: 0 },
   loyaltyPts:   { color: '#fff', fontSize: 13 },
   loyaltyMember:{ color: '#fff', fontSize: 11, letterSpacing: 0.5 },
