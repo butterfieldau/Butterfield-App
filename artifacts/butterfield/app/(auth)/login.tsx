@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
@@ -51,9 +51,12 @@ type ScreenMode = 'login' | 'register' | 'wholesale-apply';
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login, internalLogin, register, wholesaleApply, socialLogin } = useAuth();
+  const params = useLocalSearchParams<{ mode?: string }>();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('customer');
-  const [mode, setMode]                 = useState<ScreenMode>('login');
+  const [mode, setMode]                 = useState<ScreenMode>(
+    params.mode === 'register' ? 'register' : 'login',
+  );
   const [email, setEmail]               = useState('');
   const [password, setPassword]         = useState('');
   const [name, setName]                 = useState('');

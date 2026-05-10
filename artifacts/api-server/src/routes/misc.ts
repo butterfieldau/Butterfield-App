@@ -56,6 +56,11 @@ function computeStoreStatus(manualOverride: boolean): {
   return { isOpen: false, openUntil: null, opensAt: null };
 }
 
+router.get('/welcome-config', async (_req, res) => {
+  const [row] = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'welcome_background'));
+  return res.json({ data: { welcomeBackground: row?.value ?? null } });
+});
+
 router.get('/store-status', async (_req, res) => {
   const rows = await db.select().from(storeSettingsTable);
   const settings = Object.fromEntries(rows.map(r => [r.key, r.value]));

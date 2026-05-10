@@ -14,7 +14,7 @@ export default function Index() {
     );
   }
 
-  if (!user) return <Redirect href="/(auth)/login" />;
+  if (!user) return <Redirect href="/welcome" />;
   if (user.role === 'customer') return <Redirect href="/(customer)" />;
   if (user.role === 'staff') return <Redirect href="/(staff)" />;
   if (user.role === 'wholesale') return <Redirect href="/(wholesale)" />;
@@ -22,5 +22,5 @@ export default function Index() {
   if (user.role === 'master')   return <Redirect href="/(director)" />;
   if (user.role === 'manager')  return <Redirect href="/(manager)" />;
 
-  return <Redirect href="/(auth)/login" />;
+  return <Redirect href="/welcome" />;
 }

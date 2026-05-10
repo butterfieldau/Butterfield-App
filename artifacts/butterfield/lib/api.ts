@@ -163,6 +163,7 @@ export const api = {
       request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
     homeBanner: () => request<{ data: HomeBannerConfig | null }>('/home-banner'),
   },
+  welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
     createIntent: (data: { amountCents: number; currency?: string }) =>
       request<{ clientSecret: string; paymentIntentId: string }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),

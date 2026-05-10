@@ -1,8 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
@@ -270,16 +271,18 @@ function StoreTab() {
     queryFn: () => api.director.settings(),
   });
   const settings = data?.data ?? {};
-  const [geoRadius,    setGeoRadius]    = useState('');
-  const [storeOpen,    setStoreOpen]    = useState(true);
-  const [dailySpecial, setDailySpecial] = useState('');
-  const [shopLat,      setShopLat]      = useState('');
-  const [shopLng,      setShopLng]      = useState('');
-  const [orderCutoff,  setOrderCutoff]  = useState('');
-  const [printerIp,    setPrinterIp]    = useState('');
-  const [printerPort,  setPrinterPort]  = useState('9100');
-  const [saving,       setSaving]       = useState(false);
-  const [testing,      setTesting]      = useState(false);
+  const [geoRadius,       setGeoRadius]       = useState('');
+  const [storeOpen,       setStoreOpen]       = useState(true);
+  const [dailySpecial,    setDailySpecial]    = useState('');
+  const [shopLat,         setShopLat]         = useState('');
+  const [shopLng,         setShopLng]         = useState('');
+  const [orderCutoff,     setOrderCutoff]     = useState('');
+  const [printerIp,       setPrinterIp]       = useState('');
+  const [printerPort,     setPrinterPort]     = useState('9100');
+  const [saving,          setSaving]          = useState(false);
+  const [testing,         setTesting]         = useState(false);
+  const [welcomeBg,       setWelcomeBg]       = useState('');
+  const [uploadingWelcome,setUploadingWelcome]= useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -291,8 +294,30 @@ function StoreTab() {
       setOrderCutoff(settings.order_cutoff_time ?? '');
       setPrinterIp(settings.printer_ip ?? '');
       setPrinterPort(settings.printer_port ?? '9100');
+      setWelcomeBg(settings.welcome_background ?? '');
     }
   }, [data]);
+
+  const pickWelcomeBg = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo library access to upload a welcome background.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, allowsEditing: true, aspect: [9, 16] });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const filename = `welcome-bg-${Date.now()}.jpg`;
+    setUploadingWelcome(true);
+    try {
+      const upload = await api.storage.uploadFile(asset.uri, filename, asset.mimeType ?? 'image/jpeg');
+      const url = upload.servingUrl;
+      setWelcomeBg(url);
+      await api.director.updateSettings({ welcome_background: url });
+      await qc.invalidateQueries({ queryKey: ['director-settings', 'welcome-config'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Uploaded', 'Welcome screen background updated.');
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message);
+    } finally { setUploadingWelcome(false); }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -307,6 +332,7 @@ function StoreTab() {
         order_cutoff_time:  orderCutoff.trim(),
         printer_ip:         printerIp.trim(),
         printer_port:       printerPort.trim() || '9100',
+        welcome_background: welcomeBg.trim(),
       });
       await qc.invalidateQueries({ queryKey: ['director-settings'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -383,6 +409,53 @@ function StoreTab() {
               No cutoff — orders accepted at any hour
             </Text>
           )}
+        </View>
+      </View>
+
+      <Text style={styles.section}>WELCOME SCREEN</Text>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+        <View style={[styles.infoBanner, { backgroundColor: '#F0F4FF', borderColor: BLUE + '30' }]}>
+          <Feather name="smartphone" size={13} color={BLUE} />
+          <Text style={[styles.infoBannerText, { color: BLUE }]}>
+            The background image shown on the welcome/launch screen before customers log in.
+          </Text>
+        </View>
+        {welcomeBg ? (
+          <Image source={{ uri: welcomeBg }} style={{ width: '100%', height: 160, borderRadius: 10 }} resizeMode="cover" />
+        ) : null}
+        <Pressable
+          onPress={pickWelcomeBg}
+          disabled={uploadingWelcome}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed', borderColor: BLUE, backgroundColor: BLUE + '08' }}
+        >
+          {uploadingWelcome
+            ? <ActivityIndicator size="small" color={BLUE} />
+            : <Feather name="upload" size={15} color={BLUE} />
+          }
+          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: BLUE }}>
+            {uploadingWelcome ? 'Uploading…' : welcomeBg ? 'Replace Background' : 'Upload Background Photo'}
+          </Text>
+        </Pressable>
+        {welcomeBg ? (
+          <Pressable
+            onPress={() => { setWelcomeBg(''); api.director.updateSettings({ welcome_background: '' }).catch(() => {}); }}
+            style={{ alignItems: 'center', paddingVertical: 6 }}
+          >
+            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: RED }}>Remove background image</Text>
+          </Pressable>
+        ) : null}
+        <View style={{ gap: 4 }}>
+          <Text style={styles.fieldLabel}>Or paste an image URL</Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={welcomeBg}
+            onChangeText={setWelcomeBg}
+            placeholder="https://... (optional — leave blank for gradient)"
+            placeholderTextColor={MUTED}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
         </View>
       </View>
 

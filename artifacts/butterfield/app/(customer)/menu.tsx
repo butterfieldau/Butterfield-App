@@ -63,63 +63,59 @@ function getChips(p: ApiProduct): string[] {
 }
 
 function ProductTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const raw = product as any;
+  const raw       = product as any;
   const { display, was } = getDisplayPrice(product);
-  const palette          = getPalette(product.metadata?.category);
-  const chips            = getChips(product);
-  const photoUrl         = product.images?.[0] ?? null;
-  const available        = product.metadata?.available !== 'false';
-  const isNew            = product.metadata?.isNew === 'true';
-  const isLimited        = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
-  const isSoldOut        = !available || raw.isSoldOut;
+  const palette   = getPalette(product.metadata?.category);
+  const photoUrl  = product.images?.[0] ?? null;
+  const available = product.metadata?.available !== 'false';
+  const isNew     = product.metadata?.isNew === 'true';
+  const isLimited = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
+  const isSoldOut = !available || raw.isSoldOut;
 
   return (
     <Pressable
       onPress={() => { if (available && !isSoldOut) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[s.tile, { opacity: isSoldOut ? 0.7 : 1 }]}
+      style={[s.tile, { opacity: isSoldOut ? 0.65 : 1 }]}
     >
-      <View style={[s.tileTop, { backgroundColor: photoUrl ? '#F0EDE8' : palette.bg }]}>
+      {/* Image area */}
+      <View style={[s.tileImg, { backgroundColor: photoUrl ? '#F4F1EC' : palette.bg }]}>
         {photoUrl
           ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
           : <Text style={s.tileEmoji}>{palette.emoji}</Text>
         }
-        <View style={s.badgeRow}>
-          {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
-          {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
-        </View>
-        <View style={s.pricePill}>
-          {was ? <Text style={[s.priceWas, { fontFamily: 'Inter_400Regular' }]}>${was.toFixed(0)}</Text> : null}
-          <Text style={[s.priceMain, { fontFamily: 'Inter_700Bold' }]}>${display.toFixed(0)}</Text>
-        </View>
+        {(isNew || isLimited) && (
+          <View style={s.badgeRow}>
+            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
+            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
+          </View>
+        )}
         {isSoldOut && (
           <View style={s.soldOutOverlay}>
             <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 }}>Sold Out</Text>
           </View>
         )}
-        <View style={[s.bannerStrip, { backgroundColor: photoUrl ? 'rgba(0,0,0,0.42)' : palette.banner }]}>
-          <Text style={[s.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
-            In-store Pickup · Merrylands
-          </Text>
-        </View>
       </View>
-      <View style={s.tileBottom}>
-        <View style={s.nameRow}>
-          <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
-          <Text style={[s.arrow, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>↗</Text>
-        </View>
-        {raw.shortDescription ? (
-          <Text style={[s.shortDesc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{raw.shortDescription}</Text>
-        ) : null}
-        <View style={s.chipsRow}>
-          {chips.map(tag => {
-            const icon = DIETARY_ICONS[tag];
-            return (
-              <View key={tag} style={[s.chip, { backgroundColor: `${palette.bg}55` }]}>
-                {icon ? <Text style={{ fontSize: 9 }}>{icon}</Text> : null}
-                <Text style={[s.chipText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
-              </View>
-            );
-          })}
+
+      {/* Info area */}
+      <View style={s.tileInfo}>
+        <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
+        <Text style={[s.shortDesc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          {raw.shortDescription || palette.emoji + ' ' + (product.metadata?.category ?? 'treat')}
+        </Text>
+        <View style={s.tilePriceRow}>
+          <Text style={[s.priceMain, { fontFamily: 'Inter_700Bold' }]}>
+            {was
+              ? <Text style={{ textDecorationLine: 'line-through', color: '#BBB', fontSize: 10, fontFamily: 'Inter_400Regular' }}>${was.toFixed(2)} </Text>
+              : null}
+            ${display.toFixed(2)}
+          </Text>
+          <Pressable
+            onPress={() => { if (available && !isSoldOut) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
+            style={s.tileAddBtn}
+            hitSlop={6}
+          >
+            <Feather name="shopping-bag" size={13} color="#fff" />
+          </Pressable>
         </View>
       </View>
     </Pressable>
@@ -349,24 +345,17 @@ const s = StyleSheet.create({
   frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
 
   // Product tile
-  tile:        { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
-  tileTop:     { height: 160, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
-  tileEmoji:   { fontSize: 56, lineHeight: 66 },
-  badgeRow:    { position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 },
-  badge:       { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgeText:   { color: '#fff', fontSize: 9 },
-  pricePill:   { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  priceWas:    { fontSize: 11, color: 'rgba(255,255,255,0.7)', textDecorationLine: 'line-through' },
-  priceMain:   { fontSize: 16, color: '#1C1C1E' },
-  soldOutOverlay:{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  bannerStrip: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
-  bannerText:  { fontSize: 9, color: '#fff', letterSpacing: 0.2 },
-  tileBottom:  { padding: 10, gap: 5, backgroundColor: '#fff' },
-  nameRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
-  tileName:    { fontSize: 13, color: '#1C1C1E', flex: 1 },
-  arrow:       { fontSize: 13 },
-  shortDesc:   { fontSize: 10, color: '#8E8E93' },
-  chipsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  chip:        { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
-  chipText:    { fontSize: 9 },
+  tile:          { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  tileImg:       { height: 155, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  tileEmoji:     { fontSize: 52, lineHeight: 62 },
+  badgeRow:      { position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 },
+  badge:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badgeText:     { color: '#fff', fontSize: 9 },
+  soldOutOverlay:{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
+  tileInfo:      { padding: 10, gap: 4, backgroundColor: '#fff' },
+  tileName:      { fontSize: 13, color: '#1C1C1E', flex: 1 },
+  shortDesc:     { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
+  tilePriceRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  priceMain:     { fontSize: 15, color: '#1C1C1E' },
+  tileAddBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
 });

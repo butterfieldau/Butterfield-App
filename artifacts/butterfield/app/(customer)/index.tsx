@@ -92,7 +92,7 @@ function getTags(p: ApiProduct): string[] {
 
 // ── Product tile ──────────────────────────────────────────────────────────────
 function HomeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const raw = product as any;
+  const raw        = product as any;
   const priceCents = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
   const saleCents  = raw.salePriceCents;
   const price      = (saleCents ?? priceCents) / 100;
@@ -102,46 +102,51 @@ function HomeTile({ product, onPress }: { product: ApiProduct; onPress: () => vo
   const isNew      = product.metadata?.isNew === 'true';
   const isLimited  = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
   const imageUrl   = product.images?.[0] ?? PRODUCT_IMAGES[product.name] ?? null;
-  const tags       = getTags(product);
 
   return (
     <Pressable
       onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[s.tile, { opacity: isSoldOut ? 0.72 : 1 }]}
+      style={[s.tile, { opacity: isSoldOut ? 0.65 : 1 }]}
     >
-      <View style={[s.tileTop, { backgroundColor: imageUrl ? '#F0EDE8' : palette.bg }]}>
+      {/* Image area */}
+      <View style={[s.tileImg, { backgroundColor: imageUrl ? '#F4F1EC' : palette.bg }]}>
         {imageUrl
           ? <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
           : <Text style={s.tileEmoji}>{palette.emoji}</Text>
         }
-        <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 }}>
-          {isNew    && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
-          {isLimited&& <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
-        </View>
-        <View style={s.priceBadge}>
-          {saleCents ? <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 10, color: '#1C1C1E', textDecorationLine: 'line-through' }}>${(priceCents / 100).toFixed(0)}</Text> : null}
-          <Text style={[s.priceBadgeText, { fontFamily: 'Inter_700Bold' }]}>${price.toFixed(0)}</Text>
-        </View>
-        {isSoldOut && <View style={s.soldOut}><Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text></View>}
-        <View style={[s.bannerStrip, { backgroundColor: imageUrl ? 'rgba(0,0,0,0.45)' : palette.banner }]}>
-          <Text style={[s.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>In-store Pickup · Merrylands</Text>
-        </View>
+        {(isNew || isLimited) && (
+          <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 }}>
+            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
+            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
+          </View>
+        )}
+        {isSoldOut && (
+          <View style={s.soldOut}>
+            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text>
+          </View>
+        )}
       </View>
-      <View style={s.tileBottom}>
-        <View style={s.tileNameRow}>
-          <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
-          <Text style={[s.arrow, { color: palette.banner, fontFamily: 'Inter_500Medium' }]}>↗</Text>
-        </View>
-        <View style={s.tagsRow}>
-          {tags.map((tag) => {
-            const icon = DIETARY_ICONS[tag];
-            return (
-              <View key={tag} style={[s.tagChip, { backgroundColor: `${palette.bg}55` }]}>
-                {icon ? <Text style={{ fontSize: 8 }}>{icon}</Text> : null}
-                <Text style={[s.tagText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
-              </View>
-            );
-          })}
+
+      {/* Info area */}
+      <View style={s.tileInfo}>
+        <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
+        <Text style={[s.tileDesc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
+          {raw.shortDescription || palette.emoji + ' ' + (product.metadata?.category ?? 'treat')}
+        </Text>
+        <View style={s.tilePriceRow}>
+          <Text style={[s.tilePrice, { fontFamily: 'Inter_700Bold' }]}>
+            {saleCents
+              ? <Text style={{ textDecorationLine: 'line-through', color: '#BBB', fontSize: 10, fontFamily: 'Inter_400Regular' }}>${(priceCents / 100).toFixed(2)} </Text>
+              : null}
+            ${price.toFixed(2)}
+          </Text>
+          <Pressable
+            onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
+            style={s.tileAddBtn}
+            hitSlop={6}
+          >
+            <Feather name="shopping-bag" size={13} color="#fff" />
+          </Pressable>
         </View>
       </View>
     </Pressable>
@@ -639,18 +644,25 @@ const s = StyleSheet.create({
   empty:         { textAlign: 'center', marginTop: 40, fontSize: 14 },
 
   tile:          { width: '48%', backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
-  tileTop:       { height: 140, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
-  tileEmoji:     { fontSize: 48, lineHeight: 58 },
+  tileImg:       { height: 150, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  tileEmoji:     { fontSize: 44, lineHeight: 54 },
   badge:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   badgeText:     { color: '#fff', fontSize: 9 },
+  soldOut:       { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
+  tileInfo:      { padding: 10, gap: 4, backgroundColor: '#fff' },
+  tileName:      { fontSize: 13, color: '#1C1C1E', flex: 1 },
+  tileDesc:      { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
+  tilePriceRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  tilePrice:     { fontSize: 15, color: '#1C1C1E' },
+  tileAddBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
+
+  // ── Legacy styles still used by MerchTile / FavTile ─────────────────────────
   priceBadge:    { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'baseline', gap: 3 },
   priceBadgeText:{ fontSize: 16, color: '#1C1C1E' },
-  soldOut:       { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   bannerStrip:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
   bannerText:    { fontSize: 9, color: '#fff', letterSpacing: 0.2 },
   tileBottom:    { padding: 10, gap: 5, backgroundColor: '#fff' },
   tileNameRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4 },
-  tileName:      { fontSize: 13, color: '#1C1C1E', flex: 1 },
   arrow:         { fontSize: 13 },
   tagsRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   tagChip:       { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
