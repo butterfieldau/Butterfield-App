@@ -132,7 +132,8 @@ const CALENDAR_HOLIDAY_MESSAGES: Record<string, Array<[string, string]>> = {
   'australia-day': [
     ['Happy Australia Day! 🇦🇺', 'Grab a great coffee and a fresh cookie. Celebrate properly.'],
     ['Aussie day cravings?', 'Cookies, coffee, soft serve — all sorted.'],
-    ['Australia Day. 🇦🇺', 'Best coffee in the area. Come celebrate with one.'],
+    ['Australia Day. 🇦🇺', 'Our coffee is something else. Come celebrate with one.'],
+    ['Happy Australia Day! 🇦🇺', 'Cookies and iced coffee. That\'s a proper Aussie day sorted.'],
   ],
   'valentines': [
     ['Valentine\'s cravings?', 'Share a cookie. Or don\'t.'],
@@ -144,11 +145,13 @@ const CALENDAR_HOLIDAY_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Lest we forget. 🌹', 'Come in and grab a warm coffee.'],
     ['Anzac Day.', 'A quiet coffee and a fresh cookie.'],
     ['Lest we forget. 🌹', 'Our coffee is here whenever you\'re ready.'],
+    ['Anzac Day. 🌹', 'A warm cookie and a hot coffee. A quiet moment.'],
   ],
   'halloween': [
     ['Trick or treat? 🎃', 'We\'ve got the cookies. Come haunt us.'],
     ['Halloween cravings? 🎃', 'Come haunt our cookie counter.'],
-    ['Spooky szn. 🎃', 'Fresh cookies and the best coffee around. Inside.'],
+    ['Spooky szn. 🎃', 'Fresh cookies and great coffee. Inside.'],
+    ['Halloween. 🎃', 'Vanilla soft serve? In October? Yes. Come get one.'],
   ],
   'christmas': [
     ['Christmas cravings? 🎄', 'Fresh cookies are baking. Coffee is on.'],
@@ -167,14 +170,16 @@ const CALENDAR_HOLIDAY_MESSAGES: Record<string, Array<[string, string]>> = {
     ['NYE sorted. 🥂', 'Cookies, soft serve, milkshakes — last run of the year.'],
   ],
   'mothers-day': [
-    ['Happy Mother\'s Day 💐', 'Mum deserves the best coffee in the area today.'],
+    ['Happy Mother\'s Day 💐', 'Mum deserves a seriously good coffee today.'],
     ['For Mum, always the best.', 'Our coffee and fresh cookies. Sorted.'],
     ['Happy Mother\'s Day 💐', 'Treat Mum to a vanilla soft serve and a great coffee.'],
+    ['Mother\'s Day sorted. 💐', 'Coffee, cookies, soft serve — Mum picks first.'],
   ],
   'fathers-day': [
-    ['Happy Father\'s Day 🙌', 'Dad deserves a fresh cookie and the best coffee around.'],
+    ['Happy Father\'s Day 🙌', 'Dad deserves a fresh cookie and a seriously good coffee.'],
     ['Treat Dad properly today.', 'Coffee, cookies, soft serve — all here.'],
     ['Happy Father\'s Day 🙌', 'A great coffee and a warm cookie. Sort Dad out.'],
+    ['Father\'s Day sorted. 🙌', 'Cookies and our coffee — the two things Dad actually wants.'],
   ],
   'easter': [
     ['Easter treats? 🐣', 'Fresh cookies and great coffee — we\'ve got you.'],
