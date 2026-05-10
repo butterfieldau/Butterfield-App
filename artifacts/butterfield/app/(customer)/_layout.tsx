@@ -1,17 +1,42 @@
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
+import { Platform, StyleSheet, View, Text, useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useCart } from '@/context/CartContext';
 
+const BLUE = '#3058A8';
+
+function CartBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: -4,
+        right: -8,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: BLUE,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 3,
+      }}
+    >
+      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700', lineHeight: 13 }}>
+        {count > 99 ? '99+' : String(count)}
+      </Text>
+    </View>
+  );
+}
+
 function NativeCustomerTabs() {
   const { totalItems } = useCart();
-  const cartBadge = totalItems > 0 ? String(totalItems) : undefined;
 
   return (
     <NativeTabs>
@@ -28,9 +53,11 @@ function NativeCustomerTabs() {
         <Label>Rewards</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="cart">
-        <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
+        <View style={{ position: 'relative' }}>
+          <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
+          <CartBadge count={totalItems} />
+        </View>
         <Label>Order</Label>
-        {totalItems > 0 && <Badge selectedBackgroundColor="#3058A8">{String(totalItems)}</Badge>}
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
@@ -100,9 +127,13 @@ function ClassicCustomerTabs() {
           title: 'Order',
           tabBarStyle: { display: 'none' },
           tabBarBadge: totalItems > 0 ? totalItems : undefined,
-          tabBarBadgeStyle: { backgroundColor: '#3058A8', fontSize: 10, minWidth: 18, height: 18, lineHeight: 18 },
+          tabBarBadgeStyle: { backgroundColor: BLUE },
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
+            isIOS ? (
+              <SymbolView name="bag" tintColor={color} size={24} />
+            ) : (
+              <Feather name="shopping-bag" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen
