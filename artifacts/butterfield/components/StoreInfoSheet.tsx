@@ -157,7 +157,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             />
           ) : (
             <LinearGradient
-              colors={isOpen ? ['#024B68', '#013A52'] : ['#8E8E93', '#6B6B6B']}
+              colors={isOpen ? ['#0212EE', '#0110CC'] : ['#8E8E93', '#6B6B6B']}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             />
@@ -183,7 +183,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           {/* Directions chip top-right */}
           {store.latitude && store.longitude && (
             <View style={s.dirChip}>
-              <Feather name="navigation" size={11} color="#024B68" />
+              <Feather name="navigation" size={11} color="#0212EE" />
               <Text style={s.dirChipText}>Directions</Text>
             </View>
           )}
@@ -198,7 +198,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           {address ? (
             <Pressable style={s.infoRow} onPress={handleDirections}>
               <View style={s.infoIcon}>
-                <Feather name="map-pin" size={15} color="#024B68" />
+                <Feather name="map-pin" size={15} color="#0212EE" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.infoVal, { color: colors.foreground }]}>{address}</Text>
@@ -212,7 +212,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           {todayDisplay ? (
             <View style={s.infoRow}>
               <View style={s.infoIcon}>
-                <Feather name="clock" size={15} color="#024B68" />
+                <Feather name="clock" size={15} color="#0212EE" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.infoLabel, { color: colors.mutedForeground }]}>Today's hours</Text>
@@ -225,7 +225,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           {store.phone ? (
             <Pressable style={s.infoRow} onPress={handleCall}>
               <View style={s.infoIcon}>
-                <Feather name="phone" size={15} color="#024B68" />
+                <Feather name="phone" size={15} color="#0212EE" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.infoLabel, { color: colors.mutedForeground }]}>Phone</Text>
@@ -238,7 +238,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           {/* Services */}
           {(store.pickupAvailable || store.deliveryAvailable) ? (
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              {store.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color="#024B68" /><Text style={[s.chipText, { color: '#024B68' }]}>Pickup available</Text></View>}
+              {store.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color="#0212EE" /><Text style={[s.chipText, { color: '#0212EE' }]}>Pickup available</Text></View>}
               {store.deliveryAvailable && <View style={[s.chip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[s.chipText, { color: '#7C3AED' }]}>Delivery available</Text></View>}
             </View>
           ) : null}
@@ -285,8 +285,8 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
                 const isToday = new Date().getDay() === h.dayOfWeek;
                 return (
                   <View key={h.dayOfWeek} style={[s.hoursRow, isToday && { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 8 }]}>
-                    <Text style={[s.hoursDay, { color: isToday ? '#024B68' : colors.foreground, fontFamily: isToday ? 'Inter_700Bold' : 'Inter_400Regular' }]}>{dayName}</Text>
-                    <Text style={[s.hoursTime, { color: h.isClosed ? colors.mutedForeground : isToday ? '#024B68' : colors.foreground }]}>{hoursStr}</Text>
+                    <Text style={[s.hoursDay, { color: isToday ? '#0212EE' : colors.foreground, fontFamily: isToday ? 'Inter_700Bold' : 'Inter_400Regular' }]}>{dayName}</Text>
+                    <Text style={[s.hoursTime, { color: h.isClosed ? colors.mutedForeground : isToday ? '#0212EE' : colors.foreground }]}>{hoursStr}</Text>
                   </View>
                 );
               })}
@@ -298,7 +298,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
         <View style={s.footer}>
           {store.latitude && store.longitude ? (
             <Pressable style={[s.actionBtn, { borderColor: colors.border }]} onPress={handleDirections}>
-              <Feather name="map" size={15} color="#024B68" />
+              <Feather name="map" size={15} color="#0212EE" />
               <Text style={s.actionBtnText}>Directions</Text>
             </Pressable>
           ) : null}
@@ -317,7 +317,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
         {/* All stores link */}
         <Pressable style={s.allStores} onPress={handleAllStores}>
           <Text style={s.allStoresText}>View all stores</Text>
-          <Feather name="chevron-right" size={13} color="#024B68" />
+          <Feather name="chevron-right" size={13} color="#0212EE" />
         </Pressable>
       </Animated.View>
     </Modal>
@@ -337,13 +337,13 @@ const s = StyleSheet.create({
   dot:        { width: 7, height: 7, borderRadius: 4 },
   statusText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#fff' },
   dirChip:    { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  dirChipText:{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#024B68' },
+  dirChipText:{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#0212EE' },
 
   infoRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   infoIcon:   { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   infoLabel:  { fontFamily: 'Inter_400Regular', fontSize: 11, marginBottom: 1 },
   infoVal:    { fontFamily: 'Inter_500Medium', fontSize: 14 },
-  infoLink:   { fontFamily: 'Inter_400Regular', fontSize: 11, color: '#024B68', marginTop: 2 },
+  infoLink:   { fontFamily: 'Inter_400Regular', fontSize: 11, color: '#0212EE', marginTop: 2 },
 
   chip:       { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   chipText:   { fontFamily: 'Inter_500Medium', fontSize: 12 },
@@ -358,12 +358,12 @@ const s = StyleSheet.create({
 
   footer:     { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingTop: 12 },
   actionBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
-  actionBtnText:{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#024B68' },
-  orderBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#024B68' },
+  actionBtnText:{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0212EE' },
+  orderBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0212EE' },
   orderBtnText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: '#fff' },
 
   allStores:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
-  allStoresText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#024B68' },
+  allStoresText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#0212EE' },
 
   // ── Photo gallery ─────────────────────────────────────────────────────────────
   gallerySection:     { gap: 8 },

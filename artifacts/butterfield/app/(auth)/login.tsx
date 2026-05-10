@@ -17,9 +17,9 @@ import type { UserRole } from '@/types';
 let AppleAuthentication: typeof import('expo-apple-authentication') | null = null;
 try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 
-const BG      = '#F8F3F0';
+const BG      = '#F5F6FA';
 const CARD    = '#FFFFFF';
-const BLUE    = '#024B68';
+const BLUE    = '#0212EE';
 const NAVY    = '#1A2B4A';
 const TEXT    = '#1C1C1E';
 const MUTED   = '#8E8E93';
@@ -36,7 +36,7 @@ const PUBLIC_ROLES = [
 
 const DEMO_PW = 'Demo1234!';
 const PUBLIC_DEMOS = [
-  { role: 'customer'  as UserRole, label: 'Customer',  email: 'customer@demo.com',  color: '#024B68', icon: 'coffee'   },
+  { role: 'customer'  as UserRole, label: 'Customer',  email: 'customer@demo.com',  color: '#0212EE', icon: 'coffee'   },
   { role: 'wholesale' as UserRole, label: 'Wholesale', email: 'wholesale@demo.com', color: '#16A34A', icon: 'package'  },
 ];
 const INTERNAL_DEMOS = [
@@ -261,7 +261,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        <LinearGradient colors={['#024B68', '#013A52']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
+        <LinearGradient colors={['#0212EE', '#0110CC']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
           <Image
             source={require('@/assets/images/logo-white.png')}
             style={{ width: 240, height: 88, marginBottom: 4 }}
@@ -285,7 +285,7 @@ export default function LoginScreen() {
                       onPress={() => { setSelectedRole(r.role); setMode('login'); clearPublic(); Haptics.selectionAsync(); }}
                       style={[s.roleCard, { backgroundColor: CARD, borderColor: active ? BLUE : BORDER, borderWidth: active ? 2 : 1 }]}
                     >
-                      <View style={[s.roleIconBox, { backgroundColor: active ? '#EBF0F3' : '#F0EBE8' }]}>
+                      <View style={[s.roleIconBox, { backgroundColor: active ? '#E6F0FF' : '#F5F6FA' }]}>
                         <Feather name={r.icon as any} size={22} color={active ? BLUE : MUTED} />
                       </View>
                       <Text style={[s.roleLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? TEXT : MUTED }]}>

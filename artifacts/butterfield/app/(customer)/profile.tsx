@@ -12,9 +12,9 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { AvatarPicker } from '@/components/AvatarPicker';
 
-const BG     = '#F8F3F0';
+const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#024B68';
+const BLUE   = '#0212EE';
 const CHERRY = '#D20001';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
@@ -73,7 +73,7 @@ export default function AccountScreen() {
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#024B68' }}>
+    <View style={{ flex: 1, backgroundColor: '#0212EE' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
@@ -83,7 +83,7 @@ export default function AccountScreen() {
 
         {/* ── User card ───────────────────────────────────────────────────── */}
         <LinearGradient
-          colors={['#024B68', '#013A52']}
+          colors={['#0212EE', '#0110CC']}
           style={styles.userCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}

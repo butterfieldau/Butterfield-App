@@ -18,7 +18,7 @@ const { width: W, height: H } = Dimensions.get('window');
 const HERO_H = Math.round(H * 0.46);
 const PHOTO_SIZE = Math.round(W * 0.62);
 
-const BLUE   = '#024B68';
+const BLUE   = '#0212EE';
 const RED    = '#D20001';
 const AMBER  = '#F59E0B';
 const TEXT   = '#1C1C1E';
@@ -408,7 +408,7 @@ export default function ProductDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: '#F8F3F0' },
+  root:         { flex: 1, backgroundColor: '#F5F6FA' },
 
   // Hero
   hero:         { position: 'relative', width: W, overflow: 'hidden' },

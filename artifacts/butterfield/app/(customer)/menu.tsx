@@ -22,7 +22,7 @@ import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import SharedProductTile from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 
-const BLUE   = '#024B68';
+const BLUE   = '#0212EE';
 const CHERRY = '#D20001';
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [
@@ -264,7 +264,7 @@ const s = StyleSheet.create({
   frequentTitle:   { fontSize: 16, color: '#1C1C1E' },
   frequentSub:     { fontSize: 12, color: '#8E8E93', marginTop: 1 },
   viewCartBtn:     { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  viewCartText:    { fontSize: 13, color: '#024B68' },
+  viewCartText:    { fontSize: 13, color: '#0212EE' },
   frequentTile:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F9F9FB', borderRadius: 14, padding: 10, marginBottom: 8 },
   frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   frequentName:    { fontSize: 14, color: '#1C1C1E' },

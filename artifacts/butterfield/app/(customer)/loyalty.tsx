@@ -21,10 +21,10 @@ import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
 
-const BG        = '#F8F3F0';
-const BLUE_CARD = '#024B68';
-const BLUE_DARK = '#013A52';
-const BRAND     = '#024B68';
+const BG        = '#F5F6FA';
+const BLUE_CARD = '#0212EE';
+const BLUE_DARK = '#0110CC';
+const BRAND     = '#0212EE';
 const CHERRY    = '#D20001';
 const WHITE     = '#FFFFFF';
 const TEXT      = '#1C1C1E';
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
   bdRow: { flexDirection: 'row', gap: 10 },
   bdField: { flex: 1 },
   bdLabel: { fontSize: 12, color: MUTED, marginBottom: 6, letterSpacing: 0.5 },
-  bdInput: { backgroundColor: '#F0EBE8', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
+  bdInput: { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   qrModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', gap: 10, marginHorizontal: 32, width: 300 },

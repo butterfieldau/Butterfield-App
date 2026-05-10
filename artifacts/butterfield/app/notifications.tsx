@@ -16,9 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG     = '#F8F3F0';
+const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#024B68';
+const BLUE   = '#0212EE';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';

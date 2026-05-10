@@ -10,9 +10,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
 
-const BG    = '#F8F3F0';
+const BG    = '#F5F6FA';
 const CARD  = '#FFFFFF';
-const BLUE  = '#024B68';
+const BLUE  = '#0212EE';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
@@ -48,7 +48,7 @@ export default function ForgotPasswordScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        <LinearGradient colors={['#024B68', '#013A52']} style={[s.hero, { paddingTop: insets.top + 20 }]}>
+        <LinearGradient colors={['#0212EE', '#0110CC']} style={[s.hero, { paddingTop: insets.top + 20 }]}>
           <Pressable onPress={() => router.back()} style={s.backBtn}>
             <Feather name="arrow-left" size={20} color="#fff" />
           </Pressable>
@@ -64,7 +64,7 @@ export default function ForgotPasswordScreen() {
         <View style={s.body}>
           <View style={[s.card, { backgroundColor: CARD }]}>
             <Text style={[s.label, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Email address</Text>
-            <View style={[s.inputRow, { backgroundColor: '#F8F3F0', borderColor: BORDER }]}>
+            <View style={[s.inputRow, { backgroundColor: '#F5F6FA', borderColor: BORDER }]}>
               <Feather name="mail" size={16} color={MUTED} />
               <TextInput
                 style={[s.input, { color: TEXT, fontFamily: 'Inter_400Regular' }]}

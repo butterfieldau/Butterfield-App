@@ -5,8 +5,8 @@ A premium iOS mobile app for Butterfield Cookies, a Sydney-based cookie, coffee,
 Built with Expo SDK 54 + React Native. Backed by a real Express + PostgreSQL API server with JWT auth, Stripe integration (AUD), and full role-based portals.
 
 ## Brand Design (Updated)
-- **Customer portal primary**: Royal Blue `#024B68` / darker `#013A52` (from RGB 2, 75, 104 — brand image)
-- **Customer portal background**: Light Cream `#F8F3F0` (brand cream)
+- **Customer portal primary**: Cobalt `#0212EE` / darker `#0110CC` (header gradients, icons, tab tints, CTAs)
+- **Customer portal background**: `#F5F6FA` (original light grey — user preference)
 - **Customer portal accent / CTA**: Cherry `#D20001` (Add to Cart, Done buttons, quick-add circles)
 - **Loyalty card / Coffee Club card**: Sky blue `#5AB8FF` → `#3A7FD4` gradient (kept distinct for loyalty branding)
 - **Colours propagate via**: `constants/colors.ts` → `useColors()` hook → all screens
@@ -166,7 +166,7 @@ All demo accounts use password `Demo1234!`. Staff/Manager/Director geo-check is 
 Login screen has a **Demo accounts** strip with one-tap auto-fill for each role.
 
 ## Brand Design
-- **Customer palette**: Royal Blue `#024B68`, Light Cream `#F8F3F0`, Cherry `#D20001`
+- **Customer palette**: Cobalt `#0212EE`, Background `#F5F6FA`, Cherry `#D20001`
 - **Original caramel palette** (hero btn accent): Background `#FBF7F2` (cream), Primary `#C8833A` (caramel), Dark `#4A2410` (chocolate)
 - **Typography**: Inter 400/500/600/700 (Google Fonts)
 - **Icons**: @expo/vector-icons Feather set

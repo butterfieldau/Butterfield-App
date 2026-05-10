@@ -35,8 +35,8 @@ import OfflineBanner from '@/components/OfflineBanner';
 const { width: SCREEN_W } = Dimensions.get('window');
 const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3);
 
-const BLUE_TOP = '#024B68';
-const BLUE_BTM = '#013A52';
+const BLUE_TOP = '#0212EE';
+const BLUE_BTM = '#0110CC';
 const CHERRY   = '#D20001';
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [

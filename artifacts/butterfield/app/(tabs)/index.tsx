@@ -8,8 +8,8 @@ export default function Index() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F3F0' }}>
-        <ActivityIndicator color="#024B68" size="large" />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' }}>
+        <ActivityIndicator color="#0212EE" size="large" />
       </View>
     );
   }

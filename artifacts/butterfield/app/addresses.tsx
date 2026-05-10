@@ -21,9 +21,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type SavedAddress } from '@/lib/api';
 
-const BG = '#F8F3F0';
+const BG = '#F5F6FA';
 const CARD = '#FFFFFF';
-const BLUE = '#024B68';
+const BLUE = '#0212EE';
 const TEXT = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
@@ -204,7 +204,7 @@ const s = StyleSheet.create({
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0EBE8', alignItems: 'center', justifyContent: 'center' },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center' },
   fieldGroup: { gap: 6 },
   fieldRow: { flexDirection: 'row', gap: 12 },
   fieldLabel: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#1C1C1E' },

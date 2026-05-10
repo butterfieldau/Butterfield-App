@@ -9,7 +9,7 @@ import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useCart } from '@/context/CartContext';
 
-const BLUE = '#024B68';
+const BLUE = '#0212EE';
 
 /** Blue pill badge rendered inside the icon — works on all platforms */
 function BlueBadge({ count, iconSize }: { count: number; iconSize: number }) {

@@ -10,9 +10,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
 
-const BG    = '#F8F3F0';
+const BG    = '#F5F6FA';
 const CARD  = '#FFFFFF';
-const BLUE  = '#024B68';
+const BLUE  = '#0212EE';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
@@ -88,7 +88,7 @@ export default function VerifyOtpScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        <LinearGradient colors={['#024B68', '#013A52']} style={[s.hero, { paddingTop: insets.top + 20 }]}>
+        <LinearGradient colors={['#0212EE', '#0110CC']} style={[s.hero, { paddingTop: insets.top + 20 }]}>
           <Pressable onPress={() => router.back()} style={s.backBtn}>
             <Feather name="arrow-left" size={20} color="#fff" />
           </Pressable>
@@ -114,7 +114,7 @@ export default function VerifyOtpScreen() {
                     s.otpBox,
                     {
                       borderColor: otp.length === i ? BLUE : otp[i] ? BLUE : BORDER,
-                      backgroundColor: otp[i] ? '#EBF0F3' : '#F8F3F0',
+                      backgroundColor: otp[i] ? '#E6F0FF' : '#F5F6FA',
                       borderWidth: otp.length === i ? 2 : 1,
                     }
                   ]}
