@@ -63,6 +63,7 @@
     "@tanstack/react-query-persist-client": "^5.100.9",
     "expo-apple-authentication": "^55.0.13",
     "expo-auth-session": "^55.0.15",
+    "expo-camera": "^55.0.18",
     "expo-crypto": "^55.0.14",
     "expo-notifications": "^55.0.22",
     "expo-print": "^55.0.13",

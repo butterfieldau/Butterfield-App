@@ -113,7 +113,11 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
   const newStampCount = earnedFree ? 0 : newRawCount;
 
   await db.update(customerProfilesTable)
-    .set({ stampCount: newStampCount, updatedAt: new Date() })
+    .set({
+      stampCount: newStampCount,
+      ...(earnedFree ? { freeCoffeesEarned: profile.freeCoffeesEarned + 1 } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(customerProfilesTable.userId, userId));
 
   await db.insert(loyaltyTransactionsTable).values({

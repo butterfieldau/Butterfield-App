@@ -10,6 +10,7 @@ export const customerProfilesTable = pgTable("customer_profiles", {
   referredBy: text("referred_by"),
   birthday: text("birthday"),
   stampCount: integer("stamp_count").notNull().default(0),
+  freeCoffeesEarned: integer("free_coffees_earned").notNull().default(0),
   totalVisits: integer("total_visits").notNull().default(0),
   totalSpentCents: integer("total_spent_cents").notNull().default(0),
   deliveryAddress: text("delivery_address"),

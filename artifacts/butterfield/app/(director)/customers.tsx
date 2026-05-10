@@ -310,10 +310,12 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 Butterfield tracks this customer's purchase history and loyalty to help you personalise their experience.
               </Text>
               {[
-                { label: 'Total spend',   value: fmtAUD(customer.orderStats?.totalSpentCents ?? 0) },
-                { label: 'Last order',    value: customer.orderStats?.lastOrderAt ? fmtDate(customer.orderStats.lastOrderAt) : 'Never' },
-                { label: 'Total orders',  value: String(customer.orderStats?.orderCount ?? 0) },
-                { label: 'Avg order',     value: customer.orderStats?.avgOrderCents ? fmtAUD(customer.orderStats.avgOrderCents) : '—' },
+                { label: 'Total spend',      value: fmtAUD(customer.orderStats?.totalSpentCents ?? 0) },
+                { label: 'Last order',       value: customer.orderStats?.lastOrderAt ? fmtDate(customer.orderStats.lastOrderAt) : 'Never' },
+                { label: 'Total orders',     value: String(customer.orderStats?.orderCount ?? 0) },
+                { label: 'Avg order',        value: customer.orderStats?.avgOrderCents ? fmtAUD(customer.orderStats.avgOrderCents) : '—' },
+                { label: 'Stamps so far',    value: `${customer.profile?.stampCount ?? 0} / 6` },
+                { label: '☕ Free coffees',  value: String(customer.profile?.freeCoffeesEarned ?? 0) },
               ].map((r, i, arr) => (
                 <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                   <Text style={det.infoLabel}>{r.label}</Text>

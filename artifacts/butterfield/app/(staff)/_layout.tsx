@@ -74,6 +74,10 @@ export default function StaffLayout() {
           }}
         />
         <Tabs.Screen
+          name="scan"
+          options={{ title: 'Scan', tabBarIcon: ({ color }) => <Feather name="maximize" size={22} color={color} /> }}
+        />
+        <Tabs.Screen
           name="tasks"
           options={{ title: 'Tasks', tabBarIcon: ({ color }) => <Feather name="clipboard" size={22} color={color} /> }}
         />
