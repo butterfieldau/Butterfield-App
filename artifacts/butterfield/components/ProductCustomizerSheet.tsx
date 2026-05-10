@@ -26,11 +26,11 @@ const TEXT    = '#1C1C1E';
 const MUTED   = '#8E8E93';
 const BORDER  = '#E8E8ED';
 const BG      = '#F5F6FA';
-const BTN_CLR = '#3058A8';   // Butterfield brand blue
-const IMAGE_H = 250;
+const BTN_CLR = '#3058A8';
+const IMAGE_H = 240;
+const BACKDROP_OPACITY = 0.55;
 
-// Spring config — matches Apple UIKit feel
-const SPRING = { damping: 28, stiffness: 280, overshootClamping: true } as const;
+const SPRING_IN  = { damping: 36, stiffness: 320, overshootClamping: true } as const;
 
 interface Props {
   product: ApiProduct | null;
@@ -52,89 +52,100 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   const [textValues, setTextValues]       = useState<TextMap>({});
   const [quantity, setQuantity]           = useState(1);
 
-  // ── Reanimated shared values ──────────────────────────────────────────────────
-  const translateY  = useSharedValue(SCREEN_H);   // starts off-screen
-  const backdropO   = useSharedValue(0);
-  const scrollY     = useSharedValue(0);           // tracks scroll position inside sheet
+  // Keep modal alive during dismiss animation
+  const [modalVisible, setModalVisible] = useState(false);
+  // Hold last product so content stays visible during dismiss
+  const lastProductRef = useRef<ApiProduct | null>(null);
+  if (product) lastProductRef.current = product;
+  const displayProduct = lastProductRef.current;
 
-  // ScrollView ref for simultaneousWithExternalGesture
-  const scrollRef = useRef(null);
+  const translateY = useSharedValue(SCREEN_H);
+  const backdropO  = useSharedValue(0);
+  const scrollY    = useSharedValue(0);
+  const scrollRef  = useRef(null);
 
-  // ── Entry / exit animation driven by `visible` ───────────────────────────────
-  const BACKDROP_MAX = 0;   // fully transparent — no dimming behind sheet
+  // ── Internal close: animate out, then signal parent ──────────────────────────
+  const internalClose = useCallback(() => {
+    backdropO.value  = withTiming(0, { duration: 220 });
+    translateY.value = withTiming(SCREEN_H, { duration: 300 }, (done) => {
+      if (done) {
+        runOnJS(setModalVisible)(false);
+        runOnJS(onClose)();
+      }
+    });
+  }, [backdropO, translateY, SCREEN_H, onClose]);
 
+  // Used by pan gesture after it has already animated the sheet away
+  const dismiss = useCallback(() => {
+    setModalVisible(false);
+    onClose();
+  }, [onClose]);
+
+  // ── Entrance animation ────────────────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
-      // Reset state
+      setModalVisible(true);
       translateY.value = SCREEN_H;
       backdropO.value  = 0;
       scrollY.value    = 0;
-      // Slide in
-      translateY.value = withSpring(0, SPRING);
-      backdropO.value  = withTiming(BACKDROP_MAX, { duration: 220 });
+      translateY.value = withSpring(0, SPRING_IN);
+      backdropO.value  = withTiming(BACKDROP_OPACITY, { duration: 300 });
     }
-  }, [visible]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Pan gesture (whole-sheet swipe-to-dismiss) ────────────────────────────────
-  const dismiss = useCallback(() => onClose(), [onClose]);
-
+  // ── Pan gesture (swipe-to-dismiss) ───────────────────────────────────────────
   const panGesture = useMemo(() =>
     Gesture.Pan()
       .simultaneousWithExternalGesture(scrollRef as any)
       .activeOffsetY([-8, 8])
       .onUpdate((e) => {
-        // Only drag down when the scroll view is at its top
         if (e.translationY > 0 && scrollY.value <= 2) {
           translateY.value = e.translationY;
-          backdropO.value  = interpolate(e.translationY, [0, 280], [BACKDROP_MAX, 0], { extrapolateRight: 'clamp' });
+          backdropO.value  = interpolate(e.translationY, [0, 300], [BACKDROP_OPACITY, 0], { extrapolateRight: 'clamp' });
         }
       })
       .onEnd((e) => {
         const shouldDismiss =
-          translateY.value > 120 ||
+          translateY.value > 110 ||
           (e.velocityY > 600 && translateY.value > 20);
 
         if (shouldDismiss) {
           backdropO.value  = withTiming(0, { duration: 200 });
-          translateY.value = withTiming(SCREEN_H, { duration: 260 }, (done) => {
+          translateY.value = withTiming(SCREEN_H, { duration: 280 }, (done) => {
             if (done) runOnJS(dismiss)();
           });
         } else {
-          translateY.value = withSpring(0, SPRING);
-          backdropO.value  = withTiming(BACKDROP_MAX, { duration: 160 });
+          translateY.value = withSpring(0, SPRING_IN);
+          backdropO.value  = withTiming(BACKDROP_OPACITY, { duration: 180 });
         }
       }),
   [scrollY, translateY, backdropO, dismiss, SCREEN_H]);
 
   // ── Animated styles ───────────────────────────────────────────────────────────
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
+  const sheetStyle    = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropO.value }));
 
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropO.value,
-  }));
-
-  // ── Data ─────────────────────────────────────────────────────────────────────
+  // ── Product data ──────────────────────────────────────────────────────────────
   const { data: detailData, isLoading } = useQuery({
-    queryKey: ['product-detail', product?.id],
-    queryFn:  () => api.products.get(product!.id),
-    enabled:  !!product?.id && visible,
-    staleTime: 60000,
+    queryKey: ['product-detail', displayProduct?.id],
+    queryFn:  () => api.products.get(displayProduct!.id),
+    enabled:  !!displayProduct?.id && visible,
+    staleTime: 60_000,
+    networkMode: 'offlineFirst',
   });
 
   const detail    = detailData?.data as any;
-  const variants  = (detail?.variants  ?? (product as any)?.variants    ?? []) as any[];
+  const variants  = (detail?.variants ?? (displayProduct as any)?.variants ?? []) as any[];
   const optGroups = (detail?.optionGroups ?? []) as any[];
 
   useEffect(() => {
-    if (!product) return;
+    if (!displayProduct) return;
     setVariantId(null); setSelections({}); setTextValues({}); setQuantity(1);
-  }, [product?.id]);
+  }, [displayProduct?.id]);
 
   useEffect(() => {
     if (variants.length && !selectedVariantId) setVariantId(variants[0]?.id ?? null);
-  }, [variants.length, product?.id]);
+  }, [variants.length, displayProduct?.id]);
 
   useEffect(() => {
     if (!optGroups.length) return;
@@ -145,16 +156,16 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       if (def) defs[g.id] = [def.id];
     }
     if (Object.keys(defs).length) setSelections(prev => ({ ...defs, ...prev }));
-  }, [optGroups.length, product?.id]);
+  }, [optGroups.length, displayProduct?.id]);
 
   const basePriceCents = useMemo(() => {
-    const raw = product as any;
+    const raw = displayProduct as any;
     if (selectedVariantId && variants.length) {
       const v = variants.find((v: any) => v.id === selectedVariantId);
       if (v) return v.priceCents as number;
     }
     return raw?.priceCents ?? raw?.prices?.[0]?.unit_amount ?? 0;
-  }, [selectedVariantId, variants, product]);
+  }, [selectedVariantId, variants, displayProduct]);
 
   const optionsTotal = useMemo(() => {
     let t = 0;
@@ -178,8 +189,8 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   }, []);
 
   const handleAddToCart = useCallback(() => {
-    if (!product) return;
-    const raw = product as any;
+    if (!displayProduct) return;
+    const raw = displayProduct as any;
     const opts = optGroups
       .filter(g => g.selectionType !== 'text')
       .flatMap((g: any) => (selections[g.id] ?? []).map(id => {
@@ -192,7 +203,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
     const selVariant = variants.find((v: any) => v.id === selectedVariantId);
     addItemToCart({
-      productId:   product.id, productName: product.name,
+      productId:   displayProduct.id, productName: displayProduct.name,
       variantId:   selectedVariantId ?? undefined,
       variantName: selVariant?.name ?? undefined,
       basePriceCents, selectedOptions: opts as any, quantity,
@@ -200,45 +211,41 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       category:  raw.category ?? raw.metadata?.category,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onClose();
-  }, [product, optGroups, selections, textValues, variants, selectedVariantId, basePriceCents, quantity, addItemToCart, onClose]);
+    internalClose();
+  }, [displayProduct, optGroups, selections, textValues, variants, selectedVariantId, basePriceCents, quantity, addItemToCart, internalClose]);
 
-  if (!product) return null;
+  // Nothing to render yet
+  if (!displayProduct && !modalVisible) return null;
 
-  const raw        = product as any;
-  const palette    = getPalette(raw.category ?? raw.metadata?.category ?? 'default');
-  const imageUrl   = raw.images?.[0] ?? raw.imageUrl ?? null;
-  const isNew      = raw.metadata?.isNew === 'true' || raw.isNew;
-  const isLim      = raw.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
-  const category   = raw.category ?? raw.metadata?.category ?? '';
-  const productUrl = raw.productUrl ?? detail?.productUrl ?? null;
+  const raw        = displayProduct as any;
+  const palette    = getPalette(raw?.category ?? raw?.metadata?.category ?? 'default');
+  const imageUrl   = raw?.images?.[0] ?? raw?.imageUrl ?? null;
+  const isNew      = raw?.metadata?.isNew === 'true' || raw?.isNew;
+  const isLim      = raw?.metadata?.isLimitedDrop === 'true' || raw?.isLimitedDrop;
+  const category   = raw?.category ?? raw?.metadata?.category ?? '';
+  const productUrl = raw?.productUrl ?? detail?.productUrl ?? null;
 
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       animationType="none"
       presentationStyle="overFullScreen"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={internalClose}
       statusBarTranslucent
     >
       <View style={s.root}>
 
-        {/* ── Animated backdrop ─────────────────────────────────────── */}
+        {/* Dimming backdrop */}
         <Animated.View style={[StyleSheet.absoluteFill, s.backdrop, backdropStyle]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={internalClose} />
         </Animated.View>
 
-        {/* ── Sheet wrapped in GestureDetector ──────────────────────── */}
+        {/* Sheet */}
         <GestureDetector gesture={panGesture}>
-          <Animated.View
-            style={[
-              s.sheet,
-              { maxHeight: Math.round(SCREEN_H * 0.88) },
-              sheetStyle,
-            ]}
-          >
-            {/* ── Image header ──────────────────────────────────────── */}
+          <Animated.View style={[s.sheet, { maxHeight: Math.round(SCREEN_H * 0.82) }, sheetStyle]}>
+
+            {/* Image header */}
             <View style={[s.imageArea, { backgroundColor: imageUrl ? 'transparent' : palette.bg }]}>
               {imageUrl
                 ? <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -252,17 +259,15 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
               )}
             </View>
 
-            {/* ── White content ─────────────────────────────────────── */}
+            {/* White content area */}
             <View style={[s.content, { paddingBottom: Math.max(insets.bottom + 8, 24) }]}>
 
-              {/* Drag handle */}
               <View style={s.handleWrap} pointerEvents="none">
                 <View style={s.handle} />
               </View>
 
-              {/* Product name + category badge */}
               <View style={s.nameRow}>
-                <Text style={s.name} numberOfLines={2}>{product.name}</Text>
+                <Text style={s.name} numberOfLines={2}>{displayProduct?.name}</Text>
                 {category ? (
                   <View style={[s.catChip, { backgroundColor: palette.banner + '1A' }]}>
                     <Text style={[s.catChipText, { color: palette.banner }]}>
@@ -272,8 +277,8 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                 ) : null}
               </View>
 
-              {product.description ? (
-                <Text style={s.desc} numberOfLines={2}>{product.description}</Text>
+              {displayProduct?.description ? (
+                <Text style={s.desc} numberOfLines={2}>{displayProduct.description}</Text>
               ) : null}
 
               {productUrl ? (
@@ -286,7 +291,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                 </Pressable>
               ) : null}
 
-              {/* ── Options (scroll-aware) ─────────────────────────── */}
               <GHScrollView
                 ref={scrollRef}
                 style={s.scroll}
@@ -301,7 +305,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                   <ActivityIndicator color={palette.banner} style={{ marginVertical: 24 }} />
                 )}
 
-                {/* Size / variants */}
                 {variants.length > 1 && (
                   <View style={s.group}>
                     <Text style={s.groupLabel}>Size</Text>
@@ -325,8 +328,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                   </View>
                 )}
 
-                {/* Option groups */}
-                {optGroups.map(g => {
+                {optGroups.map((g: any) => {
                   const sel  = selections[g.id] ?? [];
                   const opts = (g.options ?? []).filter((o: any) => o.isActive !== false);
                   if (g.selectionType === 'text') {
@@ -374,9 +376,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                 })}
               </GHScrollView>
 
-              {/* ── Footer ─────────────────────────────────────────── */}
               <View style={s.footer}>
-                {/* Qty stepper — sits above the add button */}
                 <View style={s.qtyStepper}>
                   <Pressable
                     onPress={() => { if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
@@ -395,7 +395,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                   </Pressable>
                 </View>
 
-                {/* Add to Cart — full-width pill below qty */}
                 <Pressable style={s.addBtn} onPress={handleAddToCart}>
                   <Text style={s.addPrice}>{fmt(totalCents)}</Text>
                   <View style={s.addDivider} />
@@ -419,23 +418,21 @@ const s = StyleSheet.create({
   sheet: {
     width: '100%',
     backgroundColor: '#fff',
-    borderTopLeftRadius:  28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius:  32,
+    borderTopRightRadius: 32,
     overflow: 'hidden',
   },
 
-  // ── Image ─────────────────────────────────────────────────────────────────────
   imageArea: {
     height: IMAGE_H,
     overflow: 'hidden',
-    borderTopLeftRadius:  28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius:  32,
+    borderTopRightRadius: 32,
   },
   imageBadges:  { position: 'absolute', bottom: 14, left: 16, flexDirection: 'row', gap: 6 },
   imgBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7 },
   imgBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
 
-  // ── White content ─────────────────────────────────────────────────────────────
   content: {
     flexShrink: 1,
     backgroundColor: '#fff',
@@ -443,7 +440,7 @@ const s = StyleSheet.create({
   },
 
   handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 2 },
-  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.13)' },
+  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)' },
 
   nameRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12, marginBottom: 5 },
   name:        { flex: 1, fontSize: 26, fontFamily: 'Inter_700Bold', color: TEXT, lineHeight: 32 },
@@ -454,7 +451,6 @@ const s = StyleSheet.create({
   websiteLink:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   websiteLinkText: { fontSize: 13, color: BTN_CLR, fontFamily: 'Inter_600SemiBold' },
 
-  // ── Options ───────────────────────────────────────────────────────────────────
   scroll:     { flexShrink: 1 },
   group:      { marginBottom: 18 },
   groupHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
@@ -470,13 +466,10 @@ const s = StyleSheet.create({
 
   textInput: { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', minHeight: 70, textAlignVertical: 'top' },
 
-  // ── Footer ────────────────────────────────────────────────────────────────────
   footer:     { paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, gap: 10 },
-
   qtyStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   qtyBtn:     { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
   qtyNum:     { fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 32, textAlign: 'center' },
-
   addBtn:     { flexDirection: 'row', alignItems: 'center', height: 56, borderRadius: 28, paddingHorizontal: 24, backgroundColor: BTN_CLR },
   addPrice:   { fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold' },
   addDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 14 },

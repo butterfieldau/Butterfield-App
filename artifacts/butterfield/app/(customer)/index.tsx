@@ -27,9 +27,11 @@ import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
+import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
+import OfflineBanner from '@/components/OfflineBanner';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3); // 3 tiles, 20px pad each side, 12px total gap
+const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3);
 
 const BLUE_TOP = '#40C0F2';
 const BLUE_BTM = '#2AA8DC';
@@ -50,15 +52,6 @@ const MERCH = [
   { id: 'merch-sugar-crew-tee',name: 'Sugar Crew Tee',price: 40, image: 'https://butterfieldcookies.com.au/cdn/shop/files/SugarCrewTeam2.jpg?v=1751264285&width=600' },
 ];
 
-const PRODUCT_IMAGES: Record<string, string> = {
-  'Choc Chip Cookie':      'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_ChocChip_2880x2304_0fb8e9b6-eb1d-4afe-97f5-0fca062170a8.jpg?v=1764302334&width=600',
-  'Pistachio Cookie':      'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Pistachio_2880x2304_22fcddc2-bd6f-48b2-b5c0-cfe6528a14b5.jpg?v=1764302160&width=600',
-  'Biscoff':               'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Biscoff_2880x2304_c0c0d24b-bd23-4dbf-b563-82b0d49eeb65.jpg?v=1764302195&width=600',
-  'M&Ms Cookie':           'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldCookies_MAndMs.jpg?v=1764302008&width=600',
-  'Red Velvet Cookie':     'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_RedValvet_2880x2304_1af322bc-b56c-4635-8477-309d188fe6dd.jpg?v=1764302309&width=600',
-  'Almond Croissant Cookie':'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldCookies_AlmondCroissantCookie_2880x2304_ad98ea84-f045-47a1-8af7-e6b6e79fa74d.jpg?v=1771549363&width=600',
-  'Bueno Cookie':          'https://butterfieldcookies.com.au/cdn/shop/files/Butterfield_Bueno_2880x2304_3b3d438c-63c9-41ae-82bc-92da907cf7ce.jpg?v=1764301910&width=600',
-};
 
 const BANNER_ROUTES: Record<string, string> = {
   menu:    '/(customer)/menu',
@@ -88,69 +81,6 @@ function getTags(p: ApiProduct): string[] {
   const tags = parseArr(raw.tags ?? p.metadata?.tags);
   if (tags.length > 0) return tags.slice(0, 3);
   return getPalette(p.metadata?.category).defaultTags.slice(0, 3);
-}
-
-// ── Product tile ──────────────────────────────────────────────────────────────
-function HomeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const raw        = product as any;
-  const priceCents = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
-  const saleCents  = raw.salePriceCents;
-  const price      = (saleCents ?? priceCents) / 100;
-  const palette    = getPalette(product.metadata?.category);
-  const available  = product.metadata?.available !== 'false';
-  const isSoldOut  = !available || raw.isSoldOut;
-  const isNew      = product.metadata?.isNew === 'true';
-  const isLimited  = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
-  const imageUrl   = product.images?.[0] ?? PRODUCT_IMAGES[product.name] ?? null;
-
-  return (
-    <Pressable
-      onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[s.tile, { opacity: isSoldOut ? 0.65 : 1 }]}
-    >
-      {/* Image area */}
-      <View style={[s.tileImg, { backgroundColor: imageUrl ? '#F4F1EC' : palette.bg }]}>
-        {imageUrl
-          ? <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
-          : <Text style={s.tileEmoji}>{palette.emoji}</Text>
-        }
-        {(isNew || isLimited) && (
-          <View style={{ position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 }}>
-            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
-            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
-          </View>
-        )}
-        {isSoldOut && (
-          <View style={s.soldOut}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Sold Out</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Info area */}
-      <View style={s.tileInfo}>
-        <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[s.tileDesc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-          {raw.shortDescription || palette.emoji + ' ' + (product.metadata?.category ?? 'treat')}
-        </Text>
-        <View style={s.tilePriceRow}>
-          <Text style={[s.tilePrice, { fontFamily: 'Inter_700Bold' }]}>
-            {saleCents
-              ? <Text style={{ textDecorationLine: 'line-through', color: '#BBB', fontSize: 10, fontFamily: 'Inter_400Regular' }}>${(priceCents / 100).toFixed(2)} </Text>
-              : null}
-            ${price.toFixed(2)}
-          </Text>
-          <Pressable
-            onPress={() => { if (available) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-            style={s.tileAddBtn}
-            hitSlop={6}
-          >
-            <Feather name="shopping-bag" size={13} color="#fff" />
-          </Pressable>
-        </View>
-      </View>
-    </Pressable>
-  );
 }
 
 // ── Merch tile ────────────────────────────────────────────────────────────────
@@ -396,6 +326,7 @@ export default function CustomerHome() {
         store={featuredStore}
         onClose={() => setStoreSheetVisible(false)}
       />
+      <OfflineBanner />
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
         {/* Row: logo left + cart badge right */}
@@ -576,7 +507,11 @@ export default function CustomerHome() {
             </Text>
           ) : (
             <View style={[s.grid, { paddingHorizontal: 16 }]}>
-              {featured.map((p) => <HomeTile key={p.id} product={p} onPress={() => handleTilePress(p)} />)}
+              {featured.map((p) => (
+                <View key={p.id} style={{ width: '48%' }}>
+                  <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                </View>
+              ))}
             </View>
           )}
         </View>

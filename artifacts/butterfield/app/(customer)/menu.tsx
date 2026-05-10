@@ -19,6 +19,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
+import SharedProductTile from '@/components/ProductTile';
+import OfflineBanner from '@/components/OfflineBanner';
 
 const BLUE = '#40C0F2';
 
@@ -44,82 +46,6 @@ function parseArr(val: any): string[] {
     return val.split(',').map((s: string) => s.trim()).filter(Boolean);
   }
   return [];
-}
-
-function getDisplayPrice(p: ApiProduct): { display: number; was?: number } {
-  const raw = p as any;
-  const retail = (raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0) / 100;
-  const sale   = raw.salePriceCents ? raw.salePriceCents / 100 : null;
-  return sale ? { display: sale, was: retail } : { display: retail };
-}
-
-function getChips(p: ApiProduct): string[] {
-  const raw = p as any;
-  const dietary = parseArr(raw.dietaryTags ?? p.metadata?.dietaryTags);
-  if (dietary.length > 0) return dietary.slice(0, 3);
-  const tags = parseArr(raw.tags ?? p.metadata?.tags);
-  if (tags.length > 0) return tags.slice(0, 3);
-  return getPalette(p.metadata?.category).defaultTags.slice(0, 3);
-}
-
-function ProductTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const raw       = product as any;
-  const { display, was } = getDisplayPrice(product);
-  const palette   = getPalette(product.metadata?.category);
-  const photoUrl  = product.images?.[0] ?? null;
-  const available = product.metadata?.available !== 'false';
-  const isNew     = product.metadata?.isNew === 'true';
-  const isLimited = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
-  const isSoldOut = !available || raw.isSoldOut;
-
-  return (
-    <Pressable
-      onPress={() => { if (available && !isSoldOut) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[s.tile, { opacity: isSoldOut ? 0.65 : 1 }]}
-    >
-      {/* Image area */}
-      <View style={[s.tileImg, { backgroundColor: photoUrl ? '#F4F1EC' : palette.bg }]}>
-        {photoUrl
-          ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
-          : <Text style={s.tileEmoji}>{palette.emoji}</Text>
-        }
-        {(isNew || isLimited) && (
-          <View style={s.badgeRow}>
-            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
-            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
-          </View>
-        )}
-        {isSoldOut && (
-          <View style={s.soldOutOverlay}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 }}>Sold Out</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Info area */}
-      <View style={s.tileInfo}>
-        <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[s.shortDesc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>
-          {raw.shortDescription || palette.emoji + ' ' + (product.metadata?.category ?? 'treat')}
-        </Text>
-        <View style={s.tilePriceRow}>
-          <Text style={[s.priceMain, { fontFamily: 'Inter_700Bold' }]}>
-            {was
-              ? <Text style={{ textDecorationLine: 'line-through', color: '#BBB', fontSize: 10, fontFamily: 'Inter_400Regular' }}>${was.toFixed(2)} </Text>
-              : null}
-            ${display.toFixed(2)}
-          </Text>
-          <Pressable
-            onPress={() => { if (available && !isSoldOut) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-            style={s.tileAddBtn}
-            hitSlop={6}
-          >
-            <Feather name="shopping-bag" size={13} color="#fff" />
-          </Pressable>
-        </View>
-      </View>
-    </Pressable>
-  );
 }
 
 function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
@@ -192,6 +118,7 @@ export default function MenuScreen() {
         onClose={() => setCustomizerProduct(null)}
       />
 
+      <OfflineBanner />
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <View style={s.headerTop}>
@@ -294,7 +221,7 @@ export default function MenuScreen() {
           }
           renderItem={({ item: p }) => (
             <View style={{ flex: 1 }}>
-              <ProductTile product={p} onPress={() => handleTilePress(p)} />
+              <SharedProductTile product={p} onPress={() => handleTilePress(p)} />
             </View>
           )}
         />
