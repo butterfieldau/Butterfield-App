@@ -1,14 +1,18 @@
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useCart } from '@/context/CartContext';
 
 function NativeCustomerTabs() {
+  const { totalItems } = useCart();
+  const cartBadge = totalItems > 0 ? String(totalItems) : undefined;
+
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -26,6 +30,7 @@ function NativeCustomerTabs() {
       <NativeTabs.Trigger name="cart">
         <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
         <Label>Order</Label>
+        <Badge hidden={totalItems === 0}>{String(totalItems)}</Badge>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
@@ -37,6 +42,7 @@ function NativeCustomerTabs() {
 
 function ClassicCustomerTabs() {
   const colors = useColors();
+  const { totalItems } = useCart();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const isIOS = Platform.OS === 'ios';
@@ -93,6 +99,8 @@ function ClassicCustomerTabs() {
         options={{
           title: 'Order',
           tabBarStyle: { display: 'none' },
+          tabBarBadge: totalItems > 0 ? totalItems : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#3058A8', fontSize: 10, minWidth: 18, height: 18, lineHeight: 18 },
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
         }}
