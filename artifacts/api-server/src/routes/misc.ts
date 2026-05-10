@@ -102,7 +102,7 @@ router.post('/favourites', requireAuth, async (req, res) => {
 
 router.delete('/favourites/:productId', requireAuth, async (req, res) => {
   await db.delete(favouritesTable).where(
-    and(eq(favouritesTable.userId, req.user!.id), eq(favouritesTable.productStripeId, req.params.productId))
+    and(eq(favouritesTable.userId, req.user!.id), eq(favouritesTable.productStripeId, String(req.params.productId)))
   );
   return res.json({ success: true });
 });

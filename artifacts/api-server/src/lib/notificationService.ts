@@ -4,7 +4,7 @@ import { eq, inArray, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { logger } from './logger.js';
 
-const expo = new Expo({ useFcmV1: true });
+const expo = new Expo({ useFcmV1: true } as any);
 
 export interface SendNotificationOptions {
   /** Target a single user by ID */
