@@ -345,21 +345,13 @@ export default function CustomerHome() {
       <OfflineBanner />
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
-        {/* Row: logo left + cart badge right */}
+        {/* Row 1: logo left + loyalty chip right */}
         <View style={s.headerTopRow}>
           <Image
             source={require('@/assets/images/logo-white.png')}
             style={{ width: 110, height: 34 }}
             contentFit="contain"
           />
-        </View>
-
-        {/* Greeting + loyalty chip — always pinned at bottom of header */}
-        <View style={s.greetingRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={[s.greetLine1, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{greeting.line1}</Text>
-            <Text style={[s.greetLine2, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{greeting.line2}</Text>
-          </View>
           <LinearGradient
             colors={tierCfg.gradient}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -370,6 +362,12 @@ export default function CustomerHome() {
             <View style={s.tierDivider} />
             <Text style={[s.loyaltyMember, { fontFamily: 'Inter_700Bold' }]}>{tierCfg.label.toUpperCase()}</Text>
           </LinearGradient>
+        </View>
+
+        {/* Row 2: greeting full width — no chip squeezing it */}
+        <View>
+          <Text style={[s.greetLine1, { fontFamily: 'Inter_700Bold' }]} numberOfLines={2}>{greeting.line1}</Text>
+          <Text style={[s.greetLine2, { fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>{greeting.line2}</Text>
         </View>
       </View>
 
