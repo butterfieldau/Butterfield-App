@@ -5,11 +5,37 @@ import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs
 import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
+import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import { useCart } from '@/context/CartContext';
 
 const BLUE = '#3058A8';
+
+/** Blue pill badge rendered inside the icon — works on all platforms */
+function BlueBadge({ count, iconSize }: { count: number; iconSize: number }) {
+  if (count <= 0) return null;
+  const label = count > 99 ? '99+' : String(count);
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        top: -(iconSize * 0.3),
+        right: -(iconSize * 0.45),
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: BLUE,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 3,
+      }}
+    >
+      <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700', lineHeight: 12 }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 function NativeCustomerTabs() {
   const { totalItems } = useCart();
@@ -103,14 +129,14 @@ function ClassicCustomerTabs() {
         name="cart"
         options={{
           title: 'Order',
-          tabBarBadge: totalItems > 0 ? totalItems : undefined,
-          tabBarBadgeStyle: { backgroundColor: BLUE, color: '#fff' },
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="bag" tintColor={color} size={24} />
-            ) : (
-              <Feather name="shopping-bag" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => (
+            <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+              {isIOS
+                ? <SymbolView name="bag" tintColor={color} size={24} />
+                : <Feather name="shopping-bag" size={22} color={color} />}
+              <BlueBadge count={totalItems} iconSize={24} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
