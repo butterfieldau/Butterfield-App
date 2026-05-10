@@ -59,7 +59,7 @@ function StoreCard({ store }: { store: any }) {
     <View style={[cs.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {/* Gradient header */}
       <LinearGradient
-        colors={isOpen ? ['#4B72C4', '#3058A8'] : ['#8E8E93', '#6B6B6B']}
+        colors={isOpen ? ['#024B68', '#013A52'] : ['#8E8E93', '#6B6B6B']}
         style={cs.cardBanner}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
       >
@@ -101,7 +101,7 @@ function StoreCard({ store }: { store: any }) {
 
         {/* Services */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-          {store.pickupAvailable   && <View style={cs.serviceChip}><Feather name="shopping-bag" size={11} color="#3058A8" /><Text style={[cs.serviceText, { color: '#3058A8' }]}>Pickup</Text></View>}
+          {store.pickupAvailable   && <View style={cs.serviceChip}><Feather name="shopping-bag" size={11} color="#024B68" /><Text style={[cs.serviceText, { color: '#024B68' }]}>Pickup</Text></View>}
           {store.deliveryAvailable && <View style={[cs.serviceChip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Delivery</Text></View>}
           {store.status === 'coming_soon' && <View style={[cs.serviceChip, { backgroundColor: '#EDE9FE' }]}><Feather name="clock" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Coming Soon</Text></View>}
         </View>
@@ -115,7 +115,7 @@ function StoreCard({ store }: { store: any }) {
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
           {store.latitude && store.longitude && (
             <Pressable style={[cs.actionBtn, { flex: 1 }]} onPress={handleDirections}>
-              <Feather name="map" size={14} color="#3058A8" />
+              <Feather name="map" size={14} color="#024B68" />
               <Text style={cs.actionBtnText}>Directions</Text>
             </Pressable>
           )}
@@ -126,7 +126,7 @@ function StoreCard({ store }: { store: any }) {
             </Pressable>
           )}
           {store.pickupAvailable && store.status === 'open' && (
-            <Pressable style={[cs.actionBtn, { flex: 1, backgroundColor: '#3058A8' }]} onPress={() => router.push('/(customer)/menu')}>
+            <Pressable style={[cs.actionBtn, { flex: 1, backgroundColor: '#024B68' }]} onPress={() => router.push('/(customer)/menu')}>
               <Feather name="shopping-bag" size={14} color="#fff" />
               <Text style={[cs.actionBtnText, { color: '#fff' }]}>Order</Text>
             </Pressable>
@@ -153,11 +153,11 @@ export default function CustomerStoresScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#3058A8" />}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#024B68" />}
     >
       {/* Header */}
       <LinearGradient
-        colors={['#4B72C4', '#3058A8']}
+        colors={['#024B68', '#013A52']}
         style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 16 }]}
       >
         <Text style={cs.heroTitle}>Our Stores</Text>
@@ -167,7 +167,7 @@ export default function CustomerStoresScreen() {
       <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
         {isLoading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#3058A8" />
+            <ActivityIndicator size="large" color="#024B68" />
           </View>
         ) : stores.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
@@ -199,5 +199,5 @@ const cs = StyleSheet.create({
   serviceText:     { fontFamily: 'Inter_500Medium', fontSize: 11 },
   notes:           { fontFamily: 'Inter_400Regular', fontSize: 12, fontStyle: 'italic' },
   actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  actionBtnText:   { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#3058A8' },
+  actionBtnText:   { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#024B68' },
 });

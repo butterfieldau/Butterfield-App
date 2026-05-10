@@ -35,8 +35,9 @@ import OfflineBanner from '@/components/OfflineBanner';
 const { width: SCREEN_W } = Dimensions.get('window');
 const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3);
 
-const BLUE_TOP = '#40C0F2';
-const BLUE_BTM = '#2AA8DC';
+const BLUE_TOP = '#024B68';
+const BLUE_BTM = '#013A52';
+const CHERRY   = '#D20001';
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [
   { id: 'all',        label: 'All',      icon: 'grid'    },
@@ -425,7 +426,7 @@ export default function CustomerHome() {
               {referralCode || user?.name}
             </Text>
             <Pressable
-              style={[s.qrCloseBtn, { backgroundColor: BLUE_TOP }]}
+              style={[s.qrCloseBtn, { backgroundColor: CHERRY }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(false); }}
             >
               <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Done</Text>

@@ -33,13 +33,14 @@ import {
 } from '@/lib/dateUtils';
 import { getPalette } from '@/constants/categoryColors';
 
-const BG     = '#F5F6FA';
-const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const LIGHT_BLUE = '#EBF8FF';
+const BG       = '#F8F3F0';
+const CARD     = '#FFFFFF';
+const BLUE     = '#024B68';
+const CHERRY   = '#D20001';
+const TEXT     = '#1C1C1E';
+const MUTED    = '#8E8E93';
+const BORDER   = '#E5E7EB';
+const LIGHT_BLUE = '#EBF0F3';
 
 const TABS = [
   { label: 'CART',     icon: 'shopping-bag' },
@@ -247,7 +248,7 @@ export default function CartScreen() {
   if (confirmation) {
     return (
       <View style={[styles.successWrap, { backgroundColor: BG, paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }]}>
-        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
+        <LinearGradient colors={['#024B68', '#013A52']} style={styles.successIcon}>
           <Feather name="check" size={36} color="#fff" />
         </LinearGradient>
         <Text style={styles.successTitle}>Order Received!</Text>
@@ -814,13 +815,13 @@ const styles = StyleSheet.create({
   // Item cards
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
   itemThumb:  { width: 90, height: 90 },
-  removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
+  removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F0EBE8', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
   itemBody:   { flex: 1, padding: 12, gap: 4 },
   itemName:   { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
   itemOpts:   { fontSize: 12, color: '#8E8E93', lineHeight: 16 },
   itemPrice:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#1C1C1E' },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
-  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' },
+  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0EBE8' },
   qtyBtnText: { fontSize: 16, color: '#1C1C1E', fontFamily: 'Inter_600SemiBold', lineHeight: 20 },
   qtyLabel:   { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
   // Summary card
@@ -863,7 +864,7 @@ const styles = StyleSheet.create({
   formCard:       { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   formFieldWrap:  { gap: 4 },
   formFieldLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
-  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: '#F5F6FA' },
+  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: '#F0EBE8' },
   formRow:        { flexDirection: 'row', gap: 10 },
   formNote:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   notesInput:     { height: 80, textAlignVertical: 'top', paddingTop: 12 },
@@ -894,7 +895,7 @@ const styles = StyleSheet.create({
   slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, alignSelf: 'stretch', justifyContent: 'center' },
   slotText:       { fontSize: 14, fontFamily: 'Inter_500Medium' },
   successTotal:   { fontSize: 15, fontFamily: 'Inter_400Regular' },
-  trackBtn:       { backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
+  trackBtn:       { backgroundColor: '#024B68', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
   trackBtnText:   { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
