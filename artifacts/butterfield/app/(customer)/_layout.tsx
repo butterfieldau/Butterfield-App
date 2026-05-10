@@ -19,13 +19,13 @@ function NativeCustomerTabs() {
         <Icon sf={{ default: 'menucard', selected: 'menucard.fill' }} />
         <Label>Menu</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="stores">
+        <Icon sf={{ default: 'mappin.and.ellipse', selected: 'mappin.and.ellipse' }} />
+        <Label>Stores</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="loyalty">
         <Icon sf={{ default: 'star', selected: 'star.fill' }} />
         <Label>Rewards</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="cart">
-        <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
-        <Label>Order</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
@@ -81,20 +81,19 @@ function ClassicCustomerTabs() {
         }}
       />
       <Tabs.Screen
+        name="stores"
+        options={{
+          title: 'Stores',
+          tabBarIcon: ({ color }) =>
+            isIOS ? <SymbolView name="mappin.and.ellipse" tintColor={color} size={24} /> : <Feather name="map-pin" size={22} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="loyalty"
         options={{
           title: 'Rewards',
           tabBarIcon: ({ color }) =>
             isIOS ? <SymbolView name="star" tintColor={color} size={24} /> : <Feather name="star" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          title: 'Order',
-          tabBarStyle: { display: 'none' },
-          tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="bag" tintColor={color} size={24} /> : <Feather name="shopping-bag" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -105,9 +104,9 @@ function ClassicCustomerTabs() {
             isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
         }}
       />
+      <Tabs.Screen name="cart"       options={{ href: null, title: 'Order'      }} />
       <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
       <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
-      <Tabs.Screen name="stores"     options={{ href: null, title: 'Our Stores'  }} />
     </Tabs>
   );
 }

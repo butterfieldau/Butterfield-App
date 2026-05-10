@@ -22,7 +22,7 @@ import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
-import { getTierConfig } from '@/constants/tierConfig';
+import { getTierByPoints } from '@/constants/tierConfig';
 import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
@@ -321,14 +321,17 @@ export default function CustomerHome() {
   const firstName = freshName?.split(' ')[0] ?? 'there';
   const birthday  = (loyaltyData?.data as any)?.birthday ?? null;
 
+  // Compute tier from live points — never read the stale DB loyaltyTier field
+  const tierCfg = getTierByPoints(loyaltyPoints);
+
   const greeting = useMemo(() => buildGreeting({
     firstName,
     loyaltyPoints,
     hasClaimableReward,
     birthday,
-    loyaltyTier,
+    loyaltyTier: tierCfg.key,
     stampCount,
-  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, loyaltyTier]);
+  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount]);
 
   const storeStatus = storeStatusData?.data;
   const open = storeStatus?.isOpen ?? false;
@@ -360,8 +363,6 @@ export default function CustomerHome() {
     const route = BANNER_ROUTES[banner.buttonRoute] ?? `/(customer)/${banner.buttonRoute}`;
     router.push(route as any);
   }, [banner]);
-
-  const tierCfg = getTierConfig(loyaltyTier);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
