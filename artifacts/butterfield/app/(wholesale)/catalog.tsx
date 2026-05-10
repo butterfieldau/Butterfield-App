@@ -25,6 +25,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 import { WS_REORDER_KEY } from './orders';
+import { WS_CART_KEY, WS_OPEN_CHECKOUT_KEY } from './cart';
 import {
   formatDateChip,
   formatTime,
@@ -201,19 +202,42 @@ export default function WholesaleCatalog() {
   const [pendingReorder, setPendingReorder] = useState<{ productId: string; qty: number; productName: string }[] | null>(null);
   const reorderProcessed = useRef(false);
 
-  // Re-check AsyncStorage on every focus so reorder works even when the
-  // catalog tab is already mounted (tabs don't unmount on tab switches).
+  // Re-check AsyncStorage on every focus so reorder and cart-tab checkout work
+  // even when the catalog tab is already mounted (tabs don't unmount on switch).
   useFocusEffect(
     useCallback(() => {
+      // Reorder from orders tab
       AsyncStorage.getItem(WS_REORDER_KEY).then((val) => {
         if (val) {
-          reorderProcessed.current = false; // allow the second effect to re-run
+          reorderProcessed.current = false;
           setPendingReorder(JSON.parse(val));
           AsyncStorage.removeItem(WS_REORDER_KEY);
         }
       });
+      // Open checkout requested by cart tab
+      AsyncStorage.getItem(WS_OPEN_CHECKOUT_KEY).then((val) => {
+        if (val) {
+          AsyncStorage.removeItem(WS_OPEN_CHECKOUT_KEY);
+          // Restore cart from AsyncStorage if local cart is empty
+          AsyncStorage.getItem(WS_CART_KEY).then((cartVal) => {
+            if (cartVal) {
+              try {
+                const saved: CartEntry[] = JSON.parse(cartVal);
+                if (saved.length > 0) setCart(saved);
+              } catch {}
+            }
+            setCheckoutStep(0);
+            setShowCheckout(true);
+          });
+        }
+      });
     }, []),
   );
+
+  // Persist cart to AsyncStorage whenever it changes (shared with cart tab)
+  useEffect(() => {
+    AsyncStorage.setItem(WS_CART_KEY, JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     if (!pendingReorder || products.length === 0 || reorderProcessed.current) return;
