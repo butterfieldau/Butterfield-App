@@ -348,6 +348,21 @@ router.post('/staff/:userId/clock-out', async (req, res) => {
   return res.json({ data: shift });
 });
 
+// ── Toggle staff orders permission ───────────────────────────────────────────
+router.patch('/staff/:userId/orders-permission', async (req, res) => {
+  const { userId } = req.params;
+  const { canViewOrders } = req.body;
+  if (typeof canViewOrders !== 'boolean') {
+    return res.status(400).json({ error: 'canViewOrders must be a boolean.' });
+  }
+  const [updated] = await db.update(staffProfilesTable)
+    .set({ canViewOrders })
+    .where(eq(staffProfilesTable.userId, userId))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Staff profile not found.' });
+  return res.json({ data: updated });
+});
+
 // ── Staff leave requests (per user) ──────────────────────────────────────────
 router.get('/staff/:userId/leave', async (req, res) => {
   const rows = await db.select().from(staffLeaveRequestsTable)

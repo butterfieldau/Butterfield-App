@@ -262,6 +262,10 @@ router.post('/leave', async (req, res) => {
 });
 
 router.get('/orders', async (req, res) => {
+  const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
+  if (!profile?.canViewOrders) {
+    return res.status(403).json({ error: 'You do not have permission to view orders.' });
+  }
   const [customerOrders, wholesaleOrders, allUsers, wsAccounts] = await Promise.all([
     db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100),
     db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(50),

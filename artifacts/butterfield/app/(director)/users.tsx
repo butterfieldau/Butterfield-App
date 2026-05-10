@@ -43,13 +43,14 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   const [editing, setEditing] = useState(false);
 
   // Editable fields
-  const [eName,    setEName]    = useState('');
-  const [eEmail,   setEEmail]   = useState('');
-  const [ePhone,   setEPhone]   = useState('');
-  const [eAddress, setEAddress] = useState('');
-  const [eTfn,     setETfn]     = useState('');
-  const [ePos,     setEPos]     = useState('');
-  const [eRate,    setERate]    = useState('');
+  const [eName,         setEName]         = useState('');
+  const [eEmail,        setEEmail]        = useState('');
+  const [ePhone,        setEPhone]        = useState('');
+  const [eAddress,      setEAddress]      = useState('');
+  const [eTfn,          setETfn]          = useState('');
+  const [ePos,          setEPos]          = useState('');
+  const [eRate,         setERate]         = useState('');
+  const [canViewOrders, setCanViewOrders] = useState(false);
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
 
@@ -71,6 +72,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
       setETfn(sp?.taxFileNumber ?? '');
       setEPos(sp?.position ?? '');
       setERate(sp?.hourlyRateCents ? String((sp.hourlyRateCents / 100).toFixed(2)) : '');
+      setCanViewOrders(sp?.canViewOrders === true);
     }
   }, [u, sp]);
 
@@ -360,6 +362,37 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   ))}
                 </View>
               )}
+
+              {/* ── Portal access permissions ────────────────────────── */}
+              <View style={[sp_s.menuSection, { marginBottom: 12 }]}>
+                <View style={[sp_s.menuRow, { justifyContent: 'space-between' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
+                    <Feather name="shopping-bag" size={17} color={BLUE} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={sp_s.menuLabel}>Can view orders</Text>
+                      <Text style={sp_s.menuSub}>Access to orders queue, schedule &amp; customer names</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={canViewOrders}
+                    onValueChange={async (val) => {
+                      if (!userId) return;
+                      setCanViewOrders(val);
+                      Haptics.selectionAsync();
+                      try {
+                        await api.director.setStaffOrdersPermission(userId, val);
+                        await refetch();
+                        await qc.invalidateQueries({ queryKey: ['director-users'] });
+                      } catch (e: any) {
+                        setCanViewOrders(!val);
+                        Alert.alert('Error', e.message ?? 'Could not update permission.');
+                      }
+                    }}
+                    trackColor={{ false: '#E5E7EB', true: '#BBF7D0' }}
+                    thumbColor={canViewOrders ? '#16A34A' : '#9CA3AF'}
+                  />
+                </View>
+              </View>
 
               {/* ── Menu rows ────────────────────────────────────────── */}
               <View style={sp_s.menuSection}>

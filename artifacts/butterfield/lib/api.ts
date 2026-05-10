@@ -174,6 +174,8 @@ export const api = {
     approveLeave:        (leaveId: string, approved: boolean) => request<{ data: any }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     approveStaff:        (userId: string, approved: boolean) => request<{ data: any }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     promoteToDirector:   (userId: string) => request<{ data: any }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
+    setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
+      request<{ data: any }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),
     deleteUser:          (userId: string) => request<{ success: boolean }>(`/director/users/${userId}`, { method: 'DELETE' }),
     setWholesaleStatus:  (accountId: string, status: string) => request<{ data: any }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     products:            () => request<{ data: any[] }>('/director/products'),

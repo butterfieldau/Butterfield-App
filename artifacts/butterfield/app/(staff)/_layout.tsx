@@ -1,11 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import { router, Tabs } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { NewOrderBanner } from '@/components/NewOrderBanner';
 import { useOrderNotifications, type NewOrderInfo } from '@/hooks/useOrderNotifications';
+import { api } from '@/lib/api';
 
 const STAFF_DARK = '#1A0A04';
 const BLUE       = '#40C0F2';
@@ -15,6 +16,15 @@ export default function StaffLayout() {
   const [pendingOrders, setPendingOrders] = useState<NewOrderInfo[]>([]);
   const [showBanner, setShowBanner] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [canViewOrders, setCanViewOrders] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  useEffect(() => {
+    api.staff.profile()
+      .then(r => setCanViewOrders(r?.data?.canViewOrders === true))
+      .catch(() => setCanViewOrders(false))
+      .finally(() => setProfileLoaded(true));
+  }, []);
 
   const handleNewOrders = useCallback((orders: NewOrderInfo[]) => {
     setPendingOrders(orders);
@@ -22,7 +32,7 @@ export default function StaffLayout() {
     setShowBanner(true);
   }, []);
 
-  useOrderNotifications(handleNewOrders);
+  useOrderNotifications(handleNewOrders, { enabled: canViewOrders });
 
   const handleDismiss = useCallback(() => setShowBanner(false), []);
   const handleView = useCallback(() => {
@@ -57,8 +67,9 @@ export default function StaffLayout() {
           name="orders"
           options={{
             title: 'Orders',
+            href: profileLoaded && !canViewOrders ? null : undefined,
             tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
-            tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+            tabBarBadge: canViewOrders && unreadCount > 0 ? unreadCount : undefined,
             tabBarBadgeStyle: { backgroundColor: '#F40009', fontSize: 10, fontFamily: 'Inter_700Bold', minWidth: 18, height: 18, lineHeight: 18 },
           }}
         />
@@ -77,7 +88,7 @@ export default function StaffLayout() {
         <Tabs.Screen name="products" options={{ href: null }} />
       </Tabs>
 
-      {showBanner && (
+      {showBanner && canViewOrders && (
         <NewOrderBanner orders={pendingOrders} onDismiss={handleDismiss} onView={handleView} />
       )}
     </View>

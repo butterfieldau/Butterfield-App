@@ -76,8 +76,11 @@ export default function StaffDashboard() {
   const { data: tasksData, refetch: refetchTasks } = useQuery({
     queryKey: ['staff-tasks'], queryFn: () => api.staff.tasks(), retry: 1,
   });
+  const canViewOrders = (profileData?.data as any)?.canViewOrders === true;
+
   const { data: ordersData, refetch: refetchOrders } = useQuery({
     queryKey: ['all-orders'], queryFn: () => api.staff.allOrders(), retry: 1, refetchInterval: 60000,
+    enabled: canViewOrders,
   });
 
   const shift = shiftData?.data;
@@ -315,47 +318,51 @@ export default function StaffDashboard() {
           ))}
         </View>
 
-        {/* Today's schedule */}
-        <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>TODAY'S SCHEDULE</Text>
-        {scheduleGroups.length === 0 ? (
-          <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
-            <Feather name="calendar" size={22} color={BORDER} />
-            <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>No scheduled pickups today</Text>
-          </View>
-        ) : scheduleGroups.map((group) => (
-          <View key={group.time} style={{ gap: 8 }}>
-            <View style={styles.timeRow}>
-              <Feather name="clock" size={12} color={BLUE} />
-              <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{group.time}</Text>
-            </View>
-            {group.orders.map((order: any) => {
-              const items = Array.isArray(order.items) ? order.items : [];
-              const statusColors: Record<string, string> = {
-                received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: '#22C55E',
-                completed: '#6B7280', cancelled: '#EF4444',
-              };
-              const sc = statusColors[order.status] ?? '#3B82F6';
-              return (
-                <Pressable key={order.id} onPress={() => router.push('/(staff)/orders')}
-                  style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, borderLeftColor: sc, borderLeftWidth: 3 }]}>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
-                      <View style={[{ backgroundColor: `${sc}18`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
-                        <Text style={[{ color: sc, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
+        {/* Today's schedule — only visible to staff with orders permission */}
+        {canViewOrders && (
+          <>
+            <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>TODAY'S SCHEDULE</Text>
+            {scheduleGroups.length === 0 ? (
+              <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
+                <Feather name="calendar" size={22} color={BORDER} />
+                <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>No scheduled pickups today</Text>
+              </View>
+            ) : scheduleGroups.map((group) => (
+              <View key={group.time} style={{ gap: 8 }}>
+                <View style={styles.timeRow}>
+                  <Feather name="clock" size={12} color={BLUE} />
+                  <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{group.time}</Text>
+                </View>
+                {group.orders.map((order: any) => {
+                  const items = Array.isArray(order.items) ? order.items : [];
+                  const statusColors: Record<string, string> = {
+                    received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: '#22C55E',
+                    completed: '#6B7280', cancelled: '#EF4444',
+                  };
+                  const sc = statusColors[order.status] ?? '#3B82F6';
+                  return (
+                    <Pressable key={order.id} onPress={() => router.push('/(staff)/orders')}
+                      style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, borderLeftColor: sc, borderLeftWidth: 3 }]}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
+                          <View style={[{ backgroundColor: `${sc}18`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
+                            <Text style={[{ color: sc, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
+                          </View>
+                        </View>
+                        <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]} numberOfLines={1}>
+                          {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
+                          {items.length > 3 ? ` +${items.length - 3} more` : ''}
+                        </Text>
                       </View>
-                    </View>
-                    <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]} numberOfLines={1}>
-                      {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
-                      {items.length > 3 ? ` +${items.length - 3} more` : ''}
-                    </Text>
-                  </View>
-                  <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+                      <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </>
+        )}
 
         {/* Pending tasks */}
         {urgentTasks.length > 0 && (

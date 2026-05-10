@@ -10,12 +10,17 @@ export interface NewOrderInfo {
   createdAt: string;
 }
 
-export function useOrderNotifications(onNewOrders: (orders: NewOrderInfo[]) => void) {
+export function useOrderNotifications(
+  onNewOrders: (orders: NewOrderInfo[]) => void,
+  options?: { enabled?: boolean },
+) {
+  const enabled = options?.enabled ?? true;
   const seenIds = useRef<Set<string>>(new Set());
   const isFirstFetch = useRef(true);
 
   useQuery({
     queryKey: ['staff-orders-notify'],
+    enabled,
     queryFn: async () => {
       const res = await api.staff.allOrders();
       const orders: any[] = res.data ?? [];
@@ -41,7 +46,7 @@ export function useOrderNotifications(onNewOrders: (orders: NewOrderInfo[]) => v
       isFirstFetch.current = false;
       return orders;
     },
-    refetchInterval: 20000,
+    refetchInterval: enabled ? 20000 : false,
     retry: 1,
   });
 }
