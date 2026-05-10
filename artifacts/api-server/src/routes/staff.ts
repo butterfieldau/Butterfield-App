@@ -5,7 +5,7 @@ import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
-router.use(requireRole('staff'));
+router.use(requireRole('staff', 'manager'));
 
 const SHOP_LAT_DEFAULT  = -33.8349;
 const SHOP_LNG_DEFAULT  = 150.9942;
