@@ -25,6 +25,7 @@ import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
+import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { api, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
@@ -259,13 +260,6 @@ export default function CustomerHome() {
     staleTime: 15 * 60 * 1000,
     retry: 1,
   });
-  const { data: ordersData } = useQuery({
-    queryKey: ['orders'],
-    queryFn: () => api.orders.list(),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
-  });
-
   const products       = productsData?.data ?? [];
   const loyaltyPoints  = loyaltyData?.data?.loyaltyPoints ?? 0;
   const loyaltyTier    = loyaltyData?.data?.loyaltyTier ?? 'bronze';
@@ -297,33 +291,7 @@ export default function CustomerHome() {
 
   const liveContext = (contextData?.data ?? null) as LiveContext | null;
 
-  const favouriteCategory = useMemo(() => {
-    const orders = ordersData?.data ?? [];
-    if (orders.length === 0) return null;
-    const productCategoryMap: Record<string, string> = {};
-    for (const p of products) {
-      const cat = p.metadata?.category;
-      if (cat) productCategoryMap[p.id] = cat;
-    }
-    const recent = orders.slice(0, 10);
-    const counts: Record<string, number> = {};
-    for (const order of recent) {
-      for (const item of (order.items ?? [])) {
-        const cat =
-          item.category ??
-          item.metadata?.category ??
-          (item.productId ? productCategoryMap[item.productId] : undefined);
-        if (cat && cat !== 'merch') {
-          counts[cat] = (counts[cat] ?? 0) + (item.quantity ?? 1);
-        }
-      }
-    }
-    const entries = Object.entries(counts);
-    if (entries.length === 0) return null;
-    const total = entries.reduce((s, [, v]) => s + v, 0);
-    const [topCat, topCount] = entries.sort(([, a], [, b]) => b - a)[0];
-    return topCount / total >= 0.4 ? topCat : null;
-  }, [ordersData, products]);
+  const favouriteCategory = useFavouriteCategory(products);
 
   const greeting = useMemo(() => buildGreeting({
     firstName,

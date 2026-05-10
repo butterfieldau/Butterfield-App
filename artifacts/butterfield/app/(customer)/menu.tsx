@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
+import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import SharedProductTile from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -83,6 +84,7 @@ export default function MenuScreen() {
 
   const [search, setSearch]           = useState('');
   const [activeCategory, setActiveCategory] = useState(params.category ?? 'all');
+  const [userChangedCategory, setUserChangedCategory] = useState(false);
   const isSkipQueue = params.skipQueue === '1';
 
   useEffect(() => {
@@ -96,6 +98,14 @@ export default function MenuScreen() {
   });
 
   const products = data?.data ?? [];
+
+  const favouriteCategory = useFavouriteCategory(products);
+
+  useEffect(() => {
+    if (!userChangedCategory && !params.category && favouriteCategory) {
+      setActiveCategory(favouriteCategory);
+    }
+  }, [favouriteCategory, params.category, userChangedCategory]);
 
   const coffeeProducts = useMemo(
     () => products.filter(p => p.metadata?.category === 'coffee').slice(0, 4),
@@ -153,7 +163,7 @@ export default function MenuScreen() {
             return (
               <Pressable
                 key={cat.id}
-                onPress={() => { setActiveCategory(cat.id); setSearch(''); Haptics.selectionAsync(); }}
+                onPress={() => { setUserChangedCategory(true); setActiveCategory(cat.id); setSearch(''); Haptics.selectionAsync(); }}
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
