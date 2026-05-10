@@ -517,7 +517,7 @@ export default function PricingScreen() {
                     <Text style={s.toggleLabel}>Custom pricing enabled</Text>
                     <Switch
                       value={acct.customPricingEnabled}
-                      onValueChange={(v) => assignTier.mutate({ accountId: acct.id, customPricingEnabled: v })}
+                      onValueChange={(v) => assignTier.mutate({ accountId: acct.id, tierId: null, customPricingEnabled: v })}
                       trackColor={{ true: BLUE + '99', false: BORDER }}
                       thumbColor={acct.customPricingEnabled ? BLUE : '#fff'}
                     />

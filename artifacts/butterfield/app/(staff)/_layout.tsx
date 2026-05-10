@@ -21,7 +21,7 @@ export default function StaffLayout() {
 
   useEffect(() => {
     api.staff.profile()
-      .then(r => setCanViewOrders(r?.data?.canViewOrders === true))
+      .then(r => setCanViewOrders((r?.data as any)?.canViewOrders === true))
       .catch(() => setCanViewOrders(false))
       .finally(() => setProfileLoaded(true));
   }, []);

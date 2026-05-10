@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform,
@@ -12,13 +13,10 @@ import { api, type ApiProduct } from '@/lib/api';
 import { useCart } from '@/context/CartContext';
 import { getPalette } from '@/constants/categoryColors';
 
-const BLUE   = '#40C0F2';
-const CARD   = '#FFFFFF';
-const BG     = '#F5F6FA';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const GREEN  = '#22C55E';
+const BORDER = '#E8E8ED';
+const BG     = '#F5F6FA';
 
 interface Props {
   product: ApiProduct | null;
@@ -26,8 +24,8 @@ interface Props {
   onClose: () => void;
 }
 
-type SelectionMap = Record<string, string[]>;   // groupId → [optionId, ...]
-type TextMap      = Record<string, string>;     // groupId → free text
+type SelectionMap = Record<string, string[]>;
+type TextMap      = Record<string, string>;
 
 function formatCents(c: number) {
   return `$${(c / 100).toFixed(2)}`;
@@ -41,7 +39,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   const [textValues, setTextValues]         = useState<TextMap>({});
   const [quantity, setQuantity]             = useState(1);
 
-  // Fetch full product detail (variants + option groups) when sheet opens
   const { data: detailData, isLoading } = useQuery({
     queryKey: ['product-detail', product?.id],
     queryFn:  () => api.products.get(product!.id),
@@ -53,7 +50,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   const variants  = (detail?.variants ?? (product as any)?.variants ?? []) as any[];
   const optGroups = (detail?.optionGroups ?? []) as any[];
 
-  // Reset state when product changes
   useEffect(() => {
     if (!product) return;
     setVariantId(null);
@@ -62,7 +58,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
     setQuantity(1);
   }, [product?.id]);
 
-  // Auto-select first variant + defaults when data loads
   useEffect(() => {
     if (!variants.length) return;
     if (!selectedVariantId) setVariantId(variants[0]?.id ?? null);
@@ -74,16 +69,11 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
     for (const g of optGroups) {
       if (g.selectionType === 'text') continue;
       const defaultOpt = (g.options ?? []).find((o: any) => o.isDefault);
-      if (defaultOpt && !selections[g.id]) {
-        defaults[g.id] = [defaultOpt.id];
-      }
+      if (defaultOpt && !selections[g.id]) defaults[g.id] = [defaultOpt.id];
     }
-    if (Object.keys(defaults).length > 0) {
-      setSelections(prev => ({ ...defaults, ...prev }));
-    }
+    if (Object.keys(defaults).length > 0) setSelections(prev => ({ ...defaults, ...prev }));
   }, [optGroups.length, product?.id]);
 
-  // ── Price calculation ────────────────────────────────────────────────────
   const basePriceCents = useMemo(() => {
     const raw = product as any;
     if (selectedVariantId && variants.length) {
@@ -108,7 +98,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   const unitPriceCents = basePriceCents + optionsTotalCents;
   const totalCents     = unitPriceCents * quantity;
 
-  // ── Option toggle helpers ────────────────────────────────────────────────
   const toggleOption = useCallback((groupId: string, optionId: string, selectionType: string) => {
     Haptics.selectionAsync();
     setSelections(prev => {
@@ -119,7 +108,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
     });
   }, []);
 
-  // ── Add to cart ──────────────────────────────────────────────────────────
   const handleAddToCart = useCallback(() => {
     if (!product) return;
     const raw = product as any;
@@ -138,7 +126,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
         }).filter(Boolean);
       });
 
-    // Append barista notes text groups
     for (const g of optGroups) {
       if (g.selectionType === 'text' && textValues[g.id]?.trim()) {
         selectedOptions.push({
@@ -152,15 +139,15 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
     const selectedVariant = variants.find((v: any) => v.id === selectedVariantId);
 
     addItemToCart({
-      productId:    product.id,
-      productName:  product.name,
-      variantId:    selectedVariantId ?? undefined,
-      variantName:  selectedVariant?.name ?? undefined,
+      productId:   product.id,
+      productName: product.name,
+      variantId:   selectedVariantId ?? undefined,
+      variantName: selectedVariant?.name ?? undefined,
       basePriceCents,
       selectedOptions: selectedOptions as any,
       quantity,
-      imageUrl:     raw.images?.[0] ?? raw.imageUrl,
-      category:     raw.category ?? raw.metadata?.category,
+      imageUrl:    raw.images?.[0] ?? raw.imageUrl,
+      category:    raw.category ?? raw.metadata?.category,
     });
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -169,22 +156,22 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
   if (!product) return null;
 
-  const raw     = product as any;
-  const palette = getPalette(raw.category ?? raw.metadata?.category ?? 'default');
+  const raw      = product as any;
+  const palette  = getPalette(raw.category ?? raw.metadata?.category ?? 'default');
   const imageUrl = raw.images?.[0] ?? raw.imageUrl ?? null;
+  const hasOptions = optGroups.length > 0 || variants.length > 1;
 
-  // ── Render option group ──────────────────────────────────────────────────
   const renderOptionGroup = (g: any) => {
-    const sel = selections[g.id] ?? [];
+    const sel  = selections[g.id] ?? [];
     const opts = (g.options ?? []).filter((o: any) => o.isActive !== false);
 
     if (g.selectionType === 'text') {
       return (
-        <View key={g.id} style={s.groupWrap}>
-          <Text style={[s.groupName, { fontFamily: 'Inter_600SemiBold' }]}>{g.name}</Text>
+        <View key={g.id} style={s.section}>
+          <Text style={s.sectionLabel}>{g.name}</Text>
           <TextInput
-            style={[s.textInput, { fontFamily: 'Inter_400Regular' }]}
-            placeholder="E.g. oat milk, extra hot…"
+            style={s.textInput}
+            placeholder="Add a note for the barista…"
             placeholderTextColor={MUTED}
             value={textValues[g.id] ?? ''}
             onChangeText={v => setTextValues(prev => ({ ...prev, [g.id]: v }))}
@@ -196,11 +183,13 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
     }
 
     return (
-      <View key={g.id} style={s.groupWrap}>
-        <View style={s.groupHeader}>
-          <Text style={[s.groupName, { fontFamily: 'Inter_600SemiBold' }]}>{g.name}</Text>
-          {g.isRequired && <View style={s.reqBadge}><Text style={s.reqText}>Required</Text></View>}
-          {g.selectionType === 'multi' && <Text style={[s.groupHint, { fontFamily: 'Inter_400Regular' }]}>Select all that apply</Text>}
+      <View key={g.id} style={s.section}>
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionLabel}>{g.name}</Text>
+          {g.isRequired
+            ? <View style={s.reqBadge}><Text style={s.reqText}>Required</Text></View>
+            : <Text style={s.optionalText}>{g.selectionType === 'multi' ? 'Choose any' : 'Optional'}</Text>
+          }
         </View>
         <View style={s.pillRow}>
           {opts.map((opt: any) => {
@@ -210,13 +199,17 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
               <Pressable
                 key={opt.id}
                 onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
-                style={[s.optPill, { backgroundColor: active ? BLUE : BG, borderColor: active ? BLUE : BORDER }]}
+                style={[
+                  s.optPill,
+                  active && { backgroundColor: palette.banner, borderColor: palette.banner },
+                ]}
               >
-                <Text style={[s.optPillText, { color: active ? '#fff' : TEXT, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                {active && <Feather name="check" size={12} color="#fff" style={{ marginRight: 2 }} />}
+                <Text style={[s.optPillText, active && { color: '#fff', fontFamily: 'Inter_600SemiBold' }]}>
                   {opt.name}
                 </Text>
                 {adj !== 0 && (
-                  <Text style={[s.optPriceAdj, { color: active ? 'rgba(255,255,255,0.85)' : MUTED, fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[s.optPriceAdj, active && { color: 'rgba(255,255,255,0.8)' }]}>
                     {adj > 0 ? `+${formatCents(adj)}` : formatCents(adj)}
                   </Text>
                 )}
@@ -235,106 +228,160 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       presentationStyle="overFullScreen"
       transparent
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <View style={s.overlay}>
         <Pressable style={s.backdrop} onPress={onClose} />
 
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}
+          style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
         >
-          {/* Handle bar */}
+          {/* ── Handle ─────────────────────────────────────────────── */}
           <View style={s.handleWrap}>
             <View style={s.handle} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Product hero */}
-            <View style={[s.hero, { backgroundColor: imageUrl ? '#F0EDE8' : palette.bg }]}>
-              {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={s.heroImg} contentFit="cover" />
-              ) : (
-                <Text style={s.heroEmoji}>{palette.emoji}</Text>
+          {/* ── Product Header ─────────────────────────────────────── */}
+          {imageUrl ? (
+            /* Full image header */
+            <View style={s.imageHeader}>
+              <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.72)']}
+                style={s.imageOverlay}
+              >
+                <Pressable onPress={onClose} style={s.closeBtn}>
+                  <Feather name="x" size={18} color="#fff" />
+                </Pressable>
+                <View style={s.imageHeaderInfo}>
+                  <Text style={s.imageProductName} numberOfLines={2}>{product.name}</Text>
+                  {product.description ? (
+                    <Text style={s.imageProductDesc} numberOfLines={2}>{product.description}</Text>
+                  ) : null}
+                </View>
+              </LinearGradient>
+            </View>
+          ) : (
+            /* Compact no-image header */
+            <View style={[s.compactHeader, { backgroundColor: palette.bg }]}>
+              <View style={s.compactHeaderInner}>
+                <Text style={s.compactEmoji}>{palette.emoji}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.compactName, { color: palette.banner }]}>{product.name}</Text>
+                  {product.description ? (
+                    <Text style={s.compactDesc} numberOfLines={2}>{product.description}</Text>
+                  ) : null}
+                </View>
+              </View>
+              <Pressable onPress={onClose} style={[s.compactClose, { backgroundColor: `${palette.banner}18` }]}>
+                <Feather name="x" size={16} color={palette.banner} />
+              </Pressable>
+            </View>
+          )}
+
+          {/* ── Scrollable body ─────────────────────────────────────── */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 12 }}
+          >
+            {/* Price + size strip */}
+            <View style={s.priceStrip}>
+              <View>
+                <Text style={s.priceLabel}>Price</Text>
+                <Text style={[s.priceValue, { color: palette.banner }]}>{formatCents(basePriceCents)}</Text>
+              </View>
+              {optionsTotalCents !== 0 && (
+                <View style={s.optionsAdj}>
+                  <Text style={s.optionsAdjText}>
+                    Options {optionsTotalCents > 0 ? '+' : ''}{formatCents(optionsTotalCents)}
+                  </Text>
+                </View>
               )}
+              {/* Quantity stepper in price strip */}
+              <View style={s.qtyStepper}>
+                <Pressable
+                  onPress={() => { if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
+                  style={[s.qtyBtn, { opacity: quantity <= 1 ? 0.35 : 1 }]}
+                  hitSlop={8}
+                >
+                  <Feather name="minus" size={16} color={TEXT} />
+                </Pressable>
+                <Text style={s.qtyNum}>{quantity}</Text>
+                <Pressable
+                  onPress={() => { setQuantity(q => q + 1); Haptics.selectionAsync(); }}
+                  style={s.qtyBtn}
+                  hitSlop={8}
+                >
+                  <Feather name="plus" size={16} color={TEXT} />
+                </Pressable>
+              </View>
             </View>
 
-            <View style={s.body}>
-              {/* Title + base price */}
-              <View style={s.titleRow}>
-                <Text style={[s.productName, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
-                <Text style={[s.basePrice, { fontFamily: 'Inter_600SemiBold', color: palette.banner }]}>
-                  {formatCents(basePriceCents)}
+            {/* Variants (size) */}
+            {variants.length > 1 && (
+              <View style={s.section}>
+                <Text style={s.sectionLabel}>Size</Text>
+                <View style={s.variantRow}>
+                  {variants.map((v: any) => {
+                    const active = selectedVariantId === v.id;
+                    return (
+                      <Pressable
+                        key={v.id}
+                        onPress={() => { setVariantId(v.id); Haptics.selectionAsync(); }}
+                        style={[s.variantCard, active && { borderColor: palette.banner, backgroundColor: `${palette.banner}0D` }]}
+                      >
+                        <Text style={[s.variantName, { color: active ? palette.banner : TEXT, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                          {v.name}
+                        </Text>
+                        <Text style={[s.variantPrice, { color: active ? palette.banner : MUTED }]}>
+                          {formatCents(v.priceCents)}
+                        </Text>
+                        {active && (
+                          <View style={[s.variantCheck, { backgroundColor: palette.banner }]}>
+                            <Feather name="check" size={10} color="#fff" />
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Options */}
+            {isLoading && !optGroups.length ? (
+              <View style={{ paddingVertical: 28, alignItems: 'center', gap: 8 }}>
+                <ActivityIndicator color={palette.banner} />
+                <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>Loading options…</Text>
+              </View>
+            ) : (
+              optGroups.map(renderOptionGroup)
+            )}
+
+            {!hasOptions && !isLoading && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+                <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
+                  No customisations for this item.
                 </Text>
               </View>
-              {product.description ? (
-                <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>{product.description}</Text>
-              ) : null}
-
-              {/* ── Variants ─────────────────────────────────────────── */}
-              {variants.length > 1 && (
-                <View style={s.groupWrap}>
-                  <Text style={[s.groupName, { fontFamily: 'Inter_600SemiBold' }]}>Size</Text>
-                  <View style={s.pillRow}>
-                    {variants.map((v: any) => {
-                      const active = selectedVariantId === v.id;
-                      return (
-                        <Pressable
-                          key={v.id}
-                          onPress={() => { setVariantId(v.id); Haptics.selectionAsync(); }}
-                          style={[s.variantPill, { backgroundColor: active ? TEXT : BG, borderColor: active ? TEXT : BORDER }]}
-                        >
-                          <Text style={[s.variantPillText, { color: active ? '#fff' : TEXT, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
-                            {v.name}
-                          </Text>
-                          <Text style={[s.variantPrice, { color: active ? 'rgba(255,255,255,0.8)' : MUTED, fontFamily: 'Inter_400Regular' }]}>
-                            {formatCents(v.priceCents)}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
-              {/* ── Option groups ─────────────────────────────────────── */}
-              {isLoading && !optGroups.length ? (
-                <View style={{ padding: 24, alignItems: 'center' }}>
-                  <ActivityIndicator color={BLUE} />
-                  <Text style={[s.loadingText, { fontFamily: 'Inter_400Regular' }]}>Loading options…</Text>
-                </View>
-              ) : (
-                optGroups.map(renderOptionGroup)
-              )}
-
-              {/* ── Quantity stepper ──────────────────────────────────── */}
-              <View style={s.qtyRow}>
-                <Text style={[s.qtyLabel, { fontFamily: 'Inter_600SemiBold' }]}>Quantity</Text>
-                <View style={s.qtyStepper}>
-                  <Pressable
-                    onPress={() => { if (quantity > 1) { setQuantity(q => q - 1); Haptics.selectionAsync(); } }}
-                    style={[s.qtyBtn, { opacity: quantity <= 1 ? 0.3 : 1 }]}
-                  >
-                    <Text style={[s.qtyBtnText, { fontFamily: 'Inter_700Bold' }]}>–</Text>
-                  </Pressable>
-                  <Text style={[s.qtyNum, { fontFamily: 'Inter_700Bold' }]}>{quantity}</Text>
-                  <Pressable
-                    onPress={() => { setQuantity(q => q + 1); Haptics.selectionAsync(); }}
-                    style={s.qtyBtn}
-                  >
-                    <Text style={[s.qtyBtnText, { fontFamily: 'Inter_700Bold' }]}>+</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
+            )}
           </ScrollView>
 
-          {/* ── Footer: add to cart ─────────────────────────────────── */}
-          <View style={s.footer}>
-            <Pressable style={[s.addBtn, { backgroundColor: palette.banner }]} onPress={handleAddToCart}>
-              <Text style={[s.addBtnText, { fontFamily: 'Inter_700Bold' }]}>
-                Add to Cart · {formatCents(totalCents)}
-              </Text>
-              <Feather name="shopping-bag" size={18} color="#fff" />
+          {/* ── Add to Cart footer ──────────────────────────────────── */}
+          <View style={[s.footer, { borderTopColor: BORDER }]}>
+            <Pressable
+              style={[s.addBtn, { backgroundColor: palette.banner }]}
+              onPress={handleAddToCart}
+            >
+              <View style={s.addBtnLeft}>
+                <View style={s.qtyBubble}>
+                  <Text style={s.qtyBubbleText}>{quantity}</Text>
+                </View>
+                <Text style={s.addBtnText}>Add to Cart</Text>
+              </View>
+              <Text style={s.addBtnPrice}>{formatCents(totalCents)}</Text>
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -344,41 +391,70 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 }
 
 const s = StyleSheet.create({
-  overlay:        { flex: 1, justifyContent: 'flex-end' },
-  backdrop:       { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.42)' },
-  sheet:          { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%', overflow: 'hidden' },
-  handleWrap:     { alignItems: 'center', paddingVertical: 10 },
-  handle:         { width: 38, height: 4, borderRadius: 2, backgroundColor: BORDER },
-  hero:           { height: 200, alignItems: 'center', justifyContent: 'center' },
-  heroImg:        { width: '100%', height: '100%' },
-  heroEmoji:      { fontSize: 80 },
-  body:           { paddingHorizontal: 20, paddingTop: 20, gap: 4 },
-  titleRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  productName:    { fontSize: 22, color: TEXT, flex: 1 },
-  basePrice:      { fontSize: 20 },
-  desc:           { fontSize: 14, color: MUTED, lineHeight: 20, marginBottom: 16 },
-  groupWrap:      { marginTop: 20 },
-  groupHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  groupName:      { fontSize: 15, color: TEXT, marginBottom: 10 },
-  groupHint:      { fontSize: 11, color: MUTED },
-  reqBadge:       { backgroundColor: '#FEF3C7', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  reqText:        { fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' },
-  pillRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  optPill:        { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5 },
-  optPillText:    { fontSize: 13 },
-  optPriceAdj:    { fontSize: 11 },
-  variantPill:    { alignItems: 'center', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22, borderWidth: 1.5, gap: 2 },
-  variantPillText:{ fontSize: 14 },
-  variantPrice:   { fontSize: 12 },
-  textInput:      { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, minHeight: 70, textAlignVertical: 'top' },
-  loadingText:    { color: MUTED, fontSize: 13, marginTop: 8 },
-  qtyRow:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 12, paddingVertical: 16, borderTopWidth: 1, borderTopColor: BORDER },
-  qtyLabel:       { fontSize: 15, color: TEXT },
-  qtyStepper:     { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  qtyBtn:         { width: 42, height: 42, borderRadius: 21, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER },
-  qtyBtnText:     { fontSize: 20, color: TEXT },
-  qtyNum:         { fontSize: 18, color: TEXT, width: 48, textAlign: 'center' },
-  footer:         { paddingHorizontal: 20, paddingTop: 12 },
-  addBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 56, borderRadius: 28 },
-  addBtnText:     { fontSize: 17, color: '#fff' },
+  overlay:      { flex: 1, justifyContent: 'flex-end' },
+  backdrop:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+  sheet:        { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', overflow: 'hidden' },
+
+  handleWrap:   { alignItems: 'center', paddingTop: 10, paddingBottom: 4 },
+  handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER },
+
+  // Image header
+  imageHeader:   { height: 200, position: 'relative' },
+  imageOverlay:  { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'flex-end', padding: 16, paddingBottom: 14 },
+  imageHeaderInfo: { flex: 1 },
+  imageProductName: { fontSize: 22, color: '#fff', fontFamily: 'Inter_700Bold', lineHeight: 28 },
+  imageProductDesc: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', marginTop: 4, lineHeight: 18 },
+  closeBtn:      { position: 'absolute', top: 12, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+
+  // Compact (no-image) header
+  compactHeader:      { paddingHorizontal: 16, paddingVertical: 16 },
+  compactHeaderInner: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  compactEmoji:       { fontSize: 44, lineHeight: 52 },
+  compactName:        { fontSize: 20, fontFamily: 'Inter_700Bold', lineHeight: 26 },
+  compactDesc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', marginTop: 3, lineHeight: 18 },
+  compactClose:       { position: 'absolute', top: 12, right: 12, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+
+  // Price strip
+  priceStrip:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 8 },
+  priceLabel:   { fontSize: 11, color: MUTED, fontFamily: 'Inter_500Medium', textTransform: 'uppercase', letterSpacing: 0.4 },
+  priceValue:   { fontSize: 22, fontFamily: 'Inter_700Bold', marginTop: 1 },
+  optionsAdj:   { flex: 1, paddingLeft: 4 },
+  optionsAdjText: { fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' },
+
+  // Qty stepper (in strip)
+  qtyStepper:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+  qtyBtn:       { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  qtyNum:       { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 30, textAlign: 'center' },
+
+  // Variants
+  section:      { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
+  sectionHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sectionLabel: { fontSize: 14, color: TEXT, fontFamily: 'Inter_700Bold', marginBottom: 10 },
+  optionalText: { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' },
+  reqBadge:     { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  reqText:      { fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' },
+
+  variantRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  variantCard:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 11, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff', position: 'relative' },
+  variantName:  { fontSize: 14 },
+  variantPrice: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  variantCheck: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+
+  // Option pills
+  pillRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  optPill:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },
+  optPillText:  { fontSize: 13, color: TEXT, fontFamily: 'Inter_400Regular' },
+  optPriceAdj:  { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' },
+
+  // Barista notes
+  textInput:    { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', minHeight: 72, textAlignVertical: 'top' },
+
+  // Footer CTA
+  footer:       { paddingHorizontal: 16, paddingTop: 14, borderTopWidth: 1 },
+  addBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 58, borderRadius: 18, paddingHorizontal: 18 },
+  addBtnLeft:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  qtyBubble:    { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  qtyBubbleText:{ fontSize: 14, color: '#fff', fontFamily: 'Inter_700Bold' },
+  addBtnText:   { fontSize: 17, color: '#fff', fontFamily: 'Inter_700Bold' },
+  addBtnPrice:  { fontSize: 17, color: '#fff', fontFamily: 'Inter_600SemiBold', opacity: 0.9 },
 });

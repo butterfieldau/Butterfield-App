@@ -144,7 +144,7 @@ export default function LoyaltyScreen() {
       Alert.alert('Not enough points', `You need ${reward.pointsCost - pts} more points.`);
       return;
     }
-    Alert.alert('Redeem Reward', `Redeem "${reward.name}" for ${reward.pointsCost} points?`, [
+    Alert.alert('Redeem Reward', `Redeem "${reward.title}" for ${reward.pointsCost} points?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Redeem', onPress: async () => {
@@ -155,7 +155,7 @@ export default function LoyaltyScreen() {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
             qc.invalidateQueries({ queryKey: ['loyalty-transactions'] });
-            Alert.alert('Redeemed! 🎉', `Show "${reward.name}" to the team at Butterfield.`);
+            Alert.alert('Redeemed! 🎉', `Show "${reward.title}" to the team at Butterfield.`);
           } catch (e: any) {
             Alert.alert('Error', e.message);
           } finally {
@@ -287,10 +287,10 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          {profile?.birthday ? (
+          {(profile as any)?.birthday ? (
             // ── Birthday set: countdown card matching coffee card layout ────
             (() => {
-              const bdInfo = getBirthdayInfo(profile.birthday!);
+              const bdInfo = getBirthdayInfo((profile as any).birthday!);
               const isBd = bdInfo.isBirthday;
               return (
                 <View style={[
@@ -351,24 +351,24 @@ export default function LoyaltyScreen() {
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {rewards.map((r) => {
                 const canRedeem = pts >= r.pointsCost;
-                const isLocked = r.category === 'tier' && !canRedeem;
+                const isLocked = r.type === 'tier' && !canRedeem;
                 return (
                   <View key={r.id} style={styles.rewardCard}>
                     <View style={[styles.rewardIcon, { backgroundColor: '#EEF2FB' }]}>
-                      <Feather name={r.category === 'tier' ? 'lock' : 'tag'} size={18} color={BRAND} />
+                      <Feather name={r.type === 'tier' ? 'lock' : 'tag'} size={18} color={BRAND} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.rewardName, { fontFamily: 'Inter_600SemiBold' }]}>{r.name}</Text>
-                        {r.category === 'tier' && (
+                        <Text style={[styles.rewardName, { fontFamily: 'Inter_600SemiBold' }]}>{r.title}</Text>
+                        {r.type === 'tier' && (
                           <View style={[styles.tierTag, { backgroundColor: '#F59E0B' }]}>
                             <Text style={[styles.tierTagText, { fontFamily: 'Inter_700Bold' }]}>Gold</Text>
                           </View>
                         )}
                       </View>
                       <Text style={[styles.rewardDesc, { fontFamily: 'Inter_400Regular' }]}>{r.description}</Text>
-                      <Text style={[styles.rewardPts, { fontFamily: 'Inter_600SemiBold', color: r.category === 'tier' ? MUTED : BRAND }]}>
-                        {r.category === 'tier' ? 'Tier perk' : `${r.pointsCost} pts`}
+                      <Text style={[styles.rewardPts, { fontFamily: 'Inter_600SemiBold', color: r.type === 'tier' ? MUTED : BRAND }]}>
+                        {r.type === 'tier' ? 'Tier perk' : `${r.pointsCost} pts`}
                       </Text>
                     </View>
                     {isLocked ? (

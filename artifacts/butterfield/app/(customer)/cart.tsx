@@ -654,9 +654,9 @@ export default function CartScreen() {
       <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
         {items.map((item) => (
-          <View key={item.product.id} style={styles.paymentItem}>
-            <Text style={[styles.paymentItemName, { color: TEXT }]}>{item.product.name} × {item.quantity}</Text>
-            <Text style={[styles.paymentItemPrice, { color: MUTED }]}>AUD {(item.product.price * item.quantity).toFixed(2)}</Text>
+          <View key={item.cartItemId} style={styles.paymentItem}>
+            <Text style={[styles.paymentItemName, { color: TEXT }]}>{item.productName} × {item.quantity}</Text>
+            <Text style={[styles.paymentItemPrice, { color: MUTED }]}>AUD {((item.unitPriceCents / 100) * item.quantity).toFixed(2)}</Text>
           </View>
         ))}
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />

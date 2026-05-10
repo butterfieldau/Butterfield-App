@@ -79,7 +79,7 @@ function fmtShort(iso: string) {
   };
 }
 
-type StageItem = typeof STAGES_PICKUP[0];
+type StageItem = typeof STAGES_PICKUP[0] | typeof STAGES_DELIVERY[0];
 
 // ── Animated progress step ───────────────────────────────────────────────────
 function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageItem; index: number; currentIndex: number; totalStages: number }) {
@@ -265,10 +265,10 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
 
                 {/* Totals */}
                 <View style={{ borderTopWidth: 1, borderTopColor: BORDER, marginTop: 12, paddingTop: 12, gap: 6 }}>
-                  {order.loyaltyPointsRedeemed > 0 && (
+                  {(order.loyaltyPointsUsed ?? 0) > 0 && (
                     <View style={d.totalRow}>
                       <Text style={[d.totalLabel, { color: MUTED }]}>Points redeemed</Text>
-                      <Text style={[d.totalVal, { color: '#22C55E' }]}>−{order.loyaltyPointsRedeemed} pts</Text>
+                      <Text style={[d.totalVal, { color: '#22C55E' }]}>−{order.loyaltyPointsUsed} pts</Text>
                     </View>
                   )}
                   <View style={d.totalRow}>

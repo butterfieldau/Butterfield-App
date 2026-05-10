@@ -68,7 +68,7 @@ export default function EditDetailsScreen() {
 
   // Track whether the birthday was already saved when this screen opened.
   // Once locked the field becomes read-only and the API will also reject changes.
-  const birthdayLocked = Boolean(loyaltyData?.data?.birthday);
+  const birthdayLocked = Boolean((loyaltyData?.data as any)?.birthday);
 
   // Populate fields once data arrives
   useEffect(() => {
@@ -79,12 +79,12 @@ export default function EditDetailsScreen() {
   }, [meData?.user?.name, meData?.user?.phone]);
 
   useEffect(() => {
-    const bd = loyaltyData?.data?.birthday;
+    const bd = (loyaltyData?.data as any)?.birthday;
     if (bd) {
       const [y, m, d] = bd.split('-');
       setBirthday(`${d}/${m}/${y}`);
     }
-  }, [loyaltyData?.data?.birthday]);
+  }, [(loyaltyData?.data as any)?.birthday]);
 
   const handleSave = async () => {
     if (!name.trim()) {
