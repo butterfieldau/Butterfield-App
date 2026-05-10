@@ -84,6 +84,13 @@ export default function MoreScreen() {
 
   const store: Row[] = [
     {
+      icon: 'map-pin',
+      label: 'Store Locations',
+      sub: 'Manage locations, hours & geofence',
+      color: BLUE,
+      onPress: () => router.push('/(director)/stores' as any),
+    },
+    {
       icon: 'settings',
       label: 'Store Settings',
       sub: 'Open/close, geo-fence, daily special',

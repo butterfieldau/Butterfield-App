@@ -101,7 +101,8 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     finally { setSaving(false); }
   };
 
-  const [showLeave, setShowLeave] = useState(false);
+  const [showLeave,        setShowLeave]        = useState(false);
+  const [showAssignments,  setShowAssignments]  = useState(false);
 
   const inits = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -131,6 +132,63 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     enabled: showLeave && !!userId,
   });
   const leaveRequests: any[] = leaveData?.data ?? [];
+
+  // Store assignments
+  const { data: assignData, isLoading: assignLoading, refetch: refetchAssign } = useQuery({
+    queryKey: ['director-staff-assignments', userId],
+    queryFn: () => api.director.staffAssignments(userId!),
+    enabled: showAssignments && !!userId,
+  });
+  const staffAssignments: any[] = assignData?.data ?? [];
+
+  const { data: allStoresData } = useQuery({
+    queryKey: ['director-stores'],
+    queryFn: () => api.director.storesList(),
+    staleTime: 60000,
+  });
+  const allStores: any[] = allStoresData?.data ?? [];
+
+  const handleAddAssignment = () => {
+    const activeStores = allStores.filter(s => s.status !== 'closed');
+    const assigned = staffAssignments.map(a => a.storeId);
+    const available = activeStores.filter(s => !assigned.includes(s.storeId ?? s.id));
+    if (available.length === 0) {
+      Alert.alert('No stores', 'All active stores are already assigned, or no stores are configured.');
+      return;
+    }
+    const opts = available.map(s => ({
+      text: `${s.name}${s.suburb ? ` – ${s.suburb}` : ''}`,
+      onPress: async () => {
+        try {
+          await api.director.createAssignment({ staffId: userId!, storeId: s.id });
+          refetchAssign();
+        } catch (e: any) { Alert.alert('Error', e.message); }
+      },
+    }));
+    Alert.alert('Assign to Store', 'Select a store to assign this staff member to:', [
+      ...opts, { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  };
+
+  const handleRemoveAssignment = (assignId: string, storeName: string) => {
+    Alert.alert('Remove Assignment', `Remove assignment to ${storeName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try {
+          await api.director.deleteAssignment(assignId);
+          refetchAssign();
+        } catch (e: any) { Alert.alert('Error', e.message); }
+      }},
+    ]);
+  };
+
+  const handleSetPrimary = async (assignId: string) => {
+    try {
+      await api.director.updateAssignment(assignId, { isPrimary: true });
+      refetchAssign();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
 
   const clockInMut = useMutation({
     mutationFn: () => api.director.staffClockIn(userId!),
@@ -443,6 +501,21 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   <Feather name="chevron-right" size={16} color={MUTED} />
                 </Pressable>
 
+                {/* Store Assignments */}
+                <Pressable style={[sp_s.menuRow, { borderTopWidth: 1, borderTopColor: BORDER }]}
+                  onPress={() => { Haptics.selectionAsync(); setShowAssignments(v => !v); }}>
+                  <Feather name="map-pin" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={sp_s.menuLabel}>Store Assignments</Text>
+                    <Text style={sp_s.menuSub}>
+                      {staffAssignments.length > 0
+                        ? `${staffAssignments.length} store${staffAssignments.length !== 1 ? 's' : ''} assigned`
+                        : 'No stores assigned — can clock in anywhere'}
+                    </Text>
+                  </View>
+                  <Feather name={showAssignments ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+
                 {/* Journals placeholder */}
                 <Pressable style={sp_s.menuRow}
                   onPress={() => Alert.alert('Journals', 'Staff journals and notes coming soon.')}>
@@ -498,6 +571,73 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                           </View>
                         );
                       })}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* ── Store assignments (expandable) ───────────────────── */}
+              {showAssignments && (
+                <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <Text style={sp_s.sectionLabel}>STORE ASSIGNMENTS</Text>
+                    <Pressable
+                      onPress={handleAddAssignment}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: NAVY + '12', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                    >
+                      <Feather name="plus" size={13} color={NAVY} />
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: NAVY }}>Assign Store</Text>
+                    </Pressable>
+                  </View>
+                  {assignLoading ? (
+                    <ActivityIndicator color={BLUE} />
+                  ) : staffAssignments.length === 0 ? (
+                    <View style={[sp_s.infoCard, { padding: 20, alignItems: 'center', gap: 8 }]}>
+                      <Feather name="map-pin" size={24} color={MUTED} />
+                      <Text style={sp_s.menuSub}>No stores assigned</Text>
+                      <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, textAlign: 'center' }}>
+                        Without assignments, this staff member can clock in at any location.
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={sp_s.infoCard}>
+                      {staffAssignments.map((a: any, idx: number) => (
+                        <View key={a.id} style={[
+                          { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+                          idx > 0 && { borderTopWidth: 1, borderTopColor: BORDER },
+                        ]}>
+                          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+                            <Feather name="map-pin" size={16} color={BLUE} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={sp_s.menuLabel} numberOfLines={1}>{a.storeName ?? a.storeId}</Text>
+                              {a.isPrimary && (
+                                <View style={{ backgroundColor: BLUE + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                  <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 9, color: BLUE }}>PRIMARY</Text>
+                                </View>
+                              )}
+                            </View>
+                            {a.storeSuburb && <Text style={sp_s.menuSub}>{a.storeSuburb}</Text>}
+                          </View>
+                          <View style={{ gap: 4 }}>
+                            {!a.isPrimary && (
+                              <Pressable
+                                onPress={() => handleSetPrimary(a.id)}
+                                style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: BLUE }}
+                              >
+                                <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 10, color: BLUE }}>Set Primary</Text>
+                              </Pressable>
+                            )}
+                            <Pressable
+                              onPress={() => handleRemoveAssignment(a.id, a.storeName ?? 'this store')}
+                              style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: RED + '80' }}
+                            >
+                              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 10, color: RED }}>Remove</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      ))}
                     </View>
                   )}
                 </View>

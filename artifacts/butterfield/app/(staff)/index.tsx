@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -113,17 +114,50 @@ export default function StaffDashboard() {
   const handleClockIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     try {
-      const res = await api.staff.clockIn();
+      // Request location for geofence validation
+      let coords: { latitude: number; longitude: number } | undefined;
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        try {
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+        } catch { /* location fetch failed — server will decide based on assignments */ }
+      } else {
+        // Let the user know location is needed if they have store assignments
+        Alert.alert(
+          'Location Required',
+          'Location access helps verify you\'re clocking in at the right store. Please enable it in Settings.',
+          [{ text: 'Continue Anyway', onPress: async () => {
+            try {
+              const res = await api.staff.clockIn(undefined);
+              setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              qc.invalidateQueries({ queryKey: ['current-shift'] });
+              refetchStats();
+              const clockInTime = res?.data?.clockIn ?? new Date().toISOString();
+              cancelClockInReminder(); scheduleClockOutReminder(clockInTime); sendClockInConfirmation();
+            } catch (e2: any) { Alert.alert('Clock-In Error', e2.message); }
+          }},
+          { text: 'Cancel', style: 'cancel' }],
+        );
+        return;
+      }
+
+      const res = await api.staff.clockIn(coords);
       setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['current-shift'] });
       refetchStats();
-      // Notifications: cancel daily clock-in reminder, schedule clock-out reminder, confirm
       const clockInTime = res?.data?.clockIn ?? new Date().toISOString();
       cancelClockInReminder();
       scheduleClockOutReminder(clockInTime);
       sendClockInConfirmation();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+      if (res?.data?.storeName) {
+        Alert.alert('Clocked In ✓', `You are now clocked in at ${res.data.storeName}.`);
+      }
+    } catch (e: any) { Alert.alert('Clock-In Error', e.message); }
   };
 
   const handleClockOut = () => {
@@ -133,7 +167,12 @@ export default function StaffDashboard() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         try {
           const unpaidMins = Math.floor(currentUnpaidMs / 60000);
-          const res = await api.staff.clockOut(unpaidMins);
+          let outCoords: { latitude: number; longitude: number } | undefined;
+          try {
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            outCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          } catch { /* ignore — not blocking */ }
+          const res = await api.staff.clockOut(unpaidMins, outCoords);
           setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
           qc.invalidateQueries({ queryKey: ['current-shift'] });
           refetchStats();

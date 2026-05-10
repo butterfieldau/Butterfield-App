@@ -83,9 +83,11 @@ export const api = {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
     currentShift: () => request<{ data: any }>('/staff/shifts/current'),
     shiftStats:   () => request<{ data: any }>('/staff/shifts/stats'),
-    clockIn:      () => request<{ data: any }>('/staff/shifts/clock-in', { method: 'POST' }),
-    clockOut:     (unpaidBreakMins = 0) =>
-      request<{ data: any }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins }) }),
+    clockIn:      (data?: { storeId?: string; latitude?: number; longitude?: number }) =>
+      request<{ data: any }>('/staff/shifts/clock-in', { method: 'POST', body: JSON.stringify(data ?? {}) }),
+    clockOut:     (unpaidBreakMins = 0, coords?: { latitude: number; longitude: number }) =>
+      request<{ data: any }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins, ...coords }) }),
+    myStoreAssignments: () => request<{ data: any[] }>('/staff/my-store-assignments'),
     tasks:        (category?: string) =>
       request<{ data: any[] }>(`/staff/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
     completeTask: (taskId: string, isCompleted: boolean) =>
@@ -148,6 +150,10 @@ export const api = {
     delete: (id: string) =>
       request<{ success: boolean }>(`/addresses/${id}`, { method: 'DELETE' }),
   },
+  stores: {
+    list: () => request<{ data: any[] }>('/stores'),
+    get:  (id: string) => request<{ data: any }>(`/stores/${id}`),
+  },
   misc: {
     storeStatus: () => request<{ data: { isOpen: boolean; openUntil: string | null; opensAt: string | null; manualOverride: boolean } }>('/store-status'),
     announcements: () => request<{ data: any[] }>('/announcements'),
@@ -176,6 +182,25 @@ export const api = {
     promoteToDirector:   (userId: string) => request<{ data: any }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
     setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
       request<{ data: any }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),
+    // Store management
+    storesList:      () => request<{ data: any[] }>('/director/stores'),
+    storeDetail:     (id: string) => request<{ data: any }>(`/director/stores/${id}`),
+    createStore:     (data: any) => request<{ data: any }>('/director/stores', { method: 'POST', body: JSON.stringify(data) }),
+    updateStore:     (id: string, data: any) => request<{ data: any }>(`/director/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteStore:     (id: string) => request<{ success: boolean }>(`/director/stores/${id}`, { method: 'DELETE' }),
+    storeHours:      (id: string) => request<{ data: any[] }>(`/director/stores/${id}/hours`),
+    setStoreHours:   (id: string, hours: any[]) => request<{ data: any[] }>(`/director/stores/${id}/hours`, { method: 'PUT', body: JSON.stringify({ hours }) }),
+    // Staff-store assignments
+    staffAssignments:(userId: string) => request<{ data: any[] }>(`/director/staff/${userId}/store-assignments`),
+    createAssignment:(data: { staffId: string; storeId: string; isPrimary?: boolean }) =>
+      request<{ data: any }>('/director/store-assignments', { method: 'POST', body: JSON.stringify(data) }),
+    updateAssignment:(id: string, data: { isPrimary?: boolean; isActive?: boolean }) =>
+      request<{ data: any }>(`/director/store-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteAssignment:(id: string) => request<{ success: boolean }>(`/director/store-assignments/${id}`, { method: 'DELETE' }),
+    // Clock override
+    clockOverride:   (data: { userId: string; action: 'clock-in' | 'clock-out'; storeId?: string; reason: string; latitude?: number; longitude?: number }) =>
+      request<{ data: any }>('/director/clock-override', { method: 'POST', body: JSON.stringify(data) }),
+    clockEvents:     () => request<{ data: any[] }>('/director/clock-events'),
     deleteUser:          (userId: string) => request<{ success: boolean }>(`/director/users/${userId}`, { method: 'DELETE' }),
     setWholesaleStatus:  (accountId: string, status: string) => request<{ data: any }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     products:            () => request<{ data: any[] }>('/director/products'),

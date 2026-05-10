@@ -1,0 +1,295 @@
+Build a complete Store Locations + Geofence Clock In/Clock Out system for the Butterfield app.
+
+Currently the app uses longitude and latitude for geofence clock in/out. I need this upgraded so directors can select and manage store locations through a live interactive map, not by manually typing coordinates.
+
+Core Requirement:
+The app must support multiple Butterfield store locations, and every store must be live synced across all portals including Public, Staff, Wholesale and Director portals.
+
+1. Store Location Management
+
+Create a new Director feature called “Store Locations”.
+
+Directors should be able to:
+- Add a new store location
+- Edit an existing store location
+- Delete or deactivate a store location
+- Search for an address using a map/address search
+- Select the exact store location by clicking/pinning on the map
+- Automatically save:
+  - Store name
+  - Full street address
+  - Suburb
+  - State
+  - Postcode
+  - Country
+  - Latitude
+  - Longitude
+  - Geofence radius
+  - Phone number
+  - Email
+  - Opening hours
+  - Store status: Open / Coming Soon / Temporarily Closed / Closed
+  - Store image
+  - Delivery availability
+  - Pickup availability
+  - Public notes
+  - Internal notes
+
+The director should not need to manually enter longitude and latitude. The system should generate this automatically from the selected map address.
+
+2. Map Address Selection
+
+When adding or editing a store, include:
+- Search address field with autocomplete
+- Interactive map
+- Ability to drop or move a pin
+- Automatically calculate latitude and longitude from the selected address
+- Show a preview of the geofence circle on the map
+- Allow directors to adjust the geofence radius in metres
+
+Example:
+Store: Butterfield Merrylands
+Address: Mason & Main, Merrylands NSW
+Geofence Radius: 100 metres
+
+3. Staff Store Assignment
+
+Every staff member must be assigned to one or more store locations.
+
+In the Director portal, when adding or editing a staff member, include:
+- Assigned store location
+- Ability to assign multiple stores
+- Primary store
+- Staff role per store if needed
+- Active/inactive status per store
+
+Example:
+Sarah can clock in at Merrylands only.
+Ahmed can clock in at Merrylands and Bankstown.
+A manager can be assigned to multiple stores.
+
+4. Clock In / Clock Out Geofence Rules
+
+Staff should only be able to clock in or clock out if they are physically within the geofence of one of their assigned stores.
+
+The system should:
+- Detect the staff member’s live GPS location
+- Check which stores they are assigned to
+- Compare their location to the store geofence
+- Allow clock in only if they are inside the allowed radius
+- Block clock in if they are outside the allowed radius
+- Show a clear error message:
+  “You are outside your assigned store location. Please move closer to the store to clock in.”
+
+When clocking in/out, save:
+- Staff member
+- Store location
+- Date
+- Clock in time
+- Clock out time
+- GPS coordinates at clock in
+- GPS coordinates at clock out
+- Distance from store at clock in
+- Distance from store at clock out
+- Device information if available
+- Any warning or override used
+
+5. Director Override
+
+Directors should be able to:
+- Manually clock a staff member in or out
+- Approve a missed clock in/out
+- Override a geofence block
+- Add a reason for the override
+- View all override history
+
+Every override must be logged and visible to directors only.
+
+6. Live Sync Across All Portals
+
+When a director adds, edits or removes a store location, it must automatically update across:
+
+Public customer portal:
+- Store list
+- Store details page
+- Opening hours
+- Address
+- Phone number
+- Pickup availability
+- Delivery availability
+- Coming soon stores
+- Map directions button
+
+Staff portal:
+- Available assigned stores
+- Clock in/out location rules
+- Store-specific roster or shift view
+- Store details
+
+Wholesale portal:
+- Pickup store options
+- Delivery store/dispatch options if needed
+- Store contact details
+
+Director portal:
+- Full store management
+- Staff assignment
+- Clock in/out reports by store
+- Sales/orders by store in future
+
+7. Public Store Display
+
+In the customer/public side of the app, create a “Stores” section.
+
+Each store should show:
+- Store name
+- Full address
+- Opening hours
+- Phone number
+- Store status
+- Pickup available yes/no
+- Delivery available yes/no
+- Store image
+- Directions button
+- Call button
+- Order from this store button if available
+
+If a new store is added in the backend, it should automatically appear here without needing to manually update the public app.
+
+8. Opening Hours
+
+Each store should have its own opening hours.
+
+Directors should be able to set:
+- Monday to Sunday opening hours
+- Split trading hours if needed
+- Public holiday hours
+- Temporary closures
+- Special hours
+- Notes like “Open late tonight” or “Closed for maintenance”
+
+The public store list should always show the correct live opening status:
+- Open now
+- Closed now
+- Opens at 6:30am
+- Closing soon
+- Temporarily closed
+- Coming soon
+
+9. Database Structure
+
+Create proper database tables or collections for:
+
+stores:
+- id
+- name
+- slug
+- address
+- suburb
+- state
+- postcode
+- country
+- latitude
+- longitude
+- geofenceRadius
+- phone
+- email
+- imageUrl
+- status
+- pickupAvailable
+- deliveryAvailable
+- publicNotes
+- internalNotes
+- createdAt
+- updatedAt
+
+storeOpeningHours:
+- id
+- storeId
+- dayOfWeek
+- openTime
+- closeTime
+- isClosed
+- splitShiftTimes if needed
+
+staffStoreAssignments:
+- id
+- staffId
+- storeId
+- role
+- isPrimary
+- isActive
+- createdAt
+
+clockEvents:
+- id
+- staffId
+- storeId
+- clockInTime
+- clockOutTime
+- clockInLatitude
+- clockInLongitude
+- clockOutLatitude
+- clockOutLongitude
+- clockInDistanceFromStore
+- clockOutDistanceFromStore
+- status
+- overrideReason
+- approvedBy
+- createdAt
+
+10. Permissions
+
+Directors:
+- Can add/edit/delete stores
+- Can assign staff to stores
+- Can view all clock in/out records
+- Can override clock in/out
+
+Managers:
+- Can view assigned store staff
+- Can view clock in/out records for their store only
+- Can request corrections
+
+Staff:
+- Can only see stores they are assigned to
+- Can only clock in/out at assigned stores
+- Cannot edit store details
+
+Public customers:
+- Can only see public store information
+- Cannot see staff or internal details
+
+11. Technical Requirements
+
+Use a reliable map provider such as:
+- Google Maps API
+- Mapbox
+- OpenStreetMap with address autocomplete
+
+The system must include:
+- Address autocomplete
+- Reverse geocoding
+- Map pin selection
+- Geofence radius display
+- GPS distance calculation
+- Real-time sync after store updates
+- Mobile responsive design
+- Works properly on iPhone and Android app builds
+
+12. Testing
+
+Test the full flow:
+
+- Director adds a new store using map search
+- Store latitude/longitude saves automatically
+- Store appears in public store list
+- Store appears in staff assignment list
+- Director assigns staff member to that store
+- Staff member can clock in inside the geofence
+- Staff member is blocked outside the geofence
+- Director can override if needed
+- Changing store hours updates public store page instantly
+- Deactivating a store removes it from public view but keeps historical clock in/out records
+
+The final system should feel like a professional multi-location POS/staff management system, not a basic coordinate form.

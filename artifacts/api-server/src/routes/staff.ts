@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable } from '@workspace/db';
+import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180, dl = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
@@ -48,19 +56,104 @@ router.patch('/settings/geo', async (req, res) => {
   return res.json({ data: { radiusMeters } });
 });
 
+// Staff's assigned stores (for geofence UI)
+router.get('/my-store-assignments', async (req, res) => {
+  const rows = await db.select({
+    id: staffStoreAssignmentsTable.id,
+    storeId: staffStoreAssignmentsTable.storeId,
+    isPrimary: staffStoreAssignmentsTable.isPrimary,
+    isActive: staffStoreAssignmentsTable.isActive,
+    name: storesTable.name,
+    suburb: storesTable.suburb,
+    address: storesTable.address,
+    latitude: storesTable.latitude,
+    longitude: storesTable.longitude,
+    geofenceRadius: storesTable.geofenceRadius,
+    status: storesTable.status,
+  }).from(staffStoreAssignmentsTable)
+    .leftJoin(storesTable, eq(staffStoreAssignmentsTable.storeId, storesTable.id))
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  return res.json({ data: rows });
+});
+
 router.post('/shifts/clock-in', async (req, res) => {
+  const { storeId: bodyStoreId, latitude, longitude } = req.body ?? {};
+
   const existing = await db.select().from(staffShiftsTable)
     .where(and(eq(staffShiftsTable.userId, req.user!.id), isNull(staffShiftsTable.clockOut)));
   if (existing.length > 0) {
     return res.status(400).json({ error: 'Already clocked in', shift: existing[0] });
   }
+
+  // Check if demo account — bypass geo enforcement
+  const [userRow] = await db.select({ email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.id, req.user!.id));
+  const isDemoAccount = !!userRow?.email && (
+    userRow.email.endsWith('@demo.com') || userRow.email.includes('+demo')
+  );
+
+  // Fetch active store assignments for this staff member
+  const assignments = await db.select({
+    id: staffStoreAssignmentsTable.id,
+    storeId: staffStoreAssignmentsTable.storeId,
+    isPrimary: staffStoreAssignmentsTable.isPrimary,
+    latitude: storesTable.latitude,
+    longitude: storesTable.longitude,
+    geofenceRadius: storesTable.geofenceRadius,
+    storeName: storesTable.name,
+  }).from(staffStoreAssignmentsTable)
+    .leftJoin(storesTable, eq(staffStoreAssignmentsTable.storeId, storesTable.id))
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+
+  let finalStoreId: string | null = bodyStoreId ?? null;
+  let distanceMeters: number | null = null;
+
+  if (assignments.length > 0 && !isDemoAccount) {
+    if (latitude == null || longitude == null) {
+      return res.status(400).json({ error: 'Location is required. Please enable location access to clock in.' });
+    }
+
+    const inRange = assignments
+      .filter(a => a.latitude != null && a.longitude != null)
+      .map(a => ({ ...a, distance: haversineMeters(latitude, longitude, a.latitude!, a.longitude!) }))
+      .filter(a => a.distance <= (a.geofenceRadius ?? 100))
+      .sort((a, b) => a.distance - b.distance);
+
+    if (inRange.length === 0) {
+      const nearest = assignments
+        .filter(a => a.latitude != null && a.longitude != null)
+        .map(a => ({ ...a, distance: haversineMeters(latitude, longitude, a.latitude!, a.longitude!) }))
+        .sort((a, b) => a.distance - b.distance)[0];
+
+      const msg = nearest
+        ? `You are ${Math.round(nearest.distance)}m from ${nearest.storeName}. You must be within ${nearest.geofenceRadius ?? 100}m to clock in.`
+        : 'You are outside your assigned store location. Please move closer to clock in.';
+      return res.status(403).json({ error: msg, distanceMeters: nearest ? Math.round(nearest.distance) : null });
+    }
+
+    finalStoreId = inRange[0].storeId;
+    distanceMeters = Math.round(inRange[0].distance);
+  }
+
   const [shift] = await db.insert(staffShiftsTable).values({
     id: randomUUID(),
     userId: req.user!.id,
     clockIn: new Date(),
+    storeId: finalStoreId,
+    clockInLat: latitude ?? null,
+    clockInLng: longitude ?? null,
+    clockInDistanceMeters: distanceMeters,
     unpaidBreakMins: 0,
   }).returning();
-  return res.status(201).json({ data: shift });
+
+  const storeName = assignments.find(a => a.storeId === finalStoreId)?.storeName ?? null;
+  return res.status(201).json({ data: { ...shift, storeName } });
 });
 
 router.post('/shifts/clock-out', async (req, res) => {
@@ -75,8 +168,20 @@ router.post('/shifts/clock-out', async (req, res) => {
   const paidMins = Math.max(0, totalMins - unpaidMins);
   const hrs = Math.floor(paidMins / 60);
   const mins = paidMins % 60;
+  const { latitude: coLat, longitude: coLng } = req.body ?? {};
+  const clockOutDist = (coLat != null && coLng != null && active.storeId)
+    ? await (async () => {
+        const [store] = await db.select({ latitude: storesTable.latitude, longitude: storesTable.longitude })
+          .from(storesTable).where(eq(storesTable.id, active.storeId!));
+        return (store?.latitude != null && store?.longitude != null) ? Math.round(haversineMeters(coLat, coLng, store.latitude, store.longitude)) : null;
+      })()
+    : null;
+
   const [shift] = await db.update(staffShiftsTable)
-    .set({ clockOut: now, hoursWorked: `${hrs}h ${mins}m`, unpaidBreakMins: unpaidMins })
+    .set({
+      clockOut: now, hoursWorked: `${hrs}h ${mins}m`, unpaidBreakMins: unpaidMins,
+      clockOutLat: coLat ?? null, clockOutLng: coLng ?? null, clockOutDistanceMeters: clockOutDist,
+    })
     .where(eq(staffShiftsTable.id, active.id))
     .returning();
   return res.json({ data: shift });

@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, boolean, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -23,6 +23,16 @@ export const staffShiftsTable = pgTable("staff_shifts", {
   unpaidBreakMins: integer("unpaid_break_mins").notNull().default(0),
   approvedAt: timestamp("approved_at"),
   approvedById: text("approved_by_id"),
+  storeId:                 text("store_id"),
+  clockInLat:              real("clock_in_lat"),
+  clockInLng:              real("clock_in_lng"),
+  clockInDistanceMeters:   integer("clock_in_distance_meters"),
+  clockOutLat:             real("clock_out_lat"),
+  clockOutLng:             real("clock_out_lng"),
+  clockOutDistanceMeters:  integer("clock_out_distance_meters"),
+  wasOverride:             boolean("was_override").notNull().default(false),
+  overrideReason:          text("override_reason"),
+  approvedBy:              text("approved_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

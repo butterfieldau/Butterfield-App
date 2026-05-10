@@ -294,7 +294,7 @@ export default function CustomerHome() {
       <View style={styles.quickSection}>
         <Pressable
           style={[styles.pickupRow, { backgroundColor: colors.card, borderRadius: colors.radius }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/store'); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(customer)/stores'); }}
         >
           <View style={styles.pickupIconWrap}>
             <Feather name="map-pin" size={20} color="#40C0F2" />
@@ -316,7 +316,7 @@ export default function CustomerHome() {
           {[
             { label: 'Order cookies', icon: 'package'     , bg: '#E6F4FF', color: '#2A80D2', onPress: () => router.push('/(customer)/menu') },
             { label: 'Coffee Club',   icon: 'coffee'      , bg: '#FFE8E8', color: '#C0392B', onPress: () => router.push('/(customer)/loyalty') },
-            { label: 'My order',      icon: 'shopping-bag', bg: '#F5EDE6', color: '#B45309', onPress: () => router.push('/(customer)/cart') },
+            { label: 'Find a store',  icon: 'map-pin'     , bg: '#EEF2FF', color: '#4B72C4', onPress: () => router.push('/(customer)/stores') },
           ].map(({ label, icon, bg, color, onPress }) => (
             <Pressable
               key={label}
