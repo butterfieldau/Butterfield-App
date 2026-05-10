@@ -176,25 +176,14 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
         {/* Tap the backdrop above the sheet to dismiss */}
         <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.32)' }]} onPress={onClose} />
 
-        <Animated.View style={[s.sheet, { height: MAX_SHEET_H, transform: [{ translateY }] }]}>
+        <Animated.View style={[s.sheet, { maxHeight: Math.round(SCREEN_H * 0.88), transform: [{ translateY }] }]}>
 
-          {/* ── Image area: drag here to swipe-dismiss ──────────────── */}
-          <View
-            style={[s.imageArea, { backgroundColor: imageUrl ? '#000' : palette.bg }]}
-            {...panResponder.panHandlers}
-          >
+          {/* ── Image area — also swipe-down to dismiss ─────────────── */}
+          <View style={[s.imageArea, { backgroundColor: imageUrl ? '#000' : palette.bg }]} {...panResponder.panHandlers}>
             {imageUrl
               ? <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-              : (
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.banner, opacity: 0.15 }]} />
-              )
+              : <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.banner, opacity: 0.15 }]} />
             }
-
-            {/* Drag handle */}
-            <View style={s.handleWrap}>
-              <View style={[s.handle, { backgroundColor: imageUrl ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.18)' }]} />
-            </View>
-
             {/* NEW / LIMITED badges */}
             {(isNew || isLimited) && (
               <View style={s.imageBadges}>
@@ -206,6 +195,11 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
           {/* ── White content panel ─────────────────────────────────── */}
           <View style={[s.content, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+
+            {/* Drag handle — tap/swipe down from here to dismiss */}
+            <View style={s.handleWrap} {...panResponder.panHandlers}>
+              <View style={s.handle} />
+            </View>
 
             {/* Name + category badge */}
             <View style={s.nameRow}>
@@ -319,12 +313,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                 );
               })}
 
-              {/* No options placeholder */}
-              {!isLoading && optGroups.length === 0 && variants.length <= 1 && (
-                <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic', marginBottom: 8 }}>
-                  No customisations for this item.
-                </Text>
-              )}
             </ScrollView>
 
             {/* ── Footer: qty stepper + add-to-cart pill ──────────── */}
@@ -376,27 +364,27 @@ const s = StyleSheet.create({
 
   // ── Image header ─────────────────────────────────────────────────────────────
   imageArea:    { height: IMAGE_H, overflow: 'hidden' },
-  handleWrap:   { alignItems: 'center', paddingTop: 10 },
-  handle:       { width: 38, height: 4, borderRadius: 2 },
+  handleWrap:   { alignItems: 'center', paddingTop: 10, paddingBottom: 6 },
+  handle:       { width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)' },
   imageBadges:  { position: 'absolute', bottom: 14, left: 16, flexDirection: 'row', gap: 6 },
   imgBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7 },
   imgBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
 
   // ── White content ─────────────────────────────────────────────────────────────
   content: {
-    flex: 1,
+    flexShrink: 1,
     backgroundColor: '#fff',
-    paddingTop: 18,
     paddingHorizontal: 20,
+    paddingTop: 0,
   },
 
-  nameRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 5 },
+  nameRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 5, marginTop: 14 },
   name:        { flex: 1, fontSize: 26, fontFamily: 'Inter_700Bold', color: TEXT, lineHeight: 32 },
   catChip:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 5 },
   catChipText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
   desc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 18, marginBottom: 14 },
 
-  scroll:    { flex: 1 },
+  scroll:    { flexShrink: 1 },
   group:     { marginBottom: 18 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   groupLabel:{ fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT, marginBottom: 10 },
