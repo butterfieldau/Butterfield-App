@@ -35,7 +35,7 @@ import { getPalette } from '@/constants/categoryColors';
 
 const BG       = '#F5F6FA';
 const CARD     = '#FFFFFF';
-const BLUE     = '#0212EE';
+const BLUE     = '#40C0F2';
 const CHERRY   = '#D20001';
 const TEXT     = '#1C1C1E';
 const MUTED    = '#8E8E93';
@@ -248,7 +248,7 @@ export default function CartScreen() {
   if (confirmation) {
     return (
       <View style={[styles.successWrap, { backgroundColor: BG, paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }]}>
-        <LinearGradient colors={['#0212EE', '#0110CC']} style={styles.successIcon}>
+        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
           <Feather name="check" size={36} color="#fff" />
         </LinearGradient>
         <Text style={styles.successTitle}>Order Received!</Text>
@@ -895,7 +895,7 @@ const styles = StyleSheet.create({
   slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, alignSelf: 'stretch', justifyContent: 'center' },
   slotText:       { fontSize: 14, fontFamily: 'Inter_500Medium' },
   successTotal:   { fontSize: 15, fontFamily: 'Inter_400Regular' },
-  trackBtn:       { backgroundColor: '#0212EE', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
+  trackBtn:       { backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
   trackBtnText:   { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },

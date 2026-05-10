@@ -22,9 +22,9 @@ import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
 
 const BG        = '#F5F6FA';
-const BLUE_CARD = '#0212EE';
-const BLUE_DARK = '#0110CC';
-const BRAND     = '#0212EE';
+const BLUE_CARD = '#40C0F2';
+const BLUE_DARK = '#2AA8DC';
+const BRAND     = '#40C0F2';
 const CHERRY    = '#D20001';
 const WHITE     = '#FFFFFF';
 const TEXT      = '#1C1C1E';

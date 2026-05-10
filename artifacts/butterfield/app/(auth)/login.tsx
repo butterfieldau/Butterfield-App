@@ -19,7 +19,7 @@ try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 
 const BG      = '#F5F6FA';
 const CARD    = '#FFFFFF';
-const BLUE    = '#0212EE';
+const BLUE    = '#40C0F2';
 const NAVY    = '#1A2B4A';
 const TEXT    = '#1C1C1E';
 const MUTED   = '#8E8E93';
@@ -36,7 +36,7 @@ const PUBLIC_ROLES = [
 
 const DEMO_PW = 'Demo1234!';
 const PUBLIC_DEMOS = [
-  { role: 'customer'  as UserRole, label: 'Customer',  email: 'customer@demo.com',  color: '#0212EE', icon: 'coffee'   },
+  { role: 'customer'  as UserRole, label: 'Customer',  email: 'customer@demo.com',  color: '#40C0F2', icon: 'coffee'   },
   { role: 'wholesale' as UserRole, label: 'Wholesale', email: 'wholesale@demo.com', color: '#16A34A', icon: 'package'  },
 ];
 const INTERNAL_DEMOS = [
@@ -261,7 +261,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        <LinearGradient colors={['#0212EE', '#0110CC']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
+        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
           <Image
             source={require('@/assets/images/logo-white.png')}
             style={{ width: 240, height: 88, marginBottom: 4 }}
