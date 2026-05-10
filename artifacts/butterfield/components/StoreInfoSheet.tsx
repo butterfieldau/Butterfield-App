@@ -296,8 +296,8 @@ const s = StyleSheet.create({
   handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginTop: 10, marginBottom: 6 },
 
   // ── Map ──────────────────────────────────────────────────────────────────────
-  mapWrap:    { height: MAP_H, overflow: 'hidden', backgroundColor: '#C8D8E8' },
-  mapOverlay: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  mapWrap:    { height: MAP_H, marginHorizontal: 14, marginBottom: 4, borderRadius: 16, overflow: 'hidden', backgroundColor: '#C8D8E8' },
+  mapOverlay: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
   headerLabel:{ fontFamily: 'Inter_600SemiBold', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
   headerName: { fontFamily: 'Inter_700Bold', fontSize: 17, color: '#fff' },
   statusBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
