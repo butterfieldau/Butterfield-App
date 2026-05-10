@@ -28,7 +28,7 @@ import { buildGreeting } from '@/lib/greetings';
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
-import { api, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
+import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -260,6 +260,12 @@ export default function CustomerHome() {
     staleTime: 15 * 60 * 1000,
     retry: 1,
   });
+  const { data: ordersData } = useQuery({
+    queryKey: ['orders'],
+    queryFn: () => api.orders.list(),
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
   const products       = productsData?.data ?? [];
   const loyaltyPoints  = loyaltyData?.data?.loyaltyPoints ?? 0;
   const loyaltyTier    = loyaltyData?.data?.loyaltyTier ?? 'bronze';
@@ -280,6 +286,31 @@ export default function CustomerHome() {
   const featured = products.filter((p) =>
     activeCategory === 'all' ? true : p.metadata?.category === activeCategory,
   );
+
+  const usualProducts = useMemo<ApiProduct[]>(() => {
+    const orders: ApiOrder[] = ordersData?.data ?? [];
+    if (orders.length === 0 || products.length === 0) return [];
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    const seen = new Set<string>();
+    const result: ApiProduct[] = [];
+    const sorted = [...orders].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    for (const order of sorted) {
+      if (result.length >= 3) break;
+      for (const item of (order.items ?? [])) {
+        if (result.length >= 3) break;
+        const pid = item.productId as string | undefined;
+        if (!pid || seen.has(pid)) continue;
+        const product = productMap.get(pid);
+        if (product) {
+          seen.add(pid);
+          result.push(product);
+        }
+      }
+    }
+    return result;
+  }, [ordersData, products]);
 
   const freshName = (meData?.user as any)?.name ?? user?.name;
   const firstName = freshName?.split(' ')[0] ?? 'there';
@@ -502,6 +533,55 @@ export default function CustomerHome() {
             hasArrow
           />
         </View>
+
+        {/* Your usual */}
+        {usualProducts.length > 0 && (
+          <View style={s.section}>
+            <View style={s.usualHeader}>
+              <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>Your usual</Text>
+              <Text style={[s.usualSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                Tap to reorder
+              </Text>
+            </View>
+            <FlatList
+              data={usualProducts}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(p) => p.id}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
+              renderItem={({ item: p }) => {
+                const pal = getPalette(p.metadata?.category);
+                const img = p.images?.[0] ?? PRODUCT_IMAGES[p.name] ?? null;
+                const price = (p.prices?.[0]?.unit_amount ?? 0) / 100;
+                return (
+                  <Pressable
+                    style={[s.usualCard, { backgroundColor: colors.card }]}
+                    onPress={() => handleTilePress(p)}
+                    android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
+                  >
+                    <View style={[s.usualImgWrap, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
+                      {img
+                        ? <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
+                        : <Text style={{ fontSize: 30 }}>{pal.emoji}</Text>
+                      }
+                    </View>
+                    <View style={s.usualInfo}>
+                      <Text style={[s.usualName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={2}>
+                        {p.name}
+                      </Text>
+                      <Text style={[s.usualPrice, { color: pal.banner, fontFamily: 'Inter_700Bold' }]}>
+                        ${price.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={[s.usualAddBtn, { backgroundColor: CHERRY }]}>
+                      <Feather name="plus" size={16} color="#fff" />
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
 
         {/* Top Sellers */}
         <View style={s.section}>
@@ -726,6 +806,20 @@ const s = StyleSheet.create({
   favName:       { fontSize: 12 },
 
   grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+
+  usualHeader:   { flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  usualSub:      { fontSize: 13 },
+  usualCard: {
+    width: 200, flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: 16, padding: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  usualImgWrap:  { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  usualInfo:     { flex: 1, gap: 2 },
+  usualName:     { fontSize: 13, lineHeight: 17 },
+  usualPrice:    { fontSize: 13 },
+  usualAddBtn:   { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
   // ── QR button (round, white) ─────────────────────────────────────────────
   qrBtn: {
