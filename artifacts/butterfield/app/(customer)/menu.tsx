@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React, { useMemo, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -19,15 +20,17 @@ import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
-const CATEGORIES = [
-  { id: 'all',        label: 'All'      },
-  { id: 'cookies',    label: 'Cookies'  },
-  { id: 'coffee',     label: 'Coffee'   },
-  { id: 'desserts',   label: 'Desserts' },
-  { id: 'sandwiches', label: 'Food'     },
-  { id: 'pastries',   label: 'Pastries' },
-  { id: 'drinks',     label: 'Drinks'   },
-  { id: 'bundles',    label: 'Bundles'  },
+const BLUE = '#40C0F2';
+
+const CATEGORIES: { id: string; label: string; emoji: string }[] = [
+  { id: 'all',        label: 'All',      emoji: '✦'  },
+  { id: 'cookies',    label: 'Cookies',  emoji: '🍪' },
+  { id: 'coffee',     label: 'Coffee',   emoji: '☕' },
+  { id: 'desserts',   label: 'Desserts', emoji: '🍰' },
+  { id: 'sandwiches', label: 'Food',     emoji: '🥪' },
+  { id: 'pastries',   label: 'Pastries', emoji: '🥐' },
+  { id: 'drinks',     label: 'Drinks',   emoji: '🧃' },
+  { id: 'bundles',    label: 'Bundles',  emoji: '🎁' },
 ];
 
 const DIETARY_ICONS: Record<string, string> = {
@@ -45,8 +48,8 @@ function parseArr(val: any): string[] {
 
 function getDisplayPrice(p: ApiProduct): { display: number; was?: number } {
   const raw = p as any;
-  const retail  = (raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0) / 100;
-  const sale    = raw.salePriceCents ? raw.salePriceCents / 100 : null;
+  const retail = (raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0) / 100;
+  const sale   = raw.salePriceCents ? raw.salePriceCents / 100 : null;
   return sale ? { display: sale, was: retail } : { display: retail };
 }
 
@@ -61,56 +64,44 @@ function getChips(p: ApiProduct): string[] {
 
 function ProductTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
   const raw = product as any;
-  const { display, was }  = getDisplayPrice(product);
-  const palette           = getPalette(product.metadata?.category);
-  const chips             = getChips(product);
-  const photoUrl          = product.images?.[0] ?? null;
-  const available         = product.metadata?.available !== 'false';
-  const isNew             = product.metadata?.isNew === 'true';
-  const isLimited         = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
-  const isSoldOut         = !available || raw.isSoldOut;
+  const { display, was } = getDisplayPrice(product);
+  const palette          = getPalette(product.metadata?.category);
+  const chips            = getChips(product);
+  const photoUrl         = product.images?.[0] ?? null;
+  const available        = product.metadata?.available !== 'false';
+  const isNew            = product.metadata?.isNew === 'true';
+  const isLimited        = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
+  const isSoldOut        = !available || raw.isSoldOut;
 
   return (
     <Pressable
       onPress={() => { if (available && !isSoldOut) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
       style={[s.tile, { opacity: isSoldOut ? 0.7 : 1 }]}
     >
-      {/* Image / emoji area */}
       <View style={[s.tileTop, { backgroundColor: photoUrl ? '#F0EDE8' : palette.bg }]}>
-        {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
-        ) : (
-          <Text style={s.tileEmoji}>{palette.emoji}</Text>
-        )}
-
-        {/* Badges */}
+        {photoUrl
+          ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
+          : <Text style={s.tileEmoji}>{palette.emoji}</Text>
+        }
         <View style={s.badgeRow}>
           {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
           {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
         </View>
-
-        {/* Price */}
         <View style={s.pricePill}>
           {was ? <Text style={[s.priceWas, { fontFamily: 'Inter_400Regular' }]}>${was.toFixed(0)}</Text> : null}
           <Text style={[s.priceMain, { fontFamily: 'Inter_700Bold' }]}>${display.toFixed(0)}</Text>
         </View>
-
-        {/* Sold out overlay */}
         {isSoldOut && (
           <View style={s.soldOutOverlay}>
             <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 }}>Sold Out</Text>
           </View>
         )}
-
-        {/* Bottom banner */}
         <View style={[s.bannerStrip, { backgroundColor: photoUrl ? 'rgba(0,0,0,0.42)' : palette.banner }]}>
           <Text style={[s.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>
             In-store Pickup · Merrylands
           </Text>
         </View>
       </View>
-
-      {/* Info area */}
       <View style={s.tileBottom}>
         <View style={s.nameRow}>
           <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
@@ -135,10 +126,45 @@ function ProductTile({ product, onPress }: { product: ApiProduct; onPress: () =>
   );
 }
 
+function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
+  const photoUrl = product.images?.[0] ?? null;
+  const palette  = getPalette('coffee');
+  const raw      = product as any;
+  const cents    = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
+
+  return (
+    <Pressable
+      style={s.frequentTile}
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+    >
+      <View style={[s.frequentImg, { backgroundColor: photoUrl ? '#F0EDE8' : palette.bg }]}>
+        {photoUrl
+          ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
+          : <Text style={{ fontSize: 32 }}>{palette.emoji}</Text>
+        }
+      </View>
+      <View style={{ flex: 1, paddingVertical: 2, gap: 2 }}>
+        <Text style={[s.frequentName, { fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{product.name}</Text>
+        <Text style={[s.frequentPrice, { fontFamily: 'Inter_400Regular' }]}>${(cents / 100).toFixed(2)}</Text>
+      </View>
+      <View style={s.frequentAdd}>
+        <Feather name="plus" size={16} color="#fff" />
+      </View>
+    </Pressable>
+  );
+}
+
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
-  const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const params = useLocalSearchParams<{ category?: string; skipQueue?: string }>();
+
+  const [search, setSearch]           = useState('');
+  const [activeCategory, setActiveCategory] = useState(params.category ?? 'all');
+  const isSkipQueue = params.skipQueue === '1';
+
+  useEffect(() => {
+    if (params.category) setActiveCategory(params.category);
+  }, [params.category]);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['products'],
@@ -148,20 +174,19 @@ export default function MenuScreen() {
 
   const products = data?.data ?? [];
 
+  const coffeeProducts = useMemo(
+    () => products.filter(p => p.metadata?.category === 'coffee').slice(0, 4),
+    [products],
+  );
+
   const filtered = useMemo(() => products.filter(p => {
     const matchCat    = activeCategory === 'all' || p.metadata?.category === activeCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.description ?? '').toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   }), [products, activeCategory, search]);
 
   const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
-
-  const handleTilePress = (p: ApiProduct) => {
-    setCustomizerProduct(p);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const activePalette = getPalette(activeCategory === 'all' ? 'default' : activeCategory);
+  const handleTilePress = (p: ApiProduct) => { setCustomizerProduct(p); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
   return (
     <View style={s.root}>
@@ -170,9 +195,20 @@ export default function MenuScreen() {
         visible={!!customizerProduct}
         onClose={() => setCustomizerProduct(null)}
       />
-      {/* Header */}
+
+      {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={[s.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
+        <View style={s.headerTop}>
+          <Text style={[s.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
+          {isSkipQueue && (
+            <View style={s.skipBadge}>
+              <Feather name="zap" size={12} color="#E07B00" />
+              <Text style={[s.skipBadgeText, { fontFamily: 'Inter_600SemiBold' }]}>Skip the Queue</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Search */}
         <View style={s.searchBar}>
           <Feather name="search" size={16} color="#8E8E93" />
           <TextInput
@@ -184,14 +220,23 @@ export default function MenuScreen() {
           />
           {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#8E8E93" /></Pressable> : null}
         </View>
+
+        {/* Category pills — Apple style */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
           {CATEGORIES.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
             return (
-              <Pressable key={cat.id} onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
-                style={[s.catPill, { backgroundColor: active ? pal.banner : '#F5F6FA' }]}>
-                <Text style={[s.catLabel, { color: active ? '#fff' : '#8E8E93', fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+              <Pressable
+                key={cat.id}
+                onPress={() => { setActiveCategory(cat.id); setSearch(''); Haptics.selectionAsync(); }}
+                style={[s.catPill, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}
+              >
+                <Text style={s.catEmoji}>{cat.emoji}</Text>
+                <Text style={[s.catLabel, {
+                  color: active ? '#fff' : '#3C3C43',
+                  fontFamily: active ? 'Inter_600SemiBold' : 'Inter_500Medium',
+                }]}>
                   {cat.label}
                 </Text>
               </Pressable>
@@ -202,7 +247,7 @@ export default function MenuScreen() {
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color="#40C0F2" />
+          <ActivityIndicator color={BLUE} />
         </View>
       ) : (
         <FlatList
@@ -212,11 +257,36 @@ export default function MenuScreen() {
           columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#40C0F2" />}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
           ListHeaderComponent={
-            <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
-              {filtered.length} item{filtered.length !== 1 ? 's' : ''}{activeCategory !== 'all' ? ` · ${activeCategory}` : ''}
-            </Text>
+            <>
+              {/* Frequently ordered — only shown on Skip the Queue */}
+              {isSkipQueue && coffeeProducts.length > 0 && (
+                <View style={s.frequentSection}>
+                  <View style={s.frequentHeader}>
+                    <View style={s.frequentIconWrap}>
+                      <Text style={{ fontSize: 14 }}>☕</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.frequentTitle, { fontFamily: 'Inter_700Bold' }]}>Your usual?</Text>
+                      <Text style={[s.frequentSub, { fontFamily: 'Inter_400Regular' }]}>Frequently ordered</Text>
+                    </View>
+                    <Pressable onPress={() => router.push('/(customer)/cart')} style={s.viewCartBtn}>
+                      <Text style={[s.viewCartText, { fontFamily: 'Inter_600SemiBold' }]}>View cart</Text>
+                      <Feather name="chevron-right" size={13} color={BLUE} />
+                    </Pressable>
+                  </View>
+                  {coffeeProducts.map(p => (
+                    <FrequentCoffeeTile key={p.id} product={p} onPress={() => handleTilePress(p)} />
+                  ))}
+                  <View style={s.frequentDivider} />
+                </View>
+              )}
+              <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
+                {filtered.length} item{filtered.length !== 1 ? 's' : ''}
+                {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.emoji} ${CATEGORIES.find(c => c.id === activeCategory)?.label}` : ''}
+              </Text>
+            </>
           }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
@@ -237,14 +307,46 @@ export default function MenuScreen() {
 
 const s = StyleSheet.create({
   root:        { flex: 1, backgroundColor: '#fff' },
-  header:      { paddingHorizontal: 16, paddingBottom: 14, gap: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#EFEFEF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2, zIndex: 10 },
-  headerTitle: { fontSize: 26, color: '#1C1C1E' },
-  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F5F6FA', borderRadius: 14 },
-  searchInput: { flex: 1, fontSize: 14, color: '#1C1C1E' },
-  catPill:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
-  catLabel:    { fontSize: 13 },
+
+  // Header
+  header:      {
+    paddingHorizontal: 16, paddingBottom: 14, gap: 12, backgroundColor: '#fff',
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
+  },
+  headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { fontSize: 28, color: '#1C1C1E' },
+  skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  skipBadgeText:{ fontSize: 12, color: '#E07B00' },
+
+  // Search
+  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 12 },
+  searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
+
+  // Category pills — Apple style
+  catPill:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22 },
+  catEmoji:    { fontSize: 14 },
+  catLabel:    { fontSize: 14 },
+
+  // Count row
   count:       { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
 
+  // Frequently ordered section
+  frequentSection: { marginBottom: 16, gap: 0 },
+  frequentHeader:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  frequentIconWrap:{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FFF3E0', alignItems: 'center', justifyContent: 'center' },
+  frequentTitle:   { fontSize: 16, color: '#1C1C1E' },
+  frequentSub:     { fontSize: 12, color: '#8E8E93', marginTop: 1 },
+  viewCartBtn:     { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  viewCartText:    { fontSize: 13, color: '#40C0F2' },
+  frequentTile:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F9F9FB', borderRadius: 14, padding: 10, marginBottom: 8 },
+  frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  frequentName:    { fontSize: 14, color: '#1C1C1E' },
+  frequentPrice:   { fontSize: 13, color: '#8E8E93' },
+  frequentAdd:     { width: 32, height: 32, borderRadius: 16, backgroundColor: '#40C0F2', alignItems: 'center', justifyContent: 'center' },
+  frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
+
+  // Product tile
   tile:        { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
   tileTop:     { height: 160, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
   tileEmoji:   { fontSize: 56, lineHeight: 66 },

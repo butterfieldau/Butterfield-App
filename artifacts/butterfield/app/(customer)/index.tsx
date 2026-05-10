@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -363,38 +363,34 @@ export default function CustomerHome() {
   const tierLabel = loyaltyTier.charAt(0).toUpperCase() + loyaltyTier.slice(1);
 
   return (
-    <View style={{ flex: 1, backgroundColor: BLUE_TOP }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
-      <View style={[s.frozenHeader, { paddingTop: insets.top + 8 }]}>
-        {/* Logo */}
-        <Image
-          source={require('@/assets/images/logo-white.png')}
-          style={{ width: 130, height: 42, alignSelf: 'center', marginBottom: 14 }}
-          contentFit="contain"
-        />
+      <View style={[s.frozenHeader, { paddingTop: insets.top + 6 }]}>
+        {/* Brand script wordmark */}
+        <Text style={[s.wordmark, { fontFamily: 'DancingScript_700Bold' }]}>Butterfield</Text>
 
-        {/* Greeting row */}
+        {/* Greeting + Loyalty chip in one row */}
         <View style={s.greetingRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[s.greetLine1, { fontFamily: 'Inter_400Regular' }]}>{greeting.line1}</Text>
-            <Text style={[s.greetLine2, { fontFamily: 'Inter_700Bold' }]}>{greeting.line2}</Text>
+            <Text style={[s.greetLine1, { fontFamily: 'Inter_700Bold' }]}>{greeting.line1}</Text>
+            <Text style={[s.greetLine2, { fontFamily: 'Inter_400Regular' }]}>{greeting.line2}</Text>
           </View>
-          {totalItems > 0 && (
-            <Pressable
-              onPress={() => router.push('/(customer)/cart')}
-              style={s.cartBadge}
-            >
-              <Feather name="shopping-bag" size={16} color="#fff" />
-              <Text style={[s.cartCount, { fontFamily: 'Inter_700Bold' }]}>{totalItems}</Text>
-            </Pressable>
-          )}
-        </View>
-
-        {/* Loyalty chip */}
-        <View style={s.loyaltyChip}>
-          <Feather name="star" size={13} color="#FFE4A0" />
-          <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints} pts</Text>
-          <Text style={[s.loyaltyMember, { fontFamily: 'Inter_400Regular' }]}>· {tierLabel} Member</Text>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <View style={s.loyaltyChip}>
+              <Feather name="star" size={12} color="#FFE4A0" />
+              <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints} pts</Text>
+              <Text style={[s.loyaltyMember, { fontFamily: 'Inter_400Regular' }]}>· {tierLabel} Member</Text>
+            </View>
+            {totalItems > 0 && (
+              <Pressable
+                onPress={() => router.push('/(customer)/cart')}
+                style={s.cartBadge}
+              >
+                <Feather name="shopping-bag" size={14} color="#fff" />
+                <Text style={[s.cartCount, { fontFamily: 'Inter_700Bold' }]}>{totalItems}</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
 
@@ -453,10 +449,10 @@ export default function CustomerHome() {
           />
           <QuickTile
             label="Skip the queue"
-            featherIcon="skip-forward"
-            bg="#F0EBE3"
-            iconColor="#8B6B4A"
-            onPress={() => router.push('/(customer)/menu')}
+            featherIcon="zap"
+            bg="#FFF3E0"
+            iconColor="#E07B00"
+            onPress={() => router.push({ pathname: '/(customer)/menu', params: { category: 'coffee', skipQueue: '1' } })}
             hasArrow
           />
         </View>
@@ -559,16 +555,19 @@ const s = StyleSheet.create({
   frozenHeader: {
     backgroundColor: BLUE_TOP,
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
-  greetingRow:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 },
-  greetLine1:   { color: 'rgba(255,255,255,0.82)', fontSize: 15, lineHeight: 22 },
-  greetLine2:   { color: '#fff', fontSize: 18, lineHeight: 24, marginTop: 1 },
-  cartBadge:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  cartCount:    { color: '#fff', fontSize: 13 },
-  loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, alignSelf: 'flex-start' },
-  loyaltyPts:   { color: '#FFE4A0', fontSize: 14 },
-  loyaltyMember:{ color: 'rgba(255,255,255,0.8)', fontSize: 13 },
+  wordmark:     { color: '#fff', fontSize: 36, textAlign: 'center', marginBottom: 12, letterSpacing: 0.5 },
+  greetingRow:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  greetLine1:   { color: '#fff', fontSize: 20, lineHeight: 26 },
+  greetLine2:   { color: 'rgba(255,255,255,0.8)', fontSize: 14, lineHeight: 20, marginTop: 2 },
+  cartBadge:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 16 },
+  cartCount:    { color: '#fff', fontSize: 12 },
+  loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  loyaltyPts:   { color: '#FFE4A0', fontSize: 13 },
+  loyaltyMember:{ color: 'rgba(255,255,255,0.82)', fontSize: 12 },
 
   // ── Hero banner ─────────────────────────────────────────────────────────────
   heroBanner:      { height: 180, borderRadius: 18, overflow: 'hidden' },
