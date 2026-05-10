@@ -67,6 +67,7 @@ export const api = {
       items: any[]; type: string; scheduledFor?: string; notes?: string;
       totalCents: number; stripePaymentIntentId?: string;
       loyaltyPointsUsed?: number; discountCents?: number; deliveryAddress?: string;
+      deliveryPostcode?: string; deliveryState?: string;
     }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),

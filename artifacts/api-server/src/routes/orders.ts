@@ -28,9 +28,18 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { items, type, scheduledFor, notes, totalCents, stripePaymentIntentId, loyaltyPointsUsed, discountCents, deliveryAddress } = req.body;
+  const { items, type, scheduledFor, notes, totalCents, stripePaymentIntentId, loyaltyPointsUsed, discountCents, deliveryAddress, deliveryPostcode, deliveryState } = req.body;
   if (!items || !totalCents) {
     return res.status(400).json({ error: 'Items and total are required' });
+  }
+
+  // ── Sydney-only delivery enforcement ─────────────────────────────────────
+  if (type === 'delivery') {
+    const state = (deliveryState ?? '').toString().trim().toUpperCase();
+    const pc    = parseInt((deliveryPostcode ?? '').toString().trim(), 10);
+    if (state !== 'NSW' || isNaN(pc) || pc < 2000 || pc > 2999) {
+      return res.status(400).json({ error: 'Delivery is only available within Sydney (NSW postcodes 2000–2999).' });
+    }
   }
 
   // ── Cutoff time enforcement ────────────────────────────────────────────────

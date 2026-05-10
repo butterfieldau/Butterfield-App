@@ -165,6 +165,14 @@ export default function CartScreen() {
           Alert.alert('Delivery address required', 'Please enter your full delivery address.');
           return;
         }
+        const pc = parseInt(postcode.trim(), 10);
+        if (addrState !== 'NSW' || isNaN(pc) || pc < 2000 || pc > 2999) {
+          Alert.alert(
+            'Sydney deliveries only',
+            'We currently deliver within Sydney (NSW postcodes 2000–2999) only. Please choose pickup or update your address.'
+          );
+          return;
+        }
         if (!contactName.trim()) {
           Alert.alert('Your details required', 'Please enter your full name.');
           return;
@@ -208,11 +216,13 @@ export default function CartScreen() {
           unitPriceCents: i.unitPriceCents,
           totalCents:     i.unitPriceCents * i.quantity,
         })),
-        type:          orderType,
-        scheduledFor:  scheduledForDate?.toISOString(),
-        notes:         [notes.trim(), contactName.trim(), contactPhone.trim()].filter(Boolean).join(' | ') || undefined,
+        type:             orderType,
+        scheduledFor:     scheduledForDate?.toISOString(),
+        notes:            [notes.trim(), contactName.trim(), contactPhone.trim()].filter(Boolean).join(' | ') || undefined,
         totalCents,
         deliveryAddress,
+        deliveryPostcode: orderType === 'delivery' ? postcode.trim() : undefined,
+        deliveryState:    orderType === 'delivery' ? 'NSW' : undefined,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -570,20 +580,10 @@ export default function CartScreen() {
               </View>
             </View>
             <Text style={styles.formFieldLabel}>State</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
-              {['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT'].map((s) => (
-                <Pressable
-                  key={s}
-                  onPress={() => { setAddrState(s); setSelectedAddressId(null); Haptics.selectionAsync(); }}
-                  style={[styles.statePill, {
-                    backgroundColor: addrState === s ? BLUE : CARD,
-                    borderColor:     addrState === s ? BLUE : BORDER,
-                  }]}
-                >
-                  <Text style={[styles.statePillText, { color: addrState === s ? '#fff' : MUTED }]}>{s}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <View style={[styles.statePill, { backgroundColor: LIGHT_BLUE, borderColor: BLUE, paddingHorizontal: 16, paddingVertical: 8, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+              <Feather name="map-pin" size={12} color={BLUE} />
+              <Text style={[styles.statePillText, { color: BLUE }]}>NSW — Sydney deliveries only</Text>
+            </View>
           </View>
         </>
       )}

@@ -145,6 +145,10 @@ router.post('/orders', async (req, res) => {
       };
     }));
 
+    // Add the account's delivery fee if this is a delivery order
+    const deliveryFeeCents = (deliveryType === 'delivery') ? (account.deliveryFeeCents ?? 0) : 0;
+    const finalTotalCents  = priced.totalCents + deliveryFeeCents;
+
     const [order] = await db.insert(wholesaleOrdersTable).values({
       id: randomUUID(),
       accountId: account.id,
@@ -153,11 +157,11 @@ router.post('/orders', async (req, res) => {
       poReference: poReference ?? null,
       items: itemsWithNames as any,
       notes: notes ?? null,
-      totalCents: priced.totalCents,
+      totalCents: finalTotalCents,
       deliveryType: deliveryType ?? 'pickup',
       scheduledDate: scheduledDate ?? null,
     }).returning();
-    return res.status(201).json({ data: { ...order, pricing: priced } });
+    return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, finalTotalCents } } });
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Order validation failed' });
   }

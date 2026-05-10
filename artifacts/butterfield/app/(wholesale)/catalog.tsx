@@ -463,10 +463,19 @@ export default function WholesaleCatalog() {
                   <Text style={styles.summaryRowLabel}>Subtotal</Text>
                   <Text style={styles.summaryRowValue}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
                 </View>
+                {orderType === 'delivery' && deliveryFeeCents > 0 && (
+                  <>
+                    <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryRowLabel}>Delivery fee</Text>
+                      <Text style={styles.summaryRowValue}>AUD {(deliveryFeeCents / 100).toFixed(2)}</Text>
+                    </View>
+                  </>
+                )}
                 <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
-                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
+                  <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
                 </View>
                 {subtotalCents < 5000 && (
                   <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
