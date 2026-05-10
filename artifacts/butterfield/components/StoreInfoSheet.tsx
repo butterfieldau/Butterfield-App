@@ -96,9 +96,9 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     .filter(Boolean).join(', ');
 
   const handleDirections = () => {
-    if (!store.latitude || !store.longitude) return;
-    const q = address || `${store.latitude},${store.longitude}`;
-    Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(q)}&ll=${store.latitude},${store.longitude}`);
+    // Use full address string so Apple Maps geocodes it correctly
+    const fullAddress = `${address}, Australia`;
+    Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent('Butterfield Cookies')}&address=${encodeURIComponent(fullAddress)}`);
   };
 
   const handleCall = () => {
