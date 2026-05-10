@@ -41,7 +41,7 @@ function NativeCustomerTabs() {
   const { totalItems } = useCart();
 
   return (
-    <NativeTabs>
+    <NativeTabs badgeBackgroundColor={BLUE}>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: 'house', selected: 'house.fill' }} />
         <Label>Home</Label>
