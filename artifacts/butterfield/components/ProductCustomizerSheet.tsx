@@ -314,7 +314,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
                 {variants.length > 1 && (
                   <View style={s.group}>
-                    <Text style={s.groupLabel}>Size</Text>
+                    <Text style={[s.groupLabel, { marginBottom: 10 }]}>Size</Text>
                     <View style={s.pillRow}>
                       {variants.map((v: any) => {
                         const active = selectedVariantId === v.id;
@@ -446,39 +446,41 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  handleWrap: { alignItems: 'center', paddingTop: 10, paddingBottom: 2 },
-  handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)' },
+  handleWrap: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
+  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)' },
 
-  nameRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12, marginBottom: 5 },
-  name:        { flex: 1, fontSize: 26, fontFamily: 'Inter_700Bold', color: TEXT, lineHeight: 32 },
-  catChip:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 5 },
+  nameRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14, marginBottom: 6 },
+  name:        { flex: 1, fontSize: 22, fontFamily: 'Inter_700Bold', color: TEXT, lineHeight: 28 },
+  catChip:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 3 },
   catChipText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  desc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 18, marginBottom: 6 },
+  desc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 19, marginBottom: 12 },
 
   websiteLink:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   websiteLinkText: { fontSize: 13, color: BTN_CLR, fontFamily: 'Inter_600SemiBold' },
 
   scroll:     { flexShrink: 1 },
-  group:      { marginBottom: 18 },
+  group:      { marginBottom: 20 },
+  // groupHead provides the label→pill gap; groupLabel must NOT add its own marginBottom
+  // to avoid double-spacing (standalone Size label adds { marginBottom: 10 } inline)
   groupHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  groupLabel: { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT, marginBottom: 10 },
+  groupLabel: { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT, letterSpacing: 0.1 },
   optText:    { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' },
   reqBadge:   { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   reqText:    { fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' },
 
   pillRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 26, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },
+  pill:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },
   pillLabel: { fontSize: 13, color: TEXT, fontFamily: 'Inter_500Medium' },
   pillSub:   { fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' },
 
   textInput: { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', minHeight: 70, textAlignVertical: 'top' },
 
-  footer:     { paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, gap: 10 },
+  footer:     { paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, gap: 12 },
   qtyStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   qtyBtn:     { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
   qtyNum:     { fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 32, textAlign: 'center' },
-  addBtn:     { flexDirection: 'row', alignItems: 'center', height: 56, borderRadius: 28, paddingHorizontal: 24, backgroundColor: BTN_CLR },
+  addBtn:     { flexDirection: 'row', alignItems: 'center', height: 54, borderRadius: 27, paddingHorizontal: 24, backgroundColor: BTN_CLR },
   addPrice:   { fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold' },
-  addDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 14 },
+  addDivider: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.28)', marginHorizontal: 14 },
   addLabel:   { flex: 1, fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold', textAlign: 'center' },
 });
