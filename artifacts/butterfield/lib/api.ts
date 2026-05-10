@@ -56,8 +56,9 @@ export const api = {
       request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
   },
   products: {
-    list: () => request<{ data: ApiProduct[] }>('/products'),
-    get: (id: string) => request<{ data: ApiProduct }>(`/products/${id}`),
+    list:       ()         => request<{ data: ApiProduct[] }>('/products'),
+    get:        (id: string) => request<{ data: any }>(`/products/${id}`),
+    categories: ()         => request<{ data: any[] }>('/products/categories'),
   },
   orders: {
     list: () => request<{ data: ApiOrder[] }>('/orders'),
@@ -182,6 +183,22 @@ export const api = {
     promoteToDirector:   (userId: string) => request<{ data: any }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
     setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
       request<{ data: any }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),
+    // Product catalog management
+    categories:       ()                      => request<{ data: any[] }>('/director/categories'),
+    createCategory:   (d: any)                => request<{ data: any }>('/director/categories', { method: 'POST', body: JSON.stringify(d) }),
+    updateCategory:   (id: string, d: any)    => request<{ data: any }>(`/director/categories/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    deleteCategory:   (id: string)            => request<{ success: boolean }>(`/director/categories/${id}`, { method: 'DELETE' }),
+    optionGroups:     ()                      => request<{ data: any[] }>('/director/option-groups'),
+    createOptionGroup:(d: any)                => request<{ data: any }>('/director/option-groups', { method: 'POST', body: JSON.stringify(d) }),
+    updateOptionGroup:(id: string, d: any)    => request<{ data: any }>(`/director/option-groups/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    deleteOptionGroup:(id: string)            => request<{ success: boolean }>(`/director/option-groups/${id}`, { method: 'DELETE' }),
+    createOption:     (groupId: string, d: any) => request<{ data: any }>(`/director/option-groups/${groupId}/options`, { method: 'POST', body: JSON.stringify(d) }),
+    updateOption:     (groupId: string, id: string, d: any) => request<{ data: any }>(`/director/option-groups/${groupId}/options/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    deleteOption:     (groupId: string, id: string) => request<{ success: boolean }>(`/director/option-groups/${groupId}/options/${id}`, { method: 'DELETE' }),
+    productVariants:  (productId: string)     => request<{ data: any[] }>(`/director/products/${productId}/variants`),
+    createVariant:    (productId: string, d: any) => request<{ data: any }>(`/director/products/${productId}/variants`, { method: 'POST', body: JSON.stringify(d) }),
+    updateVariant:    (productId: string, id: string, d: any) => request<{ data: any }>(`/director/products/${productId}/variants/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    deleteVariant:    (productId: string, id: string) => request<{ success: boolean }>(`/director/products/${productId}/variants/${id}`, { method: 'DELETE' }),
     // Store management
     storesList:      () => request<{ data: any[] }>('/director/stores'),
     storeDetail:     (id: string) => request<{ data: any }>(`/director/stores/${id}`),

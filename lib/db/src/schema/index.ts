@@ -19,3 +19,4 @@ export * from "./customer_crm";
 export * from "./wholesale_cards";
 export * from "./password_reset";
 export * from "./stores";
+export * from "./product_catalog";

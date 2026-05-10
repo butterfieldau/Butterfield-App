@@ -205,15 +205,39 @@ export default function StaffOrdersScreen() {
                 </View>
               </View>
 
-              {/* Items */}
-              <View style={{ gap: 3, marginBottom: 8 }}>
-                {items.slice(0, 4).map((item: any, i: number) => (
-                  <Text key={i} style={styles.itemLine}>
-                    {(item.qty ?? item.quantity ?? '?')}× {item.productName ?? item.name ?? item.productId ?? 'Product'}
-                  </Text>
-                ))}
-                {items.length > 4 && (
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12 }}>+{items.length - 4} more items</Text>
+              {/* Items — shows variant name + customizations for baristas */}
+              <View style={{ gap: 6, marginBottom: 8 }}>
+                {items.slice(0, 5).map((item: any, i: number) => {
+                  const qty      = item.qty ?? item.quantity ?? 1;
+                  const name     = item.productNameSnapshot ?? item.productName ?? item.name ?? item.productId ?? 'Product';
+                  const variant  = item.variantNameSnapshot ?? item.variantName;
+                  const opts     = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
+                  const notable  = opts.filter((o: any) => {
+                    const n = o.optionName ?? o.name ?? '';
+                    return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
+                  });
+                  const notes    = opts.find((o: any) => o.textValue)?.textValue;
+                  return (
+                    <View key={i} style={{ gap: 2 }}>
+                      <Text style={styles.itemLine}>
+                        <Text style={{ fontFamily: 'Inter_700Bold' }}>{qty}×</Text>
+                        {' '}{name}{variant ? ` · ${variant}` : ''}
+                      </Text>
+                      {notable.length > 0 && (
+                        <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12, paddingLeft: 18 }}>
+                          {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                        </Text>
+                      )}
+                      {notes ? (
+                        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, fontStyle: 'italic', paddingLeft: 18 }}>
+                          "{notes}"
+                        </Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+                {items.length > 5 && (
+                  <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12 }}>+{items.length - 5} more items</Text>
                 )}
               </View>
 

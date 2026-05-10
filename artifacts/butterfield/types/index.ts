@@ -29,7 +29,35 @@ export interface Product {
   priceId?: string;
 }
 
+// ── Cart types (v2 — supports variants + option customizations) ────────────
+
+export interface SelectedCartOption {
+  groupId: string;
+  groupName: string;
+  optionId?: string;
+  optionName?: string;
+  priceAdjustmentCents: number;
+  textValue?: string;    // for text-type option groups (barista notes)
+}
+
 export interface CartItem {
+  cartItemId: string;            // unique per cart line (nanoid-style)
+  productId: string;
+  productName: string;
+  variantId?: string;
+  variantName?: string;
+  basePriceCents: number;        // product or selected variant price
+  selectedOptions: SelectedCartOption[];
+  optionsTotalCents: number;     // sum of price adjustments
+  unitPriceCents: number;        // basePriceCents + optionsTotalCents
+  quantity: number;
+  imageUrl?: string;
+  category?: string;
+  isCoffee?: boolean;
+}
+
+// Legacy shape — kept for backwards-compat in components that haven't been updated
+export interface LegacyCartItem {
   product: Product;
   quantity: number;
 }

@@ -638,10 +638,193 @@ function ProductModal({
   );
 }
 
+// ─── Category list sub-screen ──────────────────────────────────────────────────
+function CatalogTab() {
+  const qc = useQueryClient();
+  const [catModal, setCatModal] = useState(false);
+  const [editCat, setEditCat] = useState<any>(null);
+  const [catName, setCatName] = useState('');
+  const [catSlug, setCatSlug] = useState('');
+  const [catDesc, setCatDesc] = useState('');
+  const [catSaving, setCatSaving] = useState(false);
+
+  const { data, refetch, isRefetching } = useQuery({
+    queryKey: ['director-categories'],
+    queryFn: () => api.director.categories(),
+  });
+  const cats: any[] = data?.data ?? [];
+
+  const openAddCat = () => { setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc(''); setCatModal(true); };
+  const openEditCat = (c: any) => { setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? ''); setCatModal(true); };
+
+  const saveCat = async () => {
+    if (!catName.trim()) return Alert.alert('Name required');
+    setCatSaving(true);
+    try {
+      const slug = catSlug.trim() || catName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      if (editCat) {
+        await api.director.updateCategory(editCat.id, { name: catName.trim(), slug, description: catDesc.trim() || undefined });
+      } else {
+        await api.director.createCategory({ name: catName.trim(), slug, description: catDesc.trim() || undefined });
+      }
+      await qc.invalidateQueries({ queryKey: ['director-categories'] });
+      setCatModal(false);
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setCatSaving(false); }
+  };
+
+  const toggleCatActive = async (c: any) => {
+    try {
+      await api.director.updateCategory(c.id, { isActive: !c.isActive });
+      await qc.invalidateQueries({ queryKey: ['director-categories'] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={cats}
+        keyExtractor={c => c.id}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontFamily: 'Inter_400Regular' }}>No categories yet</Text>}
+        renderItem={({ item: c }) => (
+          <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 14 }}>{c.name}</Text>
+              <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12 }}>/{c.slug}</Text>
+              {c.description ? <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
+            </View>
+            <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
+            <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }}>
+              <Feather name="edit-2" size={16} color={BLUE} />
+            </Pressable>
+          </View>
+        )}
+      />
+
+      {/* FAB */}
+      <Pressable onPress={openAddCat} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
+        <Feather name="plus" size={20} color="#fff" />
+        <Text style={[styles.fabText, { fontFamily: 'Inter_700Bold' }]}>Add Category</Text>
+      </Pressable>
+
+      {/* Category modal */}
+      <Modal visible={catModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setCatModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[modal.header, { paddingTop: 16 }]}>
+            <Pressable onPress={() => setCatModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
+            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editCat ? 'Edit Category' : 'New Category'}</Text>
+            <Pressable onPress={saveCat} style={[modal.saveBtn, { backgroundColor: catSaving ? MUTED : NAVY }]} disabled={catSaving}>
+              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{catSaving ? 'Saving…' : 'Save'}</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+            <View style={form.card}>
+              <Field label="Name" required>
+                <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+              </Field>
+              <Field label="Slug (URL key)">
+                <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} autoCapitalize="none" />
+              </Field>
+              <Field label="Description">
+                <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
+              </Field>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+// ─── Option Groups sub-screen ──────────────────────────────────────────────────
+function OptionsTab() {
+  const qc = useQueryClient();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const { data, refetch, isRefetching } = useQuery({
+    queryKey: ['director-option-groups'],
+    queryFn: () => api.director.optionGroups(),
+  });
+  const groups: any[] = data?.data ?? [];
+
+  const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const toggleGroupActive = async (g: any) => {
+    try {
+      await api.director.updateOptionGroup(g.id, { isActive: !g.isActive });
+      await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: AMBER };
+
+  return (
+    <FlatList
+      data={groups}
+      keyExtractor={g => g.id}
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+      ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontFamily: 'Inter_400Regular' }}>No option groups yet</Text>}
+      renderItem={({ item: g }) => {
+        const isExp  = expanded[g.id] ?? false;
+        const selCol = SEL_COLORS[g.selectionType] ?? BLUE;
+        const cats   = (g.appliesToCategoryIds ?? []).join(', ') || '—';
+        return (
+          <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
+            <Pressable onPress={() => toggleExpand(g.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 14 }}>{g.name}</Text>
+                  {g.isRequired && <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' }}>Required</Text></View>}
+                </View>
+                <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 2 }}>
+                  {g.selectionType} select · {(g.options ?? []).length} options · applies to: {cats}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ backgroundColor: selCol + '18', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 11, color: selCol, fontFamily: 'Inter_600SemiBold' }}>{g.selectionType}</Text>
+                </View>
+                <Switch value={g.isActive ?? true} onValueChange={() => toggleGroupActive(g)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
+                <Feather name={isExp ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+              </View>
+            </Pressable>
+
+            {isExp && (
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 6 }}>
+                {(g.options ?? []).map((opt: any) => (
+                  <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 8 }}>
+                    {opt.isDefault && <Feather name="check-circle" size={12} color={GREEN} />}
+                    <Text style={{ flex: 1, fontFamily: 'Inter_500Medium', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
+                    {opt.priceAdjustmentCents !== 0 && (
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 12 }}>
+                        {opt.priceAdjustmentCents > 0 ? '+' : ''}{(opt.priceAdjustmentCents / 100).toFixed(2)}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+                {(g.options ?? []).length === 0 && g.selectionType !== 'text' && (
+                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic' }}>No options configured</Text>
+                )}
+                {g.selectionType === 'text' && (
+                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic' }}>Free text input — no options needed</Text>
+                )}
+              </View>
+            )}
+          </View>
+        );
+      }}
+    />
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorProductsScreen() {
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'options'>('products');
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -702,8 +885,35 @@ export default function DirectorProductsScreen() {
   const openEdit = (product: any) => { setEditTarget(product); setModalOpen(true); };
   const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
 
+  const TAB_ITEMS = [
+    { id: 'products' as const, label: 'Products', icon: 'package' },
+    { id: 'catalog'  as const, label: 'Categories', icon: 'grid' },
+    { id: 'options'  as const, label: 'Options', icon: 'sliders' },
+  ] as const;
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Top tab bar */}
+      <View style={{ flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        {TAB_ITEMS.map(t => {
+          const active = activeTab === t.id;
+          return (
+            <Pressable key={t.id} onPress={() => { setActiveTab(t.id); Haptics.selectionAsync(); }}
+              style={{ flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3, borderBottomWidth: 2.5, borderBottomColor: active ? NAVY : 'transparent' }}>
+              <Feather name={t.icon as any} size={16} color={active ? NAVY : MUTED} />
+              <Text style={{ fontSize: 11, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? NAVY : MUTED }}>{t.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Catalog tab */}
+      {activeTab === 'catalog' && <CatalogTab />}
+      {activeTab === 'options' && <OptionsTab />}
+
+      {/* Products tab */}
+      {activeTab !== 'catalog' && activeTab !== 'options' && (
+      <>
       {/* Search bar */}
       <View style={[styles.searchBar, { borderColor: BORDER }]}>
         <Feather name="search" size={16} color={MUTED} />
@@ -860,6 +1070,8 @@ export default function DirectorProductsScreen() {
         initial={editTarget}
         editing={!!editTarget}
       />
+      </>
+      )}
     </View>
   );
 }

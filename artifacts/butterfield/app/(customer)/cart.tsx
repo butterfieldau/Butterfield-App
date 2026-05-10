@@ -71,7 +71,7 @@ interface Confirmation {
 export default function CartScreen() {
   const insets   = useSafeAreaInsets();
   const { user } = useAuth();
-  const { items, totalPrice, totalItems, updateQuantity, removeItem, clearCart } = useCart();
+  const { items, totalPriceCents, totalItems, updateItemQuantity, removeCartItem, clearCart } = useCart();
   const qc = useQueryClient();
 
   const [step, setStep]                       = useState(0);
@@ -126,7 +126,7 @@ export default function CartScreen() {
     }
   }, [orderType, defaultAddress]);
 
-  const subtotalCents = Math.round(totalPrice * 100);
+  const subtotalCents = totalPriceCents;
   const { deliv: delivCents, surcharge: surchargeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType);
 
   const sydNow        = getSydneyNow();
@@ -198,11 +198,15 @@ export default function CartScreen() {
         : undefined;
       const order = await api.orders.create({
         items: items.map((i) => ({
-          productId:      i.product.id,
-          productName:    i.product.name,
-          quantity:       i.quantity,
-          unitPriceCents: Math.round(i.product.price * 100),
-          priceId:        (i.product as any).priceId,
+          productId:               i.productId,
+          productNameSnapshot:     i.productName,
+          variantId:               i.variantId,
+          variantNameSnapshot:     i.variantName,
+          basePriceCentsSnapshot:  i.basePriceCents,
+          selectedOptionsSnapshot: i.selectedOptions,
+          quantity:                i.quantity,
+          finalItemPriceCents:     i.unitPriceCents,
+          totalPriceCents:         i.unitPriceCents * i.quantity,
         })),
         type:          orderType,
         scheduledFor:  scheduledForDate?.toISOString(),
@@ -280,10 +284,15 @@ export default function CartScreen() {
   const renderCartStep = () => (
     <View style={styles.stepWrap}>
       {items.map((item) => {
-        const palette = getPalette((item.product as any).category ?? item.product.name);
-        const imageUrl = (item.product as any).images?.[0];
+        const palette  = getPalette(item.category ?? 'default');
+        const imageUrl = item.imageUrl ?? null;
+        const optionLines = (item.selectedOptions ?? [])
+          .filter(o => o.optionName && o.optionName !== 'No Sugar' && o.optionName !== 'No Honey' &&
+                       o.optionName !== 'No Syrup' && o.optionName !== 'Regular Coffee' &&
+                       o.optionName !== 'Regular' && o.optionName !== 'Normal' && o.optionName !== 'Full Cream')
+          .concat(item.selectedOptions.filter(o => o.textValue));
         return (
-          <View key={item.product.id} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View key={item.cartItemId} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
             {imageUrl ? (
               <Image source={{ uri: imageUrl }} style={styles.itemThumb} resizeMode="cover" />
             ) : (
@@ -292,20 +301,27 @@ export default function CartScreen() {
               </View>
             )}
             <Pressable
-              onPress={() => { removeItem(item.product.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              onPress={() => { removeCartItem(item.cartItemId); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
               style={styles.removeBtn}
             >
               <Feather name="x" size={12} color={MUTED} />
             </Pressable>
             <View style={styles.itemBody}>
-              <Text style={styles.itemName}>{item.product.name}</Text>
-              <Text style={styles.itemPrice}>AUD {(item.product.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.itemName}>
+                {item.productName}{item.variantName ? ` · ${item.variantName}` : ''}
+              </Text>
+              {optionLines.length > 0 && (
+                <Text style={[styles.itemOpts, { fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>
+                  {optionLines.map(o => o.textValue ?? o.optionName).join(', ')}
+                </Text>
+              )}
+              <Text style={styles.itemPrice}>AUD {((item.unitPriceCents * item.quantity) / 100).toFixed(2)}</Text>
               <View style={styles.qtyRow}>
-                <Pressable onPress={() => { updateQuantity(item.product.id, item.quantity - 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
+                <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity - 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
                   <Text style={styles.qtyBtnText}>–</Text>
                 </Pressable>
                 <Text style={styles.qtyLabel}>QTY: {item.quantity}</Text>
-                <Pressable onPress={() => { updateQuantity(item.product.id, item.quantity + 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
+                <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity + 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
                   <Text style={styles.qtyBtnText}>+</Text>
                 </Pressable>
               </View>
@@ -801,6 +817,7 @@ const styles = StyleSheet.create({
   removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
   itemBody:   { flex: 1, padding: 12, gap: 4 },
   itemName:   { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
+  itemOpts:   { fontSize: 12, color: '#8E8E93', lineHeight: 16 },
   itemPrice:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#1C1C1E' },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
   qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' },

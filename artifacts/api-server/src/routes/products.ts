@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { db, productsTable } from '@workspace/db';
-import { eq, and } from 'drizzle-orm';
+import { db, productsTable, productVariantsTable, productOptionGroupsTable, productOptionsTable } from '@workspace/db';
+import { eq, and, asc } from 'drizzle-orm';
 
 const router = Router();
 
-// Map a productsTable row to the ApiProduct shape the customer UI expects.
-// Keeps full backward compatibility with metadata/prices fields while also
-// exposing raw fields for richer clients (product detail screen, cart, etc).
+// ── Helpers ───────────────────────────────────────────────────────────────
+function parseArr(val: string | null | undefined): string[] {
+  if (!val) return [];
+  try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }
+}
+
 function mapProduct(p: typeof productsTable.$inferSelect) {
   let tags: string[]       = [];
   let allergens: string[]  = [];
@@ -18,14 +21,13 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
   const available = p.isAvailable && !p.isSoldOut;
 
   return {
-    // ── Core fields the customer UI reads directly ──────────────────
     id:          p.id,
     name:        p.name,
     description: p.description ?? '',
     active:      p.isActive && p.isAvailable,
     images:      p.imageUrl ? [p.imageUrl] : [],
+    categoryId:  p.categoryId,
 
-    // ── metadata object used by menu.tsx / index.tsx ────────────────
     metadata: {
       category:            p.category          ?? 'cookies',
       tags:                tags.join(','),
@@ -43,7 +45,6 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
       ingredients:         p.ingredients       ?? '',
     },
 
-    // ── prices array used by getPrice() helpers ─────────────────────
     prices: [{
       id:          p.stripePriceId ?? `price_local_${p.id}`,
       unit_amount: p.salePriceCents ?? p.priceCents ?? 0,
@@ -52,7 +53,6 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
       metadata:    {},
     }],
 
-    // ── Raw fields for richer consumers (product detail, cart, etc) ─
     priceCents:          p.priceCents,
     salePriceCents:      p.salePriceCents,
     costPriceCents:      p.costPriceCents,
@@ -83,31 +83,106 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
   };
 }
 
-// Public product list — active, non-staff-only products (includes app-only products).
+// ── Resolve option groups applicable to a product ─────────────────────────
+async function getProductOptionGroups(productId: string, categoryId: string | null, category: string | null) {
+  const allGroups  = await db.select().from(productOptionGroupsTable)
+    .where(eq(productOptionGroupsTable.isActive, true))
+    .orderBy(asc(productOptionGroupsTable.sortOrder));
+  const allOptions = await db.select().from(productOptionsTable)
+    .where(eq(productOptionsTable.isActive, true))
+    .orderBy(asc(productOptionsTable.sortOrder));
+
+  const applicable = allGroups.filter(g => {
+    const catIds     = parseArr(g.appliesToCategoryIds);
+    const prodIds    = parseArr(g.appliesToProductIds);
+    const excludeIds = parseArr(g.excludeProductIds);
+
+    if (excludeIds.includes(productId)) return false;
+
+    // Matches product explicitly
+    if (prodIds.includes(productId)) return true;
+    // Matches by categoryId
+    if (categoryId && catIds.includes(categoryId)) return true;
+    // Matches by legacy category slug
+    if (category && catIds.some(id => id === `cat_${category}`)) return true;
+
+    return false;
+  });
+
+  return applicable.map(g => ({
+    ...g,
+    appliesToCategoryIds: parseArr(g.appliesToCategoryIds),
+    appliesToProductIds:  parseArr(g.appliesToProductIds),
+    excludeProductIds:    parseArr(g.excludeProductIds),
+    options: allOptions.filter(o => o.groupId === g.id),
+  }));
+}
+
+// ── GET /products — public list (with variants, no options for perf) ───────
 router.get('/', async (_req, res) => {
   try {
     const products = await db
       .select()
       .from(productsTable)
       .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false)))
-      .orderBy(productsTable.sortOrder, productsTable.name);
-    return res.json({ data: products.map(mapProduct) });
+      .orderBy(asc(productsTable.sortOrder), asc(productsTable.name));
+
+    const variants = await db.select().from(productVariantsTable)
+      .where(eq(productVariantsTable.isActive, true))
+      .orderBy(asc(productVariantsTable.sortOrder));
+
+    const data = products.map(p => ({
+      ...mapProduct(p),
+      variants: variants.filter(v => v.productId === p.id),
+      hasVariants: variants.some(v => v.productId === p.id),
+    }));
+
+    return res.json({ data });
   } catch {
     return res.json({ data: [] });
   }
 });
 
-// Single product by ID
+// ── GET /products/categories — public category list ────────────────────────
+router.get('/categories', async (_req, res) => {
+  try {
+    const { productCategoriesTable: catTable } = await import('@workspace/db');
+    const cats = await db.select().from(catTable)
+      .where(and(eq(catTable.isActive, true), eq(catTable.showPublic, true)))
+      .orderBy(asc(catTable.sortOrder));
+    return res.json({ data: cats });
+  } catch {
+    return res.json({ data: [] });
+  }
+});
+
+// ── GET /products/:id — full detail with variants + applicable option groups
 router.get('/:id', async (req, res) => {
   try {
     const [product] = await db
       .select()
       .from(productsTable)
       .where(eq(productsTable.id, req.params.id));
+
     if (!product || !product.isActive) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    return res.json({ data: mapProduct(product) });
+
+    const [variants, optionGroups] = await Promise.all([
+      db.select().from(productVariantsTable)
+        .where(and(eq(productVariantsTable.productId, product.id), eq(productVariantsTable.isActive, true)))
+        .orderBy(asc(productVariantsTable.sortOrder)),
+      getProductOptionGroups(product.id, product.categoryId, product.category),
+    ]);
+
+    return res.json({
+      data: {
+        ...mapProduct(product),
+        variants,
+        hasVariants: variants.length > 0,
+        optionGroups,
+      },
+    });
   } catch {
     return res.status(404).json({ error: 'Product not found' });
   }

@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,8 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
-import { setSelectedProduct } from '@/lib/selectedProduct';
 import { api, type ApiProduct } from '@/lib/api';
+import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 
 const CATEGORIES = [
   { id: 'all',        label: 'All'      },
@@ -155,15 +154,22 @@ export default function MenuScreen() {
     return matchCat && matchSearch;
   }), [products, activeCategory, search]);
 
+  const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
+
   const handleTilePress = (p: ApiProduct) => {
-    setSelectedProduct(p);
-    router.push('/product');
+    setCustomizerProduct(p);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const activePalette = getPalette(activeCategory === 'all' ? 'default' : activeCategory);
 
   return (
     <View style={s.root}>
+      <ProductCustomizerSheet
+        product={customizerProduct}
+        visible={!!customizerProduct}
+        onClose={() => setCustomizerProduct(null)}
+      />
       {/* Header */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={[s.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
