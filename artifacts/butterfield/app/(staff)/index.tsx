@@ -11,6 +11,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import {
+  scheduleClockInReminder,
+  cancelClockInReminder,
+  scheduleClockOutReminder,
+  cancelClockOutReminder,
+  sendClockInConfirmation,
+  sendClockOutConfirmation,
+} from '@/lib/staffNotifications';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -44,6 +52,11 @@ export default function StaffDashboard() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
+
+  // Schedule the daily clock-in reminder once on mount
+  useEffect(() => {
+    scheduleClockInReminder();
+  }, []);
 
   const [tick, setTick] = useState(0);
   const [breakActiveType, setBreakActiveType] = useState<'paid' | 'unpaid' | null>(null);
@@ -97,11 +110,16 @@ export default function StaffDashboard() {
   const handleClockIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     try {
-      await api.staff.clockIn();
+      const res = await api.staff.clockIn();
       setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['current-shift'] });
       refetchStats();
+      // Notifications: cancel daily clock-in reminder, schedule clock-out reminder, confirm
+      const clockInTime = res?.data?.clockIn ?? new Date().toISOString();
+      cancelClockInReminder();
+      scheduleClockOutReminder(clockInTime);
+      sendClockInConfirmation();
     } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
@@ -116,6 +134,10 @@ export default function StaffDashboard() {
           setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
           qc.invalidateQueries({ queryKey: ['current-shift'] });
           refetchStats();
+          // Notifications: cancel clock-out reminder, reschedule daily clock-in, confirm
+          cancelClockOutReminder();
+          scheduleClockInReminder();
+          sendClockOutConfirmation(res.data.hoursWorked ?? '0h');
           Alert.alert('Shift ended', `Total paid time: ${res.data.hoursWorked}`);
         } catch (e: any) { Alert.alert('Error', e.message); }
       }},

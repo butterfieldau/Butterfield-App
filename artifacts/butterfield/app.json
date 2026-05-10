@@ -29,7 +29,16 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#4B72C4",
+          "defaultChannel": "butterfield-staff",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
