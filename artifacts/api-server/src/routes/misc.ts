@@ -6,6 +6,134 @@ import { requireAuth } from '../middlewares/auth.js';
 
 const router = Router();
 
+// ── Live context: weather + holidays (4-hour server-side cache) ───────────────
+
+const SYD_LAT  = -33.8688;
+const SYD_LNG  = 151.2093;
+const CACHE_MS = 4 * 60 * 60 * 1000;
+
+interface WeatherData {
+  temp: number;
+  apparentTemp: number;
+  condition: 'clear' | 'cloudy' | 'foggy' | 'rainy' | 'showery' | 'stormy';
+  emoji: string;
+  description: string;
+}
+
+export interface LiveContext {
+  weather: WeatherData | null;
+  publicHoliday: string | null;
+  islamicHoliday: string | null;
+  isRamadan: boolean;
+  hijriDay: number;
+  hijriMonth: number;
+  hijriYear: number;
+  fetchedAt: number;
+}
+
+let contextCache: { data: LiveContext; fetchedAt: number } | null = null;
+
+function wmoToCondition(code: number): Pick<WeatherData, 'condition' | 'emoji' | 'description'> {
+  if (code === 0)              return { condition: 'clear',   emoji: '☀️',  description: 'Clear sky' };
+  if (code <= 3)               return { condition: 'cloudy',  emoji: '⛅',  description: 'Partly cloudy' };
+  if (code <= 48)              return { condition: 'foggy',   emoji: '🌫️', description: 'Foggy' };
+  if (code <= 67)              return { condition: 'rainy',   emoji: '🌧️', description: 'Rain' };
+  if (code <= 77)              return { condition: 'rainy',   emoji: '❄️',  description: 'Snow' };
+  if (code <= 82)              return { condition: 'showery', emoji: '🌦️', description: 'Showers' };
+  return                              { condition: 'stormy',  emoji: '⛈️',  description: 'Thunderstorm' };
+}
+
+function getIslamicHoliday(month: number, day: number, isRamadan: boolean): string | null {
+  if (month === 1  && day === 1)  return 'Islamic New Year';
+  if (month === 3  && day === 12) return 'Mawlid al-Nabi';
+  if (month === 7  && day === 27) return "Isra' wal Mi'raj";
+  if (month === 8  && day === 15) return "Laylat al-Bara'ah";
+  if (month === 9  && day === 27) return 'Laylat al-Qadr';
+  if (month === 10 && day === 1)  return 'Eid al-Fitr';
+  if (month === 12 && day === 10) return 'Eid al-Adha';
+  return null;
+}
+
+async function fetchWithTimeout(url: string, ms = 5000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { signal: ctrl.signal }); }
+  finally { clearTimeout(id); }
+}
+
+async function fetchLiveContext(): Promise<LiveContext> {
+  const now = new Date();
+  const sydStr = now.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: '2-digit', month: '2-digit', year: 'numeric' });
+  // sydStr = "DD/MM/YYYY"
+  const [dd, mm, yyyy] = sydStr.split('/');
+  const todayISO = `${yyyy}-${mm}-${dd}`;
+
+  let weather: WeatherData | null = null;
+  let publicHoliday: string | null = null;
+  let islamicHoliday: string | null = null;
+  let isRamadan = false;
+  let hijriDay = 0, hijriMonth = 0, hijriYear = 0;
+
+  // 1. Open-Meteo weather (no API key needed)
+  try {
+    const wRes = await fetchWithTimeout(
+      `https://api.open-meteo.com/v1/forecast?latitude=${SYD_LAT}&longitude=${SYD_LNG}&current=temperature_2m,apparent_temperature,weather_code&timezone=Australia%2FSydney`,
+    );
+    if (wRes.ok) {
+      const wJson = await wRes.json() as any;
+      const cur = wJson?.current;
+      if (cur) {
+        const { condition, emoji, description } = wmoToCondition(cur.weather_code ?? 0);
+        weather = {
+          temp:         Math.round(cur.temperature_2m ?? 20),
+          apparentTemp: Math.round(cur.apparent_temperature ?? 20),
+          condition, emoji, description,
+        };
+      }
+    }
+  } catch { /* graceful fallback */ }
+
+  // 2. Australian public holidays (date.nager.at — no API key)
+  try {
+    const hRes = await fetchWithTimeout(`https://date.nager.at/api/v3/PublicHolidays/${yyyy}/AU`);
+    if (hRes.ok) {
+      const holidays = await hRes.json() as Array<{ date: string; name: string; counties: string[] | null }>;
+      const match = holidays.find(h => {
+        if (h.date !== todayISO) return false;
+        if (!h.counties) return true; // national
+        return h.counties.some(c => c === 'AU-NSW');
+      });
+      if (match) publicHoliday = match.name;
+    }
+  } catch { /* graceful fallback */ }
+
+  // 3. AlAdhan Hijri calendar (no API key)
+  try {
+    const aRes = await fetchWithTimeout(`https://api.aladhan.com/v1/gToH?date=${dd}-${mm}-${yyyy}`);
+    if (aRes.ok) {
+      const aJson = await aRes.json() as any;
+      const hijri = aJson?.data?.hijri;
+      if (hijri) {
+        hijriDay   = parseInt(hijri.day, 10);
+        hijriMonth = parseInt(hijri.month?.number ?? '0', 10);
+        hijriYear  = parseInt(hijri.year, 10);
+        isRamadan  = hijriMonth === 9;
+        islamicHoliday = getIslamicHoliday(hijriMonth, hijriDay, isRamadan);
+      }
+    }
+  } catch { /* graceful fallback */ }
+
+  return { weather, publicHoliday, islamicHoliday, isRamadan, hijriDay, hijriMonth, hijriYear, fetchedAt: Date.now() };
+}
+
+async function getLiveContext(): Promise<LiveContext> {
+  const now = Date.now();
+  if (contextCache && (now - contextCache.fetchedAt) < CACHE_MS) return contextCache.data;
+  const data = await fetchLiveContext();
+  contextCache = { data, fetchedAt: now };
+  return data;
+}
+
 // ── Public store status (no auth) ────────────────────────────────────────────
 function computeStoreStatus(manualOverride: boolean): {
   isOpen: boolean; openUntil: string | null; opensAt: string | null;
@@ -55,6 +183,12 @@ function computeStoreStatus(manualOverride: boolean): {
   }
   return { isOpen: false, openUntil: null, opensAt: null };
 }
+
+// ── Live context endpoint (weather + holidays, 4-hour cache) ─────────────────
+router.get('/context', async (_req, res) => {
+  const ctx = await getLiveContext();
+  return res.json({ data: ctx });
+});
 
 router.get('/welcome-config', async (_req, res) => {
   const [row] = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'welcome_background'));

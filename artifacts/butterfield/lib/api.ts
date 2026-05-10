@@ -162,6 +162,7 @@ export const api = {
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
       request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
     homeBanner: () => request<{ data: HomeBannerConfig | null }>('/home-banner'),
+    context: () => request<{ data: LiveContext }>('/context'),
   },
   welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
@@ -465,6 +466,23 @@ export interface ApiOrder {
   loyaltyPointsUsed?: number;
   discountCents?: number;
   deliveryAddress?: string;
+}
+
+export interface LiveContext {
+  weather: {
+    temp: number;
+    apparentTemp: number;
+    condition: 'clear' | 'cloudy' | 'foggy' | 'rainy' | 'showery' | 'stormy';
+    emoji: string;
+    description: string;
+  } | null;
+  publicHoliday: string | null;
+  islamicHoliday: string | null;
+  isRamadan: boolean;
+  hijriDay: number;
+  hijriMonth: number;
+  hijriYear: number;
+  fetchedAt: number;
 }
 
 export interface HomeBannerConfig {

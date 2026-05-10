@@ -25,7 +25,7 @@ import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
-import { api, type ApiProduct, type HomeBannerConfig } from '@/lib/api';
+import { api, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -237,6 +237,12 @@ export default function CustomerHome() {
     staleTime: 120000,
     retry: 1,
   });
+  const { data: contextData } = useQuery({
+    queryKey: ['live-context'],
+    queryFn: () => api.misc.context(),
+    staleTime: 4 * 60 * 60 * 1000,
+    retry: 1,
+  });
   const { data: storesData } = useQuery({
     queryKey: ['stores'],
     queryFn: () => api.stores.list(),
@@ -270,6 +276,8 @@ export default function CustomerHome() {
   // The server recomputes and persists the correct tier on every profile fetch.
   const tierCfg = getTierConfig(loyaltyTier);
 
+  const liveContext = (contextData?.data ?? null) as LiveContext | null;
+
   const greeting = useMemo(() => buildGreeting({
     firstName,
     loyaltyPoints,
@@ -277,7 +285,8 @@ export default function CustomerHome() {
     birthday,
     loyaltyTier: tierCfg.key,
     stampCount,
-  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount]);
+    liveContext,
+  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext]);
 
   const storeStatus = storeStatusData?.data;
   const open = storeStatus?.isOpen ?? false;
