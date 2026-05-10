@@ -84,12 +84,19 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   // ── Entrance animation ────────────────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
-      setModalVisible(true);
+      // Snap to off-screen and make modal visible in the same tick so the
+      // first paint always shows the sheet below the fold — no flash.
       translateY.value = SCREEN_H;
       backdropO.value  = 0;
       scrollY.value    = 0;
-      translateY.value = withSpring(0, SPRING_IN);
-      backdropO.value  = withTiming(BACKDROP_OPACITY, { duration: 300 });
+      setModalVisible(true);
+      // Wait one frame for the modal to finish its initial layout before
+      // starting the spring. This prevents the "stop and readjust" glitch
+      // caused by a layout reflow happening mid-animation.
+      requestAnimationFrame(() => {
+        translateY.value = withSpring(0, SPRING_IN);
+        backdropO.value  = withTiming(BACKDROP_OPACITY, { duration: 300 });
+      });
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -241,9 +248,9 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
           <Pressable style={StyleSheet.absoluteFill} onPress={internalClose} />
         </Animated.View>
 
-        {/* Sheet */}
+        {/* Sheet — fixed height so content loading never causes a layout shift mid-animation */}
         <GestureDetector gesture={panGesture}>
-          <Animated.View style={[s.sheet, { maxHeight: Math.round(SCREEN_H * 0.82) }, sheetStyle]}>
+          <Animated.View style={[s.sheet, { height: Math.round(SCREEN_H * 0.82) }, sheetStyle]}>
 
             {/* Image header */}
             <View style={[s.imageArea, { backgroundColor: imageUrl ? 'transparent' : palette.bg }]}>
