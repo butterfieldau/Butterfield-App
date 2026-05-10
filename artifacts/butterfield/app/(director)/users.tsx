@@ -983,22 +983,28 @@ type CreateType = 'staff' | 'wholesale';
 function CreateUserModal({ visible, type, onClose, onSuccess }: {
   visible: boolean; type: CreateType; onClose: () => void; onSuccess: () => void;
 }) {
-  const [name, setName]               = useState('');
-  const [email, setEmail]             = useState('');
-  const [password, setPassword]       = useState('');
-  const [showPw, setShowPw]           = useState(false);
-  const [companyName, setCompanyName] = useState('');
-  const [abn, setAbn]                 = useState('');
-  const [phone, setPhone]             = useState('');
-  const [position, setPosition]       = useState('Crew');
-  const [isManager, setIsManager]     = useState(false);
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState('');
+  const [name, setName]                     = useState('');
+  const [email, setEmail]                   = useState('');
+  const [password, setPassword]             = useState('');
+  const [showPw, setShowPw]                 = useState(false);
+  const [companyName, setCompanyName]       = useState('');
+  const [abn, setAbn]                       = useState('');
+  const [phone, setPhone]                   = useState('');
+  const [position, setPosition]             = useState('Crew');
+  const [department, setDepartment]         = useState('floor');
+  const [employmentStatus, setEmploymentStatus] = useState('casual');
+  const [hourlyRate, setHourlyRate]         = useState('');
+  const [address, setAddress]               = useState('');
+  const [tfn, setTfn]                       = useState('');
+  const [isManager, setIsManager]           = useState(false);
+  const [loading, setLoading]               = useState(false);
+  const [error, setError]                   = useState('');
 
   const reset = () => {
     setName(''); setEmail(''); setPassword(''); setCompanyName('');
-    setAbn(''); setPhone(''); setPosition('Crew'); setIsManager(false);
-    setError(''); setLoading(false);
+    setAbn(''); setPhone(''); setPosition('Crew'); setDepartment('floor');
+    setEmploymentStatus('casual'); setHourlyRate(''); setAddress(''); setTfn('');
+    setIsManager(false); setError(''); setLoading(false);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -1018,7 +1024,16 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       if (type === 'staff') {
-        await api.director.createStaff({ name: name.trim(), email: email.trim(), password, position: position.trim(), isManager });
+        const rateVal = hourlyRate.trim() ? Math.round(parseFloat(hourlyRate) * 100) : undefined;
+        await api.director.createStaff({
+          name: name.trim(), email: email.trim(), password,
+          position: position.trim(), department: department.trim(),
+          isManager, hourlyRateCents: rateVal,
+          phone: phone.trim() || undefined,
+          address: address.trim() || undefined,
+          taxFileNumber: tfn.trim() || undefined,
+          employmentStatus,
+        });
       } else {
         await api.director.createWholesale({ name: name.trim(), email: email.trim(), password, companyName: companyName.trim(), abn: abn.trim() || undefined, phone: phone.trim() || undefined });
       }
@@ -1077,10 +1092,45 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
           {/* Staff-specific */}
           {isStaff && (
             <>
-              <Text style={[modal.sectionLabel, { color: MUTED }]}>POSITION DETAILS</Text>
+              <Text style={[modal.sectionLabel, { color: MUTED }]}>CONTACT</Text>
+              <View style={[modal.inputRow, { borderColor: BORDER }]}>
+                <Feather name="phone" size={15} color={MUTED} />
+                <TextInput style={[modal.input, { color: TEXT }]} placeholder="Phone number (optional)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+              </View>
+              <View style={[modal.inputRow, { borderColor: BORDER }]}>
+                <Feather name="map-pin" size={15} color={MUTED} />
+                <TextInput style={[modal.input, { color: TEXT }]} placeholder="Home address (optional)" placeholderTextColor={MUTED} value={address} onChangeText={setAddress} autoCapitalize="words" />
+              </View>
+
+              <Text style={[modal.sectionLabel, { color: MUTED }]}>EMPLOYMENT</Text>
               <View style={[modal.inputRow, { borderColor: BORDER }]}>
                 <Feather name="briefcase" size={15} color={MUTED} />
                 <TextInput style={[modal.input, { color: TEXT }]} placeholder="Position (e.g. Barista, Crew)" placeholderTextColor={MUTED} value={position} onChangeText={setPosition} autoCapitalize="words" />
+              </View>
+              <View style={[modal.inputRow, { borderColor: BORDER }]}>
+                <Feather name="layers" size={15} color={MUTED} />
+                <TextInput style={[modal.input, { color: TEXT }]} placeholder="Department (e.g. floor, kitchen)" placeholderTextColor={MUTED} value={department} onChangeText={setDepartment} autoCapitalize="none" />
+              </View>
+              <View style={{ gap: 6 }}>
+                <Text style={[modal.sectionLabel, { color: MUTED, marginBottom: 4 }]}>EMPLOYMENT STATUS</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {['casual', 'part-time', 'full-time'].map(s => (
+                    <Pressable key={s} onPress={() => { setEmploymentStatus(s); Haptics.selectionAsync(); }}
+                      style={[modal.chip, { backgroundColor: employmentStatus === s ? BLUE : BG, borderColor: employmentStatus === s ? BLUE : BORDER }]}>
+                      <Text style={[modal.chipText, { color: employmentStatus === s ? '#fff' : TEXT }]}>
+                        {s.charAt(0).toUpperCase() + s.slice(1)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+              <View style={[modal.inputRow, { borderColor: BORDER }]}>
+                <Feather name="dollar-sign" size={15} color={MUTED} />
+                <TextInput style={[modal.input, { color: TEXT }]} placeholder="Hourly rate (e.g. 24.50)" placeholderTextColor={MUTED} value={hourlyRate} onChangeText={setHourlyRate} keyboardType="decimal-pad" />
+              </View>
+              <View style={[modal.inputRow, { borderColor: BORDER }]}>
+                <Feather name="hash" size={15} color={MUTED} />
+                <TextInput style={[modal.input, { color: TEXT }]} placeholder="Tax File Number (optional)" placeholderTextColor={MUTED} value={tfn} onChangeText={setTfn} keyboardType="numeric" secureTextEntry />
               </View>
               <View style={[modal.toggleRow, { borderColor: BORDER }]}>
                 <View style={{ flex: 1 }}>
@@ -1364,6 +1414,8 @@ const modal = StyleSheet.create({
   errorText:      { flex: 1, fontSize: 13 },
   submitBtn:      { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   submitBtnText:  { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  chip:           { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  chipText:       { fontSize: 13, fontFamily: 'Inter_500Medium' },
 });
 
 const wdl = StyleSheet.create({

@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorReward, type DirectorAnnouncement } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -21,8 +22,9 @@ const GREEN  = '#22C55E';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
 
-const TABS = ['Store', 'Rewards', 'Notify', 'Managers'] as const;
-type TabKey = typeof TABS[number];
+const BASE_TABS   = ['Store', 'Rewards', 'Notify', 'Managers'] as const;
+const MASTER_TABS = ['Store', 'Rewards', 'Notify', 'Managers', 'Directors'] as const;
+type TabKey = 'Store' | 'Rewards' | 'Notify' | 'Managers' | 'Directors';
 
 const REWARD_CATEGORIES = ['food', 'drink', 'discount', 'experience', 'merchandise'];
 const TARGET_ROLES      = ['customer', 'staff', 'wholesale'];
@@ -961,32 +963,175 @@ function ManagersTab() {
   );
 }
 
+// ─── Directors Tab (master only) ──────────────────────────────────────────────
+const PURPLE = '#7C3AED';
+
+function DirectorsTab() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['master-directors'],
+    queryFn: () => api.director.directors.list(),
+  });
+  const directors = data?.data ?? [];
+
+  const [createModal, setCreateModal] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!form.name || !form.email || !form.password) {
+      Alert.alert('Missing fields', 'Name, email and password are required.'); return;
+    }
+    if (form.password.length < 8) {
+      Alert.alert('Password too short', 'Password must be at least 8 characters.'); return;
+    }
+    setCreating(true);
+    try {
+      await api.director.directors.create(form);
+      await qc.invalidateQueries({ queryKey: ['master-directors'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCreateModal(false);
+      setForm({ name: '', email: '', password: '' });
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally { setCreating(false); }
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    Alert.alert('Remove Director', `Remove ${name}'s director access? This will permanently delete their account.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try {
+          await api.director.directors.delete(id);
+          await qc.invalidateQueries({ queryKey: ['master-directors'] });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        } catch (e: any) { Alert.alert('Error', e.message); }
+      }},
+    ]);
+  };
+
+  if (isLoading) return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
+
+  return (
+    <>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+        <View style={[styles.card, { backgroundColor: '#F5F3FF', borderColor: PURPLE + '30' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Feather name="shield" size={16} color={PURPLE} />
+            <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: PURPLE }}>Master Account Controls</Text>
+          </View>
+          <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6D28D9', lineHeight: 18 }}>
+            Directors have full access to all store management features, but cannot add or remove other directors. Only the master account can manage directors.
+          </Text>
+        </View>
+
+        <Pressable onPress={() => { Haptics.selectionAsync(); setCreateModal(true); }}
+          style={[styles.addBtn, { backgroundColor: PURPLE }]}>
+          <Feather name="user-plus" size={18} color="#fff" />
+          <Text style={styles.addBtnText}>Add Director</Text>
+        </Pressable>
+
+        {directors.length === 0 ? (
+          <View style={styles.center}>
+            <Feather name="users" size={40} color={BORDER} />
+            <Text style={styles.emptyText}>No directors yet. Add one above.</Text>
+          </View>
+        ) : (
+          directors.map((d: any) => (
+            <View key={d.id} style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT }}>{d.name}</Text>
+                  <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 }}>{d.email}</Text>
+                  <View style={[styles.chip, { backgroundColor: PURPLE + '18', borderColor: PURPLE + '40', alignSelf: 'flex-start', marginTop: 6 }]}>
+                    <Text style={[styles.chipText, { color: PURPLE }]}>DIRECTOR</Text>
+                  </View>
+                </View>
+                <Pressable onPress={() => handleDelete(d.id, d.name)} style={{ padding: 6 }}>
+                  <Feather name="trash-2" size={18} color="#EF4444" />
+                </Pressable>
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+
+      <Modal visible={createModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setCreateModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[styles.modalHeader, { borderBottomColor: BORDER }]}>
+            <Pressable onPress={() => setCreateModal(false)}>
+              <Text style={[styles.modalCancel, { color: MUTED }]}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.modalTitle}>New Director</Text>
+            <Pressable onPress={handleCreate} disabled={creating}>
+              {creating ? <ActivityIndicator color={BLUE} size="small" /> :
+                <Text style={[styles.modalSave, { color: BLUE }]}>Create</Text>}
+            </Pressable>
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 60 }}>
+              <View style={[styles.card, { backgroundColor: '#F5F3FF', borderColor: PURPLE + '30' }]}>
+                <Text style={{ fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6D28D9', lineHeight: 18 }}>
+                  Directors have the same access as this master account, except they cannot manage other directors.
+                </Text>
+              </View>
+              {[
+                { label: 'Full Name', key: 'name',     placeholder: 'Jane Smith' },
+                { label: 'Email',     key: 'email',    placeholder: 'jane@butterfield.com.au' },
+                { label: 'Password',  key: 'password', placeholder: 'Min 8 characters' },
+              ].map(field => (
+                <View key={field.key} style={{ gap: 6 }}>
+                  <Text style={styles.fieldLabel}>{field.label}</Text>
+                  <TextInput
+                    value={(form as any)[field.key]}
+                    onChangeText={v => setForm(p => ({ ...p, [field.key]: v }))}
+                    placeholder={field.placeholder}
+                    placeholderTextColor={MUTED}
+                    secureTextEntry={field.key === 'password'}
+                    style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorSettingsScreen() {
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const { user } = useAuth();
+  const isMaster = user?.role === 'master';
+  const TABS = isMaster ? MASTER_TABS : BASE_TABS;
   const [tab, setTab] = useState<TabKey>('Store');
 
   // Jump to the requested tab when navigated from More screen
   useEffect(() => {
-    if (tabParam && TABS.includes(tabParam as TabKey)) {
+    if (tabParam && (TABS as readonly string[]).includes(tabParam)) {
       setTab(tabParam as TabKey);
     }
   }, [tabParam]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
-        {TABS.map(t => (
-          <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
-            onPress={() => { setTab(t); Haptics.selectionAsync(); }}>
-            <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]}>{t}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {tab === 'Store'    && <StoreTab />}
-      {tab === 'Rewards'  && <RewardsTab />}
-      {tab === 'Notify'   && <NotifyTab />}
-      {tab === 'Managers' && <ManagersTab />}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+        <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
+          {(TABS as readonly string[]).map(t => (
+            <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
+              onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
+              <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]}>{t}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+      {tab === 'Store'     && <StoreTab />}
+      {tab === 'Rewards'   && <RewardsTab />}
+      {tab === 'Notify'    && <NotifyTab />}
+      {tab === 'Managers'  && <ManagersTab />}
+      {tab === 'Directors' && <DirectorsTab />}
     </View>
   );
 }

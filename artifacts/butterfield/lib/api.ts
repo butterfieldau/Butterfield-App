@@ -176,7 +176,7 @@ export const api = {
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
-    createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number }) =>
+    createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
       request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     createWholesale:     (data: { name: string; email: string; password: string; companyName: string; abn?: string; phone?: string }) =>
       request<{ data: any }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
@@ -280,7 +280,7 @@ export const api = {
         request<{ ok: boolean }>(`/director/customers/${id}/badges/${badgeId}`, { method: 'DELETE' }),
     },
 
-    // Manager management (director only)
+    // Manager management (director/master)
     managers: {
       list:              () => request<{ data: any[] }>('/director/managers'),
       create:            (data: { name: string; email: string; password: string; permissions?: string[]; notes?: string }) =>
@@ -289,6 +289,15 @@ export const api = {
         request<{ data: any }>(`/director/managers/${id}/permissions`, { method: 'PATCH', body: JSON.stringify(data) }),
       delete:            (id: string) =>
         request<{ success: boolean }>(`/director/managers/${id}`, { method: 'DELETE' }),
+    },
+
+    // Director management (master only)
+    directors: {
+      list:   () => request<{ data: any[] }>('/director/directors'),
+      create: (data: { name: string; email: string; password: string }) =>
+        request<{ data: any }>('/director/directors', { method: 'POST', body: JSON.stringify(data) }),
+      delete: (id: string) =>
+        request<{ success: boolean }>(`/director/directors/${id}`, { method: 'DELETE' }),
     },
   },
 
@@ -448,6 +457,10 @@ export interface StaffProfile {
   department: string;
   isManager: boolean;
   hourlyRateCents: number;
+  address?: string | null;
+  taxFileNumber?: string | null;
+  employmentStatus?: string | null;
+  approvedByAdmin?: boolean;
 }
 
 export interface StaffShift {

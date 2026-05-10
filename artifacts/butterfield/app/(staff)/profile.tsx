@@ -128,15 +128,19 @@ export default function StaffProfileScreen() {
         {/* Details card */}
         {profile && (
           <View style={[styles.detailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-            {[
+            {([
               { label: 'Employee ID',  value: profile.employeeId },
-              { label: 'Department',   value: capitalize(profile.department) },
-              { label: 'Position',     value: capitalize(profile.position) },
-              { label: 'Access Level', value: profile.isManager ? 'Manager / Director' : 'Staff' },
-            ].map((row, i, arr) => (
+              { label: 'Department',   value: capitalize(profile.department ?? '') },
+              { label: 'Position',     value: capitalize(profile.position ?? '') },
+              { label: 'Status',       value: profile.employmentStatus ? capitalize(profile.employmentStatus.replace('-', ' ')) : '—' },
+              { label: 'Hourly Rate',  value: profile.hourlyRateCents ? `$${(profile.hourlyRateCents / 100).toFixed(2)}/hr` : '—' },
+              { label: 'Address',      value: profile.address ?? '—' },
+              { label: 'TFN',          value: profile.taxFileNumber ? '••• ••• •••' : 'Not set' },
+              { label: 'Access Level', value: profile.isManager ? 'Manager' : 'Staff' },
+            ] as { label: string; value: string }[]).map((row, i, arr) => (
               <View key={row.label} style={[styles.detailRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                 <Text style={[styles.detailLabel, { color: MUTED }]}>{row.label}</Text>
-                <Text style={[styles.detailValue, { color: TEXT }]}>{row.value}</Text>
+                <Text style={[styles.detailValue, { color: TEXT }]} numberOfLines={2}>{row.value}</Text>
               </View>
             ))}
           </View>

@@ -80,8 +80,8 @@ router.post('/staff-login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || !['staff', 'director', 'manager'].includes(user.role)) {
-    return res.status(401).json({ error: 'Staff, Manager, or Director account not found.' });
+  if (!user || !['staff', 'director', 'manager', 'master'].includes(user.role)) {
+    return res.status(401).json({ error: 'Staff, Manager, Director, or Master account not found.' });
   }
 
   // Staff accounts require admin approval; directors and managers do not

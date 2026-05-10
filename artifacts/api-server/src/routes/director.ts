@@ -13,7 +13,7 @@ import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 
 const router = Router();
-router.use(requireRole('director', 'manager'));
+router.use(requireRole('director', 'manager', 'master'));
 
 // ── Enhanced Dashboard stats ─────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
@@ -253,8 +253,9 @@ router.delete('/users/:id', async (req, res) => {
   if (id === req.user!.id) return res.status(400).json({ error: 'You cannot delete your own account.' });
   const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, id));
   if (!target) return res.status(404).json({ error: 'User not found.' });
-  if (target.role === 'director') return res.status(403).json({ error: 'Director accounts cannot be deleted.' });
-  if (req.user!.role !== 'director') return res.status(403).json({ error: 'Only directors can delete accounts.' });
+  if (target.role === 'master') return res.status(403).json({ error: 'Master accounts cannot be deleted.' });
+  if (target.role === 'director' && req.user!.role !== 'master') return res.status(403).json({ error: 'Only the master account can delete director accounts.' });
+  if (!['director', 'master'].includes(req.user!.role)) return res.status(403).json({ error: 'Only directors can delete accounts.' });
 
   await db.execute(sql`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id = ${id})`);
   await db.execute(sql`DELETE FROM loyalty_transactions WHERE user_id = ${id}`);
@@ -526,7 +527,7 @@ router.get('/wholesale', async (req, res) => {
 
 // ── Create staff account ─────────────────────────────────────────────────────
 router.post('/create-staff', async (req, res) => {
-  const { name, email, password, position, department, isManager, hourlyRateCents } = req.body;
+  const { name, email, password, position, department, isManager, hourlyRateCents, phone, address, taxFileNumber, employmentStatus } = req.body;
   if (!name?.trim() || !email?.trim() || !password?.trim()) {
     return res.status(400).json({ error: 'Name, email and password are required.' });
   }
@@ -535,15 +536,18 @@ router.post('/create-staff', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 10);
   const userId = randomUUID();
-  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase().trim(), passwordHash: hash, role: 'staff' as any, name: name.trim() });
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase().trim(), passwordHash: hash, role: 'staff' as any, name: name.trim(), phone: phone?.trim() ?? null });
   const empId = `EMP-${Date.now().toString(36).toUpperCase()}`;
   const [profile] = await db.insert(staffProfilesTable).values({
     userId, employeeId: empId,
-    position:   position?.trim()   ?? 'Crew',
-    department: department?.trim() ?? 'floor',
-    isManager:  isManager === true,
-    approvedByAdmin: true,
-    hourlyRateCents: typeof hourlyRateCents === 'number' ? hourlyRateCents : 2200,
+    position:         position?.trim()         ?? 'Crew',
+    department:       department?.trim()       ?? 'floor',
+    isManager:        isManager === true,
+    approvedByAdmin:  true,
+    hourlyRateCents:  typeof hourlyRateCents === 'number' ? hourlyRateCents : 2200,
+    address:          address?.trim()          ?? null,
+    taxFileNumber:    taxFileNumber?.trim()    ?? null,
+    employmentStatus: employmentStatus?.trim() ?? 'casual',
   }).returning();
   return res.status(201).json({ data: { userId, email, name, role: 'staff', employeeId: empId, profile } });
 });
@@ -921,7 +925,7 @@ function parsePerms(raw?: string | null): string[] {
 }
 
 router.get('/managers', async (req, res) => {
-  if (req.user?.role !== 'director') {
+  if (!['director', 'master'].includes(req.user?.role ?? '')) {
     return res.status(403).json({ error: 'Director only' });
   }
   const managers = await db.select({
@@ -944,7 +948,7 @@ router.get('/managers', async (req, res) => {
 });
 
 router.post('/managers', async (req, res) => {
-  if (req.user?.role !== 'director') return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   const { name, email, password, permissions = [], notes } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
@@ -962,7 +966,7 @@ router.post('/managers', async (req, res) => {
 });
 
 router.patch('/managers/:id/permissions', async (req, res) => {
-  if (req.user?.role !== 'director') return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   const { permissions, notes } = req.body;
   const updates: Record<string, any> = {};
   if (Array.isArray(permissions)) updates.permissions = JSON.stringify(permissions);
@@ -976,9 +980,44 @@ router.patch('/managers/:id/permissions', async (req, res) => {
 });
 
 router.delete('/managers/:id', async (req, res) => {
-  if (req.user?.role !== 'director') return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
   await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
+  return res.json({ success: true });
+});
+
+// ── Director management (master only) ────────────────────────────────────────
+router.get('/directors', async (req, res) => {
+  if (req.user?.role !== 'master') return res.status(403).json({ error: 'Master account only' });
+  const directors = await db.select({
+    id:        usersTable.id,
+    name:      usersTable.name,
+    email:     usersTable.email,
+    createdAt: usersTable.createdAt,
+  }).from(usersTable)
+    .where(eq(usersTable.role, 'director' as any))
+    .orderBy(desc(usersTable.createdAt));
+  return res.json({ data: directors });
+});
+
+router.post('/directors', async (req, res) => {
+  if (req.user?.role !== 'master') return res.status(403).json({ error: 'Master account only' });
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+  if (existing) return res.status(409).json({ error: 'An account with this email already exists.' });
+  const passwordHash = await bcrypt.hash(password, 12);
+  const userId = randomUUID();
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'director' as any, name });
+  return res.status(201).json({ data: { id: userId, name, email: email.toLowerCase(), role: 'director' } });
+});
+
+router.delete('/directors/:id', async (req, res) => {
+  if (req.user?.role !== 'master') return res.status(403).json({ error: 'Master account only' });
+  if (req.params.id === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself.' });
+  const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.params.id));
+  if (!target || target.role !== 'director') return res.status(404).json({ error: 'Director not found.' });
+  await db.delete(usersTable).where(eq(usersTable.id, req.params.id));
   return res.json({ success: true });
 });
 

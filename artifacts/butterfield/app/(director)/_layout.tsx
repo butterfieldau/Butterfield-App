@@ -9,13 +9,14 @@ const BLUE = '#40C0F2';
 const NAVY = '#1A2B4A';
 
 export default function DirectorLayout() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const isMaster = user?.role === 'master';
 
   return (
     <View style={{ flex: 1, backgroundColor: NAVY }}>
       <PortalHeader
-        badge="DIRECTOR"
-        badgeColor="#EF4444"
+        badge={isMaster ? 'MASTER' : 'DIRECTOR'}
+        badgeColor={isMaster ? '#7C3AED' : '#EF4444'}
         backgroundColor={NAVY}
         onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
       />

@@ -9,7 +9,7 @@ import { eq, desc, count, sum, gte, and, inArray, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
-router.use(requireRole('director', 'manager'));
+router.use(requireRole('director', 'manager', 'master'));
 
 // ── Badge computation ────────────────────────────────────────────────────────
 function computeAutoBadges(
