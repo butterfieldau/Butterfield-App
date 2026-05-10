@@ -34,6 +34,17 @@ const PUBLIC_ROLES = [
   { role: 'wholesale' as UserRole, label: 'Wholesale', subtitle: 'Bulk orders\n& account tools',   icon: 'package' },
 ];
 
+const DEMO_PW = 'Demo1234!';
+const PUBLIC_DEMOS = [
+  { role: 'customer'  as UserRole, label: 'Customer',  email: 'customer@demo.com',  color: '#40C0F2', icon: 'coffee'   },
+  { role: 'wholesale' as UserRole, label: 'Wholesale', email: 'wholesale@demo.com', color: '#16A34A', icon: 'package'  },
+];
+const INTERNAL_DEMOS = [
+  { label: 'Staff',    email: 'staff@demo.com',    color: '#78716C', icon: 'user'     },
+  { label: 'Manager',  email: 'manager@demo.com',  color: '#7C3AED', icon: 'shield'   },
+  { label: 'Director', email: 'director@demo.com', color: '#1A2B4A', icon: 'star'     },
+];
+
 const INTERNAL_EMAILS: string[] = [];
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
 
@@ -69,6 +80,17 @@ export default function LoginScreen() {
   const [iLoading, setILoading]           = useState(false);
   const [iError, setIError]               = useState('');
   const [geoStatus, setGeoStatus]         = useState<'idle' | 'acquiring' | 'ready' | 'denied'>('idle');
+  const [showDemo, setShowDemo]           = useState(false);
+  const [seedingDemo, setSeedingDemo]     = useState(false);
+
+  const openDemo = async () => {
+    if (showDemo) { setShowDemo(false); return; }
+    Haptics.selectionAsync();
+    setSeedingDemo(true);
+    try { await fetch('/api/auth/seed-demo', { method: 'POST' }); } catch {}
+    setSeedingDemo(false);
+    setShowDemo(true);
+  };
 
   const isWholesale      = selectedRole === 'wholesale';
   const isWholesaleApply = mode === 'wholesale-apply';
@@ -387,6 +409,78 @@ export default function LoginScreen() {
                 </Pressable>
               )}
 
+              {/* ── Demo accounts strip (public) ── */}
+              <Pressable onPress={openDemo} style={[s.demoToggle, { borderColor: BORDER }]}>
+                {seedingDemo
+                  ? <ActivityIndicator size="small" color={MUTED} />
+                  : <Feather name="zap" size={13} color={MUTED} />
+                }
+                <Text style={[s.demoToggleText, { fontFamily: 'Inter_500Medium', color: MUTED }]}>
+                  {showDemo ? 'Hide demo accounts' : 'Demo accounts'}
+                </Text>
+                <Feather name={showDemo ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} />
+              </Pressable>
+
+              {showDemo && (
+                <View style={[s.demoBox, { borderColor: BORDER, backgroundColor: CARD }]}>
+                  <Text style={[s.demoBoxLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>
+                    CUSTOMER &amp; WHOLESALE — tap to autofill
+                  </Text>
+                  {PUBLIC_DEMOS.map((d) => (
+                    <Pressable
+                      key={d.email}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSelectedRole(d.role);
+                        setMode('login');
+                        setEmail(d.email);
+                        setPassword(DEMO_PW);
+                        setError('');
+                      }}
+                      style={[s.demoTile, { borderColor: d.color + '40' }]}
+                    >
+                      <View style={[s.demoTileIcon, { backgroundColor: d.color + '18' }]}>
+                        <Feather name={d.icon as any} size={15} color={d.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.demoTileLabel, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>{d.label}</Text>
+                        <Text style={[s.demoTileEmail, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{d.email}</Text>
+                      </View>
+                      <Text style={[s.demoTilePw, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Demo1234!</Text>
+                      <Feather name="arrow-right" size={13} color={d.color} />
+                    </Pressable>
+                  ))}
+                  <View style={[s.demoDivider, { backgroundColor: BORDER }]} />
+                  <Text style={[s.demoBoxLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>
+                    STAFF, MANAGER &amp; DIRECTOR — opens internal login
+                  </Text>
+                  {INTERNAL_DEMOS.map((d) => (
+                    <Pressable
+                      key={d.email}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setShowInternal(true);
+                        setIEmail(d.email);
+                        setIPassword(DEMO_PW);
+                        setIError('');
+                        setGeoStatus('idle');
+                      }}
+                      style={[s.demoTile, { borderColor: d.color + '40' }]}
+                    >
+                      <View style={[s.demoTileIcon, { backgroundColor: d.color + '18' }]}>
+                        <Feather name={d.icon as any} size={15} color={d.color} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.demoTileLabel, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>{d.label}</Text>
+                        <Text style={[s.demoTileEmail, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{d.email}</Text>
+                      </View>
+                      <Text style={[s.demoTilePw, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Demo1234!</Text>
+                      <Feather name="arrow-right" size={13} color={d.color} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
               <Pressable
                 onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); setGeoStatus('idle'); Haptics.selectionAsync(); }}
                 style={{ alignItems: 'center', paddingVertical: 8 }}
@@ -467,6 +561,35 @@ export default function LoginScreen() {
                   Staff must be within range of Butterfield Merrylands to sign in.
                 </Text>
               </View>
+
+              {/* ── Demo accounts strip (internal) ── */}
+              <View style={[s.demoBox, { borderColor: BORDER, backgroundColor: '#F8F9FF' }]}>
+                <Text style={[s.demoBoxLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>
+                  DEMO ACCOUNTS — tap to autofill
+                </Text>
+                {INTERNAL_DEMOS.map((d) => (
+                  <Pressable
+                    key={d.email}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setIEmail(d.email);
+                      setIPassword(DEMO_PW);
+                      setIError('');
+                    }}
+                    style={[s.demoTile, { borderColor: d.color + '40' }]}
+                  >
+                    <View style={[s.demoTileIcon, { backgroundColor: d.color + '18' }]}>
+                      <Feather name={d.icon as any} size={15} color={d.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.demoTileLabel, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>{d.label}</Text>
+                      <Text style={[s.demoTileEmail, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{d.email}</Text>
+                    </View>
+                    <Text style={[s.demoTilePw, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Demo1234!</Text>
+                    <Feather name="arrow-right" size={13} color={d.color} />
+                  </Pressable>
+                ))}
+              </View>
             </>
           )}
         </View>
@@ -515,4 +638,14 @@ const s = StyleSheet.create({
   geoBanner:       { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
   geoText:         { flex: 1, fontSize: 13 },
   geoNote:         { flex: 1, fontSize: 11, lineHeight: 16 },
+  demoToggle:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 11, borderRadius: 10, borderWidth: 1 },
+  demoToggleText:  { fontSize: 13 },
+  demoBox:         { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  demoBoxLabel:    { fontSize: 10, letterSpacing: 1 },
+  demoDivider:     { height: 1, marginVertical: 2 },
+  demoTile:        { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, backgroundColor: '#FAFAFA' },
+  demoTileIcon:    { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  demoTileLabel:   { fontSize: 13 },
+  demoTileEmail:   { fontSize: 11, marginTop: 1 },
+  demoTilePw:      { fontSize: 11 },
 });
