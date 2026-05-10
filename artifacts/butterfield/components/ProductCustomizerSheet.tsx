@@ -363,7 +363,7 @@ const s = StyleSheet.create({
   },
 
   // ── Image header ─────────────────────────────────────────────────────────────
-  imageArea:    { height: IMAGE_H, overflow: 'hidden' },
+  imageArea:    { height: IMAGE_H, overflow: 'hidden', borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   handleWrap:   { alignItems: 'center', paddingTop: 10, paddingBottom: 6 },
   handle:       { width: 38, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)' },
   imageBadges:  { position: 'absolute', bottom: 14, left: 16, flexDirection: 'row', gap: 6 },
