@@ -492,6 +492,34 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                 </View>
               )}
 
+              {/* ── Promote to Director ──────────────────────────────── */}
+              <Pressable
+                style={sp_s.promoteBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                  Alert.alert(
+                    'Promote to Director',
+                    `Make ${u?.name ?? 'this staff member'} a Director?\n\nThey will gain full access to the Director portal (orders, users, products, settings, pricing) and lose staff portal access. This is a significant role change.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Promote', onPress: async () => {
+                        if (!userId) return;
+                        try {
+                          await api.director.promoteToDirector(userId);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          handleClose();
+                          onRefresh();
+                          Alert.alert('Promoted', `${u?.name ?? 'Staff member'} is now a Director and can log in via the Director portal.`);
+                        } catch (e: any) { Alert.alert('Error', e.message); }
+                      }},
+                    ]
+                  );
+                }}
+              >
+                <Feather name="shield" size={15} color={AMBER} />
+                <Text style={sp_s.promoteBtnText}>Promote to Director</Text>
+              </Pressable>
+
               {/* ── Delete account ───────────────────────────────────── */}
               <Pressable
                 style={sp_s.deleteBtn}
@@ -574,6 +602,8 @@ const sp_s = StyleSheet.create({
   shiftDate:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium' },
   shiftTime:     { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   shiftHrs:      { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  promoteBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: AMBER },
+  promoteBtnText: { color: AMBER, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   deleteBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, marginBottom: 32, paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: RED },
   deleteBtnText: { color: RED, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
 });

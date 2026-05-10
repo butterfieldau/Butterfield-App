@@ -378,6 +378,24 @@ router.patch('/staff/:userId/approve', async (req, res) => {
   return res.json({ data: updated });
 });
 
+// ── Promote staff to director ─────────────────────────────────────────────────
+router.patch('/staff/:userId/promote-director', async (req, res) => {
+  // Only director or master may elevate someone to director (not managers)
+  if (!['director', 'master'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Only directors can promote to director.' });
+  }
+  const { userId } = req.params;
+  const [target] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  if (target.role === 'director') return res.status(400).json({ error: 'User is already a director.' });
+  if (target.role === 'master') return res.status(403).json({ error: 'Cannot change master account role.' });
+  const [updated] = await db.update(usersTable)
+    .set({ role: 'director' as any })
+    .where(eq(usersTable.id, userId))
+    .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role });
+  return res.json({ data: updated });
+});
+
 // ── Wholesale approval ───────────────────────────────────────────────────────
 router.patch('/wholesale/:accountId/status', async (req, res) => {
   const { accountId } = req.params;
