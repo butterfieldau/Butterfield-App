@@ -10,6 +10,7 @@ import { api } from './api';
  *   2. We open the TCP socket ourselves — the device IS on the same LAN.
  */
 export async function sendTestPrint(printerIp: string, printerPort = 9100): Promise<void> {
+  const port = isNaN(printerPort) || printerPort <= 0 ? 9100 : printerPort;
   const result = await api.director.printerBytes();
   const base64 = result.data.bytes;
 
@@ -27,7 +28,7 @@ export async function sendTestPrint(printerIp: string, printerPort = 9100): Prom
     };
 
     const socket = TcpSocket.createConnection(
-      { host: printerIp, port: printerPort, connectTimeout: 8000 },
+      { host: printerIp, port, connectTimeout: 8000 },
       () => {
         socket.write(bytes, undefined, (writeErr) => {
           if (writeErr) { done(writeErr); return; }
@@ -39,7 +40,7 @@ export async function sendTestPrint(printerIp: string, printerPort = 9100): Prom
     socket.on('close', () => done());
     socket.on('error', (err: Error) => done(err));
     socket.on('timeout', () =>
-      done(new Error(`Printer timeout: could not reach ${printerIp}:${printerPort}`)),
+      done(new Error(`Printer timeout: could not reach ${printerIp}:${port}`)),
     );
   });
 }

@@ -565,10 +565,11 @@ router.patch('/settings', async (req, res) => {
 router.post('/printer/bytes', async (req, res) => {
   try {
     const { buildReceiptBytes } = await import('../lib/printer.js');
-    const bytes = buildReceiptBytes({
+    const { job } = req.body as { job?: any };
+    const printJob = (job as import('../lib/printer.js').PrintJob | undefined) ?? {
       orderId:             'test-0000-0000-0000',
       customerName:        req.user!.name,
-      type:                'pickup',
+      type:                'pickup' as const,
       items:               [
         { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
         { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
@@ -576,7 +577,8 @@ router.post('/printer/bytes', async (req, res) => {
       totalCents:          1550,
       loyaltyPointsEarned: 15,
       notes:               'Test print — Butterfield POS',
-    });
+    };
+    const bytes = buildReceiptBytes(printJob);
     return res.json({ data: { bytes: bytes.toString('base64') } });
   } catch (err: any) {
     return res.status(500).json({ error: err.message ?? 'Could not build receipt' });

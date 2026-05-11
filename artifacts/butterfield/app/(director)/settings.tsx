@@ -494,7 +494,7 @@ function StoreTab() {
         <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
           <Feather name="printer" size={13} color={BLUE} />
           <Text style={[styles.infoBannerText, { color: BLUE }]}>
-            Star Micronics printer on your network. Enter its IP address to auto-print pickup receipts on every order.
+            Star Micronics printer on your network. Enter its IP address, then tap Send Test Print from this device (must be on the same WiFi as the printer). Staff can print receipts from the Orders screen when marking an order as Ready.
           </Text>
         </View>
         <View style={{ gap: 6 }}>
