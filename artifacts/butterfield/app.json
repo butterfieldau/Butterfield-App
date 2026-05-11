@@ -18,7 +18,9 @@
     },
     "android": {},
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/icon.png",
+      "title": "Butterfield Cookies — Sydney's Premium Café",
+      "description": "Order freshly baked cookies, specialty coffee, and desserts from Butterfield — Sydney's premium café. Browse the full menu, earn loyalty points, and order online for pickup or delivery."
     },
     "plugins": [
       [
