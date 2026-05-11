@@ -8,6 +8,7 @@ import {
 import {
   DancingScript_700Bold,
 } from "@expo-google-fonts/dancing-script";
+import { Anton_400Regular } from "@expo-google-fonts/anton";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
@@ -84,6 +85,7 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
     DancingScript_700Bold,
+    Anton_400Regular,
   });
 
   useEffect(() => {

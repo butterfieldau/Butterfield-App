@@ -199,7 +199,7 @@ export default function LoyaltyScreen() {
       >
         <View style={[styles.pageHeader, { paddingTop: insets.top + 16 }]}>
           <Text style={[styles.pageLabel, { fontFamily: 'Inter_600SemiBold' }]}>REWARDS</Text>
-          <Text style={[styles.pageTitle, { fontFamily: 'Inter_700Bold' }]}>Your loyalty card</Text>
+          <Text style={styles.pageTitle}>Your loyalty card</Text>
         </View>
 
         <View style={{ paddingHorizontal: 16 }}>
@@ -251,7 +251,7 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Rewards Club</Text>
+          <Text style={styles.sectionTitle}>Rewards Club</Text>
           <View style={styles.buyBadge}>
             <Text style={[styles.buyBadgeText, { fontFamily: 'Inter_500Medium' }]}>Buy 5, get 1 free</Text>
           </View>
@@ -348,7 +348,7 @@ export default function LoyaltyScreen() {
         {rewards.length > 0 && (
           <View style={{ marginTop: 24 }}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Redeem rewards</Text>
+              <Text style={styles.sectionTitle}>Redeem rewards</Text>
             </View>
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {rewards.map((r) => {
@@ -403,7 +403,7 @@ export default function LoyaltyScreen() {
           <View style={{ marginTop: 24 }}>
             <View style={styles.sectionHeader}>
               <Feather name="clock" size={16} color={TEXT} />
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Recent activity</Text>
+              <Text style={styles.sectionTitle}>Recent activity</Text>
             </View>
             <View style={{ paddingHorizontal: 16, gap: 8 }}>
               {transactions.slice(0, 10).map((txn) => (
@@ -425,7 +425,7 @@ export default function LoyaltyScreen() {
 
         <View style={{ marginTop: 24 }}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>How it works</Text>
+            <Text style={styles.sectionTitle}>How it works</Text>
           </View>
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {HOW_IT_WORKS.map((item) => (
@@ -449,7 +449,7 @@ export default function LoyaltyScreen() {
 const styles = StyleSheet.create({
   pageHeader: { paddingHorizontal: 20, paddingBottom: 16, gap: 4, backgroundColor: WHITE },
   pageLabel: { fontSize: 12, color: MUTED, letterSpacing: 1 },
-  pageTitle: { fontSize: 26, color: TEXT },
+  pageTitle: { fontSize: 26, color: TEXT, fontFamily: 'Anton_400Regular', textTransform: 'uppercase' },
 
   loyaltyCard: { borderRadius: 20, padding: 20, gap: 4 },
   memberLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, letterSpacing: 1 },
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   tierBtnLabel: { fontSize: 11, letterSpacing: 0.5 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, color: TEXT },
+  sectionTitle: { fontSize: 20, color: TEXT, fontFamily: 'Anton_400Regular', textTransform: 'uppercase' },
   buyBadge: { marginLeft: 'auto', backgroundColor: '#EEF2FB', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   buyBadgeText: { fontSize: 12, color: BRAND },
 
