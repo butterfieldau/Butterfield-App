@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable, passwordResetTokensTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
@@ -195,6 +195,48 @@ router.post('/seed-demo', async (req, res) => {
         })
         .onConflictDoUpdate({ target: managerProfilesTable.userId, set: { permissions: JSON.stringify(['dashboard','orders','products','reports']) } });
     }
+  }
+
+  // ── Seed Merrylands store (idempotent) ────────────────────────────────────
+  const MERRYLANDS_ID = '00000000-0000-0000-0000-000000000001';
+  await db.insert(storesTable).values({
+    id: MERRYLANDS_ID,
+    name: 'Butterfield Cookies — Merrylands',
+    slug: 'merrylands',
+    address: '2 Main Lane',
+    suburb: 'Merrylands',
+    state: 'NSW',
+    postcode: '2160',
+    country: 'Australia',
+    latitude: -33.8349,
+    longitude: 150.9942,
+    geofenceRadius: 100,
+    phone: '0480 769 995',
+    status: 'open',
+    pickupAvailable: true,
+    deliveryAvailable: false,
+    sortOrder: 0,
+  }).onConflictDoUpdate({
+    target: storesTable.id,
+    set: { name: 'Butterfield Cookies — Merrylands', status: 'open', updatedAt: new Date() },
+  });
+
+  // Mon–Sat 9 am – 5 pm, Sunday closed (idempotent: delete-then-insert only if no hours exist)
+  const existingHours = await db.select().from(storeOpeningHoursTable)
+    .where(eq(storeOpeningHoursTable.storeId, MERRYLANDS_ID));
+  if (existingHours.length === 0) {
+    const defaultHours = [
+      { dayOfWeek: 0, isClosed: true,  openTime: null,    closeTime: null    },
+      { dayOfWeek: 1, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+      { dayOfWeek: 2, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+      { dayOfWeek: 3, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+      { dayOfWeek: 4, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+      { dayOfWeek: 5, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+      { dayOfWeek: 6, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+    ];
+    await db.insert(storeOpeningHoursTable).values(
+      defaultHours.map(h => ({ id: randomUUID(), storeId: MERRYLANDS_ID, ...h }))
+    );
   }
 
   return res.json({

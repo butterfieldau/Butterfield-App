@@ -28,6 +28,35 @@ function staticMapUrl(lat: number, lng: number, w: number): string {
 
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+// Standard Merrylands trading hours used as fallback before API responds.
+// 0 = Sunday (closed), 1–6 = Mon–Sat 9 am – 5 pm.
+const FALLBACK_HOURS = [
+  { dayOfWeek: 0, isClosed: true,  openTime: null,    closeTime: null    },
+  { dayOfWeek: 1, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+  { dayOfWeek: 2, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+  { dayOfWeek: 3, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+  { dayOfWeek: 4, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+  { dayOfWeek: 5, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+  { dayOfWeek: 6, isClosed: false, openTime: '09:00', closeTime: '17:00' },
+];
+
+function computeOpenFromHours(hoursArr: typeof FALLBACK_HOURS): { isOpen: boolean; sc: string } {
+  const now = new Date();
+  const dow = now.getDay();
+  const today = hoursArr.find(h => h.dayOfWeek === dow);
+  if (!today || today.isClosed || !today.openTime || !today.closeTime) {
+    return { isOpen: false, sc: '#8E8E93' };
+  }
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const [oh, om] = today.openTime.split(':').map(Number);
+  const [ch, cm] = today.closeTime.split(':').map(Number);
+  const openMins  = oh * 60 + om;
+  const closeMins = ch * 60 + cm;
+  if (nowMins >= openMins && nowMins < closeMins - 30) return { isOpen: true, sc: '#16A34A' };
+  if (nowMins >= closeMins - 30 && nowMins < closeMins) return { isOpen: true, sc: '#F59E0B' };
+  return { isOpen: false, sc: '#8E8E93' };
+}
+
 function fmt12(t: string): string {
   const [h, m] = t.split(':').map(Number);
   const ampm = h >= 12 ? 'pm' : 'am';
@@ -85,12 +114,19 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
   const FALLBACK_PHONE   = '0480 769 995';
   const FALLBACK_ADDRESS = '2 Main Lane, Merrylands NSW 2160';
 
-  const sc      = store ? statusColor(store.openStatus ?? '') : '#8E8E93';
+  // When API data is present, use it. Otherwise fall back to computed values
+  // from FALLBACK_HOURS so the sheet is always useful even before the first response.
+  const fallbackOpen = !store ? computeOpenFromHours(FALLBACK_HOURS) : null;
+
+  const sc      = store ? statusColor(store.openStatus ?? '') : (fallbackOpen?.sc ?? '#8E8E93');
   const isOpen  = store
     ? (store.openStatus === 'open' || store.openStatus === 'closing_soon')
-    : false;
+    : (fallbackOpen?.isOpen ?? false);
 
-  const todayHours   = store?.todayHours;
+  const now = new Date();
+  const todayDow = now.getDay();
+
+  const todayHours   = store?.todayHours ?? FALLBACK_HOURS.find(h => h.dayOfWeek === todayDow);
   const todayDisplay = todayHours?.isClosed
     ? 'Closed today'
     : todayHours?.openTime && todayHours?.closeTime
@@ -121,7 +157,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     setTimeout(() => router.push('/(customer)/stores'), 300);
   };
 
-  const weekHours: any[] = store?.openingHours ?? [];
+  const weekHours: any[] = store?.openingHours ?? FALLBACK_HOURS;
 
   return (
     <Modal
