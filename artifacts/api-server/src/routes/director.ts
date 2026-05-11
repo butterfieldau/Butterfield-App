@@ -558,35 +558,28 @@ router.patch('/settings', async (req, res) => {
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });
 });
 
-// ── Printer test ─────────────────────────────────────────────────────────────
-router.post('/printer/test', async (req, res) => {
-  const { printerIp, printerPort } = req.body as { printerIp?: string; printerPort?: string };
-  const ip   = printerIp?.trim() ?? '';
-  const port = parseInt(printerPort ?? '9100', 10);
-  if (!ip) {
-    return res.status(400).json({ error: 'printerIp is required' });
-  }
+// ── Printer bytes — device does the TCP send, server only builds ESC/POS ─────
+// The API server runs in the cloud and cannot reach a local-network printer.
+// Instead the app fetches the raw ESC/POS bytes here, then opens the TCP
+// socket itself from the device (which IS on the same LAN as the printer).
+router.post('/printer/bytes', async (req, res) => {
   try {
-    const { printReceipt } = await import('../lib/printer.js');
-    await printReceipt(
-      {
-        orderId:             'test-0000-0000-0000',
-        customerName:        req.user!.name,
-        type:                'pickup',
-        items:               [
-          { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
-          { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
-        ],
-        totalCents:          1550,
-        loyaltyPointsEarned: 15,
-        notes:               'Test print — Butterfield POS',
-      },
-      ip,
-      isNaN(port) ? 9100 : port,
-    );
-    return res.json({ success: true, message: `Test receipt sent to ${ip}:${port}` });
+    const { buildReceiptBytes } = await import('../lib/printer.js');
+    const bytes = buildReceiptBytes({
+      orderId:             'test-0000-0000-0000',
+      customerName:        req.user!.name,
+      type:                'pickup',
+      items:               [
+        { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
+        { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
+      ],
+      totalCents:          1550,
+      loyaltyPointsEarned: 15,
+      notes:               'Test print — Butterfield POS',
+    });
+    return res.json({ data: { bytes: bytes.toString('base64') } });
   } catch (err: any) {
-    return res.status(502).json({ error: err.message ?? 'Print failed' });
+    return res.status(500).json({ error: err.message ?? 'Could not build receipt' });
   }
 });
 

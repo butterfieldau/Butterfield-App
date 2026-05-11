@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorReward, type DirectorAnnouncement, type HomeBannerConfig } from '@/lib/api';
+import { sendTestPrint } from '@/lib/printer';
 import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
@@ -350,12 +351,12 @@ function StoreTab() {
     setTesting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const res = await api.director.testPrinter(printerIp.trim(), printerPort.trim());
+      await sendTestPrint(printerIp.trim(), parseInt(printerPort.trim() || '9100', 10));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Print Sent', res.message);
+      Alert.alert('Print Sent', 'Test receipt sent to printer successfully.');
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Print Failed', e.message ?? 'Could not reach the printer. Check the IP address and that the printer is on the same network.');
+      Alert.alert('Print Failed', e.message ?? 'Could not reach the printer. Make sure the device is on the same WiFi as the printer.');
     } finally { setTesting(false); }
   };
 

@@ -64,7 +64,7 @@ export interface PrintJob {
   scheduledFor?:       Date | null;
 }
 
-function buildReceipt(job: PrintJob): Buffer {
+export function buildReceiptBytes(job: PrintJob): Buffer {
   const sydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
   const dateStr = sydney.toLocaleDateString('en-AU', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
@@ -183,7 +183,7 @@ export function printReceipt(
       return;
     }
 
-    const receipt = buildReceipt(job);
+    const receipt = buildReceiptBytes(job);
     const socket  = new net.Socket();
     let done      = false;
 
