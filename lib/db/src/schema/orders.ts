@@ -1,4 +1,5 @@
-import { pgTable, text, integer, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -32,7 +33,11 @@ export const ordersTable = pgTable("orders", {
   cancelReason: text("cancel_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("orders_stripe_payment_intent_id_unique_idx")
+    .on(table.stripePaymentIntentId)
+    .where(sql`${table.stripePaymentIntentId} IS NOT NULL`),
+]);
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({
   createdAt: true,
