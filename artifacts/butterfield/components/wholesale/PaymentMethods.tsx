@@ -44,25 +44,22 @@ interface CardModalProps {
   visible: boolean;
   editCard: any | null;
   onClose: () => void;
-  onSave: (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; fullCardNumber: string; cvv: string; isDefault: boolean }) => Promise<void>;
+  onSave: (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault: boolean }) => Promise<void>;
 }
 
 function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
   const [nameOnCard, setNameOnCard] = useState('');
   const [cardNumber, setCardNumber] = useState('');
-  const [cvv, setCvv]               = useState('');
   const [expiry, setExpiry]         = useState('');
   const [isDefault, setIsDefault]   = useState(false);
-  const [showCvv, setShowCvv]       = useState(false);
   const [saving, setSaving]         = useState(false);
 
   const brand  = detectBrand(cardNumber);
   const maxLen = brand === 'Amex' ? 15 : 16;
-  const cvvMax = brand === 'Amex' ? 4 : 3;
 
   const reset = () => {
-    setNameOnCard(''); setCardNumber(''); setCvv(''); setExpiry('');
-    setIsDefault(false); setShowCvv(false); setSaving(false);
+    setNameOnCard(''); setCardNumber(''); setExpiry('');
+    setIsDefault(false); setSaving(false);
   };
   const handleClose = () => { reset(); onClose(); };
 
@@ -80,13 +77,11 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
     if (!nameOnCard.trim()) { Alert.alert('Required', 'Please enter the name on the card.'); return; }
     if (digits.length < maxLen) { Alert.alert('Invalid', `Please enter your complete ${maxLen}-digit card number.`); return; }
     if (!/^\d{2}\/\d{2}$/.test(expiry)) { Alert.alert('Invalid', 'Enter expiry as MM/YY (e.g. 09/27).'); return; }
-    if (cvv.length < (brand === 'Amex' ? 4 : 3)) { Alert.alert('Invalid', `Enter the ${brand === 'Amex' ? '4-digit CID' : '3-digit CVV'} on your card.`); return; }
     setSaving(true);
     try {
       await onSave({
         nameOnCard: nameOnCard.trim(), cardBrand: brand,
-        last4: digits.slice(-4), fullCardNumber: digits,
-        expiry, cvv, isDefault,
+        last4: digits.slice(-4), expiry, isDefault,
       });
       reset();
     } finally { setSaving(false); }
@@ -112,9 +107,7 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
           <View style={cml.notice}>
             <Feather name="shield" size={14} color={GREEN} style={{ marginTop: 1 }} />
             <Text style={cml.noticeText}>
-              {isEditing
-                ? 'Re-enter your full card number to update saved details.'
-                : 'Your card is stored securely for invoice payments.'}
+              Card details are saved as a reference for invoice payments. Only the last 4 digits are stored.
             </Text>
           </View>
 
@@ -167,23 +160,11 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={cml.label}>Expiry</Text>
-              <View style={cml.inputRow}>
-                <Feather name="calendar" size={15} color={MUTED} />
-                <TextInput style={cml.input} placeholder={editCard?.expiry ?? 'MM/YY'} placeholderTextColor={MUTED} value={expiry} onChangeText={handleExpiryChange} keyboardType="number-pad" maxLength={5} />
-              </View>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={cml.label}>{brand === 'Amex' ? 'CID' : 'CVV'}</Text>
-              <View style={cml.inputRow}>
-                <Feather name="shield" size={15} color={MUTED} />
-                <TextInput style={cml.input} placeholder={brand === 'Amex' ? '••••' : '•••'} placeholderTextColor={MUTED} value={cvv} onChangeText={(t) => setCvv(t.replace(/\D/g, '').slice(0, cvvMax))} keyboardType="number-pad" secureTextEntry={!showCvv} maxLength={cvvMax} />
-                <Pressable onPress={() => setShowCvv((v) => !v)}>
-                  <Feather name={showCvv ? 'eye-off' : 'eye'} size={15} color={MUTED} />
-                </Pressable>
-              </View>
+          <View>
+            <Text style={cml.label}>Expiry</Text>
+            <View style={cml.inputRow}>
+              <Feather name="calendar" size={15} color={MUTED} />
+              <TextInput style={cml.input} placeholder={editCard?.expiry ?? 'MM/YY'} placeholderTextColor={MUTED} value={expiry} onChangeText={handleExpiryChange} keyboardType="number-pad" maxLength={5} />
             </View>
           </View>
 
@@ -221,11 +202,10 @@ export function PaymentMethods() {
   const openAdd  = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEditCard(null); setShowModal(true); };
   const openEdit = (card: any) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEditCard(card); setShowModal(true); };
 
-  const handleSave = async (formData: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; fullCardNumber: string; cvv: string; isDefault: boolean }) => {
+  const handleSave = async (formData: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault: boolean }) => {
     const payload = {
       nameOnCard: formData.nameOnCard, cardBrand: formData.cardBrand,
       last4: formData.last4, expiry: formData.expiry, isDefault: formData.isDefault,
-      fullCardNumber: formData.fullCardNumber, cvv: formData.cvv,
     };
     if (editCard) await api.wholesale.updateCard(editCard.id, payload);
     else await api.wholesale.addCard(payload);
