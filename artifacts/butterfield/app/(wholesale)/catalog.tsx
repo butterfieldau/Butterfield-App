@@ -179,6 +179,10 @@ export default function WholesaleCatalog() {
   const { data: accountData } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), staleTime: 60_000 });
   const account = accountData?.data ?? null;
   const deliveryFeeCents: number = account?.deliveryFeeCents ?? 0;
+  // Effective minimum order — account-level override takes priority over tier default
+  const minOrderCents: number = (account?.minOrderCents ?? 0) > 0
+    ? (account?.minOrderCents ?? 0)
+    : (account?.tier?.minOrderCents ?? 0);
 
   // Shipping
   const [orderType, setOrderType]           = useState<'pickup' | 'delivery'>('delivery');
@@ -324,7 +328,7 @@ export default function WholesaleCatalog() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (checkoutStep === 0) {
       if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
-      if (subtotalCents < 5000) { Alert.alert('Minimum order', 'Minimum wholesale order is AUD 50.'); return; }
+      if (minOrderCents > 0 && subtotalCents < minOrderCents) { Alert.alert('Minimum order', `Minimum wholesale order is AUD ${(minOrderCents / 100).toFixed(2)}.`); return; }
       goToStep(1);
       return;
     }
@@ -501,9 +505,9 @@ export default function WholesaleCatalog() {
                   <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Order Total</Text>
                   <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
                 </View>
-                {subtotalCents < 5000 && (
+                {minOrderCents > 0 && subtotalCents < minOrderCents && (
                   <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
-                    Minimum wholesale order is AUD 50.00
+                    Minimum wholesale order is AUD {(minOrderCents / 100).toFixed(2)}
                   </Text>
                 )}
               </View>
@@ -777,8 +781,8 @@ export default function WholesaleCatalog() {
             <Text style={styles.bottomTotalLabel}>TOTAL</Text>
             <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
           </View>
-          <Pressable onPress={handleContinue} disabled={submitting || (checkoutStep === 0 && subtotalCents < 5000)}
-            style={[styles.continueBtn, { backgroundColor: (checkoutStep === 0 && subtotalCents < 5000) ? '#C7C7CC' : BLUE, opacity: submitting ? 0.8 : 1 }]}>
+          <Pressable onPress={handleContinue} disabled={submitting || (checkoutStep === 0 && minOrderCents > 0 && subtotalCents < minOrderCents)}
+            style={[styles.continueBtn, { backgroundColor: (checkoutStep === 0 && minOrderCents > 0 && subtotalCents < minOrderCents) ? '#C7C7CC' : BLUE, opacity: submitting ? 0.8 : 1 }]}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>}
           </Pressable>
         </View>
