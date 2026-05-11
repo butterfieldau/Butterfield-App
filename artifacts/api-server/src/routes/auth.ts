@@ -322,43 +322,128 @@ router.patch('/me', requireAuth, async (req, res) => {
 });
 
 router.post('/social', async (req, res) => {
-  const { provider, providerId, email, name } = req.body;
-  if (!provider || (!providerId && !email)) {
-    return res.status(400).json({ error: 'Provider and email or provider ID required.' });
+  const { provider, accessToken, idToken } = req.body;
+
+  if (!provider || typeof provider !== 'string') {
+    return res.status(400).json({ error: 'provider is required.' });
+  }
+
+  let verifiedId: string;
+  let verifiedEmail: string;
+  let verifiedName: string | undefined;
+
+  if (provider === 'google') {
+    if (!accessToken || typeof accessToken !== 'string') {
+      return res.status(400).json({ error: 'Google sign-in requires an accessToken.' });
+    }
+    // Verify the access token server-side — never trust client-supplied claims
+    let googleUserRes: Response;
+    try {
+      googleUserRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch {
+      return res.status(502).json({ error: 'Could not reach Google to verify token.' });
+    }
+    if (!googleUserRes.ok) {
+      return res.status(401).json({ error: 'Google token verification failed.' });
+    }
+    const gUser = (await googleUserRes.json()) as Record<string, unknown>;
+    if (typeof gUser.id !== 'string' || !gUser.id || typeof gUser.email !== 'string' || !gUser.email) {
+      return res.status(401).json({ error: 'Google token did not return valid identity claims.' });
+    }
+    verifiedId    = gUser.id;
+    verifiedEmail = gUser.email.toLowerCase();
+    verifiedName  = typeof gUser.name === 'string' ? gUser.name : undefined;
+
+  } else if (provider === 'apple') {
+    if (!idToken || typeof idToken !== 'string') {
+      return res.status(400).json({ error: 'Apple sign-in requires an idToken.' });
+    }
+    // Verify Apple identity token (signed JWT) using Apple's published JWKS
+    const parts = idToken.split('.');
+    if (parts.length !== 3) {
+      return res.status(401).json({ error: 'Malformed Apple identity token.' });
+    }
+    let header: Record<string, unknown>;
+    try {
+      header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    } catch {
+      return res.status(401).json({ error: 'Malformed Apple identity token header.' });
+    }
+    let jwks: { keys: Record<string, unknown>[] };
+    try {
+      const jwksRes = await fetch('https://appleid.apple.com/auth/keys');
+      if (!jwksRes.ok) throw new Error('JWKS fetch failed');
+      jwks = (await jwksRes.json()) as { keys: Record<string, unknown>[] };
+    } catch {
+      return res.status(502).json({ error: 'Could not reach Apple to verify token.' });
+    }
+    const jwk = jwks.keys.find(k => k.kid === header.kid);
+    if (!jwk) {
+      return res.status(401).json({ error: 'Apple identity token key not found.' });
+    }
+    let applePayload: Record<string, unknown>;
+    try {
+      const { createPublicKey } = await import('crypto');
+      const pubKey = createPublicKey({ key: jwk as unknown as { kty: string }, format: 'jwk' });
+      const pem = pubKey.export({ type: 'spki', format: 'pem' }) as string;
+      const verifyOptions: jwt.VerifyOptions = {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+      };
+      // Bind to this app's bundle ID / service ID when configured
+      const appleAud = process.env.APPLE_BUNDLE_ID;
+      if (appleAud) verifyOptions.audience = appleAud;
+      applePayload = jwt.verify(idToken, pem, verifyOptions) as Record<string, unknown>;
+    } catch {
+      return res.status(401).json({ error: 'Apple identity token verification failed.' });
+    }
+    if (typeof applePayload.sub !== 'string' || !applePayload.sub) {
+      return res.status(401).json({ error: 'Apple token missing subject claim.' });
+    }
+    verifiedId    = applePayload.sub;
+    verifiedEmail = typeof applePayload.email === 'string' ? applePayload.email.toLowerCase() : '';
+    verifiedName  = undefined;
+
+  } else {
+    return res.status(400).json({ error: 'Unsupported provider. Supported: google, apple.' });
   }
 
   let user: typeof usersTable.$inferSelect | null = null;
 
-  if (providerId) {
-    const [found] = await db.select().from(usersTable)
-      .where(and(eq(usersTable.socialProvider, provider), eq(usersTable.socialId, providerId)));
-    user = found ?? null;
-  }
+  // Look up by verified provider ID first
+  const [byProvider] = await db.select().from(usersTable)
+    .where(and(eq(usersTable.socialProvider, provider), eq(usersTable.socialId, verifiedId)));
+  user = byProvider ?? null;
 
-  if (!user && email) {
-    const [found] = await db.select().from(usersTable)
-      .where(eq(usersTable.email, email.toLowerCase()));
-    user = found ?? null;
-    if (user && providerId) {
+  // If no match by provider ID, look up by verified email
+  if (!user && verifiedEmail) {
+    const [byEmail] = await db.select().from(usersTable)
+      .where(eq(usersTable.email, verifiedEmail));
+    user = byEmail ?? null;
+    if (user) {
+      // Bind the verified provider ID to the existing account
       await db.update(usersTable)
-        .set({ socialProvider: provider, socialId: providerId })
+        .set({ socialProvider: provider, socialId: verifiedId })
         .where(eq(usersTable.id, user.id));
     }
   }
 
+  // Create a new customer account if no existing user found
   if (!user) {
-    if (!email) return res.status(400).json({ error: 'Email required to create a new account.' });
+    if (!verifiedEmail) return res.status(400).json({ error: 'Email required to create a new account.' });
     const userId = randomUUID();
     const passwordHash = await bcrypt.hash(randomUUID(), 10);
-    const userName = name?.trim() || email.split('@')[0];
+    const userName = verifiedName?.trim() || verifiedEmail.split('@')[0];
     await db.insert(usersTable).values({
       id: userId,
-      email: email.toLowerCase(),
+      email: verifiedEmail,
       passwordHash,
       role: 'customer',
       name: userName,
       socialProvider: provider,
-      socialId: providerId ?? null,
+      socialId: verifiedId,
     });
     await db.insert(customerProfilesTable).values({
       userId,

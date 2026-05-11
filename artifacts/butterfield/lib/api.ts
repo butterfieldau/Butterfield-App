@@ -43,7 +43,7 @@ export const api = {
       email: string; password: string; name: string; phone?: string;
       companyName: string; abn?: string; deliveryAddress?: string;
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
-    socialLogin: (data: { provider: string; providerId: string; email: string; name?: string }) =>
+    socialLogin: (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
     forgotPassword: (data: { email: string }) =>
       request<{ success: boolean; message: string; devOtp?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),

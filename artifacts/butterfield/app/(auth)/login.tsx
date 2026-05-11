@@ -128,15 +128,9 @@ export default function LoginScreen() {
       const params = new URLSearchParams(fragment);
       const accessToken = params.get('access_token');
       if (!accessToken) { setError('Google sign-in failed — no token received.'); return; }
-      const infoRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const gUser = await infoRes.json();
       const loginResult = await socialLogin({
         provider: 'google',
-        providerId: gUser.id,
-        email: gUser.email,
-        name: gUser.name,
+        accessToken,
       });
       if (!loginResult.success) { setError(loginResult.error ?? 'Google sign-in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -160,13 +154,10 @@ export default function LoginScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-      const fullName = [credential.fullName?.givenName, credential.fullName?.familyName]
-        .filter(Boolean).join(' ') || undefined;
+      if (!credential.identityToken) { setError('Apple sign-in failed — no identity token received.'); return; }
       const result = await socialLogin({
         provider: 'apple',
-        providerId: credential.user,
-        email: credential.email ?? '',
-        name: fullName,
+        idToken: credential.identityToken,
       });
       if (!result.success) { setError(result.error ?? 'Apple sign-in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
