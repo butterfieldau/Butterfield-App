@@ -7,9 +7,12 @@ import {
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, and, inArray, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
+// Managers must hold the 'users' permission to access any customer CRM route
+router.use(requireManagerPermission('users'));
 
 // ── Badge computation ────────────────────────────────────────────────────────
 function computeAutoBadges(

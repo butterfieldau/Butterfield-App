@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { db, pushTokensTable, notificationLogsTable, usersTable } from '@workspace/db';
 import { eq, desc, and } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { sendNotification } from '../lib/notificationService.js';
 import Expo from 'expo-server-sdk';
 
@@ -70,7 +71,7 @@ router.delete('/register-token', requireAuth, async (req, res) => {
 
 // ── Send notification (director/manager only) ─────────────────────────────────
 // Body: { type, title, body, targetRole?, targetUserId?, data? }
-router.post('/send', requireRole('director', 'manager'), async (req, res) => {
+router.post('/send', requireRole('director', 'manager'), requireManagerPermission('announcements'), async (req, res) => {
   const { type, title, body, targetRole, targetUserId, data } = req.body ?? {};
   if (!type || !title || !body) {
     return res.status(400).json({ error: 'type, title, and body are required' });
@@ -93,7 +94,7 @@ router.post('/send', requireRole('director', 'manager'), async (req, res) => {
 });
 
 // ── Notification history (director/manager) ───────────────────────────────────
-router.get('/logs', requireRole('director', 'manager'), async (_req, res) => {
+router.get('/logs', requireRole('director', 'manager'), requireManagerPermission('announcements'), async (_req, res) => {
   const logs = await db
     .select()
     .from(notificationLogsTable)

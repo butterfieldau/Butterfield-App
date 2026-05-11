@@ -10,11 +10,13 @@ import {
 } from '@workspace/db';
 import { eq, desc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { calculateWholesalePrice, loadPriceContextForAccount } from '../lib/wholesalePricing.js';
 
 const router = Router();
-// Directors, managers and master can read; mutations are director-only and checked per-route
 router.use(requireRole('director', 'manager', 'master'));
+// Managers must hold the 'pricing' permission to access any pricing route
+router.use(requireManagerPermission('pricing'));
 
 // ── Pricing tiers CRUD ───────────────────────────────────────────────────────
 router.get('/tiers', async (_req, res) => {

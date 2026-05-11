@@ -10,10 +10,61 @@ import {
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
+import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
+
+// For managers, enforce per-route permissions based on method + path.
+// Directors and masters pass through unconditionally.
+// Returns a MANAGER_PERMISSIONS string or 'director_only' to block managers entirely.
+function resolveDirectorPermission(method: string, path: string): ManagerPermission | 'director_only' {
+  // Manager/director management — director-only (inline handlers also guard these)
+  if (path.startsWith('/managers') || path.startsWith('/directors')) return 'director_only';
+  // User deletion and wholesale-card visibility — director-only
+  if (method === 'DELETE' && path.startsWith('/users/')) return 'director_only';
+  if (path.startsWith('/wholesale-cards/') && path.endsWith('/visibility')) return 'director_only';
+
+  // Dashboard
+  if (path === '/stats' || path === '/sessions') return 'dashboard';
+
+  // Orders
+  if (path === '/orders' || path.startsWith('/orders/')) return 'orders';
+
+  // Users / staff / wholesale management
+  if (path === '/users' || path.startsWith('/users/')) return 'users';
+  if (path === '/staff' || path.startsWith('/staff/')) return 'users';
+  if (path === '/wholesale' || path.startsWith('/wholesale/')) return 'users';
+  if (path.startsWith('/wholesale-cards/')) return 'users';
+  if (path === '/create-staff' || path === '/create-wholesale') return 'users';
+  if (path === '/timesheets' || path.startsWith('/timesheets/')) return 'users';
+  if (path === '/wastage') return 'users';
+  if (path === '/issues' || path.startsWith('/issues/')) return 'users';
+  if (path === '/leave') return 'users';
+
+  // Products
+  if (path === '/products' || path.startsWith('/products/')) return 'products';
+
+  // Settings
+  if (path === '/settings' || path === '/home-banner' || path.startsWith('/printer/')) return 'settings';
+
+  // Rewards
+  if (path === '/rewards' || path.startsWith('/rewards/')) return 'rewards';
+
+  // Announcements
+  if (path === '/announcements' || path.startsWith('/announcements/')) return 'announcements';
+
+  // Reports / feedback
+  if (path === '/reports') return 'reports';
+  if (path === '/feedback' || path.startsWith('/feedback/')) return 'reports';
+
+  // Unknown paths: block managers
+  return 'director_only';
+}
+
+router.use(requireManagerRoutePermission(resolveDirectorPermission));
 
 // ── Enhanced Dashboard stats ─────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {

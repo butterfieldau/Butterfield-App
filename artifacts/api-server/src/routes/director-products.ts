@@ -2,10 +2,13 @@ import { Router } from 'express';
 import { db, productsTable, productCategoriesTable, productVariantsTable, productOptionGroupsTable, productOptionsTable } from '@workspace/db';
 import { eq, asc } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { randomUUID } from 'crypto';
 
 const router = Router();
 router.use(requireRole('director', 'manager'));
+// Managers must hold the 'products' permission to access any product/category/option route
+router.use(requireManagerPermission('products'));
 
 // ── Helper ─────────────────────────────────────────────────────────────────
 function parseJsonArr(val: string | null | undefined): string[] {
