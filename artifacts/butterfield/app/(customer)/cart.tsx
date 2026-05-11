@@ -801,7 +801,7 @@ const styles = StyleSheet.create({
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
   checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:           { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  checkoutTitle:     { fontSize: 20, fontFamily: 'Anton_400Regular', color: '#1C1C1E', letterSpacing: 2, textTransform: 'uppercase' },
+  checkoutTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#1C1C1E', letterSpacing: 1.5 },
   checkoutSub:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
   // Tab bar
   tabBar:       { flexDirection: 'row' },

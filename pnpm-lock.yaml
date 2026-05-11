@@ -255,9 +255,6 @@ importers:
 
   artifacts/butterfield:
     dependencies:
-      '@expo-google-fonts/anton':
-        specifier: ^0.4.2
-        version: 0.4.2
       '@expo-google-fonts/dancing-script':
         specifier: ^0.4.2
         version: 0.4.2
@@ -1206,9 +1203,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [linux]
-
-  '@expo-google-fonts/anton@0.4.2':
-    resolution: {integrity: sha512-VXxS6ZppH1W/0ch06c52iVpZhVwHX9sXEctyFy/NiF/gb3i697R4va+qpiDQHB71NI8pLyecdBjNrc5FA9qKrw==}
 
   '@expo-google-fonts/dancing-script@0.4.2':
     resolution: {integrity: sha512-5ASbxOM81Xm6nR9I0eE//l1PGgHtR4uGyMX3eUIw2Jeh+1LnlkrDPg55qjChGnkFfVwMge31vXEUyOZJiy9rxQ==}
@@ -6935,8 +6929,6 @@ snapshots:
 
   '@esbuild/linux-x64@0.27.3':
     optional: true
-
-  '@expo-google-fonts/anton@0.4.2': {}
 
   '@expo-google-fonts/dancing-script@0.4.2': {}
 

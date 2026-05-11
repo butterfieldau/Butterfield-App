@@ -156,7 +156,7 @@ function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | null; onPr
       <View style={s.heroBannerInner}>
         <View style={{ flex: 1, gap: 6 }}>
           {headline ? (
-            <Text style={s.heroHeadline}>
+            <Text style={[s.heroHeadline, { fontFamily: 'Inter_700Bold' }]}>
               {headlineParts ? (
                 <>
                   <Text style={{ color: '#F59E0B' }}>{accent}</Text>
@@ -561,7 +561,7 @@ export default function CustomerHome() {
         {usualItems.length > 0 && (
           <View style={s.section}>
             <View style={s.usualHeader}>
-              <Text style={[s.sectionTitle, { color: colors.foreground, marginBottom: 0 }]}>Your usual</Text>
+              <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>Your usual</Text>
               <Text style={[s.usualSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
                 1 tap to add
               </Text>
@@ -632,7 +632,7 @@ export default function CustomerHome() {
 
         {/* Top Sellers */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground }]}>Top Sellers</Text>
+          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Top Sellers</Text>
           {topSellers.length > 0 ? (
             <FlatList
               data={topSellers}
@@ -665,7 +665,7 @@ export default function CustomerHome() {
         {/* Fan Favourites */}
         {popular.length > 0 && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Fan Favourites</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Fan Favourites</Text>
             <FlatList
               data={popular}
               horizontal
@@ -747,7 +747,7 @@ export default function CustomerHome() {
 
         {/* Merch — moved to bottom */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground }]}>Merch</Text>
+          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Merch</Text>
           <FlatList
             data={MERCH}
             horizontal
@@ -784,7 +784,7 @@ const s = StyleSheet.create({
   // ── Hero banner ─────────────────────────────────────────────────────────────
   heroBanner:      { height: 180, borderRadius: 18, overflow: 'hidden' },
   heroBannerInner: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', padding: 18, gap: 12 },
-  heroHeadline:    { color: '#fff', fontSize: 24, fontFamily: 'Anton_400Regular', textTransform: 'uppercase', lineHeight: 30 },
+  heroHeadline:    { color: '#fff', fontSize: 22, lineHeight: 28 },
   heroSubtext:     { color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 18, marginTop: 2 },
   heroBtn:         { backgroundColor: '#D0312D', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24, alignSelf: 'flex-end' },
   heroBtnText:     { color: '#fff', fontSize: 14 },
@@ -813,7 +813,7 @@ const s = StyleSheet.create({
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
   section:       { marginTop: 26 },
-  sectionTitle:  { fontSize: 24, paddingHorizontal: 16, marginBottom: 12, fontFamily: 'Anton_400Regular', textTransform: 'uppercase' },
+  sectionTitle:  { fontSize: 22, paddingHorizontal: 16, marginBottom: 12 },
   catScroll:     { marginTop: 24 },
   catTile:       { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
   catIconWrap:   { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

@@ -133,7 +133,7 @@ export default function MenuScreen() {
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <View style={s.headerTop}>
-          <Text style={s.headerTitle}>Menu</Text>
+          <Text style={[s.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
           {isSkipQueue && (
             <View style={s.skipBadge}>
               <Feather name="zap" size={12} color="#E07B00" />
@@ -251,7 +251,7 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },
   headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 34, color: '#1C1C1E', fontFamily: 'Anton_400Regular', textTransform: 'uppercase' },
+  headerTitle: { fontSize: 32, color: '#1C1C1E' },
   skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   skipBadgeText:{ fontSize: 12, color: '#E07B00' },
 
