@@ -26,6 +26,7 @@ import { useColors } from '@/hooks/useColors';
 import { getPalette } from '@/constants/categoryColors';
 import { buildGreeting } from '@/lib/greetings';
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
+import { useStores } from '@/hooks/useStores';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
@@ -249,12 +250,7 @@ export default function CustomerHome() {
     staleTime: 30 * 60 * 1000, // 30 minutes — matches server cache
     retry: 1,
   });
-  const { data: storesData } = useQuery({
-    queryKey: ['stores'],
-    queryFn: () => api.stores.list(),
-    staleTime: 120000,
-    retry: 1,
-  });
+  const { data: storesData } = useStores();
   const { data: topSellersData } = useQuery({
     queryKey: ['top-sellers'],
     queryFn: () => api.products.topSellers(),
