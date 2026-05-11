@@ -1,7 +1,17 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
+import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
-import { requireRole } from "../middlewares/auth.js";
+import { getObjectAclPolicy, setObjectAclPolicy } from "../lib/objectAcl.js";
+import { requireAuth, requireRole } from "../middlewares/auth.js";
+
+const UPLOAD_INTENT_SECRET =
+  process.env.SESSION_SECRET ?? "butterfield-dev-only-not-for-production";
+
+interface UploadIntentPayload {
+  objectPath: string;
+  userId: string;
+}
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -11,8 +21,10 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
  * POST /storage/uploads/request-url
  *
  * Request a presigned URL for direct-to-GCS upload (kept for backwards compat).
+ * Returns an uploadToken (15-min JWT) that must be passed to
+ * POST /storage/uploads/confirm after the GCS PUT completes.
  */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
+router.post("/storage/uploads/request-url", requireAuth, async (req: Request, res: Response) => {
   const { name, size, contentType } = req.body ?? {};
   if (!name || typeof contentType !== "string") {
     res.status(400).json({ error: "Missing or invalid required fields" });
@@ -21,10 +33,78 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
   try {
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-    res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+    const uploadToken = jwt.sign(
+      { objectPath, userId: req.user!.id } satisfies UploadIntentPayload,
+      UPLOAD_INTENT_SECRET,
+      { expiresIn: "15m" }
+    );
+    res.json({ uploadURL, objectPath, metadata: { name, size, contentType }, uploadToken });
   } catch (error) {
     req.log.error({ err: error }, "Error generating upload URL");
     res.status(500).json({ error: "Failed to generate upload URL" });
+  }
+});
+
+/**
+ * POST /storage/uploads/confirm
+ *
+ * After a presigned-URL upload completes, call this endpoint with the
+ * uploadToken received from request-url to bind ACL ownership. The token
+ * is verified to ensure the caller is the same user who requested the URL
+ * and that it has not been tampered with or expired. ACL overwrites by
+ * non-owners are rejected.
+ */
+router.post("/storage/uploads/confirm", requireAuth, async (req: Request, res: Response) => {
+  const { objectPath, visibility = "private", uploadToken } = (req.body ?? {}) as {
+    objectPath?: string;
+    visibility?: "public" | "private";
+    uploadToken?: string;
+  };
+
+  if (!objectPath || typeof objectPath !== "string") {
+    res.status(400).json({ error: "objectPath is required." });
+    return;
+  }
+  if (visibility !== "public" && visibility !== "private") {
+    res.status(400).json({ error: "visibility must be 'public' or 'private'." });
+    return;
+  }
+  if (!uploadToken || typeof uploadToken !== "string") {
+    res.status(400).json({ error: "uploadToken is required." });
+    return;
+  }
+
+  let intent: UploadIntentPayload;
+  try {
+    intent = jwt.verify(uploadToken, UPLOAD_INTENT_SECRET) as UploadIntentPayload;
+  } catch {
+    res.status(401).json({ error: "Invalid or expired upload token." });
+    return;
+  }
+
+  if (intent.userId !== req.user!.id || intent.objectPath !== objectPath) {
+    res.status(403).json({ error: "Upload token does not match the request." });
+    return;
+  }
+
+  try {
+    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+
+    const existingAcl = await getObjectAclPolicy(objectFile);
+    if (existingAcl !== null && existingAcl.owner !== req.user!.id) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    await setObjectAclPolicy(objectFile, { owner: req.user!.id, visibility });
+    res.json({ success: true, objectPath, visibility });
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Object not found — ensure the presigned upload completed first." });
+    } else {
+      req.log.error({ err: error }, "Error confirming upload ACL");
+      res.status(500).json({ error: "Failed to confirm upload" });
+    }
   }
 });
 
@@ -35,14 +115,17 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
  * Accepts a single "file" field and streams it directly to GCS.
  * Returns { objectPath, servingUrl }.
  */
-router.post("/storage/uploads", upload.single("file"), async (req: Request, res: Response) => {
+router.post("/storage/uploads", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
   if (!req.file) {
     res.status(400).json({ error: "No file provided — send multipart/form-data with a 'file' field." });
     return;
   }
   try {
     const contentType = req.file.mimetype || "application/octet-stream";
-    const result = await objectStorageService.uploadBuffer(req.file.buffer, contentType);
+    const result = await objectStorageService.uploadBuffer(req.file.buffer, contentType, {
+      owner: req.user!.id,
+      visibility: "private",
+    });
     res.json(result);
   } catch (error) {
     req.log.error({ err: error }, "Error uploading file");
@@ -89,7 +172,10 @@ router.post(
     const subPath = `products/${category}/${slug}-${shortId}.${ext}`;
 
     try {
-      const result = await objectStorageService.uploadToPath(req.file.buffer, req.file.mimetype, subPath);
+      const result = await objectStorageService.uploadToPath(req.file.buffer, req.file.mimetype, subPath, {
+        owner: req.user!.id,
+        visibility: "public",
+      });
       res.json(result);
     } catch (error) {
       req.log.error({ err: error }, "Error uploading product image");
@@ -153,12 +239,32 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 /**
  * GET /storage/objects/:filePath*
  *
- * Serve private assets.
+ * Serve private assets. Requires authentication and an explicit ACL policy
+ * on the object granting the caller read access (deny-by-default). Objects
+ * with no ACL policy are treated as unauthorised.
+ *
+ * Note on visibility: objects uploaded with visibility="public" ACL are
+ * readable by ANY authenticated user (canAccessObjectEntity returns true for
+ * public+READ). Anonymous access is intentionally not supported on this route
+ * because all app clients (customer/staff/wholesale/director) hold a valid JWT.
+ * If a future use-case needs unauthenticated access to public objects, drop
+ * requireAuth and change the canAccessObjectEntity call to pass
+ * userId: req.user?.id so guests can reach public-visibility objects.
  */
-router.get("/storage/objects/*filePath", async (req: Request, res: Response) => {
+router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: Response) => {
   const objectPath = `/objects/${(req.params as any).filePath}`;
   try {
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+
+    const allowed = await objectStorageService.canAccessObjectEntity({
+      userId: req.user!.id,
+      objectFile,
+    });
+    if (!allowed) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
     const [metadata] = await objectFile.getMetadata();
     res.setHeader("Content-Type", (metadata.contentType as string) || "application/octet-stream");
     res.setHeader("Cache-Control", "private, max-age=3600");

@@ -106,7 +106,11 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
-  async uploadBuffer(buffer: Buffer, contentType: string): Promise<{ objectPath: string; servingUrl: string }> {
+  async uploadBuffer(
+    buffer: Buffer,
+    contentType: string,
+    aclPolicy: ObjectAclPolicy
+  ): Promise<{ objectPath: string; servingUrl: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
@@ -121,6 +125,8 @@ export class ObjectStorageService {
       writeStream.end(buffer);
     });
 
+    await setObjectAclPolicy(gcsFile, aclPolicy);
+
     const objectPath = `/objects/uploads/${objectId}`;
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "";
     const servingUrl = domain
@@ -133,7 +139,8 @@ export class ObjectStorageService {
   async uploadToPath(
     buffer: Buffer,
     contentType: string,
-    subPath: string
+    subPath: string,
+    aclPolicy: ObjectAclPolicy
   ): Promise<{ objectPath: string; servingUrl: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     const fullPath = `${privateObjectDir}/${subPath}`;
@@ -147,6 +154,8 @@ export class ObjectStorageService {
       writeStream.on("error", reject);
       writeStream.end(buffer);
     });
+
+    await setObjectAclPolicy(gcsFile, aclPolicy);
 
     const objectPath = `/objects/${subPath}`;
     const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "";
