@@ -4,15 +4,28 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
+  type DimensionValue,
   Dimensions,
   Linking,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  type StyleProp,
   Text,
   View,
+  type ViewStyle,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+  interpolate,
+  cancelAnimation,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
@@ -28,8 +41,6 @@ function staticMapUrl(lat: number, lng: number, w: number): string {
 
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Standard Merrylands trading hours used as fallback before API responds.
-// 0 = Sunday (closed), 1–6 = Mon–Sat 9 am – 5 pm.
 const FALLBACK_HOURS = [
   { dayOfWeek: 0, isClosed: true,  openTime: null,    closeTime: null    },
   { dayOfWeek: 1, isClosed: false, openTime: '09:00', closeTime: '17:00' },
@@ -83,9 +94,36 @@ function statusColor(status: string) {
   return '#8E8E93';
 }
 
+// ── Shimmer primitives ───────────────────────────────────────────────────────
+
+interface ShimmerBoxProps {
+  width?: DimensionValue;
+  height?: number;
+  borderRadius?: number;
+  style?: StyleProp<ViewStyle>;
+  shimmerProgress: SharedValue<number>;
+}
+
+function ShimmerBox({ width = '100%', height = 16, borderRadius = 8, style, shimmerProgress }: ShimmerBoxProps) {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(shimmerProgress.value, [0, 1], [0.35, 0.75]),
+  }));
+  return (
+    <Reanimated.View
+      style={[
+        { width, height, borderRadius, backgroundColor: '#D1D5DB' },
+        animStyle,
+        style,
+      ]}
+    />
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 interface Props {
   visible: boolean;
-  store: any;          // store object from api.stores.list()
+  store: any;
   onClose: () => void;
 }
 
@@ -94,6 +132,31 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SHEET_H)).current;
   const backdropO  = useRef(new Animated.Value(0)).current;
+
+  // Shimmer loop — runs while store is null
+  const shimmerProgress = useSharedValue(0);
+
+  // Fade-in opacity for real store content
+  const contentOpacity = useSharedValue(store ? 1 : 0);
+
+  useEffect(() => {
+    if (!store) {
+      contentOpacity.value = 0;
+      shimmerProgress.value = 0;
+      shimmerProgress.value = withRepeat(
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true,
+      );
+    } else {
+      cancelAnimation(shimmerProgress);
+      contentOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+    }
+  }, [store]);
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
 
   useEffect(() => {
     if (visible) {
@@ -109,13 +172,9 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     }
   }, [visible]);
 
-  // Derive store data — fall back to Merrylands constants so the Modal is
-  // always usable even when the API hasn't responded yet.
   const FALLBACK_PHONE   = '0480 769 995';
   const FALLBACK_ADDRESS = '2 Main Lane, Merrylands NSW 2160';
 
-  // When API data is present, use it. Otherwise fall back to computed values
-  // from FALLBACK_HOURS so the sheet is always useful even before the first response.
   const fallbackOpen = !store ? computeOpenFromHours(FALLBACK_HOURS) : null;
 
   const sc      = store ? statusColor(store.openStatus ?? '') : (fallbackOpen?.sc ?? '#8E8E93');
@@ -188,45 +247,78 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
         <View style={s.handle} />
 
         {/* ── Map area ─────────────────────────────────────────────── */}
-        <Pressable style={s.mapWrap} onPress={handleDirections}>
-          {store?.latitude && store?.longitude ? (
-            <Image
-              source={{ uri: staticMapUrl(store.latitude, store.longitude, SCREEN_W) }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={300}
-            />
-          ) : (
+        <Pressable style={s.mapWrap} onPress={store ? handleDirections : undefined}>
+          {/* Base layer while loading: muted gradient rendered first (lowest z-order) */}
+          {!store && (
             <LinearGradient
-              colors={isOpen ? ['#40C0F2', '#2AA8DC'] : ['#8E8E93', '#6B6B6B']}
+              colors={['#C8D8E8', '#B0C4D8']}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             />
           )}
 
-          {/* Scrim so text is readable over the map */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.52)']}
-            style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end' }]}
-          >
-            <View style={s.mapOverlay}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.headerLabel}>IN-STORE PICKUP</Text>
-                <Text style={s.headerName} numberOfLines={1}>{store?.name ?? 'Butterfield Cookies — Merrylands'}</Text>
-              </View>
-              <View style={[s.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.85)' : 'rgba(100,100,100,0.75)' }]}>
-                <View style={[s.dot, { backgroundColor: '#fff' }]} />
-                <Text style={s.statusText}>{store?.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
+          {/* Shimmer overlay — rendered on top of the base gradient while store is null */}
+          {!store && (
+            <View style={[StyleSheet.absoluteFill, s.mapShimmerContainer]}>
+              <ShimmerBox
+                width="100%"
+                height={MAP_H}
+                borderRadius={0}
+                shimmerProgress={shimmerProgress}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0 }}
+              />
+              {/* Skeleton rows mirroring the real content layout */}
+              <View style={s.mapShimmerOverlay}>
+                <View style={{ gap: 6 }}>
+                  <ShimmerBox width={80}  height={9}  borderRadius={4} shimmerProgress={shimmerProgress} />
+                  <ShimmerBox width={200} height={18} borderRadius={6} shimmerProgress={shimmerProgress} />
+                </View>
+                <ShimmerBox width={64} height={28} borderRadius={20} shimmerProgress={shimmerProgress} />
               </View>
             </View>
-          </LinearGradient>
+          )}
 
-          {/* Directions chip top-right */}
-          {store?.latitude && store?.longitude && (
-            <View style={s.dirChip}>
-              <Feather name="navigation" size={11} color="#40C0F2" />
-              <Text style={s.dirChipText}>Directions</Text>
-            </View>
+          {/* Real map content — fades in when store arrives */}
+          {store && (
+            <Reanimated.View style={[StyleSheet.absoluteFill, contentAnimStyle]}>
+              {store.latitude && store.longitude ? (
+                <Image
+                  source={{ uri: staticMapUrl(store.latitude, store.longitude, SCREEN_W) }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={300}
+                />
+              ) : (
+                <LinearGradient
+                  colors={isOpen ? ['#40C0F2', '#2AA8DC'] : ['#8E8E93', '#6B6B6B']}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                />
+              )}
+
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.52)']}
+                style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end' }]}
+              >
+                <View style={s.mapOverlay}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.headerLabel}>IN-STORE PICKUP</Text>
+                    <Text style={s.headerName} numberOfLines={1}>{store.name ?? 'Butterfield Cookies — Merrylands'}</Text>
+                  </View>
+                  <View style={[s.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.85)' : 'rgba(100,100,100,0.75)' }]}>
+                    <View style={[s.dot, { backgroundColor: '#fff' }]} />
+                    <Text style={s.statusText}>{store.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+
+              {store.latitude && store.longitude && (
+                <View style={s.dirChip}>
+                  <Feather name="navigation" size={11} color="#40C0F2" />
+                  <Text style={s.dirChipText}>Directions</Text>
+                </View>
+              )}
+            </Reanimated.View>
           )}
         </Pressable>
 
@@ -235,21 +327,31 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           contentContainerStyle={{ padding: 18, gap: 12 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Address */}
-          {address ? (
-            <Pressable style={s.infoRow} onPress={handleDirections}>
-              <View style={s.infoIcon}>
-                <Feather name="map-pin" size={15} color="#40C0F2" />
+          {/* ── Address row ─────────────────────────────────────────── */}
+          {!store ? (
+            <View style={[s.infoRow, { paddingVertical: 8 }]}>
+              <ShimmerBox width={32} height={32} borderRadius={16} shimmerProgress={shimmerProgress} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <ShimmerBox width="85%" height={13} borderRadius={5} shimmerProgress={shimmerProgress} />
+                <ShimmerBox width="55%" height={11} borderRadius={5} shimmerProgress={shimmerProgress} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.infoVal, { color: colors.foreground }]}>{address}</Text>
-                <Text style={s.infoLink}>Tap for directions</Text>
-              </View>
-              <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
-            </Pressable>
-          ) : null}
+            </View>
+          ) : (
+            <Reanimated.View style={contentAnimStyle}>
+              <Pressable style={s.infoRow} onPress={handleDirections}>
+                <View style={s.infoIcon}>
+                  <Feather name="map-pin" size={15} color="#40C0F2" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.infoVal, { color: colors.foreground }]}>{address}</Text>
+                  <Text style={s.infoLink}>Tap for directions</Text>
+                </View>
+                <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+              </Pressable>
+            </Reanimated.View>
+          )}
 
-          {/* Today's hours */}
+          {/* Today's hours — always shown (fallback data ready immediately) */}
           {todayDisplay ? (
             <View style={s.infoRow}>
               <View style={s.infoIcon}>
@@ -262,7 +364,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             </View>
           ) : null}
 
-          {/* Phone */}
+          {/* Phone — always shown (fallback ready) */}
           <Pressable style={s.infoRow} onPress={handleCall}>
             <View style={s.infoIcon}>
               <Feather name="phone" size={15} color="#40C0F2" />
@@ -274,12 +376,17 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
           </Pressable>
 
-          {/* Services */}
-          {(store?.pickupAvailable || store?.deliveryAvailable) ? (
-            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              {store?.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color="#40C0F2" /><Text style={[s.chipText, { color: '#40C0F2' }]}>Pickup available</Text></View>}
-              {store?.deliveryAvailable && <View style={[s.chip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[s.chipText, { color: '#7C3AED' }]}>Delivery available</Text></View>}
+          {/* ── Services chips ───────────────────────────────────────── */}
+          {!store ? (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <ShimmerBox width={130} height={30} borderRadius={8} shimmerProgress={shimmerProgress} />
+              <ShimmerBox width={140} height={30} borderRadius={8} shimmerProgress={shimmerProgress} />
             </View>
+          ) : (store.pickupAvailable || store.deliveryAvailable) ? (
+            <Reanimated.View style={[{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }, contentAnimStyle]}>
+              {store.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color="#40C0F2" /><Text style={[s.chipText, { color: '#40C0F2' }]}>Pickup available</Text></View>}
+              {store.deliveryAvailable && <View style={[s.chip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[s.chipText, { color: '#7C3AED' }]}>Delivery available</Text></View>}
+            </Reanimated.View>
           ) : null}
 
           {/* Photo gallery */}
@@ -310,7 +417,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             <Text style={[s.notes, { color: colors.mutedForeground }]}>{store.publicNotes}</Text>
           ) : null}
 
-          {/* Full week hours */}
+          {/* Full week hours — always shown via fallback */}
           {weekHours.length > 0 ? (
             <View style={[s.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <Text style={[s.hoursTitle, { color: colors.foreground }]}>Opening Hours</Text>
@@ -365,16 +472,17 @@ const s = StyleSheet.create({
   sheet:      { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 24 },
   handle:     { width: 40, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB', alignSelf: 'center', marginTop: 10, marginBottom: 6 },
 
-  // ── Map ──────────────────────────────────────────────────────────────────────
-  mapWrap:    { height: MAP_H, marginHorizontal: 14, marginBottom: 4, borderRadius: 16, overflow: 'hidden', backgroundColor: '#C8D8E8' },
-  mapOverlay: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
-  headerLabel:{ fontFamily: 'Inter_600SemiBold', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
-  headerName: { fontFamily: 'Inter_700Bold', fontSize: 17, color: '#fff' },
-  statusBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  dot:        { width: 7, height: 7, borderRadius: 4 },
-  statusText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#fff' },
-  dirChip:    { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  dirChipText:{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#40C0F2' },
+  mapWrap:             { height: MAP_H, marginHorizontal: 14, marginBottom: 4, borderRadius: 16, overflow: 'hidden', backgroundColor: '#C8D8E8' },
+  mapShimmerContainer: { ...StyleSheet.absoluteFillObject },
+  mapShimmerOverlay:   { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12 },
+  mapOverlay:          { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
+  headerLabel:         { fontFamily: 'Inter_600SemiBold', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
+  headerName:          { fontFamily: 'Inter_700Bold', fontSize: 17, color: '#fff' },
+  statusBadge:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  dot:                 { width: 7, height: 7, borderRadius: 4 },
+  statusText:          { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#fff' },
+  dirChip:             { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  dirChipText:         { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#40C0F2' },
 
   infoRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   infoIcon:   { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
@@ -402,7 +510,6 @@ const s = StyleSheet.create({
   allStores:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
   allStoresText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#40C0F2' },
 
-  // ── Photo gallery ─────────────────────────────────────────────────────────────
   gallerySection:     { gap: 8 },
   gallerySectionTitle:{ fontFamily: 'Inter_700Bold', fontSize: 13 },
   galleryItem:        { alignItems: 'center', gap: 5 },
