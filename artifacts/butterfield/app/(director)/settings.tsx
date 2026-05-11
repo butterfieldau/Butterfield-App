@@ -541,6 +541,8 @@ function StoreTab() {
         </Pressable>
       </View>
 
+      <StoreHoursSection />
+
       <Text style={styles.section}>DEMO ACCOUNTS</Text>
       <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
         {[
@@ -566,6 +568,332 @@ function StoreTab() {
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Settings</Text>}
       </Pressable>
     </ScrollView>
+  );
+}
+
+// ─── Store Hours Section ──────────────────────────────────────────────────────
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Mon → Sun
+
+interface HourRow {
+  dayOfWeek: number;
+  openTime:  string;
+  closeTime: string;
+  isClosed:  boolean;
+  notes:     string;
+}
+
+function defaultHours(): HourRow[] {
+  return [0, 1, 2, 3, 4, 5, 6].map(d => ({
+    dayOfWeek: d,
+    openTime:  '08:00',
+    closeTime: '17:00',
+    isClosed:  d === 0,
+    notes:     '',
+  }));
+}
+
+function formatTime12(t: string): string {
+  if (!t) return '';
+  const [hStr, mStr] = t.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr ?? '0', 10);
+  if (isNaN(h)) return t;
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const suf  = h < 12 ? 'am' : 'pm';
+  const ms   = m > 0 ? `:${String(m).padStart(2, '0')}` : '';
+  return `${h12}${ms}${suf}`;
+}
+
+// Parse "HH:MM" → total minutes from midnight, returns NaN if invalid
+function timeToMins(t: string): number {
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return NaN;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (h > 23 || min > 59) return NaN;
+  return h * 60 + min;
+}
+
+// Normalise user input: "8:0" → "08:00", "930" → invalid
+function normaliseTime(raw: string): string {
+  const trimmed = raw.trim();
+  // Already correct format
+  if (/^\d{2}:\d{2}$/.test(trimmed)) return trimmed;
+  // "H:MM" or "HH:MM" with single-digit hour
+  const colonMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (colonMatch) {
+    return `${colonMatch[1].padStart(2, '0')}:${colonMatch[2]}`;
+  }
+  // "HHMM" four digits, no colon
+  const fourDigit = trimmed.match(/^(\d{2})(\d{2})$/);
+  if (fourDigit) {
+    return `${fourDigit[1]}:${fourDigit[2]}`;
+  }
+  return trimmed; // return as-is; will fail validation
+}
+
+function rowHasError(row: HourRow): string | null {
+  if (row.isClosed) return null;
+  const openMins  = timeToMins(row.openTime);
+  const closeMins = timeToMins(row.closeTime);
+  if (isNaN(openMins))  return 'Opens time is invalid — use HH:MM (e.g. 08:00)';
+  if (isNaN(closeMins)) return 'Closes time is invalid — use HH:MM (e.g. 17:00)';
+  if (closeMins <= openMins) return 'Closes time must be after Opens time';
+  return null;
+}
+
+function StoreHoursSection() {
+  const qc = useQueryClient();
+
+  const { data: storesData, isLoading: loadingStores } = useQuery({
+    queryKey: ['director-stores-list'],
+    queryFn:  () => api.director.storesList(),
+  });
+  const stores: any[] = storesData?.data ?? [];
+
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  const [hours,  setHours]  = useState<HourRow[]>(defaultHours());
+  const [saving, setSaving] = useState(false);
+
+  const activeStoreId = selectedStoreId ?? (stores.length > 0 ? stores[0].id : null);
+
+  const { data: hoursData, isLoading: loadingHours } = useQuery({
+    queryKey: ['director-store-hours', activeStoreId],
+    queryFn:  () => (activeStoreId ? api.director.storeHours(activeStoreId) : Promise.resolve({ data: [] })),
+    enabled:  !!activeStoreId,
+  });
+
+  useEffect(() => {
+    if (hoursData?.data && hoursData.data.length > 0) {
+      const fetched: HourRow[] = hoursData.data.map((r: any) => ({
+        dayOfWeek: r.dayOfWeek,
+        openTime:  r.openTime  ?? '08:00',
+        closeTime: r.closeTime ?? '17:00',
+        isClosed:  r.isClosed  ?? false,
+        notes:     r.notes     ?? '',
+      }));
+      const merged = [0, 1, 2, 3, 4, 5, 6].map(d => {
+        const found = fetched.find(r => r.dayOfWeek === d);
+        return found ?? { dayOfWeek: d, openTime: '08:00', closeTime: '17:00', isClosed: d === 0, notes: '' };
+      });
+      setHours(merged);
+    } else if (hoursData?.data && hoursData.data.length === 0) {
+      setHours(defaultHours());
+    }
+  }, [hoursData]);
+
+  const updateRow = (dayOfWeek: number, patch: Partial<HourRow>) => {
+    setHours(prev => prev.map(r => r.dayOfWeek === dayOfWeek ? { ...r, ...patch } : r));
+  };
+
+  const normaliseRowTime = (dayOfWeek: number, field: 'openTime' | 'closeTime') => {
+    setHours(prev => prev.map(r => {
+      if (r.dayOfWeek !== dayOfWeek) return r;
+      return { ...r, [field]: normaliseTime(r[field]) };
+    }));
+  };
+
+  const rowErrors: Record<number, string> = {};
+  for (const row of hours) {
+    const err = rowHasError(row);
+    if (err) rowErrors[row.dayOfWeek] = err;
+  }
+  const hasErrors = Object.keys(rowErrors).length > 0;
+
+  const saveHours = async () => {
+    if (!activeStoreId || hasErrors) return;
+    setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.director.setStoreHours(activeStoreId, hours);
+      await qc.invalidateQueries({ queryKey: ['director-store-hours', activeStoreId] });
+      await qc.invalidateQueries({ queryKey: ['stores'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Saved', 'Trading hours updated. The store info sheet will reflect these changes immediately.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'Failed to save trading hours.');
+    } finally { setSaving(false); }
+  };
+
+  if (loadingStores) {
+    return (
+      <>
+        <Text style={styles.section}>TRADING HOURS</Text>
+        <View style={styles.center}><ActivityIndicator color={BLUE} /></View>
+      </>
+    );
+  }
+
+  if (stores.length === 0) return null;
+
+  return (
+    <>
+      <Text style={styles.section}>TRADING HOURS</Text>
+
+      <View style={[styles.card, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+          <Feather name="clock" size={14} color={BLUE} />
+          <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', color: BLUE, lineHeight: 18 }}>
+            Set opening and closing times per day. Use 24-hour format (e.g. 08:00, 17:30). Changes are reflected immediately for customers.
+          </Text>
+        </View>
+      </View>
+
+      {stores.length > 1 && (
+        <>
+          <Text style={[styles.fieldLabel, { marginBottom: 4 }]}>Select store</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+            {stores.map((s: any) => (
+              <Pressable
+                key={s.id}
+                onPress={() => { setSelectedStoreId(s.id); Haptics.selectionAsync(); }}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: activeStoreId === s.id ? BLUE : CARD,
+                    borderColor:     activeStoreId === s.id ? BLUE : BORDER,
+                    paddingHorizontal: 14, paddingVertical: 8,
+                  },
+                ]}
+              >
+                <Text style={[styles.chipText, { color: activeStoreId === s.id ? '#fff' : TEXT, fontSize: 13 }]}>
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      )}
+
+      {loadingHours ? (
+        <View style={styles.center}><ActivityIndicator color={BLUE} /></View>
+      ) : (
+        <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 0 }]}>
+          {WEEK_ORDER.map((dayIndex, i) => {
+            const row = hours.find(r => r.dayOfWeek === dayIndex) ?? {
+              dayOfWeek: dayIndex, openTime: '08:00', closeTime: '17:00', isClosed: false, notes: '',
+            };
+            const isLast = i === WEEK_ORDER.length - 1;
+            const rowErr = rowErrors[dayIndex];
+            const openBorder  = rowErr && rowErr.includes('Opens')  ? RED : BORDER;
+            const closeBorder = rowErr && rowErr.includes('Closes') ? RED : BORDER;
+            return (
+              <View key={dayIndex}>
+                <View style={{ paddingVertical: 12, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{
+                        width: 36, height: 36, borderRadius: 10,
+                        backgroundColor: row.isClosed ? '#F3F4F6' : (rowErr ? '#FEF2F2' : BLUE + '15'),
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Text style={{
+                          fontSize: 11, fontFamily: 'Inter_700Bold',
+                          color: row.isClosed ? MUTED : (rowErr ? RED : BLUE),
+                        }}>
+                          {DAY_SHORT[dayIndex]}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: row.isClosed ? MUTED : TEXT }}>
+                          {DAY_LABELS[dayIndex]}
+                        </Text>
+                        {!row.isClosed && !rowErr && (row.openTime || row.closeTime) ? (
+                          <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 1 }}>
+                            {formatTime12(row.openTime)} – {formatTime12(row.closeTime)}
+                          </Text>
+                        ) : row.isClosed ? (
+                          <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: RED, marginTop: 1 }}>Closed</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: row.isClosed ? RED : MUTED }}>
+                        {row.isClosed ? 'Closed' : 'Open'}
+                      </Text>
+                      <Switch
+                        value={!row.isClosed}
+                        onValueChange={v => { updateRow(dayIndex, { isClosed: !v }); Haptics.selectionAsync(); }}
+                        trackColor={{ false: '#D1D5DB', true: GREEN }}
+                        thumbColor="#fff"
+                        ios_backgroundColor="#D1D5DB"
+                      />
+                    </View>
+                  </View>
+
+                  {!row.isClosed && (
+                    <>
+                      <View style={{ flexDirection: 'row', gap: 10, paddingLeft: 44 }}>
+                        <View style={{ flex: 1, gap: 4 }}>
+                          <Text style={[styles.fieldLabel, { fontSize: 11 }]}>Opens</Text>
+                          <TextInput
+                            style={[styles.input, { borderColor: openBorder, color: TEXT, paddingVertical: 8, fontSize: 14 }]}
+                            value={row.openTime}
+                            onChangeText={v => updateRow(dayIndex, { openTime: v })}
+                            onBlur={() => normaliseRowTime(dayIndex, 'openTime')}
+                            placeholder="08:00"
+                            placeholderTextColor={MUTED}
+                            keyboardType="numbers-and-punctuation"
+                            autoCorrect={false}
+                            maxLength={5}
+                          />
+                        </View>
+                        <View style={{ flex: 1, gap: 4 }}>
+                          <Text style={[styles.fieldLabel, { fontSize: 11 }]}>Closes</Text>
+                          <TextInput
+                            style={[styles.input, { borderColor: closeBorder, color: TEXT, paddingVertical: 8, fontSize: 14 }]}
+                            value={row.closeTime}
+                            onChangeText={v => updateRow(dayIndex, { closeTime: v })}
+                            onBlur={() => normaliseRowTime(dayIndex, 'closeTime')}
+                            placeholder="17:00"
+                            placeholderTextColor={MUTED}
+                            keyboardType="numbers-and-punctuation"
+                            autoCorrect={false}
+                            maxLength={5}
+                          />
+                        </View>
+                      </View>
+                      {rowErr && (
+                        <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: RED, paddingLeft: 44 }}>
+                          {rowErr}
+                        </Text>
+                      )}
+                    </>
+                  )}
+                </View>
+                {!isLast && <View style={[styles.divider, { backgroundColor: BORDER }]} />}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {hasErrors && (
+        <View style={[styles.card, { backgroundColor: '#FEF2F2', borderColor: RED + '40' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Feather name="alert-circle" size={14} color={RED} />
+            <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium', color: RED }}>
+              Fix the highlighted rows before saving.
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <Pressable onPress={saveHours} disabled={saving || !activeStoreId || hasErrors}
+        style={[styles.saveBtn, { backgroundColor: hasErrors ? '#D1D5DB' : GREEN, opacity: saving ? 0.8 : 1 }]}>
+        {saving
+          ? <ActivityIndicator color="#fff" />
+          : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="clock" size={16} color="#fff" />
+              <Text style={styles.saveBtnText}>Save Trading Hours</Text>
+            </View>
+          )}
+      </Pressable>
+    </>
   );
 }
 
