@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -13,7 +12,20 @@ import {
   Text,
   TextInput,
   View,
+  type DimensionValue,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
@@ -25,6 +37,65 @@ import OfflineBanner from '@/components/OfflineBanner';
 
 const BLUE   = '#40C0F2';
 const CHERRY = '#D0312D';
+
+// ── Shimmer primitives ────────────────────────────────────────────────────────
+
+interface ShimmerBoxProps {
+  width?: DimensionValue;
+  height?: number;
+  borderRadius?: number;
+  style?: StyleProp<ViewStyle>;
+  shimmerProgress: SharedValue<number>;
+}
+
+function ShimmerBox({ width = '100%', height = 16, borderRadius = 8, style, shimmerProgress }: ShimmerBoxProps) {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(shimmerProgress.value, [0, 1], [0.35, 0.75]),
+  }));
+  return (
+    <Reanimated.View
+      style={[{ width, height, borderRadius, backgroundColor: '#D1D5DB' }, animStyle, style]}
+    />
+  );
+}
+
+function ShimmerProductCard({ shimmerProgress }: { shimmerProgress: SharedValue<number> }) {
+  return (
+    <View style={shimmerCard.tile}>
+      <ShimmerBox width="100%" height={165} borderRadius={0} shimmerProgress={shimmerProgress} />
+      <View style={shimmerCard.info}>
+        <ShimmerBox width="75%" height={13} borderRadius={5} shimmerProgress={shimmerProgress} />
+        <ShimmerBox width="50%" height={11} borderRadius={5} shimmerProgress={shimmerProgress} />
+        <View style={shimmerCard.priceRow}>
+          <ShimmerBox width={44} height={16} borderRadius={5} shimmerProgress={shimmerProgress} />
+          <ShimmerBox width={36} height={36} borderRadius={18} shimmerProgress={shimmerProgress} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const SHIMMER_COUNT = 6;
+
+function MenuShimmer({ shimmerProgress }: { shimmerProgress: SharedValue<number> }) {
+  const pairs = Array.from({ length: Math.ceil(SHIMMER_COUNT / 2) });
+  return (
+    <View style={{ padding: 16, gap: 14 }}>
+      {pairs.map((_, i) => (
+        <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flex: 1 }}><ShimmerProductCard shimmerProgress={shimmerProgress} /></View>
+          <View style={{ flex: 1 }}><ShimmerProductCard shimmerProgress={shimmerProgress} /></View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const shimmerCard = StyleSheet.create({
+  tile:     { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  info:     { padding: 12, gap: 6, backgroundColor: '#fff' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+});
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [
   { id: 'all',        label: 'All',      icon: 'grid'    },
@@ -96,6 +167,29 @@ export default function MenuScreen() {
     queryFn: () => api.products.list(),
     retry: 2,
   });
+
+  // Shimmer animation — runs while products are loading
+  const shimmerProgress = useSharedValue(0);
+  const contentOpacity  = useSharedValue(isLoading ? 0 : 1);
+
+  useEffect(() => {
+    if (isLoading) {
+      contentOpacity.value = 0;
+      shimmerProgress.value = 0;
+      shimmerProgress.value = withRepeat(
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true,
+      );
+    } else {
+      cancelAnimation(shimmerProgress);
+      contentOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
+    }
+  }, [isLoading]);
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
 
   const products = data?.data ?? [];
 
@@ -182,60 +276,60 @@ export default function MenuScreen() {
       </View>
 
       {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={BLUE} />
-        </View>
+        <MenuShimmer shimmerProgress={shimmerProgress} />
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={p => p.id}
-          numColumns={2}
-          columnWrapperStyle={{ gap: 12 }}
-          contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-          ListHeaderComponent={
-            <>
-              {/* Frequently ordered — only shown on Skip the Queue */}
-              {isSkipQueue && coffeeProducts.length > 0 && (
-                <View style={s.frequentSection}>
-                  <View style={s.frequentHeader}>
-                    <View style={s.frequentIconWrap}>
-                      <Text style={{ fontSize: 14 }}>☕</Text>
+        <Reanimated.View style={[{ flex: 1 }, contentAnimStyle]}>
+          <FlatList
+            data={filtered}
+            keyExtractor={p => p.id}
+            numColumns={2}
+            columnWrapperStyle={{ gap: 12 }}
+            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+            ListHeaderComponent={
+              <>
+                {/* Frequently ordered — only shown on Skip the Queue */}
+                {isSkipQueue && coffeeProducts.length > 0 && (
+                  <View style={s.frequentSection}>
+                    <View style={s.frequentHeader}>
+                      <View style={s.frequentIconWrap}>
+                        <Text style={{ fontSize: 14 }}>☕</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.frequentTitle, { fontFamily: 'Inter_700Bold' }]}>Your usual?</Text>
+                        <Text style={[s.frequentSub, { fontFamily: 'Inter_400Regular' }]}>Frequently ordered</Text>
+                      </View>
+                      <Pressable onPress={() => router.push('/(customer)/cart')} style={s.viewCartBtn}>
+                        <Text style={[s.viewCartText, { fontFamily: 'Inter_600SemiBold' }]}>View cart</Text>
+                        <Feather name="chevron-right" size={13} color={BLUE} />
+                      </Pressable>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.frequentTitle, { fontFamily: 'Inter_700Bold' }]}>Your usual?</Text>
-                      <Text style={[s.frequentSub, { fontFamily: 'Inter_400Regular' }]}>Frequently ordered</Text>
-                    </View>
-                    <Pressable onPress={() => router.push('/(customer)/cart')} style={s.viewCartBtn}>
-                      <Text style={[s.viewCartText, { fontFamily: 'Inter_600SemiBold' }]}>View cart</Text>
-                      <Feather name="chevron-right" size={13} color={BLUE} />
-                    </Pressable>
+                    {coffeeProducts.map(p => (
+                      <FrequentCoffeeTile key={p.id} product={p} onPress={() => handleTilePress(p)} />
+                    ))}
+                    <View style={s.frequentDivider} />
                   </View>
-                  {coffeeProducts.map(p => (
-                    <FrequentCoffeeTile key={p.id} product={p} onPress={() => handleTilePress(p)} />
-                  ))}
-                  <View style={s.frequentDivider} />
-                </View>
-              )}
-              <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
-                {filtered.length} item{filtered.length !== 1 ? 's' : ''}
-                {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
-              </Text>
-            </>
-          }
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
-              <Feather name="search" size={28} color="#D0D0D0" />
-              <Text style={{ color: '#8E8E93', fontFamily: 'Inter_400Regular', fontSize: 14 }}>No items found.</Text>
-            </View>
-          }
-          renderItem={({ item: p }) => (
-            <View style={{ flex: 1 }}>
-              <SharedProductTile product={p} onPress={() => handleTilePress(p)} />
-            </View>
-          )}
-        />
+                )}
+                <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
+                  {filtered.length} item{filtered.length !== 1 ? 's' : ''}
+                  {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
+                </Text>
+              </>
+            }
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
+                <Feather name="search" size={28} color="#D0D0D0" />
+                <Text style={{ color: '#8E8E93', fontFamily: 'Inter_400Regular', fontSize: 14 }}>No items found.</Text>
+              </View>
+            }
+            renderItem={({ item: p }) => (
+              <View style={{ flex: 1 }}>
+                <SharedProductTile product={p} onPress={() => handleTilePress(p)} />
+              </View>
+            )}
+          />
+        </Reanimated.View>
       )}
     </View>
   );
