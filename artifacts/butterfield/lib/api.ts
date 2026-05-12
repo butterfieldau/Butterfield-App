@@ -422,7 +422,6 @@ export const api = {
     },
   },
 
-  seedDemo: () => request<{ message: string; created: string[]; existing: string[] }>('/auth/seed-demo', { method: 'POST' }),
 };
 
 export interface GeoSettings {

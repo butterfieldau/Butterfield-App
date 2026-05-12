@@ -3,9 +3,11 @@ import multer from "multer";
 import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
 import { getObjectAclPolicy, setObjectAclPolicy } from "../lib/objectAcl.js";
-import { requireAuth, requireRole } from "../middlewares/auth.js";
+import { requireAuth, requireRole, type AuthUser } from "../middlewares/auth.js";
 
 const UPLOAD_INTENT_SECRET =
+  process.env.SESSION_SECRET ?? "butterfield-dev-only-not-for-production";
+const AUTH_SECRET =
   process.env.SESSION_SECRET ?? "butterfield-dev-only-not-for-production";
 
 interface UploadIntentPayload {
@@ -16,6 +18,32 @@ interface UploadIntentPayload {
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+function storageConfigError(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("PRIVATE_OBJECT_DIR") || message.includes("PUBLIC_OBJECT_SEARCH_PATHS")) {
+    return message;
+  }
+  return null;
+}
+
+function optionalAuth(req: Request, res: Response, next: () => void): void {
+  const header = req.headers.authorization;
+  if (!header) {
+    next();
+    return;
+  }
+  if (!header.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  try {
+    req.user = jwt.verify(header.slice(7), AUTH_SECRET) as AuthUser;
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
 
 /**
  * POST /storage/uploads/request-url
@@ -128,6 +156,11 @@ router.post("/storage/uploads", requireAuth, upload.single("file"), async (req: 
     });
     res.json(result);
   } catch (error) {
+    const configMessage = storageConfigError(error);
+    if (configMessage) {
+      res.status(500).json({ error: configMessage });
+      return;
+    }
     req.log.error({ err: error }, "Error uploading file");
     res.status(500).json({ error: "Failed to upload file" });
   }
@@ -178,6 +211,11 @@ router.post(
       });
       res.json(result);
     } catch (error) {
+      const configMessage = storageConfigError(error);
+      if (configMessage) {
+        res.status(500).json({ error: configMessage });
+        return;
+      }
       req.log.error({ err: error }, "Error uploading product image");
       res.status(500).json({ error: "Failed to upload image" });
     }
@@ -239,25 +277,22 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 /**
  * GET /storage/objects/:filePath*
  *
- * Serve private assets. Requires authentication and an explicit ACL policy
- * on the object granting the caller read access (deny-by-default). Objects
- * with no ACL policy are treated as unauthorised.
+ * Serve stored assets. Public objects can be read without authentication.
+ * Private objects require authentication and an explicit ACL policy granting
+ * the caller read access (deny-by-default). Objects with no ACL policy are
+ * treated as unauthorised.
  *
  * Note on visibility: objects uploaded with visibility="public" ACL are
- * readable by ANY authenticated user (canAccessObjectEntity returns true for
- * public+READ). Anonymous access is intentionally not supported on this route
- * because all app clients (customer/staff/wholesale/director) hold a valid JWT.
- * If a future use-case needs unauthenticated access to public objects, drop
- * requireAuth and change the canAccessObjectEntity call to pass
- * userId: req.user?.id so guests can reach public-visibility objects.
+ * readable by anyone, which lets public product images load in the customer
+ * catalog and TestFlight builds before a customer signs in.
  */
-router.get("/storage/objects/*filePath", requireAuth, async (req: Request, res: Response) => {
+router.get("/storage/objects/*filePath", optionalAuth, async (req: Request, res: Response) => {
   const objectPath = `/objects/${(req.params as any).filePath}`;
   try {
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
     const allowed = await objectStorageService.canAccessObjectEntity({
-      userId: req.user!.id,
+      userId: req.user?.id,
       objectFile,
     });
     if (!allowed) {

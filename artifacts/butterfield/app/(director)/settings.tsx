@@ -544,26 +544,6 @@ function StoreTab() {
 
       <StoreHoursSection />
 
-      <Text style={styles.section}>DEMO ACCOUNTS</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
-        {[
-          { role: 'Customer',  email: 'customer@demo.com',  color: '#0369A1', bg: '#EBF8FF' },
-          { role: 'Staff',     email: 'staff@demo.com',     color: '#5B21B6', bg: '#EDE9FE' },
-          { role: 'Wholesale', email: 'wholesale@demo.com', color: '#166534', bg: '#DCFCE7' },
-          { role: 'Director',  email: 'director@demo.com',  color: '#854D0E', bg: '#FEF9C3' },
-        ].map(d => (
-          <View key={d.role} style={[styles.demoRow, { borderColor: BORDER }]}>
-            <View style={[styles.demoPill, { backgroundColor: d.bg }]}>
-              <Text style={[styles.demoPillText, { color: d.color }]}>{d.role}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.demoEmail}>{d.email}</Text>
-              <Text style={[styles.demoPw, { color: MUTED }]}>Demo1234!</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
       <Pressable onPress={save} disabled={saving}
         style={[styles.saveBtn, { backgroundColor: BLUE, opacity: saving ? 0.8 : 1 }]}>
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Settings</Text>}
