@@ -6,27 +6,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function OfflineBanner() {
   const insets = useSafeAreaInsets();
-  const [isOnline, setIsOnline]           = useState(() => onlineManager.isOnline());
-  const [justReconnected, setJustReconnected] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => onlineManager.isOnline());
   const slideY = useRef(new Animated.Value(onlineManager.isOnline() ? -48 : 0)).current;
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const unsub = onlineManager.subscribe((online) => {
       setIsOnline(online);
-      if (online) {
-        setJustReconnected(true);
-        if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-        reconnectTimer.current = setTimeout(() => setJustReconnected(false), 2800);
-      }
     });
-    return () => {
-      unsub();
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    };
+    return unsub;
   }, []);
 
-  const visible = !isOnline || justReconnected;
+  const visible = !isOnline;
 
   useEffect(() => {
     Animated.timing(slideY, {
@@ -41,10 +31,10 @@ export default function OfflineBanner() {
       style={[s.wrap, { top: insets.top, transform: [{ translateY: slideY }] }]}
       pointerEvents="none"
     >
-      <View style={[s.banner, { backgroundColor: isOnline ? '#16A34A' : '#1C1C1E' }]}>
-        <Feather name={isOnline ? 'wifi' : 'wifi-off'} size={12} color="#fff" />
+      <View style={[s.banner, { backgroundColor: '#1C1C1E' }]}>
+        <Feather name="wifi-off" size={12} color="#fff" />
         <Text style={[s.text, { fontFamily: 'Inter_500Medium' }]}>
-          {isOnline ? 'Back online · Syncing your data…' : 'No internet · Showing saved data'}
+          No internet · Showing saved data
         </Text>
       </View>
     </Animated.View>
