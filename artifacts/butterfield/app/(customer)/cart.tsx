@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { StripeProvider, usePaymentSheet } from '@stripe/stripe-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { api, type SavedAddress } from '@/lib/api';
@@ -69,6 +70,54 @@ function SectionLabel({ title }: { title: string }) {
   return <Text style={styles.sectionLabel}>{title}</Text>;
 }
 
+function StripeCheckoutButton({
+  amountCents,
+  merchantDisplayName,
+  onSuccess,
+}: {
+  amountCents: number;
+  merchantDisplayName: string;
+  onSuccess: (paymentIntentId: string) => Promise<void>;
+}) {
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const [busy, setBusy] = useState(false);
+
+  const payNow = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const intent = await api.payment.createIntent({ amountCents, paymentMethod: 'card' });
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: intent.clientSecret,
+        merchantDisplayName,
+        allowsDelayedPaymentMethods: true,
+      } as any);
+      if (initError) throw new Error(initError.message);
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) throw new Error(presentError.message);
+      await onSuccess(intent.paymentIntentId);
+    } catch (e: any) {
+      Alert.alert('Stripe payment failed', e?.message ?? 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={payNow}
+      disabled={busy}
+      style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: busy ? 0.8 : 1 }]}
+    >
+      {busy ? (
+        <ActivityIndicator color="#fff" />
+      ) : (
+        <Text style={styles.continueBtnText}>Pay with Stripe</Text>
+      )}
+    </Pressable>
+  );
+}
+
 interface Confirmation {
   orderId: string;
   totalCents: number;
@@ -112,9 +161,17 @@ export default function CartScreen() {
     enabled: !!user,
     retry: 1,
   });
+  const { data: stripeConfig } = useQuery({
+    queryKey: ['stripe-config'],
+    queryFn: () => api.payment.config(),
+    retry: 1,
+    staleTime: Infinity,
+  });
   const savedAddresses  = addrData?.data ?? [];
   const defaultAddress  = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0] ?? null;
   const canPayAtPickup  = Boolean((meData?.profile as any)?.payAtPickupEnabled);
+  const stripePublishableKey = stripeConfig?.data?.publishableKey ?? null;
+  const stripeMerchantDisplayName = stripeConfig?.data?.merchantDisplayName ?? 'Butterfield Cookies';
 
   // Helper: fill delivery form from a saved address
   const fillFromAddress = (addr: SavedAddress) => {
@@ -213,7 +270,7 @@ export default function CartScreen() {
     }
   };
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = async (stripePaymentIntentId?: string) => {
     setLoading(true);
     try {
       let scheduledForDate: Date | undefined;
@@ -251,6 +308,7 @@ export default function CartScreen() {
         deliveryPostcode: orderType === 'delivery' ? postcode.trim() : undefined,
         deliveryState:    orderType === 'delivery' ? 'NSW' : undefined,
         paymentMethod:    effectivePaymentMethod,
+        stripePaymentIntentId,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -843,17 +901,33 @@ export default function CartScreen() {
           <Text style={styles.bottomTotalLabel}>TOTAL</Text>
           <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
         </View>
-        <Pressable
-          onPress={handleContinue}
-          disabled={loading}
-          style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
+        {step === 2 && effectivePaymentMethod === 'card' ? (
+          stripePublishableKey ? (
+            <StripeProvider publishableKey={stripePublishableKey}>
+              <StripeCheckoutButton
+                amountCents={totalCents}
+                merchantDisplayName={stripeMerchantDisplayName}
+                onSuccess={handlePlaceOrder}
+              />
+            </StripeProvider>
           ) : (
-            <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>
-          )}
-        </Pressable>
+            <View style={[styles.continueBtn, { backgroundColor: '#9CA3AF', opacity: 0.9, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={styles.continueBtnText}>Stripe not configured</Text>
+            </View>
+          )
+        ) : (
+          <Pressable
+            onPress={handleContinue}
+            disabled={loading}
+            style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>
+            )}
+          </Pressable>
+        )}
       </View>
     </View>
   );

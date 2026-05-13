@@ -2,9 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { Linking } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
@@ -85,10 +86,22 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { addItem } = useCart();
   const qc = useQueryClient();
-  const product = getSelectedProduct();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const routeProductId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const selectedProduct = getSelectedProduct();
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [qty, setQty] = useState(1);
   const [togglingFav, setTogglingFav] = useState(false);
+
+  const { data: routeProductData, isLoading: isRouteProductLoading } = useQuery({
+    queryKey: ['product-detail-route', routeProductId],
+    queryFn: () => api.products.get(String(routeProductId)),
+    enabled: !selectedProduct && !!routeProductId,
+    retry: 1,
+    staleTime: 60_000,
+  });
+
+  const product = selectedProduct ?? (routeProductData?.data as any) ?? null;
 
   const { data: favsData } = useQuery({
     queryKey: ['favourites'],
@@ -152,10 +165,18 @@ export default function ProductDetailScreen() {
   const minQty = (product as any)?.minOrderQty ?? 1;
   const maxQty = (product as any)?.maxOrderQty ?? 99;
 
+  if (!product && isRouteProductLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator color={BLUE} />
+      </View>
+    );
+  }
+
   if (!product) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED }}>No product selected</Text>
+        <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED }}>We could not open that product.</Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 16, padding: 12 }}>
           <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Go back</Text>
         </Pressable>

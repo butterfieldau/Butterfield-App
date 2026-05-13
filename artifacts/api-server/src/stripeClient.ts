@@ -35,6 +35,34 @@ async function getStripeCredentials(): Promise<{ secretKey: string; webhookSecre
   return { secretKey: settings.secret_key, webhookSecret: settings.webhook_secret };
 }
 
+async function getStripeSettings(): Promise<any> {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? "repl " + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+      ? "depl " + process.env.WEB_REPL_RENEWAL
+      : null;
+
+  if (!hostname || !xReplitToken) {
+    return {};
+  }
+
+  const resp = await fetch(
+    `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=stripe`,
+    {
+      headers: { Accept: "application/json", X_REPLIT_TOKEN: xReplitToken },
+      signal: AbortSignal.timeout(10_000),
+    }
+  );
+
+  if (!resp.ok) {
+    return {};
+  }
+
+  const data = await resp.json() as any;
+  return data.items?.[0]?.settings ?? {};
+}
+
 export async function getUncachableStripeClient(): Promise<Stripe> {
   const { secretKey } = await getStripeCredentials();
   return new Stripe(secretKey);
@@ -49,4 +77,17 @@ export async function getStripeSync(): Promise<StripeSync> {
     stripeSecretKey: secretKey,
     stripeWebhookSecret: webhookSecret ?? '',
   });
+}
+
+export async function getStripePublishableKey(): Promise<string | null> {
+  const settings = await getStripeSettings();
+  return (
+    settings.publishable_key ??
+    settings.publishableKey ??
+    settings.public_key ??
+    settings.publicKey ??
+    process.env.STRIPE_PUBLISHABLE_KEY ??
+    process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ??
+    null
+  );
 }

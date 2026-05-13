@@ -3,6 +3,24 @@ import { requireAuth } from '../middlewares/auth.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 
 const router = Router();
+
+router.get('/config', async (_req, res) => {
+  try {
+    const { getStripePublishableKey } = await import('../stripeClient.js');
+    const publishableKey = await getStripePublishableKey();
+    return res.json({
+      data: {
+        publishableKey,
+        merchantDisplayName: 'Butterfield Cookies',
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      error: err?.message ?? 'Could not load Stripe config',
+    });
+  }
+});
+
 router.use(requireAuth);
 
 router.post('/payment-intent', async (req, res) => {
