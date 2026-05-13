@@ -1,15 +1,28 @@
 import { BlurView } from 'expo-blur';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
-import { Tabs } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { Tabs, router, usePathname } from 'expo-router';
 import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useColors } from '@/hooks/useColors';
 import { useCart } from '@/context/CartContext';
 
 const BLUE = '#40C0F2';
+const TAB_ROUTES = ['/', '/menu', '/loyalty', '/cart', '/profile'] as const;
+
+function getActiveTabIndex(pathname: string) {
+  const p = pathname.toLowerCase();
+  if (p.includes('/menu')) return 1;
+  if (p.includes('/loyalty')) return 2;
+  if (p.includes('/cart')) return 3;
+  if (p.includes('/profile')) return 4;
+  if (p === '/' || p.endsWith('/index')) return 0;
+  return -1;
+}
 
 /** Blue pill badge rendered inside the icon — works on all platforms */
 function BlueBadge({ count, iconSize }: { count: number; iconSize: number }) {
@@ -155,6 +168,34 @@ function ClassicCustomerTabs() {
 }
 
 export default function CustomerTabLayout() {
-  if (isLiquidGlassAvailable()) return <NativeCustomerTabs />;
-  return <ClassicCustomerTabs />;
+  const pathname = usePathname() ?? '/';
+  const activeIndex = getActiveTabIndex(pathname);
+  const canSwipe = Platform.OS === 'ios' && activeIndex >= 0;
+
+  const swipeGesture = useMemo(() => Gesture.Pan()
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-14, 14])
+    .onEnd((e) => {
+      if (activeIndex < 0) return;
+      const fastEnough = Math.abs(e.translationX) > 70 || Math.abs(e.velocityX) > 700;
+      if (!fastEnough) return;
+
+      if (e.translationX < 0 && activeIndex < TAB_ROUTES.length - 1) {
+        Haptics.selectionAsync();
+        router.navigate(TAB_ROUTES[activeIndex + 1] as any);
+      } else if (e.translationX > 0 && activeIndex > 0) {
+        Haptics.selectionAsync();
+        router.navigate(TAB_ROUTES[activeIndex - 1] as any);
+      }
+    }), [activeIndex]);
+
+  const content = isLiquidGlassAvailable() ? <NativeCustomerTabs /> : <ClassicCustomerTabs />;
+
+  if (!canSwipe) return content;
+
+  return (
+    <GestureDetector gesture={swipeGesture}>
+      <View style={{ flex: 1 }}>{content}</View>
+    </GestureDetector>
+  );
 }

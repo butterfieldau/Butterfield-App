@@ -1,13 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -20,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type SavedAddress } from '@/lib/api';
+import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 
 const BG = '#F5F6FA';
 const CARD = '#FFFFFF';
@@ -48,7 +47,7 @@ const BLANK = { label: 'Home', street: '', apt: '', suburb: '', postcode: '', st
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const slideAnim = useRef(new Animated.Value(600)).current;
+  const scrollRef = useRef(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(BLANK);
@@ -71,11 +70,10 @@ export default function AddressesScreen() {
       setForm({ ...BLANK, isDefault: addresses.length === 0 });
     }
     setModalVisible(true);
-    Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const closeModal = () => Animated.timing(slideAnim, { toValue: 600, useNativeDriver: true, duration: 220 }).start(() => setModalVisible(false));
+  const closeModal = () => setModalVisible(false);
 
   const handleSave = async () => {
     if (!form.street.trim() || !form.suburb.trim() || !form.postcode.trim()) return Alert.alert('Missing fields', 'Please fill in street, suburb and postcode.');
@@ -103,10 +101,6 @@ export default function AddressesScreen() {
     await api.addresses.update(addr.id, { isDefault: true });
     await qc.invalidateQueries({ queryKey: ['addresses'] });
   };
-
-  useEffect(() => {
-    if (!modalVisible) slideAnim.setValue(600);
-  }, [modalVisible, slideAnim]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -151,13 +145,21 @@ export default function AddressesScreen() {
         </ScrollView>
       )}
 
-      <Modal visible={modalVisible} transparent animationType="none" onRequestClose={closeModal}>
-        <Pressable style={s.modalOverlay} onPress={closeModal} />
-        <Animated.View style={[s.modalSheet, { transform: [{ translateY: slideAnim }], paddingBottom: insets.bottom + 24 }]}>
+      <SwipeDownSheet
+        visible={modalVisible}
+        onClose={closeModal}
+      backdropOpacity={0.48}
+      sheetHeight={600}
+      scrollGestureRef={scrollRef}
+      showHandle={false}
+      sheetStyle={[s.modalSheet, { paddingBottom: insets.bottom + 24 }]}
+      contentStyle={{ flex: 1 }}
+      >
+        <View style={{ flex: 1 }}>
           <View style={s.modalHandle} />
           <View style={s.modalHeader}><Text style={s.modalTitle}>{editingId ? 'Edit address' : 'New address'}</Text><Pressable onPress={closeModal} style={s.modalCloseBtn}><Feather name="x" size={20} color={MUTED} /></Pressable></View>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
               <View style={{ padding: 20, gap: 16 }}>
                 <View style={s.fieldGroup}><Text style={s.fieldLabel}>Label</Text><View style={s.labelPills}>{['Home', 'Work', 'Other'].map((l) => <Pressable key={l} onPress={() => setForm((f) => ({ ...f, label: l }))} style={[s.labelPill, { backgroundColor: form.label === l ? BLUE : CARD, borderColor: form.label === l ? BLUE : BORDER }]}><Feather name={iconForLabel(l) as any} size={13} color={form.label === l ? '#fff' : MUTED} /><Text style={[s.labelPillText, { color: form.label === l ? '#fff' : TEXT }]}>{l}</Text></Pressable>)}</View></View>
                 <View style={s.fieldGroup}><Text style={s.fieldLabel}>Street address</Text><TextInput style={[s.textInput, { borderColor: BORDER, color: TEXT }]} value={form.street} onChangeText={(v) => setForm((f) => ({ ...f, street: v }))} placeholder="123 Smith St" placeholderTextColor={MUTED} autoCapitalize="words" /></View>
@@ -169,8 +171,8 @@ export default function AddressesScreen() {
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
-        </Animated.View>
-      </Modal>
+        </View>
+      </SwipeDownSheet>
     </View>
   );
 }

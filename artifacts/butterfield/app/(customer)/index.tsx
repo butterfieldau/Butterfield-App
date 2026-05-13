@@ -9,7 +9,6 @@ import {
   Dimensions,
   FlatList,
   Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -29,6 +28,7 @@ import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { useStores } from '@/hooks/useStores';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
+import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
@@ -404,54 +404,58 @@ export default function CustomerHome() {
       <OfflineBanner />
 
       {/* ── QR CODE MODAL ──────────────────────────────────────────────── */}
-      <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
-        <Pressable style={s.qrOverlay} onPress={() => setShowQR(false)}>
-          <Pressable style={s.qrCard} onPress={(e) => e.stopPropagation()}>
-            <View style={s.qrHandle} />
-            <Text style={[s.qrTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Stamp Card</Text>
-            <Text style={[s.qrSub, { fontFamily: 'Inter_400Regular' }]}>
-              Show this to staff to earn your stamp
-            </Text>
-            <View style={s.qrBox}>
-              <QRCode
-                value={qrValue || 'BUTTERFIELD:loading'}
-                size={220}
-                color="#1C1C1E"
-                backgroundColor="#FFFFFF"
-              />
-            </View>
-            <View style={s.qrStampsRow}>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.qrStampDot,
-                    i < stampCount
-                      ? { backgroundColor: BLUE_TOP }
-                      : { backgroundColor: '#E5E5EA', borderColor: '#C7C7CC', borderWidth: 1.5 },
-                  ]}
-                >
-                  {i < stampCount && <Feather name="coffee" size={12} color="#fff" />}
-                </View>
-              ))}
-            </View>
-            <Text style={[s.qrStampLabel, { fontFamily: 'Inter_500Medium' }]}>
-              {stampCount >= 6
-                ? '☕ Free coffee ready — show to staff!'
-                : `${stampCount} of 6 stamps — ${6 - stampCount} to go`}
-            </Text>
-            <Text style={[s.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
-              {referralCode || user?.name}
-            </Text>
-            <Pressable
-              style={[s.qrCloseBtn, { backgroundColor: CHERRY }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(false); }}
-            >
-              <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Done</Text>
-            </Pressable>
+      <SwipeDownSheet
+        visible={showQR}
+        onClose={() => setShowQR(false)}
+        backdropOpacity={0.52}
+        sheetHeight={520}
+        sheetStyle={s.qrSheet}
+        contentStyle={s.qrSheetContent}
+      >
+        <Pressable style={s.qrCard} onPress={(e) => e.stopPropagation()}>
+          <Text style={[s.qrTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Stamp Card</Text>
+          <Text style={[s.qrSub, { fontFamily: 'Inter_400Regular' }]}>
+            Show this to staff to earn your stamp
+          </Text>
+          <View style={s.qrBox}>
+            <QRCode
+              value={qrValue || 'BUTTERFIELD:loading'}
+              size={220}
+              color="#1C1C1E"
+              backgroundColor="#FFFFFF"
+            />
+          </View>
+          <View style={s.qrStampsRow}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  s.qrStampDot,
+                  i < stampCount
+                    ? { backgroundColor: BLUE_TOP }
+                    : { backgroundColor: '#E5E5EA', borderColor: '#C7C7CC', borderWidth: 1.5 },
+                ]}
+              >
+                {i < stampCount && <Feather name="coffee" size={12} color="#fff" />}
+              </View>
+            ))}
+          </View>
+          <Text style={[s.qrStampLabel, { fontFamily: 'Inter_500Medium' }]}>
+            {stampCount >= 6
+              ? '☕ Free coffee ready — show to staff!'
+              : `${stampCount} of 6 stamps — ${6 - stampCount} to go`}
+          </Text>
+          <Text style={[s.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
+            {referralCode || user?.name}
+          </Text>
+          <Pressable
+            style={[s.qrCloseBtn, { backgroundColor: CHERRY }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(false); }}
+          >
+            <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Done</Text>
           </Pressable>
         </Pressable>
-      </Modal>
+      </SwipeDownSheet>
 
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
@@ -875,6 +879,13 @@ const s = StyleSheet.create({
   },
 
   // ── QR modal ─────────────────────────────────────────────────────────────
+  qrSheet: { backgroundColor: '#fff' },
+  qrSheetContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+  },
   qrOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center', justifyContent: 'center',

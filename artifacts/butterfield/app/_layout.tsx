@@ -55,24 +55,31 @@ const persister = createAsyncStoragePersister({
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="welcome" options={{ headerShown: false }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: "slide_from_right",
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+      }}
+    >
+      <Stack.Screen name="welcome" options={{ headerShown: false, animation: "fade" }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen
         name="(auth)"
-        options={{ presentation: "modal", headerShown: false }}
+        options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }}
       />
-      <Stack.Screen name="(customer)" options={{ headerShown: false }} />
-      <Stack.Screen name="store" options={{ presentation: 'modal', headerShown: false }} />
-      <Stack.Screen name="edit-details" options={{ presentation: 'modal', headerShown: false }} />
-      <Stack.Screen name="product" options={{ presentation: 'modal', headerShown: false }} />
-      <Stack.Screen name="orders" options={{ headerShown: false }} />
-      <Stack.Screen name="notifications" options={{ headerShown: false }} />
-      <Stack.Screen name="addresses" options={{ headerShown: false }} />
-      <Stack.Screen name="(staff)" options={{ headerShown: false }} />
-      <Stack.Screen name="(wholesale)" options={{ headerShown: false }} />
-      <Stack.Screen name="(director)" options={{ headerShown: false }} />
-      <Stack.Screen name="(manager)" options={{ headerShown: false }} />
+      <Stack.Screen name="(customer)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="store" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="edit-details" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="product" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="orders" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(staff)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(manager)" options={{ headerShown: false, animation: "slide_from_right" }} />
     </Stack>
   );
 }
@@ -106,7 +113,7 @@ export default function RootLayout() {
         >
           <AuthProvider>
             <CartProvider>
-              <GestureHandlerRootView>
+              <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <RootLayoutNav />
                 </KeyboardProvider>

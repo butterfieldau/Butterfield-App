@@ -6,7 +6,6 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,6 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
+import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 
 const BG        = '#F5F6FA';
 const BLUE_CARD = '#40C0F2';
@@ -175,21 +175,26 @@ export default function LoyaltyScreen() {
 
   return (
     <>
-      <Modal visible={showQR} transparent animationType="fade" onRequestClose={() => setShowQR(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowQR(false)}>
-          <View style={styles.qrModal}>
-            <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
-            <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
-            <View style={styles.qrBox}>
-              <QRCode value={qrValue} size={200} color={TEXT} backgroundColor={WHITE} />
-            </View>
-            <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>{profile?.referralCode ?? user?.name}</Text>
-            <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>
-              <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Close</Text>
-            </Pressable>
+      <SwipeDownSheet
+      visible={showQR}
+      onClose={() => setShowQR(false)}
+      backdropOpacity={0.52}
+      sheetHeight={470}
+      sheetStyle={styles.qrSheet}
+      contentStyle={styles.qrSheetContent}
+    >
+        <View style={styles.qrModal}>
+          <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
+          <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
+          <View style={styles.qrBox}>
+            <QRCode value={qrValue} size={200} color={TEXT} backgroundColor={WHITE} />
           </View>
-        </Pressable>
-      </Modal>
+          <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>{profile?.referralCode ?? user?.name}</Text>
+          <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>
+            <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Close</Text>
+          </Pressable>
+        </View>
+      </SwipeDownSheet>
 
       <ScrollView
         style={{ flex: 1, backgroundColor: WHITE }}
@@ -516,7 +521,8 @@ const styles = StyleSheet.create({
   bdLabel: { fontSize: 12, color: MUTED, marginBottom: 6, letterSpacing: 0.5 },
   bdInput: { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  qrSheet: { backgroundColor: WHITE },
+  qrSheetContent: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingBottom: 20 },
   qrModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', gap: 10, marginHorizontal: 32, width: 300 },
   qrTitle: { fontSize: 20, color: TEXT },
   qrSub: { fontSize: 13, color: MUTED, textAlign: 'center' },

@@ -2,8 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import { onlineManager } from '@tanstack/react-query';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function OfflineBanner() {
+  const insets = useSafeAreaInsets();
   const [isOnline, setIsOnline]           = useState(() => onlineManager.isOnline());
   const [justReconnected, setJustReconnected] = useState(false);
   const slideY = useRef(new Animated.Value(onlineManager.isOnline() ? -48 : 0)).current;
@@ -36,7 +38,7 @@ export default function OfflineBanner() {
 
   return (
     <Animated.View
-      style={[s.wrap, { transform: [{ translateY: slideY }] }]}
+      style={[s.wrap, { top: insets.top, transform: [{ translateY: slideY }] }]}
       pointerEvents="none"
     >
       <View style={[s.banner, { backgroundColor: isOnline ? '#16A34A' : '#1C1C1E' }]}>
@@ -50,7 +52,7 @@ export default function OfflineBanner() {
 }
 
 const s = StyleSheet.create({
-  wrap:   { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999 },
+  wrap:   { position: 'absolute', left: 0, right: 0, zIndex: 999 },
   banner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 9, paddingHorizontal: 16 },
   text:   { color: '#fff', fontSize: 12 },
 });

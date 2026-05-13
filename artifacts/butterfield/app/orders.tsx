@@ -160,7 +160,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
   const pointsEarned  = order?.loyaltyPointsEarned ?? 0;
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         {/* Header */}
         <View style={[d.header, { paddingTop: insets.top > 0 ? insets.top + 4 : 20, borderBottomColor: BORDER }]}>

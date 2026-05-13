@@ -223,6 +223,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
       visible={visible}
       transparent
       animationType="none"
+      allowSwipeDismissal
       onRequestClose={onClose}
       statusBarTranslucent
     >
