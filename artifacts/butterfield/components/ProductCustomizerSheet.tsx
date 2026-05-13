@@ -114,7 +114,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
   // ── Pan gesture (swipe-to-dismiss) ───────────────────────────────────────────
   const panGesture = useMemo(() =>
     Gesture.Pan()
-      .simultaneousWithExternalGesture(scrollRef as any)
       .activeOffsetY([-8, 8])
       .onUpdate((e) => {
         if (e.translationY > 0 && scrollY.value <= 2) {

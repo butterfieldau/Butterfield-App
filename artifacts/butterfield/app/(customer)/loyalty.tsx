@@ -187,7 +187,7 @@ export default function LoyaltyScreen() {
           <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
           <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
           <View style={styles.qrBox}>
-            <QRCode value={qrValue} size={200} color={TEXT} backgroundColor={WHITE} />
+            <QRCode value={qrValue || 'BUTTERFIELD:loading'} size={200} color={TEXT} backgroundColor={WHITE} />
           </View>
           <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>{profile?.referralCode ?? user?.name}</Text>
           <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>

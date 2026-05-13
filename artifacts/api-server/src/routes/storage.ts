@@ -34,15 +34,16 @@ function optionalAuth(req: Request, res: Response, next: () => void): void {
     return;
   }
   if (!header.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
+    next();
     return;
   }
   try {
     req.user = jwt.verify(header.slice(7), AUTH_SECRET) as AuthUser;
-    next();
   } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
+    // Invalid or expired token — treat as unauthenticated so public
+    // objects (e.g. product images) still load without a valid session.
   }
+  next();
 }
 
 /**
