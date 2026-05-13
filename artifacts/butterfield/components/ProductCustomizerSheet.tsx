@@ -231,19 +231,22 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
     internalClose();
   }, [displayProduct, optGroups, selections, textValues, variants, selectedVariantId, basePriceCents, quantity, addItemToCart, internalClose]);
 
-  // Nothing to render yet
-  if (!displayProduct && !modalVisible) return null;
-
-  const raw        = displayProduct as any;
-  const palette    = getPalette(raw?.category ?? raw?.metadata?.category ?? 'default');
+  // ── Gallery URLs (must be above early return — hooks cannot be conditional) ──
+  const raw         = displayProduct as any;
   const galleryUrls = useMemo(() => {
+    if (!displayProduct) return [];
     const combined = [
       ...(raw?.images ?? []),
       ...parseArr(raw?.galleryUrls),
       ...parseArr(detail?.galleryUrls),
     ].filter(Boolean);
     return Array.from(new Set(combined));
-  }, [raw?.images, raw?.galleryUrls, detail?.galleryUrls]);
+  }, [displayProduct, raw?.images, raw?.galleryUrls, detail?.galleryUrls]);
+
+  // Nothing to render yet
+  if (!displayProduct && !modalVisible) return null;
+
+  const palette    = getPalette(raw?.category ?? raw?.metadata?.category ?? 'default');
   const imageUrl   = galleryUrls[0] ?? raw?.imageUrl ?? null;
   const isNew      = raw?.metadata?.isNew === 'true' || raw?.isNew;
   const isLim      = raw?.metadata?.isLimitedDrop === 'true' || raw?.isLimitedDrop;
