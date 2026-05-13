@@ -12,6 +12,7 @@ const CMD_BOLD_ON     = Buffer.from([ESC, 0x45, 0x01]);
 const CMD_BOLD_OFF    = Buffer.from([ESC, 0x45, 0x00]);
 const CMD_DBL_SIZE    = Buffer.from([ESC, 0x21, 0x30]);
 const CMD_NORMAL_SIZE = Buffer.from([ESC, 0x21, 0x00]);
+const CMD_FEED_5MM    = Buffer.from([ESC, 0x4A, 0x28]); // 40 dots ≈ 5mm on 203dpi printers
 const CMD_CUT         = Buffer.from([GS,  0x56, 0x41, 0x05]);
 
 const COL = 42; // chars per line on 80mm paper
@@ -164,7 +165,8 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     CMD_BOLD_OFF,
     Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
     divider('='),
-    lf(4),
+    lf(2),
+    CMD_FEED_5MM,
     CMD_CUT,
   );
 
