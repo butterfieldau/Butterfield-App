@@ -169,36 +169,50 @@ router.post('/', async (req, res) => {
   // Pending/unpaid orders do not award loyalty points or increment spend, to
   // prevent loyalty inflation via unverified payment claims.
   if (stripePaymentStatus === 'paid') {
-    const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
-    if (profile) {
-      const newPoints = profile.loyaltyPoints + pointsEarned - claimedLoyaltyPoints;
-      const newSpent = profile.totalSpentCents + authorativeTotalCents;
-      const newTier = newSpent >= 100000 ? 'platinum' : newSpent >= 50000 ? 'gold' : newSpent >= 15000 ? 'silver' : 'bronze';
-      await db.update(customerProfilesTable).set({
-        loyaltyPoints: Math.max(0, newPoints),
-        totalSpentCents: newSpent,
-        loyaltyTier: newTier,
-        totalVisits: profile.totalVisits + 1,
-        stampCount: (profile.stampCount + 1) % 10,
-      }).where(eq(customerProfilesTable.userId, req.user!.id));
-      await db.insert(loyaltyTransactionsTable).values({
-        id: randomUUID(),
-        userId: req.user!.id,
-        points: pointsEarned,
-        type: 'earn',
-        description: `Order #${orderId.slice(0, 8)}`,
-        referenceId: orderId,
-      });
+    try {
+      const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
+      if (profile) {
+        const newPoints = profile.loyaltyPoints + pointsEarned - claimedLoyaltyPoints;
+        const newSpent = profile.totalSpentCents + authorativeTotalCents;
+        const newTier = newSpent >= 100000 ? 'platinum' : newSpent >= 50000 ? 'gold' : newSpent >= 15000 ? 'silver' : 'bronze';
+        await db.update(customerProfilesTable).set({
+          loyaltyPoints: Math.max(0, newPoints),
+          totalSpentCents: newSpent,
+          loyaltyTier: newTier,
+          totalVisits: profile.totalVisits + 1,
+          stampCount: (profile.stampCount + 1) % 10,
+        }).where(eq(customerProfilesTable.userId, req.user!.id));
+        await db.insert(loyaltyTransactionsTable).values({
+          id: randomUUID(),
+          userId: req.user!.id,
+          points: pointsEarned,
+          type: 'earn',
+          description: `Order #${orderId.slice(0, 8)}`,
+          referenceId: orderId,
+        });
+      }
+    } catch (err: any) {
+      req.log.error({ err, orderId }, 'Post-order loyalty update failed');
     }
   }
 
-  // ── Notify staff of new order (fire-and-forget) ───────────────────────────
+  // ── Notify staff and customer of the new order (best effort) ─────────────
   const itemCount = Array.isArray(items) ? items.length : 1;
-  notifyRole('staff', 'new_order', 'New Order In', `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
-    { orderId, screen: '/(staff)/orders' }).catch(() => {});
+  void notifyRole(
+    'staff',
+    'new_order',
+    'New Order In',
+    `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
+    { orderId, screen: '/(staff)/orders' },
+  ).catch((err) => req.log.warn({ err, orderId }, 'Staff order notification failed'));
 
-  notifyUser(req.user!.id, 'order_confirmed', 'Order Received 🍪', 'We\'ve got your order and will have it ready soon!',
-    { orderId, screen: '/(customer)/orders' }).catch(() => {});
+  void notifyUser(
+    req.user!.id,
+    'order_confirmed',
+    'Order Received 🍪',
+    'We\'ve got your order and will have it ready soon!',
+    { orderId, screen: '/(customer)/orders' },
+  ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
 
   return res.status(201).json({ data: order });
 });

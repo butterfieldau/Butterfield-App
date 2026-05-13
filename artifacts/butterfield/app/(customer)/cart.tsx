@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { StripeProvider, usePaymentSheet } from '@stripe/stripe-react-native';
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { api, type SavedAddress } from '@/lib/api';
@@ -136,6 +145,65 @@ interface Confirmation {
   scheduledLabel?: string;
 }
 
+type ConfettiPiece = {
+  id: number;
+  left: number;
+  top: number;
+  dx: number;
+  dy: number;
+  delay: number;
+  size: number;
+  rotate: number;
+  color: string;
+  shape: 'circle' | 'square' | 'bar';
+};
+
+function ConfettiPieceView({ piece }: { piece: ConfettiPiece }) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(piece.delay, withTiming(1, { duration: 1100, easing: Easing.out(Easing.cubic) }));
+  }, [piece.delay, progress]);
+
+  const style = useAnimatedStyle(() => {
+    const p = progress.value;
+    return {
+      opacity: interpolate(p, [0, 0.12, 0.88, 1], [0, 1, 1, 0]),
+      transform: [
+        { translateX: piece.dx * p },
+        { translateY: piece.dy * p },
+        { rotate: `${piece.rotate * p}deg` },
+        { scale: interpolate(p, [0, 0.15, 1], [0.25, 1.05, 0.85]) },
+      ],
+    };
+  });
+
+  const shapeStyle =
+    piece.shape === 'circle'
+      ? { borderRadius: piece.size / 2 }
+      : piece.shape === 'square'
+        ? { borderRadius: 3 }
+        : { borderRadius: 999 };
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          left: piece.left,
+          top: piece.top,
+          width: piece.size,
+          height: piece.shape === 'bar' ? Math.max(6, Math.round(piece.size * 0.55)) : piece.size,
+          backgroundColor: piece.color,
+        },
+        shapeStyle,
+        style,
+      ]}
+    />
+  );
+}
+
 export default function CartScreen() {
   const insets   = useSafeAreaInsets();
   const { user } = useAuth();
@@ -159,6 +227,65 @@ export default function CartScreen() {
   const [loading, setLoading]                 = useState(false);
   const [confirmation, setConfirmation]       = useState<Confirmation | null>(null);
   const [paymentMethod, setPaymentMethod]     = useState<'card' | 'pay_at_pickup'>('card');
+  const successCardOpacity = useSharedValue(0);
+  const successCardScale = useSharedValue(0.92);
+  const pointsOpacity = useSharedValue(0);
+  const pointsScale = useSharedValue(0.75);
+
+  useEffect(() => {
+    if (!confirmation) {
+      successCardOpacity.value = 0;
+      successCardScale.value = 0.92;
+      pointsOpacity.value = 0;
+      pointsScale.value = 0.75;
+      return;
+    }
+    successCardOpacity.value = withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) });
+    successCardScale.value = withSpring(1, { damping: 14, stiffness: 150 });
+    pointsOpacity.value = withDelay(150, withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }));
+    pointsScale.value = withDelay(150, withSpring(1, { damping: 10, stiffness: 220 }));
+  }, [confirmation, pointsOpacity, pointsScale, successCardOpacity, successCardScale]);
+
+  const successCardStyle = useAnimatedStyle(() => ({
+    opacity: successCardOpacity.value,
+    transform: [{ scale: successCardScale.value }],
+  }));
+
+  const pointsStyle = useAnimatedStyle(() => ({
+    opacity: pointsOpacity.value,
+    transform: [{ scale: pointsScale.value }],
+  }));
+
+  const celebrationPieces = useMemo<ConfettiPiece[]>(() => {
+    if (!confirmation) return [];
+    const colors = ['#FF7A59', '#FFD166', '#7DD3FC', '#A78BFA', '#34D399', '#FB7185'];
+    const seed = confirmation.orderId.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const pieces: ConfettiPiece[] = [];
+    for (let i = 0; i < 24; i += 1) {
+      const mix = seed + i * 37;
+      pieces.push({
+        id: i,
+        left: 44 + ((mix * 13) % 210) - 20,
+        top: 18 + ((mix * 17) % 70),
+        dx: ((mix % 9) - 4) * 18 + (i % 2 === 0 ? 30 : -18),
+        dy: 150 + ((mix % 7) * 8),
+        delay: (i % 6) * 35,
+        size: 8 + (mix % 5),
+        rotate: (mix % 2 === 0 ? 1 : -1) * (220 + (mix % 7) * 30),
+        color: colors[mix % colors.length],
+        shape: i % 3 === 0 ? 'bar' : i % 3 === 1 ? 'square' : 'circle',
+      });
+    }
+    return pieces;
+  }, [confirmation]);
+
+  useEffect(() => {
+    if (!confirmation) return;
+    const timer = setTimeout(() => {
+      router.replace('/orders');
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [confirmation]);
 
   // Load saved addresses
   const { data: addrData } = useQuery({
@@ -342,36 +469,54 @@ export default function CartScreen() {
 
   // ── Confirmation screen ──────────────────────────────────────────────────
   if (confirmation) {
+    const earnedPoints = Math.max(0, Math.floor(confirmation.totalCents / 100));
     return (
       <View style={[styles.successWrap, { backgroundColor: BG, paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }]}>
-        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
-          <Feather name="check" size={36} color="#fff" />
-        </LinearGradient>
-        <Text style={styles.successTitle}>Order Received!</Text>
-        <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
-        <View style={[styles.successInfoBox, { backgroundColor: '#FFF8E7', borderColor: '#F0A030' }]}>
-          <Feather name="alert-circle" size={16} color="#D97706" />
-          <Text style={styles.successInfoText}>
-            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
-              ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
-              : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
-          </Text>
+        <View style={styles.confettiLayer} pointerEvents="none">
+          {celebrationPieces.map((piece) => (
+            <ConfettiPieceView key={piece.id} piece={piece} />
+          ))}
         </View>
-        {confirmation.scheduledLabel && (
-          <View style={[styles.slotBox, { backgroundColor: CARD, borderColor: BORDER }]}>
-            <Feather name="clock" size={14} color={BLUE} />
-            <Text style={[styles.slotText, { color: TEXT }]}>{confirmation.scheduledLabel}</Text>
+        <Animated.View style={[styles.successCard, successCardStyle]}>
+          <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
+            <Feather name="check" size={36} color="#fff" />
+          </LinearGradient>
+          <Text style={styles.successTitle}>Order Received!</Text>
+          <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
+          <Animated.View style={[styles.successPointsBox, pointsStyle]}>
+            <View style={styles.successPointsBadge}>
+              <Feather name="star" size={16} color="#7A4B00" />
+            </View>
+            <View style={styles.successPointsCopy}>
+              <Text style={styles.successPointsLabel}>You just earned</Text>
+              <Text style={styles.successPointsNumber}>+{earnedPoints}</Text>
+              <Text style={styles.successPointsSuffix}>points from this order</Text>
+            </View>
+          </Animated.View>
+          <View style={[styles.successInfoBox, { backgroundColor: '#FFF8E7', borderColor: '#F0A030' }]}>
+            <Feather name="alert-circle" size={16} color="#D97706" />
+            <Text style={styles.successInfoText}>
+              {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
+                ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
+                : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
+            </Text>
           </View>
-        )}
-        <Text style={[styles.successTotal, { color: MUTED }]}>
-          {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
-        </Text>
-        <Pressable onPress={() => { setConfirmation(null); setStep(0); setSelectedDate(null); setSelectedTimeMins(null); setStreet(''); setSuburb(''); setPostcode(''); setNotes(''); }} style={styles.trackBtn}>
-          <Text style={styles.trackBtnText}>Continue Shopping</Text>
-        </Pressable>
-        <Pressable onPress={() => router.push('/orders')} style={[styles.trackBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, marginTop: 0 }]}>
-          <Text style={[styles.trackBtnText, { color: BLUE }]}>Track Order</Text>
-        </Pressable>
+          {confirmation.scheduledLabel && (
+            <View style={[styles.slotBox, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <Feather name="clock" size={14} color={BLUE} />
+              <Text style={[styles.slotText, { color: TEXT }]}>{confirmation.scheduledLabel}</Text>
+            </View>
+          )}
+          <Text style={[styles.successTotal, { color: MUTED }]}>
+            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
+          </Text>
+          <Pressable onPress={() => { setConfirmation(null); setStep(0); setSelectedDate(null); setSelectedTimeMins(null); setStreet(''); setSuburb(''); setPostcode(''); setNotes(''); }} style={styles.trackBtn}>
+            <Text style={styles.trackBtnText}>Continue Shopping</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/orders')} style={[styles.trackBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, marginTop: 0 }]}>
+            <Text style={[styles.trackBtnText, { color: BLUE }]}>My Orders</Text>
+          </Pressable>
+        </Animated.View>
       </View>
     );
   }
@@ -1042,9 +1187,17 @@ const styles = StyleSheet.create({
   continueBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   // Success
   successWrap:    { flex: 1, alignItems: 'center', paddingHorizontal: 32, gap: 16 },
+  successCard:    { width: '100%', alignItems: 'center', gap: 16 },
   successIcon:    { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   successTitle:   { fontSize: 26, fontFamily: 'Inter_700Bold', color: '#1C1C1E', textAlign: 'center' },
   successId:      { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
+  confettiLayer:  { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
+  successPointsBox: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', backgroundColor: '#FFF4D9', borderColor: '#F1C86A', borderWidth: 1.5, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 16 },
+  successPointsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFE7A6', alignItems: 'center', justifyContent: 'center' },
+  successPointsCopy: { flex: 1, gap: 2 },
+  successPointsLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.4, color: '#8A5B00', textTransform: 'uppercase' },
+  successPointsNumber: { fontSize: 42, lineHeight: 44, fontFamily: 'Inter_800ExtraBold', color: '#7A4B00' },
+  successPointsSuffix: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#5B3A00' },
   successInfoBox: { flexDirection: 'row', gap: 10, padding: 16, borderWidth: 1.5, borderRadius: 12, alignSelf: 'stretch', alignItems: 'flex-start' },
   successInfoText:{ flex: 1, color: '#92400E', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 20 },
   slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, alignSelf: 'stretch', justifyContent: 'center' },

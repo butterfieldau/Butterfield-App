@@ -37,13 +37,13 @@ minimumReleaseAgeExclude:
   # Each entry below is a specific security patch that resolves an advisory in
   # the pnpm audit output. These packages have impeccable security posture and
   # their patch releases are safe to install immediately.
-  - yaml            # GHSA-48c2-rrv3-qjmp — fix in 2.9.0 (published <24h)
+  - yaml # GHSA-48c2-rrv3-qjmp — fix in 2.9.0 (published <24h)
   - brace-expansion # GHSA-f886-m6hf-6m8v — fix in 2.1.0
-  - lodash          # GHSA-r5fr-rjxr-66jc, GHSA-f23m-r3pf-42rh — fix in 4.18.1
-  - path-to-regexp  # GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7 — fix in 8.4.2
-  - fast-uri        # GHSA-q3j6-qgpj-74h6, GHSA-v39h-62p7-jpjc — fix in 3.1.2
-  - postcss         # GHSA-qx2v-qp2m-jg93 — fix in 8.5.14
-  - picomatch       # GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p — fix in 4.0.4 / 2.3.2
+  - lodash # GHSA-r5fr-rjxr-66jc, GHSA-f23m-r3pf-42rh — fix in 4.18.1
+  - path-to-regexp # GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7 — fix in 8.4.2
+  - fast-uri # GHSA-q3j6-qgpj-74h6, GHSA-v39h-62p7-jpjc — fix in 3.1.2
+  - postcss # GHSA-qx2v-qp2m-jg93 — fix in 8.5.14
+  - picomatch # GHSA-c2c7-rcm5-vvqj, GHSA-3v7f-55p6-f55p — fix in 4.0.4 / 2.3.2
   - '@tootallnate/once' # GHSA-vpq2-c234-7xj6 — fix in 3.0.1
 
 packages:
@@ -194,3 +194,7 @@ overrides:
   "micromatch>picomatch": "2.3.2"
   # @tootallnate/once: GHSA-vpq2-c234-7xj6 — fix >=3.0.1
   "@tootallnate/once": "^3.0.1"
+
+allowBuilds:
+  dtrace-provider: true
+  esbuild: true
