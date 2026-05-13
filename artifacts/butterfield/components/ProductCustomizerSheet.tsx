@@ -43,6 +43,17 @@ type TextMap      = Record<string, string>;
 
 function fmt(c: number) { return `$${(c / 100).toFixed(2)}`; }
 
+function parseArr(val: any): string[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+  }
+  return [];
+}
+
 export default function ProductCustomizerSheet({ product, visible, onClose }: Props) {
   const insets                             = useSafeAreaInsets();
   const { height: SCREEN_H }              = useWindowDimensions();
@@ -214,7 +225,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       variantId:   selectedVariantId ?? undefined,
       variantName: selVariant?.name ?? undefined,
       basePriceCents, selectedOptions: opts as any, quantity,
-      imageUrl:  raw.images?.[0] ?? raw.imageUrl,
+      imageUrl,
       category:  raw.category ?? raw.metadata?.category,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -226,11 +237,20 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
   const raw        = displayProduct as any;
   const palette    = getPalette(raw?.category ?? raw?.metadata?.category ?? 'default');
-  const imageUrl   = raw?.images?.[0] ?? raw?.imageUrl ?? null;
+  const galleryUrls = useMemo(() => {
+    const combined = [
+      ...(raw?.images ?? []),
+      ...parseArr(raw?.galleryUrls),
+      ...parseArr(detail?.galleryUrls),
+    ].filter(Boolean);
+    return Array.from(new Set(combined));
+  }, [raw?.images, raw?.galleryUrls, detail?.galleryUrls]);
+  const imageUrl   = galleryUrls[0] ?? raw?.imageUrl ?? null;
   const isNew      = raw?.metadata?.isNew === 'true' || raw?.isNew;
   const isLim      = raw?.metadata?.isLimitedDrop === 'true' || raw?.isLimitedDrop;
   const category   = raw?.category ?? raw?.metadata?.category ?? '';
   const productUrl = raw?.productUrl ?? detail?.productUrl ?? null;
+  const nutrition   = raw?.nutritionInfo ?? raw?.metadata?.nutritionInfo ?? detail?.nutritionInfo ?? '';
 
   return (
     <Modal
@@ -296,6 +316,18 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                   <Text style={s.websiteLinkText}>View on Website</Text>
                   <Text style={{ fontSize: 11, color: BTN_CLR, fontFamily: 'Inter_400Regular', marginLeft: 2 }}>↗</Text>
                 </Pressable>
+              ) : null}
+
+              {galleryUrls.length > 1 ? (
+                <View style={s.galleryRow}>
+                  <GHScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.galleryContent}>
+                    {galleryUrls.map((url, idx) => (
+                      <View key={`${url}-${idx}`} style={s.galleryThumbWrap}>
+                        <Image source={{ uri: url }} style={s.galleryThumb} contentFit="cover" />
+                      </View>
+                    ))}
+                  </GHScrollView>
+                </View>
               ) : null}
 
               <GHScrollView
@@ -381,6 +413,13 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                     </View>
                   );
                 })}
+
+                {nutrition ? (
+                  <View style={s.group}>
+                    <Text style={s.groupLabel}>Nutrition</Text>
+                    <Text style={s.metaText}>{nutrition}</Text>
+                  </View>
+                ) : null}
               </GHScrollView>
 
               <View style={s.footer}>
@@ -441,7 +480,7 @@ const s = StyleSheet.create({
   imgBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
 
   content: {
-    flexShrink: 1,
+    flex: 1,
     backgroundColor: '#fff',
     paddingHorizontal: 20,
   },
@@ -458,7 +497,12 @@ const s = StyleSheet.create({
   websiteLink:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   websiteLinkText: { fontSize: 13, color: BTN_CLR, fontFamily: 'Inter_600SemiBold' },
 
-  scroll:     { flexShrink: 1 },
+  galleryRow:      { marginBottom: 14 },
+  galleryContent:  { gap: 8, paddingRight: 4 },
+  galleryThumbWrap:{ width: 58, height: 58, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, backgroundColor: '#F3F4F6' },
+  galleryThumb:    { width: '100%', height: '100%' },
+
+  scroll:     { flex: 1 },
   group:      { marginBottom: 20 },
   // groupHead provides the label→pill gap; groupLabel must NOT add its own marginBottom
   // to avoid double-spacing (standalone Size label adds { marginBottom: 10 } inline)
@@ -467,6 +511,7 @@ const s = StyleSheet.create({
   optText:    { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' },
   reqBadge:   { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   reqText:    { fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' },
+  metaText:   { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 19, marginTop: 4 },
 
   pillRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },

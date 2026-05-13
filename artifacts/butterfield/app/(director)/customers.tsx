@@ -131,6 +131,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
   const [ePhone,    setEPhone]    = useState('');
   const [eEmail,    setEEmail]    = useState('');
   const [eBirthday, setEBirthday] = useState('');
+  const [ePayAtPickup, setEPayAtPickup] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['customer-detail', customerId],
@@ -143,6 +144,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
     setEPhone(c.phone ?? '');
     setEEmail(c.email ?? '');
     setEBirthday(isoToDdMmYyyy(c.profile?.birthday));
+    setEPayAtPickup(Boolean(c.profile?.payAtPickupEnabled));
     setEditingContact(true);
   };
 
@@ -151,7 +153,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
     try {
       const birthdayISO = eBirthday.trim() ? ddMmYyyyToIso(eBirthday) : '';
       await api.director.customers.update(customerId, {
-        name: eName.trim(), phone: ePhone.trim() || null, email: eEmail.trim(), birthday: birthdayISO,
+        name: eName.trim(), phone: ePhone.trim() || null, email: eEmail.trim(), birthday: birthdayISO, payAtPickupEnabled: ePayAtPickup,
       });
       setEditingContact(false);
       refetch();
@@ -359,6 +361,20 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                         {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Save</Text>}
                       </Pressable>
                     </View>
+                    <View style={[det.infoRow, { borderBottomWidth: 0, paddingHorizontal: 0, marginTop: 2 }]}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={{ fontSize: 14, color: TEXT, fontFamily: 'Inter_500Medium' }}>Allow pay at pickup</Text>
+                        <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                          Lets this customer choose pay later at pickup on eligible pickup orders.
+                        </Text>
+                      </View>
+                      <Switch
+                        value={ePayAtPickup}
+                        onValueChange={setEPayAtPickup}
+                        trackColor={{ false: BORDER, true: '#BBF7D0' }}
+                        thumbColor={ePayAtPickup ? GREEN : '#9CA3AF'}
+                      />
+                    </View>
                   </View>
                 </KeyboardAvoidingView>
               ) : (
@@ -405,6 +421,11 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <Text style={det.infoValue}>{isoToDdMmYyyy(customer.profile.birthday)}</Text>
                     </View>
                   )}
+
+                  <View style={[det.infoRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER }]}>
+                    <Text style={det.infoLabel}>Pay at pickup</Text>
+                    <Text style={det.infoValue}>{customer.profile?.payAtPickupEnabled ? 'Enabled' : 'Disabled'}</Text>
+                  </View>
                 </>
               )}
             </View>

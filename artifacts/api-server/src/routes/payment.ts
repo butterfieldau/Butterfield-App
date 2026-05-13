@@ -6,7 +6,14 @@ const router = Router();
 router.use(requireAuth);
 
 router.post('/payment-intent', async (req, res) => {
-  const { items, orderType, discountCents } = req.body;
+  const { items, orderType, discountCents, paymentMethod } = req.body;
+
+  if (paymentMethod === 'pay_at_pickup') {
+    return res.status(400).json({ error: 'Pay at pickup orders do not require a Stripe payment intent.' });
+  }
+  if (orderType === 'delivery' && paymentMethod === 'pay_at_pickup') {
+    return res.status(400).json({ error: 'Pay at pickup is only available for pickup orders.' });
+  }
 
   if (!items?.length) {
     return res.status(400).json({ error: 'Items are required to create a payment intent' });
@@ -18,6 +25,7 @@ router.post('/payment-intent', async (req, res) => {
       items,
       orderType ?? 'pickup',
       discountCents ?? 0,
+      paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
     );
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });

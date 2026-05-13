@@ -14,18 +14,24 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
   let tags: string[]       = [];
   let allergens: string[]  = [];
   let dietaryTags: string[] = [];
+  let galleryUrls: string[] = [];
   try { tags        = JSON.parse(p.tags        ?? '[]'); } catch {}
   try { allergens   = JSON.parse(p.allergens   ?? '[]'); } catch {}
   try { dietaryTags = JSON.parse(p.dietaryTags ?? '[]'); } catch {}
+  try { galleryUrls = JSON.parse((p as any).galleryUrls ?? '[]'); } catch {}
 
   const available = p.isAvailable && !p.isSoldOut;
+  const images = [
+    p.imageUrl,
+    ...galleryUrls,
+  ].filter((url): url is string => !!url);
 
   return {
     id:          p.id,
     name:        p.name,
     description: p.description ?? '',
     active:      p.isActive && p.isAvailable,
-    images:      p.imageUrl ? [p.imageUrl] : [],
+    images,
     categoryId:  p.categoryId,
 
     metadata: {
@@ -43,6 +49,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
       storageInstructions: p.storageInstructions ?? '',
       servingInstructions: p.servingInstructions ?? '',
       ingredients:         p.ingredients       ?? '',
+      nutritionInfo:       p.nutritionInfo     ?? '',
     },
 
     prices: [{
@@ -79,6 +86,8 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
     nutritionInfo:       p.nutritionInfo,
     storageInstructions: p.storageInstructions,
     servingInstructions: p.servingInstructions,
+    productUrl:          (p as any).productUrl ?? null,
+    galleryUrls,
     createdAt:           p.createdAt,
   };
 }

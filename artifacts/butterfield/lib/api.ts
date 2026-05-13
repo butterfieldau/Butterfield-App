@@ -6,6 +6,19 @@ const BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
 
+function normalizeServingUrl(url: string): string {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (BASE.startsWith('http')) {
+    try {
+      return new URL(url, BASE).toString();
+    } catch {
+      return url;
+    }
+  }
+  return url;
+}
+
 export class ApiError extends Error {
   status: number;
   body: any;
@@ -80,7 +93,7 @@ export const api = {
       items: any[]; type: string; scheduledFor?: string; notes?: string;
       totalCents: number; stripePaymentIntentId?: string;
       loyaltyPointsUsed?: number; discountCents?: number; deliveryAddress?: string;
-      deliveryPostcode?: string; deliveryState?: string;
+      deliveryPostcode?: string; deliveryState?: string; paymentMethod?: 'card' | 'pay_at_pickup';
     }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -181,7 +194,7 @@ export const api = {
   },
   welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
-    createIntent: (data: { amountCents: number; currency?: string }) =>
+    createIntent: (data: { amountCents: number; currency?: string; paymentMethod?: 'card' | 'pay_at_pickup' }) =>
       request<{ clientSecret: string; paymentIntentId: string }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
@@ -335,7 +348,7 @@ export const api = {
       },
       insights:     () => request<{ data: CrmInsights }>('/director/customers/insights'),
       get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
-      update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null }) =>
+      update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null; payAtPickupEnabled?: boolean }) =>
         request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
       updateStatus:     (id: string, status: 'active' | 'inactive' | 'suspended') =>
         request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -396,7 +409,11 @@ export const api = {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
-      return res.json();
+      const data = await res.json();
+      return {
+        ...data,
+        servingUrl: normalizeServingUrl(data.servingUrl),
+      };
     },
     uploadProductImage: async (
       fileUri: string, filename: string, contentType: string,
@@ -416,7 +433,11 @@ export const api = {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `Upload failed (HTTP ${res.status})`);
       }
-      return res.json();
+      const data = await res.json();
+      return {
+        ...data,
+        servingUrl: normalizeServingUrl(data.servingUrl),
+      };
     },
     deleteProductImage: async (objectPath: string): Promise<void> => {
       const token = await getToken();
@@ -457,6 +478,13 @@ export interface ApiProduct {
   description: string;
   active?: boolean;
   images?: string[];
+  galleryUrls?: string[];
+  productUrl?: string | null;
+  shortDescription?: string | null;
+  ingredients?: string | null;
+  nutritionInfo?: string | null;
+  storageInstructions?: string | null;
+  servingInstructions?: string | null;
   metadata?: Record<string, string>;
   prices?: { id: string; unit_amount: number; currency: string; active?: boolean; metadata?: Record<string, string> }[];
 }
@@ -648,6 +676,7 @@ export interface CrmCustomer {
     referralCode: string;
     birthday?: string | null;
     emailMarketingOptIn?: boolean;
+    payAtPickupEnabled?: boolean;
   } | null;
   wholesaleAccount?: {
     id: string;

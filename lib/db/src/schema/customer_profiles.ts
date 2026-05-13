@@ -15,6 +15,7 @@ export const customerProfilesTable = pgTable("customer_profiles", {
   totalSpentCents: integer("total_spent_cents").notNull().default(0),
   deliveryAddress: text("delivery_address"),
   emailMarketingOptIn: boolean("email_marketing_opt_in").notNull().default(false),
+  payAtPickupEnabled: boolean("pay_at_pickup_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

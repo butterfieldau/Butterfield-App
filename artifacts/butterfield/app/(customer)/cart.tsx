@@ -15,6 +15,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Switch,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +37,7 @@ import { getPalette } from '@/constants/categoryColors';
 const BG       = '#F5F6FA';
 const CARD     = '#FFFFFF';
 const BLUE     = '#40C0F2';
+const GREEN    = '#22C55E';
 const CHERRY   = '#D0312D';
 const TEXT     = '#1C1C1E';
 const MUTED    = '#8E8E93';
@@ -49,13 +51,18 @@ const TABS = [
 ] as const;
 
 const DELIVERY_FEE_CENTS = 1200;
-const SURCHARGE_RATE     = 0.02;
+const STRIPE_CARD_RATE = 0.017;
+const STRIPE_CARD_FIXED_FEE_CENTS = 30;
 
-function calcTotals(subtotalCents: number, step: number, orderType: 'pickup' | 'delivery') {
+function estimateStripeFeeCents(amountCents: number) {
+  return amountCents > 0 ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS) : 0;
+}
+
+function calcTotals(subtotalCents: number, step: number, orderType: 'pickup' | 'delivery', paymentMethod: 'card' | 'pay_at_pickup') {
   const deliv     = (step >= 1 && orderType === 'delivery') ? DELIVERY_FEE_CENTS : 0;
   const base      = subtotalCents + deliv;
-  const surcharge = Math.round(base * SURCHARGE_RATE);
-  return { deliv, surcharge, total: base + surcharge };
+  const stripeFee = paymentMethod === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(base);
+  return { deliv, stripeFee, total: base + stripeFee };
 }
 
 function SectionLabel({ title }: { title: string }) {
@@ -91,6 +98,7 @@ export default function CartScreen() {
   const [notes, setNotes]                     = useState('');
   const [loading, setLoading]                 = useState(false);
   const [confirmation, setConfirmation]       = useState<Confirmation | null>(null);
+  const [paymentMethod, setPaymentMethod]     = useState<'card' | 'pay_at_pickup'>('card');
 
   // Load saved addresses
   const { data: addrData } = useQuery({
@@ -98,8 +106,15 @@ export default function CartScreen() {
     queryFn:  () => api.addresses.list(),
     retry: 1,
   });
+  const { data: meData } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => api.auth.me(),
+    enabled: !!user,
+    retry: 1,
+  });
   const savedAddresses  = addrData?.data ?? [];
   const defaultAddress  = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0] ?? null;
+  const canPayAtPickup  = Boolean((meData?.profile as any)?.payAtPickupEnabled);
 
   // Helper: fill delivery form from a saved address
   const fillFromAddress = (addr: SavedAddress) => {
@@ -127,8 +142,19 @@ export default function CartScreen() {
     }
   }, [orderType, defaultAddress]);
 
+  useEffect(() => {
+    if (orderType !== 'pickup' || !canPayAtPickup) {
+      setPaymentMethod('card');
+    }
+  }, [orderType, canPayAtPickup]);
+
+  const effectivePaymentMethod: 'card' | 'pay_at_pickup' =
+    orderType === 'pickup' && canPayAtPickup && paymentMethod === 'pay_at_pickup'
+      ? 'pay_at_pickup'
+      : 'card';
+
   const subtotalCents = totalPriceCents;
-  const { deliv: delivCents, surcharge: surchargeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType);
+  const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, effectivePaymentMethod);
 
   const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
@@ -224,6 +250,7 @@ export default function CartScreen() {
         deliveryAddress,
         deliveryPostcode: orderType === 'delivery' ? postcode.trim() : undefined,
         deliveryState:    orderType === 'delivery' ? 'NSW' : undefined,
+        paymentMethod:    effectivePaymentMethod,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -256,7 +283,9 @@ export default function CartScreen() {
         <View style={[styles.successInfoBox, { backgroundColor: '#FFF8E7', borderColor: '#F0A030' }]}>
           <Feather name="alert-circle" size={16} color="#D97706" />
           <Text style={styles.successInfoText}>
-            Your order is not ready until you receive confirmation. Please wait for your notification before coming in.
+            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
+              ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
+              : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
           </Text>
         </View>
         {confirmation.scheduledLabel && (
@@ -265,7 +294,9 @@ export default function CartScreen() {
             <Text style={[styles.slotText, { color: TEXT }]}>{confirmation.scheduledLabel}</Text>
           </View>
         )}
-        <Text style={[styles.successTotal, { color: MUTED }]}>Total paid: AUD {(confirmation.totalCents / 100).toFixed(2)}</Text>
+        <Text style={[styles.successTotal, { color: MUTED }]}>
+          {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
+        </Text>
         <Pressable onPress={() => { setConfirmation(null); setStep(0); setSelectedDate(null); setSelectedTimeMins(null); setStreet(''); setSuburb(''); setPostcode(''); setNotes(''); }} style={styles.trackBtn}>
           <Text style={styles.trackBtnText}>Continue Shopping</Text>
         </Pressable>
@@ -348,13 +379,15 @@ export default function CartScreen() {
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryRowLabel}>Card surcharge (2%)</Text>
-          <Text style={styles.summaryRowValue}>AUD {(Math.round(subtotalCents * 0.02) / 100).toFixed(2)}</Text>
+          <Text style={styles.summaryRowLabel}>
+            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Stripe card fee'}
+          </Text>
+          <Text style={styles.summaryRowValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
           <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Total</Text>
-          <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {((subtotalCents + Math.round(subtotalCents * 0.02)) / 100).toFixed(2)}</Text>
+          <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
         </View>
       </View>
 
@@ -637,8 +670,10 @@ export default function CartScreen() {
         )}
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryRowLabel}>Card surcharge (2%)</Text>
-          <Text style={styles.summaryRowValue}>AUD {(surchargeCents / 100).toFixed(2)}</Text>
+          <Text style={styles.summaryRowLabel}>
+            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Stripe card fee'}
+          </Text>
+          <Text style={styles.summaryRowValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
@@ -676,8 +711,10 @@ export default function CartScreen() {
         )}
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryRowLabel}>Card surcharge (2%)</Text>
-          <Text style={styles.summaryRowValue}>AUD {(surchargeCents / 100).toFixed(2)}</Text>
+          <Text style={styles.summaryRowLabel}>
+            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Stripe card fee'}
+          </Text>
+          <Text style={styles.summaryRowValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
@@ -685,6 +722,28 @@ export default function CartScreen() {
           <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
         </View>
       </View>
+
+      {orderType === 'pickup' && canPayAtPickup && (
+        <View style={[styles.paymentChoiceCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT }}>Payment choice</Text>
+            <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 17 }}>
+              This customer can pay now by card or pay at pickup.
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: effectivePaymentMethod === 'pay_at_pickup' ? GREEN : BLUE }}>
+              {effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Pay by card'}
+            </Text>
+            <Switch
+              value={effectivePaymentMethod === 'pay_at_pickup'}
+              onValueChange={(v) => setPaymentMethod(v ? 'pay_at_pickup' : 'card')}
+              trackColor={{ false: BORDER, true: '#BBF7D0' }}
+              thumbColor={effectivePaymentMethod === 'pay_at_pickup' ? GREEN : '#9CA3AF'}
+            />
+          </View>
+        </View>
+      )}
 
       <View style={[styles.orderDetailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <View style={styles.orderDetailRow}>
@@ -715,7 +774,11 @@ export default function CartScreen() {
 
       <View style={[styles.secureCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
         <Feather name="lock" size={14} color="#22C55E" />
-        <Text style={[styles.secureText, { color: '#166534' }]}>Your order is securely processed. Pay at pickup or on delivery.</Text>
+        <Text style={[styles.secureText, { color: '#166534' }]}>
+          {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
+            ? 'Your order will be paid at pickup.'
+            : 'Your order is securely processed with Stripe card checkout.'}
+        </Text>
       </View>
     </View>
   );
@@ -873,6 +936,7 @@ const styles = StyleSheet.create({
   paymentItem:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   paymentItemName:  { fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
   paymentItemPrice: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  paymentChoiceCard:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   orderDetailsCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
   orderDetailRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   orderDetailText:  { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },

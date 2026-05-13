@@ -2,7 +2,10 @@ import { db, productsTable, productVariantsTable, productOptionsTable } from '@w
 import { inArray } from 'drizzle-orm';
 
 export const DELIVERY_FEE_CENTS = 1200;
-export const SURCHARGE_RATE = 0.02;
+export const STRIPE_CARD_RATE = 0.017;
+export const STRIPE_CARD_FIXED_FEE_CENTS = 30;
+export const STRIPE_WALLET_RATE = 0.017;
+export const STRIPE_WALLET_FIXED_FEE_CENTS = 30;
 
 export interface OrderItemInput {
   productId: string;
@@ -14,7 +17,7 @@ export interface OrderItemInput {
 export interface ComputedOrderTotal {
   subtotalCents: number;
   deliveryFeeCents: number;
-  surchargeCents: number;
+  stripeFeeCents: number;
   discountCents: number;
   totalCents: number;
   itemizedCents: {
@@ -26,6 +29,13 @@ export interface ComputedOrderTotal {
   }[];
 }
 
+export type PaymentMethod = 'card' | 'pay_at_pickup';
+
+export function estimateStripeFeeCents(amountCents: number): number {
+  if (amountCents <= 0) return 0;
+  return Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS);
+}
+
 /**
  * Compute an order's authoritative total from server-side product pricing.
  * Always use this instead of trusting any client-supplied totalCents.
@@ -34,6 +44,7 @@ export async function computeOrderTotal(
   items: OrderItemInput[],
   orderType: 'pickup' | 'delivery',
   discountCents = 0,
+  paymentMethod: PaymentMethod = 'card',
 ): Promise<ComputedOrderTotal> {
   if (!items?.length) throw new Error('No items provided');
 
@@ -94,10 +105,10 @@ export async function computeOrderTotal(
 
   const deliveryFeeCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
   const base = subtotalCents + deliveryFeeCents;
-  const surchargeCents = Math.round(base * SURCHARGE_RATE);
-  const totalBeforeDiscount = base + surchargeCents;
+  const stripeFeeCents = paymentMethod === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(base);
+  const totalBeforeDiscount = base + stripeFeeCents;
   const clampedDiscount = Math.min(Math.max(0, discountCents), totalBeforeDiscount);
   const totalCents = Math.max(0, totalBeforeDiscount - clampedDiscount);
 
-  return { subtotalCents, deliveryFeeCents, surchargeCents, discountCents: clampedDiscount, totalCents, itemizedCents };
+  return { subtotalCents, deliveryFeeCents, stripeFeeCents, discountCents: clampedDiscount, totalCents, itemizedCents };
 }

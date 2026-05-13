@@ -104,7 +104,7 @@ router.get('/customers', async (req, res) => {
     db.select().from(userAddressesTable).where(and(inArray(userAddressesTable.userId, userIds), eq(userAddressesTable.isDefault, true))),
   ]);
 
-  const profileMap  = Object.fromEntries(profiles.map(p => [p.userId, p]));
+  const profileMap  = Object.fromEntries(profiles.map(p => [p.userId, p])) as Record<string, any>;
   const orderMap    = Object.fromEntries(orderStats.map(o => [o.userId, o]));
   const waMap       = Object.fromEntries(waList.map(w => [w.userId, w]));
   const addrMap     = Object.fromEntries(defaultAddresses.map(a => [a.userId, a]));
@@ -132,6 +132,7 @@ router.get('/customers', async (req, res) => {
       role: c.role, status: c.status, createdAt: c.createdAt, lastLogin: c.lastLogin,
       profile: profileMap[c.id] ?? null,
       emailMarketingOptIn: profileMap[c.id]?.emailMarketingOptIn ?? false,
+      payAtPickupEnabled: profileMap[c.id]?.payAtPickupEnabled ?? false,
       suburb: addrMap[c.id]?.suburb ?? null,
       state: addrMap[c.id]?.state ?? null,
       orderCount, totalSpentCents, lastOrderAt, daysSinceLastOrder: daysSince,
@@ -234,7 +235,9 @@ router.patch('/customers/:id', async (req, res) => {
   const profileUpdates: Record<string, any> = {};
   if (req.body.birthday !== undefined) profileUpdates.birthday = req.body.birthday || null;
   if (req.body.emailMarketingOptIn !== undefined) profileUpdates.emailMarketingOptIn = Boolean(req.body.emailMarketingOptIn);
+  if (req.body.payAtPickupEnabled !== undefined) profileUpdates.payAtPickupEnabled = Boolean(req.body.payAtPickupEnabled);
   if (Object.keys(profileUpdates).length > 0) {
+    profileUpdates.updatedAt = new Date();
     ops.push(
       db.update(customerProfilesTable)
         .set(profileUpdates)

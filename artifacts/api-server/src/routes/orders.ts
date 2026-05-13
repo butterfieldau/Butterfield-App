@@ -28,7 +28,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { items, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed, deliveryAddress, deliveryPostcode, deliveryState } = req.body;
+  const { items, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed, deliveryAddress, deliveryPostcode, deliveryState, paymentMethod } = req.body;
   if (!items?.length) {
     return res.status(400).json({ error: 'Items are required' });
   }
@@ -40,6 +40,10 @@ router.post('/', async (req, res) => {
     if (state !== 'NSW' || isNaN(pc) || pc < 2000 || pc > 2999) {
       return res.status(400).json({ error: 'Delivery is only available within Sydney (NSW postcodes 2000–2999).' });
     }
+  }
+
+  if (paymentMethod === 'pay_at_pickup' && type !== 'pickup') {
+    return res.status(400).json({ error: 'Pay at pickup is only available for pickup orders.' });
   }
 
   // ── Validate loyalty points claimed ───────────────────────────────────────
@@ -58,6 +62,7 @@ router.post('/', async (req, res) => {
       items,
       type === 'delivery' ? 'delivery' : 'pickup',
       claimedLoyaltyPoints,
+      paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
     );
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
@@ -65,6 +70,10 @@ router.post('/', async (req, res) => {
 
   const authorativeTotalCents = computed.totalCents;
   const authorativeDiscountCents = computed.discountCents;
+
+  if (paymentMethod === 'pay_at_pickup' && stripePaymentIntentId) {
+    return res.status(400).json({ error: 'Pay at pickup orders should not include a Stripe payment intent.' });
+  }
 
   // ── Cutoff time enforcement ────────────────────────────────────────────────
   const settingsRows = await db.select().from(storeSettingsTable);
@@ -89,7 +98,7 @@ router.post('/', async (req, res) => {
   //   3. The intent has status 'succeeded'
   //   4. The charged amount matches the server-computed total (within 1 cent)
   // Any failure rejects the order — the client cannot self-certify payment.
-  let stripePaymentStatus: 'pending' | 'paid' = 'pending';
+  let stripePaymentStatus: 'pending' | 'paid' | 'pay_at_pickup' = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'pending';
   if (stripePaymentIntentId) {
     // ── Replay guard: reject if this PI is already linked to any order ────
     const [existingOrder] = await db

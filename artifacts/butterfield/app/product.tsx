@@ -1,8 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { Linking } from 'react-native';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Dimensions, Pressable, ScrollView,
   StyleSheet, Text, View,
@@ -114,6 +115,43 @@ export default function ProductDetailScreen() {
     } finally { setTogglingFav(false); }
   };
 
+  const category     = (product as any)?.category ?? product?.metadata?.category ?? 'cookies';
+  const palette      = getPalette(category);
+  const options      = getOptions(category);
+  const galleryUrls  = useMemo(() => {
+    const combined = [
+      ...((product?.images ?? []) as string[]),
+      ...parseArr((product as any)?.galleryUrls),
+    ].filter(Boolean);
+    return Array.from(new Set(combined));
+  }, [product]);
+  const photoUrl     = galleryUrls[0] ?? null;
+
+  const priceCents   = (product as any)?.priceCents ?? product?.prices?.[0]?.unit_amount ?? 0;
+  const saleCents    = (product as any)?.salePriceCents;
+  const displayCents = saleCents ?? priceCents;
+  const pricePerItem = displayCents / 100;
+  const total        = pricePerItem * qty;
+
+  const allergens    = parseArr((product as any)?.allergens  ?? product?.metadata?.allergens);
+  const dietaryTags  = parseArr((product as any)?.dietaryTags ?? product?.metadata?.dietaryTags);
+  const tags         = parseArr((product as any)?.tags       ?? product?.metadata?.tags);
+  const shortDesc    = (product as any)?.shortDescription   ?? product?.metadata?.shortDescription ?? '';
+  const ingredients  = (product as any)?.ingredients        ?? product?.metadata?.ingredients ?? '';
+  const storage      = (product as any)?.storageInstructions ?? product?.metadata?.storageInstructions ?? '';
+  const serving      = (product as any)?.servingInstructions ?? product?.metadata?.servingInstructions ?? '';
+  const nutrition    = (product as any)?.nutritionInfo      ?? product?.metadata?.nutritionInfo ?? '';
+  const productUrl   = (product as any)?.productUrl         ?? null;
+  const isNew        = product?.metadata?.isNew === 'true'         || (product as any)?.isNew;
+  const isLimited    = product?.metadata?.isLimitedDrop === 'true' || (product as any)?.isLimitedDrop;
+  const isSoldOut    = product?.metadata?.available === 'false'    || (product as any)?.isSoldOut;
+  const isComingSoon = product?.metadata?.isComingSoon === 'true'  || (product as any)?.isComingSoon;
+  const available    = !isSoldOut && !isComingSoon;
+  const gst          = (product as any)?.gstIncluded !== false;
+
+  const minQty = (product as any)?.minOrderQty ?? 1;
+  const maxQty = (product as any)?.maxOrderQty ?? 99;
+
   if (!product) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
@@ -124,34 +162,6 @@ export default function ProductDetailScreen() {
       </View>
     );
   }
-
-  const category     = (product as any).category ?? product.metadata?.category ?? 'cookies';
-  const palette      = getPalette(category);
-  const options      = getOptions(category);
-  const photoUrl     = product.images?.[0] ?? null;
-
-  const priceCents   = (product as any).priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
-  const saleCents    = (product as any).salePriceCents;
-  const displayCents = saleCents ?? priceCents;
-  const pricePerItem = displayCents / 100;
-  const total        = pricePerItem * qty;
-
-  const allergens    = parseArr((product as any).allergens  ?? product.metadata?.allergens);
-  const dietaryTags  = parseArr((product as any).dietaryTags ?? product.metadata?.dietaryTags);
-  const tags         = parseArr((product as any).tags       ?? product.metadata?.tags);
-  const shortDesc    = (product as any).shortDescription   ?? product.metadata?.shortDescription ?? '';
-  const ingredients  = (product as any).ingredients        ?? product.metadata?.ingredients ?? '';
-  const storage      = (product as any).storageInstructions ?? product.metadata?.storageInstructions ?? '';
-  const serving      = (product as any).servingInstructions ?? product.metadata?.servingInstructions ?? '';
-  const isNew        = product.metadata?.isNew === 'true'         || (product as any).isNew;
-  const isLimited    = product.metadata?.isLimitedDrop === 'true' || (product as any).isLimitedDrop;
-  const isSoldOut    = product.metadata?.available === 'false'    || (product as any).isSoldOut;
-  const isComingSoon = product.metadata?.isComingSoon === 'true'  || (product as any).isComingSoon;
-  const available    = !isSoldOut && !isComingSoon;
-  const gst          = (product as any).gstIncluded !== false;
-
-  const minQty = (product as any).minOrderQty ?? 1;
-  const maxQty = (product as any).maxOrderQty ?? 99;
 
   const toggle = (section: string, choice: string) => {
     Haptics.selectionAsync();
@@ -245,163 +255,190 @@ export default function ProductDetailScreen() {
 
       {/* ── WHITE SHEET ───────────────────────────────────────────────── */}
       <View style={s.sheet}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 24 }}
-        >
-          {/* Name */}
-          <Text style={[s.name, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
+        <View style={s.sheetInner}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            style={s.scroll}
+            contentContainerStyle={{ paddingBottom: 18 }}
+          >
+            {/* Name */}
+            <Text style={[s.name, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
 
-          {/* Short description / about */}
-          {(shortDesc || product.description) ? (
-            <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>
-              {shortDesc || product.description}
-            </Text>
-          ) : null}
+            {/* Short description / about */}
+            {(shortDesc || product.description) ? (
+              <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>
+                {shortDesc || product.description}
+              </Text>
+            ) : null}
 
-          {/* Dietary tags */}
-          {dietaryTags.length > 0 && (
-            <View style={[s.chipRow, { marginTop: 14 }]}>
-              {dietaryTags.map(t => <DietaryChip key={t} label={t} />)}
-            </View>
-          )}
+            {productUrl ? (
+              <Pressable
+                onPress={() => Linking.openURL(productUrl).catch(() => {})}
+                style={s.websiteLink}
+              >
+                <Text style={[s.websiteLinkText, { fontFamily: 'Inter_600SemiBold' }]}>View on Website</Text>
+                <Text style={{ fontSize: 11, color: BLUE, fontFamily: 'Inter_400Regular', marginLeft: 2 }}>↗</Text>
+              </Pressable>
+            ) : null}
 
-          {/* Flavour tags */}
-          {tags.length > 0 && (
-            <View style={[s.chipRow, { marginTop: 8 }]}>
-              {tags.map(t => (
-                <View key={t} style={chip.tag}>
-                  <Text style={[chip.tagText, { fontFamily: 'Inter_500Medium' }]}>{t}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* ── Price + Quantity row ───────────────────────────────────── */}
-          <View style={s.priceQtyCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={[s.priceLabel, { fontFamily: 'Inter_600SemiBold' }]}>PRICE</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-                <Text style={[s.priceValue, { fontFamily: 'Inter_700Bold' }]}>
-                  {priceDollars(displayCents)}
-                </Text>
-                {saleCents && priceCents !== saleCents && (
-                  <Text style={[s.wasPrice, { fontFamily: 'Inter_400Regular' }]}>
-                    {priceDollars(priceCents)}
-                  </Text>
-                )}
+            {galleryUrls.length > 1 && (
+              <View style={{ marginTop: 14, gap: 8 }}>
+                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Photos</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.galleryContent}>
+                  {galleryUrls.map((url, idx) => (
+                    <View key={`${url}-${idx}`} style={s.galleryThumbWrap}>
+                      <Image source={{ uri: url }} style={s.galleryThumb} contentFit="cover" transition={200} />
+                    </View>
+                  ))}
+                </ScrollView>
               </View>
-              {gst && <Text style={[s.gstNote, { fontFamily: 'Inter_400Regular' }]}>inc. GST</Text>}
-            </View>
+            )}
 
-            {/* Qty stepper */}
-            <View style={s.stepper}>
-              <Pressable
-                onPress={() => { if (qty > minQty) { setQty(q => q - 1); Haptics.selectionAsync(); } }}
-                style={[s.stepBtn, { borderColor: BORDER, backgroundColor: qty <= minQty ? '#F3F4F6' : '#fff' }]}
-              >
-                <Feather name="minus" size={16} color={qty <= minQty ? MUTED : TEXT} />
-              </Pressable>
-              <Text style={[s.stepNum, { fontFamily: 'Inter_700Bold' }]}>{qty}</Text>
-              <Pressable
-                onPress={() => { if (qty < maxQty) { setQty(q => q + 1); Haptics.selectionAsync(); } }}
-                style={[s.stepBtn, { backgroundColor: BLUE, borderColor: BLUE }]}
-              >
-                <Feather name="plus" size={16} color="#fff" />
-              </Pressable>
-            </View>
-          </View>
+            {/* Dietary tags */}
+            {dietaryTags.length > 0 && (
+              <View style={[s.chipRow, { marginTop: 14 }]}>
+                {dietaryTags.map(t => <DietaryChip key={t} label={t} />)}
+              </View>
+            )}
 
-          {maxQty < 99 && (
-            <Text style={[{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12, marginTop: 6, marginLeft: 2 }]}>
-              Max {maxQty} per order
-            </Text>
-          )}
-
-          {/* Customise options */}
-          {options.length > 0 && (
-            <View style={{ marginTop: 20, gap: 14 }}>
-              <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Customise</Text>
-              {options.map((section: any) => (
-                <View key={section.label} style={{ gap: 8 }}>
-                  <Text style={[s.optLabel, { fontFamily: 'Inter_600SemiBold' }]}>{section.label}</Text>
-                  <View style={s.chipRow}>
-                    {section.choices.map((choice: string) => {
-                      const sel = (selections[section.label] ?? []).includes(choice);
-                      return (
-                        <Pressable
-                          key={choice}
-                          onPress={() => toggle(section.label, choice)}
-                          style={[s.selChip, sel
-                            ? { backgroundColor: palette.banner, borderColor: palette.banner }
-                            : { backgroundColor: '#fff', borderColor: BORDER }
-                          ]}
-                        >
-                          <Text style={[s.selChipText, {
-                            fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular',
-                            color: sel ? '#fff' : TEXT,
-                          }]}>
-                            {choice}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
+            {/* Flavour tags */}
+            {tags.length > 0 && (
+              <View style={[s.chipRow, { marginTop: 8 }]}>
+                {tags.map(t => (
+                  <View key={t} style={chip.tag}>
+                    <Text style={[chip.tagText, { fontFamily: 'Inter_500Medium' }]}>{t}</Text>
                   </View>
+                ))}
+              </View>
+            )}
+
+            {/* ── Price + Quantity row ───────────────────────────────────── */}
+            <View style={s.priceQtyCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.priceLabel, { fontFamily: 'Inter_600SemiBold' }]}>PRICE</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                  <Text style={[s.priceValue, { fontFamily: 'Inter_700Bold' }]}>
+                    {priceDollars(displayCents)}
+                  </Text>
+                  {saleCents && priceCents !== saleCents && (
+                    <Text style={[s.wasPrice, { fontFamily: 'Inter_400Regular' }]}>
+                      {priceDollars(priceCents)}
+                    </Text>
+                  )}
                 </View>
-              ))}
-            </View>
-          )}
-
-          {/* Allergens */}
-          {allergens.length > 0 && (
-            <View style={[s.allergenCard, { marginTop: 20 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <Feather name="alert-triangle" size={13} color={AMBER} />
-                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Contains</Text>
+                {gst && <Text style={[s.gstNote, { fontFamily: 'Inter_400Regular' }]}>inc. GST</Text>}
               </View>
-              <View style={s.chipRow}>
-                {allergens.map(a => <AllergenChip key={a} label={a} />)}
+
+              {/* Qty stepper */}
+              <View style={s.stepper}>
+                <Pressable
+                  onPress={() => { if (qty > minQty) { setQty(q => q - 1); Haptics.selectionAsync(); } }}
+                  style={[s.stepBtn, { borderColor: BORDER, backgroundColor: qty <= minQty ? '#F3F4F6' : '#fff' }]}
+                >
+                  <Feather name="minus" size={16} color={qty <= minQty ? MUTED : TEXT} />
+                </Pressable>
+                <Text style={[s.stepNum, { fontFamily: 'Inter_700Bold' }]}>{qty}</Text>
+                <Pressable
+                  onPress={() => { if (qty < maxQty) { setQty(q => q + 1); Haptics.selectionAsync(); } }}
+                  style={[s.stepBtn, { backgroundColor: BLUE, borderColor: BLUE }]}
+                >
+                  <Feather name="plus" size={16} color="#fff" />
+                </Pressable>
               </View>
             </View>
-          )}
 
-          {/* Extra details */}
-          {(ingredients || storage || serving) ? (
-            <View style={{ marginTop: 20, gap: 16 }}>
-              <DetailSection icon="list"    title="Ingredients"  content={ingredients} />
-              <DetailSection icon="archive" title="Storage"      content={storage} />
-              <DetailSection icon="coffee"  title="Best Enjoyed" content={serving} />
-            </View>
-          ) : null}
+            {maxQty < 99 && (
+              <Text style={[{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12, marginTop: 6, marginLeft: 2 }]}>
+                Max {maxQty} per order
+              </Text>
+            )}
 
-          {/* Full description (if different from shortDesc) */}
-          {product.description && shortDesc && product.description !== shortDesc ? (
-            <View style={{ marginTop: 16 }}>
-              <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', marginBottom: 6 }]}>About</Text>
-              <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>{product.description}</Text>
-            </View>
-          ) : null}
+            {/* Customise options */}
+            {options.length > 0 && (
+              <View style={{ marginTop: 20, gap: 14 }}>
+                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Customise</Text>
+                {options.map((section: any) => (
+                  <View key={section.label} style={{ gap: 8 }}>
+                    <Text style={[s.optLabel, { fontFamily: 'Inter_600SemiBold' }]}>{section.label}</Text>
+                    <View style={s.chipRow}>
+                      {section.choices.map((choice: string) => {
+                        const sel = (selections[section.label] ?? []).includes(choice);
+                        return (
+                          <Pressable
+                            key={choice}
+                            onPress={() => toggle(section.label, choice)}
+                            style={[s.selChip, sel
+                              ? { backgroundColor: palette.banner, borderColor: palette.banner }
+                              : { backgroundColor: '#fff', borderColor: BORDER }
+                            ]}
+                          >
+                            <Text style={[s.selChipText, {
+                              fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                              color: sel ? '#fff' : TEXT,
+                            }]}>
+                              {choice}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
-        </ScrollView>
-      </View>
+            {/* Allergens */}
+            {allergens.length > 0 && (
+              <View style={[s.allergenCard, { marginTop: 20 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <Feather name="alert-triangle" size={13} color={AMBER} />
+                  <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Contains</Text>
+                </View>
+                <View style={s.chipRow}>
+                  {allergens.map(a => <AllergenChip key={a} label={a} />)}
+                </View>
+              </View>
+            )}
 
-      {/* ── FOOTER ────────────────────────────────────────────────────── */}
-      <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
-        {isSoldOut ? (
-          <View style={s.soldOutBtn}>
-            <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold' }]}>Currently Sold Out</Text>
+            {/* Extra details */}
+            {(ingredients || storage || serving || nutrition) ? (
+              <View style={{ marginTop: 20, gap: 16 }}>
+                <DetailSection icon="list"    title="Ingredients"  content={ingredients} />
+                <DetailSection icon="bar-chart-2" title="Nutrition"  content={nutrition} />
+                <DetailSection icon="archive" title="Storage"      content={storage} />
+                <DetailSection icon="coffee"  title="Best Enjoyed" content={serving} />
+              </View>
+            ) : null}
+
+            {/* Full description (if different from shortDesc) */}
+            {product.description && shortDesc && product.description !== shortDesc ? (
+              <View style={{ marginTop: 16 }}>
+                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', marginBottom: 6 }]}>About</Text>
+                <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>{product.description}</Text>
+              </View>
+            ) : null}
+
+          </ScrollView>
+
+          {/* ── FOOTER ────────────────────────────────────────────────────── */}
+          <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
+            {isSoldOut ? (
+              <View style={s.soldOutBtn}>
+                <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold' }]}>Currently Sold Out</Text>
+              </View>
+            ) : isComingSoon ? (
+              <View style={[s.soldOutBtn, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
+                <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Coming Soon</Text>
+              </View>
+            ) : (
+              <Pressable onPress={handleAddToCart} style={[s.addBtn, { backgroundColor: BLUE }]}>
+                <Text style={[s.addBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                  Add to bag · AUD {total.toFixed(2)}
+                </Text>
+              </Pressable>
+            )}
           </View>
-        ) : isComingSoon ? (
-          <View style={[s.soldOutBtn, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
-            <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Coming Soon</Text>
-          </View>
-        ) : (
-          <Pressable onPress={handleAddToCart} style={[s.addBtn, { backgroundColor: BLUE }]}>
-            <Text style={[s.addBtnText, { fontFamily: 'Inter_700Bold' }]}>
-              Add to bag · AUD {total.toFixed(2)}
-            </Text>
-          </Pressable>
-        )}
+        </View>
       </View>
     </View>
   );
@@ -419,13 +456,16 @@ const s = StyleSheet.create({
   pillRow:      { position: 'absolute', top: 12, right: 16, flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', zIndex: 5 },
 
   // Sheet
-  sheet:        { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, paddingHorizontal: 22, paddingTop: 22 },
+  sheet:        { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, overflow: 'hidden' },
+  sheetInner:   { flex: 1, paddingHorizontal: 22, paddingTop: 22 },
 
   // Text
   name:         { fontSize: 26, color: TEXT, lineHeight: 32, marginBottom: 8 },
   desc:         { fontSize: 14, color: MUTED, lineHeight: 22 },
   sectionTitle: { fontSize: 14, color: TEXT },
   optLabel:     { fontSize: 13, color: MUTED },
+  websiteLink:     { flexDirection: 'row', alignItems: 'center', marginTop: 10, marginBottom: 2 },
+  websiteLinkText: { fontSize: 13, color: BLUE },
 
   // Price + Qty card
   priceQtyCard: { flexDirection: 'row', alignItems: 'center', marginTop: 18, borderWidth: 1, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, backgroundColor: '#FAFAFA' },
@@ -443,6 +483,10 @@ const s = StyleSheet.create({
   chipRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   selChip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5 },
   selChipText:  { fontSize: 13 },
+  scroll:       { flex: 1 },
+  galleryContent:{ gap: 8, paddingRight: 4 },
+  galleryThumbWrap:{ width: 58, height: 58, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, backgroundColor: '#F3F4F6' },
+  galleryThumb:  { width: '100%', height: '100%' },
 
   // Allergens
   allergenCard: { backgroundColor: '#FFFBEB', padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#FDE68A' },
