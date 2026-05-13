@@ -16,6 +16,22 @@ import {
 const router = Router();
 router.use(requireRole('wholesale'));
 
+function getPublicBaseUrl(): string {
+  const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
+    .split(',')
+    .map((d) => d.trim())
+    .find(Boolean);
+  return domain ? `https://${domain}` : '';
+}
+
+function absolutizeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = getPublicBaseUrl();
+  if (!base) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 router.get('/account', async (req, res) => {
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
@@ -69,8 +85,8 @@ router.get('/catalog', async (req, res) => {
       description: p.description,
       shortDescription: p.shortDescription,
       category: p.category,
-      imageUrl: p.imageUrl,
-      images: p.imageUrl ? [p.imageUrl] : [],
+      imageUrl: absolutizeUrl(p.imageUrl),
+      images: p.imageUrl ? [absolutizeUrl(p.imageUrl)].filter((v): v is string => !!v) : [],
       unitPriceCents,
       basePriceCents: p.wholesalePriceCents ?? p.priceCents,
       priceSource,

@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
@@ -13,7 +14,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -137,6 +137,7 @@ export default function LoyaltyScreen() {
   const progress    = nextTier ? Math.min(totalSpentCents / nextTier.spendThreshold, 1) : 1;
 
   const qrValue = `BUTTERFIELD:${user?.id ?? ''}:${profile?.referralCode ?? ''}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrValue || 'BUTTERFIELD:loading')}`;
 
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
@@ -187,7 +188,7 @@ export default function LoyaltyScreen() {
           <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
           <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
           <View style={styles.qrBox}>
-            <QRCode value={qrValue || 'BUTTERFIELD:loading'} size={200} color={TEXT} backgroundColor={WHITE} />
+            <Image source={{ uri: qrImageUrl }} style={{ width: 200, height: 200, backgroundColor: WHITE }} contentFit="contain" />
           </View>
           <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>{profile?.referralCode ?? user?.name}</Text>
           <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>

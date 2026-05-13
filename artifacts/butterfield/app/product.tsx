@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { getPalette, getOptions } from '@/constants/categoryColors';
-import { getSelectedProduct } from '@/lib/selectedProduct';
+import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { api } from '@/lib/api';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -101,7 +101,13 @@ export default function ProductDetailScreen() {
     staleTime: 60_000,
   });
 
-  const product = selectedProduct ?? (routeProductData?.data as any) ?? null;
+  const product = selectedProduct && (!routeProductId || selectedProduct.id === routeProductId)
+    ? selectedProduct
+    : (routeProductData?.data as any) ?? null;
+
+  React.useEffect(() => {
+    return () => setSelectedProduct(null);
+  }, []);
 
   const { data: favsData } = useQuery({
     queryKey: ['favourites'],

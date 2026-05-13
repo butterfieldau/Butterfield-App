@@ -11,6 +11,22 @@ router.use(requireRole('director', 'manager'));
 router.use(requireManagerPermission('products'));
 
 // ── Helper ─────────────────────────────────────────────────────────────────
+function getPublicBaseUrl(): string {
+  const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
+    .split(',')
+    .map((d) => d.trim())
+    .find(Boolean);
+  return domain ? `https://${domain}` : '';
+}
+
+function absolutizeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = getPublicBaseUrl();
+  if (!base) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 function parseJsonArr(val: string | null | undefined): string[] {
   if (!val) return [];
   try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }

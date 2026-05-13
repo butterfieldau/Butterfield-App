@@ -71,11 +71,18 @@ function SectionLabel({ title }: { title: string }) {
 }
 
 function StripeCheckoutButton({
-  amountCents,
+  items,
+  orderType,
   merchantDisplayName,
   onSuccess,
 }: {
-  amountCents: number;
+  items: Array<{
+    productId: string;
+    variantId?: string | null;
+    quantity: number;
+    selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
+  }>;
+  orderType: 'pickup' | 'delivery';
   merchantDisplayName: string;
   onSuccess: (paymentIntentId: string) => Promise<void>;
 }) {
@@ -86,7 +93,11 @@ function StripeCheckoutButton({
     if (busy) return;
     setBusy(true);
     try {
-      const intent = await api.payment.createIntent({ amountCents, paymentMethod: 'card' });
+      const intent = await api.payment.createIntent({
+        items,
+        orderType,
+        paymentMethod: 'card',
+      });
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: intent.clientSecret,
         merchantDisplayName,
@@ -903,12 +914,18 @@ export default function CartScreen() {
         </View>
         {step === 2 && effectivePaymentMethod === 'card' ? (
           stripePublishableKey ? (
-            <StripeProvider publishableKey={stripePublishableKey}>
-              <StripeCheckoutButton
-                amountCents={totalCents}
-                merchantDisplayName={stripeMerchantDisplayName}
-                onSuccess={handlePlaceOrder}
-              />
+          <StripeProvider publishableKey={stripePublishableKey}>
+            <StripeCheckoutButton
+              items={items.map((i) => ({
+                productId: i.productId,
+                variantId: i.variantId ?? null,
+                quantity: i.quantity,
+                selectedOptions: i.selectedOptions,
+              }))}
+              orderType={orderType}
+              merchantDisplayName={stripeMerchantDisplayName}
+              onSuccess={handlePlaceOrder}
+            />
             </StripeProvider>
           ) : (
             <View style={[styles.continueBtn, { backgroundColor: '#9CA3AF', opacity: 0.9, alignItems: 'center', justifyContent: 'center' }]}>

@@ -195,7 +195,17 @@ export const api = {
   welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
     config: () => request<{ data: { publishableKey: string | null; merchantDisplayName: string } }>('/payment/config'),
-    createIntent: (data: { amountCents: number; currency?: string; paymentMethod?: 'card' | 'pay_at_pickup' }) =>
+    createIntent: (data: {
+      items: Array<{
+        productId: string;
+        variantId?: string | null;
+        quantity: number;
+        selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
+      }>;
+      orderType: 'pickup' | 'delivery';
+      discountCents?: number;
+      paymentMethod?: 'card' | 'pay_at_pickup';
+    }) =>
       request<{ clientSecret: string; paymentIntentId: string }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {

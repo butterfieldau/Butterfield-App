@@ -16,7 +16,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -31,9 +30,9 @@ import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
-import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
+import { setSelectedProduct } from '@/lib/selectedProduct';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3);
@@ -208,7 +207,6 @@ export default function CustomerHome() {
   const { user } = useAuth();
   const { totalItems, addItemToCart } = useCart();
   const [activeCategory, setActiveCategory] = useState('all');
-  const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
@@ -273,6 +271,7 @@ export default function CustomerHome() {
   const topSellers     = topSellersData?.data ?? [];
   const referralCode   = (loyaltyData?.data as any)?.referralCode ?? '';
   const qrValue        = `BUTTERFIELD:${user?.id ?? ''}:${referralCode}`;
+  const qrImageUrl     = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue || 'BUTTERFIELD:loading')}`;
 
   const hasClaimableReward = useMemo(
     () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
@@ -362,18 +361,20 @@ export default function CustomerHome() {
 
   const handleTilePress = useCallback((p: ApiProduct) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCustomizerProduct(p);
+    setSelectedProduct(p);
+    router.push({ pathname: '/product', params: { id: p.id } } as any);
   }, []);
 
   const handleMerchPress = useCallback((item: typeof MERCH[number]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCustomizerProduct({
+    setSelectedProduct({
       id: item.id, name: item.name,
       description: 'Butterfield Cookies branded merchandise. Available in-store only.',
       images: [item.image],
       prices: [{ id: `price-${item.id}`, unit_amount: item.price * 100, currency: 'aud' }] as any,
       metadata: { category: 'merch', available: 'true' },
     } as any);
+    router.push({ pathname: '/product', params: { id: item.id } } as any);
   }, []);
 
   const handleBannerPress = useCallback(() => {
@@ -391,11 +392,6 @@ export default function CustomerHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ProductCustomizerSheet
-        product={customizerProduct}
-        visible={!!customizerProduct}
-        onClose={() => setCustomizerProduct(null)}
-      />
       <StoreInfoSheet
         visible={storeSheetVisible}
         store={featuredStore}
@@ -418,12 +414,7 @@ export default function CustomerHome() {
             Show this to staff to earn your stamp
           </Text>
           <View style={s.qrBox}>
-            <QRCode
-              value={qrValue || 'BUTTERFIELD:loading'}
-              size={220}
-              color="#1C1C1E"
-              backgroundColor="#FFFFFF"
-            />
+            <Image source={{ uri: qrImageUrl }} style={{ width: 220, height: 220, backgroundColor: '#fff' }} contentFit="contain" />
           </View>
           <View style={s.qrStampsRow}>
             {Array.from({ length: 6 }).map((_, i) => (

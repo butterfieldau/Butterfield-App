@@ -31,9 +31,9 @@ import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
-import ProductCustomizerSheet from '@/components/ProductCustomizerSheet';
 import SharedProductTile from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
+import { setSelectedProduct } from '@/lib/selectedProduct';
 
 const BLUE   = '#40C0F2';
 const CHERRY = '#D0312D';
@@ -212,17 +212,14 @@ export default function MenuScreen() {
     return matchCat && matchSearch;
   }), [products, activeCategory, search]);
 
-  const [customizerProduct, setCustomizerProduct] = useState<ApiProduct | null>(null);
-  const handleTilePress = (p: ApiProduct) => { setCustomizerProduct(p); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
+  const handleTilePress = (p: ApiProduct) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedProduct(p);
+    router.push({ pathname: '/product', params: { id: p.id } } as any);
+  };
 
   return (
     <View style={s.root}>
-      <ProductCustomizerSheet
-        product={customizerProduct}
-        visible={!!customizerProduct}
-        onClose={() => setCustomizerProduct(null)}
-      />
-
       <OfflineBanner />
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
