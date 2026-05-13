@@ -1,5 +1,19 @@
 import Stripe from 'stripe';
 
+async function tryFetchCreds(hostname: string, token: string, env: string): Promise<string | null> {
+  const url = new URL(`https://${hostname}/api/v2/connection`);
+  url.searchParams.set('include_secrets', 'true');
+  url.searchParams.set('connector_names', 'stripe');
+  url.searchParams.set('environment', env);
+  const resp = await fetch(url.toString(), {
+    headers: { 'Accept': 'application/json', 'X-Replit-Token': token },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  return data.items?.[0]?.settings?.secret ?? null;
+}
+
 async function getStripeCredentials(): Promise<{ secretKey: string }> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
@@ -12,23 +26,12 @@ async function getStripeCredentials(): Promise<{ secretKey: string }> {
     throw new Error('Missing Replit env vars. Ensure Stripe integration is connected.');
   }
 
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
-  const targetEnvironment = isProduction ? 'production' : 'development';
-  const url = new URL(`https://${hostname}/api/v2/connection`);
-  url.searchParams.set('include_secrets', 'true');
-  url.searchParams.set('connector_names', 'stripe');
-  url.searchParams.set('environment', targetEnvironment);
+  const secretKey =
+    (await tryFetchCreds(hostname, xReplitToken, 'development')) ??
+    (await tryFetchCreds(hostname, xReplitToken, 'production'));
 
-  const resp = await fetch(url.toString(), {
-    headers: { 'Accept': 'application/json', 'X-Replit-Token': xReplitToken },
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (!resp.ok) throw new Error(`Failed to fetch Stripe credentials: ${resp.status}`);
-  const data = await resp.json();
-  const settings = data.items?.[0]?.settings;
-  if (!settings?.secret) throw new Error('Stripe integration not connected or missing secret key.');
-  return { secretKey: settings.secret };
+  if (!secretKey) throw new Error('Stripe integration not connected or missing secret key.');
+  return { secretKey };
 }
 
 const PRODUCTS = [

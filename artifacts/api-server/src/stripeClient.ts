@@ -1,6 +1,37 @@
 import Stripe from 'stripe';
 import { StripeSync } from 'stripe-replit-sync';
 
+async function fetchCredentialsForEnv(
+  hostname: string,
+  xReplitToken: string,
+  environment: string,
+): Promise<{ publishableKey: string; secretKey: string } | null> {
+  const url = new URL(`https://${hostname}/api/v2/connection`);
+  url.searchParams.set('include_secrets', 'true');
+  url.searchParams.set('connector_names', 'stripe');
+  url.searchParams.set('environment', environment);
+
+  const resp = await fetch(url.toString(), {
+    headers: {
+      'Accept': 'application/json',
+      'X-Replit-Token': xReplitToken,
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  if (!resp.ok) return null;
+
+  const data = await resp.json() as any;
+  const settings = data.items?.[0]?.settings;
+
+  if (!settings?.secret || !settings?.publishable) return null;
+
+  return {
+    publishableKey: settings.publishable,
+    secretKey: settings.secret,
+  };
+}
+
 async function getCredentials(): Promise<{ publishableKey: string; secretKey: string }> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
@@ -14,39 +45,25 @@ async function getCredentials(): Promise<{ publishableKey: string; secretKey: st
   }
 
   const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
-  const targetEnvironment = isProduction ? 'production' : 'development';
 
-  const url = new URL(`https://${hostname}/api/v2/connection`);
-  url.searchParams.set('include_secrets', 'true');
-  url.searchParams.set('connector_names', 'stripe');
-  url.searchParams.set('environment', targetEnvironment);
+  // Try the target environment first, then fall back to the other.
+  // This handles the common case where the integration was set up in
+  // development but the deployed app needs it too.
+  const primary   = isProduction ? 'production' : 'development';
+  const fallback  = isProduction ? 'development' : 'production';
 
-  const resp = await fetch(url.toString(), {
-    headers: {
-      'Accept': 'application/json',
-      'X-Replit-Token': xReplitToken,
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
+  const creds =
+    (await fetchCredentialsForEnv(hostname, xReplitToken, primary)) ??
+    (await fetchCredentialsForEnv(hostname, xReplitToken, fallback));
 
-  if (!resp.ok) {
-    throw new Error(`Failed to fetch Stripe credentials: ${resp.status} ${resp.statusText}`);
-  }
-
-  const data = await resp.json() as any;
-  const settings = data.items?.[0]?.settings;
-
-  if (!settings?.secret || !settings?.publishable) {
+  if (!creds) {
     throw new Error(
       'Stripe integration not connected or missing keys. ' +
       'Connect Stripe via the Integrations tab first.'
     );
   }
 
-  return {
-    publishableKey: settings.publishable,
-    secretKey: settings.secret,
-  };
+  return creds;
 }
 
 // WARNING: Never cache this client — tokens expire.
