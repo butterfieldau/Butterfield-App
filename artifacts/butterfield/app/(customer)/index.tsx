@@ -404,9 +404,10 @@ export default function CustomerHome() {
         visible={showQR}
         onClose={() => setShowQR(false)}
         backdropOpacity={0.52}
-        sheetHeight={520}
-        sheetStyle={s.qrSheet}
+        sheetHeight={Dimensions.get('window').height}
+        sheetStyle={[s.qrSheet, { backgroundColor: 'transparent' }]}
         contentStyle={s.qrSheetContent}
+        showHandle={false}
       >
         <Pressable style={s.qrCard} onPress={(e) => e.stopPropagation()}>
           <Text style={[s.qrTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Stamp Card</Text>
@@ -870,26 +871,33 @@ const s = StyleSheet.create({
   },
 
   // ── QR modal ─────────────────────────────────────────────────────────────
-  qrSheet: { backgroundColor: '#fff' },
+  qrSheet: { backgroundColor: 'transparent' },
   qrSheetContent: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 20,
-  },
-  qrOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 24,
   },
   qrCard: {
-    width: 320, backgroundColor: '#fff', borderRadius: 28,
-    padding: 28, alignItems: 'center', gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18, shadowRadius: 24, elevation: 12,
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 28,
+    padding: 28,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.38)',
+    shadowColor: '#0E4C6B',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 12,
+    overflow: 'hidden',
   },
   qrHandle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E5', marginBottom: 4 },
-  qrTitle:    { fontSize: 20, color: '#1C1C1E', textAlign: 'center' },
-  qrSub:      { fontSize: 13, color: '#8E8E93', textAlign: 'center', lineHeight: 18 },
+  qrTitle:    { fontSize: 22, color: '#083B57', textAlign: 'center', fontFamily: 'Inter_800ExtraBold', letterSpacing: -0.2 },
+  qrSub:      { fontSize: 13, color: 'rgba(8,59,87,0.76)', textAlign: 'center', lineHeight: 18 },
   qrBox: {
     width: 252, height: 252, borderRadius: 20,
     backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
@@ -902,7 +910,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   qrStampLabel: { fontSize: 13, color: '#3C3C43', textAlign: 'center' },
-  qrCode:     { fontSize: 13, color: '#8E8E93', letterSpacing: 1.5, marginTop: 2 },
+  qrCode:     { fontSize: 13, color: 'rgba(8,59,87,0.72)', letterSpacing: 1.5, marginTop: 2 },
   qrCloseBtn: {
     marginTop: 6, width: '100%', paddingVertical: 14,
     borderRadius: 16, alignItems: 'center',

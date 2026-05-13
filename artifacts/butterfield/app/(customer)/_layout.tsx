@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Tabs, router, usePathname } from 'expo-router';
+import { Tabs, router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -22,10 +22,12 @@ function getActiveTabIndex(pathname: string) {
 function ClassicCustomerTabs() {
   const colors = useColors();
   const { totalItems } = useCart();
+  const params = useLocalSearchParams<{ success?: string }>();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
+  const hideTabs = usePathname()?.includes('/cart') && params.success === '1';
 
   return (
     <Tabs
@@ -34,12 +36,16 @@ function ClassicCustomerTabs() {
         tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
-          position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.background,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: colors.border,
-          elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          ...(hideTabs
+            ? { display: 'none' }
+            : {
+                position: 'absolute',
+                backgroundColor: isIOS ? 'transparent' : colors.background,
+                borderTopWidth: isWeb ? 1 : 0,
+                borderTopColor: colors.border,
+                elevation: 0,
+                ...(isWeb ? { height: 84 } : {}),
+              }),
         },
         tabBarBackground: () =>
           isIOS ? (

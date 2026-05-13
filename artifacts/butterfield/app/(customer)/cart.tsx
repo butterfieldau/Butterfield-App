@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,7 +33,6 @@ import Animated, {
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { api, type SavedAddress } from '@/lib/api';
-import { ButterfieldCharacter } from '@/components/ButterfieldCharacter';
 import {
   formatDateChip,
   formatTime,
@@ -210,6 +209,7 @@ export default function CartScreen() {
   const { user } = useAuth();
   const { items, totalPriceCents, totalItems, updateItemQuantity, removeCartItem, clearCart } = useCart();
   const qc = useQueryClient();
+  const routeParams = useLocalSearchParams<{ success?: string }>();
 
   const [step, setStep]                       = useState(0);
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
@@ -243,12 +243,15 @@ export default function CartScreen() {
       characterProgress.value = 0;
       return;
     }
+    if (routeParams.success !== '1') {
+      router.replace('/(customer)/cart?success=1');
+    }
     successCardOpacity.value = withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) });
     successCardScale.value = withSpring(1, { damping: 14, stiffness: 150 });
     pointsOpacity.value = withDelay(150, withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }));
     pointsTranslate.value = withDelay(150, withSpring(0, { damping: 16, stiffness: 160 }));
     characterProgress.value = withDelay(120, withSpring(1, { damping: 13, stiffness: 120 }));
-  }, [confirmation, characterProgress, pointsOpacity, pointsTranslate, successCardOpacity, successCardScale]);
+  }, [confirmation, characterProgress, pointsOpacity, pointsTranslate, routeParams.success, successCardOpacity, successCardScale]);
 
   const successCardStyle = useAnimatedStyle(() => ({
     opacity: successCardOpacity.value,
@@ -483,7 +486,11 @@ export default function CartScreen() {
         </View>
         <Animated.View style={[styles.characterStage, characterStyle]} pointerEvents="none">
           <View style={styles.characterFrame}>
-            <ButterfieldCharacter />
+            <Image
+              source={require('../../assets/images/butterfield-character.png')}
+              style={styles.characterImage}
+              resizeMode="contain"
+            />
           </View>
         </Animated.View>
         <Animated.View style={[styles.successCard, successCardStyle]}>
@@ -520,7 +527,7 @@ export default function CartScreen() {
             <Text style={[styles.successTotal, { color: 'rgba(255,255,255,0.92)' }]}>
               {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
             </Text>
-            <Pressable onPress={() => { router.push('/orders'); }} style={styles.trackBtn}>
+            <Pressable onPress={() => { router.replace('/orders'); }} style={styles.trackBtn}>
               <Text style={styles.trackBtnText}>Go to My Orders</Text>
             </Pressable>
           </LinearGradient>
@@ -1060,45 +1067,47 @@ export default function CartScreen() {
       </KeyboardAvoidingView>
 
       {/* Sticky bottom bar */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 + (showNativeTabBar ? 49 : 0), backgroundColor: CARD, borderTopColor: BORDER }]}>
-        <View style={styles.bottomTotal}>
-          <Text style={styles.bottomTotalLabel}>TOTAL</Text>
-          <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
-        </View>
-        {step === 2 && effectivePaymentMethod === 'card' ? (
-          stripePublishableKey ? (
-          <StripeProvider publishableKey={stripePublishableKey}>
-            <StripeCheckoutButton
-              items={items.map((i) => ({
-                productId: i.productId,
-                variantId: i.variantId ?? null,
-                quantity: i.quantity,
-                selectedOptions: i.selectedOptions,
-              }))}
-              orderType={orderType}
-              merchantDisplayName={stripeMerchantDisplayName}
-              onSuccess={handlePlaceOrder}
-            />
-            </StripeProvider>
-          ) : (
-            <View style={[styles.continueBtn, { backgroundColor: '#9CA3AF', opacity: 0.9, alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={styles.continueBtnText}>Stripe not configured</Text>
-            </View>
-          )
-        ) : (
-          <Pressable
-            onPress={handleContinue}
-            disabled={loading}
-            style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
+      {!confirmation && (
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 + (showNativeTabBar ? 49 : 0), backgroundColor: CARD, borderTopColor: BORDER }]}>
+          <View style={styles.bottomTotal}>
+            <Text style={styles.bottomTotalLabel}>TOTAL</Text>
+            <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
+          </View>
+          {step === 2 && effectivePaymentMethod === 'card' ? (
+            stripePublishableKey ? (
+            <StripeProvider publishableKey={stripePublishableKey}>
+              <StripeCheckoutButton
+                items={items.map((i) => ({
+                  productId: i.productId,
+                  variantId: i.variantId ?? null,
+                  quantity: i.quantity,
+                  selectedOptions: i.selectedOptions,
+                }))}
+                orderType={orderType}
+                merchantDisplayName={stripeMerchantDisplayName}
+                onSuccess={handlePlaceOrder}
+              />
+              </StripeProvider>
             ) : (
-              <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>
-            )}
-          </Pressable>
-        )}
-      </View>
+              <View style={[styles.continueBtn, { backgroundColor: '#9CA3AF', opacity: 0.9, alignItems: 'center', justifyContent: 'center' }]}>
+                <Text style={styles.continueBtnText}>Stripe not configured</Text>
+              </View>
+            )
+          ) : (
+            <Pressable
+              onPress={handleContinue}
+              disabled={loading}
+              style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>
+              )}
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -1194,8 +1203,8 @@ const styles = StyleSheet.create({
   continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   // Success
-  successWrap:    { flex: 1, alignItems: 'center', paddingHorizontal: 32, gap: 16, overflow: 'visible' },
-  successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2 },
+  successWrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 16, overflow: 'visible' },
+  successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2, maxWidth: 430 },
   successGlow:    {
     width: '100%',
     alignItems: 'center',
@@ -1212,16 +1221,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   successIcon:    { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  successTitle:   { fontSize: 28, fontFamily: 'Inter_800ExtraBold', color: '#083B57', textAlign: 'center', letterSpacing: -0.3 },
+  successTitle:   { fontSize: 28, fontFamily: 'Inter_800ExtraBold', fontWeight: '900', color: '#083B57', textAlign: 'center', letterSpacing: -0.3 },
   successId:      { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: 'rgba(8,59,87,0.72)', letterSpacing: 0.8 },
   confettiLayer:  { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
   characterStage: { position: 'absolute', left: -56, right: -56, bottom: -18, height: 420, justifyContent: 'flex-end', alignItems: 'center' },
   characterFrame: { width: '112%', maxWidth: 560, aspectRatio: 4256.5 / 3401.6 },
+  characterImage: { width: '100%', height: '100%' },
   successPointsBox: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', backgroundColor: '#FFF4D9', borderColor: '#F1C86A', borderWidth: 1.5, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 16 },
   successPointsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFE7A6', alignItems: 'center', justifyContent: 'center' },
   successPointsCopy: { flex: 1, gap: 2 },
   successPointsLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.4, color: '#8A5B00', textTransform: 'uppercase' },
-  successPointsNumber: { fontSize: 50, lineHeight: 52, fontFamily: 'Inter_800ExtraBold', color: '#7A4B00', includeFontPadding: false, textAlignVertical: 'center' },
+  successPointsNumber: { fontSize: 56, lineHeight: 58, fontFamily: 'Inter_800ExtraBold', fontWeight: '900', color: '#7A4B00', includeFontPadding: false, textAlignVertical: 'center', letterSpacing: -1 },
   successPointsSuffix: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#5B3A00' },
   successInfoBox: { flexDirection: 'row', gap: 10, padding: 16, borderWidth: 1.5, borderRadius: 12, alignSelf: 'stretch', alignItems: 'flex-start' },
   successInfoText:{ flex: 1, color: '#92400E', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 20 },

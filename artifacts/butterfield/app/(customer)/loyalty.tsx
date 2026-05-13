@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -180,9 +181,10 @@ export default function LoyaltyScreen() {
       visible={showQR}
       onClose={() => setShowQR(false)}
       backdropOpacity={0.52}
-      sheetHeight={470}
-      sheetStyle={styles.qrSheet}
+      sheetHeight={Dimensions.get('window').height}
+      sheetStyle={[styles.qrSheet, { backgroundColor: 'transparent' }]}
       contentStyle={styles.qrSheetContent}
+      showHandle={false}
     >
         <View style={styles.qrModal}>
           <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
@@ -522,12 +524,27 @@ const styles = StyleSheet.create({
   bdLabel: { fontSize: 12, color: MUTED, marginBottom: 6, letterSpacing: 0.5 },
   bdInput: { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
 
-  qrSheet: { backgroundColor: WHITE },
-  qrSheetContent: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingBottom: 20 },
-  qrModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, alignItems: 'center', gap: 10, marginHorizontal: 32, width: 300 },
-  qrTitle: { fontSize: 20, color: TEXT },
-  qrSub: { fontSize: 13, color: MUTED, textAlign: 'center' },
+  qrSheet: { backgroundColor: 'transparent' },
+  qrSheetContent: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
+  qrModal: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 28,
+    padding: 28,
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.38)',
+    shadowColor: '#0E4C6B',
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    overflow: 'hidden',
+  },
+  qrTitle: { fontSize: 22, color: '#083B57', fontFamily: 'Inter_800ExtraBold', textAlign: 'center', letterSpacing: -0.2 },
+  qrSub: { fontSize: 13, color: 'rgba(8,59,87,0.76)', textAlign: 'center', lineHeight: 18 },
   qrBox: { padding: 16, backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: BORDER, marginVertical: 8 },
-  qrCode: { fontSize: 16, color: BRAND, letterSpacing: 2 },
+  qrCode: { fontSize: 16, color: 'rgba(8,59,87,0.72)', letterSpacing: 2 },
   qrClose: { marginTop: 8, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12, width: '100%', alignItems: 'center' },
 });
