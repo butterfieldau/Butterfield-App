@@ -33,6 +33,7 @@ import Animated, {
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { api, type SavedAddress } from '@/lib/api';
+import { ButterfieldCharacter } from '@/components/ButterfieldCharacter';
 import {
   formatDateChip,
   formatTime,
@@ -230,21 +231,24 @@ export default function CartScreen() {
   const successCardOpacity = useSharedValue(0);
   const successCardScale = useSharedValue(0.92);
   const pointsOpacity = useSharedValue(0);
-  const pointsScale = useSharedValue(0.75);
+  const pointsTranslate = useSharedValue(14);
+  const characterProgress = useSharedValue(0);
 
   useEffect(() => {
     if (!confirmation) {
       successCardOpacity.value = 0;
       successCardScale.value = 0.92;
       pointsOpacity.value = 0;
-      pointsScale.value = 0.75;
+      pointsTranslate.value = 14;
+      characterProgress.value = 0;
       return;
     }
     successCardOpacity.value = withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) });
     successCardScale.value = withSpring(1, { damping: 14, stiffness: 150 });
     pointsOpacity.value = withDelay(150, withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }));
-    pointsScale.value = withDelay(150, withSpring(1, { damping: 10, stiffness: 220 }));
-  }, [confirmation, pointsOpacity, pointsScale, successCardOpacity, successCardScale]);
+    pointsTranslate.value = withDelay(150, withSpring(0, { damping: 16, stiffness: 160 }));
+    characterProgress.value = withDelay(120, withSpring(1, { damping: 13, stiffness: 120 }));
+  }, [confirmation, characterProgress, pointsOpacity, pointsTranslate, successCardOpacity, successCardScale]);
 
   const successCardStyle = useAnimatedStyle(() => ({
     opacity: successCardOpacity.value,
@@ -253,7 +257,15 @@ export default function CartScreen() {
 
   const pointsStyle = useAnimatedStyle(() => ({
     opacity: pointsOpacity.value,
-    transform: [{ scale: pointsScale.value }],
+    transform: [{ translateY: pointsTranslate.value }],
+  }));
+
+  const characterStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(characterProgress.value, [0, 0.12, 1], [0, 1, 1]),
+    transform: [
+      { translateY: interpolate(characterProgress.value, [0, 1], [220, 0]) },
+      { scale: interpolate(characterProgress.value, [0, 1], [0.92, 1.05]) },
+    ],
   }));
 
   const celebrationPieces = useMemo<ConfettiPiece[]>(() => {
@@ -261,30 +273,22 @@ export default function CartScreen() {
     const colors = ['#FF7A59', '#FFD166', '#7DD3FC', '#A78BFA', '#34D399', '#FB7185'];
     const seed = confirmation.orderId.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
     const pieces: ConfettiPiece[] = [];
-    for (let i = 0; i < 24; i += 1) {
+    for (let i = 0; i < 36; i += 1) {
       const mix = seed + i * 37;
       pieces.push({
         id: i,
-        left: 44 + ((mix * 13) % 210) - 20,
-        top: 18 + ((mix * 17) % 70),
-        dx: ((mix % 9) - 4) * 18 + (i % 2 === 0 ? 30 : -18),
-        dy: 150 + ((mix % 7) * 8),
-        delay: (i % 6) * 35,
-        size: 8 + (mix % 5),
-        rotate: (mix % 2 === 0 ? 1 : -1) * (220 + (mix % 7) * 30),
+        left: 16 + ((mix * 13) % 88),
+        top: 8 + ((mix * 17) % 42),
+        dx: ((mix % 11) - 5) * 20 + (i % 2 === 0 ? 34 : -24),
+        dy: 180 + ((mix % 7) * 10),
+        delay: (i % 8) * 30,
+        size: 7 + (mix % 6),
+        rotate: (mix % 2 === 0 ? 1 : -1) * (240 + (mix % 7) * 30),
         color: colors[mix % colors.length],
         shape: i % 3 === 0 ? 'bar' : i % 3 === 1 ? 'square' : 'circle',
       });
     }
     return pieces;
-  }, [confirmation]);
-
-  useEffect(() => {
-    if (!confirmation) return;
-    const timer = setTimeout(() => {
-      router.replace('/orders');
-    }, 1800);
-    return () => clearTimeout(timer);
   }, [confirmation]);
 
   // Load saved addresses
@@ -471,53 +475,57 @@ export default function CartScreen() {
   if (confirmation) {
     const earnedPoints = Math.max(0, Math.floor(confirmation.totalCents / 100));
     return (
-      <View style={[styles.successWrap, { backgroundColor: BG, paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }]}>
+      <LinearGradient colors={['#63b9e9', '#14b3ff']} style={[styles.successWrap, { paddingTop: insets.top + 34, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.confettiLayer} pointerEvents="none">
           {celebrationPieces.map((piece) => (
             <ConfettiPieceView key={piece.id} piece={piece} />
           ))}
         </View>
-        <Animated.View style={[styles.successCard, successCardStyle]}>
-          <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
-            <Feather name="check" size={36} color="#fff" />
-          </LinearGradient>
-          <Text style={styles.successTitle}>Order Received!</Text>
-          <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
-          <Animated.View style={[styles.successPointsBox, pointsStyle]}>
-            <View style={styles.successPointsBadge}>
-              <Feather name="star" size={16} color="#7A4B00" />
-            </View>
-            <View style={styles.successPointsCopy}>
-              <Text style={styles.successPointsLabel}>You just earned</Text>
-              <Text style={styles.successPointsNumber}>+{earnedPoints}</Text>
-              <Text style={styles.successPointsSuffix}>points from this order</Text>
-            </View>
-          </Animated.View>
-          <View style={[styles.successInfoBox, { backgroundColor: '#FFF8E7', borderColor: '#F0A030' }]}>
-            <Feather name="alert-circle" size={16} color="#D97706" />
-            <Text style={styles.successInfoText}>
-              {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
-                ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
-                : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
-            </Text>
+        <Animated.View style={[styles.characterStage, characterStyle]} pointerEvents="none">
+          <View style={styles.characterFrame}>
+            <ButterfieldCharacter />
           </View>
-          {confirmation.scheduledLabel && (
-            <View style={[styles.slotBox, { backgroundColor: CARD, borderColor: BORDER }]}>
-              <Feather name="clock" size={14} color={BLUE} />
-              <Text style={[styles.slotText, { color: TEXT }]}>{confirmation.scheduledLabel}</Text>
-            </View>
-          )}
-          <Text style={[styles.successTotal, { color: MUTED }]}>
-            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
-          </Text>
-          <Pressable onPress={() => { setConfirmation(null); setStep(0); setSelectedDate(null); setSelectedTimeMins(null); setStreet(''); setSuburb(''); setPostcode(''); setNotes(''); }} style={styles.trackBtn}>
-            <Text style={styles.trackBtnText}>Continue Shopping</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/orders')} style={[styles.trackBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, marginTop: 0 }]}>
-            <Text style={[styles.trackBtnText, { color: BLUE }]}>My Orders</Text>
-          </Pressable>
         </Animated.View>
-      </View>
+        <Animated.View style={[styles.successCard, successCardStyle]}>
+          <LinearGradient colors={['rgba(255,255,255,0.38)', 'rgba(255,255,255,0.18)']} style={styles.successGlow}>
+            <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
+              <Feather name="check" size={36} color="#fff" />
+            </LinearGradient>
+            <Text style={styles.successTitle}>Thanks, your order is in!</Text>
+            <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
+            <Animated.View style={[styles.successPointsBox, pointsStyle]}>
+              <View style={styles.successPointsBadge}>
+                <Feather name="star" size={16} color="#7A4B00" />
+              </View>
+              <View style={styles.successPointsCopy}>
+                <Text style={styles.successPointsLabel}>You just earned</Text>
+                <Text allowFontScaling={false} maxFontSizeMultiplier={1} style={styles.successPointsNumber}>+{earnedPoints}</Text>
+                <Text style={styles.successPointsSuffix}>points from this order</Text>
+              </View>
+            </Animated.View>
+            <View style={[styles.successInfoBox, { backgroundColor: 'rgba(255,248,231,0.92)', borderColor: '#F0A030' }]}>
+              <Feather name="alert-circle" size={16} color="#D97706" />
+              <Text style={styles.successInfoText}>
+                {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
+                  ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
+                  : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
+              </Text>
+            </View>
+            {confirmation.scheduledLabel && (
+              <View style={[styles.slotBox, { backgroundColor: 'rgba(255,255,255,0.92)', borderColor: 'rgba(255,255,255,0.62)' }]}>
+                <Feather name="clock" size={14} color="#0E6FA1" />
+                <Text style={[styles.slotText, { color: '#0E3957' }]}>{confirmation.scheduledLabel}</Text>
+              </View>
+            )}
+            <Text style={[styles.successTotal, { color: 'rgba(255,255,255,0.92)' }]}>
+              {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
+            </Text>
+            <Pressable onPress={() => { router.push('/orders'); }} style={styles.trackBtn}>
+              <Text style={styles.trackBtnText}>Go to My Orders</Text>
+            </Pressable>
+          </LinearGradient>
+        </Animated.View>
+      </LinearGradient>
     );
   }
 
@@ -1186,17 +1194,34 @@ const styles = StyleSheet.create({
   continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
   // Success
-  successWrap:    { flex: 1, alignItems: 'center', paddingHorizontal: 32, gap: 16 },
-  successCard:    { width: '100%', alignItems: 'center', gap: 16 },
+  successWrap:    { flex: 1, alignItems: 'center', paddingHorizontal: 32, gap: 16, overflow: 'visible' },
+  successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2 },
+  successGlow:    {
+    width: '100%',
+    alignItems: 'center',
+    gap: 16,
+    padding: 18,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.34)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#0E4C6B',
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    overflow: 'hidden',
+  },
   successIcon:    { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  successTitle:   { fontSize: 26, fontFamily: 'Inter_700Bold', color: '#1C1C1E', textAlign: 'center' },
-  successId:      { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
+  successTitle:   { fontSize: 28, fontFamily: 'Inter_800ExtraBold', color: '#083B57', textAlign: 'center', letterSpacing: -0.3 },
+  successId:      { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: 'rgba(8,59,87,0.72)', letterSpacing: 0.8 },
   confettiLayer:  { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
-  successPointsBox: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', backgroundColor: '#FFF4D9', borderColor: '#F1C86A', borderWidth: 1.5, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 16 },
+  characterStage: { position: 'absolute', left: -56, right: -56, bottom: -18, height: 420, justifyContent: 'flex-end', alignItems: 'center' },
+  characterFrame: { width: '112%', maxWidth: 560, aspectRatio: 4256.5 / 3401.6 },
+  successPointsBox: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', backgroundColor: '#FFF4D9', borderColor: '#F1C86A', borderWidth: 1.5, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 16 },
   successPointsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFE7A6', alignItems: 'center', justifyContent: 'center' },
   successPointsCopy: { flex: 1, gap: 2 },
   successPointsLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.4, color: '#8A5B00', textTransform: 'uppercase' },
-  successPointsNumber: { fontSize: 42, lineHeight: 44, fontFamily: 'Inter_800ExtraBold', color: '#7A4B00' },
+  successPointsNumber: { fontSize: 50, lineHeight: 52, fontFamily: 'Inter_800ExtraBold', color: '#7A4B00', includeFontPadding: false, textAlignVertical: 'center' },
   successPointsSuffix: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#5B3A00' },
   successInfoBox: { flexDirection: 'row', gap: 10, padding: 16, borderWidth: 1.5, borderRadius: 12, alignSelf: 'stretch', alignItems: 'flex-start' },
   successInfoText:{ flex: 1, color: '#92400E', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 20 },
