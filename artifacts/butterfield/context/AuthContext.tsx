@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, saveToken, clearToken, getToken, type ApiUser } from '@/lib/api';
+import { api, saveToken, clearToken, getToken, type ApiUser, ApiError } from '@/lib/api';
 import { registerPushToken, deregisterPushToken } from '@/lib/pushNotifications';
 import type { UserRole } from '@/types';
 
@@ -46,20 +46,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = await getToken();
         if (token) {
           const cached = await AsyncStorage.getItem(USER_KEY);
-          if (cached) setUser(JSON.parse(cached));
-          const { user: fresh } = await api.auth.me();
-          const u: AuthContextUser = {
-            id: fresh.id, name: fresh.name, email: fresh.email,
-            role: fresh.role as UserRole, phone: fresh.phone,
-          };
-          setUser(u);
-          await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
-          // Re-register push token silently on app reopen
-          registerPushToken(token).catch(() => {});
+          let cachedUser: AuthContextUser | null = null;
+          if (cached) {
+            try {
+              cachedUser = JSON.parse(cached);
+              setUser(cachedUser);
+            } catch {
+              await AsyncStorage.removeItem(USER_KEY);
+            }
+          }
+
+          try {
+            const { user: fresh } = await api.auth.me();
+            const u: AuthContextUser = {
+              id: fresh.id,
+              name: fresh.name,
+              email: fresh.email,
+              role: fresh.role as UserRole,
+              phone: fresh.phone,
+            };
+            setUser(u);
+            await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
+            // Re-register push token silently on app reopen
+            registerPushToken(token).catch(() => {});
+          } catch (e: any) {
+            const status = e instanceof ApiError ? e.status : undefined;
+            if (status === 401 || status === 403) {
+              await clearToken();
+              await AsyncStorage.removeItem(USER_KEY);
+              setUser(null);
+            } else if (!cachedUser) {
+              // Keep the token in place for a later retry, but don't invent a session.
+              setUser(null);
+            }
+          }
         }
       } catch {
-        await clearToken();
-        await AsyncStorage.removeItem(USER_KEY);
+        // Let the app start even if session restore itself had a storage hiccup.
+        // We only clear a session when the backend explicitly rejects it.
         setUser(null);
       } finally {
         setIsLoading(false);

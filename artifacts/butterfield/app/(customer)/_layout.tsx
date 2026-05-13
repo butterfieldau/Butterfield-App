@@ -1,9 +1,5 @@
-import { BlurView } from 'expo-blur';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import * as Haptics from 'expo-haptics';
 import { Tabs, router, usePathname } from 'expo-router';
-import { Badge, Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
-import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -11,7 +7,6 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useColors } from '@/hooks/useColors';
 import { useCart } from '@/context/CartContext';
 
-const BLUE = '#40C0F2';
 const TAB_ROUTES = ['/', '/menu', '/loyalty', '/cart', '/profile'] as const;
 
 function getActiveTabIndex(pathname: string) {
@@ -22,66 +17,6 @@ function getActiveTabIndex(pathname: string) {
   if (p.includes('/profile')) return 4;
   if (p === '/' || p.endsWith('/index')) return 0;
   return -1;
-}
-
-/** Blue pill badge rendered inside the icon — works on all platforms */
-function BlueBadge({ count, iconSize }: { count: number; iconSize: number }) {
-  if (count <= 0) return null;
-  const label = count > 99 ? '99+' : String(count);
-  return (
-    <View
-      style={{
-        position: 'absolute',
-        top: -(iconSize * 0.3),
-        right: -(iconSize * 0.45),
-        minWidth: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: BLUE,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 3,
-      }}
-    >
-      <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700', lineHeight: 12 }}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function NativeCustomerTabs() {
-  const { totalItems } = useCart();
-
-  return (
-    <NativeTabs badgeBackgroundColor={BLUE}>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: 'house', selected: 'house.fill' }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="menu">
-        <Icon sf={{ default: 'menucard', selected: 'menucard.fill' }} />
-        <Label>Menu</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="loyalty">
-        <Icon sf={{ default: 'star', selected: 'star.fill' }} />
-        <Label>Rewards</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="cart">
-        <Icon sf={{ default: 'bag', selected: 'bag.fill' }} />
-        <Label>Order</Label>
-        {totalItems > 0 && (
-          <Badge>
-            {String(totalItems)}
-          </Badge>
-        )}
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <Label>Account</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
 }
 
 function ClassicCustomerTabs() {
@@ -108,7 +43,7 @@ function ClassicCustomerTabs() {
         },
         tabBarBackground: () =>
           isIOS ? (
-            <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background, opacity: isDark ? 0.96 : 0.98 }]} />
           ) : isWeb ? (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
           ) : null,
@@ -119,7 +54,7 @@ function ClassicCustomerTabs() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="house" tintColor={color} size={24} /> : <Feather name="home" size={22} color={color} />,
+            <Feather name="home" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -127,7 +62,7 @@ function ClassicCustomerTabs() {
         options={{
           title: 'Menu',
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="list.bullet" tintColor={color} size={24} /> : <Feather name="list" size={22} color={color} />,
+            <Feather name="list" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -135,7 +70,7 @@ function ClassicCustomerTabs() {
         options={{
           title: 'Rewards',
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="star" tintColor={color} size={24} /> : <Feather name="star" size={22} color={color} />,
+            <Feather name="star" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -144,10 +79,27 @@ function ClassicCustomerTabs() {
           title: 'Order',
           tabBarIcon: ({ color }) => (
             <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
-              {isIOS
-                ? <SymbolView name="bag" tintColor={color} size={24} />
-                : <Feather name="shopping-bag" size={22} color={color} />}
-              <BlueBadge count={totalItems} iconSize={24} />
+              <Feather name="shopping-bag" size={22} color={color} />
+              {totalItems > 0 && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -10,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: '#40C0F2',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingHorizontal: 3,
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700', lineHeight: 12 }}>
+                    {String(totalItems > 99 ? '99+' : totalItems)}
+                  </Text>
+                </View>
+              )}
             </View>
           ),
         }}
@@ -157,7 +109,7 @@ function ClassicCustomerTabs() {
         options={{
           title: 'Account',
           tabBarIcon: ({ color }) =>
-            isIOS ? <SymbolView name="person" tintColor={color} size={24} /> : <Feather name="user" size={22} color={color} />,
+            <Feather name="user" size={22} color={color} />,
         }}
       />
       <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
@@ -189,7 +141,7 @@ export default function CustomerTabLayout() {
       }
     }), [activeIndex]);
 
-  const content = isLiquidGlassAvailable() ? <NativeCustomerTabs /> : <ClassicCustomerTabs />;
+  const content = <ClassicCustomerTabs />;
 
   if (!canSwipe) return content;
 

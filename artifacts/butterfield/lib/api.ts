@@ -6,6 +6,18 @@ const BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
 
+export class ApiError extends Error {
+  status: number;
+  body: any;
+
+  constructor(message: string, status: number, body: any = null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
 }
@@ -26,7 +38,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `HTTP ${res.status}`);
+    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body);
   }
   return res.json();
 }
@@ -233,7 +245,8 @@ export const api = {
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
-    printerBytes:        () => request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify({}) }),
+    printerBytes:        (job?: any) =>
+      request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
     updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),

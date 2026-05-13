@@ -166,16 +166,20 @@ export default function StaffDashboard() {
         coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       } catch { /* use undefined — server will decide */ }
     } else {
+      if (storeAssignments.length > 0) {
+        Alert.alert(
+          'Location Required',
+          'Staff clock-in is tied to your assigned store, so location access is required here. Please enable Location Services and try again.',
+          [{ text: 'OK' }],
+        );
+        return;
+      }
       Alert.alert(
         'Location Required',
-        'Location access helps verify you\'re at the right store. Please enable it in Settings.',
+        'Location access helps verify you\'re at the right store. You can continue for now because no store has been assigned to this account yet.',
         [
           { text: 'Continue Anyway', onPress: async () => {
-            if (storeAssignments.length > 1) {
-              setPendingCoords(undefined); setStorePickerVisible(true);
-            } else {
-              await doClockIn(undefined, storeAssignments[0]?.storeId);
-            }
+            await doClockIn(undefined);
           }},
           { text: 'Cancel', style: 'cancel' },
         ],
@@ -183,12 +187,23 @@ export default function StaffDashboard() {
       return;
     }
 
+    if (!coords && storeAssignments.length > 0) {
+      Alert.alert(
+        'Location Needed',
+        'We could not get a valid location, and this account is tied to an assigned store. Please try again with Location Services enabled.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+
     // If staff assigned to multiple stores, let them pick
-    if (storeAssignments.length > 1) {
+    if (storeAssignments.length > 1 && coords) {
       setPendingCoords(coords);
       setStorePickerVisible(true);
-    } else {
+    } else if (storeAssignments.length > 0) {
       await doClockIn(coords, storeAssignments[0]?.storeId);
+    } else {
+      await doClockIn(coords);
     }
   };
 

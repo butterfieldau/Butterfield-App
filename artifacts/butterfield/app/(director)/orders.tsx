@@ -8,6 +8,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -107,9 +108,11 @@ function getPastDays(n: number) {
 }
 
 // ── Order Detail Modal ────────────────────────────────────────────────────────
-function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
+function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing }: {
   order: any; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string) => Promise<void>;
+  onPrintReceipt: () => Promise<void>;
+  printing: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
@@ -188,6 +191,21 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
               </Pressable>
             )}
           </View>
+
+          <Pressable
+            onPress={onPrintReceipt}
+            disabled={printing}
+            style={[styles.printBtn, { backgroundColor: printing ? MUTED : TEXT }]}
+          >
+            {printing ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Feather name="printer" size={13} color="#fff" />
+                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Print receipt</Text>
+              </>
+            )}
+          </Pressable>
 
           {/* Customer / Account */}
           <View style={styles.section}>
@@ -376,7 +394,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
 }
 
 // ── Order Card (compact list item) ───────────────────────────────────────────
-function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
+function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
   const isWholesale = order.orderSource === 'wholesale';
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
@@ -449,16 +467,26 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
         <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
           {itemSummary || 'No items'}
         </Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
           <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
             {fmtTime(order.createdAt)}
           </Text>
-          {next.length > 0 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Feather name="chevron-right" size={12} color={BLUE} />
-              <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>Tap to manage</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <Pressable
+              onPress={onPrint}
+              disabled={printing}
+              style={[styles.printMiniBtn, { backgroundColor: printing ? MUTED : TEXT }]}
+            >
+              <Feather name="printer" size={11} color="#fff" />
+              <Text style={styles.printMiniBtnTxt}>{printing ? '...' : 'Print'}</Text>
+            </Pressable>
+            {next.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Feather name="chevron-right" size={12} color={BLUE} />
+                <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>Tap to manage</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -486,14 +514,39 @@ export default function DirectorOrdersScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['director-orders'],
     queryFn: () => api.director.orders(),
     refetchInterval: 20000,
   });
+  const { data: settingsData } = useQuery({
+    queryKey: ['director-settings'],
+    queryFn: () => api.director.settings(),
+    retry: 1,
+  });
 
   const allOrders = data?.data ?? [];
+  const printerIp = (settingsData?.data?.printer_ip ?? '').trim();
+  const printerPort = parseInt(settingsData?.data?.printer_port ?? '9100', 10);
+
+  const printOrder = async (order: any) => {
+    if (!printerIp) {
+      Alert.alert('Printer Not Set', 'Set the printer IP in Director Settings first.');
+      return;
+    }
+    setPrintingOrderId(order.id);
+    try {
+      await sendReceiptPrint(orderToPrintJob(order), printerIp, printerPort);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Printed', 'Receipt sent to the printer.');
+    } catch (e: any) {
+      Alert.alert('Print Failed', e.message ?? 'Could not send the receipt to the printer.');
+    } finally {
+      setPrintingOrderId(null);
+    }
+  };
 
   // Apply status filter
   const statusFiltered = useMemo(() => {
@@ -530,6 +583,13 @@ export default function DirectorOrdersScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Update selectedOrder state locally so modal reflects new status
       setSelectedOrder((prev: any) => prev ? { ...prev, status } : null);
+
+      if (status === 'ready_for_pickup') {
+        const order = allOrders.find((o: any) => o.id === orderId) ?? selectedOrder;
+        if (order) {
+          await printOrder({ ...order, status });
+        }
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message);
     }
@@ -632,7 +692,13 @@ export default function DirectorOrdersScreen() {
                 </View>
               ) : (
                 todayOrders.map((o: any) => (
-                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                    onPrint={() => printOrder(o)}
+                    printing={printingOrderId === o.id}
+                  />
                 ))
               )}
             </>
@@ -647,7 +713,13 @@ export default function DirectorOrdersScreen() {
                 </View>
               ) : (
                 todayOrders.map((o: any) => (
-                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                    onPrint={() => printOrder(o)}
+                    printing={printingOrderId === o.id}
+                  />
                 ))
               )}
               <View style={{ height: 8 }} />
@@ -658,7 +730,13 @@ export default function DirectorOrdersScreen() {
                 </View>
               ) : (
                 thisWeekOrders.map((o: any) => (
-                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                    onPrint={() => printOrder(o)}
+                    printing={printingOrderId === o.id}
+                  />
                 ))
               )}
             </>
@@ -674,7 +752,13 @@ export default function DirectorOrdersScreen() {
                 </View>
               ) : (
                 dateOrders.map((o: any) => (
-                  <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                    onPrint={() => printOrder(o)}
+                    printing={printingOrderId === o.id}
+                  />
                 ))
               )}
             </>
@@ -688,6 +772,8 @@ export default function DirectorOrdersScreen() {
         visible={!!selectedOrder}
         onClose={() => setSelectedOrder(null)}
         onStatusChange={handleStatusChange}
+        onPrintReceipt={() => selectedOrder ? printOrder(selectedOrder) : Promise.resolve()}
+        printing={printingOrderId === selectedOrder?.id}
       />
     </View>
   );
@@ -703,6 +789,8 @@ const styles = StyleSheet.create({
                     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   orderCardTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   orderId:        { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT },
+  printMiniBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  printMiniBtnTxt:{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 10 },
   sectionHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 4 },
   sectionHeaderText: { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT, flex: 1 },
   emptySection:   { alignItems: 'center', paddingVertical: 28, gap: 8 },
@@ -716,6 +804,7 @@ const styles = StyleSheet.create({
   statusPill:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' },
   statusPillText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   updateStatusBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
+  printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, marginHorizontal: 16, marginTop: 2 },
   detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   detailText:     { color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
   itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },

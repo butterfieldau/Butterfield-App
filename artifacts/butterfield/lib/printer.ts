@@ -1,5 +1,43 @@
 import { api } from './api';
 
+export interface PrintJob {
+  orderId: string;
+  customerName: string;
+  type: 'pickup' | 'delivery';
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPriceCents: number;
+    variantName?: string;
+  }>;
+  totalCents: number;
+  discountCents?: number;
+  loyaltyPointsEarned?: number;
+  notes?: string;
+  scheduledFor?: Date | null;
+}
+
+export function orderToPrintJob(order: any): PrintJob {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  return {
+    orderId: order?.id ?? 'unknown-order',
+    customerName: order?.customerName ?? order?.contactName ?? order?.email ?? 'Customer',
+    type: (order?.type === 'delivery' || order?.deliveryType === 'delivery') ? 'delivery' : 'pickup',
+    items: items.map((item: any) => {
+      const quantity = Number(item.qty ?? item.quantity ?? 1) || 1;
+      const unitPriceCents = Number(item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0) || 0;
+      const name = item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item';
+      const variantName = item.variantNameSnapshot ?? item.variantName ?? item.selectedVariantName ?? undefined;
+      return { name, quantity, unitPriceCents, variantName };
+    }),
+    totalCents: Number(order?.totalCents ?? 0) || 0,
+    discountCents: Number(order?.discountCents ?? 0) || 0,
+    loyaltyPointsEarned: Number(order?.loyaltyPointsEarned ?? 0) || 0,
+    notes: order?.notes ?? '',
+    scheduledFor: order?.scheduledFor ? new Date(order.scheduledFor) : null,
+  };
+}
+
 /**
  * Sends a test receipt directly from the device to the printer via TCP.
  *
@@ -14,11 +52,25 @@ import { api } from './api';
  * error is surfaced only when the user actually taps Send Test Print.
  */
 export async function sendTestPrint(printerIp: string, printerPort = 9100): Promise<void> {
-  const port = isNaN(printerPort) || printerPort <= 0 ? 9100 : printerPort;
+  return sendPrinterBytes(printerIp, printerPort, await api.director.printerBytes());
+}
 
-  const result = await api.director.printerBytes();
-  const base64 = result.data.bytes;
-  const bytes = base64ToUint8Array(base64);
+export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await api.director.printerBytes(job));
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function sendPrinterBytes(printerIp: string, printerPort: number, result: { data: { bytes: string } }): Promise<void> {
+  const port = isNaN(printerPort) || printerPort <= 0 ? 9100 : printerPort;
+  const bytes = base64ToUint8Array(result.data.bytes);
 
   // Dynamic import — deferred until print time, never evaluated at screen load.
   // In Expo Go this will throw (caught below); in EAS / production builds it works.
@@ -60,13 +112,4 @@ export async function sendTestPrint(printerIp: string, printerPort = 9100): Prom
       done(new Error(`Printer timeout: could not reach ${printerIp}:${port}`)),
     );
   });
-}
-
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }
