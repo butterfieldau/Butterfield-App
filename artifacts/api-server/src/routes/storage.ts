@@ -21,7 +21,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 
 function storageConfigError(error: unknown): string | null {
   const message = error instanceof Error ? error.message : "";
-  if (message.includes("PRIVATE_OBJECT_DIR") || message.includes("PUBLIC_OBJECT_SEARCH_PATHS")) {
+  if (
+    message.includes("PRIVATE_OBJECT_DIR") ||
+    message.includes("PUBLIC_OBJECT_SEARCH_PATHS") ||
+    message.includes("OBJECT_STORAGE_PRIVATE_DIR") ||
+    message.includes("OBJECT_STORAGE_PUBLIC_SEARCH_PATHS")
+  ) {
     return message;
   }
   return null;

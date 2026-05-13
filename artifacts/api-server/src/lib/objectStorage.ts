@@ -1,4 +1,4 @@
-import { Storage, File } from "@google-cloud/storage";
+import { Storage, type File } from "@google-cloud/storage";
 import { Readable } from "stream";
 import { randomUUID } from "crypto";
 import {
@@ -9,25 +9,41 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
-const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+type StorageCtorOptions = ConstructorParameters<typeof Storage>[0];
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+function parseJsonEnv(name: string): Record<string, unknown> | null {
+  const raw = process.env[name]?.trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(`Invalid JSON in ${name}: ${(err as Error).message}`);
+  }
+}
+
+function getStorageOptions(): StorageCtorOptions {
+  const credentials =
+    parseJsonEnv("GOOGLE_APPLICATION_CREDENTIALS_JSON") ??
+    parseJsonEnv("GCP_SERVICE_ACCOUNT_JSON") ??
+    parseJsonEnv("OBJECT_STORAGE_SERVICE_ACCOUNT_JSON");
+
+  const projectId =
+    (credentials?.project_id as string | undefined)?.trim() ||
+    process.env.GCP_PROJECT_ID?.trim() ||
+    process.env.GOOGLE_CLOUD_PROJECT?.trim() ||
+    process.env.GOOGLE_PROJECT_ID?.trim();
+
+  const options: any = {};
+  if (credentials) {
+    options.credentials = credentials;
+  }
+  if (projectId) {
+    options.projectId = projectId;
+  }
+  return options as StorageCtorOptions;
+}
+
+export const objectStorageClient = new Storage(getStorageOptions());
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -41,7 +57,10 @@ export class ObjectStorageService {
   constructor() {}
 
   getPublicObjectSearchPaths(): Array<string> {
-    const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
+    const pathsStr =
+      process.env.OBJECT_STORAGE_PUBLIC_SEARCH_PATHS ||
+      process.env.PUBLIC_OBJECT_SEARCH_PATHS ||
+      "";
     const paths = Array.from(
       new Set(
         pathsStr
@@ -52,19 +71,20 @@ export class ObjectStorageService {
     );
     if (paths.length === 0) {
       throw new Error(
-        "PUBLIC_OBJECT_SEARCH_PATHS not set. Create a bucket in 'Object Storage' " +
-          "tool and set PUBLIC_OBJECT_SEARCH_PATHS env var (comma-separated paths)."
+        "OBJECT_STORAGE_PUBLIC_SEARCH_PATHS is not set. Configure one or more public bucket prefixes as a comma-separated list."
       );
     }
     return paths;
   }
 
   getPrivateObjectDir(): string {
-    const dir = process.env.PRIVATE_OBJECT_DIR || "";
+    const dir =
+      process.env.OBJECT_STORAGE_PRIVATE_DIR ||
+      process.env.PRIVATE_OBJECT_DIR ||
+      "";
     if (!dir) {
       throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "OBJECT_STORAGE_PRIVATE_DIR is not set. Configure a private bucket prefix for uploads."
       );
     }
     return dir;
@@ -73,7 +93,6 @@ export class ObjectStorageService {
   async searchPublicObject(filePath: string): Promise<File | null> {
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
-
       const { bucketName, objectName } = parseObjectPath(fullPath);
       const bucket = objectStorageClient.bucket(bucketName);
       const file = bucket.file(objectName);
@@ -114,26 +133,12 @@ export class ObjectStorageService {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const gcsFile = bucket.file(objectName);
-
-    await new Promise<void>((resolve, reject) => {
-      const writeStream = gcsFile.createWriteStream({ contentType, resumable: false });
-      writeStream.on("finish", resolve);
-      writeStream.on("error", reject);
-      writeStream.end(buffer);
-    });
+    const gcsFile = await this.writeObject(fullPath, buffer, contentType);
 
     await setObjectAclPolicy(gcsFile, aclPolicy);
 
     const objectPath = `/objects/uploads/${objectId}`;
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "";
-    const servingUrl = domain
-      ? `https://${domain}/api/storage${objectPath}`
-      : `/api/storage${objectPath}`;
-
-    return { objectPath, servingUrl };
+    return { objectPath, servingUrl: this.getServingUrl(objectPath) };
   }
 
   async uploadToPath(
@@ -144,26 +149,12 @@ export class ObjectStorageService {
   ): Promise<{ objectPath: string; servingUrl: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     const fullPath = `${privateObjectDir}/${subPath}`;
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const gcsFile = bucket.file(objectName);
-
-    await new Promise<void>((resolve, reject) => {
-      const writeStream = gcsFile.createWriteStream({ contentType, resumable: false });
-      writeStream.on("finish", resolve);
-      writeStream.on("error", reject);
-      writeStream.end(buffer);
-    });
+    const gcsFile = await this.writeObject(fullPath, buffer, contentType);
 
     await setObjectAclPolicy(gcsFile, aclPolicy);
 
     const objectPath = `/objects/${subPath}`;
-    const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "";
-    const servingUrl = domain
-      ? `https://${domain}/api/storage${objectPath}`
-      : `/api/storage${objectPath}`;
-
-    return { objectPath, servingUrl };
+    return { objectPath, servingUrl: this.getServingUrl(objectPath) };
   }
 
   async deleteObjectByPath(objectPath: string): Promise<void> {
@@ -182,18 +173,9 @@ export class ObjectStorageService {
 
   async getObjectEntityUploadURL(): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-
     const { bucketName, objectName } = parseObjectPath(fullPath);
-
     return signObjectURL({
       bucketName,
       objectName,
@@ -278,6 +260,48 @@ export class ObjectStorageService {
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
   }
+
+  private async writeObject(
+    fullPath: string,
+    buffer: Buffer,
+    contentType: string
+  ): Promise<File> {
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const gcsFile = bucket.file(objectName);
+
+    await new Promise<void>((resolve, reject) => {
+      const writeStream = gcsFile.createWriteStream({
+        contentType,
+        resumable: false,
+      });
+      writeStream.on("finish", resolve);
+      writeStream.on("error", reject);
+      writeStream.end(buffer);
+    });
+
+    return gcsFile;
+  }
+
+  private getServingUrl(objectPath: string): string {
+    const apiBaseUrl =
+      process.env.OBJECT_STORAGE_API_BASE_URL?.trim() ||
+      process.env.EXPO_PUBLIC_API_BASE_URL?.trim() ||
+      process.env.EXPO_PUBLIC_DOMAIN?.trim() ||
+      "";
+    const normalizedBaseUrl = apiBaseUrl
+      ? apiBaseUrl.startsWith("http")
+        ? apiBaseUrl.replace(/\/+$/, "")
+        : `https://${apiBaseUrl.replace(/\/+$/, "")}`
+      : "";
+    const originUrl = normalizedBaseUrl
+      ? normalizedBaseUrl.replace(/\/api$/, "")
+      : "";
+
+    return originUrl
+      ? `${originUrl}/api/storage${objectPath}`
+      : `/api/storage${objectPath}`;
+  }
 }
 
 function parseObjectPath(path: string): {
@@ -312,30 +336,19 @@ async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
-  }
-
-  const { signed_url: signedURL } = await response.json() as { signed_url: string };
-  return signedURL;
+  const bucket = objectStorageClient.bucket(bucketName);
+  const file = bucket.file(objectName);
+  const [signedUrl] = await file.getSignedUrl({
+    version: "v4",
+    action:
+      method === "PUT"
+        ? "write"
+        : method === "GET"
+          ? "read"
+          : method === "DELETE"
+            ? "delete"
+            : "read",
+    expires: Date.now() + ttlSec * 1000,
+  });
+  return signedUrl;
 }

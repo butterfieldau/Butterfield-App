@@ -2,9 +2,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TOKEN_KEY = '@butterfield_token';
 
-const BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : '/api';
+function getApiBase(): string {
+  const explicitBase = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
+  if (explicitBase) {
+    return explicitBase.replace(/\/+$/, "");
+  }
+
+  const domain = process.env.EXPO_PUBLIC_DOMAIN?.trim();
+  if (domain) {
+    const host = domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    return `https://${host}/api`;
+  }
+
+  return '/api';
+}
+
+const BASE = getApiBase();
 
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
