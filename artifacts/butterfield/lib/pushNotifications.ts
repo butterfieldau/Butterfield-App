@@ -12,22 +12,9 @@ Notifications.setNotificationHandler({
   }),
 });
 
-function getApiBase(): string {
-  const explicitBase = process.env.EXPO_PUBLIC_API_BASE_URL?.trim();
-  if (explicitBase) {
-    return explicitBase.replace(/\/+$/, "");
-  }
-
-  const domain = process.env.EXPO_PUBLIC_DOMAIN?.trim();
-  if (domain) {
-    const host = domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    return `https://${host}/api`;
-  }
-
-  return '/api';
-}
-
-const API_BASE = getApiBase();
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : '/api';
 
 /**
  * Request permission and register the Expo push token with the backend.
