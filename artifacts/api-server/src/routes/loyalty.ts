@@ -212,6 +212,7 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
   const stampsToAdd = Math.max(1, Math.floor(Number(quantity ?? 1) || 1));
   const result = await applyCoffeeStamps({
     userId: profile.userId,
+    staffId: req.user!.id,
     stampsToAdd,
     source: 'staff_scan',
     description: stampsToAdd > 1
@@ -220,6 +221,18 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
   });
 
   return res.json({ data: result });
+});
+
+// ── GET /loyalty/ensure-qr — self-healing: ensures the current customer has a QR token
+router.get('/ensure-qr', requireAuth, async (req, res) => {
+  await ensureLoyaltySchemaReady();
+  const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
+  return res.json({
+    data: {
+      loyaltyQrToken: profile.loyaltyQrToken,
+      qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
+    },
+  });
 });
 
 router.post('/rewards', requireRole('director', 'manager'), async (req, res) => {

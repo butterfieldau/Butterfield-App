@@ -14,6 +14,7 @@ type LoyaltyProfileRow = typeof customerProfilesTable.$inferSelect;
 
 type LoyaltyActivityInput = {
   customerId: string;
+  staffId?: string | null;
   loyaltyQrToken?: string | null;
   orderId?: string | null;
   activityType: string;
@@ -23,6 +24,7 @@ type LoyaltyActivityInput = {
   description: string;
 };
 
+// Singleton — reset on failure so the next request retries.
 let schemaReadyPromise: Promise<void> | null = null;
 
 function generateLoyaltyToken(): string {
@@ -65,53 +67,59 @@ async function execute(sqlStatements: string[]) {
 export async function ensureLoyaltySchemaReady() {
   if (!schemaReadyPromise) {
     schemaReadyPromise = (async () => {
-      await execute([
-        `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS loyalty_qr_token text`,
-        `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS coffee_stamp_count integer NOT NULL DEFAULT 0`,
-        `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS free_coffee_rewards integer NOT NULL DEFAULT 0`,
-        `CREATE UNIQUE INDEX IF NOT EXISTS customer_profiles_loyalty_qr_token_unique_idx ON customer_profiles (loyalty_qr_token) WHERE loyalty_qr_token IS NOT NULL`,
-        `CREATE TABLE IF NOT EXISTS loyalty_activity_log (
-          id text PRIMARY KEY,
-          customer_id text NOT NULL,
-          loyalty_qr_token text,
-          order_id text,
-          activity_type text NOT NULL,
-          points_delta integer NOT NULL DEFAULT 0,
-          coffee_stamps_delta integer NOT NULL DEFAULT 0,
-          free_coffee_rewards_delta integer NOT NULL DEFAULT 0,
-          description text NOT NULL,
-          created_at timestamp NOT NULL DEFAULT now()
-        )`,
-      ]);
+      try {
+        // ── Add ALL columns that may be missing in production ──────────────────
+        // This is idempotent — safe to run on every startup.
+        await execute([
+          // Core loyalty columns
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS loyalty_qr_token text`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS coffee_stamp_count integer NOT NULL DEFAULT 0`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS free_coffee_rewards integer NOT NULL DEFAULT 0`,
+          // Extended profile columns that may be absent in older production DBs
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS total_visits integer NOT NULL DEFAULT 0`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS total_spent_cents integer NOT NULL DEFAULT 0`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS delivery_address text`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS email_marketing_opt_in boolean NOT NULL DEFAULT false`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS pay_at_pickup_enabled boolean NOT NULL DEFAULT false`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS referred_by text`,
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS birthday text`,
+          // Unique index on loyalty token
+          `CREATE UNIQUE INDEX IF NOT EXISTS customer_profiles_loyalty_qr_token_unique_idx ON customer_profiles (loyalty_qr_token) WHERE loyalty_qr_token IS NOT NULL`,
+          // Activity log table
+          `CREATE TABLE IF NOT EXISTS loyalty_activity_log (
+            id text PRIMARY KEY,
+            customer_id text NOT NULL,
+            staff_id text,
+            loyalty_qr_token text,
+            order_id text,
+            activity_type text NOT NULL,
+            points_delta integer NOT NULL DEFAULT 0,
+            coffee_stamps_delta integer NOT NULL DEFAULT 0,
+            free_coffee_rewards_delta integer NOT NULL DEFAULT 0,
+            description text NOT NULL,
+            created_at timestamp NOT NULL DEFAULT now()
+          )`,
+          // Add staff_id column to existing activity log tables (idempotent)
+          `ALTER TABLE loyalty_activity_log ADD COLUMN IF NOT EXISTS staff_id text`,
+        ]);
 
-      const profiles = await db.select({
-        userId: customerProfilesTable.userId,
-        stampCount: customerProfilesTable.stampCount,
-        freeCoffeesEarned: customerProfilesTable.freeCoffeesEarned,
-        coffeeStampCount: customerProfilesTable.coffeeStampCount,
-        freeCoffeeRewards: customerProfilesTable.freeCoffeeRewards,
-        loyaltyQrToken: customerProfilesTable.loyaltyQrToken,
-      }).from(customerProfilesTable);
+        // Backfill: generate QR tokens for any profile that is missing one.
+        const profiles = await db.select({
+          userId: customerProfilesTable.userId,
+          loyaltyQrToken: customerProfilesTable.loyaltyQrToken,
+        }).from(customerProfilesTable);
 
-      for (const profile of profiles) {
-        const updates: Record<string, any> = {};
-        const stampCount = Number(profile.stampCount ?? 0);
-        const freeCoffeeRewards = Number(profile.freeCoffeesEarned ?? 0);
-        if (!profile.loyaltyQrToken) {
-          updates.loyaltyQrToken = generateLoyaltyToken();
+        for (const profile of profiles) {
+          if (!profile.loyaltyQrToken) {
+            await db.update(customerProfilesTable)
+              .set({ loyaltyQrToken: generateLoyaltyToken(), updatedAt: new Date() })
+              .where(eq(customerProfilesTable.userId, profile.userId));
+          }
         }
-        if (Number(profile.coffeeStampCount ?? 0) !== stampCount) {
-          updates.coffeeStampCount = stampCount;
-        }
-        if (Number(profile.freeCoffeeRewards ?? 0) !== freeCoffeeRewards) {
-          updates.freeCoffeeRewards = freeCoffeeRewards;
-        }
-        if (Object.keys(updates).length > 0) {
-          updates.updatedAt = new Date();
-          await db.update(customerProfilesTable)
-            .set(updates)
-            .where(eq(customerProfilesTable.userId, profile.userId));
-        }
+      } catch (err) {
+        // Reset so the next request retries rather than caching a permanent failure.
+        schemaReadyPromise = null;
+        throw err;
       }
     })();
   }
@@ -141,14 +149,16 @@ export async function getOrCreateCustomerLoyaltyProfile(userId: string, fallback
     [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, userId));
   }
 
+  // Self-heal: ensure QR token is always present.
   if (!profile.loyaltyQrToken) {
     const token = generateLoyaltyToken();
     await db.update(customerProfilesTable)
       .set({ loyaltyQrToken: token, updatedAt: new Date() })
       .where(eq(customerProfilesTable.userId, userId));
-    profile.loyaltyQrToken = token;
+    profile = { ...profile, loyaltyQrToken: token } as LoyaltyProfileRow;
   }
 
+  // Sync legacy stamp/reward fields so both column pairs are always identical.
   const updates: Record<string, any> = {};
   if ((profile.coffeeStampCount ?? 0) !== (profile.stampCount ?? 0)) {
     updates.coffeeStampCount = profile.stampCount ?? 0;
@@ -172,6 +182,7 @@ export async function logLoyaltyActivity(input: LoyaltyActivityInput) {
   await db.insert(loyaltyActivityLogTable).values({
     id: randomUUID(),
     customerId: input.customerId,
+    staffId: input.staffId ?? null,
     loyaltyQrToken: input.loyaltyQrToken ?? null,
     orderId: input.orderId ?? null,
     activityType: input.activityType,
@@ -186,6 +197,7 @@ export async function applyCoffeeStamps(params: {
   userId: string;
   stampsToAdd: number;
   source: 'in_app_order' | 'staff_scan';
+  staffId?: string | null;
   orderId?: string | null;
   description: string;
 }) {
@@ -220,6 +232,7 @@ export async function applyCoffeeStamps(params: {
 
   await logLoyaltyActivity({
     customerId: params.userId,
+    staffId: params.staffId ?? null,
     loyaltyQrToken: profile.loyaltyQrToken,
     orderId: params.orderId ?? null,
     activityType: params.source,

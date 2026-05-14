@@ -100,6 +100,7 @@ export const api = {
   },
   loyalty: {
     profile: () => request<{ data: LoyaltyProfile }>('/loyalty/profile'),
+    ensureQr: () => request<{ data: { loyaltyQrToken: string; qrPayload: string } }>('/loyalty/ensure-qr'),
     transactions: () => request<{ data: LoyaltyTransaction[] }>('/loyalty/transactions'),
     rewards: () => request<{ data: LoyaltyReward[] }>('/loyalty/rewards'),
     lookupCustomer: (payload: string) =>

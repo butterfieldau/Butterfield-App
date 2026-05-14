@@ -267,9 +267,11 @@ export default function CustomerHome() {
   const banner         = bannerData?.data ?? null;
   const featuredStore  = (storesData?.data ?? [])[0] ?? null;
   const topSellers     = topSellersData?.data ?? [];
-  const qrToken        = loyaltyData?.data?.loyaltyQrToken ?? null;
+  const serverQrToken  = loyaltyData?.data?.loyaltyQrToken ?? null;
+  const [healedQrToken, setHealedQrToken] = React.useState<string | null>(null);
+  const effectiveQrToken = serverQrToken ?? healedQrToken;
   const qrValue        = loyaltyData?.data?.qrPayload
-    ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null)
+    ?? (effectiveQrToken ? `BUTTERFIELD:LOYALTY:${effectiveQrToken}` : null)
     ?? (loyaltyData?.data?.userId && loyaltyData?.data?.referralCode
       ? `BUTTERFIELD:${loyaltyData.data.userId}:${loyaltyData.data.referralCode}`
       : null);
@@ -404,11 +406,18 @@ export default function CustomerHome() {
     router.push(route as any);
   }, [banner]);
 
+  // Self-heal: if profile loaded but has no QR token, silently request one.
   React.useEffect(() => {
-    if (showQR && !qrValue && !loyaltyRefreshing) {
-      refetchLoyalty();
-    }
-  }, [loyaltyRefreshing, qrValue, refetchLoyalty, showQR]);
+    const loyaltyProfile = loyaltyData?.data;
+    if (!loyaltyProfile || qrValue) return;
+    api.loyalty.ensureQr()
+      .then((res) => {
+        if (res.data?.loyaltyQrToken) {
+          setHealedQrToken(res.data.loyaltyQrToken);
+        }
+      })
+      .catch(() => {});
+  }, [loyaltyData?.data?.userId, qrValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

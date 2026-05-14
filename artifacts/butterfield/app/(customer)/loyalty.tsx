@@ -105,6 +105,8 @@ export default function LoyaltyScreen() {
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
+  // Fallback QR token fetched via ensure-qr if the main profile had none.
+  const [healedQrToken, setHealedQrToken] = useState<string | null>(null);
 
   const { data: profileData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['loyalty-profile'],
@@ -134,16 +136,24 @@ export default function LoyaltyScreen() {
   const spentToNext = nextTier ? nextTier.spendThreshold - totalSpentCents : 0;
   const progress    = nextTier ? Math.min(totalSpentCents / nextTier.spendThreshold, 1) : 1;
 
-  const qrToken = profile?.loyaltyQrToken ?? null;
+  const serverQrToken = profile?.loyaltyQrToken ?? null;
+  const effectiveQrToken = serverQrToken ?? healedQrToken;
   const qrValue = profile?.qrPayload
-    ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null)
+    ?? (effectiveQrToken ? `BUTTERFIELD:LOYALTY:${effectiveQrToken}` : null)
     ?? (profile?.userId && profile?.referralCode ? `BUTTERFIELD:${profile.userId}:${profile.referralCode}` : null);
 
+  // Self-heal: if the profile loaded but has no QR token, request one silently.
   React.useEffect(() => {
-    if (showQR && !qrValue && !isRefetching) {
-      refetch();
-    }
-  }, [isRefetching, qrValue, refetch, showQR]);
+    if (!profile || qrValue) return;
+    api.loyalty.ensureQr()
+      .then((res) => {
+        if (res.data?.loyaltyQrToken) {
+          setHealedQrToken(res.data.loyaltyQrToken);
+          qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+        }
+      })
+      .catch(() => {});
+  }, [profile?.userId, qrValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
@@ -188,7 +198,7 @@ export default function LoyaltyScreen() {
         qrValue={qrValue}
         customerName={profile?.customerName ?? 'Butterfield Member'}
         helperText="Show this at the counter to collect coffee stamps and rewards."
-        statusText={qrToken ? 'Your permanent loyalty QR is ready to scan.' : 'We are refreshing your loyalty card details.'}
+        statusText={effectiveQrToken ? 'Your permanent loyalty QR is ready to scan.' : 'We are refreshing your loyalty card details.'}
         isLoading={isRefetching && !qrValue}
         onRetry={() => { void refetch(); }}
       />

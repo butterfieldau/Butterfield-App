@@ -39,6 +39,7 @@ export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {
 export const loyaltyActivityLogTable = pgTable("loyalty_activity_log", {
   id: text("id").primaryKey(),
   customerId: text("customer_id").notNull(),
+  staffId: text("staff_id"),
   loyaltyQrToken: text("loyalty_qr_token"),
   orderId: text("order_id"),
   activityType: text("activity_type").notNull(),
