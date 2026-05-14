@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, loyaltyTransactionsTable, storeSettingsTable } from '@workspace/db';
-import { eq, desc } from 'drizzle-orm';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, productsTable } from '@workspace/db';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { notifyRole, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
+import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
 
@@ -170,26 +171,50 @@ router.post('/', async (req, res) => {
   // prevent loyalty inflation via unverified payment claims.
   if (stripePaymentStatus === 'paid') {
     try {
-      const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
+      const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
       if (profile) {
-        const newPoints = profile.loyaltyPoints + pointsEarned - claimedLoyaltyPoints;
         const newSpent = profile.totalSpentCents + authorativeTotalCents;
         const newTier = newSpent >= 100000 ? 'platinum' : newSpent >= 50000 ? 'gold' : newSpent >= 15000 ? 'silver' : 'bronze';
         await db.update(customerProfilesTable).set({
-          loyaltyPoints: Math.max(0, newPoints),
           totalSpentCents: newSpent,
           loyaltyTier: newTier,
           totalVisits: profile.totalVisits + 1,
-          stampCount: (profile.stampCount + 1) % 10,
+          updatedAt: new Date(),
         }).where(eq(customerProfilesTable.userId, req.user!.id));
-        await db.insert(loyaltyTransactionsTable).values({
-          id: randomUUID(),
+
+        await recordLoyaltyPoints({
           userId: req.user!.id,
-          points: pointsEarned,
-          type: 'earn',
+          pointsDelta: pointsEarned - claimedLoyaltyPoints,
+          orderId,
           description: `Order #${orderId.slice(0, 8)}`,
-          referenceId: orderId,
         });
+
+        const orderProductIds = Array.from(new Set(
+          items
+            .map((item: any) => item.productId)
+            .filter((productId: unknown): productId is string => Boolean(productId && typeof productId === 'string')),
+        )) as string[];
+        const products = orderProductIds.length > 0
+          ? await db.select({ id: productsTable.id, category: productsTable.category })
+            .from(productsTable)
+            .where(inArray(productsTable.id, orderProductIds))
+          : [];
+        const coffeeIds = new Set(
+          products.filter((product) => String(product.category ?? '').toLowerCase() === 'coffee').map((product) => product.id),
+        );
+        const coffeeCount = items.reduce((sum: number, item: any) => {
+          const qty = Math.max(1, Math.floor(Number(item.quantity ?? 1) || 1));
+          return coffeeIds.has(item.productId) ? sum + qty : sum;
+        }, 0);
+        if (coffeeCount > 0) {
+          await applyCoffeeStamps({
+            userId: req.user!.id,
+            stampsToAdd: coffeeCount,
+            source: 'in_app_order',
+            orderId,
+            description: `Coffee purchase from order #${orderId.slice(0, 8)}`,
+          });
+        }
       }
     } catch (err: any) {
       req.log.error({ err, orderId }, 'Post-order loyalty update failed');

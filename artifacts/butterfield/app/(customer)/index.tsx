@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
@@ -264,14 +265,13 @@ export default function CustomerHome() {
   const products       = productsData?.data ?? [];
   const loyaltyPoints  = loyaltyData?.data?.loyaltyPoints ?? 0;
   const loyaltyTier    = loyaltyData?.data?.loyaltyTier ?? 'bronze';
-  const stampCount     = loyaltyData?.data?.stampCount ?? 0;
+  const stampCount     = loyaltyData?.data?.coffeeStampCount ?? loyaltyData?.data?.stampCount ?? 0;
   const rewards        = rewardsData?.data ?? [];
   const banner         = bannerData?.data ?? null;
   const featuredStore  = (storesData?.data ?? [])[0] ?? null;
   const topSellers     = topSellersData?.data ?? [];
-  const referralCode   = (loyaltyData?.data as any)?.referralCode ?? '';
-  const qrValue        = `BUTTERFIELD:${user?.id ?? ''}:${referralCode}`;
-  const qrImageUrl     = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue || 'BUTTERFIELD:loading')}`;
+  const qrToken        = loyaltyData?.data?.loyaltyQrToken ?? null;
+  const qrValue        = loyaltyData?.data?.qrPayload ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null);
 
   const hasClaimableReward = useMemo(
     () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
@@ -415,7 +415,19 @@ export default function CustomerHome() {
             Show this to staff to earn your stamp
           </Text>
           <View style={s.qrBox}>
-            <Image source={{ uri: qrImageUrl }} style={{ width: 220, height: 220, backgroundColor: '#fff' }} contentFit="contain" />
+            {qrValue ? (
+              <QRCode
+                value={qrValue}
+                size={220}
+                backgroundColor="#fff"
+                color="#000"
+              />
+            ) : (
+              <View style={[s.qrFallback, { backgroundColor: '#fff' }]}>
+                <ActivityIndicator color={BLUE_TOP} />
+                <Text style={[s.qrFallbackText, { fontFamily: 'Inter_500Medium' }]}>Preparing your QR code</Text>
+              </View>
+            )}
           </View>
           <View style={s.qrStampsRow}>
             {Array.from({ length: 6 }).map((_, i) => (
@@ -438,7 +450,7 @@ export default function CustomerHome() {
               : `${stampCount} of 6 stamps — ${6 - stampCount} to go`}
           </Text>
           <Text style={[s.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
-            {referralCode || user?.name}
+            {qrToken ? 'Your permanent QR code' : 'Generating QR code'}
           </Text>
           <Pressable
             style={[s.qrCloseBtn, { backgroundColor: CHERRY }]}
@@ -904,6 +916,8 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#E8E8ED',
     marginVertical: 4,
   },
+  qrFallback: { width: 220, height: 220, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  qrFallbackText: { fontSize: 13, color: '#3C3C43', textAlign: 'center' },
   qrStampsRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
   qrStampDot: {
     width: 32, height: 32, borderRadius: 16,

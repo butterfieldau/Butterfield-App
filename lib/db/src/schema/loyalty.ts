@@ -36,12 +36,27 @@ export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {
   redeemedAt: timestamp("redeemed_at").notNull().defaultNow(),
 });
 
+export const loyaltyActivityLogTable = pgTable("loyalty_activity_log", {
+  id: text("id").primaryKey(),
+  customerId: text("customer_id").notNull(),
+  loyaltyQrToken: text("loyalty_qr_token"),
+  orderId: text("order_id"),
+  activityType: text("activity_type").notNull(),
+  pointsDelta: integer("points_delta").notNull().default(0),
+  coffeeStampsDelta: integer("coffee_stamps_delta").notNull().default(0),
+  freeCoffeeRewardsDelta: integer("free_coffee_rewards_delta").notNull().default(0),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertLoyaltyTransactionSchema = createInsertSchema(loyaltyTransactionsTable).omit({ createdAt: true });
 export const insertLoyaltyRewardSchema = createInsertSchema(loyaltyRewardsTable).omit({ createdAt: true });
 export const insertLoyaltyRedemptionSchema = createInsertSchema(loyaltyRedemptionsTable).omit({ redeemedAt: true });
+export const insertLoyaltyActivityLogSchema = createInsertSchema(loyaltyActivityLogTable).omit({ createdAt: true });
 
 export type InsertLoyaltyTransaction = z.infer<typeof insertLoyaltyTransactionSchema>;
 export type LoyaltyTransaction = typeof loyaltyTransactionsTable.$inferSelect;
 export type InsertLoyaltyReward = z.infer<typeof insertLoyaltyRewardSchema>;
 export type LoyaltyReward = typeof loyaltyRewardsTable.$inferSelect;
 export type LoyaltyRedemption = typeof loyaltyRedemptionsTable.$inferSelect;
+export type LoyaltyActivityLog = typeof loyaltyActivityLogTable.$inferSelect;

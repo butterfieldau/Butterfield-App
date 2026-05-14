@@ -1,5 +1,6 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
+import { ensureLoyaltySchemaReady } from "./lib/loyaltyIdentity.js";
 
 const rawPort = process.env["PORT"];
 
@@ -38,6 +39,7 @@ async function initStripe() {
 }
 
 await initStripe();
+await ensureLoyaltySchemaReady();
 
 app.listen(port, (err) => {
   if (err) {

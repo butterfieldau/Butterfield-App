@@ -102,12 +102,14 @@ export const api = {
     profile: () => request<{ data: LoyaltyProfile }>('/loyalty/profile'),
     transactions: () => request<{ data: LoyaltyTransaction[] }>('/loyalty/transactions'),
     rewards: () => request<{ data: LoyaltyReward[] }>('/loyalty/rewards'),
+    lookupCustomer: (payload: string) =>
+      request<{ data: LoyaltyLookupResult }>('/loyalty/lookup', { method: 'POST', body: JSON.stringify({ qrPayload: payload }) }),
+    addCoffeeStamp: (payload: string, quantity = 1) =>
+      request<{ data: LoyaltyLookupResult }>('/loyalty/scan-stamp', { method: 'POST', body: JSON.stringify({ qrPayload: payload, quantity }) }),
     redeem: (rewardId: string) =>
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
     updateBirthday: (birthday: string) =>
       request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
-    scanStamp: (qrPayload: string) =>
-      request<{ data: { stampCount: number; earnedFree: boolean; customerName: string } }>('/loyalty/scan-stamp', { method: 'POST', body: JSON.stringify({ qrPayload }) }),
   },
   staff: {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
@@ -551,9 +553,15 @@ export interface LoyaltyProfile {
   loyaltyPoints: number;
   loyaltyTier: string;
   stampCount: number;
+  coffeeStampCount?: number;
+  freeCoffeeRewards?: number;
   totalVisits: number;
   totalSpentCents: number;
   referralCode: string;
+  loyaltyQrToken?: string | null;
+  qrPayload?: string | null;
+  recentActivity?: LoyaltyActivity[];
+  freeCoffeesEarned?: number;
 }
 
 export interface LoyaltyTransaction {
@@ -562,6 +570,37 @@ export interface LoyaltyTransaction {
   type: string;
   description: string;
   createdAt: string;
+  orderId?: string | null;
+  coffeeStampsDelta?: number;
+  freeCoffeeRewardsDelta?: number;
+}
+
+export interface LoyaltyActivity {
+  id: string;
+  customerId: string;
+  loyaltyQrToken?: string | null;
+  orderId?: string | null;
+  activityType: string;
+  pointsDelta: number;
+  coffeeStampsDelta: number;
+  freeCoffeeRewardsDelta: number;
+  description: string;
+  createdAt: string;
+}
+
+export interface LoyaltyLookupResult {
+  customerName: string;
+  customerEmail: string;
+  loyaltyPoints: number;
+  coffeeStampCount: number;
+  freeCoffeeRewards: number;
+  stampCount: number;
+  freeCoffeesEarned: number;
+  loyaltyQrToken?: string | null;
+  qrPayload?: string | null;
+  recentActivity?: LoyaltyActivity[];
+  earnedFree?: boolean;
+  pointsDelta?: number;
 }
 
 export interface LoyaltyReward {

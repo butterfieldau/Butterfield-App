@@ -6,6 +6,7 @@ import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAcc
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
+import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
 
@@ -62,6 +63,7 @@ router.post('/register', async (req, res) => {
     userId, loyaltyPoints: 100, loyaltyTier: 'bronze',
     referralCode: generateReferralCode(name), birthday: birthday ?? null,
   });
+  await getOrCreateCustomerLoyaltyProfile(userId, name);
   const token = signToken({ id: userId, email: email.toLowerCase(), role: 'customer', name });
   return res.status(201).json({ token, user: { id: userId, email, role: 'customer', name } });
 });
@@ -73,6 +75,9 @@ router.post('/login', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Invalid email or password.' });
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
+  if (user.role === 'customer') {
+    await getOrCreateCustomerLoyaltyProfile(user.id, user.name);
+  }
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -262,8 +267,7 @@ router.get('/me', requireAuth, async (req, res) => {
   if (!dbUser) return res.status(404).json({ error: 'User not found' });
   let profile = null;
   if (dbUser.role === 'customer') {
-    const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
-    profile = cp;
+    profile = await getOrCreateCustomerLoyaltyProfile(user.id, dbUser.name);
   } else if (dbUser.role === 'staff') {
     const [sp] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
     profile = sp;
@@ -300,8 +304,7 @@ router.patch('/me', requireAuth, async (req, res) => {
 
   let profile = null;
   if (updated.role === 'customer') {
-    const [cp] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
-    profile = cp;
+    profile = await getOrCreateCustomerLoyaltyProfile(user.id, updated.name);
   } else if (updated.role === 'staff') {
     const [sp] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
     profile = sp;
@@ -451,6 +454,7 @@ router.post('/social', async (req, res) => {
       loyaltyTier: 'bronze',
       referralCode: generateReferralCode(userName),
     });
+    await getOrCreateCustomerLoyaltyProfile(userId, userName);
     const [newUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     user = newUser ?? null;
   }

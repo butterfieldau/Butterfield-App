@@ -19,8 +19,12 @@ const SCAN_COOLDOWN_MS = 2500;
 
 type ScanResult = {
   customerName: string;
+  customerEmail: string;
+  loyaltyPoints: number;
   stampCount: number;
-  earnedFree: boolean;
+  freeCoffeeRewards: number;
+  qrPayload?: string | null;
+  earnedFree?: boolean;
 };
 
 export function StampScanScreen() {
@@ -48,10 +52,10 @@ export function StampScanScreen() {
     setResult(null);
 
     try {
-      const res = await api.loyalty.scanStamp(data);
-      const { stampCount, earnedFree, customerName } = res.data;
+      const res = await api.loyalty.lookupCustomer(data);
+      const { stampCount, freeCoffeeRewards, customerName, customerEmail, loyaltyPoints, qrPayload } = res.data;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setResult({ customerName, stampCount, earnedFree });
+      setResult({ customerName, customerEmail, loyaltyPoints, stampCount, freeCoffeeRewards, qrPayload });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e?.message ?? 'Could not record stamp. Try again.');
@@ -65,6 +69,36 @@ export function StampScanScreen() {
     setError(null);
     lastScanAt.current = 0;
   };
+
+  const addStamp = useCallback(async () => {
+    if (!result) return;
+    const payload = result.qrPayload ?? '';
+    if (!payload) {
+      setError('This QR code is missing a loyalty token.');
+      return;
+    }
+    setScanning(true);
+    setError(null);
+    try {
+      const res = await api.loyalty.addCoffeeStamp(payload, 1);
+      const updated = res.data;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setResult({
+        customerName: updated.customerName,
+        customerEmail: updated.customerEmail,
+        loyaltyPoints: updated.loyaltyPoints,
+        stampCount: updated.stampCount,
+        freeCoffeeRewards: updated.freeCoffeeRewards,
+        qrPayload: updated.qrPayload ?? payload,
+        earnedFree: updated.earnedFree,
+      });
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(e?.message ?? 'Could not record stamp. Try again.');
+    } finally {
+      setScanning(false);
+    }
+  }, [result]);
 
   if (!permission) {
     return <View style={s.center}><ActivityIndicator color={WHITE} /></View>;
@@ -92,17 +126,28 @@ export function StampScanScreen() {
             <Feather name={result.earnedFree ? 'gift' : 'coffee'} size={36} color={WHITE} />
           </View>
 
+          <Text style={s.resultHeadline}>{result.customerName}</Text>
+          <Text style={s.resultSub}>{result.customerEmail}</Text>
+
+          <View style={s.statsRow}>
+            <View style={s.statChip}>
+              <Text style={s.statLabel}>Points</Text>
+              <Text style={s.statValue}>{result.loyaltyPoints.toLocaleString()}</Text>
+            </View>
+            <View style={s.statChip}>
+              <Text style={s.statLabel}>Stamps</Text>
+              <Text style={s.statValue}>{result.stampCount}/6</Text>
+            </View>
+            <View style={s.statChip}>
+              <Text style={s.statLabel}>Free coffees</Text>
+              <Text style={s.statValue}>{result.freeCoffeeRewards}</Text>
+            </View>
+          </View>
+
           {result.earnedFree ? (
-            <>
-              <Text style={s.resultHeadline}>Free coffee earned! ☕</Text>
-              <Text style={s.resultSub}>{result.customerName} has completed their stamp card.</Text>
-              <Text style={s.resultSub}>Stamp card reset — ready for their next 6 coffees.</Text>
-            </>
+            <Text style={s.resultSub}>Free coffee earned! The stamp card reset for the next round.</Text>
           ) : (
-            <>
-              <Text style={s.resultHeadline}>Stamp added ✓</Text>
-              <Text style={s.resultSub}>{result.customerName}</Text>
-            </>
+            <Text style={s.resultSub}>Tap below when the customer buys a coffee.</Text>
           )}
 
           <View style={s.dotsRow}>
@@ -128,10 +173,16 @@ export function StampScanScreen() {
             </Text>
           )}
 
-          <Pressable style={s.scanAgainBtn} onPress={reset}>
-            <Feather name="maximize" size={16} color={WHITE} />
-            <Text style={s.scanAgainTx}>Scan next customer</Text>
-          </Pressable>
+          <View style={s.actionRow}>
+            <Pressable style={s.scanAgainBtn} onPress={addStamp}>
+              <Feather name="coffee" size={16} color={WHITE} />
+              <Text style={s.scanAgainTx}>Mark coffee purchase</Text>
+            </Pressable>
+            <Pressable style={[s.scanAgainBtn, { backgroundColor: '#6B7280' }]} onPress={reset}>
+              <Feather name="maximize" size={16} color={WHITE} />
+              <Text style={s.scanAgainTx}>Scan next customer</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     );
@@ -220,9 +271,14 @@ const s = StyleSheet.create({
   resultIcon:    { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   resultHeadline:{ color: WHITE, fontSize: 22, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   resultSub:     { color: MUTED, fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
+  statsRow:      { flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 6 },
+  statChip:      { flex: 1, backgroundColor: '#2B2B2E', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', gap: 2 },
+  statLabel:     { color: '#A1A1AA', fontSize: 11, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue:     { color: WHITE, fontSize: 17, fontFamily: 'Inter_700Bold' },
   dotsRow:       { flexDirection: 'row', gap: 8, marginTop: 8 },
   dot:           { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dotLabel:      { color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  actionRow:     { width: '100%', gap: 10, marginTop: 10 },
   scanAgainBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13, marginTop: 8 },
   scanAgainTx:   { color: WHITE, fontFamily: 'Inter_700Bold', fontSize: 15 },
 });

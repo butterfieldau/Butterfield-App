@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/context/AuthContext';
+import QRCode from 'react-native-qrcode-svg';
 import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
 import { SwipeDownSheet } from '@/components/SwipeDownSheet';
@@ -104,7 +104,6 @@ const HOW_IT_WORKS = [
 
 export default function LoyaltyScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -127,7 +126,7 @@ export default function LoyaltyScreen() {
   const transactions = txnData?.data ?? [];
 
   const pts = profile?.loyaltyPoints ?? 0;
-  const stamps = Math.min(profile?.stampCount ?? 0, STAMP_COUNT);
+  const stamps = Math.min(profile?.coffeeStampCount ?? profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
 
   // Use the server-stored tier as the single source of truth (spend-based, never decreases).
@@ -137,8 +136,8 @@ export default function LoyaltyScreen() {
   const spentToNext = nextTier ? nextTier.spendThreshold - totalSpentCents : 0;
   const progress    = nextTier ? Math.min(totalSpentCents / nextTier.spendThreshold, 1) : 1;
 
-  const qrValue = `BUTTERFIELD:${user?.id ?? ''}:${profile?.referralCode ?? ''}`;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrValue || 'BUTTERFIELD:loading')}`;
+  const qrToken = profile?.loyaltyQrToken ?? null;
+  const qrValue = profile?.qrPayload ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null);
 
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
@@ -190,9 +189,18 @@ export default function LoyaltyScreen() {
           <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
           <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
           <View style={styles.qrBox}>
-            <Image source={{ uri: qrImageUrl }} style={{ width: 200, height: 200, backgroundColor: WHITE }} contentFit="contain" />
+            {qrValue ? (
+              <QRCode value={qrValue} size={200} backgroundColor={WHITE} color="#000" />
+            ) : (
+              <View style={styles.qrFallback}>
+                <ActivityIndicator color={BRAND} />
+                <Text style={[styles.qrFallbackText, { fontFamily: 'Inter_500Medium' }]}>Preparing your QR</Text>
+              </View>
+            )}
           </View>
-          <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>{profile?.referralCode ?? user?.name}</Text>
+          <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
+            {qrToken ? 'Permanent loyalty QR' : 'Preparing your loyalty card'}
+          </Text>
           <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>
             <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Close</Text>
           </Pressable>
@@ -292,6 +300,12 @@ export default function LoyaltyScreen() {
                   </View>
                 );
               })}
+            </View>
+            <View style={styles.rewardRow}>
+              <Feather name="gift" size={14} color={WHITE} />
+              <Text style={[styles.rewardRowText, { fontFamily: 'Inter_600SemiBold' }]}>
+                {profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0} free coffee reward{((profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0) === 1) ? '' : 's'} available
+              </Text>
             </View>
           </LinearGradient>
         </View>
@@ -422,8 +436,8 @@ export default function LoyaltyScreen() {
                       {new Date(txn.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </View>
-                  <Text style={[styles.txnPts, { fontFamily: 'Inter_700Bold', color: txn.type === 'earn' ? BRAND : '#EF4444' }]}>
-                    {txn.type === 'earn' ? '+' : ''}{txn.points}
+                  <Text style={[styles.txnPts, { fontFamily: 'Inter_700Bold', color: txn.points > 0 ? BRAND : txn.points < 0 ? '#EF4444' : MUTED }]}>
+                    {txn.points > 0 ? '+' : ''}{txn.points}
                   </Text>
                 </View>
               ))}
@@ -487,6 +501,8 @@ const styles = StyleSheet.create({
   qrBtnText: { color: WHITE, fontSize: 12 },
   stampRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   stampCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  rewardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  rewardRowText: { color: 'rgba(255,255,255,0.95)', fontSize: 13 },
 
   birthdayCard: { backgroundColor: WHITE, borderRadius: 20, padding: 20, gap: 4, borderWidth: 1.5, borderColor: BORDER },
   bdSectionLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 2 },
@@ -545,6 +561,8 @@ const styles = StyleSheet.create({
   qrTitle: { fontSize: 22, color: '#083B57', fontFamily: 'Inter_800ExtraBold', textAlign: 'center', letterSpacing: -0.2 },
   qrSub: { fontSize: 13, color: 'rgba(8,59,87,0.76)', textAlign: 'center', lineHeight: 18 },
   qrBox: { padding: 16, backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: BORDER, marginVertical: 8 },
+  qrFallback: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center', gap: 10 },
+  qrFallbackText: { fontSize: 13, color: '#4B5563', textAlign: 'center' },
   qrCode: { fontSize: 16, color: 'rgba(8,59,87,0.72)', letterSpacing: 2 },
   qrClose: { marginTop: 8, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12, width: '100%', alignItems: 'center' },
 });
