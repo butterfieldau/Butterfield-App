@@ -14,7 +14,7 @@ import { AvatarPicker } from '@/components/AvatarPicker';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const CHERRY = '#D0312D';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
@@ -73,7 +73,7 @@ export default function AccountScreen() {
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#40C0F2' }}>
+    <View style={{ flex: 1, backgroundColor: '#1493FF' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
@@ -83,7 +83,7 @@ export default function AccountScreen() {
 
         {/* ── User card ───────────────────────────────────────────────────── */}
         <LinearGradient
-          colors={['#40C0F2', '#2AA8DC']}
+          colors={['#1493FF', '#3CBBEE']}
           style={styles.userCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}

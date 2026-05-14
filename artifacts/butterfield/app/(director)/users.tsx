@@ -14,7 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
@@ -1559,6 +1559,6 @@ const wdl = StyleSheet.create({
   fieldLabel:      { fontSize: 12, fontWeight: '600', color: '#8E8E93', marginBottom: 6 },
   inputRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: '#F5F6FA' },
   input:           { flex: 1, fontSize: 15, fontWeight: '400' },
-  saveBtn:         { height: 54, borderRadius: 14, backgroundColor: '#40C0F2', alignItems: 'center', justifyContent: 'center' },
+  saveBtn:         { height: 54, borderRadius: 14, backgroundColor: '#1493FF', alignItems: 'center', justifyContent: 'center' },
   saveBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

@@ -6,8 +6,8 @@ import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NewOrderInfo } from '@/hooks/useOrderNotifications';
 
-const BLUE      = '#40C0F2';
-const BLUE_DARK = '#2AA8DC';
+const BLUE      = '#1493FF';
+const BLUE_DARK = '#3CBBEE';
 const AUTO_DISMISS_MS = 8000;
 
 interface Props {
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#40C0F2',
+    backgroundColor: '#1493FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(64,192,242,0.3)',
   },
   itemChipText: {
-    color: '#40C0F2',
+    color: '#1493FF',
     fontWeight: '500',
     fontSize: 12,
   },
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#40C0F2',
+    backgroundColor: '#1493FF',
   },
   viewBtnText: {
     color: '#fff',
@@ -253,6 +253,6 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#40C0F2',
+    backgroundColor: '#1493FF',
   },
 });

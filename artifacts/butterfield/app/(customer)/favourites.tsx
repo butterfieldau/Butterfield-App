@@ -12,7 +12,7 @@ import { api, type ApiProduct } from '@/lib/api';
 
 function getGradient(p: ApiProduct): [string, string] {
   const g = p.metadata?.gradient?.split(',');
-  return g?.length === 2 ? [g[0], g[1]] : ['#40C0F2', '#2AA8DC'];
+  return g?.length === 2 ? [g[0], g[1]] : ['#1493FF', '#3CBBEE'];
 }
 
 function getPrice(p: ApiProduct): number {

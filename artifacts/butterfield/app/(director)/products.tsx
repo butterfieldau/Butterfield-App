@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const RED    = '#F40009';
 const TEXT   = '#1C1C1E';
@@ -32,7 +32,7 @@ const DAYS_LIST     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
 const CAT_COLORS: Record<string, string> = {
   cookies:'#F59E0B', coffee:'#8B5CF6', desserts:'#EC4899',
-  bundles:'#40C0F2', sandwiches:'#22C55E', merch:'#6B7280',
+  bundles:'#1493FF', sandwiches:'#22C55E', merch:'#6B7280',
   pastries:'#F97316', drinks:'#06B6D4', other:'#8E8E93',
 };
 

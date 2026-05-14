@@ -19,7 +19,8 @@ try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 
 const BG      = '#F5F6FA';
 const CARD    = '#FFFFFF';
-const BLUE    = '#40C0F2';
+const BLUE    = '#1493FF';
+const BLUE_DARK = '#3CBBEE';
 const NAVY    = '#1A2B4A';
 const TEXT    = '#1C1C1E';
 const MUTED   = '#8E8E93';
@@ -230,7 +231,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[s.hero, { paddingTop: insets.top + 28 }]}>
+        <LinearGradient colors={[BLUE, BLUE_DARK]} style={[s.hero, { paddingTop: insets.top + 28 }]}>
           <Image
             source={require('@/assets/images/logo-white.png')}
             style={{ width: 240, height: 88, marginBottom: 4 }}

@@ -9,7 +9,7 @@ import { useOrderNotifications, type NewOrderInfo } from '@/hooks/useOrderNotifi
 import { api } from '@/lib/api';
 
 const STAFF_DARK = '#3058A8';
-const BLUE       = '#40C0F2';
+const BLUE       = '#1493FF';
 
 export default function StaffLayout() {
   const { logout } = useAuth();

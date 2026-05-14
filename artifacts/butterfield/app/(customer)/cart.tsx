@@ -46,7 +46,7 @@ import { getPalette } from '@/constants/categoryColors';
 
 const BG       = '#F5F6FA';
 const CARD     = '#FFFFFF';
-const BLUE     = '#40C0F2';
+const BLUE     = '#1493FF';
 const GREEN    = '#22C55E';
 const CHERRY   = '#D0312D';
 const TEXT     = '#1C1C1E';
@@ -495,7 +495,7 @@ export default function CartScreen() {
         </Animated.View>
         <Animated.View style={[styles.successCard, successCardStyle]}>
           <View style={styles.successGlow}>
-            <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
+            <LinearGradient colors={['#1493FF', '#3CBBEE']} style={styles.successIcon}>
               <Feather name="check" size={36} color="#fff" />
             </LinearGradient>
             <Text style={styles.successTitle}>Thanks, your order is in!</Text>
@@ -1239,7 +1239,7 @@ const styles = StyleSheet.create({
   slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#D7E8F5', backgroundColor: '#F4FAFF', alignSelf: 'stretch', justifyContent: 'center' },
   slotText:       { fontSize: 14, fontWeight: '500', color: '#0E3957' },
   successTotal:   { fontSize: 15, fontWeight: '600', color: '#334155' },
-  trackBtn:       { backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
+  trackBtn:       { backgroundColor: '#1493FF', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
   trackBtnText:   { color: '#fff', fontSize: 15, fontWeight: '600' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },

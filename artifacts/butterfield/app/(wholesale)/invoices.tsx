@@ -18,7 +18,7 @@ import type { Invoice } from '@/types';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
@@ -353,7 +353,7 @@ export default function WholesaleInvoices() {
       />
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <LinearGradient colors={['#40C0F2', '#2AA8DC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[ss.header, { paddingTop: insets.top + 16 }]}>
+      <LinearGradient colors={['#1493FF', '#3CBBEE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[ss.header, { paddingTop: insets.top + 16 }]}>
         <Text style={[ss.title, { color: '#fff' }]}>Invoices</Text>
         <View style={ss.summaryRow}>
           <View style={[ss.summaryCard, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' }]}>

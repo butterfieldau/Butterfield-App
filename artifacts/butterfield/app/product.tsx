@@ -20,7 +20,7 @@ const { width: W, height: H } = Dimensions.get('window');
 const HERO_H = Math.round(H * 0.46);
 const PHOTO_SIZE = Math.round(W * 0.62);
 
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const RED    = '#D20001';
 const AMBER  = '#F59E0B';
 const TEXT   = '#1C1C1E';

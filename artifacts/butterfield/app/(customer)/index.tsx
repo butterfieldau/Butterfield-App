@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Linking,
   Pressable,
@@ -18,7 +17,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
@@ -35,11 +33,8 @@ import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const FEATURE_TILE_SIZE = Math.floor((SCREEN_W - 32 - 24) / 2.25);
-
-const BLUE_TOP = '#40C0F2';
-const BLUE_BTM = '#2AA8DC';
+const BLUE_TOP = '#1493FF';
+const BLUE_BTM = '#3CBBEE';
 const CHERRY   = '#D0312D';
 
 const CATEGORIES: { id: string; label: string; icon: string }[] = [
@@ -123,57 +118,30 @@ function MerchTile({ item, onPress }: { item: typeof MERCH[number]; onPress: () 
 // ── Hero banner ───────────────────────────────────────────────────────────────
 function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | null; onPress: () => void }) {
   const hasImage = !!banner?.imageUrl;
-
-  if (!banner) {
-    return (
-      <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} style={s.fallbackBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-        <View style={s.fallbackContent}>
-          <Text style={[s.fallbackTag, { fontWeight: '600' }]}>🍪 DAILY SPECIAL</Text>
-          <Text style={[s.fallbackTitle, { fontWeight: '700' }]}>Cookie & Cream Sandwich</Text>
-          <Text style={[s.fallbackSub, { fontWeight: '400' }]}>Two warm cookies + vanilla cream</Text>
-        </View>
-        <View style={s.fallbackCircle} />
-      </LinearGradient>
-    );
-  }
-
-  const headline = banner.headline ?? '';
-  const accent   = banner.headlineAccent ?? '';
-  const subtext  = banner.subtext ?? '';
-  const btnText  = banner.buttonText ?? 'Order Now';
-
-  const headlineParts = accent && headline.includes(accent)
-    ? headline.split(accent)
-    : null;
+  const label = banner?.headlineAccent?.trim() || 'New';
+  const title = banner?.headline?.trim() || 'Cookies & Soft Serve';
+  const subtext = banner?.subtext?.trim() || 'Available Friday -Sunday only!';
+  const btnText = banner?.buttonText?.trim() || 'Order now';
 
   return (
     <Pressable style={s.heroBanner} onPress={onPress} android_ripple={{ color: 'rgba(255,255,255,0.1)' }}>
-      {hasImage && (
-        <Image source={{ uri: banner.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
-      )}
-      {!hasImage && <View style={[StyleSheet.absoluteFill, { backgroundColor: '#1A0F07' }]} />}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.48)' }]} />
-
-      <View style={s.heroBannerInner}>
-        <View style={{ flex: 1, gap: 6 }}>
-          {headline ? (
-            <Text style={[s.heroHeadline, { fontWeight: '700' }]}>
-              {headlineParts ? (
-                <>
-                  <Text style={{ color: '#F59E0B' }}>{accent}</Text>
-                  {headlineParts[1]}
-                </>
-              ) : headline}
-            </Text>
-          ) : null}
-          {subtext ? (
-            <Text style={[s.heroSubtext, { fontWeight: '400' }]}>{subtext}</Text>
-          ) : null}
+      <View style={s.heroImageWrap}>
+        {hasImage ? (
+          <Image source={{ uri: banner?.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
+        ) : (
+          <LinearGradient colors={['#F4F8FC', '#E8EFF6']} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+        )}
+      </View>
+      <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} style={s.heroFooter} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+        <View style={s.heroCopy}>
+          <Text style={[s.heroLabel, { fontWeight: '600' }]} numberOfLines={1}>{label}</Text>
+          <Text style={[s.heroHeadline, { fontWeight: '800' }]} numberOfLines={2}>{title}</Text>
+          <Text style={[s.heroSubtext, { fontWeight: '500' }]} numberOfLines={2}>{subtext}</Text>
         </View>
         <Pressable style={s.heroBtn} onPress={onPress}>
-          <Text style={[s.heroBtnText, { fontWeight: '600' }]}>{btnText}</Text>
+          <Text style={[s.heroBtnText, { fontWeight: '700' }]}>{btnText}</Text>
         </Pressable>
-      </View>
+      </LinearGradient>
     </Pressable>
   );
 }
@@ -200,7 +168,7 @@ function FeatureShortcutTile({
 }) {
   return (
     <Pressable
-      style={[s.featureTile, { width: FEATURE_TILE_SIZE, height: FEATURE_TILE_SIZE }]}
+      style={s.featureTile}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
     >
       <LinearGradient
@@ -415,11 +383,24 @@ export default function CustomerHome() {
       Linking.openURL(banner.buttonUrl).catch(() => {});
       return;
     }
-    if (!banner?.buttonRoute) {
+    const routeKey = banner?.buttonRoute?.trim();
+    if (!routeKey) {
       router.push('/(customer)/menu');
       return;
     }
-    const route = BANNER_ROUTES[banner.buttonRoute] ?? `/(customer)/${banner.buttonRoute}`;
+    if (routeKey.startsWith('product:')) {
+      const productId = routeKey.replace('product:', '').trim();
+      if (productId) {
+        router.push({ pathname: '/product', params: { id: productId } } as any);
+        return;
+      }
+    }
+    if (routeKey.startsWith('category:')) {
+      const category = routeKey.replace('category:', '').trim();
+      router.push({ pathname: '/(customer)/menu', params: category ? { category } : undefined } as any);
+      return;
+    }
+    const route = BANNER_ROUTES[routeKey] ?? `/(customer)/${routeKey}`;
     router.push(route as any);
   }, [banner]);
 
@@ -451,12 +432,11 @@ export default function CustomerHome() {
       />
 
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
-      <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
-        {/* Row 1: logo left · loyalty chip + QR button right */}
+      <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
         <View style={s.headerTopRow}>
           <Image
             source={require('@/assets/images/logo-white.png')}
-            style={{ width: 110, height: 34 }}
+            style={{ width: 118, height: 36 }}
             contentFit="contain"
           />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -480,12 +460,11 @@ export default function CustomerHome() {
           </View>
         </View>
 
-        {/* Row 2: greeting full width — no chip squeezing it */}
         <View>
-          <Text style={[s.greetLine1, { fontWeight: '700' }]} numberOfLines={2}>{greeting.line1}</Text>
-          <Text style={[s.greetLine2, { fontWeight: '400' }]} numberOfLines={2}>{greeting.line2}</Text>
+          <Text style={[s.greetLine1, { fontWeight: '800' }]} numberOfLines={2}>{greeting.line1}</Text>
+          <Text style={[s.greetLine2, { fontWeight: '500' }]} numberOfLines={2}>{greeting.line2}</Text>
         </View>
-      </View>
+      </LinearGradient>
 
       {/* ── SCROLLABLE CONTENT ─────────────────────────────────────────── */}
       <ScrollView
@@ -495,7 +474,7 @@ export default function CustomerHome() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE_TOP} />}
       >
         {/* Hero banner */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, marginTop: -2 }}>
           <HeroBanner banner={banner} onPress={handleBannerPress} />
         </View>
 
@@ -525,15 +504,10 @@ export default function CustomerHome() {
         </View>
 
         {/* ── 3 Perfect square quick action tiles ────────────────────────── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.quickRail}
-          decelerationRate="fast"
-        >
+        <View style={s.quickRail}>
           <FeatureShortcutTile
-            title="Cookies!"
-            titleColor="#32A8E4"
+            title="Cookies"
+            titleColor="#111827"
             colors={['#FFFFFF', '#E9E9E9']}
             imageSource={require('@/assets/images/home-character.png')}
             imageStyle={s.cookiesTileImage}
@@ -559,7 +533,7 @@ export default function CustomerHome() {
             onPress={() => router.push({ pathname: '/(customer)/menu', params: { category: 'coffee', skipQueue: '1' } })}
             showArrow
           />
-        </ScrollView>
+        </View>
 
         {/* Your usual */}
         {usualItems.length > 0 && (
@@ -769,36 +743,31 @@ export default function CustomerHome() {
 const s = StyleSheet.create({
   // ── Frozen header ───────────────────────────────────────────────────────────
   frozenHeader: {
-    backgroundColor: BLUE_TOP,
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 22,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     gap: 14,
   },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greetingRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  greetLine1:   { color: '#fff', fontSize: 20, lineHeight: 26 },
-  greetLine2:   { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 19, marginTop: 2 },
+  greetLine1:   { color: '#fff', fontSize: 24, lineHeight: 30, letterSpacing: -0.4 },
+  greetLine2:   { color: 'rgba(255,255,255,0.92)', fontSize: 16, lineHeight: 22, marginTop: 4 },
   loyaltyChip:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexShrink: 0 },
   loyaltyPts:   { color: '#fff', fontSize: 13 },
   loyaltyMember:{ color: '#fff', fontSize: 11, letterSpacing: 0.5 },
   tierDivider:  { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.4)' },
 
   // ── Hero banner ─────────────────────────────────────────────────────────────
-  heroBanner:      { height: 180, borderRadius: 18, overflow: 'hidden' },
-  heroBannerInner: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', padding: 18, gap: 12 },
-  heroHeadline:    { color: '#fff', fontSize: 22, lineHeight: 28 },
-  heroSubtext:     { color: 'rgba(255,255,255,0.75)', fontSize: 13, lineHeight: 18, marginTop: 2 },
-  heroBtn:         { backgroundColor: '#D0312D', paddingHorizontal: 18, paddingVertical: 11, borderRadius: 24, alignSelf: 'flex-end' },
+  heroBanner:      { borderRadius: 24, overflow: 'hidden', backgroundColor: '#fff', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 4 },
+  heroImageWrap:   { width: '100%', aspectRatio: 1.06, backgroundColor: '#EDF5FB' },
+  heroFooter:      { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 18, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  heroCopy:        { flex: 1, gap: 3 },
+  heroLabel:       { color: 'rgba(255,255,255,0.94)', fontSize: 16, letterSpacing: 0.2 },
+  heroHeadline:    { color: '#fff', fontSize: 26, lineHeight: 30, letterSpacing: -0.5 },
+  heroSubtext:     { color: 'rgba(255,255,255,0.92)', fontSize: 13, lineHeight: 18 },
+  heroBtn:         { backgroundColor: CHERRY, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 22, alignSelf: 'flex-end', minWidth: 126, alignItems: 'center' },
   heroBtnText:     { color: '#fff', fontSize: 14 },
-
-  fallbackBanner:  { height: 120, borderRadius: 18, padding: 18, overflow: 'hidden', justifyContent: 'center' },
-  fallbackContent: { gap: 3, zIndex: 1 },
-  fallbackTag:     { color: 'rgba(255,255,255,0.85)', fontSize: 11, letterSpacing: 0.8 },
-  fallbackTitle:   { color: '#fff', fontSize: 18 },
-  fallbackSub:     { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
-  fallbackCircle:  { position: 'absolute', right: -20, top: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.12)' },
 
   // ── Store pickup ────────────────────────────────────────────────────────────
   pickupRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
@@ -809,19 +778,19 @@ const s = StyleSheet.create({
   openText:      { fontSize: 12 },
 
   // ── Feature shortcut tiles ──────────────────────────────────────────────────
-  quickRail:        { paddingHorizontal: 16, gap: 12, marginTop: 14, paddingRight: 48 },
-  featureTile:      { borderRadius: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  featureTileBg:    { flex: 1, paddingHorizontal: 12, paddingTop: 14, paddingBottom: 16, overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center' },
-  featureTileImageWrap: { width: '100%', flex: 1.15, alignItems: 'center', justifyContent: 'center' },
-  featureTileTitle: { fontSize: 14, lineHeight: 17, letterSpacing: -0.2, textAlign: 'center' },
-  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minHeight: 52, paddingTop: 8 },
+  quickRail:        { paddingHorizontal: 16, gap: 12, marginTop: 18, flexDirection: 'row' },
+  featureTile:      { flex: 1, aspectRatio: 0.94, borderRadius: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  featureTileBg:    { flex: 1, paddingHorizontal: 10, paddingTop: 12, paddingBottom: 18, overflow: 'hidden', justifyContent: 'space-between', alignItems: 'center' },
+  featureTileImageWrap: { width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center' },
+  featureTileTitle: { fontSize: 13, lineHeight: 16, letterSpacing: -0.2, textAlign: 'center' },
+  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minHeight: 44, paddingHorizontal: 4 },
   featureTileImage: { width: '100%', height: '100%' },
-  cookiesTileTitle: { fontSize: 20, lineHeight: 22, color: '#32A8E4' },
-  cookiesTileImage: { width: '92%', height: '92%', alignSelf: 'center', transform: [{ translateY: 4 }] },
-  rewardsTileTitle: { fontSize: 14, lineHeight: 16, textAlign: 'center' },
-  rewardsTileImage: { width: '72%', height: '72%', alignSelf: 'center', transform: [{ translateY: -2 }] },
-  skipTileTitle:    { fontSize: 14, lineHeight: 16, textAlign: 'center' },
-  skipTileImage:    { width: '78%', height: '78%', alignSelf: 'center', transform: [{ translateY: -2 }] },
+  cookiesTileTitle: { fontSize: 15, lineHeight: 18, textAlign: 'center' },
+  cookiesTileImage: { width: '88%', height: '88%', alignSelf: 'center', transform: [{ translateY: 2 }] },
+  rewardsTileTitle: { fontSize: 15, lineHeight: 18, textAlign: 'center' },
+  rewardsTileImage: { width: '74%', height: '74%', alignSelf: 'center' },
+  skipTileTitle:    { fontSize: 15, lineHeight: 18, textAlign: 'center' },
+  skipTileImage:    { width: '78%', height: '78%', alignSelf: 'center' },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
   section:       { marginTop: 26 },

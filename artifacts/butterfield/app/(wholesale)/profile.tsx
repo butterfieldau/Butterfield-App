@@ -14,7 +14,7 @@ import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
@@ -130,7 +130,7 @@ export default function WholesaleAccount() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
-      <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={[s.hero, { paddingTop: insets.top + 18 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient colors={['#1493FF', '#3CBBEE']} style={[s.hero, { paddingTop: insets.top + 18 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <AvatarPicker
           initial={initial}
           size={68}

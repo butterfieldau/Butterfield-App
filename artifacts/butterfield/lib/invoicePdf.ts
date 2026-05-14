@@ -71,16 +71,16 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
   .logo-wrap { display:flex; flex-direction:column; gap:1px; }
   .logo-top  { display:flex; align-items:baseline; gap:0; }
   .logo-b    { font-size:26px; font-weight:900; color:#1C1C1E; letter-spacing:-1px; line-height:1; }
-  .logo-c    { font-size:26px; font-weight:900; color:#40C0F2; letter-spacing:-1px; line-height:1; margin-left:6px; }
+  .logo-c    { font-size:26px; font-weight:900; color:#1493FF; letter-spacing:-1px; line-height:1; margin-left:6px; }
   .logo-dot  { width:7px; height:7px; border-radius:50%; background:#D20001; display:inline-block; margin-left:3px; vertical-align:middle; position:relative; top:-4px; }
   .logo-sub  { font-size:9px; color:#8E8E93; letter-spacing:2px; text-transform:uppercase; margin-top:3px; font-weight:500; }
   .logo-addr { font-size:10px; color:#6B7280; line-height:1.6; margin-top:4px; }
-  .invoice-box { background:#E0F5FE; border:1.5px solid #40C0F2; border-radius:8px; padding:10px 16px; text-align:right; }
-  .invoice-label  { font-size:9px; font-weight:700; color:#40C0F2; letter-spacing:2px; text-transform:uppercase; }
+  .invoice-box { background:#E0F5FE; border:1.5px solid #1493FF; border-radius:8px; padding:10px 16px; text-align:right; }
+  .invoice-label  { font-size:9px; font-weight:700; color:#1493FF; letter-spacing:2px; text-transform:uppercase; }
   .invoice-number { font-size:18px; font-weight:800; color:#1C1C1E; margin-top:2px; }
 
   /* ── Rule ── */
-  .rule { height:2px; background:linear-gradient(90deg,#40C0F2 0%,#E5E7EB 60%); border-radius:2px; margin:0 0 16px; }
+  .rule { height:2px; background:linear-gradient(90deg,#1493FF 0%,#E5E7EB 60%); border-radius:2px; margin:0 0 16px; }
 
   /* ── Addresses ── */
   .addresses { display:flex; gap:32px; margin-bottom:14px; }
@@ -114,18 +114,18 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
   .t-row .val { font-weight:600; color:#1C1C1E; }
   .t-total { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:#1C1C1E; border-radius:8px; margin-top:8px; }
   .t-total .lbl { color:rgba(255,255,255,0.7); font-size:13px; font-weight:600; }
-  .t-total .val { color:#40C0F2; font-size:20px; font-weight:800; }
+  .t-total .val { color:#1493FF; font-size:20px; font-weight:800; }
 
   /* ── Payment box ── */
   .pay-box   { background:#E0F5FE; border-radius:10px; padding:14px 16px; margin-bottom:18px; border:1.5px solid rgba(64,192,242,0.3); }
-  .pay-title { font-size:10px; font-weight:700; color:#40C0F2; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px; }
+  .pay-title { font-size:10px; font-weight:700; color:#1493FF; letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px; }
   .pay-grid  { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .pay-lbl   { font-size:9px; color:#2AA8DC; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; }
+  .pay-lbl   { font-size:9px; color:#3CBBEE; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; }
   .pay-val   { font-size:12px; font-weight:700; color:#1C1C1E; margin-top:1px; }
 
   /* ── Footer ── */
   .footer { display:flex; justify-content:space-between; align-items:flex-end; padding-top:14px; border-top:1px solid #E5E7EB; }
-  .footer-logo  { font-size:18px; font-weight:900; color:#40C0F2; letter-spacing:-0.5px; }
+  .footer-logo  { font-size:18px; font-weight:900; color:#1493FF; letter-spacing:-0.5px; }
   .footer-note  { font-size:10px; color:#8E8E93; line-height:1.7; margin-top:3px; }
   .footer-right { font-size:10px; color:#8E8E93; line-height:1.8; text-align:right; }
 

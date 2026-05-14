@@ -21,9 +21,9 @@ import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/ti
 import { CustomerQrModal } from '@/components/CustomerQrModal';
 
 const BG        = '#F5F6FA';
-const BLUE_CARD = '#40C0F2';
-const BLUE_DARK = '#2AA8DC';
-const BRAND     = '#40C0F2';
+const BLUE_CARD = '#1493FF';
+const BLUE_DARK = '#3CBBEE';
+const BRAND     = '#1493FF';
 const CHERRY    = '#D0312D';
 const WHITE     = '#FFFFFF';
 const TEXT      = '#1C1C1E';

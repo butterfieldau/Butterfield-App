@@ -9,9 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/logo-white.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#4B72C4"
+      "image": "./assets/images/splash-screen.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#1493FF"
     },
     "ios": {
       "supportsTablet": false,
@@ -44,7 +44,7 @@
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
-          "color": "#4B72C4",
+          "color": "#1493FF",
           "defaultChannel": "butterfield-staff",
           "sounds": []
         }

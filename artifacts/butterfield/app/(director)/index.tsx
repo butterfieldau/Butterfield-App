@@ -15,7 +15,7 @@ import { api } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const RED    = '#F40009';
 const TEXT   = '#1C1C1E';

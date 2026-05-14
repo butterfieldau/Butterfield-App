@@ -7,7 +7,7 @@ import { PortalHeader } from '@/components/PortalHeader';
 import { api } from '@/lib/api';
 import type { ManagerPermission } from '@/types';
 
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const PURPLE = '#6B21A8';
 

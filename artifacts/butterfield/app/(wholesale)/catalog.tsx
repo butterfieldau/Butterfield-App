@@ -38,7 +38,7 @@ import {
 
 const BG         = '#F5F6FA';
 const CARD       = '#FFFFFF';
-const BLUE       = '#40C0F2';
+const BLUE       = '#1493FF';
 const LIGHT_BLUE = '#EBF8FF';
 const TEXT       = '#1C1C1E';
 const MUTED      = '#8E8E93';
@@ -793,7 +793,7 @@ export default function WholesaleCatalog() {
   // ── Catalog list ─────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient colors={['#40C0F2', '#2AA8DC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: insets.top + 16 }]}>
+      <LinearGradient colors={['#1493FF', '#3CBBEE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: insets.top + 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>Wholesale Catalog</Text>
           {cart.length > 0 && (
@@ -864,7 +864,7 @@ export default function WholesaleCatalog() {
       {cart.length > 0 && (
         <View style={styles.floatingCartOuter}>
           <Pressable onPress={handleOpenCheckout}>
-            <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
+            <LinearGradient colors={['#1493FF', '#3CBBEE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={styles.floatingCartBadge}>
                   <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{totalQty}</Text>
@@ -909,7 +909,7 @@ const styles = StyleSheet.create({
   addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, height: 34, borderRadius: 10, justifyContent: 'center' },
   addBtnText:       { color: '#fff', fontSize: 13, fontWeight: '700' },
   floatingCartOuter:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
-  floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 54, borderRadius: 27, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
+  floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 54, borderRadius: 27, shadowColor: '#1493FF', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
   floatingCartBadge:{ backgroundColor: '#fff', borderRadius: 8, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   // Checkout header
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },

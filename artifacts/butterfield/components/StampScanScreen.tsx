@@ -245,7 +245,7 @@ const s = StyleSheet.create({
 
   permTitle:  { color: WHITE, fontSize: 20, fontWeight: '700', textAlign: 'center', marginTop: 16 },
   permSub:    { color: MUTED, fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
-  permBtn:    { backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 28, paddingVertical: 13, marginTop: 8 },
+  permBtn:    { backgroundColor: '#1493FF', borderRadius: 14, paddingHorizontal: 28, paddingVertical: 13, marginTop: 8 },
   permBtnTx:  { color: WHITE, fontWeight: '700', fontSize: 15 },
 
   overlay:   { backgroundColor: 'rgba(0,0,0,0.62)', alignItems: 'center', justifyContent: 'center' },
@@ -279,6 +279,6 @@ const s = StyleSheet.create({
   dot:           { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   dotLabel:      { color: MUTED, fontSize: 13, fontWeight: '400' },
   actionRow:     { width: '100%', gap: 10, marginTop: 10 },
-  scanAgainBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13, marginTop: 8 },
+  scanAgainBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1493FF', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13, marginTop: 8 },
   scanAgainTx:   { color: WHITE, fontWeight: '700', fontSize: 15 },
 });

@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 
-const BLUE = '#40C0F2';
+const BLUE = '#1493FF';
 const NAVY = '#1A2B4A';
 
 export default function DirectorLayout() {

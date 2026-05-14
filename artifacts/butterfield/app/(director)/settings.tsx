@@ -16,7 +16,8 @@ import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
+const BLUE_DARK = '#3CBBEE';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
@@ -38,6 +39,8 @@ const BANNER_ROUTE_OPTIONS = [
   { value: 'stores',  label: 'Our Stores' },
   { value: 'cart',    label: 'Cart' },
   { value: 'profile', label: 'Account / Profile' },
+  { value: 'category:cookies', label: 'Category: Cookies' },
+  { value: 'category:coffee', label: 'Category: Coffee / Skip Queue' },
 ];
 
 function BannerTab() {
@@ -229,6 +232,18 @@ function BannerTab() {
               </Text>
             </Pressable>
           ))}
+          <Text style={{ fontWeight: '500', fontSize: 12, color: MUTED, marginTop: 2 }}>
+            You can also type a custom destination below, like `category:cookies` or `product:your-product-id`.
+          </Text>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={buttonRoute}
+            onChangeText={setButtonRoute}
+            placeholder="menu, category:cookies, product:abc123"
+            placeholderTextColor={MUTED}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
         </View>
       </View>
 
@@ -249,7 +264,7 @@ function BannerTab() {
               </Text>
             ) : null}
             {subtext ? <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '400' }}>{subtext}</Text> : null}
-            <View style={{ backgroundColor: '#C4793A', alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 4 }}>
+            <View style={{ backgroundColor: '#D0312D', alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 4 }}>
               <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>{buttonText || 'Order Now'}</Text>
             </View>
           </View>

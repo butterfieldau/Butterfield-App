@@ -13,7 +13,7 @@ import { api, type StaffShift } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
-const BLUE   = '#40C0F2';
+const BLUE   = '#1493FF';
 const RED    = '#F40009';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
@@ -119,10 +119,10 @@ function buildTimesheetHtml(
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
   <style>
     body { font-family: -apple-system, sans-serif; margin: 40px; color: #1C1C1E; }
-    h1 { color: #40C0F2; font-size: 24px; margin-bottom: 4px; }
+    h1 { color: #1493FF; font-size: 24px; margin-bottom: 4px; }
     .sub { color: #8E8E93; font-size: 14px; margin-bottom: 24px; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { background: #40C0F2; color: white; padding: 10px 12px; text-align: left; font-size: 11px; letter-spacing: 0.5px; }
+    th { background: #1493FF; color: white; padding: 10px 12px; text-align: left; font-size: 11px; letter-spacing: 0.5px; }
     td { padding: 10px 12px; border-bottom: 1px solid #E5E7EB; }
     tr:last-child td { border-bottom: none; }
     tr:nth-child(even) { background: #F9FAFB; }

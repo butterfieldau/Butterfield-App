@@ -20,7 +20,7 @@ export const WS_OPEN_CHECKOUT_KEY = '@ws_open_checkout';
 // ── Colors ───────────────────────────────────────────────────────────────────
 const BG    = '#F5F6FA';
 const CARD  = '#FFFFFF';
-const BLUE  = '#40C0F2';
+const BLUE  = '#1493FF';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORDER= '#E5E7EB';
@@ -98,7 +98,7 @@ export default function WholesaleCartScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <LinearGradient
-        colors={['#40C0F2', '#2AA8DC']}
+        colors={['#1493FF', '#3CBBEE']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[s.header, { paddingTop: insets.top + 16 }]}
       >

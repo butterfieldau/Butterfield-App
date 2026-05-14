@@ -7,7 +7,7 @@ export default function WholesaleLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#40C0F2',
+        tabBarActiveTintColor: '#1493FF',
         tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: {
           backgroundColor: '#fff',
