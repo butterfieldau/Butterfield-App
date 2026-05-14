@@ -26,8 +26,12 @@ function getPublicBaseUrl(): string {
 
 function absolutizeUrl(url: string | null | undefined): string | null {
   if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
   const base = getPublicBaseUrl();
+  if (/^https?:\/\//i.test(url)) {
+    const storageMatch = url.match(/(\/api\/storage\/objects\/.+)/);
+    if (storageMatch) return base ? `${base}${storageMatch[1]}` : storageMatch[1];
+    return url;
+  }
   if (!base) return url;
   return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
 }

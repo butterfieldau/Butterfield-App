@@ -121,10 +121,23 @@ function Segment({ options, value, onChange }: { options: string[]; value: strin
   );
 }
 
-// ─── Derive objectPath from a servingUrl for deletion ─────────────────────
-function getObjectPath(servingUrl: string): string | null {
-  const match = servingUrl.match(/\/api\/storage(\/objects\/.+?)(\?|$)/);
+// ─── Derive objectPath from a stored URL (absolute or relative) ───────────
+function getObjectPath(url: string): string | null {
+  const match = url.match(/(\/objects\/.+?)(\?|$)/);
   return match ? match[1] : null;
+}
+
+// ─── Build a displayable absolute URL from a stored image path ────────────
+// Stored values may be relative (/api/storage/objects/...) or absolute.
+// React Native Image requires an absolute URL, so we prefix with the API domain.
+const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : '';
+
+function toDisplayUrl(url: string): string {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  return API_DOMAIN ? `${API_DOMAIN}${url}` : url;
 }
 
 // ─── Default form state ────────────────────────────────────────────────────────
@@ -348,14 +361,15 @@ function ProductModal({
       const contentType = asset.mimeType ?? 'image/jpeg';
       const oldUrl = f.imageUrl.trim();
       setUploading(true);
-      const { servingUrl } = await api.storage.uploadProductImage(
+      const { objectPath } = await api.storage.uploadProductImage(
         asset.uri, filename, contentType, f.category, f.name.trim() || 'product'
       );
+      const storagePath = `/api/storage${objectPath}`;
       if (isReplace && oldUrl) {
         const oldPath = getObjectPath(oldUrl);
         if (oldPath) api.storage.deleteProductImage(oldPath).catch(() => {});
       }
-      upd('imageUrl', servingUrl);
+      upd('imageUrl', storagePath);
     } catch (e: any) {
       Alert.alert('Upload failed', e.message ?? 'Could not upload image. Please try again.');
     } finally { setUploading(false); }
@@ -393,11 +407,12 @@ function ProductModal({
       const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'gallery.jpg';
       const contentType = asset.mimeType ?? 'image/jpeg';
       setUploading(true);
-      const { servingUrl } = await api.storage.uploadProductImage(
+      const { objectPath } = await api.storage.uploadProductImage(
         asset.uri, filename, contentType, f.category, (f.name.trim() || 'product') + '-gallery'
       );
+      const storagePath = `/api/storage${objectPath}`;
       Haptics.selectionAsync();
-      upd('galleryUrls', [...f.galleryUrls, servingUrl]);
+      upd('galleryUrls', [...f.galleryUrls, storagePath]);
     } catch (e: any) {
       Alert.alert('Upload failed', e.message ?? 'Could not upload image.');
     } finally { setUploading(false); }
@@ -555,7 +570,7 @@ function ProductModal({
               {f.imageUrl.trim() ? (
                 <View style={{ gap: 10 }}>
                   <Image
-                    source={{ uri: f.imageUrl.trim() }}
+                    source={{ uri: toDisplayUrl(f.imageUrl.trim()) }}
                     style={{ width: '100%', height: 200, borderRadius: 12, backgroundColor: '#F3F4F6' }}
                     resizeMode="cover"
                   />
@@ -631,7 +646,7 @@ function ProductModal({
                     {url.trim() ? (
                       <View style={{ position: 'relative' }}>
                         <Image
-                          source={{ uri: url.trim() }}
+                          source={{ uri: toDisplayUrl(url.trim()) }}
                           style={{ width: '100%', height: 120, borderRadius: 10, backgroundColor: '#F3F4F6' }}
                           resizeMode="cover"
                         />
@@ -1390,7 +1405,7 @@ export default function DirectorProductsScreen() {
                   {/* Thumbnail / category icon */}
                   {p.imageUrl ? (
                     <Image
-                      source={{ uri: p.imageUrl }}
+                      source={{ uri: toDisplayUrl(p.imageUrl) }}
                       style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: '#F3F4F6' }}
                       resizeMode="cover"
                     />
