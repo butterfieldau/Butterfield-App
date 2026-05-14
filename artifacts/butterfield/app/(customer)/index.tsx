@@ -28,7 +28,7 @@ import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { useStores } from '@/hooks/useStores';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
-import { SwipeDownSheet } from '@/components/SwipeDownSheet';
+import { CenteredGlassModal } from '@/components/CenteredGlassModal';
 import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
@@ -36,7 +36,7 @@ import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const TILE_SIZE = Math.floor((SCREEN_W - 40 - 24) / 3);
+const TILE_SIZE = Math.floor((SCREEN_W - 32 - 24) / 3);
 
 const BLUE_TOP = '#40C0F2';
 const BLUE_BTM = '#2AA8DC';
@@ -178,25 +178,50 @@ function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | null; onPr
   );
 }
 
-// ── Quick action tile ──────────────────────────────────────────────────────────
-function QuickTile({
-  label, emoji, bg, iconColor, featherIcon, onPress, hasArrow,
+// ── Feature tiles ─────────────────────────────────────────────────────────────
+function FeatureShortcutTile({
+  title,
+  titleColor,
+  colors,
+  imageSource,
+  onPress,
+  imageStyle,
+  titleStyle,
+  showArrow = false,
 }: {
-  label: string; emoji?: string; bg: string; iconColor: string;
-  featherIcon: string; onPress: () => void; hasArrow?: boolean;
+  title: string;
+  titleColor: string;
+  colors: [string, string, ...string[]];
+  imageSource: any;
+  onPress: () => void;
+  imageStyle?: any;
+  titleStyle?: any;
+  showArrow?: boolean;
 }) {
   return (
     <Pressable
-      style={[s.quickTile, { width: TILE_SIZE, height: TILE_SIZE, backgroundColor: '#fff' }]}
+      style={[s.featureTile, { width: TILE_SIZE, height: TILE_SIZE }]}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
     >
-      <View style={[s.quickIconCircle, { backgroundColor: bg }]}>
-        <Feather name={featherIcon as any} size={24} color={iconColor} />
-      </View>
-      <View style={s.quickLabelRow}>
-        <Text style={[s.quickTileLabel, { fontFamily: 'Inter_700Bold', color: '#1C1C1E' }]} numberOfLines={2}>{label}</Text>
-        {hasArrow && <Feather name="arrow-right" size={14} color="#8E8E93" />}
-      </View>
+      <LinearGradient
+        colors={colors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.featureTileBg}
+      >
+        <Text
+          style={[
+            s.featureTileTitle,
+            { color: titleColor, fontFamily: 'Inter_700Bold' },
+            titleStyle,
+          ]}
+          numberOfLines={2}
+        >
+          {title}
+        </Text>
+        <Image source={imageSource} style={[s.featureTileImage, imageStyle]} contentFit="contain" />
+        {showArrow && <Feather name="arrow-right" size={18} color="#1C1C1E" style={s.featureTileArrow} />}
+      </LinearGradient>
     </Pressable>
   );
 }
@@ -400,16 +425,12 @@ export default function CustomerHome() {
       <OfflineBanner />
 
       {/* ── QR CODE MODAL ──────────────────────────────────────────────── */}
-      <SwipeDownSheet
+      <CenteredGlassModal
         visible={showQR}
         onClose={() => setShowQR(false)}
-        backdropOpacity={0.52}
-        sheetHeight={Dimensions.get('window').height}
-        sheetStyle={[s.qrSheet, { backgroundColor: 'transparent' }]}
         contentStyle={s.qrSheetContent}
-        showHandle={false}
       >
-        <Pressable style={s.qrCard} onPress={(e) => e.stopPropagation()}>
+        <View style={s.qrCard}>
           <Text style={[s.qrTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Stamp Card</Text>
           <Text style={[s.qrSub, { fontFamily: 'Inter_400Regular' }]}>
             Show this to staff to earn your stamp
@@ -458,8 +479,8 @@ export default function CustomerHome() {
           >
             <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Done</Text>
           </Pressable>
-        </Pressable>
-      </SwipeDownSheet>
+        </View>
+      </CenteredGlassModal>
 
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
@@ -537,27 +558,33 @@ export default function CustomerHome() {
 
         {/* ── 3 Perfect square quick action tiles ────────────────────────── */}
         <View style={s.quickSection}>
-          <QuickTile
-            label="Order cookies"
-            featherIcon="package"
-            bg="#E6F0FF"
-            iconColor="#2A7BD2"
+          <FeatureShortcutTile
+            title="Cookies!"
+            titleColor="#32A8E4"
+            colors={['#FFFFFF', '#E9E9E9']}
+            imageSource={require('@/assets/images/home-character.png')}
+            imageStyle={s.cookiesTileImage}
+            titleStyle={s.cookiesTileTitle}
             onPress={() => router.push('/(customer)/menu')}
           />
-          <QuickTile
-            label="Rewards Club"
-            featherIcon="star"
-            bg="#FFF7E0"
-            iconColor="#C07800"
+          <FeatureShortcutTile
+            title="Rewards club"
+            titleColor="#111827"
+            colors={['#FFCBFF', '#FA9E9E']}
+            imageSource={require('@/assets/images/butterfield-app-gems.png')}
+            imageStyle={s.rewardsTileImage}
+            titleStyle={s.rewardsTileTitle}
             onPress={() => router.push('/(customer)/loyalty')}
           />
-          <QuickTile
-            label="Skip the queue"
-            featherIcon="zap"
-            bg="#FFF3E0"
-            iconColor="#E07B00"
+          <FeatureShortcutTile
+            title="Skip the queue"
+            titleColor="#111827"
+            colors={['#D0E5F3', '#8AC5E4']}
+            imageSource={require('@/assets/images/coffee-tray-skip.png')}
+            imageStyle={s.skipTileImage}
+            titleStyle={s.skipTileTitle}
             onPress={() => router.push({ pathname: '/(customer)/menu', params: { category: 'coffee', skipQueue: '1' } })}
-            hasArrow
+            showArrow
           />
         </View>
 
@@ -808,12 +835,19 @@ const s = StyleSheet.create({
   openDot:       { width: 7, height: 7, borderRadius: 4 },
   openText:      { fontSize: 12 },
 
-  // ── Quick action tiles (perfect squares) ────────────────────────────────────
-  quickSection:  { flexDirection: 'row', justifyContent: 'center', gap: 12, paddingHorizontal: 16, marginTop: 14 },
-  quickTile:     { borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 8, paddingVertical: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  quickIconCircle:{ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  quickLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4 },
-  quickTileLabel:{ fontSize: 12, textAlign: 'center', lineHeight: 16 },
+  // ── Feature shortcut tiles ──────────────────────────────────────────────────
+  quickSection:     { flexDirection: 'row', justifyContent: 'center', gap: 12, paddingHorizontal: 16, marginTop: 14 },
+  featureTile:      { borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  featureTileBg:    { flex: 1, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, overflow: 'hidden' },
+  featureTileTitle: { fontSize: 12, lineHeight: 15, letterSpacing: -0.2, zIndex: 2 },
+  featureTileImage: { position: 'absolute' },
+  featureTileArrow: { position: 'absolute', right: 12, bottom: 12 },
+  cookiesTileTitle: { fontSize: 18, lineHeight: 20 },
+  cookiesTileImage: { width: 102, height: 102, left: -8, bottom: -8 },
+  rewardsTileTitle: { position: 'absolute', left: 12, bottom: 12, right: 12, fontSize: 11, lineHeight: 14 },
+  rewardsTileImage: { width: 78, height: 64, top: 10, alignSelf: 'center' },
+  skipTileTitle:    { position: 'absolute', left: 12, bottom: 12, right: 30, fontSize: 11, lineHeight: 14 },
+  skipTileImage:    { width: 78, height: 78, top: 6, right: -4 },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
   section:       { marginTop: 26 },
@@ -883,7 +917,6 @@ const s = StyleSheet.create({
   },
 
   // ── QR modal ─────────────────────────────────────────────────────────────
-  qrSheet: { backgroundColor: 'transparent' },
   qrSheetContent: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -891,21 +924,8 @@ const s = StyleSheet.create({
     paddingVertical: 24,
   },
   qrCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 28,
-    padding: 28,
     alignItems: 'center',
     gap: 10,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.38)',
-    shadowColor: '#0E4C6B',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 12,
-    overflow: 'hidden',
   },
   qrHandle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E5', marginBottom: 4 },
   qrTitle:    { fontSize: 22, color: '#083B57', textAlign: 'center', fontFamily: 'Inter_800ExtraBold', letterSpacing: -0.2 },

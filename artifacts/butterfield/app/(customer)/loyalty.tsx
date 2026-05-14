@@ -7,7 +7,6 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'react-native-qrcode-svg';
 import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
-import { SwipeDownSheet } from '@/components/SwipeDownSheet';
+import { CenteredGlassModal } from '@/components/CenteredGlassModal';
 
 const BG        = '#F5F6FA';
 const BLUE_CARD = '#40C0F2';
@@ -176,15 +175,11 @@ export default function LoyaltyScreen() {
 
   return (
     <>
-      <SwipeDownSheet
-      visible={showQR}
-      onClose={() => setShowQR(false)}
-      backdropOpacity={0.52}
-      sheetHeight={Dimensions.get('window').height}
-      sheetStyle={[styles.qrSheet, { backgroundColor: 'transparent' }]}
-      contentStyle={styles.qrSheetContent}
-      showHandle={false}
-    >
+      <CenteredGlassModal
+        visible={showQR}
+        onClose={() => setShowQR(false)}
+        contentStyle={styles.qrSheetContent}
+      >
         <View style={styles.qrModal}>
           <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
           <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
@@ -205,7 +200,7 @@ export default function LoyaltyScreen() {
             <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Close</Text>
           </Pressable>
         </View>
-      </SwipeDownSheet>
+      </CenteredGlassModal>
 
       <ScrollView
         style={{ flex: 1, backgroundColor: WHITE }}
@@ -540,23 +535,10 @@ const styles = StyleSheet.create({
   bdLabel: { fontSize: 12, color: MUTED, marginBottom: 6, letterSpacing: 0.5 },
   bdInput: { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
 
-  qrSheet: { backgroundColor: 'transparent' },
   qrSheetContent: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   qrModal: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: 28,
-    padding: 28,
     alignItems: 'center',
     gap: 10,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.38)',
-    shadowColor: '#0E4C6B',
-    shadowOpacity: 0.16,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    overflow: 'hidden',
   },
   qrTitle: { fontSize: 22, color: '#083B57', fontFamily: 'Inter_800ExtraBold', textAlign: 'center', letterSpacing: -0.2 },
   qrSub: { fontSize: 13, color: 'rgba(8,59,87,0.76)', textAlign: 'center', lineHeight: 18 },
