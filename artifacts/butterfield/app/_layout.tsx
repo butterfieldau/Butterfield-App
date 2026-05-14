@@ -26,10 +26,12 @@ import { CartProvider } from "@/context/CartContext";
 
 SplashScreen.preventAutoHideAsync();
 
-// Wire NetInfo → React Query so offline detection works on native
+// Treat "unknown yet" network states as online so native boot doesn't get stuck
+// serving stale cache while connectivity is still being resolved.
 onlineManager.setEventListener((setOnline) => {
   return NetInfo.addEventListener((state) => {
-    setOnline(!!state.isConnected);
+    const isOnline = state.isConnected !== false && state.isInternetReachable !== false;
+    setOnline(isOnline);
   });
 });
 
