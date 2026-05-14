@@ -550,6 +550,9 @@ export interface HomeBannerConfig {
 }
 
 export interface LoyaltyProfile {
+  userId?: string;
+  customerName?: string;
+  customerEmail?: string;
   loyaltyPoints: number;
   loyaltyTier: string;
   stampCount: number;

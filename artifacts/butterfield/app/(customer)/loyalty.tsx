@@ -16,10 +16,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import QRCode from 'react-native-qrcode-svg';
 import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
-import { CenteredGlassModal } from '@/components/CenteredGlassModal';
+import { CustomerQrModal } from '@/components/CustomerQrModal';
 
 const BG        = '#F5F6FA';
 const BLUE_CARD = '#40C0F2';
@@ -136,7 +135,15 @@ export default function LoyaltyScreen() {
   const progress    = nextTier ? Math.min(totalSpentCents / nextTier.spendThreshold, 1) : 1;
 
   const qrToken = profile?.loyaltyQrToken ?? null;
-  const qrValue = profile?.qrPayload ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null);
+  const qrValue = profile?.qrPayload
+    ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null)
+    ?? (profile?.userId && profile?.referralCode ? `BUTTERFIELD:${profile.userId}:${profile.referralCode}` : null);
+
+  React.useEffect(() => {
+    if (showQR && !qrValue && !isRefetching) {
+      refetch();
+    }
+  }, [isRefetching, qrValue, refetch, showQR]);
 
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
@@ -175,32 +182,16 @@ export default function LoyaltyScreen() {
 
   return (
     <>
-      <CenteredGlassModal
+      <CustomerQrModal
         visible={showQR}
         onClose={() => setShowQR(false)}
-        contentStyle={styles.qrSheetContent}
-      >
-        <View style={styles.qrModal}>
-          <Text style={[styles.qrTitle, { fontFamily: 'Inter_700Bold' }]}>My Butterfield QR</Text>
-          <Text style={[styles.qrSub, { fontFamily: 'Inter_400Regular' }]}>Show this to staff to earn stamps</Text>
-          <View style={styles.qrBox}>
-            {qrValue ? (
-              <QRCode value={qrValue} size={200} backgroundColor={WHITE} color="#000" />
-            ) : (
-              <View style={styles.qrFallback}>
-                <ActivityIndicator color={BRAND} />
-                <Text style={[styles.qrFallbackText, { fontFamily: 'Inter_500Medium' }]}>Preparing your QR</Text>
-              </View>
-            )}
-          </View>
-          <Text style={[styles.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
-            {qrToken ? 'Permanent loyalty QR' : 'Preparing your loyalty card'}
-          </Text>
-          <Pressable onPress={() => setShowQR(false)} style={[styles.qrClose, { backgroundColor: BRAND }]}>
-            <Text style={[{ color: WHITE, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Close</Text>
-          </Pressable>
-        </View>
-      </CenteredGlassModal>
+        qrValue={qrValue}
+        customerName={profile?.customerName ?? 'Butterfield Member'}
+        helperText="Show this at the counter to collect coffee stamps and rewards."
+        statusText={qrToken ? 'Your permanent loyalty QR is ready to scan.' : 'We are refreshing your loyalty card details.'}
+        isLoading={isRefetching && !qrValue}
+        onRetry={() => { void refetch(); }}
+      />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: WHITE }}
@@ -209,27 +200,27 @@ export default function LoyaltyScreen() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BRAND} />}
       >
         <View style={[styles.pageHeader, { paddingTop: insets.top + 16 }]}>
-          <Text style={[styles.pageLabel, { fontFamily: 'Inter_600SemiBold' }]}>REWARDS</Text>
-          <Text style={[styles.pageTitle, { fontFamily: 'Inter_700Bold' }]}>Your loyalty card</Text>
+          <Text style={[styles.pageLabel, { fontWeight: '600' }]}>REWARDS</Text>
+          <Text style={[styles.pageTitle, { fontWeight: '700' }]}>Your loyalty card</Text>
         </View>
 
         <View style={{ paddingHorizontal: 16 }}>
           <LinearGradient colors={currentTier.gradient} style={styles.loyaltyCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-            <Text style={[styles.memberLabel, { fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.memberLabel, { fontWeight: '600' }]}>
               MEMBER · {currentTier.label.toUpperCase()}
             </Text>
-            <Text style={[styles.bigPoints, { fontFamily: 'Inter_700Bold' }]}>{pts.toLocaleString()}</Text>
-            <Text style={[styles.ptsWorth, { fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[styles.bigPoints, { fontWeight: '700' }]}>{pts.toLocaleString()}</Text>
+            <Text style={[styles.ptsWorth, { fontWeight: '400' }]}>
               points · worth ${(Math.floor(pts / 100) * 5).toFixed(0)}
             </Text>
 
             {nextTier && (
               <View style={styles.progressSection}>
                 <View style={styles.progressLabels}>
-                  <Text style={[styles.progressLabelText, { fontFamily: 'Inter_400Regular' }]}>
+                  <Text style={[styles.progressLabelText, { fontWeight: '400' }]}>
                     ${(spentToNext / 100).toFixed(0)} to go for {nextTier.label}
                   </Text>
-                  <Text style={[styles.progressLabelText, { fontFamily: 'Inter_600SemiBold' }]}>
+                  <Text style={[styles.progressLabelText, { fontWeight: '600' }]}>
                     ${(totalSpentCents / 100).toFixed(0)} / ${(nextTier.spendThreshold / 100).toFixed(0)}
                   </Text>
                 </View>
@@ -251,7 +242,7 @@ export default function LoyaltyScreen() {
                       i < TIERS_ORDERED.length - 1 && { marginRight: 6 },
                     ]}
                   >
-                    <Text style={[styles.tierBtnLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular', color: active ? '#fff' : 'rgba(255,255,255,0.5)' }]}>
+                    <Text style={[styles.tierBtnLabel, { fontWeight: active ? '700' : '400', color: active ? '#fff' : 'rgba(255,255,255,0.5)' }]}>
                       {tier.label.toUpperCase()}
                     </Text>
                   </View>
@@ -262,9 +253,9 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Rewards Club</Text>
+          <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Rewards Club</Text>
           <View style={styles.buyBadge}>
-            <Text style={[styles.buyBadgeText, { fontFamily: 'Inter_500Medium' }]}>Buy 5, get 1 free</Text>
+            <Text style={[styles.buyBadgeText, { fontWeight: '500' }]}>Buy 5, get 1 free</Text>
           </View>
         </View>
 
@@ -272,17 +263,17 @@ export default function LoyaltyScreen() {
           <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.coffeeCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <View style={styles.coffeeCardTop}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.coffeeLabel, { fontFamily: 'Inter_600SemiBold' }]}>REWARDS CLUB</Text>
-                <Text style={[styles.coffeeToGo, { fontFamily: 'Inter_700Bold' }]}>
+                <Text style={[styles.coffeeLabel, { fontWeight: '600' }]}>REWARDS CLUB</Text>
+                <Text style={[styles.coffeeToGo, { fontWeight: '700' }]}>
                   {stampsLeft > 0 ? `${stampsLeft} to go` : '🎉 Free coffee!'}
                 </Text>
-                <Text style={[styles.coffeeDesc, { fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[styles.coffeeDesc, { fontWeight: '400' }]}>
                   Earn {STAMP_COUNT} stamps to unlock your free coffee.
                 </Text>
               </View>
               <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }} style={styles.qrBtn}>
                 <Feather name="maximize" size={12} color={WHITE} />
-                <Text style={[styles.qrBtnText, { fontFamily: 'Inter_600SemiBold' }]}>My QR</Text>
+                <Text style={[styles.qrBtnText, { fontWeight: '600' }]}>My QR</Text>
               </Pressable>
             </View>
 
@@ -298,7 +289,7 @@ export default function LoyaltyScreen() {
             </View>
             <View style={styles.rewardRow}>
               <Feather name="gift" size={14} color={WHITE} />
-              <Text style={[styles.rewardRowText, { fontFamily: 'Inter_600SemiBold' }]}>
+              <Text style={[styles.rewardRowText, { fontWeight: '600' }]}>
                 {profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0} free coffee reward{((profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0) === 1) ? '' : 's'} available
               </Text>
             </View>
@@ -316,21 +307,21 @@ export default function LoyaltyScreen() {
                   styles.birthdayCard,
                   isBd ? { backgroundColor: '#FFF0F8', borderColor: '#F9A8D4', borderStyle: 'solid' } : {},
                 ]}>
-                  <Text style={[styles.bdSectionLabel, { fontFamily: 'Inter_600SemiBold',
+                  <Text style={[styles.bdSectionLabel, { fontWeight: '600',
                     color: isBd ? '#E879A0' : MUTED }]}>
                     BIRTHDAY
                   </Text>
-                  <Text style={[styles.bdHeading, { fontFamily: 'Inter_700Bold',
+                  <Text style={[styles.bdHeading, { fontWeight: '700',
                     color: isBd ? '#BE185D' : TEXT }]}>
                     {bdInfo.emoji} {bdInfo.message}
                   </Text>
-                  <Text style={[styles.bdDesc, { fontFamily: 'Inter_400Regular',
+                  <Text style={[styles.bdDesc, { fontWeight: '400',
                     color: isBd ? '#9D174D' : MUTED }]}>
                     {bdInfo.sub}
                   </Text>
                   <View style={styles.bdEditHint}>
                     <Feather name="settings" size={11} color={MUTED} />
-                    <Text style={[styles.bdEditHintText, { fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[styles.bdEditHintText, { fontWeight: '400' }]}>
                       To update your birthday, go to Account → Edit Profile
                     </Text>
                   </View>
@@ -346,16 +337,16 @@ export default function LoyaltyScreen() {
                 router.push('/edit-details');
               }}
             >
-              <Text style={[styles.bdSectionLabel, { fontFamily: 'Inter_600SemiBold', color: MUTED }]}>
+              <Text style={[styles.bdSectionLabel, { fontWeight: '600', color: MUTED }]}>
                 BIRTHDAY
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={[styles.bdHeading, { fontFamily: 'Inter_700Bold', color: TEXT, flex: 1 }]}>
+                <Text style={[styles.bdHeading, { fontWeight: '700', color: TEXT, flex: 1 }]}>
                   🎂 Add your birthday
                 </Text>
                 <Feather name="chevron-right" size={20} color={MUTED} />
               </View>
-              <Text style={[styles.bdDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+              <Text style={[styles.bdDesc, { fontWeight: '400', color: MUTED }]}>
                 Get a free cookie every birthday week — on us!
               </Text>
             </Pressable>
@@ -365,7 +356,7 @@ export default function LoyaltyScreen() {
         {rewards.length > 0 && (
           <View style={{ marginTop: 24 }}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Redeem rewards</Text>
+              <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Redeem rewards</Text>
             </View>
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {rewards.map((r) => {
@@ -378,21 +369,21 @@ export default function LoyaltyScreen() {
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.rewardName, { fontFamily: 'Inter_600SemiBold' }]}>{r.title}</Text>
+                        <Text style={[styles.rewardName, { fontWeight: '600' }]}>{r.title}</Text>
                         {r.type === 'tier' && (
                           <View style={[styles.tierTag, { backgroundColor: '#F59E0B' }]}>
-                            <Text style={[styles.tierTagText, { fontFamily: 'Inter_700Bold' }]}>Gold</Text>
+                            <Text style={[styles.tierTagText, { fontWeight: '700' }]}>Gold</Text>
                           </View>
                         )}
                       </View>
-                      <Text style={[styles.rewardDesc, { fontFamily: 'Inter_400Regular' }]}>{r.description}</Text>
-                      <Text style={[styles.rewardPts, { fontFamily: 'Inter_600SemiBold', color: r.type === 'tier' ? MUTED : BRAND }]}>
+                      <Text style={[styles.rewardDesc, { fontWeight: '400' }]}>{r.description}</Text>
+                      <Text style={[styles.rewardPts, { fontWeight: '600', color: r.type === 'tier' ? MUTED : BRAND }]}>
                         {r.type === 'tier' ? 'Tier perk' : `${r.pointsCost} pts`}
                       </Text>
                     </View>
                     {isLocked ? (
                       <View style={[styles.lockedBtn, { backgroundColor: '#F0F0F0' }]}>
-                        <Text style={[styles.lockedBtnText, { fontFamily: 'Inter_500Medium' }]}>Locked</Text>
+                        <Text style={[styles.lockedBtnText, { fontWeight: '500' }]}>Locked</Text>
                       </View>
                     ) : (
                       <Pressable
@@ -403,7 +394,7 @@ export default function LoyaltyScreen() {
                         {redeeming === r.id ? (
                           <ActivityIndicator size="small" color={BRAND} />
                         ) : (
-                          <Text style={[styles.redeemBtnText, { fontFamily: 'Inter_600SemiBold', color: canRedeem ? TEXT : MUTED }]}>
+                          <Text style={[styles.redeemBtnText, { fontWeight: '600', color: canRedeem ? TEXT : MUTED }]}>
                             {canRedeem ? 'Redeem' : 'Need more'}
                           </Text>
                         )}
@@ -420,18 +411,18 @@ export default function LoyaltyScreen() {
           <View style={{ marginTop: 24 }}>
             <View style={styles.sectionHeader}>
               <Feather name="clock" size={16} color={TEXT} />
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Recent activity</Text>
+              <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Recent activity</Text>
             </View>
             <View style={{ paddingHorizontal: 16, gap: 8 }}>
               {transactions.slice(0, 10).map((txn) => (
                 <View key={txn.id} style={styles.txnRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.txnDesc, { fontFamily: 'Inter_500Medium' }]}>{txn.description}</Text>
-                    <Text style={[styles.txnDate, { fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[styles.txnDesc, { fontWeight: '500' }]}>{txn.description}</Text>
+                    <Text style={[styles.txnDate, { fontWeight: '400' }]}>
                       {new Date(txn.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </View>
-                  <Text style={[styles.txnPts, { fontFamily: 'Inter_700Bold', color: txn.points > 0 ? BRAND : txn.points < 0 ? '#EF4444' : MUTED }]}>
+                  <Text style={[styles.txnPts, { fontWeight: '700', color: txn.points > 0 ? BRAND : txn.points < 0 ? '#EF4444' : MUTED }]}>
                     {txn.points > 0 ? '+' : ''}{txn.points}
                   </Text>
                 </View>
@@ -442,7 +433,7 @@ export default function LoyaltyScreen() {
 
         <View style={{ marginTop: 24 }}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>How it works</Text>
+            <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>How it works</Text>
           </View>
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {HOW_IT_WORKS.map((item) => (
@@ -451,8 +442,8 @@ export default function LoyaltyScreen() {
                   <Feather name={item.icon as any} size={18} color={BRAND} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.howTitle, { fontFamily: 'Inter_600SemiBold' }]}>{item.title}</Text>
-                  <Text style={[styles.howDesc, { fontFamily: 'Inter_400Regular' }]}>{item.desc}</Text>
+                  <Text style={[styles.howTitle, { fontWeight: '600' }]}>{item.title}</Text>
+                  <Text style={[styles.howDesc, { fontWeight: '400' }]}>{item.desc}</Text>
                 </View>
               </View>
             ))}
@@ -540,7 +531,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  qrTitle: { fontSize: 22, color: '#083B57', fontFamily: 'Inter_800ExtraBold', textAlign: 'center', letterSpacing: -0.2 },
+  qrTitle: { fontSize: 22, color: '#083B57', fontWeight: '800', textAlign: 'center', letterSpacing: -0.2 },
   qrSub: { fontSize: 13, color: 'rgba(8,59,87,0.76)', textAlign: 'center', lineHeight: 18 },
   qrBox: { padding: 16, backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: BORDER, marginVertical: 8 },
   qrFallback: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center', gap: 10 },

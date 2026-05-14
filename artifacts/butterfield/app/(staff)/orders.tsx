@@ -115,7 +115,7 @@ export default function StaffOrdersScreen() {
         <View style={[styles.searchBar, { backgroundColor: BG, borderColor: BORDER }]}>
           <Feather name="search" size={14} color={MUTED} />
           <TextInput
-            style={{ flex: 1, color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14 }}
+            style={{ flex: 1, color: TEXT, fontWeight: '400', fontSize: 14 }}
             placeholder="Search by order ID or PO..."
             placeholderTextColor={MUTED}
             value={search}
@@ -136,7 +136,7 @@ export default function StaffOrdersScreen() {
                 onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
                 style={[styles.filterPill, { backgroundColor: active ? `${color}18` : BG, borderColor: active ? color : BORDER }]}
               >
-                <Text style={{ color: active ? color : MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                <Text style={{ color: active ? color : MUTED, fontWeight: '600', fontSize: 12 }}>
                   {FILTER_LABELS[f] ?? f}
                 </Text>
               </Pressable>
@@ -153,7 +153,7 @@ export default function StaffOrdersScreen() {
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
             <Feather name="inbox" size={32} color={BORDER} />
-            <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }}>
+            <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14 }}>
               {isLoading ? 'Loading orders...' : 'No orders found'}
             </Text>
           </View>
@@ -201,7 +201,7 @@ export default function StaffOrdersScreen() {
                   </Text>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: `${cfg.color}15`, borderColor: cfg.color }]}>
-                  <Text style={{ color: cfg.color, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{cfg.label}</Text>
+                  <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 11 }}>{cfg.label}</Text>
                 </View>
               </View>
 
@@ -220,16 +220,16 @@ export default function StaffOrdersScreen() {
                   return (
                     <View key={i} style={{ gap: 2 }}>
                       <Text style={styles.itemLine}>
-                        <Text style={{ fontFamily: 'Inter_700Bold' }}>{qty}×</Text>
+                        <Text style={{ fontWeight: '700' }}>{qty}×</Text>
                         {' '}{name}{variant ? ` · ${variant}` : ''}
                       </Text>
                       {notable.length > 0 && (
-                        <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12, paddingLeft: 18 }}>
+                        <Text style={{ color: BLUE, fontWeight: '400', fontSize: 12, paddingLeft: 18 }}>
                           {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
                         </Text>
                       )}
                       {notes ? (
-                        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, fontStyle: 'italic', paddingLeft: 18 }}>
+                        <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic', paddingLeft: 18 }}>
                           "{notes}"
                         </Text>
                       ) : null}
@@ -237,7 +237,7 @@ export default function StaffOrdersScreen() {
                   );
                 })}
                 {items.length > 5 && (
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12 }}>+{items.length - 5} more items</Text>
+                  <Text style={{ color: BLUE, fontWeight: '400', fontSize: 12 }}>+{items.length - 5} more items</Text>
                 )}
               </View>
 
@@ -275,7 +275,7 @@ export default function StaffOrdersScreen() {
                 {isWholesale && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Feather name="package" size={12} color={MUTED} />
-                    <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }}>Managed by director</Text>
+                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11 }}>Managed by director</Text>
                   </View>
                 )}
               </View>
@@ -289,23 +289,23 @@ export default function StaffOrdersScreen() {
 
 const styles = StyleSheet.create({
   header:        { paddingHorizontal: 16, gap: 12, paddingBottom: 14 },
-  title:         { fontSize: 26, fontFamily: 'Inter_700Bold', color: TEXT },
+  title:         { fontSize: 26, fontWeight: '700', color: TEXT },
   searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 42, borderRadius: 12, borderWidth: 1 },
   filterPill:    { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   orderCard:     { backgroundColor: CARD, borderRadius: 14, borderLeftWidth: 4, borderWidth: 1, borderColor: BORDER, padding: 14,
                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  orderId:       { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
-  orderTime:     { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  orderId:       { fontSize: 15, fontWeight: '700', color: TEXT },
+  orderTime:     { fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 2 },
   typePill:      { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
-  typePillTxt:   { fontSize: 10, fontFamily: 'Inter_700Bold' },
+  typePillTxt:   { fontSize: 10, fontWeight: '700' },
   wholesalePill: { backgroundColor: '#DCFCE7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  wholesalePillTxt:{ color: '#166534', fontFamily: 'Inter_700Bold', fontSize: 9 },
+  wholesalePillTxt:{ color: '#166534', fontWeight: '700', fontSize: 9 },
   statusBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
-  itemLine:      { color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 13 },
+  itemLine:      { color: TEXT, fontWeight: '400', fontSize: 13 },
   addressRow:    { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 6 },
-  addressTxt:    { flex: 1, fontSize: 12, fontFamily: 'Inter_500Medium', color: '#1E40AF', lineHeight: 16 },
-  notes:         { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginBottom: 4, fontStyle: 'italic' },
-  total:         { color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 },
+  addressTxt:    { flex: 1, fontSize: 12, fontWeight: '500', color: '#1E40AF', lineHeight: 16 },
+  notes:         { color: MUTED, fontWeight: '400', fontSize: 12, marginBottom: 4, fontStyle: 'italic' },
+  total:         { color: BLUE, fontWeight: '700', fontSize: 14 },
   advanceBtn:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  advanceBtnTxt: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  advanceBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 12 },
 });

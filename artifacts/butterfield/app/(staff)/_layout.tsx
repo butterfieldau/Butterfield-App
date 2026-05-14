@@ -56,7 +56,7 @@ export default function StaffLayout() {
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+          tabBarLabelStyle: { fontWeight: '500', fontSize: 11 },
         }}
       >
         <Tabs.Screen
@@ -70,7 +70,7 @@ export default function StaffLayout() {
             href: profileLoaded && !canViewOrders ? null : undefined,
             tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
             tabBarBadge: canViewOrders && unreadCount > 0 ? unreadCount : undefined,
-            tabBarBadgeStyle: { backgroundColor: '#F40009', fontSize: 10, fontFamily: 'Inter_700Bold', minWidth: 18, height: 18, lineHeight: 18 },
+            tabBarBadgeStyle: { backgroundColor: '#F40009', fontSize: 10, fontWeight: '700', minWidth: 18, height: 18, lineHeight: 18 },
           }}
         />
         <Tabs.Screen

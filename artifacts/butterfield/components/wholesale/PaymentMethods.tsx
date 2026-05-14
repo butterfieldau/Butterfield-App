@@ -99,7 +99,7 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
           <Text style={cml.modalTitle}>{isEditing ? 'Update Card' : 'Add New Card'}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Feather name="lock" size={11} color={GREEN} />
-            <Text style={{ color: GREEN, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Secure</Text>
+            <Text style={{ color: GREEN, fontWeight: '600', fontSize: 11 }}>Secure</Text>
           </View>
         </View>
 
@@ -113,7 +113,7 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
 
           <View style={[cml.cardPreview, { backgroundColor: BRAND_BG[brand] ?? '#1A3A8C' }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: 'Inter_700Bold', fontSize: 14 }}>{brand}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontWeight: '700', fontSize: 14 }}>{brand}</Text>
               <Feather name="credit-card" size={18} color="rgba(255,255,255,0.5)" />
             </View>
             <Text style={cml.cardNumberPreview}>
@@ -175,7 +175,7 @@ function CardModal({ visible, editCard, onClose, onSave }: CardModalProps) {
             <View style={[cml.checkbox, { borderColor: isDefault ? BLUE : '#D1D5DB', backgroundColor: isDefault ? BLUE : 'transparent' }]}>
               {isDefault && <Feather name="check" size={12} color="#fff" />}
             </View>
-            <Text style={{ color: isDefault ? BLUE : TEXT, fontFamily: 'Inter_500Medium', fontSize: 14, flex: 1 }}>Set as default payment card</Text>
+            <Text style={{ color: isDefault ? BLUE : TEXT, fontWeight: '500', fontSize: 14, flex: 1 }}>Set as default payment card</Text>
           </Pressable>
 
           <Pressable onPress={handleSave} disabled={saving} style={[cml.saveBtn, { opacity: saving ? 0.7 : 1 }]}>
@@ -246,7 +246,7 @@ export function PaymentMethods() {
               <View key={card.id} style={pm.cardWrap}>
                 <View style={[pm.cardFace, { backgroundColor: bg }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Text style={{ color: 'rgba(255,255,255,0.9)', fontFamily: 'Inter_700Bold', fontSize: 13 }}>{card.cardBrand}</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.9)', fontWeight: '700', fontSize: 13 }}>{card.cardBrand}</Text>
                     {card.isDefault && (
                       <View style={pm.defaultBadge}>
                         <Text style={pm.defaultBadgeText}>DEFAULT</Text>
@@ -321,40 +321,40 @@ export function PaymentMethods() {
 const pm = StyleSheet.create({
   cardWrap:           { borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   cardFace:           { padding: 16, gap: 14 },
-  cardNumber:         { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 17, letterSpacing: 3 },
-  cardLabel:          { color: 'rgba(255,255,255,0.55)', fontSize: 9, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 },
-  cardValue:          { color: '#fff', fontFamily: 'Inter_500Medium', fontSize: 12, marginTop: 2 },
+  cardNumber:         { color: '#fff', fontWeight: '700', fontSize: 17, letterSpacing: 3 },
+  cardLabel:          { color: 'rgba(255,255,255,0.55)', fontSize: 9, fontWeight: '400', letterSpacing: 0.5 },
+  cardValue:          { color: '#fff', fontWeight: '500', fontSize: 12, marginTop: 2 },
   defaultBadge:       { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  defaultBadgeText:   { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 9, letterSpacing: 0.5 },
+  defaultBadgeText:   { color: '#fff', fontWeight: '700', fontSize: 9, letterSpacing: 0.5 },
   cardActions:        { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD },
   cardActionBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 11 },
-  cardActionText:     { color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  cardActionText:     { color: BLUE, fontWeight: '600', fontSize: 12 },
   cardActionDivider:  { width: 1, height: 18, backgroundColor: BORDER },
   addBtn:             { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, borderStyle: 'dashed' },
   addIcon:            { width: 36, height: 36, borderRadius: 10, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' },
-  addTitle:           { color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 },
-  addSub:             { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 1 },
+  addTitle:           { color: TEXT, fontWeight: '600', fontSize: 14 },
+  addSub:             { color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 1 },
   secureFoot:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingTop: 4 },
-  secureFootText:     { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 },
+  secureFootText:     { color: MUTED, fontWeight: '400', fontSize: 11 },
 });
 
 const cml = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 24, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
-  modalTitle:     { flex: 1, textAlign: 'center', fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  modalTitle:     { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '700', color: TEXT },
   closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
   notice:         { flexDirection: 'row', gap: 10, backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#BBF7D0' },
-  noticeText:     { color: '#166534', fontFamily: 'Inter_400Regular', fontSize: 12, flex: 1, lineHeight: 17 },
+  noticeText:     { color: '#166534', fontWeight: '400', fontSize: 12, flex: 1, lineHeight: 17 },
   cardPreview:    { borderRadius: 14, padding: 18, minHeight: 140 },
-  cardNumberPreview: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 18, letterSpacing: 3, marginBottom: 16 },
-  cardSmallLabel: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontFamily: 'Inter_400Regular', letterSpacing: 0.5 },
-  cardSmallValue: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 },
-  label:          { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: MUTED, marginBottom: 6 },
+  cardNumberPreview: { color: '#fff', fontWeight: '700', fontSize: 18, letterSpacing: 3, marginBottom: 16 },
+  cardSmallLabel: { color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: '400', letterSpacing: 0.5 },
+  cardSmallValue: { color: '#fff', fontWeight: '600', fontSize: 13, marginTop: 2 },
+  label:          { fontSize: 12, fontWeight: '600', color: MUTED, marginBottom: 6 },
   inputRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, borderColor: BORDER, backgroundColor: CARD },
-  input:          { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular', color: TEXT },
+  input:          { flex: 1, fontSize: 15, fontWeight: '400', color: TEXT },
   brandTag:       { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  brandTagText:   { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  brandTagText:   { color: '#fff', fontSize: 10, fontWeight: '700' },
   defaultRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
   checkbox:       { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   saveBtn:        { height: 54, backgroundColor: BLUE, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText:    { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 },
+  saveBtnText:    { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

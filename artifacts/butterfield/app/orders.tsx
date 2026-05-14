@@ -120,11 +120,11 @@ function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageIt
         )}
       </View>
       <Animated.View style={[{ flex: 1, paddingTop: 6, paddingBottom: 10 }, { opacity: opacityAnim }]}>
-        <Text style={{ fontSize: 14, fontFamily: isActive ? 'Inter_700Bold' : 'Inter_500Medium', color: isActive || isCompleted ? TEXT : MUTED }}>
-          {stage.label}{isActive ? <Text style={{ color, fontFamily: 'Inter_600SemiBold' }}> · Now</Text> : ''}
+        <Text style={{ fontSize: 14, fontWeight: isActive ? '700' : '500', color: isActive || isCompleted ? TEXT : MUTED }}>
+          {stage.label}{isActive ? <Text style={{ color, fontWeight: '600' }}> · Now</Text> : ''}
         </Text>
         {(isActive || isCompleted) && (
-          <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 17, marginTop: 2 }}>{stage.desc}</Text>
+          <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED, lineHeight: 17, marginTop: 2 }}>{stage.desc}</Text>
         )}
       </Animated.View>
     </View>
@@ -180,7 +180,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
         ) : !order ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
             <Feather name="alert-circle" size={40} color={MUTED} />
-            <Text style={{ color: MUTED, fontFamily: 'Inter_500Medium' }}>Order not found</Text>
+            <Text style={{ color: MUTED, fontWeight: '500' }}>Order not found</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
@@ -189,23 +189,23 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
             <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ gap: 3 }}>
-                  <Text style={{ fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
                     Order #{order.id.slice(-6).toUpperCase()}
                   </Text>
-                  <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                     {fmtDate(order.createdAt)}
                   </Text>
-                  <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular', textTransform: 'capitalize' }}>
+                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400', textTransform: 'capitalize' }}>
                     {order.type === 'delivery' ? '🚗 Delivery' : '🛍️ Pickup'}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: TEXT }}>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>
                     AUD ${total.toFixed(2)}
                   </Text>
                   <View style={[d.statusBadge, { backgroundColor: statusColor + '18' }]}>
                     {isActive && <View style={[d.statusDot, { backgroundColor: statusColor }]} />}
-                    <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: statusColor }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: statusColor }}>
                       {STATUS_LABEL[status] ?? status}
                     </Text>
                   </View>
@@ -214,7 +214,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
               {order.scheduledFor && (
                 <View style={[d.metaRow, { borderTopColor: BORDER, marginTop: 12, paddingTop: 12 }]}>
                   <Feather name="clock" size={13} color={BLUE} />
-                  <Text style={{ fontSize: 13, fontFamily: 'Inter_500Medium', color: TEXT }}>
+                  <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT }}>
                     {order.type === 'delivery' ? 'Delivery' : 'Pickup'}: {fmtShort(order.scheduledFor).date} · {fmtShort(order.scheduledFor).time}
                   </Text>
                 </View>
@@ -225,7 +225,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
             {isActive && currentStage && (
               <View style={[d.liveCard, { backgroundColor: statusColor + '12', borderColor: statusColor + '30' }]}>
                 <Feather name="zap" size={14} color={statusColor} />
-                <Text style={{ fontSize: 13, fontFamily: 'Inter_500Medium', color: statusColor, flex: 1, lineHeight: 18 }}>
+                <Text style={{ fontSize: 13, fontWeight: '500', color: statusColor, flex: 1, lineHeight: 18 }}>
                   {currentStage.desc}
                 </Text>
               </View>
@@ -250,31 +250,31 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                     return (
                       <View key={i} style={[d.itemRow, { borderBottomColor: BORDER, borderBottomWidth: i < items.length - 1 ? 1 : 0 }]}>
                         <View style={[d.qtyBadge, { backgroundColor: BLUE }]}>
-                          <Text style={{ color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' }}>{qty}</Text>
+                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{qty}</Text>
                         </View>
                         <View style={{ flex: 1, gap: 2 }}>
-                          <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT }}>
+                          <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>
                             {item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item'}
-                            {variant ? <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED }}>{` · ${variant}`}</Text> : null}
+                            {variant ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${variant}`}</Text> : null}
                           </Text>
                           {unitCents > 0 && (
-                            <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                            <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                               ${(unitCents / 100).toFixed(2)} each
                             </Text>
                           )}
                           {notable.length > 0 && (
-                            <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_400Regular' }}>
+                            <Text style={{ fontSize: 12, color: BLUE, fontWeight: '400' }}>
                               {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
                             </Text>
                           )}
                           {baristaNote ? (
-                            <Text style={{ fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
+                            <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', fontStyle: 'italic' }}>
                               "{baristaNote}"
                             </Text>
                           ) : null}
                         </View>
                         {lineCents > 0 && (
-                          <Text style={{ fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>
                             ${(lineCents / 100).toFixed(2)}
                           </Text>
                         )}
@@ -292,14 +292,14 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                     </View>
                   )}
                   <View style={d.totalRow}>
-                    <Text style={[d.totalLabel, { fontFamily: 'Inter_700Bold', color: TEXT }]}>Total paid</Text>
-                    <Text style={[d.totalVal, { fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 16 }]}>
+                    <Text style={[d.totalLabel, { fontWeight: '700', color: TEXT }]}>Total paid</Text>
+                    <Text style={[d.totalVal, { fontWeight: '700', color: TEXT, fontSize: 16 }]}>
                       AUD ${total.toFixed(2)}
                     </Text>
                   </View>
                   {pointsEarned > 0 && (
                     <View style={[d.pointsEarned, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                      <Text style={{ fontSize: 13, color: '#92400E', fontFamily: 'Inter_600SemiBold' }}>
+                      <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '600' }}>
                         🏅 +{pointsEarned} loyalty points earned
                       </Text>
                     </View>
@@ -318,7 +318,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                   ))}
                 </View>
                 {isActive && (
-                  <Text style={{ textAlign: 'center', fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular', marginTop: 8 }}>
+                  <Text style={{ textAlign: 'center', fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 8 }}>
                     Updates automatically every 10 seconds
                   </Text>
                 )}
@@ -329,7 +329,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                   <Feather name="x-circle" size={20} color="#EF4444" />
                   <Text style={[d.sectionTitle, { color: '#EF4444' }]}>Order {status === 'refunded' ? 'Refunded' : 'Cancelled'}</Text>
                 </View>
-                <Text style={{ fontSize: 13, color: '#EF4444', opacity: 0.8, marginTop: 6, fontFamily: 'Inter_400Regular', lineHeight: 18 }}>
+                <Text style={{ fontSize: 13, color: '#EF4444', opacity: 0.8, marginTop: 6, fontWeight: '400', lineHeight: 18 }}>
                   This order was {status === 'refunded' ? 'refunded' : 'cancelled'}. Contact us at hello@butterfieldcookies.com.au if you need help.
                 </Text>
               </View>
@@ -341,7 +341,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 <Text style={d.sectionTitle}>Delivery address</Text>
                 <View style={[d.metaRow, { marginTop: 6 }]}>
                   <Feather name="map-pin" size={14} color={MUTED} />
-                  <Text style={{ fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', flex: 1 }}>
+                  <Text style={{ fontSize: 14, color: TEXT, fontWeight: '400', flex: 1 }}>
                     {typeof order.deliveryAddress === 'string' ? order.deliveryAddress : JSON.stringify(order.deliveryAddress)}
                   </Text>
                 </View>
@@ -353,7 +353,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
               <View style={[d.card, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
                 <View style={d.metaRow}>
                   <Feather name="message-circle" size={14} color="#92400E" />
-                  <Text style={{ fontSize: 13, color: '#92400E', fontFamily: 'Inter_500Medium', flex: 1 }}>{order.notes}</Text>
+                  <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '500', flex: 1 }}>{order.notes}</Text>
                 </View>
               </View>
             )}
@@ -488,34 +488,34 @@ export default function CustomerOrdersScreen() {
 const s = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn:     { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT },
-  headerBrand: { fontSize: 18, fontFamily: 'Inter_700Bold', fontStyle: 'italic' },
-  emptyTitle:  { fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT },
-  emptySub:    { fontSize: 14, fontFamily: 'Inter_400Regular', color: MUTED, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: TEXT },
+  headerBrand: { fontSize: 18, fontWeight: '700', fontStyle: 'italic' },
+  emptyTitle:  { fontSize: 18, fontWeight: '700', color: TEXT },
+  emptySub:    { fontSize: 14, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
   shopBtn:     { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
-  shopBtnText: { color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 },
+  shopBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   card:        { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
   topRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  orderId:     { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
-  orderDate:   { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 3 },
+  orderId:     { fontSize: 16, fontWeight: '700', color: TEXT },
+  orderDate:   { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 3 },
   badge:       { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  badgeText:   { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  badgeText:   { fontSize: 13, fontWeight: '600' },
   progressTrack:{ height: 8, borderRadius: 999, backgroundColor: '#EEF2F7', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 999 },
-  itemSummary: { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED },
+  itemSummary: { fontSize: 13, fontWeight: '400', color: MUTED },
   row:         { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta:        { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED },
+  meta:        { fontSize: 13, fontWeight: '400', color: MUTED },
   bottomRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  total:       { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  total:       { fontSize: 16, fontWeight: '700', color: TEXT },
 });
 
 // ── Detail modal styles ──────────────────────────────────────────────────────
 const d = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, backgroundColor: CARD },
   closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT, textAlign: 'center' },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: TEXT, textAlign: 'center' },
   card:        { borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD },
-  sectionTitle:{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: TEXT, marginBottom: 10 },
+  sectionTitle:{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 10 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   statusDot:   { width: 6, height: 6, borderRadius: 3 },
   metaRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -523,8 +523,8 @@ const d = StyleSheet.create({
   itemRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   qtyBadge:    { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   totalRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: MUTED },
-  totalVal:    { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  totalLabel:  { fontSize: 14, fontWeight: '500', color: MUTED },
+  totalVal:    { fontSize: 14, fontWeight: '600', color: TEXT },
   pointsEarned:{ borderRadius: 10, padding: 10, borderWidth: 1, alignItems: 'center', marginTop: 4 },
   stageRow:    { flexDirection: 'row', gap: 14, minHeight: 56 },
   stageCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },

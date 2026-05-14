@@ -294,11 +294,11 @@ export default function StaffDashboard() {
           <Pressable onPress={() => setStorePickerVisible(false)} style={{ padding: 4 }} hitSlop={8}>
             <Feather name="x" size={20} color={TEXT} />
           </Pressable>
-          <Text style={{ flex: 1, textAlign: 'center', fontFamily: 'Inter_700Bold', fontSize: 17, color: TEXT }}>Which store?</Text>
+          <Text style={{ flex: 1, textAlign: 'center', fontWeight: '700', fontSize: 17, color: TEXT }}>Which store?</Text>
           <View style={{ width: 28 }} />
         </View>
         <View style={{ padding: 20, gap: 10 }}>
-          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 4 }}>
+          <Text style={{ fontWeight: '400', fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 4 }}>
             You're assigned to multiple stores. Select the one you're clocking in at.
           </Text>
           {storeAssignments.map(a => (
@@ -314,13 +314,13 @@ export default function StaffDashboard() {
                 <Feather name="map-pin" size={18} color={BLUE} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 15, color: TEXT }}>{a.name ?? 'Store'}</Text>
-                {a.suburb ? <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, marginTop: 2 }}>{a.suburb}</Text> : null}
-                {a.address ? <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED }}>{a.address}</Text> : null}
+                <Text style={{ fontWeight: '700', fontSize: 15, color: TEXT }}>{a.name ?? 'Store'}</Text>
+                {a.suburb ? <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 }}>{a.suburb}</Text> : null}
+                {a.address ? <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED }}>{a.address}</Text> : null}
               </View>
               {a.isPrimary && (
                 <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 10, fontFamily: 'Inter_600SemiBold', color: BLUE }}>Primary</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: BLUE }}>Primary</Text>
                 </View>
               )}
               <Feather name="chevron-right" size={16} color={MUTED} />
@@ -432,8 +432,8 @@ export default function StaffDashboard() {
         {/* Task progress */}
         <View style={[styles.taskProgress, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Today's Tasks</Text>
-            <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
+            <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 15 }]}>Today's Tasks</Text>
+            <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
           </View>
           <View style={[styles.progressTrack, { backgroundColor: '#F0F0F0' }]}>
             <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: BLUE }]} />
@@ -441,7 +441,7 @@ export default function StaffDashboard() {
         </View>
 
         {/* Quick actions */}
-        <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
+        <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
           {[
             { icon: 'clipboard',      label: 'Tasks',        bg: '#E0F5FE', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
@@ -454,7 +454,7 @@ export default function StaffDashboard() {
               <View style={[styles.actionIcon, { backgroundColor: action.bg, borderRadius: 12 }]}>
                 <Feather name={action.icon as any} size={20} color={BLUE} />
               </View>
-              <Text style={[styles.actionLabel, { color: TEXT, fontFamily: 'Inter_500Medium' }]}>{action.label}</Text>
+              <Text style={[styles.actionLabel, { color: TEXT, fontWeight: '500' }]}>{action.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -462,17 +462,17 @@ export default function StaffDashboard() {
         {/* Today's schedule — only visible to staff with orders permission */}
         {canViewOrders && (
           <>
-            <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>TODAY'S SCHEDULE</Text>
+            <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>TODAY'S SCHEDULE</Text>
             {scheduleGroups.length === 0 ? (
               <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
                 <Feather name="calendar" size={22} color={BORDER} />
-                <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>No scheduled pickups today</Text>
+                <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>No scheduled pickups today</Text>
               </View>
             ) : scheduleGroups.map((group) => (
               <View key={group.time} style={{ gap: 8 }}>
                 <View style={styles.timeRow}>
                   <Feather name="clock" size={12} color={BLUE} />
-                  <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>{group.time}</Text>
+                  <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 13 }]}>{group.time}</Text>
                 </View>
                 {group.orders.map((order: any) => {
                   const items = Array.isArray(order.items) ? order.items : [];
@@ -486,17 +486,17 @@ export default function StaffDashboard() {
                       style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, borderLeftColor: sc, borderLeftWidth: 3 }]}>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
+                          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
                           <View style={[{ backgroundColor: `${sc}18`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
-                            <Text style={[{ color: sc, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
+                            <Text style={[{ color: sc, fontWeight: '600', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
                           </View>
                         </View>
-                        <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]} numberOfLines={1}>
+                        <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]} numberOfLines={1}>
                           {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
                           {items.length > 3 ? ` +${items.length - 3} more` : ''}
                         </Text>
                       </View>
-                      <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
+                      <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
                     </Pressable>
                   );
                 })}
@@ -508,7 +508,7 @@ export default function StaffDashboard() {
         {/* Pending tasks */}
         {urgentTasks.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { color: MUTED, fontFamily: 'Inter_600SemiBold' }]}>PENDING TASKS</Text>
+            <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>PENDING TASKS</Text>
             {urgentTasks.map((task) => (
               <Pressable key={task.id} onPress={() => handleCompleteTask(task.id, task.isCompleted)}
                 style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftColor: BLUE, borderLeftWidth: 3 }]}>
@@ -516,8 +516,8 @@ export default function StaffDashboard() {
                   {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
-                  <Text style={[{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
+                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontWeight: '500', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
+                  <Text style={[{ color: BLUE, fontWeight: '400', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
                 </View>
               </Pressable>
             ))}
@@ -538,25 +538,25 @@ const styles = StyleSheet.create({
   shiftDot: { width: 6, height: 6, borderRadius: 3 },
   shiftCard: { borderRadius: 18, padding: 18, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: BORDER },
   shiftCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  shiftCardLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8 },
+  shiftCardLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8 },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
-  liveText: { fontSize: 12, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-  bigStatus: { fontSize: 38, fontFamily: 'Inter_700Bold', marginTop: 2 },
-  bigElapsed: { fontSize: 38, fontFamily: 'Inter_700Bold', marginTop: 2 },
-  shiftSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
+  liveText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  bigStatus: { fontSize: 38, fontWeight: '700', marginTop: 2 },
+  bigElapsed: { fontSize: 38, fontWeight: '700', marginTop: 2 },
+  shiftSub: { fontSize: 13, fontWeight: '400', lineHeight: 19 },
   mainBtn: { borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 2 },
-  mainBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  mainBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   breakRow: { flexDirection: 'row', gap: 10 },
   breakBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 30, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  breakBtnText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  breakBtnText: { fontSize: 13, fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  locationText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  locationText: { fontSize: 11, fontWeight: '400' },
   statsRow: { flexDirection: 'row', gap: 12 },
   statCard: { flex: 1, borderRadius: 14, padding: 14, gap: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1, borderWidth: 1, borderColor: BORDER },
-  statLabel: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8, marginBottom: 2 },
-  statDuration: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  statEarnings: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  statLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, marginBottom: 2 },
+  statDuration: { fontSize: 22, fontWeight: '700' },
+  statEarnings: { fontSize: 13, fontWeight: '400', marginTop: 1 },
   taskProgress: { padding: 16, gap: 10 },
   progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },

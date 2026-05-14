@@ -70,8 +70,8 @@ export default function ResetPasswordScreen() {
           <View style={s.heroIcon}>
             <Feather name="check-circle" size={32} color="#fff" />
           </View>
-          <Text style={[s.heroTitle, { fontFamily: 'Inter_700Bold' }]}>Password updated!</Text>
-          <Text style={[s.heroSub, { fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[s.heroTitle, { fontWeight: '700' }]}>Password updated!</Text>
+          <Text style={[s.heroSub, { fontWeight: '400' }]}>
             Your password has been changed{'\n'}successfully.
           </Text>
         </LinearGradient>
@@ -80,15 +80,15 @@ export default function ResetPasswordScreen() {
             <View style={[s.successIcon, { backgroundColor: '#F0FDF4' }]}>
               <Feather name="lock" size={28} color={GREEN} />
             </View>
-            <Text style={[s.successTitle, { fontFamily: 'Inter_700Bold', color: TEXT }]}>All set!</Text>
-            <Text style={[s.successSub, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+            <Text style={[s.successTitle, { fontWeight: '700', color: TEXT }]}>All set!</Text>
+            <Text style={[s.successSub, { fontWeight: '400', color: MUTED }]}>
               You can now sign in with your new password.
             </Text>
             <Pressable
               onPress={() => router.replace('/(auth)/login')}
               style={[s.btn, { backgroundColor: BLUE, width: '100%', marginTop: 8 }]}
             >
-              <Text style={[s.btnText, { fontFamily: 'Inter_700Bold' }]}>Sign In</Text>
+              <Text style={[s.btnText, { fontWeight: '700' }]}>Sign In</Text>
             </Pressable>
           </View>
         </View>
@@ -107,8 +107,8 @@ export default function ResetPasswordScreen() {
           <View style={s.heroIcon}>
             <Feather name="key" size={28} color="#fff" />
           </View>
-          <Text style={[s.heroTitle, { fontFamily: 'Inter_700Bold' }]}>Create new password</Text>
-          <Text style={[s.heroSub, { fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[s.heroTitle, { fontWeight: '700' }]}>Create new password</Text>
+          <Text style={[s.heroSub, { fontWeight: '400' }]}>
             {email ? `For ${email}` : 'Choose a strong password'}
           </Text>
         </LinearGradient>
@@ -117,11 +117,11 @@ export default function ResetPasswordScreen() {
           <View style={[s.card, { backgroundColor: CARD }]}>
 
             <View style={{ gap: 6 }}>
-              <Text style={[s.label, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>New password</Text>
+              <Text style={[s.label, { fontWeight: '600', color: TEXT }]}>New password</Text>
               <View style={[s.inputRow, { backgroundColor: '#F5F6FA', borderColor: BORDER }]}>
                 <Feather name="lock" size={16} color={MUTED} />
                 <TextInput
-                  style={[s.input, { color: TEXT, fontFamily: 'Inter_400Regular' }]}
+                  style={[s.input, { color: TEXT, fontWeight: '400' }]}
                   placeholder="At least 8 characters"
                   placeholderTextColor={MUTED}
                   value={password}
@@ -146,7 +146,7 @@ export default function ResetPasswordScreen() {
                       />
                     ))}
                   </View>
-                  <Text style={{ fontSize: 12, color: strength.color, fontFamily: 'Inter_500Medium' }}>
+                  <Text style={{ fontSize: 12, color: strength.color, fontWeight: '500' }}>
                     {strength.label} password
                   </Text>
                 </View>
@@ -154,11 +154,11 @@ export default function ResetPasswordScreen() {
             </View>
 
             <View style={{ gap: 6 }}>
-              <Text style={[s.label, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Confirm password</Text>
+              <Text style={[s.label, { fontWeight: '600', color: TEXT }]}>Confirm password</Text>
               <View style={[s.inputRow, { backgroundColor: '#F5F6FA', borderColor: BORDER }]}>
                 <Feather name="lock" size={16} color={MUTED} />
                 <TextInput
-                  style={[s.input, { color: TEXT, fontFamily: 'Inter_400Regular' }]}
+                  style={[s.input, { color: TEXT, fontWeight: '400' }]}
                   placeholder="Repeat password"
                   placeholderTextColor={MUTED}
                   value={confirm}
@@ -172,14 +172,14 @@ export default function ResetPasswordScreen() {
                 </Pressable>
               </View>
               {confirm.length > 0 && password !== confirm && (
-                <Text style={{ fontSize: 12, color: '#EF4444', fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '400' }}>
                   Passwords don't match
                 </Text>
               )}
               {confirm.length > 0 && password === confirm && confirm.length >= 8 && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Feather name="check-circle" size={13} color={GREEN} />
-                  <Text style={{ fontSize: 12, color: GREEN, fontFamily: 'Inter_500Medium' }}>Passwords match</Text>
+                  <Text style={{ fontSize: 12, color: GREEN, fontWeight: '500' }}>Passwords match</Text>
                 </View>
               )}
             </View>
@@ -187,7 +187,7 @@ export default function ResetPasswordScreen() {
             {error ? (
               <View style={s.errorBox}>
                 <Feather name="alert-circle" size={14} color="#EF4444" />
-                <Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                <Text style={[s.errorText, { fontWeight: '400' }]}>{error}</Text>
               </View>
             ) : null}
 
@@ -198,7 +198,7 @@ export default function ResetPasswordScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={[s.btnText, { fontFamily: 'Inter_700Bold' }]}>Update Password</Text>
+                : <Text style={[s.btnText, { fontWeight: '700' }]}>Update Password</Text>
               }
             </Pressable>
           </View>

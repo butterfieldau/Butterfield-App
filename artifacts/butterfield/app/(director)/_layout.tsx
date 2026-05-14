@@ -31,7 +31,7 @@ export default function DirectorLayout() {
             borderTopColor: '#E5E7EB',
             borderTopWidth: StyleSheet.hairlineWidth,
           },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10, marginBottom: 2 },
+          tabBarLabelStyle: { fontWeight: '500', fontSize: 10, marginBottom: 2 },
         }}
       >
         <Tabs.Screen name="index"    options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"        size={size} color={color} /> }} />

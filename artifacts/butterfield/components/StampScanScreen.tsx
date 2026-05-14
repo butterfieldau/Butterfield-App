@@ -213,7 +213,7 @@ export function StampScanScreen() {
           {scanning && (
             <View style={s.scanningOverlay}>
               <ActivityIndicator color={WHITE} size="large" />
-              <Text style={{ color: WHITE, fontFamily: 'Inter_500Medium', marginTop: 10 }}>Recording stamp…</Text>
+              <Text style={{ color: WHITE, fontWeight: '500', marginTop: 10 }}>Recording stamp…</Text>
             </View>
           )}
         </View>
@@ -243,14 +243,14 @@ const s = StyleSheet.create({
   root:    { flex: 1, backgroundColor: '#000' },
   center:  { flex: 1, backgroundColor: DARK, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 },
 
-  permTitle:  { color: WHITE, fontSize: 20, fontFamily: 'Inter_700Bold', textAlign: 'center', marginTop: 16 },
-  permSub:    { color: MUTED, fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
+  permTitle:  { color: WHITE, fontSize: 20, fontWeight: '700', textAlign: 'center', marginTop: 16 },
+  permSub:    { color: MUTED, fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
   permBtn:    { backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 28, paddingVertical: 13, marginTop: 8 },
-  permBtnTx:  { color: WHITE, fontFamily: 'Inter_700Bold', fontSize: 15 },
+  permBtnTx:  { color: WHITE, fontWeight: '700', fontSize: 15 },
 
   overlay:   { backgroundColor: 'rgba(0,0,0,0.62)', alignItems: 'center', justifyContent: 'center' },
   titleRow:  { position: 'absolute', left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 10 },
-  titleTx:   { color: WHITE, fontSize: 17, fontFamily: 'Inter_700Bold' },
+  titleTx:   { color: WHITE, fontSize: 17, fontWeight: '700' },
 
   frameWrap: { alignItems: 'center', justifyContent: 'center', width: '100%', aspectRatio: 1 },
   frame:     { width: FRAME, height: FRAME, alignItems: 'center', justifyContent: 'center' },
@@ -263,22 +263,22 @@ const s = StyleSheet.create({
 
   scanningOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
 
-  hint:     { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22, paddingHorizontal: 32 },
+  hint:     { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 22, paddingHorizontal: 32 },
   errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 12, padding: 14, marginHorizontal: 24 },
-  errorTx:  { flex: 1, color: '#FCA5A5', fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 20 },
+  errorTx:  { flex: 1, color: '#FCA5A5', fontSize: 13, fontWeight: '400', lineHeight: 20 },
 
   resultCard:    { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 28, marginHorizontal: 24, alignItems: 'center', gap: 10, borderColor: 'transparent', borderWidth: 2 },
   resultIcon:    { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  resultHeadline:{ color: WHITE, fontSize: 22, fontFamily: 'Inter_700Bold', textAlign: 'center' },
-  resultSub:     { color: MUTED, fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
+  resultHeadline:{ color: WHITE, fontSize: 22, fontWeight: '700', textAlign: 'center' },
+  resultSub:     { color: MUTED, fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
   statsRow:      { flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 6 },
   statChip:      { flex: 1, backgroundColor: '#2B2B2E', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', gap: 2 },
-  statLabel:     { color: '#A1A1AA', fontSize: 11, fontFamily: 'Inter_600SemiBold', textTransform: 'uppercase', letterSpacing: 0.5 },
-  statValue:     { color: WHITE, fontSize: 17, fontFamily: 'Inter_700Bold' },
+  statLabel:     { color: '#A1A1AA', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue:     { color: WHITE, fontSize: 17, fontWeight: '700' },
   dotsRow:       { flexDirection: 'row', gap: 8, marginTop: 8 },
   dot:           { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  dotLabel:      { color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  dotLabel:      { color: MUTED, fontSize: 13, fontWeight: '400' },
   actionRow:     { width: '100%', gap: 10, marginTop: 10 },
   scanAgainBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13, marginTop: 8 },
-  scanAgainTx:   { color: WHITE, fontFamily: 'Inter_700Bold', fontSize: 15 },
+  scanAgainTx:   { color: WHITE, fontWeight: '700', fontSize: 15 },
 });

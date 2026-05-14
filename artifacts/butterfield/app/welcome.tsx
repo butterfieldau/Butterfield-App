@@ -69,10 +69,10 @@ export default function WelcomeScreen() {
 
       {/* Text block */}
       <View style={styles.textBlock}>
-        <Text style={[styles.title, { fontFamily: 'Inter_700Bold', color: textCol }]}>
+        <Text style={[styles.title, { fontWeight: '700', color: textCol }]}>
           Welcome to{'\n'}Butterfield Cookies!
         </Text>
-        <Text style={[styles.subtitle, { fontFamily: 'Inter_400Regular', color: subCol }]}>
+        <Text style={[styles.subtitle, { fontWeight: '400', color: subCol }]}>
           Sydney's favourite cookies, coffee & desserts.{'\n'}Order ahead, earn rewards.
         </Text>
       </View>
@@ -86,7 +86,7 @@ export default function WelcomeScreen() {
             router.push('/(auth)/login?mode=register');
           }}
         >
-          <Text style={[styles.registerBtnText, { fontFamily: 'Inter_700Bold', color: regText }]}>Register</Text>
+          <Text style={[styles.registerBtnText, { fontWeight: '700', color: regText }]}>Register</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.loginBtn, { opacity: pressed ? 0.75 : 1, borderColor: loginBdr }]}
@@ -95,7 +95,7 @@ export default function WelcomeScreen() {
             router.push('/(auth)/login');
           }}
         >
-          <Text style={[styles.loginBtnText, { fontFamily: 'Inter_600SemiBold', color: textCol }]}>Log in</Text>
+          <Text style={[styles.loginBtnText, { fontWeight: '600', color: textCol }]}>Log in</Text>
         </Pressable>
       </View>
     </View>

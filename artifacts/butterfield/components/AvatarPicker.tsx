@@ -132,7 +132,7 @@ export function AvatarPicker({
 
 const styles = StyleSheet.create({
   container:    { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  initial:      { fontFamily: 'Inter_700Bold' },
+  initial:      { fontWeight: '700' },
   loadingOverlay: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
   badge: {
     position: 'absolute',

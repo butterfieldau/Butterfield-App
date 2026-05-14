@@ -146,7 +146,7 @@ export default function NotificationsScreen() {
                     disabled={saving === item.key}
                   />
                   {saved === item.key && (
-                    <Text style={{ fontSize: 10, color: GREEN, fontFamily: 'Inter_500Medium' }}>Saved</Text>
+                    <Text style={{ fontSize: 10, color: GREEN, fontWeight: '500' }}>Saved</Text>
                   )}
                 </View>
               </View>
@@ -172,7 +172,7 @@ export default function NotificationsScreen() {
             <View style={{ alignItems: 'center', paddingVertical: 20, gap: 8 }}>
               <Feather name="inbox" size={28} color={MUTED} />
               <Text style={s.empty}>No announcements right now.</Text>
-              <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>Check back soon for updates!</Text>
+              <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>Check back soon for updates!</Text>
             </View>
           ) : (
             announcements.map((a: any) => (
@@ -183,7 +183,7 @@ export default function NotificationsScreen() {
                     <Text style={s.annTitle}>{a.title ?? 'Update'}</Text>
                     {a.isPinned && (
                       <View style={[s.pinnedBadge, { backgroundColor: '#FEF3C7' }]}>
-                        <Text style={{ fontSize: 10, color: '#92400E', fontFamily: 'Inter_600SemiBold' }}>Pinned</Text>
+                        <Text style={{ fontSize: 10, color: '#92400E', fontWeight: '600' }}>Pinned</Text>
                       </View>
                     )}
                   </View>
@@ -205,24 +205,24 @@ export default function NotificationsScreen() {
 const s = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn:     { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT, textAlign: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: TEXT, textAlign: 'center' },
   badge:       { minWidth: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  badgeText:   { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  badgeText:   { fontSize: 13, fontWeight: '700' },
   sectionCard: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 0 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   iconCircle:  { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle:{ fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
-  sectionSub:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 1 },
+  sectionTitle:{ fontSize: 15, fontWeight: '700', color: TEXT },
+  sectionSub:  { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 1 },
   prefRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   prefIcon:    { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   prefBody:    { flex: 1, gap: 2 },
-  prefTitle:   { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
-  prefDesc:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 17 },
+  prefTitle:   { fontSize: 14, fontWeight: '600', color: TEXT },
+  prefDesc:    { fontSize: 12, fontWeight: '400', color: MUTED, lineHeight: 17 },
   annRow:      { flexDirection: 'row', gap: 12, alignItems: 'flex-start', paddingVertical: 12 },
   dot:         { width: 8, height: 8, borderRadius: 4, marginTop: 5, flexShrink: 0 },
   pinnedBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  annTitle:    { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT },
-  annDesc:     { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 18 },
-  empty:       { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular' },
-  footer:      { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 18 },
+  annTitle:    { fontSize: 14, fontWeight: '700', color: TEXT },
+  annDesc:     { fontSize: 13, fontWeight: '400', color: MUTED, lineHeight: 18 },
+  empty:       { fontSize: 13, color: MUTED, fontWeight: '400' },
+  footer:      { textAlign: 'center', fontSize: 12, fontWeight: '400', lineHeight: 18 },
 });

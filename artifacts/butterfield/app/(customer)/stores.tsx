@@ -172,8 +172,8 @@ export default function CustomerStoresScreen() {
         ) : stores.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
             <Feather name="map-pin" size={32} color="#8E8E93" />
-            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#1C1C1E' }}>No stores listed yet</Text>
-            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>Check back soon for our upcoming locations.</Text>
+            <Text style={{ fontWeight: '600', fontSize: 16, color: '#1C1C1E' }}>No stores listed yet</Text>
+            <Text style={{ fontWeight: '400', fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>Check back soon for our upcoming locations.</Text>
           </View>
         ) : (
           stores.map(store => <StoreCard key={store.id} store={store} />)
@@ -185,19 +185,19 @@ export default function CustomerStoresScreen() {
 
 const cs = StyleSheet.create({
   hero:            { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTitle:       { fontFamily: 'Inter_700Bold', fontSize: 30, color: '#fff', marginBottom: 4 },
-  heroSub:         { fontFamily: 'Inter_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
+  heroTitle:       { fontWeight: '700', fontSize: 30, color: '#fff', marginBottom: 4 },
+  heroSub:         { fontWeight: '400', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
   card:            { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   cardBanner:      { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardBannerTitle: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#fff', flex: 1 },
+  cardBannerTitle: { fontWeight: '700', fontSize: 16, color: '#fff', flex: 1 },
   openBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   dot:             { width: 7, height: 7, borderRadius: 4 },
-  openBadgeText:   { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#fff' },
+  openBadgeText:   { fontWeight: '600', fontSize: 11, color: '#fff' },
   infoRow:         { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  infoText:        { fontFamily: 'Inter_400Regular', fontSize: 13, flex: 1, lineHeight: 18 },
+  infoText:        { fontWeight: '400', fontSize: 13, flex: 1, lineHeight: 18 },
   serviceChip:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  serviceText:     { fontFamily: 'Inter_500Medium', fontSize: 11 },
-  notes:           { fontFamily: 'Inter_400Regular', fontSize: 12, fontStyle: 'italic' },
+  serviceText:     { fontWeight: '500', fontSize: 11 },
+  notes:           { fontWeight: '400', fontSize: 12, fontStyle: 'italic' },
   actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  actionBtnText:   { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#40C0F2' },
+  actionBtnText:   { fontWeight: '600', fontSize: 13, color: '#40C0F2' },
 });

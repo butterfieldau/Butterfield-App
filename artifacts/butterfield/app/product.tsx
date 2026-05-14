@@ -51,7 +51,7 @@ function DietaryChip({ label }: { label: string }) {
   return (
     <View style={chip.dietary}>
       <Text style={chip.dietaryIcon}>{icon}</Text>
-      <Text style={[chip.dietaryText, { fontFamily: 'Inter_600SemiBold' }]}>{label}</Text>
+      <Text style={[chip.dietaryText, { fontWeight: '600' }]}>{label}</Text>
     </View>
   );
 }
@@ -59,7 +59,7 @@ function DietaryChip({ label }: { label: string }) {
 function AllergenChip({ label }: { label: string }) {
   return (
     <View style={chip.allergen}>
-      <Text style={[chip.allergenText, { fontFamily: 'Inter_500Medium' }]}>{label}</Text>
+      <Text style={[chip.allergenText, { fontWeight: '500' }]}>{label}</Text>
     </View>
   );
 }
@@ -68,8 +68,8 @@ function DetailSection({ icon, title, content }: { icon: string; title: string; 
   if (!content?.trim()) return null;
   return (
     <View style={detail.wrap}>
-      <Text style={[detail.title, { fontFamily: 'Inter_600SemiBold' }]}>{title}</Text>
-      <Text style={[detail.body, { fontFamily: 'Inter_400Regular' }]}>{content}</Text>
+      <Text style={[detail.title, { fontWeight: '600' }]}>{title}</Text>
+      <Text style={[detail.body, { fontWeight: '400' }]}>{content}</Text>
     </View>
   );
 }
@@ -77,7 +77,7 @@ function DetailSection({ icon, title, content }: { icon: string; title: string; 
 function StatusPill({ label, color, textColor }: { label: string; color: string; textColor?: string }) {
   return (
     <View style={[pill.wrap, { backgroundColor: color }]}>
-      <Text style={[pill.text, { fontFamily: 'Inter_700Bold', color: textColor ?? '#fff' }]}>{label}</Text>
+      <Text style={[pill.text, { fontWeight: '700', color: textColor ?? '#fff' }]}>{label}</Text>
     </View>
   );
 }
@@ -182,9 +182,9 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
-        <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED }}>We could not open that product.</Text>
+        <Text style={{ fontWeight: '400', color: MUTED }}>We could not open that product.</Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 16, padding: 12 }}>
-          <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Go back</Text>
+          <Text style={{ color: BLUE, fontWeight: '600' }}>Go back</Text>
         </Pressable>
       </View>
     );
@@ -289,11 +289,11 @@ export default function ProductDetailScreen() {
             contentContainerStyle={{ paddingBottom: 18 }}
           >
             {/* Name */}
-            <Text style={[s.name, { fontFamily: 'Inter_700Bold' }]}>{product.name}</Text>
+            <Text style={[s.name, { fontWeight: '700' }]}>{product.name}</Text>
 
             {/* Short description / about */}
             {(shortDesc || product.description) ? (
-              <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[s.desc, { fontWeight: '400' }]}>
                 {shortDesc || product.description}
               </Text>
             ) : null}
@@ -303,14 +303,14 @@ export default function ProductDetailScreen() {
                 onPress={() => Linking.openURL(productUrl).catch(() => {})}
                 style={s.websiteLink}
               >
-                <Text style={[s.websiteLinkText, { fontFamily: 'Inter_600SemiBold' }]}>View on Website</Text>
-                <Text style={{ fontSize: 11, color: BLUE, fontFamily: 'Inter_400Regular', marginLeft: 2 }}>↗</Text>
+                <Text style={[s.websiteLinkText, { fontWeight: '600' }]}>View on Website</Text>
+                <Text style={{ fontSize: 11, color: BLUE, fontWeight: '400', marginLeft: 2 }}>↗</Text>
               </Pressable>
             ) : null}
 
             {galleryUrls.length > 1 && (
               <View style={{ marginTop: 14, gap: 8 }}>
-                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Photos</Text>
+                <Text style={[s.sectionTitle, { fontWeight: '700' }]}>Photos</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.galleryContent}>
                   {galleryUrls.map((url, idx) => (
                     <View key={`${url}-${idx}`} style={s.galleryThumbWrap}>
@@ -333,7 +333,7 @@ export default function ProductDetailScreen() {
               <View style={[s.chipRow, { marginTop: 8 }]}>
                 {tags.map(t => (
                   <View key={t} style={chip.tag}>
-                    <Text style={[chip.tagText, { fontFamily: 'Inter_500Medium' }]}>{t}</Text>
+                    <Text style={[chip.tagText, { fontWeight: '500' }]}>{t}</Text>
                   </View>
                 ))}
               </View>
@@ -342,18 +342,18 @@ export default function ProductDetailScreen() {
             {/* ── Price + Quantity row ───────────────────────────────────── */}
             <View style={s.priceQtyCard}>
               <View style={{ flex: 1 }}>
-                <Text style={[s.priceLabel, { fontFamily: 'Inter_600SemiBold' }]}>PRICE</Text>
+                <Text style={[s.priceLabel, { fontWeight: '600' }]}>PRICE</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-                  <Text style={[s.priceValue, { fontFamily: 'Inter_700Bold' }]}>
+                  <Text style={[s.priceValue, { fontWeight: '700' }]}>
                     {priceDollars(displayCents)}
                   </Text>
                   {saleCents && priceCents !== saleCents && (
-                    <Text style={[s.wasPrice, { fontFamily: 'Inter_400Regular' }]}>
+                    <Text style={[s.wasPrice, { fontWeight: '400' }]}>
                       {priceDollars(priceCents)}
                     </Text>
                   )}
                 </View>
-                {gst && <Text style={[s.gstNote, { fontFamily: 'Inter_400Regular' }]}>inc. GST</Text>}
+                {gst && <Text style={[s.gstNote, { fontWeight: '400' }]}>inc. GST</Text>}
               </View>
 
               {/* Qty stepper */}
@@ -364,7 +364,7 @@ export default function ProductDetailScreen() {
                 >
                   <Feather name="minus" size={16} color={qty <= minQty ? MUTED : TEXT} />
                 </Pressable>
-                <Text style={[s.stepNum, { fontFamily: 'Inter_700Bold' }]}>{qty}</Text>
+                <Text style={[s.stepNum, { fontWeight: '700' }]}>{qty}</Text>
                 <Pressable
                   onPress={() => { if (qty < maxQty) { setQty(q => q + 1); Haptics.selectionAsync(); } }}
                   style={[s.stepBtn, { backgroundColor: BLUE, borderColor: BLUE }]}
@@ -375,7 +375,7 @@ export default function ProductDetailScreen() {
             </View>
 
             {maxQty < 99 && (
-              <Text style={[{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12, marginTop: 6, marginLeft: 2 }]}>
+              <Text style={[{ fontWeight: '400', color: MUTED, fontSize: 12, marginTop: 6, marginLeft: 2 }]}>
                 Max {maxQty} per order
               </Text>
             )}
@@ -383,10 +383,10 @@ export default function ProductDetailScreen() {
             {/* Customise options */}
             {options.length > 0 && (
               <View style={{ marginTop: 20, gap: 14 }}>
-                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold' }]}>Customise</Text>
+                <Text style={[s.sectionTitle, { fontWeight: '700' }]}>Customise</Text>
                 {options.map((section: any) => (
                   <View key={section.label} style={{ gap: 8 }}>
-                    <Text style={[s.optLabel, { fontFamily: 'Inter_600SemiBold' }]}>{section.label}</Text>
+                    <Text style={[s.optLabel, { fontWeight: '600' }]}>{section.label}</Text>
                     <View style={s.chipRow}>
                       {section.choices.map((choice: string) => {
                         const sel = (selections[section.label] ?? []).includes(choice);
@@ -400,7 +400,7 @@ export default function ProductDetailScreen() {
                             ]}
                           >
                             <Text style={[s.selChipText, {
-                              fontFamily: sel ? 'Inter_600SemiBold' : 'Inter_400Regular',
+                              fontWeight: sel ? '600' : '400',
                               color: sel ? '#fff' : TEXT,
                             }]}>
                               {choice}
@@ -419,7 +419,7 @@ export default function ProductDetailScreen() {
               <View style={[s.allergenCard, { marginTop: 20 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                   <Feather name="alert-triangle" size={13} color={AMBER} />
-                  <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Contains</Text>
+                  <Text style={[s.sectionTitle, { fontWeight: '700', color: '#92400E' }]}>Contains</Text>
                 </View>
                 <View style={s.chipRow}>
                   {allergens.map(a => <AllergenChip key={a} label={a} />)}
@@ -440,8 +440,8 @@ export default function ProductDetailScreen() {
             {/* Full description (if different from shortDesc) */}
             {product.description && shortDesc && product.description !== shortDesc ? (
               <View style={{ marginTop: 16 }}>
-                <Text style={[s.sectionTitle, { fontFamily: 'Inter_700Bold', marginBottom: 6 }]}>About</Text>
-                <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]}>{product.description}</Text>
+                <Text style={[s.sectionTitle, { fontWeight: '700', marginBottom: 6 }]}>About</Text>
+                <Text style={[s.desc, { fontWeight: '400' }]}>{product.description}</Text>
               </View>
             ) : null}
 
@@ -451,15 +451,15 @@ export default function ProductDetailScreen() {
           <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
             {isSoldOut ? (
               <View style={s.soldOutBtn}>
-                <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold' }]}>Currently Sold Out</Text>
+                <Text style={[s.soldOutText, { fontWeight: '700' }]}>Currently Sold Out</Text>
               </View>
             ) : isComingSoon ? (
               <View style={[s.soldOutBtn, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
-                <Text style={[s.soldOutText, { fontFamily: 'Inter_700Bold', color: '#92400E' }]}>Coming Soon</Text>
+                <Text style={[s.soldOutText, { fontWeight: '700', color: '#92400E' }]}>Coming Soon</Text>
               </View>
             ) : (
               <Pressable onPress={handleAddToCart} style={[s.addBtn, { backgroundColor: BLUE }]}>
-                <Text style={[s.addBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                <Text style={[s.addBtnText, { fontWeight: '700' }]}>
                   Add to bag · AUD {total.toFixed(2)}
                 </Text>
               </Pressable>

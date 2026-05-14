@@ -286,7 +286,7 @@ export default function PricingScreen() {
             <Pressable key={t.k} onPress={() => { Haptics.selectionAsync(); setTab(t.k); }}
               style={[s.tab, tab === t.k && s.tabActive]}>
               <Feather name={t.icon as any} size={14} color={tab === t.k ? BLUE : MUTED} />
-              <Text style={[s.tabText, { color: tab === t.k ? BLUE : MUTED, fontFamily: tab === t.k ? 'Inter_700Bold' : 'Inter_500Medium' }]}>{t.label}</Text>
+              <Text style={[s.tabText, { color: tab === t.k ? BLUE : MUTED, fontWeight: tab === t.k ? '700' : '500' }]}>{t.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -431,7 +431,7 @@ export default function PricingScreen() {
                 <Text style={s.primaryBtnText}>New custom price</Text>
               </Pressable>
             </View>
-            <Text style={s.helper}>Customers must have <Text style={{ fontFamily: 'Inter_700Bold' }}>custom pricing enabled</Text> in the Assign tab for these to apply.</Text>
+            <Text style={s.helper}>Customers must have <Text style={{ fontWeight: '700' }}>custom pricing enabled</Text> in the Assign tab for these to apply.</Text>
 
             {customQ.isLoading ? <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} /> :
              customRows.length === 0 ? (
@@ -498,7 +498,7 @@ export default function PricingScreen() {
                       onPress={() => assignTier.mutate({ accountId: acct.id, tierId: null })}
                       style={[s.tierChip, !acct.tierId && s.tierChipActive]}
                     >
-                      <Text style={[s.tierChipText, !acct.tierId && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>None</Text>
+                      <Text style={[s.tierChipText, !acct.tierId && { color: BLUE, fontWeight: '700' }]}>None</Text>
                     </Pressable>
                     {tiers.filter((t: any) => t.status !== 'archived').map((t: any) => {
                       const sel = acct.tierId === t.id;
@@ -508,7 +508,7 @@ export default function PricingScreen() {
                           onPress={() => assignTier.mutate({ accountId: acct.id, tierId: t.id })}
                           style={[s.tierChip, sel && s.tierChipActive]}
                         >
-                          <Text style={[s.tierChipText, sel && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{t.name}</Text>
+                          <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{t.name}</Text>
                           <Text style={s.tierChipPct}>{t.defaultDiscountPct}%</Text>
                         </Pressable>
                       );
@@ -541,7 +541,7 @@ export default function PricingScreen() {
 
                   {currentTier && (
                     <Text style={s.tierSummary}>
-                      Currently on <Text style={{ fontFamily: 'Inter_700Bold' }}>{currentTier.name}</Text> — {currentTier.defaultDiscountPct}% off, min order {fmtAUD(currentTier.minOrderCents)}
+                      Currently on <Text style={{ fontWeight: '700' }}>{currentTier.name}</Text> — {currentTier.defaultDiscountPct}% off, min order {fmtAUD(currentTier.minOrderCents)}
                     </Text>
                   )}
                 </View>
@@ -570,7 +570,7 @@ export default function PricingScreen() {
               {(['active', 'hidden', 'archived'] as const).map(st => (
                 <Pressable key={st} onPress={() => setTierForm({ ...tierForm, status: st })}
                   style={[s.tierChip, tierForm.status === st && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, tierForm.status === st && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{st.toUpperCase()}</Text>
+                  <Text style={[s.tierChipText, tierForm.status === st && { color: BLUE, fontWeight: '700' }]}>{st.toUpperCase()}</Text>
                 </Pressable>
               ))}
             </View>
@@ -590,7 +590,7 @@ export default function PricingScreen() {
               {PAYMENT_TERMS.map(p => (
                 <Pressable key={p.v} onPress={() => setTierForm({ ...tierForm, paymentTerms: p.v })}
                   style={[s.tierChip, tierForm.paymentTerms === p.v && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, tierForm.paymentTerms === p.v && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{p.l}</Text>
+                  <Text style={[s.tierChipText, tierForm.paymentTerms === p.v && { color: BLUE, fontWeight: '700' }]}>{p.l}</Text>
                 </Pressable>
               ))}
             </View>
@@ -638,7 +638,7 @@ export default function PricingScreen() {
                   return (
                     <Pressable key={p.id} onPress={() => setBreakForm({ ...breakForm, productId: p.id })}
                       style={[s.tierChip, sel && s.tierChipActive]}>
-                      <Text style={[s.tierChipText, sel && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{p.name}</Text>
+                      <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{p.name}</Text>
                     </Pressable>
                   );
                 })}
@@ -650,7 +650,7 @@ export default function PricingScreen() {
               {(['tier', 'customer'] as const).map(sc => (
                 <Pressable key={sc} onPress={() => setBreakForm({ ...breakForm, scope: sc })}
                   style={[s.tierChip, breakForm.scope === sc && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, breakForm.scope === sc && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{sc === 'tier' ? 'Tier-wide' : 'Specific customer'}</Text>
+                  <Text style={[s.tierChipText, breakForm.scope === sc && { color: BLUE, fontWeight: '700' }]}>{sc === 'tier' ? 'Tier-wide' : 'Specific customer'}</Text>
                 </Pressable>
               ))}
             </View>
@@ -664,7 +664,7 @@ export default function PricingScreen() {
                     return (
                       <Pressable key={t.id} onPress={() => setBreakForm({ ...breakForm, tierId: t.id })}
                         style={[s.tierChip, sel && s.tierChipActive]}>
-                        <Text style={[s.tierChipText, sel && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{t.name}</Text>
+                        <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{t.name}</Text>
                       </Pressable>
                     );
                   })}
@@ -680,7 +680,7 @@ export default function PricingScreen() {
                       return (
                         <Pressable key={u.id} onPress={() => setBreakForm({ ...breakForm, customerId: u.id })}
                           style={[s.tierChip, sel && s.tierChipActive]}>
-                          <Text style={[s.tierChipText, sel && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{u.wholesaleAccount?.companyName ?? u.name}</Text>
+                          <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{u.wholesaleAccount?.companyName ?? u.name}</Text>
                         </Pressable>
                       );
                     })}
@@ -721,7 +721,7 @@ export default function PricingScreen() {
                   return (
                     <Pressable key={u.id} onPress={() => setCustomForm({ ...customForm, customerId: u.id })}
                       style={[s.tierChip, sel && s.tierChipActive]}>
-                      <Text style={[s.tierChipText, sel && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{u.wholesaleAccount?.companyName ?? u.name}</Text>
+                      <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{u.wholesaleAccount?.companyName ?? u.name}</Text>
                     </Pressable>
                   );
                 })}
@@ -733,14 +733,14 @@ export default function PricingScreen() {
               <View style={s.chipRow}>
                 <Pressable onPress={() => setCustomForm({ ...customForm, productId: '' })}
                   style={[s.tierChip, !customForm.productId && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, !customForm.productId && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>None</Text>
+                  <Text style={[s.tierChipText, !customForm.productId && { color: BLUE, fontWeight: '700' }]}>None</Text>
                 </Pressable>
                 {products.map((p: any) => {
                   const sel = customForm.productId === p.id;
                   return (
                     <Pressable key={p.id} onPress={() => setCustomForm({ ...customForm, productId: p.id, category: '' })}
                       style={[s.tierChip, sel && s.tierChipActive]}>
-                      <Text style={[s.tierChipText, sel && { color: BLUE, fontFamily: 'Inter_700Bold' }]}>{p.name}</Text>
+                      <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{p.name}</Text>
                     </Pressable>
                   );
                 })}
@@ -768,8 +768,8 @@ export default function PricingScreen() {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <View style={{ minWidth: '30%' }}>
-      <Text style={{ fontFamily: 'Inter_500Medium', color: MUTED, fontSize: 10, letterSpacing: 0.5 }}>{label.toUpperCase()}</Text>
-      <Text style={{ fontFamily: 'Inter_600SemiBold', color: TEXT, fontSize: 13, marginTop: 2 }}>{value}</Text>
+      <Text style={{ fontWeight: '500', color: MUTED, fontSize: 10, letterSpacing: 0.5 }}>{label.toUpperCase()}</Text>
+      <Text style={{ fontWeight: '600', color: TEXT, fontSize: 13, marginTop: 2 }}>{value}</Text>
     </View>
   );
 }
@@ -792,7 +792,7 @@ function Field({
         keyboardType={keyboardType}
         style={[s.input, multiline && { minHeight: 70, textAlignVertical: 'top' }]}
       />
-      {hint ? <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 4 }}>{hint}</Text> : null}
+      {hint ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 4 }}>{hint}</Text> : null}
     </View>
   );
 }
@@ -804,45 +804,45 @@ const s = StyleSheet.create({
   tabText:       { fontSize: 12 },
 
   headerRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  h1:            { fontFamily: 'Inter_700Bold', fontSize: 20, color: TEXT },
-  helper:        { fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, marginBottom: 12, lineHeight: 18 },
+  h1:            { fontWeight: '700', fontSize: 20, color: TEXT },
+  helper:        { fontWeight: '400', fontSize: 12, color: MUTED, marginBottom: 12, lineHeight: 18 },
 
   primaryBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BLUE, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  primaryBtnText:{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 },
+  primaryBtnText:{ color: '#fff', fontWeight: '700', fontSize: 12 },
 
   card:          { backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: BORDER, gap: 10 },
-  cardTitle:     { fontFamily: 'Inter_700Bold', fontSize: 16, color: TEXT },
-  cardSub:       { fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, marginTop: 2 },
-  bigDiscount:   { fontFamily: 'Inter_700Bold', fontSize: 22, color: BLUE },
-  bigPrice:      { fontFamily: 'Inter_700Bold', fontSize: 18, color: BLUE },
+  cardTitle:     { fontWeight: '700', fontSize: 16, color: TEXT },
+  cardSub:       { fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 },
+  bigDiscount:   { fontWeight: '700', fontSize: 22, color: BLUE },
+  bigPrice:      { fontWeight: '700', fontSize: 18, color: BLUE },
 
   metaGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
   cardActions:   { flexDirection: 'row', gap: 14, alignItems: 'center', marginTop: 4 },
   linkBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  linkBtnText:   { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: BLUE },
+  linkBtnText:   { fontWeight: '600', fontSize: 12, color: BLUE },
 
   statusPill:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  statusPillText:{ fontFamily: 'Inter_700Bold', fontSize: 9, letterSpacing: 0.6 },
+  statusPillText:{ fontWeight: '700', fontSize: 9, letterSpacing: 0.6 },
 
   empty:         { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyText:     { fontFamily: 'Inter_400Regular', fontSize: 13, color: MUTED, textAlign: 'center' },
+  emptyText:     { fontWeight: '400', fontSize: 13, color: MUTED, textAlign: 'center' },
 
   modalHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD },
-  modalTitle:    { fontFamily: 'Inter_700Bold', fontSize: 16, color: TEXT },
-  modalCancel:   { fontFamily: 'Inter_500Medium', fontSize: 14, color: MUTED },
-  modalSave:     { fontFamily: 'Inter_700Bold', fontSize: 14, color: BLUE },
+  modalTitle:    { fontWeight: '700', fontSize: 16, color: TEXT },
+  modalCancel:   { fontWeight: '500', fontSize: 14, color: MUTED },
+  modalSave:     { fontWeight: '700', fontSize: 14, color: BLUE },
 
-  fieldLabel:    { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: MUTED, letterSpacing: 0.5, marginBottom: 6, marginTop: 4, textTransform: 'uppercase' },
-  input:         { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontFamily: 'Inter_400Regular', fontSize: 14, color: TEXT },
+  fieldLabel:    { fontWeight: '600', fontSize: 11, color: MUTED, letterSpacing: 0.5, marginBottom: 6, marginTop: 4, textTransform: 'uppercase' },
+  input:         { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontWeight: '400', fontSize: 14, color: TEXT },
 
   chipRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   tierChip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: BORDER, backgroundColor: CARD, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tierChipActive:{ borderColor: BLUE, backgroundColor: BLUE + '15' },
-  tierChipText:  { fontFamily: 'Inter_500Medium', fontSize: 12, color: TEXT },
-  tierChipPct:   { fontFamily: 'Inter_700Bold', fontSize: 11, color: MUTED },
+  tierChipText:  { fontWeight: '500', fontSize: 12, color: TEXT },
+  tierChipPct:   { fontWeight: '700', fontSize: 11, color: MUTED },
 
   toggleRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: BORDER, marginTop: 4 },
-  toggleLabel:   { fontFamily: 'Inter_500Medium', fontSize: 13, color: TEXT },
+  toggleLabel:   { fontWeight: '500', fontSize: 13, color: TEXT },
 
-  tierSummary:   { fontFamily: 'Inter_400Regular', fontSize: 11, color: MUTED, fontStyle: 'italic', marginTop: 8 },
+  tierSummary:   { fontWeight: '400', fontSize: 11, color: MUTED, fontStyle: 'italic', marginTop: 8 },
 });

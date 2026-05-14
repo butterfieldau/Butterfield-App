@@ -192,28 +192,28 @@ export default function AccountScreen() {
 const styles = StyleSheet.create({
   userCard:       { borderRadius: 20, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
   userCardAvatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
-  userCardName:   { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
-  userCardEmail:  { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontFamily: 'Inter_400Regular' },
-  userCardPhone:  { color: 'rgba(255,255,255,0.7)',  fontSize: 12, fontFamily: 'Inter_400Regular' },
+  userCardName:   { color: '#fff', fontSize: 18, fontWeight: '700' },
+  userCardEmail:  { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '400' },
+  userCardPhone:  { color: 'rgba(255,255,255,0.7)',  fontSize: 12, fontWeight: '400' },
   editBtn:        { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
 
   quickRow:   { flexDirection: 'row', gap: 12 },
   quickCard:  { flex: 1, borderRadius: 16, borderWidth: 1, padding: 16, gap: 6 },
   quickIcon:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  quickTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  quickSub:   { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  quickTitle: { fontSize: 15, fontWeight: '700' },
+  quickSub:   { fontSize: 12, fontWeight: '400' },
 
   statsRow:   { flexDirection: 'row', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
   statItem:   { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 3 },
-  statValue:  { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  statLabel:  { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  statValue:  { fontSize: 20, fontWeight: '700' },
+  statLabel:  { fontSize: 11, fontWeight: '400' },
 
   menuCard:     { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   menuRow:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   menuIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  menuLabel:    { flex: 1, fontSize: 15, fontFamily: 'Inter_500Medium' },
+  menuLabel:    { flex: 1, fontSize: 15, fontWeight: '500' },
 
   signOutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 16, borderWidth: 1 },
-  signOutText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  version:     { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  signOutText: { fontSize: 15, fontWeight: '600' },
+  version:     { textAlign: 'center', fontSize: 12, fontWeight: '400' },
 });

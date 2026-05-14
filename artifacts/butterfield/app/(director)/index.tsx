@@ -256,17 +256,17 @@ export default function DirectorHome() {
         {isLoading ? (
           <View style={{ alignItems: 'center', marginTop: 80 }}>
             <ActivityIndicator color={BLUE} size="large" />
-            <Text style={{ color: MUTED, marginTop: 12, fontFamily: 'Inter_400Regular' }}>Loading control centre…</Text>
+            <Text style={{ color: MUTED, marginTop: 12, fontWeight: '400' }}>Loading control centre…</Text>
           </View>
         ) : (
           <>
             {/* ── Revenue hero ─────────────────────────────────── */}
             <View style={[styles.revCard, { backgroundColor: NAVY }]}>
               <View style={styles.revHeader}>
-                <Text style={[styles.revTitle, { fontFamily: 'Inter_700Bold' }]}>REVENUE</Text>
+                <Text style={[styles.revTitle, { fontWeight: '700' }]}>REVENUE</Text>
                 <View style={styles.liveChip}>
                   <View style={styles.liveDot} />
-                  <Text style={[styles.liveText, { fontFamily: 'Inter_700Bold' }]}>LIVE</Text>
+                  <Text style={[styles.liveText, { fontWeight: '700' }]}>LIVE</Text>
                 </View>
               </View>
               <View style={styles.revRow}>
@@ -276,8 +276,8 @@ export default function DirectorHome() {
                   { label: 'This Month', value: fmtAUD(s?.revenue.month ?? 0) },
                 ].map((r, i) => (
                   <View key={r.label} style={[styles.revItem, i > 0 && styles.revItemBorder]}>
-                    <Text style={[styles.revAmount, { fontFamily: 'Inter_700Bold' }]}>{r.value}</Text>
-                    <Text style={[styles.revLabel,  { fontFamily: 'Inter_400Regular' }]}>{r.label}</Text>
+                    <Text style={[styles.revAmount, { fontWeight: '700' }]}>{r.value}</Text>
+                    <Text style={[styles.revLabel,  { fontWeight: '400' }]}>{r.label}</Text>
                   </View>
                 ))}
               </View>
@@ -285,7 +285,7 @@ export default function DirectorHome() {
 
             {/* ── Sessions chart ───────────────────────────────── */}
             <View>
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>APP SESSIONS · TODAY</Text>
+              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>APP SESSIONS · TODAY</Text>
               {sess ? (
                 <SessionsChart
                   today={sess.today}
@@ -306,20 +306,20 @@ export default function DirectorHome() {
               <View style={[styles.alertCard, { backgroundColor: '#FFF1F0', borderColor: '#FCA5A5' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <View style={[styles.alertDotBig, { backgroundColor: RED }]} />
-                  <Text style={[styles.alertHeading, { fontFamily: 'Inter_700Bold', color: '#7F1D1D' }]}>Urgent — Action Required</Text>
+                  <Text style={[styles.alertHeading, { fontWeight: '700', color: '#7F1D1D' }]}>Urgent — Action Required</Text>
                 </View>
                 {(s?.users.pendingStaff ?? 0) > 0 && (
                   <Pressable onPress={() => router.navigate('/(director)/users' as any)} style={styles.alertRow}>
                     <Feather name="user-check" size={13} color="#991B1B" />
-                    <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.users.pendingStaff} staff account{s?.users.pendingStaff !== 1 ? 's' : ''} awaiting approval</Text>
-                    <Text style={[styles.reviewLink,   { fontFamily: 'Inter_700Bold',   color: '#991B1B' }]}>Review →</Text>
+                    <Text style={[styles.alertRowText, { fontWeight: '400', color: '#991B1B' }]}>{s?.users.pendingStaff} staff account{s?.users.pendingStaff !== 1 ? 's' : ''} awaiting approval</Text>
+                    <Text style={[styles.reviewLink,   { fontWeight: '700',   color: '#991B1B' }]}>Review →</Text>
                   </Pressable>
                 )}
                 {(s?.users.pendingWholesale ?? 0) > 0 && (
                   <Pressable onPress={() => router.navigate('/(director)/users' as any)} style={styles.alertRow}>
                     <Feather name="package" size={13} color="#991B1B" />
-                    <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.users.pendingWholesale} wholesale application{s?.users.pendingWholesale !== 1 ? 's' : ''} pending</Text>
-                    <Text style={[styles.reviewLink,   { fontFamily: 'Inter_700Bold',   color: '#991B1B' }]}>Review →</Text>
+                    <Text style={[styles.alertRowText, { fontWeight: '400', color: '#991B1B' }]}>{s?.users.pendingWholesale} wholesale application{s?.users.pendingWholesale !== 1 ? 's' : ''} pending</Text>
+                    <Text style={[styles.reviewLink,   { fontWeight: '700',   color: '#991B1B' }]}>Review →</Text>
                   </Pressable>
                 )}
                 {(s?.issues.high ?? 0) > 0 && (
@@ -335,8 +335,8 @@ export default function DirectorHome() {
                     )}
                   >
                     <Feather name="alert-triangle" size={13} color="#991B1B" />
-                    <Text style={[styles.alertRowText, { fontFamily: 'Inter_400Regular', color: '#991B1B' }]}>{s?.issues.high} high-priority issue{s?.issues.high !== 1 ? 's' : ''} open</Text>
-                    <Text style={[styles.reviewLink,   { fontFamily: 'Inter_700Bold',   color: '#991B1B' }]}>View →</Text>
+                    <Text style={[styles.alertRowText, { fontWeight: '400', color: '#991B1B' }]}>{s?.issues.high} high-priority issue{s?.issues.high !== 1 ? 's' : ''} open</Text>
+                    <Text style={[styles.reviewLink,   { fontWeight: '700',   color: '#991B1B' }]}>View →</Text>
                   </Pressable>
                 )}
               </View>
@@ -344,7 +344,7 @@ export default function DirectorHome() {
 
             {/* ── Quick actions ──────────────────────────────────── */}
             <View>
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>QUICK ACTIONS</Text>
+              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>QUICK ACTIONS</Text>
               <View style={styles.qaGrid}>
                 <QuickBtn icon="plus-square"  label="Add Product"   color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
                 <QuickBtn icon="user-plus"    label="Add Staff"     color={PURPLE}  onPress={() => router.navigate('/(director)/users' as any)} />
@@ -359,7 +359,7 @@ export default function DirectorHome() {
 
             {/* ── KPI grid ───────────────────────────────────────── */}
             <View>
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>TODAY'S OVERVIEW</Text>
+              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>TODAY'S OVERVIEW</Text>
               <View style={styles.kpiGrid}>
                 <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today      ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
                 <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active     ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
@@ -384,8 +384,8 @@ export default function DirectorHome() {
               >
                 <Feather name="trash-2" size={16} color={PURPLE} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.wastageTitle, { fontFamily: 'Inter_600SemiBold', color: PURPLE }]}>Today's Wastage Cost</Text>
-                  <Text style={[styles.wastageSub, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                  <Text style={[styles.wastageTitle, { fontWeight: '600', color: PURPLE }]}>Today's Wastage Cost</Text>
+                  <Text style={[styles.wastageSub, { fontWeight: '400', color: MUTED }]}>
                     {s?.wastage.countToday} item{s?.wastage.countToday !== 1 ? 's' : ''} logged — estimated {fmtAUD(s?.wastage.costToday ?? 0)} lost
                   </Text>
                 </View>
@@ -395,11 +395,11 @@ export default function DirectorHome() {
 
             {/* ── Activity feed ─────────────────────────────────── */}
             <View>
-              <Text style={[styles.sectionTitle, { fontFamily: 'Inter_600SemiBold' }]}>RECENT ACTIVITY</Text>
+              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>RECENT ACTIVITY</Text>
               {activity.length === 0 ? (
                 <View style={[styles.emptyCard, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="activity" size={28} color={BORDER} />
-                  <Text style={[styles.emptyText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>No recent activity</Text>
+                  <Text style={[styles.emptyText, { fontWeight: '400', color: MUTED }]}>No recent activity</Text>
                 </View>
               ) : (
                 <View style={[styles.activityList, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -409,10 +409,10 @@ export default function DirectorHome() {
                         <Feather name={ev.icon as any} size={13} color={ev.color} />
                       </View>
                       <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={[styles.activityTitle, { fontFamily: 'Inter_600SemiBold', color: TEXT }]} numberOfLines={1}>{ev.title}</Text>
-                        <Text style={[styles.activitySub,   { fontFamily: 'Inter_400Regular',  color: MUTED }]} numberOfLines={1}>{ev.sub}</Text>
+                        <Text style={[styles.activityTitle, { fontWeight: '600', color: TEXT }]} numberOfLines={1}>{ev.title}</Text>
+                        <Text style={[styles.activitySub,   { fontWeight: '400',  color: MUTED }]} numberOfLines={1}>{ev.sub}</Text>
                       </View>
-                      <Text style={[styles.activityTime, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{timeAgo(ev.at)}</Text>
+                      <Text style={[styles.activityTime, { fontWeight: '400', color: MUTED }]}>{timeAgo(ev.at)}</Text>
                     </View>
                   ))}
                 </View>
@@ -464,25 +464,25 @@ const kpi = StyleSheet.create({
   tile:     { width: '47.5%', backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 14, gap: 6 },
   iconBox:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   alertDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: RED },
-  value:    { fontSize: 26, fontFamily: 'Inter_700Bold' },
-  label:    { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  value:    { fontSize: 26, fontWeight: '700' },
+  label:    { fontSize: 11, fontWeight: '500' },
 });
 
 const qa = StyleSheet.create({
   btn:   { width: '23%', borderRadius: 14, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center' },
   icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 10, fontFamily: 'Inter_500Medium', textAlign: 'center' },
+  label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
 });
 
 const ch = StyleSheet.create({
   card:       { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, padding: 16, overflow: 'hidden' },
   statsRow:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   statBlock:  { flex: 1, gap: 3 },
-  statLabel:  { fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED },
-  statVal:    { fontSize: 22, fontFamily: 'Inter_700Bold', color: TEXT },
-  pct:        { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  statLabel:  { fontSize: 11, fontWeight: '400', color: MUTED },
+  statVal:    { fontSize: 22, fontWeight: '700', color: TEXT },
+  pct:        { fontSize: 12, fontWeight: '600' },
   divider:    { width: 1, backgroundColor: BORDER, marginHorizontal: 12, height: 44, marginTop: 4 },
   liveDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
   legendDash: { width: 14, height: 0, borderTopWidth: 1.5, borderStyle: 'dashed' },
-  sub:        { fontSize: 10, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 6, textAlign: 'center' },
+  sub:        { fontSize: 10, fontWeight: '400', color: MUTED, marginTop: 6, textAlign: 'center' },
 });

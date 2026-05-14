@@ -69,10 +69,10 @@ export default function StoreScreen() {
           <Feather name="chevron-left" size={26} color={colors.foreground} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { fontFamily: 'Inter_700Bold', color: colors.foreground }]}>Our store</Text>
-          <Text style={[styles.headerSub, { fontFamily: 'Inter_400Regular', color: colors.mutedForeground }]}>Merrylands NSW 2160</Text>
+          <Text style={[styles.headerTitle, { fontWeight: '700', color: colors.foreground }]}>Our store</Text>
+          <Text style={[styles.headerSub, { fontWeight: '400', color: colors.mutedForeground }]}>Merrylands NSW 2160</Text>
         </View>
-        <Text style={[styles.brandText, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>Butterfield</Text>
+        <Text style={[styles.brandText, { color: colors.primary, fontWeight: '700' }]}>Butterfield</Text>
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
@@ -84,17 +84,17 @@ export default function StoreScreen() {
           />
           <View style={[styles.mapBadge, { backgroundColor: colors.card }]}>
             <Feather name="external-link" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.mapBadgeText, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>Open in Maps</Text>
+            <Text style={[styles.mapBadgeText, { color: colors.mutedForeground, fontWeight: '500' }]}>Open in Maps</Text>
           </View>
         </Pressable>
 
         <View style={styles.body}>
-          <Text style={[styles.visitLabel, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>VISIT US</Text>
-          <Text style={[styles.storeName, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Butterfield Cookies</Text>
-          <Text style={[styles.storeAddress, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>{ADDRESS}</Text>
+          <Text style={[styles.visitLabel, { color: colors.primary, fontWeight: '600' }]}>VISIT US</Text>
+          <Text style={[styles.storeName, { color: colors.foreground, fontWeight: '700' }]}>Butterfield Cookies</Text>
+          <Text style={[styles.storeAddress, { color: colors.mutedForeground, fontWeight: '400' }]}>{ADDRESS}</Text>
           <View style={[styles.openBadge, { backgroundColor: storeOpen ? '#DCFCE7' : '#FEE2E2' }]}>
             <View style={[styles.openDot, { backgroundColor: storeOpen ? '#22C55E' : '#EF4444' }]} />
-            <Text style={[styles.openText, { color: storeOpen ? '#15803D' : '#DC2626', fontFamily: 'Inter_600SemiBold' }]}>
+            <Text style={[styles.openText, { color: storeOpen ? '#15803D' : '#DC2626', fontWeight: '600' }]}>
               {storeHint}
             </Text>
           </View>
@@ -104,28 +104,28 @@ export default function StoreScreen() {
               <Feather name="map-pin" size={18} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.addrLabel, { color: colors.mutedForeground, fontFamily: 'Inter_500Medium' }]}>ADDRESS</Text>
-              <Text style={[styles.addrText, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]}>{ADDRESS}</Text>
+              <Text style={[styles.addrLabel, { color: colors.mutedForeground, fontWeight: '500' }]}>ADDRESS</Text>
+              <Text style={[styles.addrText, { color: colors.foreground, fontWeight: '600' }]}>{ADDRESS}</Text>
             </View>
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: 'Inter_600SemiBold' }]}>OPENING HOURS</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontWeight: '600' }]}>OPENING HOURS</Text>
 
           <View style={[styles.hoursCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
             <View style={styles.hoursHeader}>
               <View style={[styles.clockWrap, { backgroundColor: '#E6F4FF' }]}>
                 <Feather name="clock" size={18} color={colors.primary} />
               </View>
-              <Text style={[styles.hoursTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Trading hours</Text>
+              <Text style={[styles.hoursTitle, { color: colors.foreground, fontWeight: '700' }]}>Trading hours</Text>
             </View>
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             {HOURS.map(({ day, hours }, i) => (
               <View key={day} style={[styles.hoursRow, i < HOURS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                <Text style={[styles.hoursDay, { color: colors.foreground, fontFamily: 'Inter_400Regular' }]}>{day}</Text>
+                <Text style={[styles.hoursDay, { color: colors.foreground, fontWeight: '400' }]}>{day}</Text>
                 <Text style={[
                   styles.hoursTime,
                   { color: hours === 'Closed' ? colors.mutedForeground : colors.foreground,
-                    fontFamily: hours === 'Closed' ? 'Inter_400Regular' : 'Inter_500Medium' }
+                    fontWeight: hours === 'Closed' ? '400' : '500' }
                 ]}>{hours}</Text>
               </View>
             ))}
@@ -137,14 +137,14 @@ export default function StoreScreen() {
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openDirections(); }}
             >
               <Feather name="navigation" size={16} color="#fff" />
-              <Text style={[styles.dirBtnText, { fontFamily: 'Inter_600SemiBold' }]}>Directions</Text>
+              <Text style={[styles.dirBtnText, { fontWeight: '600' }]}>Directions</Text>
             </Pressable>
             <Pressable
               style={[styles.mapsBtn, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openInMaps(); }}
             >
               <Feather name="external-link" size={16} color={colors.foreground} />
-              <Text style={[styles.mapsBtnText, { fontFamily: 'Inter_600SemiBold', color: colors.foreground }]}>Open in Maps</Text>
+              <Text style={[styles.mapsBtnText, { fontWeight: '600', color: colors.foreground }]}>Open in Maps</Text>
             </Pressable>
           </View>
         </View>

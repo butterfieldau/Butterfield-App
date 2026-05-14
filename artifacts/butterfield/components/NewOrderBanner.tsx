@@ -179,13 +179,13 @@ const styles = StyleSheet.create({
   },
   titleText: {
     color: '#fff',
-    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
     fontSize: 15,
     lineHeight: 20,
   },
   subtitleText: {
     color: 'rgba(255,255,255,0.6)',
-    fontFamily: 'Inter_400Regular',
+    fontWeight: '400',
     fontSize: 12,
     marginTop: 1,
   },
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   itemChipText: {
     color: '#40C0F2',
-    fontFamily: 'Inter_500Medium',
+    fontWeight: '500',
     fontSize: 12,
   },
   actionsRow: {
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   },
   dismissBtnText: {
     color: 'rgba(255,255,255,0.6)',
-    fontFamily: 'Inter_600SemiBold',
+    fontWeight: '600',
     fontSize: 13,
   },
   viewBtn: {
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   },
   viewBtnText: {
     color: '#fff',
-    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
     fontSize: 13,
   },
   progressTrack: {

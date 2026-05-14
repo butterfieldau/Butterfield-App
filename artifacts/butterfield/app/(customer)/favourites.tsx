@@ -79,7 +79,7 @@ export default function FavouritesScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
-        <Text style={[styles.title, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Favourites</Text>
+        <Text style={[styles.title, { color: colors.foreground, fontWeight: '700' }]}>Favourites</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -101,15 +101,15 @@ export default function FavouritesScreen() {
               <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
                 <Feather name="heart" size={32} color={colors.mutedForeground} />
               </View>
-              <Text style={[{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 17 }]}>No favourites yet</Text>
-              <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 14, textAlign: 'center', lineHeight: 21 }]}>
+              <Text style={[{ color: colors.foreground, fontWeight: '600', fontSize: 17 }]}>No favourites yet</Text>
+              <Text style={[{ color: colors.mutedForeground, fontWeight: '400', fontSize: 14, textAlign: 'center', lineHeight: 21 }]}>
                 Tap the heart on any item in the menu to save it here.
               </Text>
               <Pressable
                 onPress={() => router.push('/(customer)/menu')}
                 style={[styles.shopBtn, { backgroundColor: colors.primary }]}
               >
-                <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Browse Menu</Text>
+                <Text style={[{ color: '#fff', fontWeight: '600', fontSize: 15 }]}>Browse Menu</Text>
               </Pressable>
             </View>
           }
@@ -127,10 +127,10 @@ export default function FavouritesScreen() {
                   </Pressable>
                 </LinearGradient>
                 <View style={{ padding: 12, gap: 4 }}>
-                  <Text style={[{ color: colors.foreground, fontFamily: 'Inter_600SemiBold', fontSize: 13 }]} numberOfLines={1}>{p.name}</Text>
-                  <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontSize: 11 }]} numberOfLines={1}>{p.description}</Text>
+                  <Text style={[{ color: colors.foreground, fontWeight: '600', fontSize: 13 }]} numberOfLines={1}>{p.name}</Text>
+                  <Text style={[{ color: colors.mutedForeground, fontWeight: '400', fontSize: 11 }]} numberOfLines={1}>{p.description}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-                    <Text style={[{ color: colors.primary, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>${price.toFixed(2)}</Text>
+                    <Text style={[{ color: colors.primary, fontWeight: '700', fontSize: 14 }]}>${price.toFixed(2)}</Text>
                     <Pressable onPress={() => handleAddToCart(p)} style={[styles.addBtn, { backgroundColor: colors.primary }]}>
                       <Feather name="plus" size={14} color="#fff" />
                     </Pressable>

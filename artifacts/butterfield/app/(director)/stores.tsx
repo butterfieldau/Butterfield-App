@@ -291,7 +291,7 @@ function StoreEditorModal({
           {saving
             ? <ActivityIndicator size="small" color={BLUE} />
             : <Pressable onPress={handleSave} hitSlop={12}>
-                <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 16 }}>Save</Text>
+                <Text style={{ color: BLUE, fontWeight: '600', fontSize: 16 }}>Save</Text>
               </Pressable>
           }
         </View>
@@ -306,7 +306,7 @@ function StoreEditorModal({
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER }}>
                   <Feather name="search" size={16} color={MUTED} />
                   <TextInput
-                    style={{ flex: 1, fontFamily: 'Inter_400Regular', fontSize: 15, color: TEXT }}
+                    style={{ flex: 1, fontWeight: '400', fontSize: 15, color: TEXT }}
                     value={searchQuery}
                     onChangeText={handleSearch}
                     placeholder="Search address or place name…"
@@ -338,12 +338,12 @@ function StoreEditorModal({
               {latitude && longitude && (
                 <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
                   <View style={{ flex: 1, backgroundColor: BG, borderRadius: 8, padding: 8 }}>
-                    <Text style={{ fontSize: 10, color: MUTED, fontFamily: 'Inter_500Medium' }}>LATITUDE</Text>
-                    <Text style={{ fontSize: 13, color: TEXT, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>{latitude}</Text>
+                    <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>LATITUDE</Text>
+                    <Text style={{ fontSize: 13, color: TEXT, fontWeight: '600', marginTop: 2 }}>{latitude}</Text>
                   </View>
                   <View style={{ flex: 1, backgroundColor: BG, borderRadius: 8, padding: 8 }}>
-                    <Text style={{ fontSize: 10, color: MUTED, fontFamily: 'Inter_500Medium' }}>LONGITUDE</Text>
-                    <Text style={{ fontSize: 13, color: TEXT, fontFamily: 'Inter_600SemiBold', marginTop: 2 }}>{longitude}</Text>
+                    <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>LONGITUDE</Text>
+                    <Text style={{ fontSize: 13, color: TEXT, fontWeight: '600', marginTop: 2 }}>{longitude}</Text>
                   </View>
                 </View>
               )}
@@ -385,10 +385,10 @@ function StoreEditorModal({
                     placeholder="100"
                     placeholderTextColor={MUTED}
                   />
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14, paddingRight: 14 }}>metres</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14, paddingRight: 14 }}>metres</Text>
                 </View>
               </View>
-              <Text style={{ fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular', paddingHorizontal: 14, paddingBottom: 10 }}>
+              <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 10 }}>
                 Staff must be within this radius to clock in/out at this location.
               </Text>
             </View>
@@ -437,7 +437,7 @@ function StoreEditorModal({
                     style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                   />
                   {h.isClosed ? (
-                    <Text style={{ flex: 1, color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, textAlign: 'center' }}>Closed</Text>
+                    <Text style={{ flex: 1, color: MUTED, fontWeight: '400', fontSize: 13, textAlign: 'center' }}>Closed</Text>
                   ) : (
                     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <TextInput
@@ -574,8 +574,8 @@ export default function DirectorStoresScreen() {
           <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Feather name="map-pin" size={28} color={BLUE} />
           </View>
-          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: TEXT, textAlign: 'center' }}>No stores yet</Text>
-          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: MUTED, textAlign: 'center' }}>Add your first Butterfield location to enable geofence clock-in and public store listings.</Text>
+          <Text style={{ fontWeight: '700', fontSize: 18, color: TEXT, textAlign: 'center' }}>No stores yet</Text>
+          <Text style={{ fontWeight: '400', fontSize: 14, color: MUTED, textAlign: 'center' }}>Add your first Butterfield location to enable geofence clock-in and public store listings.</Text>
           <Pressable style={s.addBtn} onPress={openAdd}>
             <Feather name="plus" size={16} color="#fff" />
             <Text style={s.addBtnText}>Add First Store</Text>
@@ -605,39 +605,39 @@ export default function DirectorStoresScreen() {
 
 const s = StyleSheet.create({
   header:         { paddingHorizontal: 20, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: BG },
-  headerTitle:    { fontFamily: 'Inter_700Bold', fontSize: 26, color: TEXT },
-  headerSub:      { fontFamily: 'Inter_400Regular', fontSize: 13, color: MUTED, marginTop: 2 },
+  headerTitle:    { fontWeight: '700', fontSize: 26, color: TEXT },
+  headerSub:      { fontWeight: '400', fontSize: 13, color: MUTED, marginTop: 2 },
   addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  addBtnText:     { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#fff' },
+  addBtnText:     { fontWeight: '600', fontSize: 13, color: '#fff' },
   card:           { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   storeIcon:      { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  storeName:      { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: TEXT },
-  storeSub:       { fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, marginTop: 2 },
+  storeName:      { fontWeight: '600', fontSize: 15, color: TEXT },
+  storeSub:       { fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 },
   badge:          { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText:      { fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  badgeText:      { fontWeight: '600', fontSize: 10 },
   chip:           { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: BLUE + '12', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  chipText:       { fontFamily: 'Inter_500Medium', fontSize: 11, color: BLUE },
+  chipText:       { fontWeight: '500', fontSize: 11, color: BLUE },
   // Modal
   modalHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
-  modalTitle:     { fontFamily: 'Inter_700Bold', fontSize: 18, color: TEXT },
+  modalTitle:     { fontWeight: '700', fontSize: 18, color: TEXT },
   section:        { paddingHorizontal: 16, paddingTop: 20 },
-  sectionTitle:   { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: MUTED, letterSpacing: 1.2, marginBottom: 8, paddingHorizontal: 4 },
+  sectionTitle:   { fontWeight: '600', fontSize: 11, color: MUTED, letterSpacing: 1.2, marginBottom: 8, paddingHorizontal: 4 },
   sectionCard:    { backgroundColor: CARD, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden' },
   fieldRow:       { paddingHorizontal: 14, paddingVertical: 12 },
-  fieldLabel:     { fontFamily: 'Inter_500Medium', fontSize: 11, color: MUTED, marginBottom: 4 },
-  fieldInput:     { fontFamily: 'Inter_400Regular', fontSize: 15, color: TEXT },
+  fieldLabel:     { fontWeight: '500', fontSize: 11, color: MUTED, marginBottom: 4 },
+  fieldInput:     { fontWeight: '400', fontSize: 15, color: TEXT },
   toggleRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
-  toggleLabel:    { fontFamily: 'Inter_500Medium', fontSize: 15, color: TEXT, flex: 1 },
+  toggleLabel:    { fontWeight: '500', fontSize: 15, color: TEXT, flex: 1 },
   statusBtn:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: BORDER },
-  statusBtnText:  { fontFamily: 'Inter_500Medium', fontSize: 13, color: TEXT },
+  statusBtnText:  { fontWeight: '500', fontSize: 13, color: TEXT },
   hourRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  hourDay:        { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: TEXT, width: 36 },
-  timeInput:      { fontFamily: 'Inter_400Regular', fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flex: 1, textAlign: 'center' },
+  hourDay:        { fontWeight: '600', fontSize: 13, color: TEXT, width: 36 },
+  timeInput:      { fontWeight: '400', fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flex: 1, textAlign: 'center' },
   searchDropdown: { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
   searchResult:   { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'flex-start' },
-  searchResultText:{ fontFamily: 'Inter_400Regular', fontSize: 13, color: TEXT, flex: 1 },
+  searchResultText:{ fontWeight: '400', fontSize: 13, color: TEXT, flex: 1 },
   saveBtn:        { backgroundColor: NAVY, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  saveBtnText:    { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#fff' },
+  saveBtnText:    { fontWeight: '600', fontSize: 16, color: '#fff' },
   deactivateBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: AMBER },
-  deactivateBtnText:{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: AMBER },
+  deactivateBtnText:{ fontWeight: '600', fontSize: 14, color: AMBER },
 });

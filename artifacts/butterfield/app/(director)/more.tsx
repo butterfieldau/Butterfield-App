@@ -143,14 +143,14 @@ export default function MoreScreen() {
 
 const s = StyleSheet.create({
   header:      { paddingHorizontal: 20, paddingBottom: 20, backgroundColor: BG },
-  headerTitle: { fontSize: 30, fontFamily: 'Inter_700Bold', color: TEXT, marginBottom: 4 },
-  headerSub:   { fontSize: 14, fontFamily: 'Inter_400Regular', color: MUTED },
+  headerTitle: { fontSize: 30, fontWeight: '700', color: TEXT, marginBottom: 4 },
+  headerSub:   { fontSize: 14, fontWeight: '400', color: MUTED },
   section:     { marginBottom: 28 },
-  sectionTitle:{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: MUTED, letterSpacing: 1.4, marginBottom: 8, paddingHorizontal: 4 },
+  sectionTitle:{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1.4, marginBottom: 8, paddingHorizontal: 4 },
   card:        { backgroundColor: CARD, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row:         { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
   iconBox:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  rowLabel:    { fontSize: 15, fontFamily: 'Inter_500Medium', color: TEXT },
-  rowSub:      { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 1 },
-  footer:      { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: BORDER, marginTop: 8, marginBottom: 16 },
+  rowLabel:    { fontSize: 15, fontWeight: '500', color: TEXT },
+  rowSub:      { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 1 },
+  footer:      { textAlign: 'center', fontSize: 12, fontWeight: '400', color: BORDER, marginTop: 8, marginBottom: 16 },
 });

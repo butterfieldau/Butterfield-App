@@ -28,7 +28,7 @@ import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { useStores } from '@/hooks/useStores';
 import { getTierConfig } from '@/constants/tierConfig';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
-import { CenteredGlassModal } from '@/components/CenteredGlassModal';
+import { CustomerQrModal } from '@/components/CustomerQrModal';
 import { api, type ApiOrder, type ApiProduct, type HomeBannerConfig, type LiveContext } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
@@ -36,7 +36,7 @@ import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const TILE_SIZE = Math.floor((SCREEN_W - 32 - 24) / 3);
+const FEATURE_TILE_SIZE = Math.floor((SCREEN_W - 32 - 24) / 2.25);
 
 const BLUE_TOP = '#40C0F2';
 const BLUE_BTM = '#2AA8DC';
@@ -97,21 +97,21 @@ function MerchTile({ item, onPress }: { item: typeof MERCH[number]; onPress: () 
       <View style={s.merchTileTop}>
         <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
         <View style={s.priceBadge}>
-          <Text style={[s.priceBadgeText, { fontFamily: 'Inter_700Bold' }]}>${item.price}</Text>
+          <Text style={[s.priceBadgeText, { fontWeight: '700' }]}>${item.price}</Text>
         </View>
         <View style={[s.bannerStrip, { backgroundColor: 'rgba(0,0,0,0.45)' }]}>
-          <Text style={[s.bannerText, { fontFamily: 'Inter_500Medium' }]} numberOfLines={1}>In-store Pickup · Merrylands</Text>
+          <Text style={[s.bannerText, { fontWeight: '500' }]} numberOfLines={1}>In-store Pickup · Merrylands</Text>
         </View>
       </View>
       <View style={s.tileBottom}>
         <View style={s.tileNameRow}>
-          <Text style={[s.tileName, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{item.name}</Text>
-          <Text style={[s.arrow, { color: palette.banner, fontFamily: 'Inter_500Medium' }]}>↗</Text>
+          <Text style={[s.tileName, { fontWeight: '700' }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={[s.arrow, { color: palette.banner, fontWeight: '500' }]}>↗</Text>
         </View>
         <View style={s.tagsRow}>
           {['Branded', 'Limited'].map((tag) => (
             <View key={tag} style={[s.tagChip, { backgroundColor: `${palette.bg}55` }]}>
-              <Text style={[s.tagText, { fontFamily: 'Inter_500Medium', color: palette.banner }]}>{tag}</Text>
+              <Text style={[s.tagText, { fontWeight: '500', color: palette.banner }]}>{tag}</Text>
             </View>
           ))}
         </View>
@@ -128,9 +128,9 @@ function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | null; onPr
     return (
       <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} style={s.fallbackBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={s.fallbackContent}>
-          <Text style={[s.fallbackTag, { fontFamily: 'Inter_600SemiBold' }]}>🍪 DAILY SPECIAL</Text>
-          <Text style={[s.fallbackTitle, { fontFamily: 'Inter_700Bold' }]}>Cookie & Cream Sandwich</Text>
-          <Text style={[s.fallbackSub, { fontFamily: 'Inter_400Regular' }]}>Two warm cookies + vanilla cream</Text>
+          <Text style={[s.fallbackTag, { fontWeight: '600' }]}>🍪 DAILY SPECIAL</Text>
+          <Text style={[s.fallbackTitle, { fontWeight: '700' }]}>Cookie & Cream Sandwich</Text>
+          <Text style={[s.fallbackSub, { fontWeight: '400' }]}>Two warm cookies + vanilla cream</Text>
         </View>
         <View style={s.fallbackCircle} />
       </LinearGradient>
@@ -157,7 +157,7 @@ function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | null; onPr
       <View style={s.heroBannerInner}>
         <View style={{ flex: 1, gap: 6 }}>
           {headline ? (
-            <Text style={[s.heroHeadline, { fontFamily: 'Inter_700Bold' }]}>
+            <Text style={[s.heroHeadline, { fontWeight: '700' }]}>
               {headlineParts ? (
                 <>
                   <Text style={{ color: '#F59E0B' }}>{accent}</Text>
@@ -167,11 +167,11 @@ function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | null; onPr
             </Text>
           ) : null}
           {subtext ? (
-            <Text style={[s.heroSubtext, { fontFamily: 'Inter_400Regular' }]}>{subtext}</Text>
+            <Text style={[s.heroSubtext, { fontWeight: '400' }]}>{subtext}</Text>
           ) : null}
         </View>
         <Pressable style={s.heroBtn} onPress={onPress}>
-          <Text style={[s.heroBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{btnText}</Text>
+          <Text style={[s.heroBtnText, { fontWeight: '600' }]}>{btnText}</Text>
         </Pressable>
       </View>
     </Pressable>
@@ -200,7 +200,7 @@ function FeatureShortcutTile({
 }) {
   return (
     <Pressable
-      style={[s.featureTile, { width: TILE_SIZE, height: TILE_SIZE }]}
+      style={[s.featureTile, { width: FEATURE_TILE_SIZE, height: FEATURE_TILE_SIZE }]}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
     >
       <LinearGradient
@@ -209,18 +209,22 @@ function FeatureShortcutTile({
         end={{ x: 1, y: 1 }}
         style={s.featureTileBg}
       >
-        <Text
-          style={[
-            s.featureTileTitle,
-            { color: titleColor, fontFamily: 'Inter_700Bold' },
-            titleStyle,
-          ]}
-          numberOfLines={2}
-        >
-          {title}
-        </Text>
-        <Image source={imageSource} style={[s.featureTileImage, imageStyle]} contentFit="contain" />
-        {showArrow && <Feather name="arrow-right" size={18} color="#1C1C1E" style={s.featureTileArrow} />}
+        <View style={s.featureTileImageWrap}>
+          <Image source={imageSource} style={[s.featureTileImage, imageStyle]} contentFit="contain" />
+        </View>
+        <View style={s.featureTileFooter}>
+          <Text
+            style={[
+              s.featureTileTitle,
+              { color: titleColor, fontWeight: '700' },
+              titleStyle,
+            ]}
+            numberOfLines={2}
+          >
+            {title}
+          </Text>
+          {showArrow && <Feather name="arrow-right" size={18} color="#1C1C1E" />}
+        </View>
       </LinearGradient>
     </Pressable>
   );
@@ -241,7 +245,7 @@ export default function CustomerHome() {
     queryFn: () => api.products.list(),
     retry: 2,
   });
-  const { data: loyaltyData } = useQuery({
+  const { data: loyaltyData, refetch: refetchLoyalty, isRefetching: loyaltyRefreshing } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn: () => api.loyalty.profile(),
     retry: 1,
@@ -296,7 +300,11 @@ export default function CustomerHome() {
   const featuredStore  = (storesData?.data ?? [])[0] ?? null;
   const topSellers     = topSellersData?.data ?? [];
   const qrToken        = loyaltyData?.data?.loyaltyQrToken ?? null;
-  const qrValue        = loyaltyData?.data?.qrPayload ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null);
+  const qrValue        = loyaltyData?.data?.qrPayload
+    ?? (qrToken ? `BUTTERFIELD:LOYALTY:${qrToken}` : null)
+    ?? (loyaltyData?.data?.userId && loyaltyData?.data?.referralCode
+      ? `BUTTERFIELD:${loyaltyData.data.userId}:${loyaltyData.data.referralCode}`
+      : null);
 
   const hasClaimableReward = useMemo(
     () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
@@ -415,6 +423,12 @@ export default function CustomerHome() {
     router.push(route as any);
   }, [banner]);
 
+  React.useEffect(() => {
+    if (showQR && !qrValue && !loyaltyRefreshing) {
+      refetchLoyalty();
+    }
+  }, [loyaltyRefreshing, qrValue, refetchLoyalty, showQR]);
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <StoreInfoSheet
@@ -425,62 +439,16 @@ export default function CustomerHome() {
       <OfflineBanner />
 
       {/* ── QR CODE MODAL ──────────────────────────────────────────────── */}
-      <CenteredGlassModal
+      <CustomerQrModal
         visible={showQR}
         onClose={() => setShowQR(false)}
-        contentStyle={s.qrSheetContent}
-      >
-        <View style={s.qrCard}>
-          <Text style={[s.qrTitle, { fontFamily: 'Inter_700Bold' }]}>Coffee Stamp Card</Text>
-          <Text style={[s.qrSub, { fontFamily: 'Inter_400Regular' }]}>
-            Show this to staff to earn your stamp
-          </Text>
-          <View style={s.qrBox}>
-            {qrValue ? (
-              <QRCode
-                value={qrValue}
-                size={220}
-                backgroundColor="#fff"
-                color="#000"
-              />
-            ) : (
-              <View style={[s.qrFallback, { backgroundColor: '#fff' }]}>
-                <ActivityIndicator color={BLUE_TOP} />
-                <Text style={[s.qrFallbackText, { fontFamily: 'Inter_500Medium' }]}>Preparing your QR code</Text>
-              </View>
-            )}
-          </View>
-          <View style={s.qrStampsRow}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  s.qrStampDot,
-                  i < stampCount
-                    ? { backgroundColor: BLUE_TOP }
-                    : { backgroundColor: '#E5E5EA', borderColor: '#C7C7CC', borderWidth: 1.5 },
-                ]}
-              >
-                {i < stampCount && <Feather name="coffee" size={12} color="#fff" />}
-              </View>
-            ))}
-          </View>
-          <Text style={[s.qrStampLabel, { fontFamily: 'Inter_500Medium' }]}>
-            {stampCount >= 6
-              ? '☕ Free coffee ready — show to staff!'
-              : `${stampCount} of 6 stamps — ${6 - stampCount} to go`}
-          </Text>
-          <Text style={[s.qrCode, { fontFamily: 'Inter_600SemiBold' }]}>
-            {qrToken ? 'Your permanent QR code' : 'Generating QR code'}
-          </Text>
-          <Pressable
-            style={[s.qrCloseBtn, { backgroundColor: CHERRY }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(false); }}
-          >
-            <Text style={[{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 15 }]}>Done</Text>
-          </Pressable>
-        </View>
-      </CenteredGlassModal>
+        qrValue={qrValue}
+        customerName={loyaltyData?.data?.customerName ?? freshName ?? 'Butterfield Member'}
+        helperText="Show this to staff at Butterfield to collect coffee stamps."
+        statusText={stampCount >= 6 ? 'Free coffee ready to claim at the counter.' : `${stampCount} of 6 coffee stamps collected.`}
+        isLoading={loyaltyRefreshing && !qrValue}
+        onRetry={() => { void refetchLoyalty(); }}
+      />
 
       {/* ── FROZEN BLUE HEADER ─────────────────────────────────────────── */}
       <View style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
@@ -498,9 +466,9 @@ export default function CustomerHome() {
               style={s.loyaltyChip}
             >
               <Feather name="star" size={11} color="rgba(255,255,255,0.9)" />
-              <Text style={[s.loyaltyPts, { fontFamily: 'Inter_700Bold' }]}>{loyaltyPoints.toLocaleString()} pts</Text>
+              <Text style={[s.loyaltyPts, { fontWeight: '700' }]}>{loyaltyPoints.toLocaleString()} pts</Text>
               <View style={s.tierDivider} />
-              <Text style={[s.loyaltyMember, { fontFamily: 'Inter_700Bold' }]}>{tierCfg.label.toUpperCase()}</Text>
+              <Text style={[s.loyaltyMember, { fontWeight: '700' }]}>{tierCfg.label.toUpperCase()}</Text>
             </LinearGradient>
             <Pressable
               style={s.qrBtn}
@@ -514,8 +482,8 @@ export default function CustomerHome() {
 
         {/* Row 2: greeting full width — no chip squeezing it */}
         <View>
-          <Text style={[s.greetLine1, { fontFamily: 'Inter_700Bold' }]} numberOfLines={2}>{greeting.line1}</Text>
-          <Text style={[s.greetLine2, { fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>{greeting.line2}</Text>
+          <Text style={[s.greetLine1, { fontWeight: '700' }]} numberOfLines={2}>{greeting.line1}</Text>
+          <Text style={[s.greetLine2, { fontWeight: '400' }]} numberOfLines={2}>{greeting.line2}</Text>
         </View>
       </View>
 
@@ -541,13 +509,13 @@ export default function CustomerHome() {
               <Feather name="map-pin" size={20} color={BLUE_TOP} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[s.pickupLabel, { fontFamily: 'Inter_600SemiBold', color: BLUE_TOP }]}>IN-STORE PICKUP</Text>
-              <Text style={[s.pickupTitle, { fontFamily: 'Inter_700Bold', color: colors.foreground }]} numberOfLines={1}>
+              <Text style={[s.pickupLabel, { fontWeight: '600', color: BLUE_TOP }]}>IN-STORE PICKUP</Text>
+              <Text style={[s.pickupTitle, { fontWeight: '700', color: colors.foreground }]} numberOfLines={1}>
                 Butterfield Cookies — Merrylands
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
                 <View style={[s.openDot, { backgroundColor: open ? '#22C55E' : '#EF4444' }]} />
-                <Text style={[s.openText, { color: open ? '#15803D' : '#DC2626', fontFamily: 'Inter_500Medium' }]}>
+                <Text style={[s.openText, { color: open ? '#15803D' : '#DC2626', fontWeight: '500' }]}>
                   {storeHint}
                 </Text>
               </View>
@@ -557,7 +525,12 @@ export default function CustomerHome() {
         </View>
 
         {/* ── 3 Perfect square quick action tiles ────────────────────────── */}
-        <View style={s.quickSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.quickRail}
+          decelerationRate="fast"
+        >
           <FeatureShortcutTile
             title="Cookies!"
             titleColor="#32A8E4"
@@ -586,14 +559,14 @@ export default function CustomerHome() {
             onPress={() => router.push({ pathname: '/(customer)/menu', params: { category: 'coffee', skipQueue: '1' } })}
             showArrow
           />
-        </View>
+        </ScrollView>
 
         {/* Your usual */}
         {usualItems.length > 0 && (
           <View style={s.section}>
             <View style={s.usualHeader}>
-              <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold', marginBottom: 0 }]}>Your usual</Text>
-              <Text style={[s.usualSub, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+              <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', marginBottom: 0 }]}>Your usual</Text>
+              <Text style={[s.usualSub, { color: colors.mutedForeground, fontWeight: '400' }]}>
                 1 tap to add
               </Text>
             </View>
@@ -639,7 +612,7 @@ export default function CustomerHome() {
                       }
                     </View>
                     <View style={s.usualInfo}>
-                      <Text style={[s.usualName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+                      <Text style={[s.usualName, { color: colors.foreground, fontWeight: '600' }]} numberOfLines={1}>
                         {p.name}
                       </Text>
                       {optSummary ? (
@@ -647,7 +620,7 @@ export default function CustomerHome() {
                           {optSummary}
                         </Text>
                       ) : null}
-                      <Text style={[s.usualPrice, { color: pal.banner, fontFamily: 'Inter_700Bold' }]}>
+                      <Text style={[s.usualPrice, { color: pal.banner, fontWeight: '700' }]}>
                         ${(unitCents / 100).toFixed(2)}
                       </Text>
                     </View>
@@ -663,7 +636,7 @@ export default function CustomerHome() {
 
         {/* Top Sellers */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Top Sellers</Text>
+          <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Top Sellers</Text>
           {topSellers.length > 0 ? (
             <FlatList
               data={topSellers}
@@ -696,7 +669,7 @@ export default function CustomerHome() {
         {/* Fan Favourites */}
         {popular.length > 0 && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Fan Favourites</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Fan Favourites</Text>
             <FlatList
               data={popular}
               horizontal
@@ -714,12 +687,12 @@ export default function CustomerHome() {
                         : <Text style={{ fontSize: 36 }}>{pal.emoji}</Text>
                       }
                       <View style={[s.bannerStrip, { backgroundColor: img ? 'rgba(0,0,0,0.4)' : pal.banner }]}>
-                        <Text style={[s.bannerText, { fontFamily: 'Inter_500Medium' }]}>Pickup</Text>
+                        <Text style={[s.bannerText, { fontWeight: '500' }]}>Pickup</Text>
                       </View>
                     </View>
                     <View style={{ padding: 8, gap: 2 }}>
-                      <Text style={[s.favName, { fontFamily: 'Inter_600SemiBold', color: colors.foreground }]} numberOfLines={1}>{p.name}</Text>
-                      <Text style={{ fontFamily: 'Inter_700Bold', color: pal.banner, fontSize: 13 }}>
+                      <Text style={[s.favName, { fontWeight: '600', color: colors.foreground }]} numberOfLines={1}>{p.name}</Text>
+                      <Text style={{ fontWeight: '700', color: pal.banner, fontSize: 13 }}>
                         ${((p.prices?.[0]?.unit_amount ?? 0) / 100).toFixed(2)}
                       </Text>
                     </View>
@@ -749,7 +722,7 @@ export default function CustomerHome() {
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
                   <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
                 </View>
-                <Text style={[s.catTileLabel, { color: active ? pal.banner : '#3C3C43', fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+                <Text style={[s.catTileLabel, { color: active ? pal.banner : '#3C3C43', fontWeight: active ? '700' : '500' }]}>
                   {cat.label}
                 </Text>
               </Pressable>
@@ -762,7 +735,7 @@ export default function CustomerHome() {
           {isLoading ? (
             <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
           ) : featured.length === 0 ? (
-            <Text style={[s.empty, { color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+            <Text style={[s.empty, { color: colors.mutedForeground, fontWeight: '400' }]}>
               No products in this category yet.
             </Text>
           ) : (
@@ -778,7 +751,7 @@ export default function CustomerHome() {
 
         {/* Merch — moved to bottom */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground, fontFamily: 'Inter_700Bold' }]}>Merch</Text>
+          <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Merch</Text>
           <FlatList
             data={MERCH}
             horizontal
@@ -836,18 +809,19 @@ const s = StyleSheet.create({
   openText:      { fontSize: 12 },
 
   // ── Feature shortcut tiles ──────────────────────────────────────────────────
-  quickSection:     { flexDirection: 'row', justifyContent: 'center', gap: 12, paddingHorizontal: 16, marginTop: 14 },
-  featureTile:      { borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  featureTileBg:    { flex: 1, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 10, overflow: 'hidden' },
-  featureTileTitle: { fontSize: 12, lineHeight: 15, letterSpacing: -0.2, zIndex: 2 },
-  featureTileImage: { position: 'absolute' },
-  featureTileArrow: { position: 'absolute', right: 12, bottom: 12 },
-  cookiesTileTitle: { fontSize: 18, lineHeight: 20 },
-  cookiesTileImage: { width: 102, height: 102, left: -8, bottom: -8 },
-  rewardsTileTitle: { position: 'absolute', left: 12, bottom: 12, right: 12, fontSize: 11, lineHeight: 14 },
-  rewardsTileImage: { width: 78, height: 64, top: 10, alignSelf: 'center' },
-  skipTileTitle:    { position: 'absolute', left: 12, bottom: 12, right: 30, fontSize: 11, lineHeight: 14 },
-  skipTileImage:    { width: 78, height: 78, top: 6, right: -4 },
+  quickRail:        { paddingHorizontal: 16, gap: 12, marginTop: 14, paddingRight: 48 },
+  featureTile:      { borderRadius: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  featureTileBg:    { flex: 1, paddingHorizontal: 12, paddingTop: 14, paddingBottom: 16, overflow: 'hidden', justifyContent: 'flex-start', alignItems: 'center' },
+  featureTileImageWrap: { width: '100%', flex: 1.15, alignItems: 'center', justifyContent: 'center' },
+  featureTileTitle: { fontSize: 14, lineHeight: 17, letterSpacing: -0.2, textAlign: 'center' },
+  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 6, minHeight: 52, paddingTop: 8 },
+  featureTileImage: { width: '100%', height: '100%' },
+  cookiesTileTitle: { fontSize: 20, lineHeight: 22, color: '#32A8E4' },
+  cookiesTileImage: { width: '92%', height: '92%', alignSelf: 'center', transform: [{ translateY: 4 }] },
+  rewardsTileTitle: { fontSize: 14, lineHeight: 16, textAlign: 'center' },
+  rewardsTileImage: { width: '72%', height: '72%', alignSelf: 'center', transform: [{ translateY: -2 }] },
+  skipTileTitle:    { fontSize: 14, lineHeight: 16, textAlign: 'center' },
+  skipTileImage:    { width: '78%', height: '78%', alignSelf: 'center', transform: [{ translateY: -2 }] },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
   section:       { marginTop: 26 },
@@ -903,7 +877,7 @@ const s = StyleSheet.create({
   usualImgWrap:  { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   usualInfo:     { flex: 1, gap: 2 },
   usualName:     { fontSize: 13, lineHeight: 17 },
-  usualOpts:     { fontSize: 11, lineHeight: 14, fontFamily: 'Inter_400Regular' },
+  usualOpts:     { fontSize: 11, lineHeight: 14, fontWeight: '400' },
   usualPrice:    { fontSize: 13 },
   usualAddBtn:   { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 
@@ -928,7 +902,7 @@ const s = StyleSheet.create({
     gap: 10,
   },
   qrHandle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E5', marginBottom: 4 },
-  qrTitle:    { fontSize: 22, color: '#083B57', textAlign: 'center', fontFamily: 'Inter_800ExtraBold', letterSpacing: -0.2 },
+  qrTitle:    { fontSize: 22, color: '#083B57', textAlign: 'center', fontWeight: '800', letterSpacing: -0.2 },
   qrSub:      { fontSize: 13, color: 'rgba(8,59,87,0.76)', textAlign: 'center', lineHeight: 18 },
   qrBox: {
     width: 252, height: 252, borderRadius: 20,

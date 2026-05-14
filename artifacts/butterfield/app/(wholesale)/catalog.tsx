@@ -425,7 +425,7 @@ export default function WholesaleCatalog() {
                 <Pressable key={tab.label} style={styles.tabItem} onPress={() => { if (i <= checkoutStep) goToStep(i); }}>
                   <View style={styles.tabInner}>
                     <Feather name={tab.icon as any} size={13} color={active || done ? BLUE : MUTED} />
-                    <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                    <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontWeight: active ? '600' : '400' }]}>
                       {tab.label}
                     </Text>
                   </View>
@@ -506,7 +506,7 @@ export default function WholesaleCatalog() {
                   <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
                 </View>
                 {minOrderCents > 0 && subtotalCents < minOrderCents && (
-                  <Text style={{ color: '#EF4444', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                  <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '400', marginTop: 4 }}>
                     Minimum wholesale order is AUD {(minOrderCents / 100).toFixed(2)}
                   </Text>
                 )}
@@ -629,7 +629,7 @@ export default function WholesaleCatalog() {
                       <Text style={styles.pickupTimeLabel}>Select a time</Text>
                       <View style={styles.timeGrid}>
                         {pickupTimes.length === 0 ? (
-                          <Text style={{ color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No slots available</Text>
+                          <Text style={{ color: MUTED, fontSize: 13, fontWeight: '400' }}>No slots available</Text>
                         ) : pickupTimes.map((mins) => {
                           const lbl = formatTime(mins);
                           const isSel = selectedTimeMins === mins;
@@ -795,17 +795,17 @@ export default function WholesaleCatalog() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <LinearGradient colors={['#40C0F2', '#2AA8DC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: insets.top + 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' }}>Wholesale Catalog</Text>
+          <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>Wholesale Catalog</Text>
           {cart.length > 0 && (
             <Pressable onPress={handleOpenCheckout} style={[styles.cartBtn, { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 12 }]}>
               <Feather name="shopping-cart" size={16} color="#fff" />
-              <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 }}>{totalQty}</Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{totalQty}</Text>
             </Pressable>
           )}
         </View>
         <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 }]}>
           <Feather name="search" size={14} color="rgba(255,255,255,0.8)" />
-          <TextInput style={{ flex: 1, color: '#fff', fontFamily: 'Inter_400Regular', fontSize: 14 }} placeholder="Search products..." placeholderTextColor="rgba(255,255,255,0.6)" value={search} onChangeText={setSearch} />
+          <TextInput style={{ flex: 1, color: '#fff', fontWeight: '400', fontSize: 14 }} placeholder="Search products..." placeholderTextColor="rgba(255,255,255,0.6)" value={search} onChangeText={setSearch} />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
               <Feather name="x" size={14} color="rgba(255,255,255,0.8)" />
@@ -826,7 +826,7 @@ export default function WholesaleCatalog() {
                   borderColor: active ? '#fff' : 'rgba(255,255,255,0.3)',
                 }]}
               >
-                <Text style={{ color: active ? BLUE : '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{label}</Text>
+                <Text style={{ color: active ? BLUE : '#fff', fontWeight: '600', fontSize: 11 }}>{label}</Text>
               </Pressable>
             );
           })}
@@ -834,8 +834,8 @@ export default function WholesaleCatalog() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {WHOLESALE_TIERS.map((tier) => (
             <View key={tier.label} style={[styles.tierTag, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }]}>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{tier.label}</Text>
-              {tier.discount > 0 && <Text style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 11 }}>{tier.label}</Text>
+              {tier.discount > 0 && <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '400', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
             </View>
           ))}
         </ScrollView>
@@ -852,7 +852,7 @@ export default function WholesaleCatalog() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
               <Feather name="package" size={32} color={BORDER} />
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }}>No products available</Text>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14 }}>No products available</Text>
             </View>
           }
           renderItem={({ item: product }) => (
@@ -867,14 +867,14 @@ export default function WholesaleCatalog() {
             <LinearGradient colors={['#40C0F2', '#2398D8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.floatingCartInner}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={styles.floatingCartBadge}>
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{totalQty}</Text>
+                  <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{totalQty}</Text>
                 </View>
-                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
                   {cart.length} item{cart.length !== 1 ? 's' : ''} · View Cart
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>${(subtotalCents / 100).toFixed(2)}</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>${(subtotalCents / 100).toFixed(2)}</Text>
                 <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.85)" />
               </View>
             </LinearGradient>
@@ -896,18 +896,18 @@ const styles = StyleSheet.create({
   compactThumbWrap: { position: 'relative' },
   compactThumb:     { width: 56, height: 56, borderRadius: 10 },
   inCartBadge:      { position: 'absolute', top: -5, right: -5, backgroundColor: '#22C55E', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: CARD },
-  inCartBadgeText:  { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
-  compactName:      { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
-  compactPrice:     { fontSize: 14, fontFamily: 'Inter_700Bold', color: BLUE },
-  compactStrike:    { fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED, textDecorationLine: 'line-through' },
+  inCartBadgeText:  { color: '#fff', fontSize: 9, fontWeight: '700' },
+  compactName:      { fontSize: 14, fontWeight: '600', color: TEXT },
+  compactPrice:     { fontSize: 14, fontWeight: '700', color: BLUE },
+  compactStrike:    { fontSize: 11, fontWeight: '400', color: MUTED, textDecorationLine: 'line-through' },
   discountBadge:    { backgroundColor: `${BLUE}18`, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
-  discountBadgeText:{ fontSize: 10, fontFamily: 'Inter_700Bold', color: BLUE },
+  discountBadgeText:{ fontSize: 10, fontWeight: '700', color: BLUE },
   stepperRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, overflow: 'hidden', height: 34 },
   stepBtn:          { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText:      { fontSize: 18, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 22 },
-  stepQty:          { width: 36, height: 34, textAlign: 'center', fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT },
+  stepBtnText:      { fontSize: 18, color: TEXT, fontWeight: '400', lineHeight: 22 },
+  stepQty:          { width: 36, height: 34, textAlign: 'center', fontSize: 13, fontWeight: '700', color: TEXT },
   addBtn:           { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, height: 34, borderRadius: 10, justifyContent: 'center' },
-  addBtnText:       { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  addBtnText:       { color: '#fff', fontSize: 13, fontWeight: '700' },
   floatingCartOuter:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
   floatingCartInner:{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, height: 54, borderRadius: 27, shadowColor: '#40C0F2', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 6 },
   floatingCartBadge:{ backgroundColor: '#fff', borderRadius: 8, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
@@ -915,8 +915,8 @@ const styles = StyleSheet.create({
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
   checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:           { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  checkoutTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT, letterSpacing: 1.5 },
-  checkoutSub:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  checkoutTitle:     { fontSize: 17, fontWeight: '700', color: TEXT, letterSpacing: 1.5 },
+  checkoutSub:       { fontSize: 12, fontWeight: '400', marginTop: 1 },
   // Tabs
   tabBar:      { flexDirection: 'row' },
   tabItem:     { flex: 1, alignItems: 'center', paddingVertical: 10, position: 'relative' },
@@ -924,75 +924,75 @@ const styles = StyleSheet.create({
   tabLabel:    { fontSize: 11, letterSpacing: 0.5 },
   tabUnderline:{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2.5, borderRadius: 2 },
   // Section
-  sectionLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: MUTED, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  sectionLabel: { fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
   // Cart items
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
   itemThumb:  { width: 90, height: 90 },
   removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER, zIndex: 1 },
   itemBody:   { flex: 1, padding: 12, gap: 4 },
-  itemName:   { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: TEXT },
-  itemPrice:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT },
+  itemName:   { fontSize: 15, fontWeight: '600', color: TEXT },
+  itemPrice:  { fontSize: 14, fontWeight: '500', color: TEXT },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
   qtyBtn:     { width: 34, height: 34, borderRadius: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
-  qtyBtnText: { fontSize: 18, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 22 },
-  qtyLabel:   { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 24, textAlign: 'center' },
+  qtyBtnText: { fontSize: 18, color: TEXT, fontWeight: '400', lineHeight: 22 },
+  qtyLabel:   { fontSize: 14, fontWeight: '700', color: TEXT, minWidth: 24, textAlign: 'center' },
   // Summary
   summaryCard:       { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   summaryRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryRowLabel:   { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED },
-  summaryRowValue:   { fontSize: 13, fontFamily: 'Inter_500Medium', color: TEXT },
-  summaryTotalLabel: { fontFamily: 'Inter_700Bold', fontSize: 15, color: TEXT },
-  summaryTotalValue: { fontFamily: 'Inter_700Bold', fontSize: 16, color: TEXT },
+  summaryRowLabel:   { fontSize: 13, fontWeight: '400', color: MUTED },
+  summaryRowValue:   { fontSize: 13, fontWeight: '500', color: TEXT },
+  summaryTotalLabel: { fontWeight: '700', fontSize: 15, color: TEXT },
+  summaryTotalValue: { fontWeight: '700', fontSize: 16, color: TEXT },
   summaryDivider:    { height: 1 },
-  shippingNote:      { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED },
+  shippingNote:      { textAlign: 'center', fontSize: 12, fontWeight: '400', color: MUTED },
   // Order type
   orderTypeRow:   { flexDirection: 'row', gap: 10 },
   orderTypeCard:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14 },
   orderTypeIcon:  { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  orderTypeLabel: { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
-  orderTypeSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  orderTypeLabel: { fontSize: 15, fontWeight: '700', color: TEXT },
+  orderTypeSub:   { fontSize: 12, fontWeight: '400', marginTop: 2 },
   // Delivery info
   deliveryInfoCard:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   deliveryInfoIcon:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  deliveryInfoTag:   { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
-  deliveryInfoTitle: { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT, marginTop: 2 },
-  deliveryInfoSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 },
+  deliveryInfoTag:   { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  deliveryInfoTitle: { fontSize: 15, fontWeight: '700', color: TEXT, marginTop: 2 },
+  deliveryInfoSub:   { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
   // Date grid
   chooseDateHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  chooseDateTitle:  { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  chooseDateTitle:  { fontSize: 16, fontWeight: '700', color: TEXT },
   dateGrid:         { flexDirection: 'row', gap: 10 },
   dateCard:         { flex: 1, borderRadius: 14, padding: 14, gap: 3 },
-  dateDayName:      { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-  dateDayNum:       { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
-  dateTimeRange:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED },
+  dateDayName:      { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  dateDayNum:       { fontSize: 16, fontWeight: '700', color: TEXT },
+  dateTimeRange:    { fontSize: 12, fontWeight: '400', color: MUTED },
   // Time slots
-  pickupTimeLabel: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT, marginTop: 4 },
+  pickupTimeLabel: { fontSize: 14, fontWeight: '600', color: TEXT, marginTop: 4 },
   timeGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   timePill:        { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
-  timePillText:    { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  timePillText:    { fontSize: 13, fontWeight: '500' },
   // Forms
   formCard:       { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   formFieldWrap:  { gap: 4 },
-  formFieldLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: MUTED },
-  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: BG },
+  formFieldLabel: { fontSize: 13, fontWeight: '500', color: MUTED },
+  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: BG },
   formRow:        { flexDirection: 'row', gap: 10 },
-  formNote:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  formNote:       { fontSize: 12, fontWeight: '400', marginTop: 2 },
   notesInput:     { height: 80, textAlignVertical: 'top', paddingTop: 12 },
   // Order step
-  paymentHeader:    { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  paymentHeader:    { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   paymentItem:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  paymentItemName:  { fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
-  paymentItemPrice: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  paymentItemName:  { fontSize: 13, fontWeight: '400', flex: 1 },
+  paymentItemPrice: { fontSize: 13, fontWeight: '500' },
   orderDetailsCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
   orderDetailRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  orderDetailText:  { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  orderDetailText:  { flex: 1, fontSize: 13, fontWeight: '400' },
   secureCard:       { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
-  secureText:       { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular' },
+  secureText:       { flex: 1, fontSize: 12, fontWeight: '400' },
   // Bottom bar
   bottomBar:        { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   bottomTotal:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bottomTotalLabel: { fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT, letterSpacing: 1 },
-  bottomTotalAmount:{ fontSize: 20, fontFamily: 'Inter_700Bold', color: TEXT },
+  bottomTotalLabel: { fontSize: 13, fontWeight: '700', color: TEXT, letterSpacing: 1 },
+  bottomTotalAmount:{ fontSize: 20, fontWeight: '700', color: TEXT },
   continueBtn:      { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
-  continueBtnText:  { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  continueBtnText:  { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

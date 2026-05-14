@@ -24,8 +24,8 @@ export default function StaffProductsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-        <Text style={[styles.title, { fontFamily: 'Inter_700Bold', color: TEXT }]}>Product Availability</Text>
-        <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Live from Stripe · {products.length} products</Text>
+        <Text style={[styles.title, { fontWeight: '700', color: TEXT }]}>Product Availability</Text>
+        <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Live from Stripe · {products.length} products</Text>
       </View>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
@@ -38,7 +38,7 @@ export default function StaffProductsScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 12 }}>
               <Feather name="box" size={36} color={BORDER} />
-              <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }]}>
+              <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 14 }]}>
                 No products yet — connect Stripe and run the seed script
               </Text>
             </View>
@@ -53,20 +53,20 @@ export default function StaffProductsScreen() {
                   <Text style={{ fontSize: 24 }}>{palette.emoji}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>{p.name}</Text>
-                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }]} numberOfLines={1}>{p.description}</Text>
+                  <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 14 }]}>{p.name}</Text>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 11, marginTop: 2 }]} numberOfLines={1}>{p.description}</Text>
                   <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
                     <View style={[styles.badge, { backgroundColor: `${BLUE}15` }]}>
-                      <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 10, textTransform: 'capitalize' }]}>{p.metadata?.category ?? 'product'}</Text>
+                      <Text style={[{ color: BLUE, fontWeight: '600', fontSize: 10, textTransform: 'capitalize' }]}>{p.metadata?.category ?? 'product'}</Text>
                     </View>
-                    {p.metadata?.popular === 'true' && <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}><Text style={[{ color: '#D97706', fontFamily: 'Inter_600SemiBold', fontSize: 10 }]}>POPULAR</Text></View>}
-                    {p.metadata?.isNew === 'true' && <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}><Text style={[{ color: '#15803D', fontFamily: 'Inter_600SemiBold', fontSize: 10 }]}>NEW</Text></View>}
+                    {p.metadata?.popular === 'true' && <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}><Text style={[{ color: '#D97706', fontWeight: '600', fontSize: 10 }]}>POPULAR</Text></View>}
+                    {p.metadata?.isNew === 'true' && <View style={[styles.badge, { backgroundColor: '#DCFCE7' }]}><Text style={[{ color: '#15803D', fontWeight: '600', fontSize: 10 }]}>NEW</Text></View>}
                   </View>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>${price.toFixed(2)}</Text>
+                  <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>${price.toFixed(2)}</Text>
                   <View style={[styles.badge, { backgroundColor: available ? '#DCFCE7' : '#FEE2E2', borderColor: available ? '#22C55E' : '#EF4444', borderWidth: 1 }]}>
-                    <Text style={[{ color: available ? '#15803D' : '#DC2626', fontFamily: 'Inter_600SemiBold', fontSize: 10 }]}>{available ? 'Available' : 'Unavailable'}</Text>
+                    <Text style={[{ color: available ? '#15803D' : '#DC2626', fontWeight: '600', fontSize: 10 }]}>{available ? 'Available' : 'Unavailable'}</Text>
                   </View>
                 </View>
               </View>

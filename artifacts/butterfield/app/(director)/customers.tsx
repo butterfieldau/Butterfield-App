@@ -308,7 +308,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
             {/* ── Insights ── */}
             <View style={[det.section, { borderBottomColor: BORDER }]}>
               <Text style={det.sectionTitle}>Insights</Text>
-              <Text style={{ fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 18, marginBottom: 14 }}>
+              <Text style={{ fontSize: 13, color: MUTED, fontWeight: '400', lineHeight: 18, marginBottom: 14 }}>
                 Butterfield tracks this customer's purchase history and loyalty to help you personalise their experience.
               </Text>
               {[
@@ -345,7 +345,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       { label: 'Birthday DD/MM/YYYY', value: eBirthday, set: (v: string) => setEBirthday(autoFormatBdEdit(v)), kb: 'number-pad' as const },
                     ].map(f => (
                       <View key={f.label}>
-                        <Text style={{ fontSize: 11, color: MUTED, fontFamily: 'Inter_500Medium', marginBottom: 4 }}>{f.label}</Text>
+                        <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500', marginBottom: 4 }}>{f.label}</Text>
                         <TextInput
                           style={[det.editInput, { borderColor: BORDER, color: TEXT }]}
                           value={f.value} onChangeText={f.set}
@@ -355,16 +355,16 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                     ))}
                     <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
                       <Pressable onPress={() => setEditingContact(false)} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
-                        <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+                        <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
                       </Pressable>
                       <Pressable onPress={saveContact} disabled={savingContact} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY }]}>
-                        {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Save</Text>}
+                        {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save</Text>}
                       </Pressable>
                     </View>
                     <View style={[det.infoRow, { borderBottomWidth: 0, paddingHorizontal: 0, marginTop: 2 }]}>
                       <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={{ fontSize: 14, color: TEXT, fontFamily: 'Inter_500Medium' }}>Allow pay at pickup</Text>
-                        <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                        <Text style={{ fontSize: 14, color: TEXT, fontWeight: '500' }}>Allow pay at pickup</Text>
+                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                           Lets this customer choose pay later at pickup on eligible pickup orders.
                         </Text>
                       </View>
@@ -401,7 +401,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <Text style={[det.infoLabel, { marginBottom: 6 }]}>Default address</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 22 }}>
+                          <Text style={{ fontSize: 14, color: TEXT, fontWeight: '400', lineHeight: 22 }}>
                             {customer.name}{'\n'}
                             {defaultAddr.street}{defaultAddr.apt ? `, ${defaultAddr.apt}` : ''}{'\n'}
                             {defaultAddr.suburb} {defaultAddr.state} {defaultAddr.postcode}{'\n'}
@@ -440,7 +440,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Feather name="plus-circle" size={16} color={BLUE} />
-                    <Text style={{ fontSize: 14, color: BLUE, fontFamily: 'Inter_500Medium' }}>Add note</Text>
+                    <Text style={{ fontSize: 14, color: BLUE, fontWeight: '500' }}>Add note</Text>
                   </View>
                   <Feather name="chevron-right" size={16} color={MUTED} />
                 </Pressable>
@@ -451,14 +451,14 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                     <View key={note.id} style={[det.noteCard, { borderColor: BORDER }]}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                         <View>
-                          <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: TEXT }}>{note.authorName}</Text>
-                          <Text style={{ fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' }}>{fmtDateTime(note.createdAt)}</Text>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT }}>{note.authorName}</Text>
+                          <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400' }}>{fmtDateTime(note.createdAt)}</Text>
                         </View>
                         <Pressable onPress={() => deleteNote(note.id)} hitSlop={8}>
                           <Feather name="trash-2" size={14} color={RED} />
                         </Pressable>
                       </View>
-                      <Text style={{ fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', lineHeight: 20 }}>{note.content}</Text>
+                      <Text style={{ fontSize: 14, color: TEXT, fontWeight: '400', lineHeight: 20 }}>{note.content}</Text>
                     </View>
                   ))}
                   <TextInput
@@ -472,16 +472,16 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                   />
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <Pressable onPress={() => { setAddingNote(false); setNoteText(''); }} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
-                      <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Cancel</Text>
+                      <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
                     </Pressable>
                     <Pressable onPress={addNote} disabled={addingNote || !noteText.trim()} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY, opacity: !noteText.trim() ? 0.4 : 1 }]}>
-                      {addingNote ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Save Note</Text>}
+                      {addingNote ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save Note</Text>}
                     </Pressable>
                   </View>
                   {(customer.notes?.length ?? 0) > 0 && !addingNote && (
                     <Pressable onPress={() => setAddingNote(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 }}>
                       <Feather name="plus-circle" size={15} color={BLUE} />
-                      <Text style={{ fontSize: 13, color: BLUE, fontFamily: 'Inter_500Medium' }}>Add another note</Text>
+                      <Text style={{ fontSize: 13, color: BLUE, fontWeight: '500' }}>Add another note</Text>
                     </Pressable>
                   )}
                 </View>
@@ -503,27 +503,27 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       return (
                         <Pressable key={b} onPress={() => removeBadge(mb.id, b)}
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: cfg.bg, paddingLeft: 8, paddingRight: 5, paddingVertical: 4, borderRadius: 20 }}>
-                          <Text style={{ fontSize: 11, fontFamily: 'Inter_700Bold', color: cfg.text }}>{cfg.label}</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: cfg.text }}>{cfg.label}</Text>
                           <Feather name="x" size={11} color={cfg.text} />
                         </Pressable>
                       );
                     }
                     return (
                       <View key={b} style={{ backgroundColor: cfg.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 }}>
-                        <Text style={{ fontSize: 11, fontFamily: 'Inter_700Bold', color: cfg.text }}>{cfg.label}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: cfg.text }}>{cfg.label}</Text>
                       </View>
                     );
                   })}
                 </View>
               ) : (
-                <Text style={{ fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', marginBottom: 8 }}>No tags yet.</Text>
+                <Text style={{ fontSize: 13, color: MUTED, fontWeight: '400', marginBottom: 8 }}>No tags yet.</Text>
               )}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
                 <Text style={[det.infoLabel, { width: '100%', marginBottom: 4 }]}>Add tag:</Text>
                 {MANUAL_BADGES.filter(b => !allBadges.includes(b)).map(b => (
                   <Pressable key={b} onPress={() => addBadge(b)}
                     style={{ backgroundColor: BADGE_CFG[b]?.bg ?? BG, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: BORDER }}>
-                    <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: BADGE_CFG[b]?.text ?? MUTED }}>+ {BADGE_CFG[b]?.label ?? b}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: BADGE_CFG[b]?.text ?? MUTED }}>+ {BADGE_CFG[b]?.label ?? b}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -537,8 +537,8 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               </View>
               <View style={[det.infoRow, { borderBottomWidth: 0 }]}>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ fontSize: 14, color: TEXT, fontFamily: 'Inter_500Medium' }}>Email marketing</Text>
-                  <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                  <Text style={{ fontSize: 14, color: TEXT, fontWeight: '500' }}>Email marketing</Text>
+                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                     {marketingOn ? 'Subscribed to marketing emails' : 'Not subscribed to marketing emails'}
                   </Text>
                 </View>
@@ -557,7 +557,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
             <View style={det.section}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <Text style={det.sectionTitle}>Order history</Text>
-                <Text style={{ fontSize: 13, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>
+                <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>
                   {(customer.orders?.length ?? 0)} {customer.orders?.length === 1 ? 'order' : 'orders'}
                 </Text>
               </View>
@@ -565,7 +565,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               {(customer.orders?.length ?? 0) === 0 ? (
                 <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }}>
                   <Feather name="shopping-bag" size={28} color={MUTED} />
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular' }}>No orders yet.</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400' }}>No orders yet.</Text>
                 </View>
               ) : (
                 <View style={{ gap: 0 }}>
@@ -577,23 +577,23 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <View key={order.id} style={[det.orderRow, !isLast && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                            <Text style={{ fontSize: 13, fontFamily: 'Inter_700Bold', color: TEXT }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>
                               #{order.id.slice(0, 8).toUpperCase()}
                             </Text>
-                            <Text style={{ fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT }}>{fmtAUD(order.totalCents)}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{fmtAUD(order.totalCents)}</Text>
                           </View>
-                          <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular', marginBottom: 6 }}>
+                          <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400', marginBottom: 6 }}>
                             {customer.name} · {items.length} item{items.length !== 1 ? 's' : ''} · {fmtDateTime(order.createdAt)}
                           </Text>
                           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                             <View style={[det.statusPill, { backgroundColor: statusColor + '20' }]}>
-                              <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: statusColor }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: statusColor }}>
                                 {statusLabel(order.status)}
                               </Text>
                             </View>
                             {order.type && (
                               <View style={[det.statusPill, { backgroundColor: BG }]}>
-                                <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED }}>
+                                <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>
                                   {order.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                                 </Text>
                               </View>
@@ -633,7 +633,7 @@ export default function DirectorCustomersScreen() {
         <View style={[scr.searchInput, { borderColor: BORDER }]}>
           <Feather name="search" size={16} color={MUTED} />
           <TextInput
-            style={{ flex: 1, fontSize: 15, color: TEXT, fontFamily: 'Inter_400Regular' }}
+            style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '400' }}
             placeholder="Filter customers"
             placeholderTextColor={MUTED}
             value={search}
@@ -667,7 +667,7 @@ export default function DirectorCustomersScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
               <Feather name="users" size={40} color={MUTED} />
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>
                 {search ? 'No customers match your search.' : 'No customers yet.'}
               </Text>
             </View>
@@ -696,14 +696,14 @@ export default function DirectorCustomersScreen() {
 const row = StyleSheet.create({
   wrap:      { paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD },
   border:    { borderBottomWidth: 1, borderBottomColor: BORDER },
-  name:      { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
-  location:  { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular' },
-  meta:      { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular' },
+  name:      { fontSize: 15, fontWeight: '700', color: TEXT },
+  location:  { fontSize: 13, color: MUTED, fontWeight: '400' },
+  meta:      { fontSize: 13, color: MUTED, fontWeight: '400' },
   metaDot:   { color: MUTED },
   badge:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, flexShrink: 0 },
   badgeGreen:{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
   badgeGrey: { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' },
-  badgeTx:   { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  badgeTx:   { fontSize: 12, fontWeight: '600' },
 });
 
 const scr = StyleSheet.create({
@@ -715,23 +715,23 @@ const scr = StyleSheet.create({
 const det = StyleSheet.create({
   header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, backgroundColor: CARD },
   headerBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  headerTitle:  { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
+  headerTitle:  { fontSize: 16, fontWeight: '700', color: TEXT },
   heroSection:  { backgroundColor: CARD, paddingHorizontal: 20, paddingVertical: 20, borderBottomWidth: 1, gap: 2 },
-  heroName:     { fontSize: 24, fontFamily: 'Inter_700Bold', color: TEXT },
-  heroSub:      { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular' },
+  heroName:     { fontSize: 24, fontWeight: '700', color: TEXT },
+  heroSub:      { fontSize: 13, color: MUTED, fontWeight: '400' },
   tag:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  tagTx:        { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  tagTx:        { fontSize: 12, fontWeight: '600' },
   section:      { backgroundColor: CARD, marginTop: 8, paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1 },
-  sectionTitle: { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: TEXT },
   infoRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-  infoLabel:    { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular' },
-  infoValue:    { fontSize: 14, color: TEXT, fontFamily: 'Inter_600SemiBold' },
+  infoLabel:    { fontSize: 13, color: MUTED, fontWeight: '400' },
+  infoValue:    { fontSize: 14, color: TEXT, fontWeight: '600' },
   contactBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 10, borderWidth: 1 },
-  contactBtnTx: { fontSize: 13, fontFamily: 'Inter_500Medium', color: TEXT },
+  contactBtnTx: { fontSize: 13, fontWeight: '500', color: TEXT },
   noteCard:     { borderWidth: 1, borderRadius: 10, padding: 12 },
-  noteInput:    { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', fontFamily: 'Inter_400Regular', color: TEXT },
+  noteInput:    { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', fontWeight: '400', color: TEXT },
   actionBtn:    { height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  editInput:    { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: BG },
+  editInput:    { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontWeight: '400', backgroundColor: BG },
   orderRow:     { paddingVertical: 14 },
   statusPill:   { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
 });

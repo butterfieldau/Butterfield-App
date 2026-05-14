@@ -37,6 +37,9 @@ router.get('/profile', requireAuth, async (req, res) => {
     return res.json({
       data: {
         ...profile,
+        userId: req.user!.id,
+        customerName: req.user!.name ?? 'Customer',
+        customerEmail: req.user!.email ?? '',
         loyaltyTier: correctTier,
         coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
@@ -57,6 +60,9 @@ router.get('/profile', requireAuth, async (req, res) => {
   return res.json({
     data: {
       ...profile,
+      userId: req.user!.id,
+      customerName: req.user!.name ?? 'Customer',
+      customerEmail: req.user!.email ?? '',
       coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
       stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,

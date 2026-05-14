@@ -316,7 +316,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                   style={s.websiteLink}
                 >
                   <Text style={s.websiteLinkText}>View on Website</Text>
-                  <Text style={{ fontSize: 11, color: BTN_CLR, fontFamily: 'Inter_400Regular', marginLeft: 2 }}>↗</Text>
+                  <Text style={{ fontSize: 11, color: BTN_CLR, fontWeight: '400', marginLeft: 2 }}>↗</Text>
                 </Pressable>
               ) : null}
 
@@ -358,7 +358,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                             onPress={() => { setVariantId(v.id); Haptics.selectionAsync(); }}
                             style={[s.pill, active && { backgroundColor: palette.banner, borderColor: palette.banner }]}
                           >
-                            <Text style={[s.pillLabel, active && { color: '#fff', fontFamily: 'Inter_600SemiBold' }]}>{v.name}</Text>
+                            <Text style={[s.pillLabel, active && { color: '#fff', fontWeight: '600' }]}>{v.name}</Text>
                             {v.priceCents !== basePriceCents && (
                               <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}> {fmt(v.priceCents)}</Text>
                             )}
@@ -406,7 +406,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                               onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
                               style={[s.pill, active && { backgroundColor: palette.banner, borderColor: palette.banner }]}
                             >
-                              <Text style={[s.pillLabel, active && { color: '#fff', fontFamily: 'Inter_600SemiBold' }]}>{opt.name}</Text>
+                              <Text style={[s.pillLabel, active && { color: '#fff', fontWeight: '600' }]}>{opt.name}</Text>
                               {adj !== 0 && <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}>{adj > 0 ? ` +${fmt(adj)}` : ` ${fmt(adj)}`}</Text>}
                             </Pressable>
                           );
@@ -479,7 +479,7 @@ const s = StyleSheet.create({
   },
   imageBadges:  { position: 'absolute', bottom: 14, left: 16, flexDirection: 'row', gap: 6 },
   imgBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7 },
-  imgBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  imgBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
   content: {
     flex: 1,
@@ -491,13 +491,13 @@ const s = StyleSheet.create({
   handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)' },
 
   nameRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14, marginBottom: 6 },
-  name:        { flex: 1, fontSize: 22, fontFamily: 'Inter_700Bold', color: TEXT, lineHeight: 28 },
+  name:        { flex: 1, fontSize: 22, fontWeight: '700', color: TEXT, lineHeight: 28 },
   catChip:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginTop: 3 },
-  catChipText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  desc:        { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 19, marginBottom: 12 },
+  catChipText: { fontSize: 11, fontWeight: '600' },
+  desc:        { fontSize: 13, color: MUTED, fontWeight: '400', lineHeight: 19, marginBottom: 12 },
 
   websiteLink:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  websiteLinkText: { fontSize: 13, color: BTN_CLR, fontFamily: 'Inter_600SemiBold' },
+  websiteLinkText: { fontSize: 13, color: BTN_CLR, fontWeight: '600' },
 
   galleryRow:      { marginBottom: 14 },
   galleryContent:  { gap: 8, paddingRight: 4 },
@@ -509,25 +509,25 @@ const s = StyleSheet.create({
   // groupHead provides the label→pill gap; groupLabel must NOT add its own marginBottom
   // to avoid double-spacing (standalone Size label adds { marginBottom: 10 } inline)
   groupHead:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  groupLabel: { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT, letterSpacing: 0.1 },
-  optText:    { fontSize: 11, color: MUTED, fontFamily: 'Inter_400Regular' },
+  groupLabel: { fontSize: 14, fontWeight: '700', color: TEXT, letterSpacing: 0.1 },
+  optText:    { fontSize: 11, color: MUTED, fontWeight: '400' },
   reqBadge:   { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  reqText:    { fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' },
-  metaText:   { fontSize: 13, color: MUTED, fontFamily: 'Inter_400Regular', lineHeight: 19, marginTop: 4 },
+  reqText:    { fontSize: 10, color: '#D97706', fontWeight: '600' },
+  metaText:   { fontSize: 13, color: MUTED, fontWeight: '400', lineHeight: 19, marginTop: 4 },
 
   pillRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },
-  pillLabel: { fontSize: 13, color: TEXT, fontFamily: 'Inter_500Medium' },
-  pillSub:   { fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' },
+  pillLabel: { fontSize: 13, color: TEXT, fontWeight: '500' },
+  pillSub:   { fontSize: 12, color: MUTED, fontWeight: '400' },
 
-  textInput: { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontFamily: 'Inter_400Regular', minHeight: 70, textAlignVertical: 'top' },
+  textInput: { backgroundColor: BG, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, fontWeight: '400', minHeight: 70, textAlignVertical: 'top' },
 
   footer:     { paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, gap: 12 },
   qtyStepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   qtyBtn:     { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  qtyNum:     { fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 32, textAlign: 'center' },
+  qtyNum:     { fontSize: 18, fontWeight: '700', color: TEXT, minWidth: 32, textAlign: 'center' },
   addBtn:     { flexDirection: 'row', alignItems: 'center', height: 54, borderRadius: 27, paddingHorizontal: 24, backgroundColor: BTN_CLR },
-  addPrice:   { fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold' },
+  addPrice:   { fontSize: 15, color: '#fff', fontWeight: '700' },
   addDivider: { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.28)', marginHorizontal: 14 },
-  addLabel:   { flex: 1, fontSize: 15, color: '#fff', fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  addLabel:   { flex: 1, fontSize: 15, color: '#fff', fontWeight: '700', textAlign: 'center' },
 });

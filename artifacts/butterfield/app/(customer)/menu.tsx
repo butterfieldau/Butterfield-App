@@ -139,8 +139,8 @@ function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress
         }
       </View>
       <View style={{ flex: 1, paddingVertical: 2, gap: 2 }}>
-        <Text style={[s.frequentName, { fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[s.frequentPrice, { fontFamily: 'Inter_400Regular' }]}>${(cents / 100).toFixed(2)}</Text>
+        <Text style={[s.frequentName, { fontWeight: '600' }]} numberOfLines={1}>{product.name}</Text>
+        <Text style={[s.frequentPrice, { fontWeight: '400' }]}>${(cents / 100).toFixed(2)}</Text>
       </View>
       <View style={s.frequentAdd}>
         <Feather name="plus" size={16} color="#fff" />
@@ -224,11 +224,11 @@ export default function MenuScreen() {
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <View style={s.headerTop}>
-          <Text style={[s.headerTitle, { fontFamily: 'Inter_700Bold' }]}>Menu</Text>
+          <Text style={[s.headerTitle, { fontWeight: '700' }]}>Menu</Text>
           {isSkipQueue && (
             <View style={s.skipBadge}>
               <Feather name="zap" size={12} color="#E07B00" />
-              <Text style={[s.skipBadgeText, { fontFamily: 'Inter_600SemiBold' }]}>Skip the Queue</Text>
+              <Text style={[s.skipBadgeText, { fontWeight: '600' }]}>Skip the Queue</Text>
             </View>
           )}
         </View>
@@ -237,7 +237,7 @@ export default function MenuScreen() {
         <View style={s.searchBar}>
           <Feather name="search" size={16} color="#8E8E93" />
           <TextInput
-            style={[s.searchInput, { fontFamily: 'Inter_400Regular' }]}
+            style={[s.searchInput, { fontWeight: '400' }]}
             placeholder="Search cookies, coffee…"
             placeholderTextColor="#8E8E93"
             value={search}
@@ -262,7 +262,7 @@ export default function MenuScreen() {
                 </View>
                 <Text style={[s.catLabel, {
                   color: active ? pal.banner : '#3C3C43',
-                  fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium',
+                  fontWeight: active ? '700' : '500',
                 }]}>
                   {cat.label}
                 </Text>
@@ -294,11 +294,11 @@ export default function MenuScreen() {
                         <Text style={{ fontSize: 14 }}>☕</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.frequentTitle, { fontFamily: 'Inter_700Bold' }]}>Your usual?</Text>
-                        <Text style={[s.frequentSub, { fontFamily: 'Inter_400Regular' }]}>Frequently ordered</Text>
+                        <Text style={[s.frequentTitle, { fontWeight: '700' }]}>Your usual?</Text>
+                        <Text style={[s.frequentSub, { fontWeight: '400' }]}>Frequently ordered</Text>
                       </View>
                       <Pressable onPress={() => router.push('/(customer)/cart')} style={s.viewCartBtn}>
-                        <Text style={[s.viewCartText, { fontFamily: 'Inter_600SemiBold' }]}>View cart</Text>
+                        <Text style={[s.viewCartText, { fontWeight: '600' }]}>View cart</Text>
                         <Feather name="chevron-right" size={13} color={BLUE} />
                       </Pressable>
                     </View>
@@ -308,7 +308,7 @@ export default function MenuScreen() {
                     <View style={s.frequentDivider} />
                   </View>
                 )}
-                <Text style={[s.count, { fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
                   {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
                 </Text>
@@ -317,7 +317,7 @@ export default function MenuScreen() {
             ListEmptyComponent={
               <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
                 <Feather name="search" size={28} color="#D0D0D0" />
-                <Text style={{ color: '#8E8E93', fontFamily: 'Inter_400Regular', fontSize: 14 }}>No items found.</Text>
+                <Text style={{ color: '#8E8E93', fontWeight: '400', fontSize: 14 }}>No items found.</Text>
               </View>
             }
             renderItem={({ item: p }) => (

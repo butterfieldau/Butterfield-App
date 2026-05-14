@@ -43,7 +43,7 @@ export function StatCard({ label, value, subtitle, gradient, dark }: StatCardPro
       <Text style={[styles.label, { color: dark ? 'rgba(255,255,255,0.7)' : colors.mutedForeground }]}>
         {label}
       </Text>
-      <Text style={[styles.value, { color: dark ? '#fff' : colors.foreground, fontFamily: 'Inter_700Bold' }]}>
+      <Text style={[styles.value, { color: dark ? '#fff' : colors.foreground, fontWeight: '700' }]}>
         {value}
       </Text>
       {subtitle && (
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    fontFamily: 'Inter_500Medium',
+    fontWeight: '500',
   },
   value: {
     fontSize: 26,
@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    fontFamily: 'Inter_500Medium',
+    fontWeight: '500',
   },
   gradientValue: {
     fontSize: 26,
     color: '#fff',
-    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
   },
   gradientSubtitle: {
     fontSize: 11,

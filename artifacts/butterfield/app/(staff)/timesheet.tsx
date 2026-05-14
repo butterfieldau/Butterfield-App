@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { api, type StaffShift, type StaffMember } from '@/lib/api';
+import { api, type StaffShift } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -157,7 +157,6 @@ export default function TimesheetScreen() {
   const { user } = useAuth();
 
   const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const weekStart = getWeekStart(addWeeks(new Date(), weekOffset));
@@ -166,25 +165,15 @@ export default function TimesheetScreen() {
   weekEnd.setHours(23, 59, 59, 999);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['timesheet', weekStart.toISOString(), selectedUserId],
-    queryFn: () => api.staff.timesheet(weekStart.toISOString(), weekEnd.toISOString(), selectedUserId ?? undefined),
+    queryKey: ['timesheet', weekStart.toISOString(), user?.id],
+    queryFn: () => api.staff.timesheet(weekStart.toISOString(), weekEnd.toISOString()),
     retry: 1,
   });
 
-  const isManager = data?.isManager ?? false;
   const shifts: StaffShift[] = data?.data ?? [];
-  const staffList: StaffMember[] = data?.staff ?? [];
   const profile = data?.profile;
-
-  const displayedShifts = selectedUserId
-    ? shifts.filter(s => s.userId === selectedUserId)
-    : shifts;
-
-  const selectedStaff = selectedUserId
-    ? staffList.find(m => m.userId === selectedUserId)
-    : null;
-
-  const hourlyRateCents = selectedStaff?.hourlyRateCents ?? profile?.hourlyRateCents ?? 2200;
+  const displayedShifts = shifts.filter((shift) => shift.userId === user?.id);
+  const hourlyRateCents = profile?.hourlyRateCents ?? 2200;
 
   const totalPaidMins = displayedShifts.reduce((s, sh) => s + calcPaidMins(sh), 0);
   const totalEarningsCents = Math.round((totalPaidMins / 60) * hourlyRateCents);
@@ -194,8 +183,8 @@ export default function TimesheetScreen() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const staffName = selectedStaff?.name ?? user?.name ?? 'Staff';
-      const html = buildTimesheetHtml(displayedShifts, weekStart, weekEnd, staffName, hourlyRateCents, isManager && !!selectedUserId === false);
+      const staffName = user?.name ?? 'Staff';
+      const html = buildTimesheetHtml(displayedShifts, weekStart, weekEnd, staffName, hourlyRateCents, false);
       if (Platform.OS === 'web') {
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;';
@@ -300,43 +289,12 @@ export default function TimesheetScreen() {
             </View>
           </View>
 
-          {/* Manager: staff selector */}
-          {isManager && staffList.length > 0 && (
-            <View style={{ gap: 8 }}>
-              <Text style={[styles.sectionTitle, { color: MUTED }]}>STAFF MEMBER</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
-                <Pressable
-                  onPress={() => setSelectedUserId(null)}
-                  style={[styles.staffPill, !selectedUserId && { backgroundColor: BLUE, borderColor: BLUE }]}
-                >
-                  <Text style={[styles.staffPillText, { color: !selectedUserId ? '#fff' : TEXT }]}>All Staff</Text>
-                </Pressable>
-                {staffList.map(m => (
-                  <Pressable
-                    key={m.userId}
-                    onPress={() => setSelectedUserId(m.userId)}
-                    style={[styles.staffPill, selectedUserId === m.userId && { backgroundColor: BLUE, borderColor: BLUE }]}
-                  >
-                    <Text style={[styles.staffPillText, { color: selectedUserId === m.userId ? '#fff' : TEXT }]}>
-                      {m.name ?? 'Staff'}
-                    </Text>
-                    {selectedUserId === m.userId && (
-                      <Text style={[styles.staffPillRate, { color: selectedUserId === m.userId ? 'rgba(255,255,255,0.8)' : MUTED }]}>
-                        ${(m.hourlyRateCents / 100).toFixed(2)}/hr
-                      </Text>
-                    )}
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
           {/* Hourly rate display */}
-          {!isManager && profile && (
+          {profile && (
             <View style={[styles.rateCard, { backgroundColor: `${BLUE}0F`, borderColor: `${BLUE}30` }]}>
               <Feather name="dollar-sign" size={14} color={BLUE} />
               <Text style={[styles.rateCardText, { color: TEXT }]}>
-                Hourly rate: <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold' }}>${(hourlyRateCents / 100).toFixed(2)}/hr</Text>
+                Hourly rate: <Text style={{ color: BLUE, fontWeight: '700' }}>${(hourlyRateCents / 100).toFixed(2)}/hr</Text>
               </Text>
             </View>
           )}
@@ -388,14 +346,6 @@ export default function TimesheetScreen() {
 
                     return (
                       <View key={shift.id} style={[styles.shiftCard, { backgroundColor: CARD, borderColor: isActive ? '#86EFAC' : BORDER, borderLeftColor: isActive ? '#22C55E' : BLUE, borderLeftWidth: 3 }]}>
-                        {isManager && staffName && (
-                          <View style={styles.shiftStaffRow}>
-                            <Feather name="user" size={12} color={MUTED} />
-                            <Text style={[styles.shiftStaffName, { color: MUTED }]}>{staffName}</Text>
-                            {shift.position && <Text style={[styles.shiftPosition, { color: MUTED }]}>· {capitalize(shift.position)}</Text>}
-                          </View>
-                        )}
-
                         <View style={styles.shiftMainRow}>
                           <View style={{ flex: 1 }}>
                             <View style={styles.shiftTimeRow}>
@@ -428,7 +378,7 @@ export default function TimesheetScreen() {
                           </View>
                         </View>
 
-                        {!isActive && isManager && (shift.hourlyRateCents ?? 0) > 0 && (
+                        {!isActive && (shift.hourlyRateCents ?? 0) > 0 && (
                           <View style={[styles.shiftRateRow, { borderTopColor: BORDER }]}>
                             <Text style={[styles.shiftRateText, { color: MUTED }]}>
                               ${((shift.hourlyRateCents ?? hourlyRateCents) / 100).toFixed(2)}/hr · {formatDuration(paidMins)} paid
@@ -443,24 +393,6 @@ export default function TimesheetScreen() {
             })
           )}
 
-          {/* Manager weekly payroll summary */}
-          {isManager && !selectedUserId && displayedShifts.length > 0 && (
-            <View style={[styles.payrollCard, { backgroundColor: TEXT, borderColor: TEXT }]}>
-              <Text style={[styles.payrollTitle, { color: '#fff' }]}>Weekly Payroll Summary</Text>
-              <View style={styles.payrollRow}>
-                <Text style={[styles.payrollLabel, { color: 'rgba(255,255,255,0.6)' }]}>Total paid hours</Text>
-                <Text style={[styles.payrollValue, { color: '#fff' }]}>{formatDuration(totalPaidMins)}</Text>
-              </View>
-              <View style={styles.payrollRow}>
-                <Text style={[styles.payrollLabel, { color: 'rgba(255,255,255,0.6)' }]}>Estimated payroll</Text>
-                <Text style={[styles.payrollValue, { color: BLUE }]}>${(totalEarningsCents / 100).toFixed(2)}</Text>
-              </View>
-              <View style={styles.payrollRow}>
-                <Text style={[styles.payrollLabel, { color: 'rgba(255,255,255,0.6)' }]}>Completed shifts</Text>
-                <Text style={[styles.payrollValue, { color: '#fff' }]}>{completedShifts}</Text>
-              </View>
-            </View>
-          )}
         </View>
       </ScrollView>
     </View>
@@ -470,52 +402,52 @@ export default function TimesheetScreen() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingBottom: 14, gap: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 28, fontFamily: 'Inter_700Bold' },
+  title: { fontSize: 28, fontWeight: '700' },
   exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  exportBtnText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  exportBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   weekNav: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   weekNavBtn: { padding: 14 },
-  weekLabel: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  weekSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  weekLabel: { fontSize: 15, fontWeight: '600' },
+  weekSub: { fontSize: 12, fontWeight: '400', marginTop: 1 },
   summaryRow: { flexDirection: 'row', gap: 10 },
   summaryCard: { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4 },
-  summaryLabel: { fontSize: 9, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8 },
-  summaryValue: { fontSize: 18, fontFamily: 'Inter_700Bold' },
-  sectionTitle: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2 },
+  summaryLabel: { fontSize: 9, fontWeight: '600', letterSpacing: 0.8 },
+  summaryValue: { fontSize: 18, fontWeight: '700' },
+  sectionTitle: { fontSize: 10, fontWeight: '600', letterSpacing: 1.2 },
   staffPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  staffPillText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  staffPillRate: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  staffPillText: { fontSize: 13, fontWeight: '600' },
+  staffPillRate: { fontSize: 11, fontWeight: '400' },
   rateCard: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  rateCardText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  rateCardText: { fontSize: 13, fontWeight: '400' },
   activeShiftBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  activeShiftText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  activeShiftText: { fontSize: 13, fontWeight: '500' },
   activeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
   emptyState: { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1 },
-  emptyTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  emptySub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 16, fontWeight: '600' },
+  emptySub: { fontSize: 13, fontWeight: '400', textAlign: 'center', lineHeight: 19 },
   dayHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 2, marginTop: 6 },
-  dayName: { fontSize: 14, fontFamily: 'Inter_700Bold' },
-  dayDate: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  dayName: { fontSize: 14, fontWeight: '700' },
+  dayDate: { fontSize: 13, fontWeight: '400' },
   todayBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  todayBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  todayBadgeText: { color: '#fff', fontSize: 10, fontWeight: '600' },
   shiftCard: { borderRadius: 14, padding: 14, borderWidth: 1, gap: 8 },
   shiftStaffRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  shiftStaffName: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  shiftPosition: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  shiftStaffName: { fontSize: 12, fontWeight: '500' },
+  shiftPosition: { fontSize: 12, fontWeight: '400' },
   shiftMainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   shiftTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  shiftTime: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  shiftTime: { fontSize: 15, fontWeight: '600' },
   shiftArrow: { fontSize: 14 },
-  breakNote: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 4 },
-  shiftDuration: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  shiftEarnings: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  breakNote: { fontSize: 11, fontWeight: '400', marginTop: 4 },
+  shiftDuration: { fontSize: 15, fontWeight: '700' },
+  shiftEarnings: { fontSize: 13, fontWeight: '600' },
   activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
-  activePillText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  activePillText: { fontSize: 11, fontWeight: '600' },
   shiftRateRow: { borderTopWidth: 1, paddingTop: 8 },
-  shiftRateText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  shiftRateText: { fontSize: 11, fontWeight: '400' },
   payrollCard: { borderRadius: 16, padding: 18, borderWidth: 1, gap: 12 },
-  payrollTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold', marginBottom: 4 },
+  payrollTitle: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
   payrollRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  payrollLabel: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  payrollValue: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  payrollLabel: { fontSize: 13, fontWeight: '400' },
+  payrollValue: { fontSize: 15, fontWeight: '700' },
 });

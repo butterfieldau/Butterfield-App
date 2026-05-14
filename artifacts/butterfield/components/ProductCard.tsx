@@ -105,7 +105,7 @@ export function ProductCard({ product, onAdd, showWholesalePrice, minQty = 1, co
         </LinearGradient>
         <View style={styles.cardContent}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.productName, { color: colors.foreground, fontFamily: 'Inter_600SemiBold' }]} numberOfLines={1}>
+            <Text style={[styles.productName, { color: colors.foreground, fontWeight: '600' }]} numberOfLines={1}>
               {product.name}
             </Text>
             <Text style={[styles.productDesc, { color: colors.mutedForeground }]} numberOfLines={2}>
@@ -114,7 +114,7 @@ export function ProductCard({ product, onAdd, showWholesalePrice, minQty = 1, co
           </View>
           <View style={styles.cardFooter}>
             <View>
-              <Text style={[styles.price, { color: colors.primary, fontFamily: 'Inter_700Bold' }]}>
+              <Text style={[styles.price, { color: colors.primary, fontWeight: '700' }]}>
                 ${displayPrice.toFixed(2)}
               </Text>
               {showWholesalePrice && minQty > 1 && (

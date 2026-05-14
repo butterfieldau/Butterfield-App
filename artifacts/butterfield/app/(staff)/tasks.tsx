@@ -95,12 +95,12 @@ export default function StaffTasksScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[styles.header, { paddingTop: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-        <Text style={[styles.title, { fontFamily: 'Inter_700Bold', color: TEXT }]}>Staff Tools</Text>
+        <Text style={[styles.title, { fontWeight: '700', color: TEXT }]}>Staff Tools</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {TABS.map((t) => (
             <Pressable key={t.id} onPress={() => { setTab(t.id); Haptics.selectionAsync(); }}
               style={[styles.tabPill, { backgroundColor: tab === t.id ? BLUE : BG, borderRadius: 20, borderWidth: 1, borderColor: tab === t.id ? BLUE : BORDER }]}>
-              <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: tab === t.id ? '#fff' : MUTED }]}>{t.label}</Text>
+              <Text style={[{ fontWeight: '600', fontSize: 13, color: tab === t.id ? '#fff' : MUTED }]}>{t.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -112,7 +112,7 @@ export default function StaffTasksScreen() {
             {CATEGORIES.map((c) => (
               <Pressable key={c} onPress={() => { setActiveCat(c); Haptics.selectionAsync(); }}
                 style={[styles.catPill, { backgroundColor: activeCat === c ? CAT_COLORS[c] : CARD, borderRadius: 20, borderWidth: 1, borderColor: activeCat === c ? CAT_COLORS[c] : BORDER }]}>
-                <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: activeCat === c ? '#fff' : MUTED, textTransform: 'capitalize' }]}>{c}</Text>
+                <Text style={[{ fontWeight: '600', fontSize: 12, color: activeCat === c ? '#fff' : MUTED, textTransform: 'capitalize' }]}>{c}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -121,7 +121,7 @@ export default function StaffTasksScreen() {
             keyExtractor={(t) => t.id}
             refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingBottom: 40 }}
-            ListEmptyComponent={<Text style={[{ color: MUTED, textAlign: 'center', marginTop: 40, fontFamily: 'Inter_400Regular' }]}>No tasks in this category.</Text>}
+            ListEmptyComponent={<Text style={[{ color: MUTED, textAlign: 'center', marginTop: 40, fontWeight: '400' }]}>No tasks in this category.</Text>}
             renderItem={({ item: task }) => (
               <Pressable onPress={() => handleCompleteTask(task.id, task.isCompleted)}
                 style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftColor: task.isCompleted ? '#22C55E' : (CAT_COLORS[task.category] ?? BLUE), borderLeftWidth: 3 }]}>
@@ -129,9 +129,9 @@ export default function StaffTasksScreen() {
                   {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontFamily: 'Inter_500Medium', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
-                  {task.description && <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 2 }]}>{task.description}</Text>}
-                  {task.completedBy && <Text style={[{ color: '#22C55E', fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 3 }]}>✓ {task.completedBy}</Text>}
+                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontWeight: '500', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
+                  {task.description && <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 2 }]}>{task.description}</Text>}
+                  {task.completedBy && <Text style={[{ color: '#22C55E', fontWeight: '400', fontSize: 11, marginTop: 3 }]}>✓ {task.completedBy}</Text>}
                 </View>
               </Pressable>
             )}
@@ -141,31 +141,31 @@ export default function StaffTasksScreen() {
 
       {tab === 'wastage' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
-          <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }]}>Log Wastage</Text>
+          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 20, marginBottom: 4 }]}>Log Wastage</Text>
           {[
             { label: 'Product name', key: 'productName', placeholder: 'e.g. Classic Choc Chip' },
             { label: 'Quantity', key: 'quantity', placeholder: 'e.g. 3', keyboardType: 'number-pad' as const },
             { label: 'Reason', key: 'reason', placeholder: 'e.g. Burnt, dropped, overproduced' },
           ].map((field) => (
             <View key={field.key}>
-              <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
-              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontFamily: 'Inter_400Regular', borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}
+              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
+              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontWeight: '400', borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}
                 placeholder={field.placeholder} placeholderTextColor={MUTED}
                 keyboardType={field.keyboardType}
                 value={(wastageForm as any)[field.key]} onChangeText={(v) => setWastageForm((f) => ({ ...f, [field.key]: v }))} />
             </View>
           ))}
           <Pressable onPress={handleWastage} disabled={submitting} style={[styles.submitBtn, { backgroundColor: BLUE, borderRadius: 14 }]}>
-            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16 }]}>Log Wastage</Text>}
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontWeight: '700', fontSize: 16 }]}>Log Wastage</Text>}
           </Pressable>
           {wastageList.length > 0 && (
             <View style={{ gap: 8, marginTop: 8 }}>
-              <Text style={[{ color: MUTED, fontFamily: 'Inter_600SemiBold', fontSize: 11, letterSpacing: 1 }]}>RECENT LOGS</Text>
+              <Text style={[{ color: MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 1 }]}>RECENT LOGS</Text>
               {wastageList.slice(0, 5).map((w: any) => (
                 <View key={w.id} style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>{w.productName} × {w.quantity}</Text>
-                    <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>{w.reason}</Text>
+                    <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 13 }]}>{w.productName} × {w.quantity}</Text>
+                    <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 11 }]}>{w.reason}</Text>
                   </View>
                 </View>
               ))}
@@ -176,20 +176,20 @@ export default function StaffTasksScreen() {
 
       {tab === 'issues' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
-          <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }]}>Report an Issue</Text>
+          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 20, marginBottom: 4 }]}>Report an Issue</Text>
           {[
             { label: 'Title', key: 'title', placeholder: 'Brief description of the issue' },
             { label: 'Details', key: 'description', placeholder: 'What happened? Where? When?', multiline: true },
           ].map((field) => (
             <View key={field.key}>
-              <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
-              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontFamily: 'Inter_400Regular', borderRadius: 12, borderColor: BORDER, borderWidth: 1, minHeight: field.multiline ? 80 : 50 }]}
+              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
+              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontWeight: '400', borderRadius: 12, borderColor: BORDER, borderWidth: 1, minHeight: field.multiline ? 80 : 50 }]}
                 placeholder={field.placeholder} placeholderTextColor={MUTED}
                 value={(issueForm as any)[field.key]} onChangeText={(v) => setIssueForm((f) => ({ ...f, [field.key]: v }))}
                 multiline={field.multiline} numberOfLines={field.multiline ? 4 : 1} />
             </View>
           ))}
-          <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 4 }]}>PRIORITY</Text>
+          <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 4 }]}>PRIORITY</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {['low', 'medium', 'high', 'urgent'].map((p) => {
               const pColors: Record<string, string> = { low: '#22C55E', medium: BLUE, high: '#F59E0B', urgent: '#EF4444' };
@@ -197,44 +197,44 @@ export default function StaffTasksScreen() {
               return (
                 <Pressable key={p} onPress={() => setIssueForm((f) => ({ ...f, priority: p }))}
                   style={[styles.catPill, { backgroundColor: issueForm.priority === p ? pc : CARD, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: issueForm.priority === p ? pc : BORDER }]}>
-                  <Text style={[{ color: issueForm.priority === p ? '#fff' : MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, textTransform: 'capitalize' }]}>{p}</Text>
+                  <Text style={[{ color: issueForm.priority === p ? '#fff' : MUTED, fontWeight: '500', fontSize: 12, textTransform: 'capitalize' }]}>{p}</Text>
                 </Pressable>
               );
             })}
           </View>
           <Pressable onPress={handleIssue} disabled={submitting} style={[styles.submitBtn, { backgroundColor: '#EF4444', borderRadius: 14 }]}>
-            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16 }]}>Report Issue</Text>}
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontWeight: '700', fontSize: 16 }]}>Report Issue</Text>}
           </Pressable>
         </ScrollView>
       )}
 
       {tab === 'leave' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
-          <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 20, marginBottom: 4 }]}>Leave Request</Text>
+          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 20, marginBottom: 4 }]}>Leave Request</Text>
           {[
             { label: 'Start date (DD/MM/YYYY)', key: 'startDate', placeholder: '01/06/2026' },
             { label: 'End date (DD/MM/YYYY)', key: 'endDate', placeholder: '05/06/2026' },
             { label: 'Reason', key: 'reason', placeholder: 'Reason for leave', multiline: true },
           ].map((field) => (
             <View key={field.key}>
-              <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
-              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontFamily: 'Inter_400Regular', borderRadius: 12, borderColor: BORDER, borderWidth: 1, minHeight: field.multiline ? 80 : 50 }]}
+              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
+              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontWeight: '400', borderRadius: 12, borderColor: BORDER, borderWidth: 1, minHeight: field.multiline ? 80 : 50 }]}
                 placeholder={field.placeholder} placeholderTextColor={MUTED}
                 value={(leaveForm as any)[field.key]} onChangeText={(v) => setLeaveForm((f) => ({ ...f, [field.key]: v }))}
                 multiline={field.multiline} />
             </View>
           ))}
-          <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, marginBottom: 4 }]}>LEAVE TYPE</Text>
+          <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 4 }]}>LEAVE TYPE</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {['annual', 'sick', 'personal', 'other'].map((t) => (
               <Pressable key={t} onPress={() => setLeaveForm((f) => ({ ...f, type: t }))}
                 style={[styles.catPill, { backgroundColor: leaveForm.type === t ? BLUE : CARD, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: leaveForm.type === t ? BLUE : BORDER }]}>
-                <Text style={[{ color: leaveForm.type === t ? '#fff' : MUTED, fontFamily: 'Inter_500Medium', fontSize: 12, textTransform: 'capitalize' }]}>{t}</Text>
+                <Text style={[{ color: leaveForm.type === t ? '#fff' : MUTED, fontWeight: '500', fontSize: 12, textTransform: 'capitalize' }]}>{t}</Text>
               </Pressable>
             ))}
           </View>
           <Pressable onPress={handleLeave} disabled={submitting} style={[styles.submitBtn, { backgroundColor: BLUE, borderRadius: 14 }]}>
-            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16 }]}>Submit Request</Text>}
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontWeight: '700', fontSize: 16 }]}>Submit Request</Text>}
           </Pressable>
         </ScrollView>
       )}

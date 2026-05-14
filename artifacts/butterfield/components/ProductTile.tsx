@@ -52,24 +52,24 @@ export default function ProductTile({ product, onPress }: Props) {
         }
         {(isNew || isLimited) && (
           <View style={s.badgeRow}>
-            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>NEW</Text></View>}
-            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontFamily: 'Inter_700Bold' }]}>LIMITED</Text></View>}
+            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontWeight: '700' }]}>NEW</Text></View>}
+            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontWeight: '700' }]}>LIMITED</Text></View>}
           </View>
         )}
         {isSoldOut && (
           <View style={s.soldOut}>
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 }}>Sold Out</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Sold Out</Text>
           </View>
         )}
       </View>
 
       <View style={s.info}>
-        <Text style={[s.name, { fontFamily: 'Inter_700Bold' }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[s.desc, { fontFamily: 'Inter_400Regular' }]} numberOfLines={1}>{shortDesc}</Text>
+        <Text style={[s.name, { fontWeight: '700' }]} numberOfLines={1}>{product.name}</Text>
+        <Text style={[s.desc, { fontWeight: '400' }]} numberOfLines={1}>{shortDesc}</Text>
         <View style={s.priceRow}>
-          <Text style={[s.price, { fontFamily: 'Inter_700Bold' }]}>
+          <Text style={[s.price, { fontWeight: '700' }]}>
             {was
-              ? <Text style={{ textDecorationLine: 'line-through', color: '#BBB', fontSize: 10, fontFamily: 'Inter_400Regular' }}>${was.toFixed(2)} </Text>
+              ? <Text style={{ textDecorationLine: 'line-through', color: '#BBB', fontSize: 10, fontWeight: '400' }}>${was.toFixed(2)} </Text>
               : null}
             ${display.toFixed(2)}
           </Text>

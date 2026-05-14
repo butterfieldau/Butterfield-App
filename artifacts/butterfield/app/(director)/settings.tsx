@@ -101,7 +101,7 @@ function BannerTab() {
       <View style={[styles.card, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
           <Feather name="image" size={14} color={BLUE} />
-          <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', color: BLUE, lineHeight: 18 }}>
+          <Text style={{ flex: 1, fontSize: 13, fontWeight: '400', color: BLUE, lineHeight: 18 }}>
             The hero banner appears at the top of the customer home screen. Leave image URL blank for a solid gradient fallback.
           </Text>
         </View>
@@ -198,7 +198,7 @@ function BannerTab() {
             autoCorrect={false}
             keyboardType="url"
           />
-          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: MUTED }}>
+          <Text style={{ fontWeight: '400', fontSize: 11, color: MUTED }}>
             Set a URL to open any webpage or deep link. When set, the in-app destination below is ignored.
           </Text>
         </View>
@@ -224,7 +224,7 @@ function BannerTab() {
               }}>
                 {buttonRoute === opt.value && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' }} />}
               </View>
-              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 14, color: buttonRoute === opt.value ? BLUE : TEXT }}>
+              <Text style={{ fontWeight: '500', fontSize: 14, color: buttonRoute === opt.value ? BLUE : TEXT }}>
                 {opt.label}
               </Text>
             </Pressable>
@@ -237,9 +237,9 @@ function BannerTab() {
         <>
           <Text style={styles.section}>PREVIEW</Text>
           <View style={[styles.card, { backgroundColor: '#1A0F07', borderColor: '#333', gap: 6 }]}>
-            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontFamily: 'Inter_400Regular' }}>Banner preview (not to scale)</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '400' }}>Banner preview (not to scale)</Text>
             {headline ? (
-              <Text style={{ color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' }}>
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>
                 {headlineAccent && headline.includes(headlineAccent) ? (
                   <>
                     <Text style={{ color: '#F59E0B' }}>{headlineAccent}</Text>
@@ -248,9 +248,9 @@ function BannerTab() {
                 ) : headline}
               </Text>
             ) : null}
-            {subtext ? <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: 'Inter_400Regular' }}>{subtext}</Text> : null}
+            {subtext ? <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '400' }}>{subtext}</Text> : null}
             <View style={{ backgroundColor: '#C4793A', alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 4 }}>
-              <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>{buttonText || 'Order Now'}</Text>
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>{buttonText || 'Order Now'}</Text>
             </View>
           </View>
         </>
@@ -395,7 +395,7 @@ function StoreTab() {
             autoCorrect={false}
           />
           {orderCutoff.trim() ? (
-            <Text style={{ color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+            <Text style={{ color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 2 }}>
               Orders will be blocked after {(() => {
                 const [h, m] = orderCutoff.split(':').map(Number);
                 if (isNaN(h)) return orderCutoff;
@@ -406,7 +406,7 @@ function StoreTab() {
               })()} Sydney time
             </Text>
           ) : (
-            <Text style={{ color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 }}>
+            <Text style={{ color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 2 }}>
               No cutoff — orders accepted at any hour
             </Text>
           )}
@@ -433,7 +433,7 @@ function StoreTab() {
             ? <ActivityIndicator size="small" color={BLUE} />
             : <Feather name="upload" size={15} color={BLUE} />
           }
-          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: BLUE }}>
+          <Text style={{ fontWeight: '600', fontSize: 14, color: BLUE }}>
             {uploadingWelcome ? 'Uploading…' : welcomeBg ? 'Replace Background' : 'Upload Background Photo'}
           </Text>
         </Pressable>
@@ -442,7 +442,7 @@ function StoreTab() {
             onPress={() => { setWelcomeBg(''); api.director.updateSettings({ welcome_background: '' }).catch(() => {}); }}
             style={{ alignItems: 'center', paddingVertical: 6 }}
           >
-            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: RED }}>Remove background image</Text>
+            <Text style={{ fontWeight: '400', fontSize: 13, color: RED }}>Remove background image</Text>
           </Pressable>
         ) : null}
         <View style={{ gap: 4 }}>
@@ -717,7 +717,7 @@ function StoreHoursSection() {
       <View style={[styles.card, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
           <Feather name="clock" size={14} color={BLUE} />
-          <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular', color: BLUE, lineHeight: 18 }}>
+          <Text style={{ flex: 1, fontSize: 13, fontWeight: '400', color: BLUE, lineHeight: 18 }}>
             Set opening and closing times per day. Use 24-hour format (e.g. 08:00, 17:30). Changes are reflected immediately for customers.
           </Text>
         </View>
@@ -772,27 +772,27 @@ function StoreHoursSection() {
                         alignItems: 'center', justifyContent: 'center',
                       }}>
                         <Text style={{
-                          fontSize: 11, fontFamily: 'Inter_700Bold',
+                          fontSize: 11, fontWeight: '700',
                           color: row.isClosed ? MUTED : (rowErr ? RED : BLUE),
                         }}>
                           {DAY_SHORT[dayIndex]}
                         </Text>
                       </View>
                       <View>
-                        <Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: row.isClosed ? MUTED : TEXT }}>
+                        <Text style={{ fontSize: 15, fontWeight: '600', color: row.isClosed ? MUTED : TEXT }}>
                           {DAY_LABELS[dayIndex]}
                         </Text>
                         {!row.isClosed && !rowErr && (row.openTime || row.closeTime) ? (
-                          <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 1 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED, marginTop: 1 }}>
                             {formatTime12(row.openTime)} – {formatTime12(row.closeTime)}
                           </Text>
                         ) : row.isClosed ? (
-                          <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: RED, marginTop: 1 }}>Closed</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '400', color: RED, marginTop: 1 }}>Closed</Text>
                         ) : null}
                       </View>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: row.isClosed ? RED : MUTED }}>
+                      <Text style={{ fontSize: 12, fontWeight: '400', color: row.isClosed ? RED : MUTED }}>
                         {row.isClosed ? 'Closed' : 'Open'}
                       </Text>
                       <Switch
@@ -838,7 +838,7 @@ function StoreHoursSection() {
                         </View>
                       </View>
                       {rowErr && (
-                        <Text style={{ fontSize: 11, fontFamily: 'Inter_400Regular', color: RED, paddingLeft: 44 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '400', color: RED, paddingLeft: 44 }}>
                           {rowErr}
                         </Text>
                       )}
@@ -856,7 +856,7 @@ function StoreHoursSection() {
         <View style={[styles.card, { backgroundColor: '#FEF2F2', borderColor: RED + '40' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Feather name="alert-circle" size={14} color={RED} />
-            <Text style={{ flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium', color: RED }}>
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '500', color: RED }}>
               Fix the highlighted rows before saving.
             </Text>
           </View>
@@ -1214,13 +1214,13 @@ function RewardsTab() {
 const rwStyles = StyleSheet.create({
   subTabBar:       { flexDirection: 'row', borderBottomWidth: 1 },
   subTab:          { flex: 1, alignItems: 'center', paddingVertical: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  subTabText:      { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  subTabText:      { fontSize: 13, fontWeight: '600' },
   subTabBadge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-  subTabBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  subTabBadgeText: { fontSize: 11, fontWeight: '700' },
   purgeNote:       { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
-  purgeNoteText:   { fontSize: 12, fontFamily: 'Inter_500Medium', flex: 1 },
+  purgeNoteText:   { fontSize: 12, fontWeight: '500', flex: 1 },
   deletedBanner:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#FCA5A520' },
-  deletedBannerText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  deletedBannerText: { fontSize: 12, fontWeight: '500' },
 });
 
 // ─── Notification Form Modal ──────────────────────────────────────────────────
@@ -1533,15 +1533,15 @@ function ManagersTab() {
             <View key={m.id} style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT }}>{m.name}</Text>
-                  <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 }}>{m.email}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{m.name}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 }}>{m.email}</Text>
                 </View>
                 <Pressable onPress={() => handleDelete(m.id, m.name)} style={{ padding: 6 }}>
                   <Feather name="trash-2" size={18} color={RED} />
                 </Pressable>
               </View>
 
-              {m.notes ? <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED }}>{m.notes}</Text> : null}
+              {m.notes ? <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>{m.notes}</Text> : null}
 
               <View style={{ height: 1, backgroundColor: BORDER }} />
 
@@ -1552,7 +1552,7 @@ function ManagersTab() {
                     <View key={p.key} style={styles.switchRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Feather name={p.icon as any} size={14} color={INDIGO} />
-                        <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT }}>{p.label}</Text>
+                        <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>{p.label}</Text>
                       </View>
                       <Switch
                         value={editPerms.includes(p.key)}
@@ -1578,7 +1578,7 @@ function ManagersTab() {
                 <>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     {(m.permissions as string[]).length === 0 ? (
-                      <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: AMBER }}>No permissions — manager cannot see any tabs</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '400', color: AMBER }}>No permissions — manager cannot see any tabs</Text>
                     ) : (m.permissions as string[]).map((p: string) => (
                       <View key={p} style={[styles.chip, { backgroundColor: INDIGO + '18', borderColor: INDIGO + '40' }]}>
                         <Text style={[styles.chipText, { color: INDIGO }]}>{p}</Text>
@@ -1636,7 +1636,7 @@ function ManagersTab() {
                 <View key={p.key} style={styles.switchRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Feather name={p.icon as any} size={14} color={INDIGO} />
-                    <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: TEXT }}>{p.label}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>{p.label}</Text>
                   </View>
                   <Switch
                     value={formPerms.includes(p.key)}
@@ -1710,9 +1710,9 @@ function DirectorsTab() {
         <View style={[styles.card, { backgroundColor: '#F5F3FF', borderColor: PURPLE + '30' }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Feather name="shield" size={16} color={PURPLE} />
-            <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: PURPLE }}>Master Account Controls</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: PURPLE }}>Master Account Controls</Text>
           </View>
-          <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6D28D9', lineHeight: 18 }}>
+          <Text style={{ fontSize: 12, fontWeight: '400', color: '#6D28D9', lineHeight: 18 }}>
             Directors have full access to all store management features, but cannot add or remove other directors. Only the master account can manage directors.
           </Text>
         </View>
@@ -1733,8 +1733,8 @@ function DirectorsTab() {
             <View key={d.id} style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT }}>{d.name}</Text>
-                  <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 }}>{d.email}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{d.name}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 }}>{d.email}</Text>
                   <View style={[styles.chip, { backgroundColor: PURPLE + '18', borderColor: PURPLE + '40', alignSelf: 'flex-start', marginTop: 6 }]}>
                     <Text style={[styles.chipText, { color: PURPLE }]}>DIRECTOR</Text>
                   </View>
@@ -1763,7 +1763,7 @@ function DirectorsTab() {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 60 }}>
               <View style={[styles.card, { backgroundColor: '#F5F3FF', borderColor: PURPLE + '30' }]}>
-                <Text style={{ fontSize: 13, fontFamily: 'Inter_500Medium', color: '#6D28D9', lineHeight: 18 }}>
+                <Text style={{ fontSize: 13, fontWeight: '500', color: '#6D28D9', lineHeight: 18 }}>
                   Directors have the same access as this master account, except they cannot manage other directors.
                 </Text>
               </View>
@@ -1831,50 +1831,50 @@ export default function DirectorSettingsScreen() {
 
 const styles = StyleSheet.create({
   center:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
-  emptyText:     { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
+  emptyText:     { fontSize: 14, fontWeight: '400', color: '#8E8E93' },
   tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1 },
   tabBtn:        { flex: 1, paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabText:       { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  section:       { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#8E8E93', letterSpacing: 1.5, marginTop: 4 },
+  tabText:       { fontSize: 13, fontWeight: '600' },
+  section:       { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 1.5, marginTop: 4 },
   card:          { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
   row:           { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rowTitle:      { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
-  rowSub:        { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93', marginTop: 2, lineHeight: 17 },
+  rowTitle:      { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
+  rowSub:        { fontSize: 12, fontWeight: '400', color: '#8E8E93', marginTop: 2, lineHeight: 17 },
   divider:       { height: 1 },
-  fieldLabel:    { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#1C1C1E' },
-  input:         { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: '#FAFAFA' },
+  fieldLabel:    { fontSize: 13, fontWeight: '500', color: '#1C1C1E' },
+  input:         { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: '#FAFAFA' },
   coordRow:      { flexDirection: 'row', gap: 10 },
-  hint:          { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: -6 },
+  hint:          { fontSize: 12, fontWeight: '400', marginTop: -6 },
   infoBanner:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
-  infoBannerText:{ flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17 },
+  infoBannerText:{ flex: 1, fontSize: 12, fontWeight: '400', lineHeight: 17 },
   demoRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 10, borderBottomWidth: 1 },
   demoPill:      { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  demoPillText:  { fontSize: 11, fontFamily: 'Inter_700Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
-  demoEmail:     { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
-  demoPw:        { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  demoPillText:  { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  demoEmail:     { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
+  demoPw:        { fontSize: 12, fontWeight: '400' },
   saveBtn:       { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText:   { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  saveBtnText:   { color: '#fff', fontSize: 16, fontWeight: '600' },
   addBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, marginBottom: 4 },
-  addBtnText:    { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  addBtnText:    { color: '#fff', fontSize: 15, fontWeight: '600' },
   chip:          { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
-  chipText:      { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  chipText:      { fontSize: 12, fontWeight: '500' },
   switchRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
-  modalTitle:    { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  modalCancel:   { fontSize: 15, fontFamily: 'Inter_400Regular' },
-  modalSave:     { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  errorText:     { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  modalTitle:    { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
+  modalCancel:   { fontSize: 15, fontWeight: '400' },
+  modalSave:     { fontSize: 15, fontWeight: '700' },
+  errorText:     { fontSize: 13, fontWeight: '400', textAlign: 'center' },
   rewardHeader:  { flexDirection: 'row', alignItems: 'flex-start' },
-  rewardName:    { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
-  rewardDesc:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  rewardPts:     { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  rewardName:    { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
+  rewardDesc:    { fontSize: 12, fontWeight: '400', color: '#8E8E93' },
+  rewardPts:     { fontSize: 14, fontWeight: '700' },
   rewardMeta:    { flexDirection: 'row', gap: 6 },
-  rewardMetaText:{ fontSize: 11, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
+  rewardMetaText:{ fontSize: 11, fontWeight: '400', color: '#8E8E93' },
   rewardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
-  actionBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  actionBtnText: { fontSize: 12, fontWeight: '600' },
   annHeader:     { flexDirection: 'row', alignItems: 'flex-start' },
-  annTitle:      { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  annBody:       { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#6B7280', lineHeight: 18 },
-  annDate:       { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#8E8E93', marginLeft: 'auto' },
+  annTitle:      { fontSize: 14, fontWeight: '700', color: '#1C1C1E' },
+  annBody:       { fontSize: 13, fontWeight: '400', color: '#6B7280', lineHeight: 18 },
+  annDate:       { fontSize: 11, fontWeight: '400', color: '#8E8E93', marginLeft: 'auto' },
 });

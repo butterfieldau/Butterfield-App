@@ -478,7 +478,7 @@ export default function CartScreen() {
   if (confirmation) {
     const earnedPoints = Math.max(0, Math.floor(confirmation.totalCents / 100));
     return (
-      <LinearGradient colors={['#63b9e9', '#14b3ff']} style={[styles.successWrap, { paddingTop: insets.top + 34, paddingBottom: insets.bottom + 24 }]}>
+      <View style={[styles.successWrap, { paddingTop: insets.top + 34, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.confettiLayer} pointerEvents="none">
           {celebrationPieces.map((piece) => (
             <ConfettiPieceView key={piece.id} piece={piece} />
@@ -494,7 +494,7 @@ export default function CartScreen() {
           </View>
         </Animated.View>
         <Animated.View style={[styles.successCard, successCardStyle]}>
-          <LinearGradient colors={['rgba(255,255,255,0.38)', 'rgba(255,255,255,0.18)']} style={styles.successGlow}>
+          <View style={styles.successGlow}>
             <LinearGradient colors={['#40C0F2', '#2AA8DC']} style={styles.successIcon}>
               <Feather name="check" size={36} color="#fff" />
             </LinearGradient>
@@ -519,20 +519,20 @@ export default function CartScreen() {
               </Text>
             </View>
             {confirmation.scheduledLabel && (
-              <View style={[styles.slotBox, { backgroundColor: 'rgba(255,255,255,0.92)', borderColor: 'rgba(255,255,255,0.62)' }]}>
+              <View style={styles.slotBox}>
                 <Feather name="clock" size={14} color="#0E6FA1" />
-                <Text style={[styles.slotText, { color: '#0E3957' }]}>{confirmation.scheduledLabel}</Text>
+                <Text style={styles.slotText}>{confirmation.scheduledLabel}</Text>
               </View>
             )}
-            <Text style={[styles.successTotal, { color: 'rgba(255,255,255,0.92)' }]}>
+            <Text style={styles.successTotal}>
               {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
             </Text>
             <Pressable onPress={() => { router.replace('/orders'); }} style={styles.trackBtn}>
               <Text style={styles.trackBtnText}>Go to My Orders</Text>
             </Pressable>
-          </LinearGradient>
+          </View>
         </Animated.View>
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -582,7 +582,7 @@ export default function CartScreen() {
                 {item.productName}{item.variantName ? ` · ${item.variantName}` : ''}
               </Text>
               {optionLines.length > 0 && (
-                <Text style={[styles.itemOpts, { fontFamily: 'Inter_400Regular' }]} numberOfLines={2}>
+                <Text style={[styles.itemOpts, { fontWeight: '400' }]} numberOfLines={2}>
                   {optionLines.map(o => o.textValue ?? o.optionName).join(', ')}
                 </Text>
               )}
@@ -955,13 +955,13 @@ export default function CartScreen() {
       {orderType === 'pickup' && canPayAtPickup && (
         <View style={[styles.paymentChoiceCard, { backgroundColor: CARD, borderColor: BORDER }]}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT }}>Payment choice</Text>
-            <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 17 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>Payment choice</Text>
+            <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED, lineHeight: 17 }}>
               This customer can pay now by card or pay at pickup.
             </Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <Text style={{ fontSize: 11, fontFamily: 'Inter_600SemiBold', color: effectivePaymentMethod === 'pay_at_pickup' ? GREEN : BLUE }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: effectivePaymentMethod === 'pay_at_pickup' ? GREEN : BLUE }}>
               {effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Pay by card'}
             </Text>
             <Switch
@@ -1041,7 +1041,7 @@ export default function CartScreen() {
               <View key={tab.label} style={styles.tabItem}>
                 <View style={styles.tabInner}>
                   <Feather name={tab.icon as any} size={13} color={active ? BLUE : done ? BLUE : MUTED} />
-                  <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontFamily: active ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
+                  <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontWeight: active ? '600' : '400' }]}>
                     {tab.label}
                   </Text>
                 </View>
@@ -1117,8 +1117,8 @@ const styles = StyleSheet.create({
   checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
   checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:           { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  checkoutTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#1C1C1E', letterSpacing: 1.5 },
-  checkoutSub:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  checkoutTitle:     { fontSize: 17, fontWeight: '700', color: '#1C1C1E', letterSpacing: 1.5 },
+  checkoutSub:       { fontSize: 12, fontWeight: '400', marginTop: 1 },
   // Tab bar
   tabBar:       { flexDirection: 'row' },
   tabItem:      { flex: 1, alignItems: 'center', paddingVertical: 10 },
@@ -1127,102 +1127,103 @@ const styles = StyleSheet.create({
   tabUnderline: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2.5, borderRadius: 2 },
   // Content wrapper
   stepWrap:  { padding: 16, gap: 12 },
-  sectionLabel: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#8E8E93', letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  sectionLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
   // Item cards
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
   itemThumb:  { width: 90, height: 90 },
   removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
   itemBody:   { flex: 1, padding: 12, gap: 4 },
-  itemName:   { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
+  itemName:   { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
   itemOpts:   { fontSize: 12, color: '#8E8E93', lineHeight: 16 },
-  itemPrice:  { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#1C1C1E' },
+  itemPrice:  { fontSize: 14, fontWeight: '500', color: '#1C1C1E' },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
   qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' },
-  qtyBtnText: { fontSize: 16, color: '#1C1C1E', fontFamily: 'Inter_600SemiBold', lineHeight: 20 },
-  qtyLabel:   { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
+  qtyBtnText: { fontSize: 16, color: '#1C1C1E', fontWeight: '600', lineHeight: 20 },
+  qtyLabel:   { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
   // Summary card
   summaryCard:      { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   summaryRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryRowLabel:  { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  summaryRowValue:  { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#1C1C1E' },
-  summaryTotalLabel:{ fontFamily: 'Inter_700Bold', fontSize: 15, color: '#1C1C1E' },
-  summaryTotalValue:{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#1C1C1E' },
+  summaryRowLabel:  { fontSize: 13, fontWeight: '400', color: '#8E8E93' },
+  summaryRowValue:  { fontSize: 13, fontWeight: '500', color: '#1C1C1E' },
+  summaryTotalLabel:{ fontWeight: '700', fontSize: 15, color: '#1C1C1E' },
+  summaryTotalValue:{ fontWeight: '700', fontSize: 16, color: '#1C1C1E' },
   summaryDivider:   { height: 1 },
-  shippingNote:     { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93', paddingVertical: 4 },
+  shippingNote:     { textAlign: 'center', fontSize: 12, fontWeight: '400', color: '#8E8E93', paddingVertical: 4 },
   // Order type
   orderTypeRow: { flexDirection: 'row', gap: 10 },
   orderTypeCard:{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14 },
   orderTypeIcon:{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  orderTypeLabel: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  orderTypeSub:   { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  orderTypeLabel: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
+  orderTypeSub:   { fontSize: 12, fontWeight: '400', marginTop: 2 },
   // Delivery info card
   deliveryInfoCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   deliveryInfoIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  deliveryInfoTag:  { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
-  deliveryInfoTitle:{ fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1C1C1E', marginTop: 2 },
-  deliveryInfoSub:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93', marginTop: 2 },
+  deliveryInfoTag:  { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  deliveryInfoTitle:{ fontSize: 15, fontWeight: '700', color: '#1C1C1E', marginTop: 2 },
+  deliveryInfoSub:  { fontSize: 12, fontWeight: '400', color: '#8E8E93', marginTop: 2 },
   // Choose date header
   chooseDateHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  chooseDateTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
+  chooseDateTitle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
   // Date grid (2-column)
   dateGrid: { flexDirection: 'row', gap: 10 },
   dateCard: { flex: 1, borderRadius: 14, padding: 14, gap: 3, alignItems: 'flex-start' },
-  dateDayName:  { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-  dateDayNum:   { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
-  dateTimeRange:{ fontSize: 12, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
+  dateDayName:  { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  dateDayNum:   { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
+  dateTimeRange:{ fontSize: 12, fontWeight: '400', color: '#8E8E93' },
   // Pickup times
-  pickupTimeLabel: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E', marginTop: 4 },
+  pickupTimeLabel: { fontSize: 14, fontWeight: '600', color: '#1C1C1E', marginTop: 4 },
   timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   timePill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
-  timePillText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  noSlots: { fontSize: 13, fontFamily: 'Inter_400Regular', paddingVertical: 8 },
+  timePillText: { fontSize: 13, fontWeight: '500' },
+  noSlots: { fontSize: 13, fontWeight: '400', paddingVertical: 8 },
   // Forms
   formCard:       { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   formFieldWrap:  { gap: 4 },
-  formFieldLabel: { fontSize: 13, fontFamily: 'Inter_500Medium', color: '#8E8E93' },
-  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Inter_400Regular', backgroundColor: '#F5F6FA' },
+  formFieldLabel: { fontSize: 13, fontWeight: '500', color: '#8E8E93' },
+  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: '#F5F6FA' },
   formRow:        { flexDirection: 'row', gap: 10 },
-  formNote:       { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  formNote:       { fontSize: 12, fontWeight: '400', marginTop: 2 },
   notesInput:     { height: 80, textAlignVertical: 'top', paddingTop: 12 },
   // Payment step
-  paymentHeader:    { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  paymentHeader:    { fontSize: 16, fontWeight: '700', marginBottom: 8 },
   paymentItem:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  paymentItemName:  { fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
-  paymentItemPrice: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  paymentItemName:  { fontSize: 13, fontWeight: '400', flex: 1 },
+  paymentItemPrice: { fontSize: 13, fontWeight: '500' },
   paymentChoiceCard:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   orderDetailsCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
   orderDetailRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  orderDetailText:  { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  orderDetailText:  { flex: 1, fontSize: 13, fontWeight: '400' },
   secureCard:       { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
-  secureText:       { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular' },
+  secureText:       { flex: 1, fontSize: 12, fontWeight: '400' },
   // Bottom bar
   bottomBar:       { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   bottomTotal:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  bottomTotalLabel:{ fontSize: 13, fontFamily: 'Inter_700Bold', color: '#1C1C1E', letterSpacing: 1 },
-  bottomTotalAmount:{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
+  bottomTotalLabel:{ fontSize: 13, fontWeight: '700', color: '#1C1C1E', letterSpacing: 1 },
+  bottomTotalAmount:{ fontSize: 20, fontWeight: '700', color: '#1C1C1E' },
   continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
-  continueBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Success
-  successWrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 16, overflow: 'visible' },
+  successWrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 16, overflow: 'visible', backgroundColor: '#F6F8FC' },
   successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2, maxWidth: 430 },
   successGlow:    {
     width: '100%',
     alignItems: 'center',
     gap: 16,
-    padding: 18,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.34)',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    shadowColor: '#0E4C6B',
-    shadowOpacity: 0.18,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
+    borderColor: '#E5EAF2',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
     overflow: 'hidden',
   },
   successIcon:    { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  successTitle:   { fontSize: 28, fontFamily: 'Inter_800ExtraBold', fontWeight: '900', color: '#083B57', textAlign: 'center', letterSpacing: -0.3 },
-  successId:      { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: 'rgba(8,59,87,0.72)', letterSpacing: 0.8 },
+  successTitle:   { fontSize: 28, fontWeight: '800', color: '#083B57', textAlign: 'center', letterSpacing: -0.3 },
+  successId:      { fontSize: 14, fontWeight: '600', color: 'rgba(8,59,87,0.72)', letterSpacing: 0.8 },
   confettiLayer:  { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
   characterStage: { position: 'absolute', left: -56, right: -56, bottom: -18, height: 420, justifyContent: 'flex-end', alignItems: 'center' },
   characterFrame: { width: '112%', maxWidth: 560, aspectRatio: 4256.5 / 3401.6 },
@@ -1230,26 +1231,26 @@ const styles = StyleSheet.create({
   successPointsBox: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', backgroundColor: '#FFF4D9', borderColor: '#F1C86A', borderWidth: 1.5, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 16 },
   successPointsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFE7A6', alignItems: 'center', justifyContent: 'center' },
   successPointsCopy: { flex: 1, gap: 2 },
-  successPointsLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.4, color: '#8A5B00', textTransform: 'uppercase' },
-  successPointsNumber: { fontSize: 56, lineHeight: 58, fontFamily: 'Inter_800ExtraBold', fontWeight: '900', color: '#7A4B00', includeFontPadding: false, textAlignVertical: 'center', letterSpacing: -1 },
-  successPointsSuffix: { fontSize: 14, fontFamily: 'Inter_500Medium', color: '#5B3A00' },
-  successInfoBox: { flexDirection: 'row', gap: 10, padding: 16, borderWidth: 1.5, borderRadius: 12, alignSelf: 'stretch', alignItems: 'flex-start' },
-  successInfoText:{ flex: 1, color: '#92400E', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 20 },
-  slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, alignSelf: 'stretch', justifyContent: 'center' },
-  slotText:       { fontSize: 14, fontFamily: 'Inter_500Medium' },
-  successTotal:   { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  successPointsLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, color: '#8A5B00', textTransform: 'uppercase' },
+  successPointsNumber: { fontSize: 56, lineHeight: 58, fontWeight: '800', color: '#7A4B00', includeFontPadding: false, textAlignVertical: 'center', letterSpacing: -1 },
+  successPointsSuffix: { fontSize: 14, fontWeight: '500', color: '#5B3A00' },
+  successInfoBox: { flexDirection: 'row', gap: 10, padding: 16, borderWidth: 1.5, borderRadius: 12, alignSelf: 'stretch', alignItems: 'flex-start', backgroundColor: '#FFF8EC' },
+  successInfoText:{ flex: 1, color: '#92400E', fontSize: 13, fontWeight: '500', lineHeight: 20 },
+  slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#D7E8F5', backgroundColor: '#F4FAFF', alignSelf: 'stretch', justifyContent: 'center' },
+  slotText:       { fontSize: 14, fontWeight: '500', color: '#0E3957' },
+  successTotal:   { fontSize: 15, fontWeight: '600', color: '#334155' },
   trackBtn:       { backgroundColor: '#40C0F2', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
-  trackBtnText:   { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  trackBtnText:   { color: '#fff', fontSize: 15, fontWeight: '600' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyIconCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle:      { fontSize: 20, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
-  emptySub:        { fontSize: 14, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
+  emptyTitle:      { fontSize: 20, fontWeight: '600', color: '#1C1C1E' },
+  emptySub:        { fontSize: 14, fontWeight: '400', color: '#8E8E93' },
   // Saved address chips
   savedAddrChip:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  savedAddrChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  savedAddrChipText: { fontSize: 12, fontWeight: '600' },
   savedAddrDot:      { width: 6, height: 6, borderRadius: 3, marginLeft: 2 },
   // State pills (delivery form)
   statePill:     { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  statePillText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  statePillText: { fontSize: 12, fontWeight: '600' },
 });

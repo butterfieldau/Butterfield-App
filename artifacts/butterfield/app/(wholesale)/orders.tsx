@@ -143,7 +143,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
           {overdue && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' }}>
               <Feather name="alert-circle" size={15} color={RED} />
-              <Text style={{ color: RED, fontFamily: 'Inter_600SemiBold', fontSize: 13, flex: 1 }}>Delivery date has passed — contact your account manager</Text>
+              <Text style={{ color: RED, fontWeight: '600', fontSize: 13, flex: 1 }}>Delivery date has passed — contact your account manager</Text>
             </View>
           )}
 
@@ -151,7 +151,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <Text style={mdl.sectionTitle}>Order Status</Text>
               <View style={{ backgroundColor: cfg.bg, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
-                <Text style={{ color: cfg.color, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>{cfg.label}</Text>
+                <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 12 }}>{cfg.label}</Text>
               </View>
             </View>
             {stepIdx >= 0 && (
@@ -159,7 +159,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
                 {STATUS_STEPS.map((step, i) => (
                   <View key={step} style={{ flex: 1 }}>
                     <View style={{ height: 4, borderRadius: 2, backgroundColor: i <= stepIdx ? cfg.color : BORDER }} />
-                    <Text style={{ fontSize: 9, color: i <= stepIdx ? cfg.color : MUTED, fontFamily: 'Inter_500Medium', marginTop: 4, textAlign: 'center' }}>
+                    <Text style={{ fontSize: 9, color: i <= stepIdx ? cfg.color : MUTED, fontWeight: '500', marginTop: 4, textAlign: 'center' }}>
                       {step.charAt(0).toUpperCase() + step.slice(1)}
                     </Text>
                   </View>
@@ -177,10 +177,10 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
               return (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < items.length - 1 ? 1 : 0, borderBottomColor: BORDER, gap: 10 }}>
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{qty}</Text>
+                    <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{qty}</Text>
                   </View>
-                  <Text style={{ flex: 1, color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 13 }}>{name}</Text>
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
+                  <Text style={{ flex: 1, color: TEXT, fontWeight: '500', fontSize: 13 }}>{name}</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
                 </View>
               );
             })}
@@ -200,7 +200,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, padding: 16, borderRadius: 14 }}
           >
             <Feather name="refresh-cw" size={15} color="#fff" />
-            <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 }}>Reorder</Text>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Reorder</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -213,9 +213,9 @@ function InfoRow({ label, value, icon, valueColor }: { label: string; value: str
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: BORDER }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
         {icon && <Feather name={icon} size={12} color={MUTED} />}
-        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>{label}</Text>
+        <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>{label}</Text>
       </View>
-      <Text style={{ color: valueColor ?? TEXT, fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: '55%', textAlign: 'right' }}>{value}</Text>
+      <Text style={{ color: valueColor ?? TEXT, fontWeight: '500', fontSize: 13, maxWidth: '55%', textAlign: 'right' }}>{value}</Text>
     </View>
   );
 }
@@ -253,7 +253,7 @@ function InvoiceDetailModal({
           {isOvd && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' }}>
               <Feather name="alert-circle" size={15} color={RED} />
-              <Text style={{ color: RED, fontFamily: 'Inter_600SemiBold', fontSize: 13, flex: 1 }}>This invoice is overdue — please contact your account manager</Text>
+              <Text style={{ color: RED, fontWeight: '600', fontSize: 13, flex: 1 }}>This invoice is overdue — please contact your account manager</Text>
             </View>
           )}
 
@@ -261,10 +261,10 @@ function InvoiceDetailModal({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
                 <Text style={mdl.sectionTitle}>Invoice Status</Text>
-                <Text style={{ color: isOvd ? RED : MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }}>Due {invoice.dueDate}</Text>
+                <Text style={{ color: isOvd ? RED : MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }}>Due {invoice.dueDate}</Text>
               </View>
               <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, backgroundColor: cfg.bg, borderColor: cfg.color }}>
-                <Text style={{ color: cfg.color, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>{cfg.label}</Text>
+                <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 12 }}>{cfg.label}</Text>
               </View>
             </View>
           </View>
@@ -274,13 +274,13 @@ function InvoiceDetailModal({
             {lines.map((line, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: i < lines.length - 1 ? 1 : 0, borderBottomColor: BORDER, gap: 10 }}>
                 <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 12 }}>{line.qty}</Text>
+                  <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{line.qty}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 13 }}>{line.description}</Text>
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }}>${line.unitPrice.toFixed(2)} each</Text>
+                  <Text style={{ color: TEXT, fontWeight: '500', fontSize: 13 }}>{line.description}</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, marginTop: 2 }}>${line.unitPrice.toFixed(2)} each</Text>
                 </View>
-                <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>${(line.qty * line.unitPrice).toFixed(2)}</Text>
+                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 13 }}>${(line.qty * line.unitPrice).toFixed(2)}</Text>
               </View>
             ))}
           </View>
@@ -289,17 +289,17 @@ function InvoiceDetailModal({
             <Text style={[mdl.sectionTitle, { marginBottom: 8 }]}>Invoice Total</Text>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>Subtotal (ex. GST)</Text>
-                <Text style={{ color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 13 }}>${excGst.toFixed(2)}</Text>
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>Subtotal (ex. GST)</Text>
+                <Text style={{ color: TEXT, fontWeight: '400', fontSize: 13 }}>${excGst.toFixed(2)}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>GST (10%)</Text>
-                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>${gst.toFixed(2)}</Text>
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>GST (10%)</Text>
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>${gst.toFixed(2)}</Text>
               </View>
               <View style={{ height: 1, backgroundColor: BORDER }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }}>Total (AUD)</Text>
-                <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 15 }}>${subtotal.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
+                <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>Total (AUD)</Text>
+                <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${subtotal.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
               </View>
             </View>
           </View>
@@ -504,7 +504,7 @@ export default function WholesaleOrdersScreen() {
                       borderColor:     active ? (isOvdFilter ? '#FCA5A5' : 'rgba(255,255,255,0.9)') : 'rgba(255,255,255,0.3)',
                     }]}
                   >
-                    <Text style={{ color: active ? (isOvdFilter ? RED : BLUE) : 'rgba(255,255,255,0.85)', fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>
+                    <Text style={{ color: active ? (isOvdFilter ? RED : BLUE) : 'rgba(255,255,255,0.85)', fontWeight: '600', fontSize: 12 }}>
                       {FILTER_LABELS[f] ?? f}{isOvdFilter && overdueCount > 0 ? ` (${overdueCount})` : ''}
                     </Text>
                   </Pressable>
@@ -544,7 +544,7 @@ export default function WholesaleOrdersScreen() {
             ListEmptyComponent={
               <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
                 <Feather name="file-text" size={36} color={BORDER} />
-                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14, textAlign: 'center' }}>
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14, textAlign: 'center' }}>
                   {filter === 'Overdue' ? 'No overdue orders.' : 'No orders yet.\nBrowse the catalog to place your first order.'}
                 </Text>
               </View>
@@ -561,24 +561,24 @@ export default function WholesaleOrdersScreen() {
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }}>
+                      <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>
                         #{order.poReference ?? order.id.slice(0, 8).toUpperCase()}
                       </Text>
-                      <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }}>
+                      <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, marginTop: 2 }}>
                         {new Date(order.createdAt).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                       </Text>
                       {overdue && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                           <Feather name="alert-circle" size={11} color={RED} />
-                          <Text style={{ color: RED, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>Overdue</Text>
+                          <Text style={{ color: RED, fontWeight: '600', fontSize: 11 }}>Overdue</Text>
                         </View>
                       )}
                     </View>
                     <View style={{ alignItems: 'flex-end', gap: 6 }}>
                       <View style={{ backgroundColor: cfg.bg, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
-                        <Text style={{ color: cfg.color, fontFamily: 'Inter_600SemiBold', fontSize: 11 }}>{cfg.label}</Text>
+                        <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 11 }}>{cfg.label}</Text>
                       </View>
-                      <Text style={{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 15 }}>${(order.totalCents / 100).toFixed(2)}</Text>
+                      <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${(order.totalCents / 100).toFixed(2)}</Text>
                     </View>
                   </View>
                   {stepIdx >= 0 && (
@@ -595,26 +595,26 @@ export default function WholesaleOrdersScreen() {
                       const lineCents = item.totalCents ?? ((item.unitPriceCents ?? 0) * qty);
                       return (
                         <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 12, flex: 1 }}>{qty}× {name}</Text>
-                          <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
+                          <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12, flex: 1 }}>{qty}× {name}</Text>
+                          <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
                         </View>
                       );
                     })}
                     {items.length > 2 && (
-                      <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 11, marginTop: 2 }}>+{items.length - 2} more — tap to view all</Text>
+                      <Text style={{ color: BLUE, fontWeight: '400', fontSize: 11, marginTop: 2 }}>+{items.length - 2} more — tap to view all</Text>
                     )}
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                     {order.scheduledDate ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Feather name="truck" size={11} color={overdue ? RED : MUTED} />
-                        <Text style={{ color: overdue ? RED : MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }}>
+                        <Text style={{ color: overdue ? RED : MUTED, fontWeight: '400', fontSize: 11 }}>
                           {order.deliveryType === 'pickup' ? 'Pickup' : 'Delivery'} · {new Date(order.scheduledDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
                         </Text>
                       </View>
                     ) : <View />}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Text style={{ color: BLUE, fontFamily: 'Inter_500Medium', fontSize: 11 }}>Details</Text>
+                      <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11 }}>Details</Text>
                       <Feather name="chevron-right" size={12} color={BLUE} />
                     </View>
                   </View>
@@ -636,8 +636,8 @@ export default function WholesaleOrdersScreen() {
               : (
                 <View style={{ alignItems: 'center', paddingTop: 60, gap: 8 }}>
                   <Feather name="file-text" size={40} color={MUTED} />
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 }}>No invoices yet</Text>
-                  <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>Your invoices appear here once you place orders</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14 }}>No invoices yet</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Your invoices appear here once you place orders</Text>
                 </View>
               )
           }
@@ -655,7 +655,7 @@ export default function WholesaleOrdersScreen() {
                     <Text style={st.payLabel}>Payment Method</Text>
                     <Text style={st.payValue}>{defCard.cardBrand} •••• {defCard.last4}</Text>
                   </View>
-                  <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 12 }}>Manage</Text>
+                  <Text style={{ color: BLUE, fontWeight: '600', fontSize: 12 }}>Manage</Text>
                   <Feather name="chevron-right" size={15} color={MUTED} />
                 </>
               ) : (
@@ -720,20 +720,20 @@ export default function WholesaleOrdersScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
   header:    { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
-  headerTitle: { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
-  headerSub:   { color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 13 },
+  headerTitle: { color: '#fff', fontSize: 26, fontWeight: '700' },
+  headerSub:   { color: 'rgba(255,255,255,0.75)', fontWeight: '400', fontSize: 13 },
 
   segmentRow:        { flexDirection: 'row', gap: 8, marginBottom: 2 },
   segmentBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.12)' },
   segmentBtnActive:  { backgroundColor: '#fff', borderColor: '#fff' },
-  segmentLabel:      { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: 'rgba(255,255,255,0.8)' },
+  segmentLabel:      { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
   segmentLabelActive:{ color: BLUE },
 
   filterPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
 
   statCard:  { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, gap: 3 },
-  statLabel: { fontSize: 11, letterSpacing: 0.5, fontFamily: 'Inter_600SemiBold' },
-  statValue: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  statLabel: { fontSize: 11, letterSpacing: 0.5, fontWeight: '600' },
+  statValue: { fontSize: 18, fontWeight: '700' },
 
   orderCard: {
     padding: 16, borderRadius: 14, borderLeftWidth: 3, borderWidth: 1, borderColor: BORDER,
@@ -743,32 +743,32 @@ const st = StyleSheet.create({
 
   payMethod: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
   payIcon:   { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  payLabel:  { color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  payValue:  { color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 2 },
+  payLabel:  { color: MUTED, fontWeight: '500', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  payValue:  { color: TEXT, fontWeight: '600', fontSize: 13, marginTop: 2 },
 
   invoiceCard:    { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3 },
-  invoiceNum:     { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT, marginBottom: 3 },
-  invoiceMeta:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginBottom: 1 },
-  invoiceDue:     { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED },
-  invoiceAmount:  { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT },
+  invoiceNum:     { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 3 },
+  invoiceMeta:    { fontSize: 12, fontWeight: '400', color: MUTED, marginBottom: 1 },
+  invoiceDue:     { fontSize: 12, fontWeight: '400', color: MUTED },
+  invoiceAmount:  { fontSize: 17, fontWeight: '700', color: TEXT },
 
   actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 10, flex: 1 },
   actionGhost:     { backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: `${BLUE}30` },
-  actionGhostText: { color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
+  actionGhostText: { color: BLUE, fontWeight: '600', fontSize: 12 },
   actionPrimary:   { backgroundColor: BLUE },
-  actionPrimaryText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 12 },
+  actionPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 12 },
 });
 
 const mdl = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD },
   closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  title:       { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT },
-  subtitle:    { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 2 },
+  title:       { fontSize: 16, fontWeight: '700', color: TEXT },
+  subtitle:    { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
   card:        { backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
-  sectionTitle:{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionTitle:{ fontSize: 13, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
   actionBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, flex: 1 },
   ghostBtn:    { backgroundColor: '#F0F9FF', borderWidth: 1, borderColor: `${BLUE}30` },
-  ghostBtnText:{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  ghostBtnText:{ color: BLUE, fontWeight: '600', fontSize: 13 },
   solidBtn:    { backgroundColor: BLUE },
-  solidBtnText:{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 13 },
+  solidBtnText:{ color: '#fff', fontWeight: '700', fontSize: 13 },
 });

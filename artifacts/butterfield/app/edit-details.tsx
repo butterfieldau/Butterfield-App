@@ -212,13 +212,13 @@ export default function EditDetailsScreen() {
                   {birthdayLocked ? (
                     <>
                       <View style={[styles.input, { backgroundColor: '#F3F4F6', justifyContent: 'center' }]}>
-                        <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 15, color: MUTED }}>
+                        <Text style={{ fontWeight: '500', fontSize: 15, color: MUTED }}>
                           {birthday}
                         </Text>
                       </View>
                       <Text style={[styles.fieldHint, { color: '#EF4444' }]}>
                         Birthday is locked. To update it, email{' '}
-                        <Text style={{ fontFamily: 'Inter_600SemiBold' }}>hello@butterfieldcookies.com.au</Text>
+                        <Text style={{ fontWeight: '600' }}>hello@butterfieldcookies.com.au</Text>
                       </Text>
                     </>
                   ) : (
@@ -313,10 +313,10 @@ const styles = StyleSheet.create({
     backgroundColor: CARD,
   },
   backBtn:     { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 20, fontFamily: 'Inter_700Bold', color: TEXT },
-  brandText:   { fontSize: 18, fontFamily: 'Inter_700Bold', color: BLUE, fontStyle: 'italic' },
+  headerTitle: { flex: 1, fontSize: 20, fontWeight: '700', color: TEXT },
+  brandText:   { fontSize: 18, fontWeight: '700', color: BLUE, fontStyle: 'italic' },
 
-  groupLabel: { fontSize: 11, letterSpacing: 1.2, marginBottom: 8, paddingLeft: 4, fontFamily: 'Inter_700Bold', color: MUTED },
+  groupLabel: { fontSize: 11, letterSpacing: 1.2, marginBottom: 8, paddingLeft: 4, fontWeight: '700', color: MUTED },
   card: {
     backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER,
     overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -325,15 +325,15 @@ const styles = StyleSheet.create({
   divider:    { height: 1, backgroundColor: BORDER, marginLeft: 68 },
   fieldRow:   { flexDirection: 'row', gap: 14, padding: 16, alignItems: 'flex-start' },
   iconCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  fieldLabel: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  fieldLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
   input: {
     borderWidth: 1, borderColor: BORDER, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
-    fontFamily: 'Inter_400Regular', color: TEXT,
+    fontWeight: '400', color: TEXT,
   },
-  fieldHint:  { fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 17 },
-  disclaimer: { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
+  fieldHint:  { fontSize: 12, fontWeight: '400', color: MUTED, lineHeight: 17 },
+  disclaimer: { fontSize: 13, fontWeight: '400', color: MUTED, lineHeight: 18, textAlign: 'center', paddingHorizontal: 8 },
   footer:     { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: BG },
   saveBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 17, borderRadius: 16 },
-  saveBtnText:{ color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  saveBtnText:{ color: '#fff', fontSize: 16, fontWeight: '700' },
 });

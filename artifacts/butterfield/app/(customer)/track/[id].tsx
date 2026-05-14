@@ -80,7 +80,7 @@ function AnimatedStep({ stage, index, currentIndex, colors }: {
         )}
       </View>
       <Animated.View style={[styles.stageInfo, { opacity: opacityAnim }]}>
-        <Text style={[styles.stageLabel, { color: isActive || isCompleted ? colors.foreground : colors.mutedForeground, fontFamily: isActive ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+        <Text style={[styles.stageLabel, { color: isActive || isCompleted ? colors.foreground : colors.mutedForeground, fontWeight: isActive ? '700' : '500' }]}>
           {stage.label}
           {isActive && <Text style={[styles.activeTag, { color: stageColor }]}> · Now</Text>}
         </Text>
@@ -133,7 +133,7 @@ export default function TrackOrderScreen() {
       ) : !order ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
           <Feather name="alert-circle" size={40} color={colors.mutedForeground} />
-          <Text style={[{ color: colors.mutedForeground, fontFamily: 'Inter_500Medium', fontSize: 15 }]}>Order not found</Text>
+          <Text style={[{ color: colors.mutedForeground, fontWeight: '500', fontSize: 15 }]}>Order not found</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
@@ -218,15 +218,15 @@ export default function TrackOrderScreen() {
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={[styles.itemName, { color: colors.foreground }]}>
                           {item.productName ?? 'Item'}
-                          {variant ? <Text style={{ color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }}>{` · ${variant}`}</Text> : null}
+                          {variant ? <Text style={{ color: colors.mutedForeground, fontWeight: '400' }}>{` · ${variant}`}</Text> : null}
                         </Text>
                         {notable.length > 0 && (
-                          <Text style={{ fontSize: 12, color: colors.primary, fontFamily: 'Inter_400Regular' }}>
+                          <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '400' }}>
                             {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
                           </Text>
                         )}
                         {baristaNote ? (
-                          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: 'Inter_400Regular', fontStyle: 'italic' }}>
+                          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontWeight: '400', fontStyle: 'italic' }}>
                             "{baristaNote}"
                           </Text>
                         ) : null}
@@ -257,31 +257,31 @@ export default function TrackOrderScreen() {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  title: { fontSize: 18, fontWeight: '700' },
   orderCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 0 },
-  orderRef: { fontSize: 17, fontFamily: 'Inter_700Bold' },
-  orderDate: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 3 },
-  orderTotal: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  orderRef: { fontSize: 17, fontWeight: '700' },
+  orderDate: { fontSize: 12, fontWeight: '400', marginTop: 3 },
+  orderTotal: { fontSize: 18, fontWeight: '700' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  statusText: { fontSize: 12, fontWeight: '600' },
   pickupRow: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
-  pickupText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  pickupText: { fontSize: 13, fontWeight: '500' },
   liveCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
-  liveMessage: { fontSize: 13, fontFamily: 'Inter_500Medium', flex: 1, lineHeight: 18 },
+  liveMessage: { fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
   pipelineCard: { borderRadius: 16, padding: 16, borderWidth: 1 },
-  sectionTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  sectionTitle: { fontSize: 15, fontWeight: '600' },
   stageRow: { flexDirection: 'row', gap: 14, minHeight: 56 },
   stageCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   stageLine: { width: 2, flex: 1, minHeight: 20, borderRadius: 1, marginVertical: 3 },
   stageInfo: { flex: 1, paddingTop: 6, paddingBottom: 10 },
   stageLabel: { fontSize: 14 },
-  activeTag: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  stageDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17, marginTop: 2 },
+  activeTag: { fontSize: 13, fontWeight: '600' },
+  stageDesc: { fontSize: 12, fontWeight: '400', lineHeight: 17, marginTop: 2 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
   qtyBadge: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  qtyText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  itemName: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  itemPrice: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  refreshHint: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  qtyText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  itemName: { fontSize: 14, fontWeight: '400' },
+  itemPrice: { fontSize: 13, fontWeight: '500' },
+  refreshHint: { textAlign: 'center', fontSize: 12, fontWeight: '400' },
 });

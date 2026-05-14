@@ -55,19 +55,19 @@ export default function ForgotPasswordScreen() {
           <View style={s.heroIcon}>
             <Feather name="lock" size={28} color="#fff" />
           </View>
-          <Text style={[s.heroTitle, { fontFamily: 'Inter_700Bold' }]}>Forgot password?</Text>
-          <Text style={[s.heroSub, { fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[s.heroTitle, { fontWeight: '700' }]}>Forgot password?</Text>
+          <Text style={[s.heroSub, { fontWeight: '400' }]}>
             Enter your email and we'll send{'\n'}you a reset code
           </Text>
         </LinearGradient>
 
         <View style={s.body}>
           <View style={[s.card, { backgroundColor: CARD }]}>
-            <Text style={[s.label, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Email address</Text>
+            <Text style={[s.label, { fontWeight: '600', color: TEXT }]}>Email address</Text>
             <View style={[s.inputRow, { backgroundColor: '#F5F6FA', borderColor: BORDER }]}>
               <Feather name="mail" size={16} color={MUTED} />
               <TextInput
-                style={[s.input, { color: TEXT, fontFamily: 'Inter_400Regular' }]}
+                style={[s.input, { color: TEXT, fontWeight: '400' }]}
                 placeholder="you@example.com"
                 placeholderTextColor={MUTED}
                 value={email}
@@ -83,7 +83,7 @@ export default function ForgotPasswordScreen() {
             {error ? (
               <View style={s.errorBox}>
                 <Feather name="alert-circle" size={14} color="#EF4444" />
-                <Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                <Text style={[s.errorText, { fontWeight: '400' }]}>{error}</Text>
               </View>
             ) : null}
 
@@ -94,12 +94,12 @@ export default function ForgotPasswordScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={[s.btnText, { fontFamily: 'Inter_700Bold' }]}>Send Reset Code</Text>
+                : <Text style={[s.btnText, { fontWeight: '700' }]}>Send Reset Code</Text>
               }
             </Pressable>
 
             <Pressable onPress={() => router.back()} style={s.backLink}>
-              <Text style={[s.backLinkText, { fontFamily: 'Inter_500Medium', color: MUTED }]}>
+              <Text style={[s.backLinkText, { fontWeight: '500', color: MUTED }]}>
                 Back to sign in
               </Text>
             </Pressable>
@@ -107,7 +107,7 @@ export default function ForgotPasswordScreen() {
 
           <View style={s.hint}>
             <Feather name="info" size={13} color={MUTED} />
-            <Text style={[s.hintText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+            <Text style={[s.hintText, { fontWeight: '400', color: MUTED }]}>
               The reset code will be sent to any registered account — customer, staff, wholesale, or director.
             </Text>
           </View>

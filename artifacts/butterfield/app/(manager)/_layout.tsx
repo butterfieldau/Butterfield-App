@@ -48,7 +48,7 @@ export default function ManagerLayout() {
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
-          tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 10 },
+          tabBarLabelStyle: { fontWeight: '500', fontSize: 10 },
         }}
       >
         <Tabs.Screen name="index"

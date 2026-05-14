@@ -160,7 +160,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
                 : `#BC-${order.id.slice(-6).toUpperCase()}`}
             </Text>
-            <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>
+            <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
               {new Date(order.createdAt).toLocaleDateString('en-AU', {
                 weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
               })} · {fmtTime(order.createdAt)}
@@ -186,7 +186,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <>
                       <Feather name="edit-3" size={13} color="#fff" />
-                      <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Update Status</Text>
+                      <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Update Status</Text>
                     </>}
               </Pressable>
             )}
@@ -202,7 +202,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
             ) : (
               <>
                 <Feather name="printer" size={13} color="#fff" />
-                <Text style={{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 13 }}>Print receipt</Text>
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Print receipt</Text>
               </>
             )}
           </Pressable>
@@ -311,25 +311,25 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 return (
                   <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[{ color: TEXT, fontFamily: 'Inter_500Medium', fontSize: 14 }]}>
+                      <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 14 }]}>
                         {name}{variant ? ` · ${variant}` : ''}
                       </Text>
-                      <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>
+                      <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
                         {qty} × ${(unit / 100).toFixed(2)}
                         {item.priceLabel ? ` · ${item.priceLabel}` : ''}
                       </Text>
                       {notable.length > 0 && (
-                        <Text style={{ color: BLUE, fontFamily: 'Inter_400Regular', fontSize: 12 }}>
+                        <Text style={{ color: BLUE, fontWeight: '400', fontSize: 12 }}>
                           {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
                         </Text>
                       )}
                       {baristaNote ? (
-                        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11, fontStyle: 'italic' }}>
+                        <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic' }}>
                           "{baristaNote}"
                         </Text>
                       ) : null}
                     </View>
-                    <Text style={[{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }]}>
+                    <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 14 }]}>
                       ${(line / 100).toFixed(2)}
                     </Text>
                   </View>
@@ -344,32 +344,32 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
             <View style={{ gap: 6, marginTop: 6 }}>
               {discountCents > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Discount</Text>
-                  <Text style={[{ color: GREEN, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>−${(discountCents / 100).toFixed(2)}</Text>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Discount</Text>
+                  <Text style={[{ color: GREEN, fontWeight: '500', fontSize: 13 }]}>−${(discountCents / 100).toFixed(2)}</Text>
                 </View>
               )}
               {loyaltyUsed > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }]}>Points redeemed</Text>
-                  <Text style={[{ color: GREEN, fontFamily: 'Inter_500Medium', fontSize: 13 }]}>−{loyaltyUsed} pts</Text>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Points redeemed</Text>
+                  <Text style={[{ color: GREEN, fontWeight: '500', fontSize: 13 }]}>−{loyaltyUsed} pts</Text>
                 </View>
               )}
               <View style={[{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }]}>
-                <Text style={[{ color: TEXT, fontFamily: 'Inter_700Bold', fontSize: 15 }]}>Total</Text>
-                <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 15 }]}>
+                <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 15 }]}>Total</Text>
+                <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 15 }]}>
                   AUD ${((order.totalCents ?? 0) / 100).toFixed(2)}
                 </Text>
               </View>
               {loyaltyEarned > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Points earned</Text>
-                  <Text style={[{ color: '#F59E0B', fontFamily: 'Inter_500Medium', fontSize: 12 }]}>+{loyaltyEarned} pts</Text>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>Points earned</Text>
+                  <Text style={[{ color: '#F59E0B', fontWeight: '500', fontSize: 12 }]}>+{loyaltyEarned} pts</Text>
                 </View>
               )}
               {isWholesale && order.isPaid != null && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }]}>Payment</Text>
-                  <Text style={[{ color: order.isPaid ? GREEN : '#EF4444', fontFamily: 'Inter_500Medium', fontSize: 12 }]}>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>Payment</Text>
+                  <Text style={[{ color: order.isPaid ? GREEN : '#EF4444', fontWeight: '500', fontSize: 12 }]}>
                     {order.isPaid ? 'Paid' : 'Awaiting Payment'}
                   </Text>
                 </View>
@@ -381,7 +381,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
           {order.notes ? (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Notes</Text>
-              <Text style={[{ color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
+              <Text style={[{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
                 {order.notes}
               </Text>
             </View>
@@ -420,19 +420,19 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
               </Text>
               {isWholesale && (
                 <View style={{ backgroundColor: '#DCFCE7', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
-                  <Text style={{ color: '#166534', fontFamily: 'Inter_700Bold', fontSize: 9 }}>WHOLESALE</Text>
+                  <Text style={{ color: '#166534', fontWeight: '700', fontSize: 9 }}>WHOLESALE</Text>
                 </View>
               )}
             </View>
             {order.customerName && (
-              <Text style={[{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 12 }]}>{order.customerName}</Text>
+              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12 }]}>{order.customerName}</Text>
             )}
           </View>
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
             <View style={[{ backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.text + '40', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }]}>
-              <Text style={[{ color: colors.text, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>{label}</Text>
+              <Text style={[{ color: colors.text, fontWeight: '600', fontSize: 11 }]}>{label}</Text>
             </View>
-            <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 14 }]}>
+            <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>
               ${((order.totalCents ?? 0) / 100).toFixed(2)}
             </Text>
           </View>
@@ -446,7 +446,7 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
                 backgroundColor: isDelivery ? '#DBEAFE' : '#DCFCE7', borderRadius: 8,
                 paddingHorizontal: 8, paddingVertical: 3 }}>
                 <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={11} color={isDelivery ? '#1E40AF' : '#166534'} />
-                <Text style={{ fontSize: 11, fontFamily: 'Inter_700Bold', color: isDelivery ? '#1E40AF' : '#166534' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: isDelivery ? '#1E40AF' : '#166534' }}>
                   {isDelivery ? 'Delivery' : 'Pickup'}
                 </Text>
               </View>
@@ -456,7 +456,7 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
                 return (
                   <Pressable onPress={(e) => { e.stopPropagation?.(); openMap(addr); Haptics.selectionAsync(); }}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 }}>
-                    <Text style={{ fontSize: 11, color: '#1E40AF', fontFamily: 'Inter_400Regular', flex: 1 }} numberOfLines={1}>{addr}</Text>
+                    <Text style={{ fontSize: 11, color: '#1E40AF', fontWeight: '400', flex: 1 }} numberOfLines={1}>{addr}</Text>
                     <Feather name="external-link" size={10} color="#1E40AF" />
                   </Pressable>
                 );
@@ -464,11 +464,11 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
             </View>
           );
         })()}
-        <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
+        <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
           {itemSummary || 'No items'}
         </Text>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
-          <Text style={[{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 11 }]}>
+          <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 11 }]}>
             {fmtTime(order.createdAt)}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -483,7 +483,7 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
             {next.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                 <Feather name="chevron-right" size={12} color={BLUE} />
-                <Text style={[{ color: BLUE, fontFamily: 'Inter_600SemiBold', fontSize: 11 }]}>Tap to manage</Text>
+                <Text style={[{ color: BLUE, fontWeight: '600', fontSize: 11 }]}>Tap to manage</Text>
               </View>
             )}
           </View>
@@ -499,7 +499,7 @@ function SectionHeader({ title, count }: { title: string; count: number }) {
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText}>{title}</Text>
       <View style={[{ backgroundColor: `${BLUE}18`, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }]}>
-        <Text style={[{ color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 11 }]}>{count}</Text>
+        <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 11 }]}>{count}</Text>
       </View>
     </View>
   );
@@ -615,7 +615,7 @@ export default function DirectorOrdersScreen() {
                 onPress={() => { setFilter(item.key); Haptics.selectionAsync(); }}
                 style={[styles.filterChip, { backgroundColor: active ? color : BG, borderColor: active ? color : BORDER }]}
               >
-                <Text style={[{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: active ? '#fff' : MUTED }]}>
+                <Text style={[{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : MUTED }]}>
                   {item.label}
                 </Text>
               </Pressable>
@@ -638,7 +638,7 @@ export default function DirectorOrdersScreen() {
               onPress={() => { setViewMode(m.key); if (m.key === 'date') setShowDatePicker(v => !v); else setShowDatePicker(false); Haptics.selectionAsync(); }}
               style={[styles.dateTab, { borderBottomWidth: 2, borderBottomColor: active ? BLUE : 'transparent' }]}
             >
-              <Text style={[{ fontFamily: active ? 'Inter_700Bold' : 'Inter_400Regular', fontSize: 13, color: active ? BLUE : MUTED }]}>
+              <Text style={[{ fontWeight: active ? '700' : '400', fontSize: 13, color: active ? BLUE : MUTED }]}>
                 {m.key === 'date' && viewMode === 'date' ? fmtDateChip(selectedDate) : m.label}
               </Text>
             </Pressable>
@@ -660,8 +660,8 @@ export default function DirectorOrdersScreen() {
                   onPress={() => { setSelectedDate(d); Haptics.selectionAsync(); }}
                   style={[styles.dayChip, { backgroundColor: isActive ? BLUE : BG, borderColor: isActive ? BLUE : BORDER }]}
                 >
-                  <Text style={[{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: isActive ? '#fff' : TEXT }]}>{label}</Text>
-                  <Text style={[{ fontFamily: 'Inter_400Regular', fontSize: 10, color: isActive ? 'rgba(255,255,255,0.8)' : MUTED }]}>
+                  <Text style={[{ fontWeight: '600', fontSize: 12, color: isActive ? '#fff' : TEXT }]}>{label}</Text>
+                  <Text style={[{ fontWeight: '400', fontSize: 10, color: isActive ? 'rgba(255,255,255,0.8)' : MUTED }]}>
                     {count} order{count !== 1 ? 's' : ''}
                   </Text>
                 </Pressable>
@@ -788,24 +788,24 @@ const styles = StyleSheet.create({
   orderCardAccent:{ borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
                     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   orderCardTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  orderId:        { fontSize: 14, fontFamily: 'Inter_700Bold', color: TEXT },
+  orderId:        { fontSize: 14, fontWeight: '700', color: TEXT },
   printMiniBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  printMiniBtnTxt:{ color: '#fff', fontFamily: 'Inter_600SemiBold', fontSize: 10 },
+  printMiniBtnTxt:{ color: '#fff', fontWeight: '600', fontSize: 10 },
   sectionHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 4 },
-  sectionHeaderText: { fontSize: 16, fontFamily: 'Inter_700Bold', color: TEXT, flex: 1 },
+  sectionHeaderText: { fontSize: 16, fontWeight: '700', color: TEXT, flex: 1 },
   emptySection:   { alignItems: 'center', paddingVertical: 28, gap: 8 },
-  emptyText:      { color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 14 },
+  emptyText:      { color: MUTED, fontWeight: '400', fontSize: 14 },
   // Modal
   modalHeader:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  modalTitle:     { fontSize: 17, fontFamily: 'Inter_700Bold', color: TEXT },
+  modalTitle:     { fontSize: 17, fontWeight: '700', color: TEXT },
   closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   section:        { backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
-  sectionLabel:   { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionLabel:   { fontSize: 11, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
   statusPill:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' },
-  statusPillText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  statusPillText: { fontSize: 13, fontWeight: '600' },
   updateStatusBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, marginHorizontal: 16, marginTop: 2 },
   detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  detailText:     { color: TEXT, fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 20 },
+  detailText:     { color: TEXT, fontWeight: '400', fontSize: 14, lineHeight: 20 },
   itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },
 });

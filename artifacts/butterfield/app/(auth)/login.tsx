@@ -236,14 +236,14 @@ export default function LoginScreen() {
             style={{ width: 240, height: 88, marginBottom: 4 }}
             resizeMode="contain"
           />
-          <Text style={[s.tagline, { fontFamily: 'Inter_400Regular' }]}>Cookies · Coffee · Desserts</Text>
+          <Text style={[s.tagline, { fontWeight: '400' }]}>Cookies · Coffee · Desserts</Text>
         </LinearGradient>
 
         <View style={s.body}>
 
           {!showInternal ? (
             <>
-              <Text style={[s.signInAs, { fontFamily: 'Inter_600SemiBold' }]}>Sign in as</Text>
+              <Text style={[s.signInAs, { fontWeight: '600' }]}>Sign in as</Text>
 
               <View style={s.roleRow}>
                 {PUBLIC_ROLES.map((r) => {
@@ -257,10 +257,10 @@ export default function LoginScreen() {
                       <View style={[s.roleIconBox, { backgroundColor: active ? '#E6F0FF' : '#F5F6FA' }]}>
                         <Feather name={r.icon as any} size={22} color={active ? BLUE : MUTED} />
                       </View>
-                      <Text style={[s.roleLabel, { fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? TEXT : MUTED }]}>
+                      <Text style={[s.roleLabel, { fontWeight: active ? '700' : '500', color: active ? TEXT : MUTED }]}>
                         {r.label}
                       </Text>
-                      <Text style={[s.roleSub, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{r.subtitle}</Text>
+                      <Text style={[s.roleSub, { fontWeight: '400', color: MUTED }]}>{r.subtitle}</Text>
                     </Pressable>
                   );
                 })}
@@ -274,7 +274,7 @@ export default function LoginScreen() {
                       onPress={() => { setMode(m); clearPublic(); Haptics.selectionAsync(); }}
                       style={[s.segBtn, { backgroundColor: mode === m ? CARD : 'transparent' }]}
                     >
-                      <Text style={[s.segBtnText, { fontFamily: mode === m ? 'Inter_600SemiBold' : 'Inter_400Regular', color: mode === m ? TEXT : MUTED }]}>
+                      <Text style={[s.segBtnText, { fontWeight: mode === m ? '600' : '400', color: mode === m ? TEXT : MUTED }]}>
                         {m === 'login' ? 'Sign In' : 'Apply for Account'}
                       </Text>
                     </Pressable>
@@ -296,7 +296,7 @@ export default function LoginScreen() {
                           ? <ActivityIndicator color="#fff" size="small" />
                           : <>
                               <Feather name="smartphone" size={16} color="#fff" />
-                              <Text style={[s.socialBtnText, { fontFamily: 'Inter_600SemiBold', color: '#fff' }]}>Apple</Text>
+                              <Text style={[s.socialBtnText, { fontWeight: '600', color: '#fff' }]}>Apple</Text>
                             </>
                         }
                       </Pressable>
@@ -309,8 +309,8 @@ export default function LoginScreen() {
                       {socialLoading === 'google'
                         ? <ActivityIndicator color={GOOGLE_RED} size="small" />
                         : <>
-                            <Text style={{ fontSize: 15, lineHeight: 18, fontFamily: 'Inter_700Bold', color: '#4285F4' }}>G</Text>
-                            <Text style={[s.socialBtnText, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Google</Text>
+                            <Text style={{ fontSize: 15, lineHeight: 18, fontWeight: '700', color: '#4285F4' }}>G</Text>
+                            <Text style={[s.socialBtnText, { fontWeight: '600', color: TEXT }]}>Google</Text>
                           </>
                       }
                     </Pressable>
@@ -318,7 +318,7 @@ export default function LoginScreen() {
 
                   <View style={s.dividerRow}>
                     <View style={s.dividerLine} />
-                    <Text style={[s.dividerText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>or continue with email</Text>
+                    <Text style={[s.dividerText, { fontWeight: '400', color: MUTED }]}>or continue with email</Text>
                     <View style={s.dividerLine} />
                   </View>
                 </>
@@ -357,16 +357,16 @@ export default function LoginScreen() {
 
               {mode === 'login' && !isWholesaleApply && (
                 <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={{ alignSelf: 'flex-end', marginTop: -4 }}>
-                  <Text style={[s.forgotText, { fontFamily: 'Inter_500Medium', color: BLUE }]}>Forgot password?</Text>
+                  <Text style={[s.forgotText, { fontWeight: '500', color: BLUE }]}>Forgot password?</Text>
                 </Pressable>
               )}
 
-              {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text></View> : null}
-              {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontFamily: 'Inter_400Regular' }]}>{successMsg}</Text></View> : null}
+              {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontWeight: '400' }]}>{error}</Text></View> : null}
+              {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontWeight: '400' }]}>{successMsg}</Text></View> : null}
 
               <Pressable onPress={handlePublicSubmit} disabled={loading} style={[s.submitBtn, { backgroundColor: '#D0312D', opacity: loading ? 0.85 : 1 }]}>
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : (
-                  <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                  <Text style={[s.submitBtnText, { fontWeight: '700' }]}>
                     {isWholesaleApply ? 'Submit Application' : mode === 'register' ? 'Create Account' : 'Sign In'}
                   </Text>
                 )}
@@ -374,9 +374,9 @@ export default function LoginScreen() {
 
               {!isWholesale && (
                 <Pressable onPress={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); Haptics.selectionAsync(); }} style={{ alignItems: 'center', paddingVertical: 4 }}>
-                  <Text style={[s.toggleText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                  <Text style={[s.toggleText, { fontWeight: '400', color: MUTED }]}>
                     {mode === 'register' ? 'Already have an account? ' : "Don't have an account? "}
-                    <Text style={{ color: BLUE, fontFamily: 'Inter_600SemiBold' }}>{mode === 'register' ? 'Sign In' : 'Register'}</Text>
+                    <Text style={{ color: BLUE, fontWeight: '600' }}>{mode === 'register' ? 'Sign In' : 'Register'}</Text>
                   </Text>
                 </Pressable>
               )}
@@ -384,7 +384,7 @@ export default function LoginScreen() {
                 onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); setGeoStatus('idle'); Haptics.selectionAsync(); }}
                 style={{ alignItems: 'center', paddingVertical: 8 }}
               >
-                <Text style={[s.internalLink, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                <Text style={[s.internalLink, { fontWeight: '400', color: MUTED }]}>
                   Staff / Internal Access  →
                 </Text>
               </Pressable>
@@ -393,16 +393,16 @@ export default function LoginScreen() {
             <>
               <Pressable onPress={() => { setShowInternal(false); setIError(''); setGeoStatus('idle'); Haptics.selectionAsync(); }} style={s.backBtn}>
                 <Feather name="arrow-left" size={18} color={TEXT} />
-                <Text style={[s.backText, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Back</Text>
+                <Text style={[s.backText, { fontWeight: '500', color: TEXT }]}>Back</Text>
               </Pressable>
 
               <View style={[s.internalHeader, { backgroundColor: NAVY }]}>
                 <View style={s.internalBadgeRow}>
                   <Feather name="shield" size={13} color="rgba(255,255,255,0.6)" />
-                  <Text style={[s.internalBadgeTxt, { fontFamily: 'Inter_700Bold' }]}>INTERNAL ACCESS</Text>
+                  <Text style={[s.internalBadgeTxt, { fontWeight: '700' }]}>INTERNAL ACCESS</Text>
                 </View>
-                <Text style={[s.internalTitle, { fontFamily: 'Inter_700Bold' }]}>Staff & Director Sign In</Text>
-                <Text style={[s.internalSub, { fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[s.internalTitle, { fontWeight: '700' }]}>Staff & Director Sign In</Text>
+                <Text style={[s.internalSub, { fontWeight: '400' }]}>
                   Your role is automatically determined by your credentials.
                 </Text>
               </View>
@@ -410,19 +410,19 @@ export default function LoginScreen() {
               {geoStatus === 'acquiring' && (
                 <View style={[s.geoBanner, { backgroundColor: '#EFF6FF', borderColor: '#3B82F680' }]}>
                   <ActivityIndicator size="small" color="#3B82F6" />
-                  <Text style={[s.geoText, { fontFamily: 'Inter_400Regular', color: '#3B82F6' }]}>Getting your location…</Text>
+                  <Text style={[s.geoText, { fontWeight: '400', color: '#3B82F6' }]}>Getting your location…</Text>
                 </View>
               )}
               {geoStatus === 'ready' && (
                 <View style={[s.geoBanner, { backgroundColor: '#F0FDF4', borderColor: '#22C55E80' }]}>
                   <Feather name="check-circle" size={14} color={GREEN} />
-                  <Text style={[s.geoText, { fontFamily: 'Inter_400Regular', color: GREEN }]}>Location verified</Text>
+                  <Text style={[s.geoText, { fontWeight: '400', color: GREEN }]}>Location verified</Text>
                 </View>
               )}
               {geoStatus === 'denied' && (
                 <View style={[s.geoBanner, { backgroundColor: '#FEF2F2', borderColor: '#EF444480' }]}>
                   <Feather name="alert-circle" size={14} color="#EF4444" />
-                  <Text style={[s.geoText, { fontFamily: 'Inter_400Regular', color: '#EF4444' }]}>Location denied — enable in Settings</Text>
+                  <Text style={[s.geoText, { fontWeight: '400', color: '#EF4444' }]}>Location denied — enable in Settings</Text>
                 </View>
               )}
 
@@ -438,25 +438,25 @@ export default function LoginScreen() {
               </View>
 
               <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={{ alignSelf: 'flex-end', marginTop: -4 }}>
-                <Text style={[s.forgotText, { fontFamily: 'Inter_500Medium', color: '#9CA3AF' }]}>Forgot password?</Text>
+                <Text style={[s.forgotText, { fontWeight: '500', color: '#9CA3AF' }]}>Forgot password?</Text>
               </Pressable>
 
-              {iError ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{iError}</Text></View> : null}
+              {iError ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontWeight: '400' }]}>{iError}</Text></View> : null}
 
               <Pressable onPress={handleInternalSubmit} disabled={iLoading} style={[s.submitBtn, { backgroundColor: NAVY, opacity: iLoading ? 0.8 : 1 }]}>
                 {iLoading ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <ActivityIndicator color="#fff" size="small" />
-                    <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>
+                    <Text style={[s.submitBtnText, { fontWeight: '700' }]}>
                       {geoStatus === 'acquiring' ? 'Getting location…' : 'Signing in…'}
                     </Text>
                   </View>
-                ) : <Text style={[s.submitBtnText, { fontFamily: 'Inter_700Bold' }]}>Sign In</Text>}
+                ) : <Text style={[s.submitBtnText, { fontWeight: '700' }]}>Sign In</Text>}
               </Pressable>
 
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 2 }}>
                 <Feather name="map-pin" size={11} color={MUTED} style={{ marginTop: 1 }} />
-                <Text style={[s.geoNote, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+                <Text style={[s.geoNote, { fontWeight: '400', color: MUTED }]}>
                   Staff must be within range of Butterfield Merrylands to sign in.
                 </Text>
               </View>

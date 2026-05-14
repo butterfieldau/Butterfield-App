@@ -586,7 +586,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: NAVY + '12', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
                     >
                       <Feather name="plus" size={13} color={NAVY} />
-                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: NAVY }}>Assign Store</Text>
+                      <Text style={{ fontWeight: '600', fontSize: 12, color: NAVY }}>Assign Store</Text>
                     </Pressable>
                   </View>
                   {assignLoading ? (
@@ -595,7 +595,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     <View style={[sp_s.infoCard, { padding: 20, alignItems: 'center', gap: 8 }]}>
                       <Feather name="map-pin" size={24} color={MUTED} />
                       <Text style={sp_s.menuSub}>No stores assigned</Text>
-                      <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: MUTED, textAlign: 'center' }}>
+                      <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED, textAlign: 'center' }}>
                         Without assignments, this staff member can clock in at any location.
                       </Text>
                     </View>
@@ -614,7 +614,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                               <Text style={sp_s.menuLabel} numberOfLines={1}>{a.storeName ?? a.storeId}</Text>
                               {a.isPrimary && (
                                 <View style={{ backgroundColor: BLUE + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                  <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 9, color: BLUE }}>PRIMARY</Text>
+                                  <Text style={{ fontWeight: '600', fontSize: 9, color: BLUE }}>PRIMARY</Text>
                                 </View>
                               )}
                             </View>
@@ -626,14 +626,14 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                                 onPress={() => handleSetPrimary(a.id)}
                                 style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: BLUE }}
                               >
-                                <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 10, color: BLUE }}>Set Primary</Text>
+                                <Text style={{ fontWeight: '500', fontSize: 10, color: BLUE }}>Set Primary</Text>
                               </Pressable>
                             )}
                             <Pressable
                               onPress={() => handleRemoveAssignment(a.id, a.storeName ?? 'this store')}
                               style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: RED + '80' }}
                             >
-                              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 10, color: RED }}>Remove</Text>
+                              <Text style={{ fontWeight: '500', fontSize: 10, color: RED }}>Remove</Text>
                             </Pressable>
                           </View>
                         </View>
@@ -733,55 +733,55 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
 const sp_s = StyleSheet.create({
   header:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 18, gap: 12, backgroundColor: NAVY },
   backBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle:   { flex: 1, color: '#fff', fontSize: 17, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  headerTitle:   { flex: 1, color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center' },
   editBtn:       { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-  editBtnText:   { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  editBtnText:   { color: '#fff', fontSize: 13, fontWeight: '600' },
   avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 16, marginHorizontal: 16, marginVertical: 20 },
   avatarCircle:  { width: 64, height: 64, borderRadius: 32, backgroundColor: NAVY + '18', borderWidth: 2, borderColor: NAVY, alignItems: 'center', justifyContent: 'center' },
-  avatarText:    { color: NAVY, fontSize: 22, fontFamily: 'Inter_700Bold' },
-  shiftStatus:   { color: MUTED, fontSize: 14, fontFamily: 'Inter_500Medium' },
-  shiftSub:      { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular' },
-  empId:         { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular' },
+  avatarText:    { color: NAVY, fontSize: 22, fontWeight: '700' },
+  shiftStatus:   { color: MUTED, fontSize: 14, fontWeight: '500' },
+  shiftSub:      { color: MUTED, fontSize: 12, fontWeight: '400' },
+  empId:         { color: MUTED, fontSize: 11, fontWeight: '400' },
   startShiftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: NAVY },
-  startShiftText:{ color: NAVY, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  startShiftText:{ color: NAVY, fontSize: 15, fontWeight: '600' },
   actionRow:     { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 20 },
   actionBtn:     { flex: 1, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, paddingVertical: 16, alignItems: 'center', gap: 8 },
-  actionLabel:   { color: TEXT, fontSize: 12, fontFamily: 'Inter_500Medium' },
-  sectionLabel:  { color: MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2, marginBottom: 8 },
+  actionLabel:   { color: TEXT, fontSize: 12, fontWeight: '500' },
+  sectionLabel:  { color: MUTED, fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginBottom: 8 },
   infoCard:      { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
   infoRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER },
-  infoLabel:     { color: MUTED, fontSize: 13, fontFamily: 'Inter_400Regular', flex: 1 },
-  infoValue:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium', flex: 2, textAlign: 'right' },
+  infoLabel:     { color: MUTED, fontSize: 13, fontWeight: '400', flex: 1 },
+  infoValue:     { color: TEXT, fontSize: 13, fontWeight: '500', flex: 2, textAlign: 'right' },
   menuSection:   { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
   menuRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
-  menuLabel:     { color: TEXT, fontSize: 15, fontFamily: 'Inter_500Medium' },
-  menuSub:       { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  menuLabel:     { color: TEXT, fontSize: 15, fontWeight: '500' },
+  menuSub:       { color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 1 },
   leaveRow:      { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 14 },
-  leaveType:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_600SemiBold', textTransform: 'capitalize' },
+  leaveType:     { color: TEXT, fontSize: 13, fontWeight: '600', textTransform: 'capitalize' },
   statusPill:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  statusPillText:{ fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-  leaveDates:    { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  leaveReason:   { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4, fontStyle: 'italic' },
+  statusPillText:{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  leaveDates:    { color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 2 },
+  leaveReason:   { color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 4, fontStyle: 'italic' },
   leaveBtn:      { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
-  leaveBtnText:  { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  leaveBtnText:  { fontSize: 12, fontWeight: '600' },
   editSection:   { marginHorizontal: 16, marginBottom: 16, gap: 4 },
   fieldWrap:     { marginBottom: 8 },
-  fieldLabel:    { color: MUTED, fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8, marginBottom: 6 },
+  fieldLabel:    { color: MUTED, fontSize: 11, fontWeight: '600', letterSpacing: 0.8, marginBottom: 6 },
   fieldRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, minHeight: 52, borderWidth: 1, borderColor: BORDER, borderRadius: 12, backgroundColor: CARD },
-  fieldInput:    { flex: 1, color: TEXT, fontSize: 15, fontFamily: 'Inter_400Regular', paddingVertical: 10 },
-  fieldHint:     { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 4, marginLeft: 2 },
+  fieldInput:    { flex: 1, color: TEXT, fontSize: 15, fontWeight: '400', paddingVertical: 10 },
+  fieldHint:     { color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 4, marginLeft: 2 },
   errBox:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, marginTop: 8 },
-  errText:       { flex: 1, color: RED, fontSize: 13, fontFamily: 'Inter_400Regular' },
+  errText:       { flex: 1, color: RED, fontSize: 13, fontWeight: '400' },
   saveBtn:       { backgroundColor: NAVY, borderRadius: 14, height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  saveBtnText:   { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  saveBtnText:   { color: '#fff', fontSize: 16, fontWeight: '700' },
   shiftRow:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  shiftDate:     { color: TEXT, fontSize: 13, fontFamily: 'Inter_500Medium' },
-  shiftTime:     { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  shiftHrs:      { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  shiftDate:     { color: TEXT, fontSize: 13, fontWeight: '500' },
+  shiftTime:     { color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 2 },
+  shiftHrs:      { fontSize: 14, fontWeight: '700' },
   promoteBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: AMBER },
-  promoteBtnText: { color: AMBER, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  promoteBtnText: { color: AMBER, fontSize: 15, fontWeight: '600' },
   deleteBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, marginBottom: 32, paddingVertical: 16, borderRadius: 12, borderWidth: 1.5, borderColor: RED },
-  deleteBtnText: { color: RED, fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  deleteBtnText: { color: RED, fontSize: 15, fontWeight: '600' },
 });
 
 // ── Wholesale Detail Modal ──────────────────────────────────────────────────
@@ -939,7 +939,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             <Text style={wdl.sectionLabel}>ACCOUNT SETTINGS</Text>
             <Text style={wdl.fieldLabel}>Credit Limit (AUD)</Text>
             <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>$</Text>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
               <TextInput
                 style={[wdl.input, { color: TEXT }]}
                 placeholder="e.g. 5000"
@@ -972,7 +972,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             </View>
             <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Delivery Fee (AUD)</Text>
             <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>$</Text>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
               <TextInput
                 style={[wdl.input, { color: TEXT }]}
                 placeholder="0.00 — free delivery"
@@ -984,7 +984,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             </View>
             <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Minimum Order (AUD)</Text>
             <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 15 }}>$</Text>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
               <TextInput
                 style={[wdl.input, { color: TEXT }]}
                 placeholder="e.g. 200.00"
@@ -1000,8 +1000,8 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
           <View style={wdl.card}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: TEXT, fontFamily: 'Inter_600SemiBold', fontSize: 14 }}>Suspend Account</Text>
-                <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 12 }}>Prevents new orders while suspended</Text>
+                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Suspend Account</Text>
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Prevents new orders while suspended</Text>
               </View>
               <Switch
                 value={suspended}
@@ -1031,7 +1031,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
               {cardsLoading && <ActivityIndicator size="small" color={BLUE} />}
             </View>
             {!cardsLoading && cards.length === 0 && (
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13 }}>No cards saved by this account yet.</Text>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>No cards saved by this account yet.</Text>
             )}
             {cards.map((card: any) => {
               const bg = BRAND_BG[card.cardBrand] ?? '#1A3A8C';
@@ -1039,21 +1039,21 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                 <View key={card.id} style={{ marginBottom: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }}>
                   <View style={{ backgroundColor: bg, padding: 14 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 16, letterSpacing: 3 }}>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16, letterSpacing: 3 }}>
                         {`•••• •••• •••• ${card.last4}`}
                       </Text>
                       <View style={{ alignItems: 'flex-end', gap: 6 }}>
                         {card.isDefault && (
                           <View style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' }}>DEFAULT</Text>
+                            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>DEFAULT</Text>
                           </View>
                         )}
-                        <Text style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{card.cardBrand}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '400', fontSize: 11 }}>{card.cardBrand}</Text>
                       </View>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>{card.nameOnCard}</Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontFamily: 'Inter_400Regular', fontSize: 11 }}>Exp {card.expiry}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.75)', fontWeight: '400', fontSize: 11 }}>{card.nameOnCard}</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.55)', fontWeight: '400', fontSize: 11 }}>Exp {card.expiry}</Text>
                     </View>
                   </View>
                 </View>
@@ -1095,7 +1095,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             }}
           >
             <Feather name="trash-2" size={15} color={RED} />
-            <Text style={{ color: RED, fontSize: 14, fontFamily: 'Inter_600SemiBold' }}>Delete Account</Text>
+            <Text style={{ color: RED, fontSize: 14, fontWeight: '600' }}>Delete Account</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -1395,7 +1395,7 @@ export default function DirectorUsersScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
               <Feather name="users" size={40} color={MUTED} />
-              <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular' }}>No users in this category</Text>
+              <Text style={{ color: MUTED, fontWeight: '400' }}>No users in this category</Text>
             </View>
           }
           renderItem={({ item: u }) => {
@@ -1459,7 +1459,7 @@ export default function DirectorUsersScreen() {
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={{ color: BLUE, fontSize: 12, fontFamily: 'Inter_600SemiBold' }}>Manage</Text>
+                      <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Manage</Text>
                       <Feather name="chevron-right" size={13} color={BLUE} />
                     </View>
                   </Pressable>
@@ -1503,62 +1503,62 @@ export default function DirectorUsersScreen() {
 
 const styles = StyleSheet.create({
   tabChip:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  tabChipText:   { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  tabChipText:   { fontSize: 13, fontWeight: '600' },
   addStrip:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1 },
-  addStripLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  addStripLabel: { fontSize: 12, fontWeight: '500' },
   addBtn:        { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  addBtnText:    { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  addBtnText:    { fontSize: 12, fontWeight: '600' },
   userCard:      { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   userTop:       { flexDirection: 'row', gap: 12, padding: 14 },
   avatar:        { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  avatarText:    { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  avatarText:    { fontSize: 16, fontWeight: '700' },
   nameRow:       { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  userName:      { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
+  userName:      { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
   rolePill:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  rolePillText:  { fontSize: 10, fontFamily: 'Inter_700Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
-  userEmail:     { fontSize: 13, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
-  userDate:      { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#8E8E93' },
+  rolePillText:  { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  userEmail:     { fontSize: 13, fontWeight: '400', color: '#8E8E93' },
+  userDate:      { fontSize: 11, fontWeight: '400', color: '#8E8E93' },
   subRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, padding: 12, paddingHorizontal: 14 },
-  subTitle:      { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#1C1C1E' },
-  subSub:        { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  subTitle:      { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
+  subSub:        { fontSize: 12, fontWeight: '400' },
 });
 
 const modal = StyleSheet.create({
   header:         { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 20, borderBottomWidth: 1 },
   closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  title:          { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  title:          { fontSize: 16, fontWeight: '700' },
   roleBanner:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10 },
-  roleBannerText: { flex: 1, fontSize: 13, fontFamily: 'Inter_500Medium' },
-  sectionLabel:   { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2, marginTop: 2 },
+  roleBannerText: { flex: 1, fontSize: 13, fontWeight: '500' },
+  sectionLabel:   { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginTop: 2 },
   inputRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: BG },
-  input:          { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  input:          { flex: 1, fontSize: 15, fontWeight: '400' },
   toggleRow:      { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, borderRadius: 12, backgroundColor: BG },
-  toggleLabel:    { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  toggleSub:      { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  toggleLabel:    { fontSize: 14, fontWeight: '600' },
+  toggleSub:      { fontSize: 12, fontWeight: '400', marginTop: 2 },
   errorBox:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
   errorText:      { flex: 1, fontSize: 13 },
   submitBtn:      { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  submitBtnText:  { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  submitBtnText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
   chip:           { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
-  chipText:       { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  chipText:       { fontSize: 13, fontWeight: '500' },
 });
 
 const wdl = StyleSheet.create({
   header:          { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   closeBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  title:           { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#1C1C1E' },
+  title:           { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
   statusBadge:     { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, borderWidth: 1, marginTop: 4 },
-  statusBadgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  statusBadgeText: { fontSize: 11, fontWeight: '600' },
   card:            { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', gap: 0 },
-  sectionLabel:    { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 1.2, color: '#8E8E93', marginBottom: 8 },
+  sectionLabel:    { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, color: '#8E8E93', marginBottom: 8 },
   infoRow:         { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
-  infoLabel:       { color: '#8E8E93', fontFamily: 'Inter_400Regular', fontSize: 13 },
-  infoValue:       { color: '#1C1C1E', fontFamily: 'Inter_500Medium', fontSize: 13, maxWidth: '55%', textAlign: 'right' },
+  infoLabel:       { color: '#8E8E93', fontWeight: '400', fontSize: 13 },
+  infoValue:       { color: '#1C1C1E', fontWeight: '500', fontSize: 13, maxWidth: '55%', textAlign: 'right' },
   statusBtn:       { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  statusBtnText:   { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  fieldLabel:      { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#8E8E93', marginBottom: 6 },
+  statusBtnText:   { fontSize: 13, fontWeight: '600' },
+  fieldLabel:      { fontSize: 12, fontWeight: '600', color: '#8E8E93', marginBottom: 6 },
   inputRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: '#F5F6FA' },
-  input:           { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  input:           { flex: 1, fontSize: 15, fontWeight: '400' },
   saveBtn:         { height: 54, borderRadius: 14, backgroundColor: '#40C0F2', alignItems: 'center', justifyContent: 'center' },
-  saveBtnText:     { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  saveBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

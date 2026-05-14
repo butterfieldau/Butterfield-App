@@ -95,16 +95,16 @@ export default function VerifyOtpScreen() {
           <View style={s.heroIcon}>
             <Feather name="mail" size={28} color="#fff" />
           </View>
-          <Text style={[s.heroTitle, { fontFamily: 'Inter_700Bold' }]}>Check your email</Text>
-          <Text style={[s.heroSub, { fontFamily: 'Inter_400Regular' }]}>
+          <Text style={[s.heroTitle, { fontWeight: '700' }]}>Check your email</Text>
+          <Text style={[s.heroSub, { fontWeight: '400' }]}>
             We sent a 6-digit code to{'\n'}
-            <Text style={{ fontFamily: 'Inter_600SemiBold', color: '#fff' }}>{email}</Text>
+            <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>
           </Text>
         </LinearGradient>
 
         <View style={s.body}>
           <View style={[s.card, { backgroundColor: CARD }]}>
-            <Text style={[s.label, { fontFamily: 'Inter_600SemiBold', color: TEXT }]}>Enter the 6-digit code</Text>
+            <Text style={[s.label, { fontWeight: '600', color: TEXT }]}>Enter the 6-digit code</Text>
 
             <Pressable onPress={() => inputRef.current?.focus()} style={s.otpRow}>
               {[0, 1, 2, 3, 4, 5].map(i => (
@@ -119,7 +119,7 @@ export default function VerifyOtpScreen() {
                     }
                   ]}
                 >
-                  <Text style={[s.otpDigit, { fontFamily: 'Inter_700Bold', color: TEXT }]}>
+                  <Text style={[s.otpDigit, { fontWeight: '700', color: TEXT }]}>
                     {otp[i] ?? ''}
                   </Text>
                 </View>
@@ -140,14 +140,14 @@ export default function VerifyOtpScreen() {
             {error ? (
               <View style={s.errorBox}>
                 <Feather name="alert-circle" size={14} color="#EF4444" />
-                <Text style={[s.errorText, { fontFamily: 'Inter_400Regular' }]}>{error}</Text>
+                <Text style={[s.errorText, { fontWeight: '400' }]}>{error}</Text>
               </View>
             ) : null}
 
             {devOtp && devOtp.length === 6 ? (
               <View style={s.devBanner}>
                 <Feather name="terminal" size={13} color={GREEN} />
-                <Text style={[s.devText, { fontFamily: 'Inter_400Regular' }]}>
+                <Text style={[s.devText, { fontWeight: '400' }]}>
                   Dev mode: code pre-filled. Add RESEND_API_KEY for real emails.
                 </Text>
               </View>
@@ -160,17 +160,17 @@ export default function VerifyOtpScreen() {
             >
               {loading
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={[s.btnText, { fontFamily: 'Inter_700Bold' }]}>Verify Code</Text>
+                : <Text style={[s.btnText, { fontWeight: '700' }]}>Verify Code</Text>
               }
             </Pressable>
 
             <View style={s.resendRow}>
-              <Text style={[s.resendLabel, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+              <Text style={[s.resendLabel, { fontWeight: '400', color: MUTED }]}>
                 Didn't get a code?{' '}
               </Text>
               <Pressable onPress={handleResend} disabled={resendCooldown > 0 || resending}>
                 <Text style={[s.resendLink, {
-                  fontFamily: 'Inter_600SemiBold',
+                  fontWeight: '600',
                   color: resendCooldown > 0 ? MUTED : BLUE
                 }]}>
                   {resending ? 'Sending…' : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}

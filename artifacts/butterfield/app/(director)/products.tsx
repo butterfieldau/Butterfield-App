@@ -51,7 +51,7 @@ function parseJsonField(val?: string | null): string[] {
 function TagChip({ label, active, color, onPress }: { label: string; active: boolean; color: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[chip.base, { backgroundColor: active ? color : CARD, borderColor: active ? color : BORDER }]}>
-      <Text style={[chip.text, { fontFamily: 'Inter_500Medium', color: active ? '#fff' : MUTED }]}>{label}</Text>
+      <Text style={[chip.text, { fontWeight: '500', color: active ? '#fff' : MUTED }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -63,7 +63,7 @@ function SectionHeader({ title, icon, color }: { title: string; icon: string; co
       <View style={[form.sectionIcon, { backgroundColor: color + '18' }]}>
         <Feather name={icon as any} size={14} color={color} />
       </View>
-      <Text style={[form.sectionTitle, { fontFamily: 'Inter_700Bold', color: NAVY }]}>{title}</Text>
+      <Text style={[form.sectionTitle, { fontWeight: '700', color: NAVY }]}>{title}</Text>
     </View>
   );
 }
@@ -72,7 +72,7 @@ function SectionHeader({ title, icon, color }: { title: string; icon: string; co
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
     <View style={form.fieldWrap}>
-      <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED }]}>{label}{required && <Text style={{ color: RED }}> *</Text>}</Text>
+      <Text style={[form.label, { fontWeight: '500', color: MUTED }]}>{label}{required && <Text style={{ color: RED }}> *</Text>}</Text>
       {children}
     </View>
   );
@@ -90,7 +90,7 @@ function TextF({ value, onChange, placeholder, numeric, multiline, lines }: {
       keyboardType={numeric ? 'decimal-pad' : 'default'}
       multiline={multiline}
       numberOfLines={lines ?? 1}
-      style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: multiline ? (lines ?? 3) * 22 + 20 : 46, textAlignVertical: multiline ? 'top' : 'center' }]}
+      style={[form.input, { fontWeight: '400', color: TEXT, height: multiline ? (lines ?? 3) * 22 + 20 : 46, textAlignVertical: multiline ? 'top' : 'center' }]}
     />
   );
 }
@@ -99,8 +99,8 @@ function Toggle({ label, value, onChange, color, desc }: { label: string; value:
   return (
     <View style={form.toggleRow}>
       <View style={{ flex: 1 }}>
-        <Text style={[form.toggleLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>{label}</Text>
-        {desc ? <Text style={[form.toggleDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>{desc}</Text> : null}
+        <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>{label}</Text>
+        {desc ? <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>{desc}</Text> : null}
       </View>
       <Switch value={value} onValueChange={onChange}
         trackColor={{ false: BORDER, true: color ?? BLUE }} thumbColor="#fff" ios_backgroundColor={BORDER} />
@@ -114,7 +114,7 @@ function Segment({ options, value, onChange }: { options: string[]; value: strin
     <View style={seg.wrap}>
       {options.map(opt => (
         <Pressable key={opt} onPress={() => onChange(opt)} style={[seg.btn, value === opt && { backgroundColor: NAVY }]}>
-          <Text style={[seg.text, { fontFamily: 'Inter_500Medium' }, value === opt && { color: '#fff' }]}>{opt}</Text>
+          <Text style={[seg.text, { fontWeight: '500' }, value === opt && { color: '#fff' }]}>{opt}</Text>
         </Pressable>
       ))}
     </View>
@@ -195,13 +195,13 @@ function VariantsCard({ productId }: { productId: string }) {
   return (
     <View style={form.card}>
       <SectionHeader title="Variants / Sizes" icon="layers" color={PURPLE} />
-      <Text style={[form.label, { fontFamily: 'Inter_400Regular', color: MUTED, marginBottom: 4 }]}>
+      <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 4 }]}>
         Variants set separate prices (e.g. Small / Medium / Large). When present the base price is overridden per variant.
       </Text>
       {variants.map(v => (
         <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, marginTop: 6 }}>
-          <Text style={{ flex: 1, fontFamily: 'Inter_600SemiBold', color: TEXT, fontSize: 14 }}>{v.name}</Text>
-          <Text style={{ fontFamily: 'Inter_700Bold', color: GREEN, fontSize: 14 }}>${(v.priceCents / 100).toFixed(2)}</Text>
+          <Text style={{ flex: 1, fontWeight: '600', color: TEXT, fontSize: 14 }}>{v.name}</Text>
+          <Text style={{ fontWeight: '700', color: GREEN, fontSize: 14 }}>${(v.priceCents / 100).toFixed(2)}</Text>
           <Pressable onPress={() => openEdit(v)} style={{ padding: 6 }} hitSlop={4}>
             <Feather name="edit-2" size={14} color={BLUE} />
           </Pressable>
@@ -215,26 +215,26 @@ function VariantsCard({ productId }: { productId: string }) {
         style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: PURPLE, borderStyle: 'dashed', backgroundColor: PURPLE + '08', marginTop: 10 }}
       >
         <Feather name="plus" size={14} color={PURPLE} />
-        <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: PURPLE }}>Add Variant</Text>
+        <Text style={{ fontSize: 13, fontWeight: '600', color: PURPLE }}>Add Variant</Text>
       </Pressable>
       <Modal visible={addModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAddModal(false)}>
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={[modal.header, { paddingTop: 16 }]}>
             <Pressable onPress={() => setAddModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
-            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editV ? 'Edit Variant' : 'New Variant'}</Text>
+            <Text style={[modal.title, { fontWeight: '700' }]}>{editV ? 'Edit Variant' : 'New Variant'}</Text>
             <Pressable onPress={save} style={[modal.saveBtn, { backgroundColor: vSaving ? MUTED : PURPLE }]} disabled={vSaving}>
-              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{vSaving ? 'Saving…' : 'Save'}</Text>
+              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{vSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
             <View style={form.card}>
               <Field label="Variant Name" required>
                 <TextInput value={vName} onChangeText={setVName} placeholder="e.g. Large" placeholderTextColor={MUTED}
-                  style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+                  style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               </Field>
               <Field label="Price (AUD)" required>
                 <TextInput value={vPrice} onChangeText={setVPrice} placeholder="0.00" placeholderTextColor={MUTED}
-                  keyboardType="decimal-pad" style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+                  keyboardType="decimal-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               </Field>
             </View>
           </ScrollView>
@@ -458,11 +458,11 @@ function ProductModal({
             <Pressable onPress={onClose} style={modal.closeBtn}>
               <Feather name="x" size={20} color={TEXT} />
             </Pressable>
-            <Text style={[modal.title, { fontFamily: 'Inter_700Bold', color: TEXT }]}>
+            <Text style={[modal.title, { fontWeight: '700', color: TEXT }]}>
               {editing ? 'Edit Product' : 'Add New Product'}
             </Text>
             <Pressable onPress={handleSave} disabled={saving} style={[modal.saveBtn, { backgroundColor: BLUE }]}>
-              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[modal.saveBtnText, { fontFamily: 'Inter_700Bold' }]}>Save</Text>}
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[modal.saveBtnText, { fontWeight: '700' }]}>Save</Text>}
             </Pressable>
           </View>
 
@@ -474,7 +474,7 @@ function ProductModal({
                 <Pressable key={t.id} onPress={() => { setModalTab(t.id); Haptics.selectionAsync(); }}
                   style={{ flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, borderBottomWidth: 2.5, borderBottomColor: active ? BLUE : 'transparent' }}>
                   <Feather name={t.icon as any} size={15} color={active ? BLUE : MUTED} />
-                  <Text style={{ fontSize: 10, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? BLUE : MUTED }}>{t.label}</Text>
+                  <Text style={{ fontSize: 10, fontWeight: active ? '700' : '500', color: active ? BLUE : MUTED }}>{t.label}</Text>
                 </Pressable>
               );
             })}
@@ -548,7 +548,7 @@ function ProductModal({
               <SectionHeader title="Photos" icon="image" color={BLUE} />
 
               {/* Hero image — upload only, no URL input */}
-              <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED, marginBottom: 8 }]}>
+              <Text style={[form.label, { fontWeight: '500', color: MUTED, marginBottom: 8 }]}>
                 Hero Image
               </Text>
 
@@ -568,7 +568,7 @@ function ProductModal({
                       {uploading
                         ? <ActivityIndicator size="small" color={BLUE} />
                         : <Feather name="refresh-cw" size={14} color={BLUE} />}
-                      <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: BLUE }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>
                         {uploading ? 'Uploading…' : 'Replace Photo'}
                       </Text>
                     </Pressable>
@@ -578,7 +578,7 @@ function ProductModal({
                       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 10, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '60' }}
                     >
                       <Feather name="trash-2" size={14} color={RED} />
-                      <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: RED }}>Remove</Text>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: RED }}>Remove</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -595,10 +595,10 @@ function ProductModal({
                       <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
                         <Feather name="upload-cloud" size={26} color={BLUE} />
                       </View>
-                      <Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: TEXT, marginBottom: 4 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 4 }}>
                         Upload Product Photo
                       </Text>
-                      <Text style={{ fontSize: 12, fontFamily: 'Inter_400Regular', color: MUTED }}>
+                      <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>
                         JPG · PNG · WebP · HEIC  ·  Max 8 MB
                       </Text>
                     </>
@@ -610,19 +610,19 @@ function ProductModal({
 
               {/* Gallery */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <Text style={[form.label, { fontFamily: 'Inter_500Medium', color: MUTED }]}>Gallery Images</Text>
+                <Text style={[form.label, { fontWeight: '500', color: MUTED }]}>Gallery Images</Text>
                 <Pressable
                   onPress={handlePickGalleryImage}
                   disabled={uploading}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 >
                   <Feather name="upload" size={13} color={BLUE} />
-                  <Text style={{ fontSize: 12, color: BLUE, fontFamily: 'Inter_600SemiBold' }}>Upload</Text>
+                  <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>Upload</Text>
                 </Pressable>
               </View>
 
               {f.galleryUrls.length === 0 ? (
-                <Text style={{ fontSize: 12, color: MUTED, fontFamily: 'Inter_400Regular' }}>
+                <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                   No gallery images — tap Upload to add more photos
                 </Text>
               ) : (
@@ -708,9 +708,9 @@ function ProductModal({
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="url"
-                  style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]}
+                  style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]}
                 />
-                <Text style={[form.label, { fontFamily: 'Inter_400Regular', color: MUTED, marginTop: 4, fontSize: 11 }]}>
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 4, fontSize: 11 }]}>
                   Shown as a "View on Website" link in the product sheet. Leave blank to hide.
                 </Text>
               </Field>
@@ -868,13 +868,13 @@ function CatalogTab() {
         keyExtractor={c => c.id}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
-        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontFamily: 'Inter_400Regular' }}>No categories yet</Text>}
+        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No categories yet</Text>}
         renderItem={({ item: c }) => (
           <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 14 }}>{c.name}</Text>
-              <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12 }}>/{c.slug}</Text>
-              {c.description ? <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
+              <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
+              <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>/{c.slug}</Text>
+              {c.description ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
             </View>
             <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
             <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }} hitSlop={4}>
@@ -890,7 +890,7 @@ function CatalogTab() {
       {/* FAB */}
       <Pressable onPress={openAddCat} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
         <Feather name="plus" size={20} color="#fff" />
-        <Text style={[styles.fabText, { fontFamily: 'Inter_700Bold' }]}>Add Category</Text>
+        <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Category</Text>
       </Pressable>
 
       {/* Category modal */}
@@ -898,21 +898,21 @@ function CatalogTab() {
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={[modal.header, { paddingTop: 16 }]}>
             <Pressable onPress={() => setCatModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
-            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editCat ? 'Edit Category' : 'New Category'}</Text>
+            <Text style={[modal.title, { fontWeight: '700' }]}>{editCat ? 'Edit Category' : 'New Category'}</Text>
             <Pressable onPress={saveCat} style={[modal.saveBtn, { backgroundColor: catSaving ? MUTED : NAVY }]} disabled={catSaving}>
-              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{catSaving ? 'Saving…' : 'Save'}</Text>
+              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{catSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
             <View style={form.card}>
               <Field label="Name" required>
-                <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+                <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               </Field>
               <Field label="Slug (URL key)">
-                <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} autoCapitalize="none" />
+                <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} autoCapitalize="none" />
               </Field>
               <Field label="Description">
-                <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
+                <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
               </Field>
             </View>
           </ScrollView>
@@ -1038,7 +1038,7 @@ function OptionsTab() {
         keyExtractor={g => g.id}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
-        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontFamily: 'Inter_400Regular' }}>No option groups yet. Tap + to add one.</Text>}
+        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No option groups yet. Tap + to add one.</Text>}
         renderItem={({ item: g }) => {
           const isExp      = expanded[g.id] ?? false;
           const selCol     = SEL_COLORS[g.selectionType] ?? BLUE;
@@ -1050,13 +1050,13 @@ function OptionsTab() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 14 }}>
                 <Pressable style={{ flex: 1 }} onPress={() => toggleExpand(g.id)}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Text style={{ fontFamily: 'Inter_700Bold', color: TEXT, fontSize: 14 }}>{g.name}</Text>
-                    {g.isRequired && <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 10, color: '#D97706', fontFamily: 'Inter_600SemiBold' }}>Required</Text></View>}
+                    <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{g.name}</Text>
+                    {g.isRequired && <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 10, color: '#D97706', fontWeight: '600' }}>Required</Text></View>}
                     <View style={{ backgroundColor: selCol + '18', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 11, color: selCol, fontFamily: 'Inter_600SemiBold' }}>{g.selectionType}</Text>
+                      <Text style={{ fontSize: 11, color: selCol, fontWeight: '600' }}>{g.selectionType}</Text>
                     </View>
                   </View>
-                  <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 11, marginTop: 3 }}>
+                  <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 3 }}>
                     {activeOpts.length} option{activeOpts.length !== 1 ? 's' : ''} · {appliedCats}
                   </Text>
                 </Pressable>
@@ -1076,7 +1076,7 @@ function OptionsTab() {
               {isExp && (
                 <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 8 }}>
                   {g.selectionType === 'text' ? (
-                    <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic', paddingVertical: 4 }}>
+                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13, fontStyle: 'italic', paddingVertical: 4 }}>
                       Free text input — customers type a note. No individual options needed.
                     </Text>
                   ) : (
@@ -1084,13 +1084,13 @@ function OptionsTab() {
                       {(g.options ?? []).map((opt: any) => (
                         <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 10, borderWidth: 1, borderColor: opt.isDefault ? '#86EFAC' : BORDER }}>
                           {opt.isDefault && <Feather name="check-circle" size={13} color={GREEN} />}
-                          <Text style={{ flex: 1, fontFamily: 'Inter_500Medium', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
+                          <Text style={{ flex: 1, fontWeight: '500', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
                           {opt.priceAdjustmentCents !== 0 ? (
-                            <Text style={{ fontFamily: 'Inter_700Bold', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 13 }}>
+                            <Text style={{ fontWeight: '700', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 13 }}>
                               {opt.priceAdjustmentCents > 0 ? '+' : '-'}${(Math.abs(opt.priceAdjustmentCents) / 100).toFixed(2)}
                             </Text>
                           ) : (
-                            <Text style={{ fontFamily: 'Inter_400Regular', color: MUTED, fontSize: 12 }}>Free</Text>
+                            <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>Free</Text>
                           )}
                           <Pressable onPress={() => openEditOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
                             <Feather name="edit-2" size={13} color={BLUE} />
@@ -1101,14 +1101,14 @@ function OptionsTab() {
                         </View>
                       ))}
                       {(g.options ?? []).length === 0 && (
-                        <Text style={{ color: MUTED, fontFamily: 'Inter_400Regular', fontSize: 13, fontStyle: 'italic' }}>No options yet — tap Add Option below.</Text>
+                        <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13, fontStyle: 'italic' }}>No options yet — tap Add Option below.</Text>
                       )}
                       <Pressable
                         onPress={() => openAddOpt(g.id)}
                         style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: BLUE, borderStyle: 'dashed', backgroundColor: BLUE + '08', marginTop: 2 }}
                       >
                         <Feather name="plus" size={14} color={BLUE} />
-                        <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: BLUE }}>Add Option</Text>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>Add Option</Text>
                       </Pressable>
                     </>
                   )}
@@ -1121,7 +1121,7 @@ function OptionsTab() {
 
       <Pressable onPress={openAddGroup} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
         <Feather name="plus" size={20} color="#fff" />
-        <Text style={[styles.fabText, { fontFamily: 'Inter_700Bold' }]}>Add Group</Text>
+        <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Group</Text>
       </Pressable>
 
       {/* ── Group Modal ─────────────────────────────────────────────────────── */}
@@ -1129,23 +1129,23 @@ function OptionsTab() {
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={[modal.header, { paddingTop: 16 }]}>
             <Pressable onPress={() => setGroupModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
-            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editGroup ? 'Edit Option Group' : 'New Option Group'}</Text>
+            <Text style={[modal.title, { fontWeight: '700' }]}>{editGroup ? 'Edit Option Group' : 'New Option Group'}</Text>
             <Pressable onPress={saveGroup} style={[modal.saveBtn, { backgroundColor: gSaving ? MUTED : NAVY }]} disabled={gSaving}>
-              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
+              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
             <View style={form.card}>
               <Field label="Group Name" required>
                 <TextInput value={gName} onChangeText={setGName} placeholder="e.g. Milk Type, Size, Extras"
-                  placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+                  placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               </Field>
               <Field label="Selection Type">
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                   {(['single', 'multi', 'text'] as const).map(t => (
                     <Pressable key={t} onPress={() => setGType(t)}
                       style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: gType === t ? SEL_COLORS[t] : BORDER, backgroundColor: gType === t ? SEL_COLORS[t] + '12' : CARD, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, fontFamily: 'Inter_600SemiBold', color: gType === t ? SEL_COLORS[t] : MUTED }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: gType === t ? SEL_COLORS[t] : MUTED }}>
                         {t === 'single' ? 'Single' : t === 'multi' ? 'Multiple' : 'Text Note'}
                       </Text>
                     </Pressable>
@@ -1154,8 +1154,8 @@ function OptionsTab() {
               </Field>
               <View style={form.toggleRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[form.toggleLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Required</Text>
-                  <Text style={[form.toggleDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Customer must select before adding to cart</Text>
+                  <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>Required</Text>
+                  <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>Customer must select before adding to cart</Text>
                 </View>
                 <Switch value={gRequired} onValueChange={setGRequired} trackColor={{ false: BORDER, true: AMBER }} thumbColor="#fff" />
               </View>
@@ -1163,7 +1163,7 @@ function OptionsTab() {
             {categories.length > 0 && (
               <View style={form.card}>
                 <SectionHeader title="Applies To Categories" icon="grid" color={BLUE} />
-                <Text style={[form.label, { fontFamily: 'Inter_400Regular', color: MUTED, marginBottom: 8 }]}>
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
                   This option group appears for all products in the selected categories. Leave none selected for per-product linking.
                 </Text>
                 <View style={form.tagGrid}>
@@ -1184,27 +1184,27 @@ function OptionsTab() {
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={[modal.header, { paddingTop: 16 }]}>
             <Pressable onPress={() => setOptModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
-            <Text style={[modal.title, { fontFamily: 'Inter_700Bold' }]}>{editOpt ? 'Edit Option' : 'New Option'}</Text>
+            <Text style={[modal.title, { fontWeight: '700' }]}>{editOpt ? 'Edit Option' : 'New Option'}</Text>
             <Pressable onPress={saveOpt} style={[modal.saveBtn, { backgroundColor: oSaving ? MUTED : NAVY }]} disabled={oSaving}>
-              <Text style={[modal.saveBtnText, { fontFamily: 'Inter_600SemiBold' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
+              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
             <View style={form.card}>
               <Field label="Option Name" required>
                 <TextInput value={oName} onChangeText={setOName} placeholder="e.g. Oat Milk, Extra Shot, Large"
-                  placeholderTextColor={MUTED} style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+                  placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               </Field>
               <Field label="Price Adjustment (AUD)">
                 <TextInput value={oPrice} onChangeText={setOPrice}
                   placeholder="e.g. 0.80 for +$0.80  ·  leave empty for free"
                   placeholderTextColor={MUTED} keyboardType="decimal-pad"
-                  style={[form.input, { fontFamily: 'Inter_400Regular', color: TEXT, height: 46 }]} />
+                  style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               </Field>
               <View style={form.toggleRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[form.toggleLabel, { fontFamily: 'Inter_500Medium', color: TEXT }]}>Default Selection</Text>
-                  <Text style={[form.toggleDesc, { fontFamily: 'Inter_400Regular', color: MUTED }]}>Pre-selected when the product sheet opens</Text>
+                  <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>Default Selection</Text>
+                  <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>Pre-selected when the product sheet opens</Text>
                 </View>
                 <Switch value={oDefault} onValueChange={setODefault} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
               </View>
@@ -1303,7 +1303,7 @@ export default function DirectorProductsScreen() {
             <Pressable key={t.id} onPress={() => { setActiveTab(t.id); Haptics.selectionAsync(); }}
               style={{ flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3, borderBottomWidth: 2.5, borderBottomColor: active ? NAVY : 'transparent' }}>
               <Feather name={t.icon as any} size={16} color={active ? NAVY : MUTED} />
-              <Text style={{ fontSize: 11, fontFamily: active ? 'Inter_700Bold' : 'Inter_500Medium', color: active ? NAVY : MUTED }}>{t.label}</Text>
+              <Text style={{ fontSize: 11, fontWeight: active ? '700' : '500', color: active ? NAVY : MUTED }}>{t.label}</Text>
             </Pressable>
           );
         })}
@@ -1323,7 +1323,7 @@ export default function DirectorProductsScreen() {
           value={search} onChangeText={setSearch}
           placeholder="Search products, SKU, category…"
           placeholderTextColor={MUTED}
-          style={[styles.searchInput, { fontFamily: 'Inter_400Regular', color: TEXT }]}
+          style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
           clearButtonMode="while-editing"
         />
       </View>
@@ -1332,7 +1332,7 @@ export default function DirectorProductsScreen() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContent}>
         {FILTER_TABS.map(t => (
           <Pressable key={t} onPress={() => setFilter(t)} style={[styles.filterTab, filter === t && { backgroundColor: NAVY, borderColor: NAVY }]}>
-            <Text style={[styles.filterText, { fontFamily: 'Inter_500Medium' }, filter === t && { color: '#fff' }]}>{t}</Text>
+            <Text style={[styles.filterText, { fontWeight: '500' }, filter === t && { color: '#fff' }]}>{t}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -1349,7 +1349,7 @@ export default function DirectorProductsScreen() {
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={[styles.count, { fontFamily: 'Inter_400Regular', color: MUTED }]}>
+            <Text style={[styles.count, { fontWeight: '400', color: MUTED }]}>
               {products.length} product{products.length !== 1 ? 's' : ''}
               {filter !== 'All' ? ` · ${filter}` : ''}
             </Text>
@@ -1359,10 +1359,10 @@ export default function DirectorProductsScreen() {
               <View style={{ backgroundColor: BORDER, width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
                 <Feather name="package" size={28} color={MUTED} />
               </View>
-              <Text style={{ color: MUTED, fontFamily: 'Inter_500Medium', fontSize: 15 }}>No products {filter !== 'All' ? `in "${filter}"` : ''}</Text>
+              <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>No products {filter !== 'All' ? `in "${filter}"` : ''}</Text>
               <Pressable onPress={openAdd} style={[styles.emptyAddBtn, { backgroundColor: BLUE }]}>
                 <Feather name="plus" size={16} color="#fff" />
-                <Text style={{ color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 14 }}>Add first product</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Add first product</Text>
               </Pressable>
             </View>
           }
@@ -1400,19 +1400,19 @@ export default function DirectorProductsScreen() {
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.productName, { fontFamily: 'Inter_700Bold', color: TEXT }]} numberOfLines={1}>{p.name}</Text>
-                    {p.shortDescription && <Text style={[styles.productSub, { fontFamily: 'Inter_400Regular', color: MUTED }]} numberOfLines={1}>{p.shortDescription}</Text>}
+                    <Text style={[styles.productName, { fontWeight: '700', color: TEXT }]} numberOfLines={1}>{p.name}</Text>
+                    {p.shortDescription && <Text style={[styles.productSub, { fontWeight: '400', color: MUTED }]} numberOfLines={1}>{p.shortDescription}</Text>}
                     <View style={styles.metaRow}>
                       <View style={[styles.catPill, { backgroundColor: catColor + '18' }]}>
-                        <Text style={[styles.catPillText, { fontFamily: 'Inter_600SemiBold', color: catColor }]}>{p.category}</Text>
+                        <Text style={[styles.catPillText, { fontWeight: '600', color: catColor }]}>{p.category}</Text>
                       </View>
-                      {p.sku && <Text style={[styles.skuText, { fontFamily: 'Inter_400Regular', color: MUTED }]}>#{p.sku}</Text>}
+                      {p.sku && <Text style={[styles.skuText, { fontWeight: '400', color: MUTED }]}>#{p.sku}</Text>}
                     </View>
                   </View>
                   <View style={styles.priceStack}>
-                    <Text style={[styles.price, { fontFamily: 'Inter_700Bold', color: TEXT }]}>{priceFmt}</Text>
-                    {wsFmt && <Text style={[styles.wsPrice, { fontFamily: 'Inter_400Regular', color: MUTED }]}>WS {wsFmt}</Text>}
-                    {profitPct != null && <Text style={[styles.profit, { fontFamily: 'Inter_600SemiBold', color: GREEN }]}>{profitPct}% margin</Text>}
+                    <Text style={[styles.price, { fontWeight: '700', color: TEXT }]}>{priceFmt}</Text>
+                    {wsFmt && <Text style={[styles.wsPrice, { fontWeight: '400', color: MUTED }]}>WS {wsFmt}</Text>}
+                    {profitPct != null && <Text style={[styles.profit, { fontWeight: '600', color: GREEN }]}>{profitPct}% margin</Text>}
                   </View>
                 </View>
 
@@ -1429,7 +1429,7 @@ export default function DirectorProductsScreen() {
                       i % 2 === 1 && { borderLeftWidth: 1, borderLeftColor: BORDER },
                       i >= 2      && { borderTopWidth: 1,  borderTopColor: BORDER  },
                     ]}>
-                      <Text style={[styles.toggleLabel, { fontFamily: 'Inter_600SemiBold', color: TEXT, fontSize: 13 }]}>{t.label}</Text>
+                      <Text style={[styles.toggleLabel, { fontWeight: '600', color: TEXT, fontSize: 13 }]}>{t.label}</Text>
                       <Switch value={t.value} onValueChange={v => toggle(p, t.field, v)}
                         trackColor={{ false: '#D1D5DB', true: t.color }}
                         thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
@@ -1441,15 +1441,15 @@ export default function DirectorProductsScreen() {
                 <View style={[styles.actionRow, { borderTopColor: BORDER }]}>
                   <Pressable onPress={() => openEdit(p)} style={styles.actionBtn}>
                     <Feather name="edit-2" size={13} color={BLUE} />
-                    <Text style={[styles.actionText, { fontFamily: 'Inter_500Medium', color: BLUE }]}>Edit</Text>
+                    <Text style={[styles.actionText, { fontWeight: '500', color: BLUE }]}>Edit</Text>
                   </Pressable>
                   <Pressable onPress={() => toggle(p, 'isLimitedDrop', !p.isLimitedDrop)} style={styles.actionBtn}>
                     <Feather name="zap" size={13} color={AMBER} />
-                    <Text style={[styles.actionText, { fontFamily: 'Inter_500Medium', color: AMBER }]}>{p.isLimitedDrop ? 'Remove Drop' : 'Limited Drop'}</Text>
+                    <Text style={[styles.actionText, { fontWeight: '500', color: AMBER }]}>{p.isLimitedDrop ? 'Remove Drop' : 'Limited Drop'}</Text>
                   </Pressable>
                   <Pressable onPress={() => handleArchive(p)} style={styles.actionBtn}>
                     <Feather name="archive" size={13} color={MUTED} />
-                    <Text style={[styles.actionText, { fontFamily: 'Inter_500Medium', color: MUTED }]}>Archive</Text>
+                    <Text style={[styles.actionText, { fontWeight: '500', color: MUTED }]}>Archive</Text>
                   </Pressable>
                 </View>
               </Pressable>
@@ -1462,7 +1462,7 @@ export default function DirectorProductsScreen() {
       <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
         style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
         <Feather name="plus" size={22} color="#fff" />
-        <Text style={[styles.fabText, { fontFamily: 'Inter_700Bold' }]}>Add Product</Text>
+        <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Product</Text>
       </Pressable>
 
       <ProductModal
@@ -1490,7 +1490,7 @@ const styles = StyleSheet.create({
   productCard:   { borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: CARD },
   badgeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, paddingBottom: 0 },
   badge:         { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  badgeText:     { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  badgeText:     { fontSize: 11, fontWeight: '600' },
   productTop:    { flexDirection: 'row', gap: 12, padding: 14 },
   catBox:        { width: 42, height: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   productName:   { fontSize: 15 },

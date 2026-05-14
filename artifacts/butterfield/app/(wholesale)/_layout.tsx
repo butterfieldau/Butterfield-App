@@ -14,7 +14,7 @@ export default function WholesaleLayout() {
           borderTopColor: '#EFEFEF',
           borderTopWidth: 1,
         },
-        tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+        tabBarLabelStyle: { fontWeight: '500', fontSize: 11 },
       }}
     >
       <Tabs.Screen name="index"    options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid"         size={22} color={color} /> }} />

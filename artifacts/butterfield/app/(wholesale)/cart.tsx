@@ -190,13 +190,13 @@ export default function WholesaleCartScreen() {
               )}
               <View style={s.sumDivider} />
               <View style={s.sumRow}>
-                <Text style={[s.sumLabel, { color: TEXT, fontFamily: 'Inter_700Bold' }]}>Order Total</Text>
-                <Text style={[s.sumValue, { color: BLUE, fontFamily: 'Inter_700Bold', fontSize: 16 }]}>
+                <Text style={[s.sumLabel, { color: TEXT, fontWeight: '700' }]}>Order Total</Text>
+                <Text style={[s.sumValue, { color: BLUE, fontWeight: '700', fontSize: 16 }]}>
                   AUD {(totalCents / 100).toFixed(2)}
                 </Text>
               </View>
               {subtotalCents < 5000 && (
-                <Text style={{ color: RED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4 }}>
+                <Text style={{ color: RED, fontSize: 12, fontWeight: '400', marginTop: 4 }}>
                   Minimum wholesale order is AUD 50.00
                 </Text>
               )}
@@ -229,34 +229,34 @@ export default function WholesaleCartScreen() {
 
 const s = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingBottom: 16 },
-  title:  { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
-  sub:    { color: 'rgba(255,255,255,0.8)', fontFamily: 'Inter_400Regular', fontSize: 13 },
+  title:  { color: '#fff', fontSize: 26, fontWeight: '700' },
+  sub:    { color: 'rgba(255,255,255,0.8)', fontWeight: '400', fontSize: 13 },
 
   emptyIcon:     { width: 80, height: 80, borderRadius: 40, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' },
-  emptyTitle:    { fontSize: 20, fontFamily: 'Inter_700Bold', color: TEXT },
-  emptySub:      { fontSize: 14, fontFamily: 'Inter_400Regular', color: MUTED, textAlign: 'center', lineHeight: 20 },
+  emptyTitle:    { fontSize: 20, fontWeight: '700', color: TEXT },
+  emptySub:      { fontSize: 14, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 20 },
   browseBtn:     { backgroundColor: BLUE, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 28, marginTop: 4 },
-  browseBtnText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 },
+  browseBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   card:        { flexDirection: 'row', gap: 12, padding: 14, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER },
   thumb:       { width: 72, height: 72, borderRadius: 10, flexShrink: 0 },
-  productName: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT, lineHeight: 19 },
-  lineTotal:   { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT },
-  unitPrice:   { fontSize: 11, fontFamily: 'Inter_400Regular', color: MUTED },
+  productName: { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT, lineHeight: 19 },
+  lineTotal:   { fontSize: 15, fontWeight: '700', color: TEXT },
+  unitPrice:   { fontSize: 11, fontWeight: '400', color: MUTED },
   qtyRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
   qtyBtn:      { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  qtyNum:      { fontSize: 15, fontFamily: 'Inter_700Bold', color: TEXT, minWidth: 28, textAlign: 'center' },
+  qtyNum:      { fontSize: 15, fontWeight: '700', color: TEXT, minWidth: 28, textAlign: 'center' },
 
   summaryCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10, marginTop: 4 },
   sumRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sumLabel:    { fontSize: 13, fontFamily: 'Inter_400Regular', color: MUTED },
-  sumValue:    { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: TEXT },
+  sumLabel:    { fontSize: 13, fontWeight: '400', color: MUTED },
+  sumValue:    { fontSize: 14, fontWeight: '600', color: TEXT },
   sumDivider:  { height: 1, backgroundColor: BORDER },
 
   footer:          { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 16, paddingTop: 12 },
   footerInner:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  footerLabel:     { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: MUTED, letterSpacing: 0.5 },
-  footerTotal:     { fontSize: 18, fontFamily: 'Inter_700Bold', color: TEXT },
+  footerLabel:     { fontSize: 10, fontWeight: '600', color: MUTED, letterSpacing: 0.5 },
+  footerTotal:     { fontSize: 18, fontWeight: '700', color: TEXT },
   checkoutBtn:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 24 },
-  checkoutBtnText: { color: '#fff', fontFamily: 'Inter_700Bold', fontSize: 15 },
+  checkoutBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
