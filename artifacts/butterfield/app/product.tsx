@@ -3,10 +3,10 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { Linking } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions, Pressable, ScrollView,
+  Dimensions, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -92,6 +92,8 @@ export default function ProductDetailScreen() {
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [qty, setQty] = useState(1);
   const [togglingFav, setTogglingFav] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const heroScrollRef = useRef<ScrollView>(null);
 
   const { data: routeProductData, isLoading: isRouteProductLoading } = useQuery({
     queryKey: ['product-detail-route', routeProductId],
@@ -230,20 +232,50 @@ export default function ProductDetailScreen() {
   return (
     <View style={s.root}>
 
-      {/* ── HERO: full-bleed product photo ─────────────────────────────── */}
+      {/* ── HERO: swipeable gallery ──────────────────────────────────────── */}
       <View style={[s.hero, { height: HERO_H }]}>
 
-        {/* Full-bleed image or fallback */}
-        {photoUrl ? (
-          <Image
-            source={{ uri: photoUrl }}
-            style={s.photo}
-            contentFit="cover"
-            transition={300}
-          />
+        {/* Horizontal pager */}
+        {galleryUrls.length > 0 ? (
+          <ScrollView
+            ref={heroScrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            bounces={false}
+            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / W);
+              setPhotoIndex(idx);
+            }}
+            style={StyleSheet.absoluteFill}
+          >
+            {galleryUrls.map((url, idx) => (
+              <Image
+                key={`hero-${idx}`}
+                source={{ uri: url }}
+                style={{ width: W, height: HERO_H }}
+                contentFit="cover"
+                transition={200}
+              />
+            ))}
+          </ScrollView>
         ) : (
           <View style={[s.photoFallback, { backgroundColor: palette.bg }]}>
             <Text style={s.fallbackEmoji}>{palette.emoji}</Text>
+          </View>
+        )}
+
+        {/* Page dots — only when there's more than one image */}
+        {galleryUrls.length > 1 && (
+          <View style={s.dotRow} pointerEvents="none">
+            {galleryUrls.map((_, i) => (
+              <View
+                key={i}
+                style={[s.dot, i === photoIndex ? s.dotActive : s.dotInactive]}
+              />
+            ))}
           </View>
         )}
 
@@ -309,19 +341,6 @@ export default function ProductDetailScreen() {
                 <Text style={{ fontSize: 11, color: BLUE, fontWeight: '400', marginLeft: 2 }}>↗</Text>
               </Pressable>
             ) : null}
-
-            {galleryUrls.length > 1 && (
-              <View style={{ marginTop: 14, gap: 8 }}>
-                <Text style={[s.sectionTitle, { fontWeight: '700' }]}>Photos</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.galleryContent}>
-                  {galleryUrls.map((url, idx) => (
-                    <View key={`${url}-${idx}`} style={s.galleryThumbWrap}>
-                      <Image source={{ uri: url }} style={s.galleryThumb} contentFit="cover" transition={200} />
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
 
             {/* Dietary tags */}
             {dietaryTags.length > 0 && (
@@ -483,6 +502,10 @@ const s = StyleSheet.create({
   photoFallback:{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   fallbackEmoji:{ fontSize: 96 },
   pillRow:      { position: 'absolute', top: 12, right: 16, flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', zIndex: 5 },
+  dotRow:       { position: 'absolute', bottom: 14, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, zIndex: 6 },
+  dot:          { borderRadius: 4, height: 6 },
+  dotActive:    { width: 18, backgroundColor: 'rgba(255,255,255,0.95)' },
+  dotInactive:  { width: 6,  backgroundColor: 'rgba(255,255,255,0.45)' },
 
   // Sheet
   sheet:        { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, overflow: 'hidden' },

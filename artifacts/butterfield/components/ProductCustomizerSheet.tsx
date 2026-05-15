@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Modal, Pressable,
+  ScrollView,
   StyleSheet, Text, TextInput,
   useWindowDimensions, View, NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
@@ -283,11 +284,12 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
             {/* Image header — swipeable gallery when multiple images */}
             <View style={[s.imageArea, { backgroundColor: galleryUrls.length === 0 ? palette.bg : 'transparent' }]}>
               {galleryUrls.length > 0 ? (
-                <GHScrollView
+                <ScrollView
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   scrollEventThrottle={16}
+                  decelerationRate="fast"
                   onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
                     const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
                     setCurrentImageIndex(idx);
@@ -303,7 +305,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                       contentFit="cover"
                     />
                   ))}
-                </GHScrollView>
+                </ScrollView>
               ) : (
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.banner, opacity: 0.14 }]} />
               )}
