@@ -4,17 +4,22 @@
  * Priority order:
  *  1. Birthday
  *  2. Reward ready
- *  3. Islamic holiday (Eid, Laylat al-Qadr, Mawlid, etc.)
- *  4. Australian public holiday (from live API)
- *  5. Fixed/calendar holiday (Easter, Halloween, etc.)
- *  6. Ramadan period
- *  7. Inactive customer
- *  8. Loyalty cues
- *  9. Favourite category (derived from order history)
- * 10. Weather-aware message (if live weather available)
- * 11. Season
- * 12. Weekend
- * 13. Time of day
+ *  3. Cookie baking window (fresh out / still warm)
+ *  4. Islamic holiday (Eid, Laylat al-Qadr, Mawlid, etc.)
+ *  5. Australian public holiday (from live API)
+ *  6. Fixed/calendar holiday (Easter, Halloween, etc.)
+ *  7. Ramadan period
+ *  8. Inactive customer
+ *  9. Loyalty cues
+ * 10. Favourite category (derived from order history)
+ * 11. Weather-aware message (if live weather available)
+ * 12. Season
+ * 13. Weekend
+ * 14. Time of day
+ *
+ * Anti-repetition: messages are picked via a deterministic seed derived from
+ * (day-of-year × 24 + hour), so the greeting rotates every hour and the same
+ * line cannot appear twice in a row during a session.
  */
 
 import type { LiveContext } from './api';
@@ -29,8 +34,8 @@ export interface GreetingContext {
   stampCount?: number;
   liveContext?: LiveContext | null;
   favouriteCategory?: string | null;
-  isOpen?: boolean;        // if false, skip dynamic/weather greetings
-  opensAt?: string | null; // e.g. "6:30am today" — shown in closed greeting
+  isOpen?: boolean;
+  opensAt?: string | null;
 }
 
 export interface Greeting {
@@ -38,7 +43,7 @@ export interface Greeting {
   line2: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSydneyNow(): Date {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
@@ -82,11 +87,62 @@ function daysSinceLastOrder(lastOrderDate: string | null | undefined): number | 
   return Math.floor((Date.now() - new Date(lastOrderDate).getTime()) / 86_400_000);
 }
 
+/** Deterministic pick — rotates every hour, never the same twice in a row. */
+function stablePick<T>(arr: T[], seed: number): T {
+  return arr[seed % arr.length];
+}
+
+/** Random pick — kept for low-stakes one-off selections. */
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/**
+ * Cookie baking windows (Sydney time).
+ * Bake starts: 7:00, 11:00, 17:00, 19:30
+ * Ready after 20 min; warm display for 45 min after that.
+ * Returns 'just_out' (first 20 min), 'warm' (next 25 min), or null.
+ */
+function getBakingWindow(hour: number, minute: number): 'just_out' | 'warm' | null {
+  const t = hour * 60 + minute;
+  // [readyAt, warmUntil] in minutes from midnight
+  const windows: [number, number][] = [
+    [7 * 60 + 20, 8 * 60 + 5],
+    [11 * 60 + 20, 12 * 60 + 5],
+    [17 * 60 + 20, 18 * 60 + 5],
+    [19 * 60 + 50, 20 * 60 + 35],
+  ];
+  for (const [readyAt, warmUntil] of windows) {
+    if (t >= readyAt && t < readyAt + 20) return 'just_out';
+    if (t >= readyAt + 20 && t < warmUntil) return 'warm';
+  }
+  return null;
+}
+
 // ── Message banks ─────────────────────────────────────────────────────────────
+
+const BAKING_MESSAGES: Record<'just_out' | 'warm', Array<[string, string]>> = {
+  just_out: [
+    ['Cookies just came out of the oven. 🍪', 'Fresh and hot — best time to come in.'],
+    ['Fresh batch just landed. 🍪', 'Hot cookies and a great coffee. Perfect timing.'],
+    ['Oven just opened. 🍪', 'Cookies are out. They won\'t last long.'],
+    ['Hot cookies right now. 🍪', 'Fresh out of the oven — come get one while they\'re warm.'],
+    ['Cookies are out! 🍪', 'Just baked. Hot and ready. Get in quick.'],
+    ['Fresh bake just dropped. 🍪', 'Still steaming — come grab one.'],
+    ['Oven-fresh cookies right now. 🍪', 'This is the moment. Come in.'],
+    ['Just pulled from the oven. 🍪', 'Warm cookies and the best coffee in the area.'],
+  ],
+  warm: [
+    ['Cookies are still warm from the oven. 🍪', 'Come grab one before they cool down.'],
+    ['Warm cookies on the counter right now. 🍪', 'A coffee on the side makes it perfect.'],
+    ['Fresh cookies, still warm. 🍪', 'Best time to pop in — they\'re at peak flavour.'],
+    ['Cookies are fresh and warm. 🍪', 'Get one while the warmth lasts.'],
+    ['Still warm from the oven. 🍪', 'Cookies + coffee right now = best decision of the day.'],
+    ['Warm cookies waiting for you. 🍪', 'Fresh bake — pair with a great coffee.'],
+    ['Cookies are warm and ready. 🍪', 'Come in now — this is the sweet spot.'],
+    ['Fresh batch, still warm. 🍪', 'The window for warm cookies is open. Come in.'],
+  ],
+};
 
 const ISLAMIC_MESSAGES: Record<string, Array<[string, string]>> = {
   'Eid al-Fitr': [
@@ -193,7 +249,6 @@ const CALENDAR_HOLIDAY_MESSAGES: Record<string, Array<[string, string]>> = {
   ],
 };
 
-// Weather messages keyed by condition; factory receives actual temp
 const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>> = {
   clear: (temp) => temp >= 30
     ? [
@@ -202,6 +257,8 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
         [`Scorching ${temp}° out there. ☀️`, 'Vanilla soft serve hits different on days like this.'],
         [`${temp}° in Sydney. ☀️`, 'Iced drinks and frappes are ready for you.'],
         [`Too hot. ${temp}°`, 'Soft serve and iced coffee. Come sort it out.'],
+        [`${temp}° and sunny. ☀️`, 'This is soft serve weather. No debate.'],
+        [`Seriously hot. ${temp}° ☀️`, 'Iced coffee or a frappe — both are cold and waiting.'],
       ]
     : temp >= 23
     ? [
@@ -209,6 +266,8 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
         [`Lovely ${temp}° and clear. ☀️`, 'Soft serve weather. Come get one.'],
         [`${temp}° and sunny in Sydney. ☀️`, 'Iced coffee or frappe? Both are waiting.'],
         [`Great day in Sydney. ${temp}° ☀️`, 'Cookies and iced drinks sorted.'],
+        [`Warm ${temp}° day. ☀️`, 'Iced matcha or coffee — it\'s a good call either way.'],
+        [`${temp}° and gorgeous outside. ☀️`, 'Come in for a cold drink and a fresh cookie.'],
       ]
     : temp >= 15
     ? [
@@ -216,12 +275,15 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
         [`A pleasant ${temp}° today. ☀️`, 'Matcha or coffee — come grab something good.'],
         [`${temp}° and sunny. ☀️`, 'Warm coffee or iced — it\'s a good day either way.'],
         [`Nice ${temp}° in Sydney. ☀️`, 'Cookies are fresh. Coffee is on.'],
+        [`${temp}° out there. ☀️`, 'Perfect excuse for a cookie and a flat white.'],
+        [`Good weather today. ${temp}° ☀️`, 'Matcha, coffee, or something cold — we\'ve got it all.'],
       ]
     : [
         [`Cool ${temp}° in Sydney today. ☀️`, 'A warm cookie and a hot coffee fixes everything.'],
         [`Only ${temp}° — but sunny! ☀️`, 'Warm up with our coffee. It\'s the best around.'],
         [`Chilly ${temp}° out there. ☀️`, 'Hot coffee and fresh cookies are waiting.'],
         [`${temp}° in Sydney. ☀️`, 'Perfect cookie-and-coffee weather.'],
+        [`Cold but clear. ${temp}° ☀️`, 'A hot flat white sorts this right out.'],
       ],
   cloudy: (temp) => [
     [`${temp}° and overcast in Sydney. ⛅`, 'A hot coffee and a cookie sounds right.'],
@@ -229,6 +291,8 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
     [`Cloudy ${temp}° day in Sydney. ⛅`, 'Matcha or coffee — we\'ve got both sorted.'],
     [`Overcast in Sydney. ${temp}° ⛅`, 'Perfect weather to grab a cookie and sit down.'],
     [`${temp}° and cloudy. ⛅`, 'Our coffee is the best in the area. Come find out.'],
+    [`Grey day outside. ${temp}° ⛅`, 'Warm cookies and a great coffee. Easy fix.'],
+    [`Overcast Sydney day. ${temp}° ⛅`, 'Hot matcha or a flat white — both are ready.'],
   ],
   rainy: (_temp) => [
     ['Rainy day in Sydney. 🌧️', 'Warm cookies and hot coffee are inside.'],
@@ -236,24 +300,29 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
     ['Sydney rain hits different. 🌧️', 'A cookie and a hot coffee. Problem solved.'],
     ['Raining in Sydney. 🌧️', 'Perfect excuse to grab a warm cookie and a coffee.'],
     ['Rain outside. 🌧️', 'Matcha or coffee — both are warm and waiting.'],
+    ['Pouring in Sydney. 🌧️', 'Get in, get dry, get a cookie. Easy.'],
+    ['Rainy one today. 🌧️', 'Hot coffee and a fresh-baked cookie. Best combo for rain.'],
   ],
   showery: (_temp) => [
     ['Showers in Sydney today. 🌦️', 'Pop in between the rain — cookies are fresh.'],
     ['On-and-off showers. 🌦️', 'A hot coffee sorts that right out.'],
     ['Showers rolling through. 🌦️', 'Warm cookies and the best coffee around. Inside.'],
     ['Patchy rain in Sydney. 🌦️', 'Matcha or coffee? Either way, come in.'],
+    ['Shower break?', 'Best time to duck in for a cookie and a coffee.'],
   ],
   stormy: (_temp) => [
     ['Storm rolling through Sydney. ⛈️', 'Stay dry. Hot cookies and coffee are waiting.'],
     ['Wild weather out there. ⛈️', 'Come in. Cookies are warm, coffee is on.'],
     ['Stormy in Sydney. ⛈️', 'Best place to be right now is here with a cookie.'],
     ['Big storm outside. ⛈️', 'Hot coffee and fresh cookies. We\'ve got you.'],
+    ['Rough out there. ⛈️', 'Get inside. Coffee is on, cookies are warm.'],
   ],
   foggy: (_temp) => [
     ['Foggy Sydney morning. 🌫️', 'A coffee helps clear the head. Best in the area.'],
     ['Thick fog in Sydney today. 🌫️', 'Stay safe and grab a warm coffee on the way.'],
     ['Foggy out there. 🌫️', 'Matcha or coffee — come start the day properly.'],
     ['Sydney fog this morning. 🌫️', 'A hot coffee and a cookie. That\'s the move.'],
+    ['Misty morning in Sydney. 🌫️', 'Warm up with a flat white and a fresh cookie.'],
   ],
 };
 
@@ -265,6 +334,12 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Summer cravings?', 'Soft serve, iced drinks, cookies. We\'ve got all of it.'],
     ['Hot Sydney day.', 'Our vanilla soft serve is famous for a reason.'],
     ['Summer is on.', 'Milkshakes, frappes, iced coffee. Pick your weapon.'],
+    ['Peak summer.', 'Iced matcha, frappes, soft serve. All cold and waiting.'],
+    ['Summer heat hitting hard.', 'Cold drinks and fresh cookies. Come sort it out.'],
+    ['Scorching summer day.', 'Soft serve + cookies. This is the move.'],
+    ['Hot one again.', 'Iced coffee and vanilla soft serve. Your call.'],
+    ['Sydney summer doing its thing.', 'Stay cool — frappes and iced drinks are ready.'],
+    ['Another warm one.', 'Cookies are baking. Iced drinks are cold. Come in.'],
   ],
   autumn: [
     ['Autumn weather.', 'Warm cookies and a great coffee. Perfect match.'],
@@ -273,6 +348,15 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Settling into autumn.', 'A cookie and a hot coffee sorts the day out.'],
     ['Autumn in Sydney.', 'Fresh cookies are baking. Coffee is on.'],
     ['Cool autumn day.', 'Matcha latte and a warm cookie. Come through.'],
+    ['Autumn is the best cookie season.', 'Fresh bake, great coffee. Come find out.'],
+    ['Golden hour in Sydney.', 'Warm cookie and a flat white. That\'s autumn sorted.'],
+    ['Crisp autumn air.', 'Our coffee hits different when it\'s cool outside.'],
+    ['Autumn coffee weather.', 'Flat white, matcha, or hot choc — all on.'],
+    ['Perfect cookie weather.', 'Autumn was made for this. Fresh-baked and ready.'],
+    ['Autumn calls for warm things.', 'Cookies, hot coffee, matcha. All here.'],
+    ['Good day for a warm one.', 'Fresh cookies and the best coffee in the area.'],
+    ['Cool breeze, warm cookies.', 'Come grab one while they\'re fresh.'],
+    ['Autumn appetite?', 'Warm cookies and a great coffee is always the answer.'],
   ],
   winter: [
     ['Cold outside.', 'Warm cookies and hot coffee inside.'],
@@ -281,6 +365,14 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Cold hands.', 'Warm cookie. Hot coffee. Problem solved.'],
     ['Chilly Sydney day.', 'Matcha or coffee? Either way, come in.'],
     ['Winter calls for cookies.', 'Fresh out the oven. Coffee on the side.'],
+    ['Coldest part of the year.', 'Warmest cookies in the area. Come in.'],
+    ['Winter warmth.', 'Hot flat white and a fresh cookie. That\'s the move.'],
+    ['Cold enough for a hot drink.', 'Our coffee is the best in Merrylands. Come find out.'],
+    ['Layers on, coffee in hand.', 'Warm cookies and great coffee. We\'ve got you.'],
+    ['Winter just hits different.', 'Hot matcha or a flat white — both are ready.'],
+    ['Frosty morning.', 'Hot coffee, warm cookie. This is the fix.'],
+    ['Rugging up today?', 'So are we. Warm cookies and hot coffee — come in.'],
+    ['Cold enough to need both hands around a coffee.', 'We\'ve got you covered.'],
   ],
   spring: [
     ['Spring in Sydney.', 'Fresh cookies, iced coffee, matcha. Sorted.'],
@@ -289,6 +381,13 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Flowers are blooming.', 'Cookies are baking. Come say hi.'],
     ['Warming up in Sydney.', 'Soft serve season is almost here. Cookies are already ready.'],
     ['Spring day sorted.', 'Matcha, iced coffee, fresh cookies — all waiting.'],
+    ['Beautiful spring day.', 'Grab a cookie and something to drink. You deserve it.'],
+    ['Spring is here.', 'Warm enough for iced coffee, cool enough for a latte.'],
+    ['Sydney spring.', 'Fresh cookies + a great coffee = best time of year.'],
+    ['That spring feeling.', 'Come grab a matcha or an iced coffee. Cookies are fresh.'],
+    ['Spring vibes.', 'Frappes, iced matcha, cookies. The season is here.'],
+    ['Good spring day.', 'Iced or hot — it\'s a great coffee either way.'],
+    ['Warming up out there.', 'Soft serve is almost back in full swing. Cookies always are.'],
   ],
 };
 
@@ -299,6 +398,9 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Early bird?', 'Hot coffee and fresh cookies are waiting.'],
     ['Starting early?', 'A great coffee sorts the morning right out.'],
     ['First one in?', 'Matcha or coffee — we\'ve got you covered.'],
+    ['Early riser.', 'Best coffee in Merrylands. Come start the day right.'],
+    ['Up with the birds?', 'We\'re baking. Coffee is on. Come in.'],
+    ['Early morning run?', 'Coffee and a fresh cookie. Perfect fuel.'],
   ],
   morning: [
     ['Good morning.', 'Your coffee is ready. Best in the area.'],
@@ -311,6 +413,12 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Good morning.', 'Best coffee in the area. Come find out why.'],
     ['Morning.', 'Cookies are baking. Coffee is on. Come in.'],
     ['Good morning! ☀️', 'Matcha, coffee, or a frappe — whatever starts your day.'],
+    ['Morning people know.', 'A great coffee and a fresh cookie changes everything.'],
+    ['Rise and shine.', 'Fresh cookies and the best flat white around.'],
+    ['Morning fuel.', 'Coffee, matcha, or an iced drink — all ready.'],
+    ['Good morning.', 'Cookies just went in the oven. Coffee is always on.'],
+    ['Start the day right.', 'A fresh cookie and our coffee. That\'s the move.'],
+    ['Good morning! ☀️', 'Flat white or matcha? Either way, it\'s a great morning.'],
   ],
   afternoon: [
     ['Afternoon pick-me-up?', 'Iced coffee, frappe, or a Red Bull Fusion — sorted.'],
@@ -320,6 +428,12 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
     ['3pm cravings hitting?', 'A cookie and an iced coffee. Problem solved.'],
     ['Afternoon sorted.', 'Matcha, iced coffee, or a frappe — all waiting.'],
     ['Energy low?', 'Red Bull or V Fusion? We\'ve got both. Plus cookies.'],
+    ['Midday break?', 'Best cookies in the area. Coffee to match.'],
+    ['Lunch run?', 'Sandwich, cookie, coffee — all sorted.'],
+    ['Post-lunch cravings?', 'A fresh cookie and an iced coffee. That\'s the one.'],
+    ['Afternoon treat?', 'Soft serve or a frappe — your afternoon, your call.'],
+    ['Work slump?', 'A cookie and a great coffee. Best fix around.'],
+    ['Halfway through the day.', 'Reward yourself — cookies and coffee are ready.'],
   ],
   evening: [
     ['Cookies hit different in the evening.', 'Come get one.'],
@@ -328,12 +442,19 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Evening sorted.', 'Vanilla soft serve and a cookie. That\'s the move.'],
     ['Night mode.', 'Cookies are warm. Milkshakes are cold. Come in.'],
     ['Late craving?', 'Soft serve and cookies. We\'re still here.'],
+    ['Evening treat?', 'Fresh cookies and a milkshake. We\'ve got you.'],
+    ['End of day cravings.', 'Cookies and a milkshake. Proper wind-down.'],
+    ['Evening cookie run?', 'We\'re still baking. Come grab one.'],
+    ['Treat yourself tonight.', 'Fresh cookies and the best milkshakes around.'],
+    ['Day done?', 'Celebrate with a cookie and a vanilla soft serve.'],
   ],
   night: [
     ['Late night cravings?', 'Cookies and soft serve. We feel that.'],
     ['Night owl?', 'A cookie and a milkshake helps. Trust us.'],
     ['Still up?', 'So are we. Cookies and soft serve are waiting.'],
     ['Late night cookie run?', 'That\'s what we\'re here for.'],
+    ['Night craving sorted.', 'Soft serve, cookies, milkshakes — come through.'],
+    ['Midnight munchies?', 'We\'ve got you. Fresh cookies still going.'],
   ],
 };
 
@@ -343,17 +464,22 @@ const LOYALTY_MESSAGES = {
     ['Free treat unlocked.', 'Cookie, soft serve, or coffee. Your pick.'],
     ['Your next one\'s on us.', 'Come in and claim it. Cookies are fresh.'],
     ['Reward ready to claim.', 'Something good is waiting for you.'],
+    ['You\'ve earned it.', 'Your free reward is waiting — come grab it.'],
   ] as Array<[string, string]>,
   high_points: [
     ['Your rewards are building nicely.', 'Coffee run today?'],
     ['Getting close to your next reward.', 'A cookie or coffee could be on us soon.'],
     ['Points stacking up.', 'A free coffee or soft serve is getting closer.'],
+    ['Almost at your next reward.', 'One more visit and something\'s on us.'],
+    ['Rewards are close.', 'Keep going — a free treat is nearly within reach.'],
   ] as Array<[string, string]>,
   not_ordered_long: [
     ['We\'ve missed you.', 'Fresh cookies and great coffee are waiting.'],
     ['Been a minute.', 'Your coffee misses you. So do the cookies.'],
     ['Your usual spot is waiting.', 'Cookies, coffee, soft serve — all here.'],
     ['It\'s been a while.', 'Come back for a cookie and the best coffee around.'],
+    ['Haven\'t seen you in a bit.', 'Fresh cookies and a great coffee are ready whenever you are.'],
+    ['Been a while.', 'We kept the coffee warm and the cookies fresh.'],
   ] as Array<[string, string]>,
 };
 
@@ -381,24 +507,30 @@ const FAVOURITE_CATEGORY_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Cookie run?', 'Your favourites are fresh out the oven.'],
     ['Fresh cookies, just for you.', 'Your go-to order is ready whenever you are.'],
     ['Cookie lover.', 'Your favourites are baking right now.'],
+    ['Cookie time.', 'Fresh batch is in. Come grab your usual.'],
+    ['Your cookies are ready.', 'Fresh-baked and waiting — same as always.'],
   ],
   coffee: [
     ['Your usual coffee is waiting.', 'Same order, same great taste.'],
     ['Coffee regular?', 'Your go-to is ready — come grab it.'],
     ['Coffee run time.', 'Your usual is on. Best in the area.'],
     ['Your coffee is calling.', 'Same order. Same perfect cup.'],
+    ['Coffee time.', 'Best flat white in the area. Your usual is waiting.'],
+    ['Regular coffee order?', 'We\'ve got it sorted. Same great coffee, always.'],
   ],
   desserts: [
     ['Sweet tooth, as always.', 'Your favourite desserts are ready.'],
     ['Dessert craving?', 'Your go-to order is waiting for you.'],
     ['Sweet things are ready.', 'Your usual favourites are on the menu.'],
     ['Dessert run?', 'Your favourites are fresh and ready.'],
+    ['Something sweet?', 'Soft serve, cookies, desserts — your go-to is ready.'],
   ],
   sandwiches: [
     ['Your go-to sandwich is ready.', 'Fresh and made to order.'],
     ['Sandwich run?', 'Your usual is ready whenever you are.'],
     ['Hungry?', 'Your favourite sandwich is waiting.'],
     ['Fresh sandwiches today.', 'Your usual order is ready to go.'],
+    ['Lunch sorted.', 'Fresh sandwich + a great coffee. Come through.'],
   ],
   bundles: [
     ['Bundle order?', 'Your favourite combo is ready.'],
@@ -416,16 +548,25 @@ const WEEKEND_MESSAGES: Array<[string, string]> = [
   ['Weekend cravings sorted.', 'Cookies, milkshakes, soft serve. We\'ve got it all.'],
   ['Slow Sunday?', 'A cookie and a great coffee fixes that.'],
   ['Saturday vibes.', 'Iced coffee, frappes, fresh cookies. Let\'s go.'],
+  ['Weekend reward.', 'Treat yourself — fresh cookies and the best coffee around.'],
+  ['Weekend, sorted.', 'Milkshakes, frappes, cookies. Come through.'],
+  ['Saturday coffee run?', 'Best in the area. Cookies too. Come in.'],
+  ['Sunday session.', 'Cookies, soft serve, milkshakes — all ready.'],
+  ['Enjoy the weekend.', 'Fresh cookies and a great coffee. You\'ve earned it.'],
 ];
 
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export function buildGreeting(ctx: GreetingContext): Greeting {
-  const { firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate, loyaltyTier, liveContext, favouriteCategory, isOpen, opensAt } = ctx;
+  const {
+    firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate,
+    liveContext, favouriteCategory, isOpen, opensAt,
+  } = ctx;
 
   const name      = firstName && firstName !== 'there' ? firstName : null;
   const now       = getSydneyNow();
   const hour      = now.getHours();
+  const minute    = now.getMinutes();
   const month     = now.getMonth() + 1;
   const day       = now.getDate();
   const dow       = now.getDay();
@@ -434,8 +575,12 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
   const isWeekend = dow === 0 || dow === 6;
   const daysSince = daysSinceLastOrder(lastOrderDate);
 
-  // Live context (falls back gracefully if API unavailable)
-  const weather        = liveContext?.weather ?? null;
+  // Stable hourly seed — changes every hour, same within a session
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86_400_000);
+  const seed      = dayOfYear * 24 + hour;
+
+  // Live context
+  const weather        = liveContext?.weather        ?? null;
   const publicHoliday  = liveContext?.publicHoliday  ?? null;
   const islamicHoliday = liveContext?.islamicHoliday ?? null;
   const isRamadan      = liveContext?.isRamadan       ?? false;
@@ -447,9 +592,7 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
   }
   const raw = (pair: [string, string]): Greeting => ({ line1: pair[0], line2: pair[1] });
 
-  // ── Closed-hours gate ─────────────────────────────────────────────────────
-  // When the store is not currently open, skip all dynamic/weather/loyalty
-  // personalisation and show a simple, consistent greeting instead.
+  // ── Closed-hours gate ──────────────────────────────────────────────────────
   if (isOpen === false) {
     const timePeriod =
       hour < 5  ? 'night'     :
@@ -467,7 +610,7 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
       return { line1: `Happy birthday, ${name}! 🎉`, line2: 'Your birthday treat is waiting when we open.' };
     }
     return name
-      ? { line1: `${openLine}`, line2: `${name}, ${subLine.charAt(0).toLowerCase()}${subLine.slice(1)}` }
+      ? { line1: openLine, line2: `${name}, ${subLine.charAt(0).toLowerCase()}${subLine.slice(1)}` }
       : { line1: openLine, line2: subLine };
   }
 
@@ -478,20 +621,29 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
 
   // 2. Reward ready
   if (hasClaimableReward && name) {
-    return { line1: `${name}, your reward is ready.`, line2: pick(LOYALTY_MESSAGES.reward_ready)[1] };
+    const [, l2] = stablePick(LOYALTY_MESSAGES.reward_ready, seed);
+    return { line1: `${name}, your reward is ready.`, line2: l2 };
   }
 
-  // 3. Islamic holiday
+  // 3. Cookie baking window — always shown when cookies are fresh/warm
+  const bakingWindow = getBakingWindow(hour, minute);
+  if (bakingWindow) {
+    const bank = BAKING_MESSAGES[bakingWindow];
+    const [l1, l2] = stablePick(bank, seed);
+    return name ? withName(l1, l2) : raw([l1, l2]);
+  }
+
+  // 4. Islamic holiday
   if (islamicHoliday) {
     const msgs = ISLAMIC_MESSAGES[islamicHoliday];
     if (msgs) {
-      const [l1, l2] = pick(msgs);
+      const [l1, l2] = stablePick(msgs, seed);
       return name ? { line1: l1, line2: `${name}, ${l2.charAt(0).toLowerCase()}${l2.slice(1)}` } : { line1: l1, line2: l2 };
     }
     return { line1: `${islamicHoliday} Mubarak! 🌙`, line2: name ? `Wishing you a blessed day, ${name}.` : 'Wishing you a blessed day.' };
   }
 
-  // 4. Australian public holiday (exact name from live API)
+  // 5. Australian public holiday
   if (publicHoliday) {
     return {
       line1: `Happy ${publicHoliday}! 🇦🇺`,
@@ -499,17 +651,17 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
     };
   }
 
-  // 5. Fixed calendar holidays (fallback if not captured by live API)
+  // 6. Fixed calendar holidays
   if (calHol) {
     const msgs = CALENDAR_HOLIDAY_MESSAGES[calHol];
     if (msgs) {
-      const [l1, l2] = pick(msgs);
+      const [l1, l2] = stablePick(msgs, seed);
       if (['mothers-day', 'fathers-day', 'christmas', 'new-year'].includes(calHol)) return raw([l1, l2]);
       return name ? withName(l1, l2) : raw([l1, l2]);
     }
   }
 
-  // 6. Ramadan period
+  // 7. Ramadan period
   if (isRamadan) {
     if (hijriDay === 1) {
       return {
@@ -517,73 +669,70 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
         line2: name ? `${name}, may this month be blessed.` : 'May this holy month bring you peace.',
       };
     }
-    if (Math.random() < 0.55) {
-      return raw(pick(RAMADAN_MESSAGES));
+    if ((seed % 100) < 55) {
+      return raw(stablePick(RAMADAN_MESSAGES, seed));
     }
   }
 
-  // 7. Inactive customer (>14 days since last order)
+  // 8. Inactive customer (>14 days since last order)
   if (daysSince !== null && daysSince > 14) {
-    const [, l2] = pick(LOYALTY_MESSAGES.not_ordered_long);
-    return name ? { line1: `We've missed you, ${name}.`, line2: l2 } : raw(pick(LOYALTY_MESSAGES.not_ordered_long));
+    const [, l2] = stablePick(LOYALTY_MESSAGES.not_ordered_long, seed);
+    return name ? { line1: `We've missed you, ${name}.`, line2: l2 } : raw(stablePick(LOYALTY_MESSAGES.not_ordered_long, seed));
   }
 
-  // 8. Loyalty cues
+  // 9. Loyalty cues
   if (loyaltyPoints >= 200 && name) {
-    const [l1, l2] = pick(LOYALTY_MESSAGES.high_points);
+    const [l1, l2] = stablePick(LOYALTY_MESSAGES.high_points, seed);
     return { line1: `${name}, ${l1.charAt(0).toLowerCase()}${l1.slice(1)}`, line2: l2 };
   }
 
-  // 9. Favourite category (60% chance if we know the customer's preferred category)
-  if (favouriteCategory && Math.random() < 0.6) {
+  // 10. Favourite category (60% of hours)
+  if (favouriteCategory && (seed % 10) < 6) {
     const normCat = CATEGORY_ALIASES[favouriteCategory.toLowerCase()] ?? favouriteCategory.toLowerCase();
     const bank = FAVOURITE_CATEGORY_MESSAGES[normCat] ?? [];
     if (bank.length) {
-      const [l1, l2] = pick(bank);
+      const [l1, l2] = stablePick(bank, seed);
       return name ? withName(l1, l2) : raw([l1, l2]);
     }
   }
 
-  // 10. Live weather (65% chance if weather is available)
-  if (weather && Math.random() < 0.65) {
+  // 11. Live weather (65% of hours)
+  if (weather && (seed % 20) < 13) {
     const bank = WEATHER_MESSAGES[weather.condition]?.(weather.temp) ?? [];
     if (bank.length) {
-      const [l1, l2] = pick(bank);
+      const [l1, l2] = stablePick(bank, seed);
       return name ? withName(l1, l2) : raw([l1, l2]);
     }
   }
 
-  // 10. Season
-  if (Math.random() < 0.55) {
+  // 12. Season (55% of hours)
+  if ((seed % 20) < 11) {
     const msgs = SEASON_MESSAGES[season] ?? [];
     if (msgs.length) {
-      const [l1, l2] = pick(msgs);
+      const [l1, l2] = stablePick(msgs, seed);
       return name ? withName(l1, l2) : raw([l1, l2]);
     }
   }
 
-  // 11. Weekend
-  if (isWeekend && Math.random() < 0.5) {
-    const [l1, l2] = pick(WEEKEND_MESSAGES);
+  // 13. Weekend (50% of hours, weekends only)
+  if (isWeekend && (seed % 2) === 0) {
+    const [l1, l2] = stablePick(WEEKEND_MESSAGES, seed);
     return name ? withName(l1, l2) : raw([l1, l2]);
   }
 
-  // 12. Time of day
-  const minute = now.getMinutes();
+  // 14. Time of day
   const isAfter630 = hour > 6 || (hour === 6 && minute >= 30);
-
   const timePeriod =
-    hour < 5                        ? 'night'       :
-    hour < 6 || !isAfter630         ? 'earlyMorning' :
-    hour < 12                       ? 'morning'     :
-    hour < 17                       ? 'afternoon'   : 'evening';
+    hour < 5            ? 'night'        :
+    hour < 6 || !isAfter630 ? 'earlyMorning' :
+    hour < 12           ? 'morning'      :
+    hour < 17           ? 'afternoon'    : 'evening';
 
-  // Good morning personalised greeting — 6:30am onwards only
-  if (timePeriod === 'morning' && name && Math.random() < 0.45) {
-    const sub = pick(TIME_MESSAGES.morning)[1];
+  if (timePeriod === 'morning' && name && (seed % 100) < 45) {
+    const sub = stablePick(TIME_MESSAGES.morning, seed)[1];
     return { line1: `Good morning, ${name}! ☀️`, line2: sub };
   }
 
-  const [l1, l2] = pick(TIME_MESSAGES[timePeriod] ?? TIME_MESSAGES.morning);
+  const [l1, l2] = stablePick(TIME_MESSAGES[timePeriod] ?? TIME_MESSAGES.morning, seed);
   return name ? withName(l1, l2) : raw([l1, l2]);
 }
