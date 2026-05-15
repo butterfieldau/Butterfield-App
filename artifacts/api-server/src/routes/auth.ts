@@ -74,13 +74,57 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user) return res.status(401).json({ error: 'Invalid email or password.' });
+
+  let user: typeof usersTable.$inferSelect | undefined;
+  try {
+    [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim()));
+  } catch {
+    return res.status(503).json({ error: 'Unable to reach the auth service. Please try again in a moment.' });
+  }
+
+  if (!user) {
+    return res.status(401).json({ error: 'No account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
+  }
+
+  // Accounts created for internal roles should use the staff/internal portal
+  if (['staff', 'director', 'manager', 'master'].includes(user.role)) {
+    return res.status(403).json({
+      error: 'This account uses internal sign-in. Please use the "Staff / Internal Access" option on the login screen.',
+      code: 'WRONG_PORTAL',
+    });
+  }
+
+  // Account status check
+  if (user.status === 'suspended') {
+    return res.status(403).json({ error: 'This account has been suspended. Please contact us for help.', code: 'ACCOUNT_SUSPENDED' });
+  }
+  if (user.status === 'inactive' || user.isActive === 'false') {
+    return res.status(403).json({ error: 'This account has been deactivated. Please contact us for help.', code: 'ACCOUNT_INACTIVE' });
+  }
+
   const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
+  if (!valid) {
+    return res.status(401).json({ error: 'Incorrect password. Please try again.', code: 'WRONG_PASSWORD' });
+  }
+
+  // For wholesale accounts, verify the wholesale profile exists and is not suspended
+  if (user.role === 'wholesale') {
+    const [wa] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, user.id));
+    if (!wa) {
+      return res.status(403).json({ error: 'Your wholesale account profile is missing. Please contact us to resolve this.', code: 'PROFILE_MISSING' });
+    }
+    if (wa.isSuspended) {
+      return res.status(403).json({ error: 'Your wholesale account has been suspended. Please contact your account manager.', code: 'ACCOUNT_SUSPENDED' });
+    }
+  }
+
   if (user.role === 'customer') {
     await getOrCreateCustomerLoyaltyProfile(user.id, user.name);
   }
+
+  // Update last login timestamp
+  db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
+
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -89,21 +133,61 @@ router.post('/staff-login', async (req, res) => {
   const { email, password, latitude, longitude } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || !['staff', 'director', 'manager', 'master'].includes(user.role)) {
-    return res.status(401).json({ error: 'Staff, Manager, Director, or Master account not found.' });
+  let user: typeof usersTable.$inferSelect | undefined;
+  try {
+    [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim()));
+  } catch {
+    return res.status(503).json({ error: 'Unable to reach the auth service. Please try again in a moment.' });
+  }
+
+  if (!user) {
+    return res.status(401).json({ error: 'No account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
+  }
+
+  // Customer or wholesale accounts must use the public login, not the internal portal
+  if (['customer', 'wholesale'].includes(user.role)) {
+    return res.status(403).json({
+      error: 'This account doesn\'t have access to the internal portal. Please sign in using the Customer or Wholesale option.',
+      code: 'WRONG_PORTAL',
+    });
+  }
+
+  // Only internal roles past this point: staff | director | manager | master
+  if (!['staff', 'director', 'manager', 'master'].includes(user.role)) {
+    return res.status(401).json({ error: 'No internal account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
+  }
+
+  // Account status check
+  if (user.status === 'suspended') {
+    return res.status(403).json({ error: 'This account has been suspended. Contact your manager or director.', code: 'ACCOUNT_SUSPENDED' });
+  }
+  if (user.status === 'inactive' || user.isActive === 'false') {
+    return res.status(403).json({ error: 'This account has been deactivated. Contact your manager or director.', code: 'ACCOUNT_INACTIVE' });
+  }
+
+  // Password check — done before approval so a wrong password gives the right error
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) {
+    return res.status(401).json({ error: 'Incorrect password. Please try again.', code: 'WRONG_PASSWORD' });
   }
 
   // Staff accounts require admin approval; directors and managers do not
   if (user.role === 'staff') {
     const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
-    if (!staffProfile?.approvedByAdmin) {
-      return res.status(403).json({ error: 'Your staff account is pending approval.' });
+    if (!staffProfile) {
+      return res.status(403).json({ error: 'Your staff profile is missing. Please ask the director to set up your account.', code: 'PROFILE_MISSING' });
+    }
+    if (!staffProfile.approvedByAdmin) {
+      return res.status(403).json({ error: 'Your staff account is pending approval by a director.', code: 'PENDING_APPROVAL' });
     }
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid email or password.' });
+  if (user.role === 'manager') {
+    const [managerProfile] = await db.select().from(managerProfilesTable).where(eq(managerProfilesTable.userId, user.id));
+    if (!managerProfile) {
+      return res.status(403).json({ error: 'Your manager profile is missing. Please ask the director to set up your account.', code: 'PROFILE_MISSING' });
+    }
+  }
 
   // Directors bypass geo check — only staff need location verification
   const isDemoAccount = DEMO_EMAILS.includes(user.email.toLowerCase());
@@ -122,6 +206,9 @@ router.post('/staff-login', async (req, res) => {
       });
     }
   }
+
+  // Update last login timestamp
+  db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
 
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });

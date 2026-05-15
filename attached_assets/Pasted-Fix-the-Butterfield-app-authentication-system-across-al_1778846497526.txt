@@ -1,0 +1,99 @@
+Fix the Butterfield app authentication system across all account types.
+
+Current issues:
+1. Password reset is not available for all users.
+2. When adding new accounts, the app sometimes says “Invalid username or password” even when the login details are 100% correct.
+
+Account types that must support password reset:
+- Customers
+- Staff
+- Managers
+- Wholesale customers
+- Directors
+- Master accounts
+
+Password reset requirements:
+- Every account type must have a working “Forgot password?” flow.
+- The reset flow must work from the login screen.
+- Users should be able to enter their email address and receive a password reset link or reset code.
+- After resetting the password, they should be able to log in normally.
+- Password reset must use the same backend auth system as login.
+- Do not create separate fake/local password reset logic.
+- Show clean error messages:
+  - “No account found with this email.”
+  - “Please check your email for the password reset link.”
+  - “Something went wrong. Please try again.”
+
+Login issue to investigate:
+When I create new accounts, the app says “Invalid username or password” even when the details are correct.
+
+Please audit the full account creation and login flow.
+
+Check for:
+- Account is being created in the wrong table/collection.
+- Account role is not being saved correctly.
+- Password is not being hashed/stored correctly.
+- Login is checking the wrong user table.
+- Login only supports customers but not staff/managers/wholesale/directors/master.
+- Email casing issue, for example Omar@email.com vs omar@email.com.
+- Username/email mismatch.
+- Account is created but not marked as active.
+- Role permissions are missing after account creation.
+- Frontend is sending username but backend expects email.
+- Backend is returning a generic “Invalid username or password” error for another issue.
+- Auth session is not being created correctly.
+- The app is trying to log the user into the wrong portal after login.
+- New account password is being saved differently from existing users.
+- There are duplicate accounts with the same email or username.
+
+Required login behaviour:
+- All account types must be able to log in from the correct login screen.
+- Customers should go to the customer portal.
+- Staff should go to the staff portal.
+- Managers should go to the manager portal.
+- Wholesale customers should go to the wholesale portal.
+- Directors should go to the director portal.
+- Master accounts should go to the master/admin portal.
+- The app must detect the user role after login and route them correctly.
+- If an account does not have permission for a portal, show a clear permission error instead of “Invalid username or password.”
+
+Required account creation behaviour:
+- When a director/master creates a staff, manager, wholesale, director or master account, the account must be saved properly in backend auth.
+- The account profile must also be created in the correct role/profile table.
+- The user must be marked as active by default unless manually disabled.
+- The email should be saved in lowercase and trimmed.
+- Password should meet the correct backend password requirements.
+- After the account is created, the new user must be able to log in straight away.
+- If the backend requires email verification, either disable it for admin-created accounts or clearly show the verification requirement.
+
+Security requirements:
+- Only authorised directors/master accounts can create staff, manager, wholesale, director and master accounts.
+- Customers can only create customer accounts.
+- Users can only reset their own password through email/code verification.
+- Do not expose passwords anywhere in the frontend or backend logs.
+- Do not store plain text passwords.
+
+Testing required:
+Please test:
+1. Customer password reset.
+2. Staff password reset.
+3. Manager password reset.
+4. Wholesale password reset.
+5. Director password reset.
+6. Master password reset.
+7. New customer account can log in.
+8. New staff account can log in.
+9. New manager account can log in.
+10. New wholesale account can log in.
+11. New director account can log in.
+12. New master account can log in.
+13. Correct role redirects to correct portal.
+14. Wrong portal access shows a permissions message, not invalid password.
+15. Email uppercase/lowercase does not break login.
+16. Duplicate emails are blocked with a clear error.
+17. Disabled accounts show “This account has been disabled.”
+
+Important:
+Fix the root cause of the “Invalid username or password” issue.
+Do not just change the error message.
+The full auth, role, account creation and password reset flow needs to be reliable across the whole Butterfield app.
