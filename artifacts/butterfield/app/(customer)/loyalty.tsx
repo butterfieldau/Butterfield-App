@@ -7,6 +7,8 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -105,6 +107,7 @@ export default function LoyaltyScreen() {
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
+  const [addingToWallet, setAddingToWallet] = useState(false);
   // Fallback QR token fetched via ensure-qr if the main profile had none.
   const [healedQrToken, setHealedQrToken] = useState<string | null>(null);
 
@@ -154,6 +157,55 @@ export default function LoyaltyScreen() {
       })
       .catch(() => {});
   }, [profile?.userId, qrValue]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddToWallet = async () => {
+    if (!qrValue) {
+      Alert.alert('Not ready', 'Your loyalty QR is still loading. Please try again in a moment.');
+      return;
+    }
+    setAddingToWallet(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      if (Platform.OS === 'ios') {
+        // Get a short-lived download token so the JWT never appears in browser history
+        const tokenRes = await api.wallet.downloadToken();
+        const dt = tokenRes.data.token;
+        const domain = process.env.EXPO_PUBLIC_DOMAIN;
+        const passUrl = domain
+          ? `https://${domain}/api/wallet/apple-pass.pkpass?dt=${encodeURIComponent(dt)}`
+          : `http://localhost:80/api/wallet/apple-pass.pkpass?dt=${encodeURIComponent(dt)}`;
+
+        // Linking.openURL → opens in Safari which natively recognises
+        // application/vnd.apple.pkpass and shows the "Add to Wallet" sheet.
+        await Linking.openURL(passUrl);
+      } else {
+        // Android — open Google Wallet save URL in browser
+        const res = await api.wallet.googlePassUrl();
+        const { url } = res.data;
+        const supported = await Linking.canOpenURL(url);
+        if (!supported) {
+          Alert.alert('Google Wallet not available', 'Please install the Google Wallet app and try again.');
+          return;
+        }
+        await Linking.openURL(url);
+      }
+    } catch (e: any) {
+      const msg: string = e?.message ?? '';
+      if (msg.toLowerCase().includes('not configured') || msg.toLowerCase().includes('503')) {
+        Alert.alert(
+          'Wallet not set up yet',
+          Platform.OS === 'ios'
+            ? 'Apple Wallet passes haven\'t been configured yet. Check back soon!'
+            : 'Google Wallet hasn\'t been configured yet. Check back soon!',
+        );
+      } else {
+        Alert.alert('Error', msg || 'Could not add to wallet. Please try again.');
+      }
+    } finally {
+      setAddingToWallet(false);
+    }
+  };
 
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
@@ -281,10 +333,25 @@ export default function LoyaltyScreen() {
                   Earn {STAMP_COUNT} stamps to unlock your free coffee.
                 </Text>
               </View>
-              <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }} style={styles.qrBtn}>
-                <Feather name="maximize" size={12} color={WHITE} />
-                <Text style={[styles.qrBtnText, { fontWeight: '600' }]}>My QR</Text>
-              </Pressable>
+              <View style={styles.cardBtnRow}>
+                <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }} style={styles.qrBtn}>
+                  <Feather name="maximize" size={12} color={WHITE} />
+                  <Text style={[styles.qrBtnText, { fontWeight: '600' }]}>My QR</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleAddToWallet}
+                  style={[styles.qrBtn, styles.walletBtn]}
+                  disabled={addingToWallet}
+                >
+                  {addingToWallet
+                    ? <ActivityIndicator size="small" color={WHITE} />
+                    : <Feather name="credit-card" size={12} color={WHITE} />
+                  }
+                  <Text style={[styles.qrBtnText, { fontWeight: '600' }]}>
+                    {Platform.OS === 'ios' ? 'Apple Wallet' : 'Google Wallet'}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             <View style={styles.stampRow}>
@@ -493,7 +560,9 @@ const styles = StyleSheet.create({
   coffeeLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11, letterSpacing: 1, marginBottom: 4 },
   coffeeToGo: { color: WHITE, fontSize: 32, lineHeight: 38 },
   coffeeDesc: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
+  cardBtnRow: { flexDirection: 'column', gap: 6, alignItems: 'flex-end' },
   qrBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  walletBtn: { backgroundColor: 'rgba(0,0,0,0.25)' },
   qrBtnText: { color: WHITE, fontSize: 12 },
   stampRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   stampCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },

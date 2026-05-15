@@ -18,6 +18,7 @@ import storesRouter from "./stores.js";
 import managerRouter from "./manager.js";
 import storageRouter from "./storage.js";
 import notificationsRouter from "./notifications.js";
+import walletRouter from "./wallet.js";
 
 const router: IRouter = Router();
 
@@ -39,6 +40,7 @@ router.use(storesRouter);
 router.use("/manager", managerRouter);
 router.use("/notifications", notificationsRouter);
 router.use(storageRouter);
+router.use(walletRouter);
 router.use(miscRouter);
 
 export default router;
