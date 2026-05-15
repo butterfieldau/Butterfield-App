@@ -294,23 +294,6 @@ export default function CartScreen() {
     return pieces;
   }, [confirmation]);
 
-  // Product catalog — used as fallback when cart items have no imageUrl
-  const { data: productsData } = useQuery({
-    queryKey: ['products'],
-    queryFn:  () => api.products.list(),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
-  const productImageMap = useMemo(() => {
-    const products = (productsData?.data ?? []) as any[];
-    const map: Record<string, string> = {};
-    for (const p of products) {
-      const url: string | undefined = p.images?.[0] ?? p.imageUrl;
-      if (url) map[p.id] = url;
-    }
-    return map;
-  }, [productsData]);
-
   // Load saved addresses
   const { data: addrData } = useQuery({
     queryKey: ['addresses'],
@@ -573,7 +556,7 @@ export default function CartScreen() {
     <View style={styles.stepWrap}>
       {items.map((item) => {
         const palette  = getPalette(item.category ?? 'default');
-        const imageUrl = item.imageUrl ?? productImageMap[item.productId] ?? null;
+        const imageUrl = item.imageUrl ?? null;
         const optionLines = (item.selectedOptions ?? [])
           .filter(o => o.optionName && o.optionName !== 'No Sugar' && o.optionName !== 'No Honey' &&
                        o.optionName !== 'No Syrup' && o.optionName !== 'Regular Coffee' &&
