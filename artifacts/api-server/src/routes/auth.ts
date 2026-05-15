@@ -6,6 +6,7 @@ import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAcc
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
+import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
@@ -564,21 +565,44 @@ function generateOtp(): string {
 }
 
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email || typeof email !== 'string') {
-    return res.status(400).json({ error: 'Email is required.' });
+  const { email, phone, method } = req.body as { email?: string; phone?: string; method?: 'email' | 'sms' };
+  const deliveryMethod = method === 'sms' ? 'sms' : 'email';
+
+  // Validate input
+  if (deliveryMethod === 'email') {
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email is required.' });
+    }
+  } else {
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'Phone number is required.' });
+    }
   }
-  const normalised = email.toLowerCase().trim();
 
-  const [user] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
-    .from(usersTable).where(eq(usersTable.email, normalised));
+  // Lookup user by email or phone
+  let user: { id: string; name: string; email: string; phone: string | null } | undefined;
+  if (deliveryMethod === 'email') {
+    const normalised = email!.toLowerCase().trim();
+    const [found] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone })
+      .from(usersTable).where(eq(usersTable.email, normalised));
+    user = found;
+  } else {
+    const normalised = phone!.trim().replace(/\s+/g, '');
+    const [found] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone })
+      .from(usersTable).where(eq(usersTable.phone, normalised));
+    user = found;
+  }
 
-  // Always respond with success to prevent user enumeration
+  // Masked destination for UI feedback (always respond with success to prevent enumeration)
+  const destination = deliveryMethod === 'email'
+    ? maskEmail(email!)
+    : maskPhone(phone!);
+
   if (!user) {
-    return res.json({ success: true, message: 'If an account with that email exists, a reset code has been sent.' });
+    return res.json({ success: true, message: 'If an account with those details exists, a reset code has been sent.', destination });
   }
 
-  // Purge expired / old tokens for this user
+  // Purge old tokens for this user
   await db.delete(passwordResetTokensTable)
     .where(eq(passwordResetTokensTable.userId, user.id));
 
@@ -593,34 +617,68 @@ router.post('/forgot-password', async (req, res) => {
     expiresAt,
   });
 
-  const html = buildPasswordResetEmail(otp, user.name);
-  const emailResult = await sendEmail({
-    to: user.email,
-    subject: 'Your Butterfield Cookies password reset code',
-    html,
-    text: `Your password reset code is: ${otp}\n\nThis code expires in 15 minutes.\n\nIf you didn't request this, ignore this message.`,
-  });
-
-  // In dev (no email service), return OTP in response so it can be pre-filled
   const isDev = process.env.NODE_ENV !== 'production';
-  const devOtp = (!emailResult.success && isDev) ? otp : undefined;
+  let sent = false;
+
+  if (deliveryMethod === 'sms') {
+    const smsResult = await sendSms(
+      user.phone ?? phone!,
+      buildPasswordResetSms(otp),
+    );
+    sent = smsResult.success;
+  } else {
+    const html = buildPasswordResetEmail(otp, user.name);
+    const emailResult = await sendEmail({
+      to: user.email,
+      subject: 'Your Butterfield Cookies password reset code',
+      html,
+      text: `Your password reset code is: ${otp}\n\nThis code expires in 15 minutes.\n\nIf you didn't request this, ignore this message.`,
+    });
+    sent = emailResult.success;
+  }
+
+  // In dev (no service configured), return OTP in response so it can be pre-filled
+  const devOtp = (!sent && isDev) ? otp : undefined;
 
   return res.json({
     success: true,
-    message: 'If an account with that email exists, a reset code has been sent.',
+    message: `If an account with those details exists, a reset code has been sent.`,
+    destination,
+    method: deliveryMethod,
     ...(devOtp ? { devOtp } : {}),
   });
 });
 
-router.post('/verify-reset-otp', async (req, res) => {
-  const { email, otp } = req.body;
-  if (!email || !otp) {
-    return res.status(400).json({ error: 'Email and code are required.' });
-  }
-  const normalised = email.toLowerCase().trim();
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return email;
+  const visible = local.length > 2 ? local.slice(0, 2) : local.slice(0, 1);
+  return `${visible}${'*'.repeat(Math.max(local.length - 2, 2))}@${domain}`;
+}
 
-  const [user] = await db.select({ id: usersTable.id, name: usersTable.name })
-    .from(usersTable).where(eq(usersTable.email, normalised));
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 4) return phone;
+  return `${'*'.repeat(digits.length - 4)}${digits.slice(-4)}`;
+}
+
+router.post('/verify-reset-otp', async (req, res) => {
+  const { email, phone, otp } = req.body as { email?: string; phone?: string; otp: string };
+  if (!otp) return res.status(400).json({ error: 'Code is required.' });
+  if (!email && !phone) return res.status(400).json({ error: 'Email or phone is required.' });
+
+  let user: { id: string; name: string } | undefined;
+  if (email) {
+    const normalised = email.toLowerCase().trim();
+    const [found] = await db.select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable).where(eq(usersTable.email, normalised));
+    user = found;
+  } else {
+    const normalised = phone!.trim().replace(/\s+/g, '');
+    const [found] = await db.select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable).where(eq(usersTable.phone, normalised));
+    user = found;
+  }
   if (!user) return res.status(400).json({ error: 'Invalid or expired code.' });
 
   const now = new Date();

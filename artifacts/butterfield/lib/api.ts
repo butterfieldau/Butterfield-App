@@ -70,9 +70,9 @@ export const api = {
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
     socialLogin: (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
-    forgotPassword: (data: { email: string }) =>
-      request<{ success: boolean; message: string; devOtp?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
-    verifyResetOtp: (data: { email: string; otp: string }) =>
+    forgotPassword: (data: { email?: string; phone?: string; method: 'email' | 'sms' }) =>
+      request<{ success: boolean; message: string; destination?: string; method?: string; devOtp?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
+    verifyResetOtp: (data: { email?: string; phone?: string; otp: string }) =>
       request<{ resetToken: string }>('/auth/verify-reset-otp', { method: 'POST', body: JSON.stringify(data) }),
     resetPassword: (data: { resetToken: string; newPassword: string }) =>
       request<{ success: boolean; message: string }>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),

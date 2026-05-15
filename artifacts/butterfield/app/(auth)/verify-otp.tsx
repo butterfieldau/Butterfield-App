@@ -10,24 +10,33 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
 
-const BG    = '#F5F6FA';
-const CARD  = '#FFFFFF';
-const BLUE  = '#1493FF';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
+const BG     = '#F5F6FA';
+const CARD   = '#FFFFFF';
+const BLUE   = '#1493FF';
+const TEXT   = '#1C1C1E';
+const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
 
 export default function VerifyOtpScreen() {
   const insets = useSafeAreaInsets();
-  const { email, devOtp } = useLocalSearchParams<{ email: string; devOtp?: string }>();
+  const { email, phone, method, destination, devOtp } = useLocalSearchParams<{
+    email?: string;
+    phone?: string;
+    method?: string;
+    destination?: string;
+    devOtp?: string;
+  }>();
   const inputRef = useRef<TextInput>(null);
 
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const isSms = method === 'sms';
+  const displayDest = destination || (isSms ? phone : email) || '';
+
+  const [otp, setOtp]                   = useState('');
+  const [loading, setLoading]           = useState(false);
+  const [error, setError]               = useState('');
   const [resendCooldown, setResendCooldown] = useState(60);
-  const [resending, setResending] = useState(false);
+  const [resending, setResending]       = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -48,9 +57,15 @@ export default function VerifyOtpScreen() {
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const res = await api.auth.verifyResetOtp({ email: email ?? '', otp });
+      const payload = isSms
+        ? { phone: phone ?? '', otp }
+        : { email: email ?? '', otp };
+      const res = await api.auth.verifyResetOtp(payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.push({ pathname: '/(auth)/reset-password', params: { resetToken: res.resetToken, email: email ?? '' } });
+      router.push({
+        pathname: '/(auth)/reset-password',
+        params: { resetToken: res.resetToken, email: email ?? '' },
+      });
     } catch (e: any) {
       setError(e.message ?? 'Invalid or expired code. Please try again.');
       setOtp('');
@@ -65,7 +80,10 @@ export default function VerifyOtpScreen() {
     setResending(true);
     setError('');
     try {
-      await api.auth.forgotPassword({ email: email ?? '' });
+      const payload = isSms
+        ? { method: 'sms' as const, phone: phone ?? '' }
+        : { method: 'email' as const, email: email ?? '' };
+      await api.auth.forgotPassword(payload);
       setResendCooldown(60);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -93,12 +111,14 @@ export default function VerifyOtpScreen() {
             <Feather name="arrow-left" size={20} color="#fff" />
           </Pressable>
           <View style={s.heroIcon}>
-            <Feather name="mail" size={28} color="#fff" />
+            <Feather name={isSms ? 'message-square' : 'mail'} size={28} color="#fff" />
           </View>
-          <Text style={[s.heroTitle, { fontWeight: '700' }]}>Check your email</Text>
+          <Text style={[s.heroTitle, { fontWeight: '700' }]}>
+            {isSms ? 'Check your phone' : 'Check your email'}
+          </Text>
           <Text style={[s.heroSub, { fontWeight: '400' }]}>
-            We sent a 6-digit code to{'\n'}
-            <Text style={{ fontWeight: '600', color: '#fff' }}>{email}</Text>
+            {isSms ? 'We sent a 6-digit code via SMS to' : 'We sent a 6-digit code to'}{'\n'}
+            <Text style={{ fontWeight: '600', color: '#fff' }}>{displayDest}</Text>
           </Text>
         </LinearGradient>
 
@@ -148,7 +168,9 @@ export default function VerifyOtpScreen() {
               <View style={s.devBanner}>
                 <Feather name="terminal" size={13} color={GREEN} />
                 <Text style={[s.devText, { fontWeight: '400' }]}>
-                  Dev mode: code pre-filled. Add RESEND_API_KEY for real emails.
+                  {isSms
+                    ? 'Dev mode: code pre-filled. Add Twilio credentials to send real SMS.'
+                    : 'Dev mode: code pre-filled. Add RESEND_API_KEY to send real emails.'}
                 </Text>
               </View>
             ) : null}
@@ -171,12 +193,19 @@ export default function VerifyOtpScreen() {
               <Pressable onPress={handleResend} disabled={resendCooldown > 0 || resending}>
                 <Text style={[s.resendLink, {
                   fontWeight: '600',
-                  color: resendCooldown > 0 ? MUTED : BLUE
+                  color: resendCooldown > 0 ? MUTED : BLUE,
                 }]}>
                   {resending ? 'Sending…' : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}
                 </Text>
               </Pressable>
             </View>
+
+            <Pressable onPress={() => router.back()} style={s.changeMethod}>
+              <Feather name="arrow-left" size={13} color={MUTED} />
+              <Text style={[s.changeMethodText, { color: MUTED, fontWeight: '400' }]}>
+                {isSms ? 'Try with email instead' : 'Try with SMS instead'}
+              </Text>
+            </Pressable>
           </View>
         </View>
 
@@ -186,25 +215,27 @@ export default function VerifyOtpScreen() {
 }
 
 const s = StyleSheet.create({
-  hero:        { alignItems: 'center', paddingBottom: 36, gap: 10, paddingHorizontal: 24 },
-  backBtn:     { alignSelf: 'flex-start', padding: 4, marginBottom: 12 },
-  heroIcon:    { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  heroTitle:   { color: '#fff', fontSize: 24, marginTop: 4 },
-  heroSub:     { color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', lineHeight: 22 },
-  body:        { flex: 1, padding: 20 },
-  card:        { borderRadius: 16, padding: 20, gap: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  label:       { fontSize: 14 },
-  otpRow:      { flexDirection: 'row', gap: 10, justifyContent: 'center' },
-  otpBox:      { width: 46, height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  otpDigit:    { fontSize: 24 },
-  hiddenInput: { position: 'absolute', opacity: 0, width: 1, height: 1 },
-  errorBox:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
-  errorText:   { flex: 1, color: '#EF4444', fontSize: 13 },
-  devBanner:   { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, backgroundColor: '#F0FDF4', borderRadius: 10 },
-  devText:     { flex: 1, color: '#15803D', fontSize: 12 },
-  btn:         { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  btnText:     { color: '#fff', fontSize: 16 },
-  resendRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  resendLabel: { fontSize: 14 },
-  resendLink:  { fontSize: 14 },
+  hero:             { alignItems: 'center', paddingBottom: 36, gap: 10, paddingHorizontal: 24 },
+  backBtn:          { alignSelf: 'flex-start', padding: 4, marginBottom: 12 },
+  heroIcon:         { width: 64, height: 64, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  heroTitle:        { color: '#fff', fontSize: 24, marginTop: 4 },
+  heroSub:          { color: 'rgba(255,255,255,0.8)', fontSize: 14, textAlign: 'center', lineHeight: 22 },
+  body:             { flex: 1, padding: 20 },
+  card:             { borderRadius: 16, padding: 20, gap: 16, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  label:            { fontSize: 14 },
+  otpRow:           { flexDirection: 'row', gap: 10, justifyContent: 'center' },
+  otpBox:           { width: 46, height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  otpDigit:         { fontSize: 24 },
+  hiddenInput:      { position: 'absolute', opacity: 0, width: 1, height: 1 },
+  errorBox:         { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
+  errorText:        { flex: 1, color: '#EF4444', fontSize: 13 },
+  devBanner:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, backgroundColor: '#F0FDF4', borderRadius: 10 },
+  devText:          { flex: 1, color: '#15803D', fontSize: 12 },
+  btn:              { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  btnText:          { color: '#fff', fontSize: 16 },
+  resendRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  resendLabel:      { fontSize: 14 },
+  resendLink:       { fontSize: 14 },
+  changeMethod:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingTop: 4 },
+  changeMethodText: { fontSize: 13 },
 });
