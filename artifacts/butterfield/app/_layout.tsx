@@ -5,7 +5,8 @@ import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Image, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -28,9 +29,9 @@ onlineManager.setEventListener((setOnline) => {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime:      1000 * 60 * 60 * 24, // keep cache for 24 h
-      staleTime:   1000 * 60 * 5,       // treat data as fresh for 5 min
-      networkMode: "offlineFirst",       // serve cache while offline
+      gcTime:      1000 * 60 * 60 * 24,
+      staleTime:   1000 * 60 * 5,
+      networkMode: "offlineFirst",
       retry: (failureCount, error: any) => {
         if (error?.status === 401 || error?.status === 403) return false;
         return failureCount < 2;
@@ -77,9 +78,26 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+  const [splashVisible, setSplashVisible] = useState(true);
+
   useEffect(() => {
+    // Hide the native splash immediately and take over with the JS overlay,
+    // which we fully control (duration + fade-out).
     SplashScreen.hideAsync();
-  }, []);
+
+    const hold = setTimeout(() => {
+      Animated.timing(splashOpacity, {
+        toValue:         0,
+        duration:        500,
+        useNativeDriver: true,
+      }).start(() => {
+        setSplashVisible(false);
+      });
+    }, 1500);
+
+    return () => clearTimeout(hold);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <SafeAreaProvider>
@@ -102,6 +120,27 @@ export default function RootLayout() {
           </AuthProvider>
         </PersistQueryClientProvider>
       </ErrorBoundary>
+
+      {splashVisible && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { opacity: splashOpacity }]}
+          pointerEvents="none"
+        >
+          <Image
+            source={require('../assets/images/splash-screen.png')}
+            style={styles.splashImage}
+            resizeMode="cover"
+            fadeDuration={0}
+          />
+        </Animated.View>
+      )}
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  splashImage: {
+    width:  '100%',
+    height: '100%',
+  },
+});
