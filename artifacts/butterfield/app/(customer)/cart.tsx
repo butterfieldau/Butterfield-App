@@ -544,7 +544,13 @@ export default function CartScreen() {
             <Text style={styles.successTotal}>
               {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
             </Text>
-            <Pressable onPress={() => { router.replace('/orders'); }} style={styles.trackBtn}>
+            <Pressable
+              onPress={() => {
+                router.dismissAll();
+                router.push('/orders');
+              }}
+              style={styles.trackBtn}
+            >
               <Text style={styles.trackBtnText}>Go to My Orders</Text>
             </Pressable>
           </View>
