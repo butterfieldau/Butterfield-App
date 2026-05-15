@@ -498,7 +498,7 @@ export default function CartScreen() {
   if (confirmation) {
     const earnedPoints = Math.max(0, Math.floor(confirmation.totalCents / 100));
     return (
-      <View style={[styles.successWrap, { paddingTop: insets.top + 34, paddingBottom: insets.bottom + 24 }]}>
+      <View style={[styles.successWrap]}>
         <View style={styles.confettiLayer} pointerEvents="none">
           {celebrationPieces.map((piece) => (
             <ConfettiPieceView key={piece.id} piece={piece} />
@@ -513,61 +513,75 @@ export default function CartScreen() {
             />
           </View>
         </Animated.View>
-        <Animated.View style={[styles.successCard, successCardStyle]}>
-          <View style={styles.successGlow}>
-            <LinearGradient colors={['#1493FF', '#3CBBEE']} style={styles.successIcon}>
-              <Feather name="check" size={36} color="#fff" />
-            </LinearGradient>
-            <Text style={styles.successTitle}>Thanks, your order is in!</Text>
-            <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
-            <Animated.View style={[styles.successPointsBox, pointsStyle]}>
-              <View style={styles.successPointsBadge}>
-                <Feather name="star" size={16} color="#7A4B00" />
+        <ScrollView
+          style={{ flex: 1, width: '100%' }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 24,
+            paddingTop: insets.top + 34,
+            paddingBottom: insets.bottom + 32,
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Animated.View style={[styles.successCard, successCardStyle]}>
+            <View style={styles.successGlow}>
+              <LinearGradient colors={['#1493FF', '#3CBBEE']} style={styles.successIcon}>
+                <Feather name="check" size={36} color="#fff" />
+              </LinearGradient>
+              <Text style={styles.successTitle}>Thanks, your order is in!</Text>
+              <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
+              <Animated.View style={[styles.successPointsBox, pointsStyle]}>
+                <View style={styles.successPointsBadge}>
+                  <Feather name="star" size={16} color="#7A4B00" />
+                </View>
+                <View style={styles.successPointsCopy}>
+                  <Text style={styles.successPointsLabel}>You just earned</Text>
+                  <Text allowFontScaling={false} maxFontSizeMultiplier={1} style={styles.successPointsNumber}>+{earnedPoints}</Text>
+                  <Text style={styles.successPointsSuffix}>points from this order</Text>
+                </View>
+              </Animated.View>
+              <View style={[styles.successInfoBox, { backgroundColor: 'rgba(255,248,231,0.92)', borderColor: '#F0A030' }]}>
+                <Feather name="alert-circle" size={16} color="#D97706" />
+                <Text style={styles.successInfoText}>
+                  {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
+                    ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
+                    : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
+                </Text>
               </View>
-              <View style={styles.successPointsCopy}>
-                <Text style={styles.successPointsLabel}>You just earned</Text>
-                <Text allowFontScaling={false} maxFontSizeMultiplier={1} style={styles.successPointsNumber}>+{earnedPoints}</Text>
-                <Text style={styles.successPointsSuffix}>points from this order</Text>
-              </View>
-            </Animated.View>
-            <View style={[styles.successInfoBox, { backgroundColor: 'rgba(255,248,231,0.92)', borderColor: '#F0A030' }]}>
-              <Feather name="alert-circle" size={16} color="#D97706" />
-              <Text style={styles.successInfoText}>
-                {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
-                  ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
-                  : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
+              {confirmation.scheduledLabel && (
+                <View style={styles.slotBox}>
+                  <Feather name="clock" size={14} color="#0E6FA1" />
+                  <Text style={styles.slotText}>{confirmation.scheduledLabel}</Text>
+                </View>
+              )}
+              <Text style={styles.successTotal}>
+                {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
               </Text>
+              <Pressable
+                onPress={() => {
+                  clearCart();
+                  router.dismissAll();
+                  router.replace('/(tabs)');
+                }}
+                style={styles.trackBtn}
+              >
+                <Text style={styles.trackBtnText}>Back to Home</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  clearCart();
+                  router.dismissAll();
+                  router.replace('/orders');
+                }}
+              >
+                <Text style={[styles.successInfoText, { textAlign: 'center', marginTop: 4, textDecorationLine: 'underline' }]}>View my orders</Text>
+              </Pressable>
             </View>
-            {confirmation.scheduledLabel && (
-              <View style={styles.slotBox}>
-                <Feather name="clock" size={14} color="#0E6FA1" />
-                <Text style={styles.slotText}>{confirmation.scheduledLabel}</Text>
-              </View>
-            )}
-            <Text style={styles.successTotal}>
-              {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
-            </Text>
-            <Pressable
-              onPress={() => {
-                clearCart();
-                router.dismissAll();
-                router.replace('/(tabs)');
-              }}
-              style={styles.trackBtn}
-            >
-              <Text style={styles.trackBtnText}>Back to Home</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                clearCart();
-                router.dismissAll();
-                router.replace('/orders');
-              }}
-            >
-              <Text style={[styles.successInfoText, { textAlign: 'center', marginTop: 4, textDecorationLine: 'underline' }]}>View my orders</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </ScrollView>
       </View>
     );
   }
@@ -1254,7 +1268,7 @@ const styles = StyleSheet.create({
   continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Success
-  successWrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 16, overflow: 'visible', backgroundColor: '#F6F8FC' },
+  successWrap:    { flex: 1, overflow: 'visible', backgroundColor: '#F6F8FC' },
   successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2, maxWidth: 430 },
   successGlow:    {
     width: '100%',
