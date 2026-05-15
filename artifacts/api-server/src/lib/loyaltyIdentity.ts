@@ -137,7 +137,7 @@ export async function getOrCreateCustomerLoyaltyProfile(userId: string, fallback
     const nameSeed = fallbackName ?? userRow?.name ?? 'Customer';
     await db.insert(customerProfilesTable).values({
       userId,
-      loyaltyPoints: 100,
+      loyaltyPoints: 0,
       loyaltyTier: 'bronze',
       referralCode: nameSeed.replace(/\s+/g, '').toUpperCase().slice(0, 4) + token.slice(0, 4),
       loyaltyQrToken: token,

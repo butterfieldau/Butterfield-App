@@ -60,7 +60,7 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
             </View>
           ) : null}
         </View>
-        <Text style={[styles.tabLabel, { color: iconColor, fontWeight: focused ? '700' : '500' }]}>{label}</Text>
+        <Text style={[styles.tabLabel, { color: iconColor, fontWeight: focused ? '700' : '500' }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
       </Pressable>
     );
   };
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   mainPill: {
     flex: 1,
     flexDirection: 'row',
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     paddingVertical: 8,
     borderRadius: 34,
     overflow: 'hidden',
@@ -199,10 +199,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 4,
     paddingVertical: 8,
     overflow: 'hidden',
-    gap: 5,
+    gap: 4,
   },
   detachedTabButton: {
     width: 64,
@@ -249,7 +249,8 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
   tabLabel: {
-    fontSize: 11,
-    letterSpacing: -0.1,
+    fontSize: 10,
+    letterSpacing: -0.2,
+    textAlign: 'center',
   },
 });

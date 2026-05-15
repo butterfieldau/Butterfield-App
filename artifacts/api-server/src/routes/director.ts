@@ -444,6 +444,56 @@ router.patch('/staff/:userId/approve', async (req, res) => {
   return res.json({ data: updated });
 });
 
+// ── Promote any customer to staff / manager / director ────────────────────────
+router.patch('/customers/:id/promote', requireRole('director', 'master'), async (req, res) => {
+  const id = req.params.id as string;
+  const { role } = req.body;
+  if (!['staff', 'manager', 'director'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be staff, manager, or director.' });
+  }
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  if (target.role === 'master') return res.status(403).json({ error: 'Cannot change master account role.' });
+
+  // Change role
+  const [updated] = await db.update(usersTable)
+    .set({ role: role as any, updatedAt: new Date() })
+    .where(eq(usersTable.id, id))
+    .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email, role: usersTable.role });
+
+  // Ensure appropriate profile records exist (check-then-insert, avoids constraint errors)
+  if (role === 'staff' || role === 'manager') {
+    const existingSpRows = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, id));
+    if (existingSpRows.length === 0) {
+      await db.insert(staffProfilesTable).values({
+        userId:          id,
+        employeeId:      `EMP-${Date.now().toString(36).toUpperCase()}`,
+        position:        role === 'manager' ? 'Manager' : 'Staff',
+        department:      'floor',
+        isManager:       role === 'manager',
+        approvedByAdmin: true,
+        hourlyRateCents: 2200,
+        address:         null,
+        taxFileNumber:   null,
+      });
+    }
+    if (role === 'manager') {
+      const existingMpRows = await db.select().from(managerProfilesTable).where(eq(managerProfilesTable.userId, id));
+      if (existingMpRows.length === 0) {
+        const permStr: string = JSON.stringify(['dashboard', 'orders']);
+        await db.insert(managerProfilesTable).values({
+          userId:          id,
+          permissions:     permStr,
+          createdByUserId: req.user!.id,
+          notes:           null,
+        });
+      }
+    }
+  }
+
+  return res.json({ data: updated });
+});
+
 // ── Promote staff to director ─────────────────────────────────────────────────
 router.patch('/staff/:userId/promote-director', async (req, res) => {
   if (req.user!.role !== 'master') {

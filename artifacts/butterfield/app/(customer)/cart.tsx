@@ -345,14 +345,17 @@ export default function CartScreen() {
     setSelectedAddressId(addr.id);
   };
 
-  // Pre-fill contact from auth user + pre-fill default address when switching to delivery
+  // Pre-fill contact from server profile (phone lives in /me response, not the JWT)
   useEffect(() => {
-    if (user) {
-      if (!contactName)  setContactName(user.name ?? '');
-      if (!contactEmail) setContactEmail(user.email ?? '');
-      if (!contactPhone && (user as any).phone) setContactPhone((user as any).phone);
+    const freshUser = meData?.user ?? user;
+    if (!freshUser) return;
+    if (!contactName)  setContactName(freshUser.name ?? '');
+    if (!contactEmail) setContactEmail(freshUser.email ?? '');
+    if (!contactPhone) {
+      const phone = (meData?.user as any)?.phone ?? (user as any)?.phone;
+      if (phone) setContactPhone(phone);
     }
-  }, [user]);
+  }, [user, meData]);
 
   // Auto-fill default address when delivery tab is opened
   useEffect(() => {
@@ -832,7 +835,7 @@ export default function CartScreen() {
             <Text style={styles.formFieldLabel}>Street address</Text>
             <TextInput
               style={[styles.formInput, { color: TEXT, borderColor: BORDER }]}
-              placeholder="e.g. 21 Villiers Street"
+              placeholder="Street address"
               placeholderTextColor={MUTED}
               value={street}
               onChangeText={(v) => { setStreet(v); setSelectedAddressId(null); }}
@@ -852,7 +855,7 @@ export default function CartScreen() {
                 <Text style={styles.formFieldLabel}>Suburb</Text>
                 <TextInput
                   style={[styles.formInput, { color: TEXT, borderColor: BORDER }]}
-                  placeholder="Merrylands"
+                  placeholder="Suburb"
                   placeholderTextColor={MUTED}
                   value={suburb}
                   onChangeText={(v) => { setSuburb(v); setSelectedAddressId(null); }}
@@ -863,7 +866,7 @@ export default function CartScreen() {
                 <Text style={styles.formFieldLabel}>Postcode</Text>
                 <TextInput
                   style={[styles.formInput, { color: TEXT, borderColor: BORDER }]}
-                  placeholder="2160"
+                  placeholder="Postcode"
                   placeholderTextColor={MUTED}
                   value={postcode}
                   onChangeText={(v) => { setPostcode(v); setSelectedAddressId(null); }}

@@ -244,6 +244,37 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 { text: 'Suspended', onPress: () => { api.director.customers.updateStatus(customerId, 'suspended'); refetch(); } },
                 { text: 'Cancel', style: 'cancel' },
               ])},
+              { text: 'Promote to staff role…', onPress: () => Alert.alert(
+                  'Promote Account',
+                  `Convert ${customer.name}'s customer account to a staff role.\n\nThis grants internal app access and removes customer portal access.`,
+                  [
+                    { text: 'Staff member', onPress: async () => {
+                        try {
+                          await api.director.customers.promote(customerId, 'staff');
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          Alert.alert('Done', `${customer.name} is now a staff member.`);
+                          onClose(); onDelete?.();
+                        } catch (e: any) { Alert.alert('Error', e.message); }
+                      }},
+                    { text: 'Manager', onPress: async () => {
+                        try {
+                          await api.director.customers.promote(customerId, 'manager');
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          Alert.alert('Done', `${customer.name} is now a manager.`);
+                          onClose(); onDelete?.();
+                        } catch (e: any) { Alert.alert('Error', e.message); }
+                      }},
+                    { text: 'Director', onPress: async () => {
+                        try {
+                          await api.director.customers.promote(customerId, 'director');
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          Alert.alert('Done', `${customer.name} is now a director.`);
+                          onClose(); onDelete?.();
+                        } catch (e: any) { Alert.alert('Error', e.message); }
+                      }},
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                )},
               { text: 'Edit contact info', onPress: () => customer && startEdit(customer) },
               { text: 'Delete account', style: 'destructive', onPress: () =>
                 Alert.alert(

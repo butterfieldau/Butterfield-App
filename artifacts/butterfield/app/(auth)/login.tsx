@@ -50,6 +50,7 @@ export default function LoginScreen() {
   const [email, setEmail]               = useState('');
   const [password, setPassword]         = useState('');
   const [name, setName]                 = useState('');
+  const [phone, setPhone]               = useState('');
   const [companyName, setCompanyName]   = useState('');
   const [abn, setAbn]                   = useState('');
   const [loading, setLoading]           = useState(false);
@@ -79,7 +80,7 @@ export default function LoginScreen() {
   const showSocial       = !isWholesale && mode !== 'wholesale-apply' && !showInternal;
 
   const clearPublic = () => {
-    setEmail(''); setPassword(''); setName(''); setCompanyName(''); setAbn('');
+    setEmail(''); setPassword(''); setName(''); setPhone(''); setCompanyName(''); setAbn('');
     setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
@@ -160,7 +161,8 @@ export default function LoginScreen() {
     try {
       if (mode === 'register') {
         if (!name.trim()) { setError('Please enter your name.'); setLoading(false); return; }
-        const res = await register({ email: email.trim(), password, name: name.trim() });
+        if (!phone.trim()) { setError('Phone number is required.'); setLoading(false); return; }
+        const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() });
         if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
         router.replace('/(tabs)');
       } else if (isWholesaleApply) {
@@ -334,6 +336,13 @@ export default function LoginScreen() {
                 <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="user" size={16} color={MUTED} />
                   <TextInput style={[s.input, { color: TEXT }]} placeholder="Full name" placeholderTextColor={MUTED} value={name} onChangeText={setName} autoCapitalize="words" />
+                </View>
+              )}
+
+              {mode === 'register' && (
+                <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <Feather name="phone" size={16} color={MUTED} />
+                  <TextInput style={[s.input, { color: TEXT }]} placeholder="Mobile number (required)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
                 </View>
               )}
 

@@ -52,6 +52,9 @@ router.post('/register', async (req, res) => {
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, password and name are required.' });
   }
+  if (!phone || !String(phone).trim()) {
+    return res.status(400).json({ error: 'Phone number is required.' });
+  }
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (existing.length > 0) {
     return res.status(409).json({ error: 'An account with this email already exists.' });
@@ -60,7 +63,7 @@ router.post('/register', async (req, res) => {
   const userId = randomUUID();
   await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'customer', name, phone });
   await db.insert(customerProfilesTable).values({
-    userId, loyaltyPoints: 100, loyaltyTier: 'bronze',
+    userId, loyaltyPoints: 0, loyaltyTier: 'bronze',
     referralCode: generateReferralCode(name), birthday: birthday ?? null,
   });
   await getOrCreateCustomerLoyaltyProfile(userId, name);

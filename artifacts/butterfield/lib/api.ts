@@ -366,6 +366,8 @@ export const api = {
       get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
       update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null; payAtPickupEnabled?: boolean }) =>
         request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      promote:          (id: string, role: 'staff' | 'manager' | 'director') =>
+        request<{ data: any }>(`/director/customers/${id}/promote`, { method: 'PATCH', body: JSON.stringify({ role }) }),
       updateStatus:     (id: string, status: 'active' | 'inactive' | 'suspended') =>
         request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
       updateMarketing:  (id: string, emailMarketingOptIn: boolean) =>
