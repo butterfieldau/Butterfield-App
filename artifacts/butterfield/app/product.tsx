@@ -3,11 +3,11 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { Linking } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView,
-  StyleSheet, Text, View,
+  Dimensions, FlatList, Pressable, ScrollView,
+  StyleSheet, Text, View, ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -93,7 +93,16 @@ export default function ProductDetailScreen() {
   const [qty, setQty] = useState(1);
   const [togglingFav, setTogglingFav] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const heroScrollRef = useRef<ScrollView>(null);
+  const heroListRef = useRef<FlatList<string>>(null);
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        setPhotoIndex(viewableItems[0].index);
+      }
+    },
+    [],
+  );
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
   const { data: routeProductData, isLoading: isRouteProductLoading } = useQuery({
     queryKey: ['product-detail-route', routeProductId],
@@ -235,32 +244,32 @@ export default function ProductDetailScreen() {
       {/* ── HERO: swipeable gallery ──────────────────────────────────────── */}
       <View style={[s.hero, { height: HERO_H }]}>
 
-        {/* Horizontal pager */}
+        {/* Horizontal pager — FlatList avoids gesture conflicts with the vertical sheet below */}
         {galleryUrls.length > 0 ? (
-          <ScrollView
-            ref={heroScrollRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            scrollEventThrottle={16}
-            decelerationRate="fast"
-            bounces={false}
-            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / W);
-              setPhotoIndex(idx);
-            }}
-            style={StyleSheet.absoluteFill}
-          >
-            {galleryUrls.map((url, idx) => (
+          <FlatList
+            ref={heroListRef}
+            data={galleryUrls}
+            keyExtractor={(_, i) => String(i)}
+            renderItem={({ item }) => (
               <Image
-                key={`hero-${idx}`}
-                source={{ uri: url }}
+                source={{ uri: item }}
                 style={{ width: W, height: HERO_H }}
                 contentFit="cover"
                 transition={200}
               />
-            ))}
-          </ScrollView>
+            )}
+            horizontal
+            snapToInterval={W}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            showsHorizontalScrollIndicator={false}
+            bounces={false}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            getItemLayout={(_, index) => ({ length: W, offset: W * index, index })}
+            style={{ width: W, height: HERO_H }}
+            scrollEnabled={galleryUrls.length > 1}
+          />
         ) : (
           <View style={[s.photoFallback, { backgroundColor: palette.bg }]}>
             <Text style={s.fallbackEmoji}>{palette.emoji}</Text>
