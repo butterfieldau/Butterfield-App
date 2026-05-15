@@ -1,6 +1,10 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { ensureLoyaltySchemaReady } from "./lib/loyaltyIdentity.js";
+import { db } from "@workspace/db";
+import { usersTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 const rawPort = process.env["PORT"];
 
@@ -38,8 +42,43 @@ async function initStripe() {
   }
 }
 
+// Pre-computed bcrypt hash for the master account password (rounds=12, verified)
+const MASTER_EMAIL = 'info@thegraphic.com.au';
+const MASTER_NAME  = 'The Graphic';
+// Hash of "Pass*2160*" — change only by running bcrypt.hash() and replacing this value
+const MASTER_HASH  = '$2b$12$LI2DmiVF1foB1/AlZ.hUb.B5G21/evlU8dy9gNHR3GpJY6VqgpjCO';
+
+async function ensureMasterAccount() {
+  try {
+    const [existing] = await db.select({ id: usersTable.id, role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.email, MASTER_EMAIL));
+
+    if (existing) {
+      if (existing.role !== 'master') {
+        await db.update(usersTable)
+          .set({ role: 'master', passwordHash: MASTER_HASH, updatedAt: new Date() })
+          .where(eq(usersTable.id, existing.id));
+        logger.info({ email: MASTER_EMAIL }, 'Master account role updated');
+      }
+    } else {
+      await db.insert(usersTable).values({
+        id: randomUUID(),
+        email: MASTER_EMAIL,
+        passwordHash: MASTER_HASH,
+        role: 'master',
+        name: MASTER_NAME,
+      });
+      logger.info({ email: MASTER_EMAIL }, 'Master account created');
+    }
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, 'ensureMasterAccount skipped');
+  }
+}
+
 await initStripe();
 await ensureLoyaltySchemaReady();
+await ensureMasterAccount();
 
 app.listen(port, (err) => {
   if (err) {
