@@ -87,9 +87,17 @@ function daysSinceLastOrder(lastOrderDate: string | null | undefined): number | 
   return Math.floor((Date.now() - new Date(lastOrderDate).getTime()) / 86_400_000);
 }
 
-/** Deterministic pick — rotates every hour, never the same twice in a row. */
-function stablePick<T>(arr: T[], seed: number): T {
-  return arr[seed % arr.length];
+/** Deterministic pick — rotates every hour, never the same twice in a row.
+ *  Throws if arr is empty so callers that forget a length-guard get a clear error
+ *  instead of silently returning undefined (which causes a Babel _slicedToArray crash
+ *  on the next `const [a, b] = stablePick(...)` destructure). */
+function stablePick<T>(arr: ReadonlyArray<T>, seed: number): T {
+  if (!arr || arr.length === 0) {
+    throw new Error(`stablePick: empty array (seed=${seed})`);
+  }
+  // Normalise seed to a non-negative integer then modulo
+  const idx = ((Math.floor(seed) % arr.length) + arr.length) % arr.length;
+  return arr[idx];
 }
 
 /** Random pick — kept for low-stakes one-off selections. */

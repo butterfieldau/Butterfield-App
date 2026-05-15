@@ -215,7 +215,7 @@ export default function TimesheetScreen() {
       if (!groups[key]) groups[key] = [];
       groups[key].push(sh);
     });
-    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   };
 
   const grouped = groupByDay(displayedShifts);

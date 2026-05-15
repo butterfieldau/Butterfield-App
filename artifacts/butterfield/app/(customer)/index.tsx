@@ -353,18 +353,24 @@ export default function CustomerHome() {
   const storeStatus = storeStatusData?.data;
   const open = storeStatus?.isOpen ?? false;
 
-  const greeting = useMemo(() => buildGreeting({
-    firstName,
-    loyaltyPoints,
-    hasClaimableReward,
-    birthday,
-    loyaltyTier: tierCfg.key,
-    stampCount,
-    liveContext,
-    favouriteCategory,
-    isOpen: storeStatus?.isOpen ?? true,
-    opensAt: storeStatus?.opensAt ?? null,
-  }), [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt]);
+  const greeting = useMemo(() => {
+    try {
+      return buildGreeting({
+        firstName,
+        loyaltyPoints,
+        hasClaimableReward,
+        birthday,
+        loyaltyTier: tierCfg.key,
+        stampCount,
+        liveContext,
+        favouriteCategory,
+        isOpen: storeStatus?.isOpen ?? true,
+        opensAt: storeStatus?.opensAt ?? null,
+      });
+    } catch {
+      return { line1: 'Good day!', line2: 'Fresh cookies and great coffee are waiting.' };
+    }
+  }, [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt]);
   const storeHint = open
     ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
     : (storeStatus?.opensAt   ? `Opens ${storeStatus.opensAt}`         : 'Closed');

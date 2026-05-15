@@ -433,7 +433,7 @@ export default function DirectorTimesheetsScreen() {
   const people = useMemo(() => {
     const seen = new Map<string, string>();
     weekShifts.forEach(s => { if (s.userId && s.name) seen.set(s.userId, s.name); });
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(seen.entries()).map(e => ({ id: e[0], name: e[1] })).sort((a, b) => a.name.localeCompare(b.name));
   }, [weekShifts]);
 
   const filtered = useMemo(() =>
@@ -448,7 +448,7 @@ export default function DirectorTimesheetsScreen() {
       if (!map.has(key)) map.set(key, { label: fmtDateGroup(s.clockIn), shifts: [] });
       map.get(key)!.shifts.push(s);
     });
-    return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([, v]) => v);
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0])).map(e => e[1]);
   }, [filtered]);
 
   const payrollSummary = useMemo(() => buildPayrollSummary(weekShifts), [weekShifts]);
