@@ -43,6 +43,11 @@ export interface Greeting {
   line2: string;
 }
 
+// ── Session seed ──────────────────────────────────────────────────────────────
+// Changes on every app launch so messages feel fresh each open, but stays
+// constant within a session so the greeting doesn't jump around mid-use.
+const SESSION_OFFSET = Math.floor(Math.random() * 9973); // prime keeps distribution even
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSydneyNow(): Date {
@@ -583,9 +588,11 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
   const isWeekend = dow === 0 || dow === 6;
   const daysSince = daysSinceLastOrder(lastOrderDate);
 
-  // Stable hourly seed — changes every hour, same within a session
+  // Seed: rotates hourly AND changes on every app launch (SESSION_OFFSET).
+  // This means the greeting feels fresh each time the app is opened, while
+  // staying stable for the duration of a single session.
   const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86_400_000);
-  const seed      = dayOfYear * 24 + hour;
+  const seed      = dayOfYear * 24 + hour + SESSION_OFFSET;
 
   // Live context
   const weather        = liveContext?.weather        ?? null;
