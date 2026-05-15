@@ -5,7 +5,8 @@ import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Image, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -28,9 +29,9 @@ onlineManager.setEventListener((setOnline) => {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime:      1000 * 60 * 60 * 24, // keep cache for 24 h
-      staleTime:   1000 * 60 * 5,       // treat data as fresh for 5 min
-      networkMode: "offlineFirst",       // serve cache while offline
+      gcTime:      1000 * 60 * 60 * 24,
+      staleTime:   1000 * 60 * 5,
+      networkMode: "offlineFirst",
       retry: (failureCount, error: any) => {
         if (error?.status === 401 || error?.status === 403) return false;
         return failureCount < 2;
@@ -76,8 +77,40 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+// JS-layer splash overlay — renders the same image as the native splash so
+// there's no visible jump, holds for 2 s, then fades out at 60 fps.
+function JsSplashOverlay({ onDone }: { onDone: () => void }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
+    const holdTimer = setTimeout(() => {
+      Animated.timing(opacity, {
+        toValue:         0,
+        duration:        500,
+        useNativeDriver: true,
+      }).start(() => onDone());
+    }, 2000);
+
+    return () => clearTimeout(holdTimer);
+  }, [opacity, onDone]);
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
+      <Image
+        source={require('../assets/images/splash-screen.png')}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+      />
+    </Animated.View>
+  );
+}
+
+export default function RootLayout() {
+  const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => {
+    // Hide the native Expo splash immediately — the JS overlay takes over
+    // so there's no visible gap between the two layers.
     SplashScreen.hideAsync();
   }, []);
 
@@ -102,6 +135,11 @@ export default function RootLayout() {
           </AuthProvider>
         </PersistQueryClientProvider>
       </ErrorBoundary>
+
+      {/* JS splash sits above everything until its fade completes */}
+      {!splashDone && (
+        <JsSplashOverlay onDone={() => setSplashDone(true)} />
+      )}
     </SafeAreaProvider>
   );
 }
