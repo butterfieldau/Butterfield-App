@@ -1,5 +1,44 @@
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM_ADDRESS = process.env.EMAIL_FROM ?? 'Butterfield Cookies <onboarding@resend.dev>';
+import { Resend } from 'resend';
+
+// Replit Resend connector — fetches API key from the connector proxy each call (never cached)
+async function getResendClient(): Promise<{ client: Resend; fromEmail: string } | null> {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? 'repl ' + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+    ? 'depl ' + process.env.WEB_REPL_RENEWAL
+    : null;
+
+  if (!hostname || !xReplitToken) {
+    // Connector not available — fall back to direct RESEND_API_KEY env var if set
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) return null;
+    const fromEmail = process.env.EMAIL_FROM ?? 'Butterfield Cookies <onboarding@resend.dev>';
+    return { client: new Resend(apiKey), fromEmail };
+  }
+
+  try {
+    const res = await fetch(
+      `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X-Replit-Token': xReplitToken,
+        },
+      }
+    );
+    const data = await res.json() as { items?: Array<{ settings?: { api_key?: string; from_email?: string } }> };
+    const settings = data.items?.[0]?.settings;
+    if (!settings?.api_key) return null;
+    // Always use onboarding@resend.dev until butterfieldcookies.com.au is verified in Resend dashboard
+    // Once verified, set EMAIL_FROM env var e.g. "Butterfield Cookies <noreply@butterfieldcookies.com.au>"
+    const fromEmail = process.env.EMAIL_FROM ?? 'onboarding@resend.dev';
+    return { client: new Resend(settings.api_key), fromEmail };
+  } catch (e) {
+    console.error('[emailService] Failed to fetch Resend credentials:', e);
+    return null;
+  }
+}
 
 interface SendEmailOptions {
   to: string;
@@ -8,9 +47,11 @@ interface SendEmailOptions {
   text?: string;
 }
 
-export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean; devOtp?: string }> {
-  if (!RESEND_API_KEY) {
-    console.warn('[emailService] RESEND_API_KEY not set — email not sent. For dev, check server logs.');
+export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean }> {
+  const resend = await getResendClient();
+
+  if (!resend) {
+    console.warn('[emailService] Resend not configured — email not sent.');
     console.info(`[emailService] EMAIL TO: ${opts.to} | SUBJECT: ${opts.subject}`);
     const match = opts.html.match(/letter-spacing[^>]*>(\d{6})<\/span>/);
     if (match) console.info(`[emailService] OTP CODE: ${match[1]}`);
@@ -18,23 +59,15 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
   }
 
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: FROM_ADDRESS,
-        to: [opts.to],
-        subject: opts.subject,
-        html: opts.html,
-        text: opts.text,
-      }),
+    const { error } = await resend.client.emails.send({
+      from: resend.fromEmail,
+      to: [opts.to],
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error('[emailService] Resend error:', err);
+    if (error) {
+      console.error('[emailService] Resend error:', error);
       return { success: false };
     }
     return { success: true };
@@ -53,7 +86,7 @@ export function buildPasswordResetEmail(otp: string, name: string): string {
     <tr><td align="center">
       <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
         <tr>
-          <td style="background:linear-gradient(135deg,#4B72C4,#3058A8);padding:36px 40px;text-align:center;">
+          <td style="background:linear-gradient(135deg,#1493FF,#3CBBEE);padding:36px 40px;text-align:center;">
             <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
             <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:6px;letter-spacing:1px;">COOKIES · COFFEE · DESSERTS</div>
           </td>
@@ -66,7 +99,7 @@ export function buildPasswordResetEmail(otp: string, name: string): string {
             </p>
             <div style="background:#F5F6FA;border-radius:12px;padding:28px;text-align:center;margin-bottom:28px;">
               <div style="font-size:12px;color:#8E8E93;letter-spacing:1px;margin-bottom:12px;text-transform:uppercase;">Your reset code</div>
-              <span style="font-size:42px;font-weight:800;color:#4B72C4;letter-spacing:12px;">${otp}</span>
+              <span style="font-size:42px;font-weight:800;color:#1493FF;letter-spacing:12px;">${otp}</span>
             </div>
             <p style="margin:0 0 8px;font-size:13px;color:#8E8E93;line-height:1.6;">
               This code expires in <strong>15 minutes</strong>. If you didn't request a password reset, you can safely ignore this email — your password won't change.
