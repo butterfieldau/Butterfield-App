@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-screen.png",
       "resizeMode": "cover",
-      "backgroundColor": "#40C0F2"
+      "backgroundColor": "#1493FF"
     },
     "ios": {
       "supportsTablet": false,

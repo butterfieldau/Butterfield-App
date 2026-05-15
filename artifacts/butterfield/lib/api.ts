@@ -114,12 +114,6 @@ export const api = {
     updateBirthday: (birthday: string) =>
       request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
-  wallet: {
-    downloadToken: () =>
-      request<{ data: { token: string; expiresIn: number } }>('/wallet/download-token', { method: 'POST' }),
-    googlePassUrl: () =>
-      request<{ data: { url: string } }>('/wallet/google-pass-url'),
-  },
   staff: {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
     currentShift: () => request<{ data: any }>('/staff/shifts/current'),
