@@ -549,12 +549,22 @@ export default function CartScreen() {
             </Text>
             <Pressable
               onPress={() => {
+                clearCart();
                 router.dismissAll();
-                router.push('/orders');
+                router.replace('/(tabs)');
               }}
               style={styles.trackBtn}
             >
-              <Text style={styles.trackBtnText}>Go to My Orders</Text>
+              <Text style={styles.trackBtnText}>Back to Home</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                clearCart();
+                router.dismissAll();
+                router.replace('/orders');
+              }}
+            >
+              <Text style={[styles.successInfoText, { textAlign: 'center', marginTop: 4, textDecorationLine: 'underline' }]}>View my orders</Text>
             </Pressable>
           </View>
         </Animated.View>
