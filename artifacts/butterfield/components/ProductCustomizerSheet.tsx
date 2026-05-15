@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator, Linking, Modal, Pressable,
   StyleSheet, Text, TextInput,
-  useWindowDimensions, View,
+  useWindowDimensions, View, NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
 import { Gesture, GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
 import Animated, {
@@ -56,7 +56,7 @@ function parseArr(val: any): string[] {
 
 export default function ProductCustomizerSheet({ product, visible, onClose }: Props) {
   const insets                             = useSafeAreaInsets();
-  const { height: SCREEN_H }              = useWindowDimensions();
+  const { height: SCREEN_H, width: SCREEN_W } = useWindowDimensions();
   const { addItemToCart }                 = useCart();
   const [selectedVariantId, setVariantId] = useState<string | null>(null);
   const [selections, setSelections]       = useState<SelectionMap>({});
@@ -65,6 +65,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
 
   // Keep modal alive during dismiss animation
   const [modalVisible, setModalVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   // Hold last product so content stays visible during dismiss
   const lastProductRef = useRef<ApiProduct | null>(null);
   if (product) lastProductRef.current = product;
@@ -218,13 +219,18 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
       if (g.selectionType === 'text' && textValues[g.id]?.trim())
         opts.push({ groupId: g.id, groupName: g.name, optionId: undefined, optionName: undefined, priceAdjustmentCents: 0, textValue: textValues[g.id].trim() } as any);
 
+    // Compute imageUrl directly from the product to avoid stale-closure issues
+    const imgs: string[] = Array.isArray(raw?.images) ? raw.images : [];
+    const cartImageUrl: string | undefined =
+      imgs[0] ?? raw?.imageUrl ?? undefined;
+
     const selVariant = variants.find((v: any) => v.id === selectedVariantId);
     addItemToCart({
       productId:   displayProduct.id, productName: displayProduct.name,
       variantId:   selectedVariantId ?? undefined,
       variantName: selVariant?.name ?? undefined,
       basePriceCents, selectedOptions: opts as any, quantity,
-      imageUrl,
+      imageUrl: cartImageUrl,
       category:  raw.category ?? raw.metadata?.category,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -274,16 +280,47 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
         <GestureDetector gesture={panGesture}>
           <Animated.View style={[s.sheet, { height: Math.round(SCREEN_H * 0.82) }, sheetStyle]}>
 
-            {/* Image header */}
-            <View style={[s.imageArea, { backgroundColor: imageUrl ? 'transparent' : palette.bg }]}>
-              {imageUrl
-                ? <Image source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
-                : <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.banner, opacity: 0.14 }]} />
-              }
+            {/* Image header — swipeable gallery when multiple images */}
+            <View style={[s.imageArea, { backgroundColor: galleryUrls.length === 0 ? palette.bg : 'transparent' }]}>
+              {galleryUrls.length > 0 ? (
+                <GHScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  scrollEventThrottle={16}
+                  onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+                    setCurrentImageIndex(idx);
+                  }}
+                  style={{ width: SCREEN_W, height: IMAGE_H }}
+                  bounces={false}
+                >
+                  {galleryUrls.map((url, idx) => (
+                    <Image
+                      key={`${url}-${idx}`}
+                      source={{ uri: url }}
+                      style={{ width: SCREEN_W, height: IMAGE_H }}
+                      contentFit="cover"
+                    />
+                  ))}
+                </GHScrollView>
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.banner, opacity: 0.14 }]} />
+              )}
+
               {(isNew || isLim) && (
                 <View style={s.imageBadges}>
                   {isNew && <View style={[s.imgBadge, { backgroundColor: '#1C1C1E' }]}><Text style={s.imgBadgeText}>NEW</Text></View>}
                   {isLim && <View style={[s.imgBadge, { backgroundColor: '#F40009' }]}><Text style={s.imgBadgeText}>LIMITED</Text></View>}
+                </View>
+              )}
+
+              {/* Page dots — only when more than one image */}
+              {galleryUrls.length > 1 && (
+                <View style={s.pageDots} pointerEvents="none">
+                  {galleryUrls.map((_, i) => (
+                    <View key={i} style={[s.pageDot, i === currentImageIndex && s.pageDotActive]} />
+                  ))}
                 </View>
               )}
             </View>
@@ -318,18 +355,6 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                   <Text style={s.websiteLinkText}>View on Website</Text>
                   <Text style={{ fontSize: 11, color: BTN_CLR, fontWeight: '400', marginLeft: 2 }}>↗</Text>
                 </Pressable>
-              ) : null}
-
-              {galleryUrls.length > 1 ? (
-                <View style={s.galleryRow}>
-                  <GHScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.galleryContent}>
-                    {galleryUrls.map((url, idx) => (
-                      <View key={`${url}-${idx}`} style={s.galleryThumbWrap}>
-                        <Image source={{ uri: url }} style={s.galleryThumb} contentFit="cover" />
-                      </View>
-                    ))}
-                  </GHScrollView>
-                </View>
               ) : null}
 
               <GHScrollView
@@ -477,9 +502,13 @@ const s = StyleSheet.create({
     borderTopLeftRadius:  32,
     borderTopRightRadius: 32,
   },
-  imageBadges:  { position: 'absolute', bottom: 14, left: 16, flexDirection: 'row', gap: 6 },
+  imageBadges:  { position: 'absolute', bottom: 28, left: 16, flexDirection: 'row', gap: 6 },
   imgBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 7 },
   imgBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+
+  pageDots: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  pageDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
+  pageDotActive: { backgroundColor: '#fff', width: 8, height: 8, borderRadius: 4 },
 
   content: {
     flex: 1,
@@ -498,11 +527,6 @@ const s = StyleSheet.create({
 
   websiteLink:     { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   websiteLinkText: { fontSize: 13, color: BTN_CLR, fontWeight: '600' },
-
-  galleryRow:      { marginBottom: 14 },
-  galleryContent:  { gap: 8, paddingRight: 4 },
-  galleryThumbWrap:{ width: 58, height: 58, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, backgroundColor: '#F3F4F6' },
-  galleryThumb:    { width: '100%', height: '100%' },
 
   scroll:     { flex: 1 },
   group:      { marginBottom: 20 },

@@ -1,13 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { isLiquidGlassAvailable } from 'expo-glass-effect';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -565,7 +565,7 @@ export default function CartScreen() {
         return (
           <View key={item.cartItemId} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
             {imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.itemThumb} resizeMode="cover" />
+              <Image source={{ uri: imageUrl }} style={styles.itemThumb} contentFit="cover" />
             ) : (
               <View style={[styles.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
                 <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
