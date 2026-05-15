@@ -229,8 +229,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-
+      <View style={{ flex: 1 }}>
         <LinearGradient colors={[BLUE, BLUE_DARK]} style={[s.hero, { paddingTop: insets.top + 28 }]}>
           <Image
             source={require('@/assets/images/logo-white.png')}
@@ -240,7 +239,13 @@ export default function LoginScreen() {
           <Text style={[s.tagline, { fontWeight: '400' }]}>Cookies · Coffee · Desserts</Text>
         </LinearGradient>
 
-        <View style={s.body}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={s.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={s.body}>
 
           {!showInternal ? (
             <>
@@ -463,16 +468,18 @@ export default function LoginScreen() {
               </View>
             </>
           )}
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
   hero:            { alignItems: 'center', paddingBottom: 36, gap: 6 },
+  scrollContent:   { paddingBottom: 48 },
   tagline:         { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
-  body:            { flex: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
+  body:            { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
   signInAs:        { fontSize: 15, color: TEXT },
   roleRow:         { flexDirection: 'row', gap: 12 },
   roleCard:        { flex: 1, padding: 16, gap: 8, alignItems: 'center', borderRadius: 16 },

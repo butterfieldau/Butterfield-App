@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -294,6 +294,23 @@ export default function CartScreen() {
     return pieces;
   }, [confirmation]);
 
+  const canExitCart = step === 0;
+  const edgeBackPan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          canExitCart && gestureState.x0 <= 32 && gestureState.dx > 14 && Math.abs(gestureState.dy) < 16,
+        onPanResponderRelease: (_, gestureState) => {
+          if (!canExitCart) return;
+          if (gestureState.x0 <= 32 && gestureState.dx > 72) {
+            Haptics.selectionAsync();
+            router.back();
+          }
+        },
+      }),
+    [canExitCart],
+  );
+
   // Load saved addresses
   const { data: addrData } = useQuery({
     queryKey: ['addresses'],
@@ -539,7 +556,16 @@ export default function CartScreen() {
   // ── Empty cart ───────────────────────────────────────────────────────────
   if (items.length === 0) {
     return (
-      <View style={[styles.emptyWrap, { paddingTop: insets.top + 60 }]}>
+      <View style={[styles.emptyWrap, { paddingTop: insets.top + 60 }]} {...edgeBackPan.panHandlers}>
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync();
+            router.back();
+          }}
+          style={[styles.emptyBackBtn, { top: insets.top + 12 }]}
+        >
+          <Feather name="chevron-left" size={22} color={TEXT} />
+        </Pressable>
         <View style={[styles.emptyIconCircle, { backgroundColor: BG }]}>
           <Feather name="shopping-bag" size={36} color={MUTED} />
         </View>
@@ -548,8 +574,6 @@ export default function CartScreen() {
       </View>
     );
   }
-
-  const showNativeTabBar = isLiquidGlassAvailable();
 
   // ── Cart step ────────────────────────────────────────────────────────────
   const renderCartStep = () => (
@@ -1014,7 +1038,7 @@ export default function CartScreen() {
 
   // ── Main render ───────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: CARD }}>
+    <View style={{ flex: 1, backgroundColor: CARD }} {...edgeBackPan.panHandlers}>
 
       {/* Fixed header */}
       <View style={[styles.checkoutHeader, { paddingTop: insets.top + 12, backgroundColor: CARD, borderBottomColor: BORDER }]}>
@@ -1024,7 +1048,15 @@ export default function CartScreen() {
               <Feather name="chevron-left" size={22} color={TEXT} />
             </Pressable>
           ) : (
-            <View style={{ width: 36 }} />
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                router.back();
+              }}
+              style={styles.backBtn}
+            >
+              <Feather name="chevron-left" size={22} color={TEXT} />
+            </Pressable>
           )}
           <View style={{ alignItems: 'center' }}>
             <Text style={styles.checkoutTitle}>CHECKOUT</Text>
@@ -1068,7 +1100,7 @@ export default function CartScreen() {
 
       {/* Sticky bottom bar */}
       {!confirmation && (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 + (showNativeTabBar ? 49 : 0), backgroundColor: CARD, borderTopColor: BORDER }]}>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
           <View style={styles.bottomTotal}>
             <Text style={styles.bottomTotalLabel}>TOTAL</Text>
             <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
@@ -1243,6 +1275,7 @@ const styles = StyleSheet.create({
   trackBtnText:   { color: '#fff', fontSize: 15, fontWeight: '600' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyBackBtn:    { position: 'absolute', left: 16, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   emptyIconCircle: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
   emptyTitle:      { fontSize: 20, fontWeight: '600', color: '#1C1C1E' },
   emptySub:        { fontSize: 14, fontWeight: '400', color: '#8E8E93' },

@@ -180,18 +180,23 @@ function FeatureShortcutTile({
         <View style={s.featureTileImageWrap}>
           <Image source={imageSource} style={[s.featureTileImage, imageStyle]} contentFit="contain" />
         </View>
-        <View style={s.featureTileFooter}>
+        <View style={[s.featureTileFooter, showArrow && s.featureTileFooterSplit]}>
           <Text
             style={[
               s.featureTileTitle,
               { color: titleColor, fontWeight: '700' },
+              showArrow && s.featureTileTitleSplit,
               titleStyle,
             ]}
             numberOfLines={2}
           >
             {title}
           </Text>
-          {showArrow && <Feather name="arrow-right" size={18} color="#1C1C1E" />}
+          {showArrow && (
+            <View style={s.featureTileArrowWrap}>
+              <Feather name="arrow-right" size={20} color="#1C1C1E" />
+            </View>
+          )}
         </View>
       </LinearGradient>
     </Pressable>
@@ -788,18 +793,21 @@ const s = StyleSheet.create({
 
   // ── Feature shortcut tiles ──────────────────────────────────────────────────
   quickRail:        { paddingHorizontal: 16, gap: 12, marginTop: 18, flexDirection: 'row' },
-  featureTile:      { flex: 1, aspectRatio: 0.94, borderRadius: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  featureTileBg:    { flex: 1, paddingHorizontal: 10, paddingTop: 12, paddingBottom: 18, overflow: 'hidden', justifyContent: 'space-between', alignItems: 'center' },
-  featureTileImageWrap: { width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center' },
+  featureTile:      { flex: 1, aspectRatio: 1, borderRadius: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
+  featureTileBg:    { flex: 1, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 16, overflow: 'hidden', justifyContent: 'space-between', alignItems: 'center' },
+  featureTileImageWrap: { width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 2 },
   featureTileTitle: { fontSize: 13, lineHeight: 16, letterSpacing: -0.2, textAlign: 'center' },
-  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minHeight: 44, paddingHorizontal: 4 },
+  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minHeight: 46, paddingHorizontal: 6, paddingBottom: 2 },
+  featureTileFooterSplit: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
+  featureTileTitleSplit: { flex: 1, textAlign: 'left' },
+  featureTileArrowWrap: { width: 24, alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 1 },
   featureTileImage: { width: '100%', height: '100%' },
   cookiesTileTitle: { fontSize: 15, lineHeight: 18, textAlign: 'center' },
   cookiesTileImage: { width: '88%', height: '88%', alignSelf: 'center', transform: [{ translateY: 2 }] },
   rewardsTileTitle: { fontSize: 15, lineHeight: 18, textAlign: 'center' },
-  rewardsTileImage: { width: '74%', height: '74%', alignSelf: 'center' },
-  skipTileTitle:    { fontSize: 15, lineHeight: 18, textAlign: 'center' },
-  skipTileImage:    { width: '78%', height: '78%', alignSelf: 'center' },
+  rewardsTileImage: { width: '72%', height: '72%', alignSelf: 'center' },
+  skipTileTitle:    { fontSize: 15, lineHeight: 18, textAlign: 'left', maxWidth: 110 },
+  skipTileImage:    { width: '70%', height: '70%', alignSelf: 'center' },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
   section:       { marginTop: 26 },

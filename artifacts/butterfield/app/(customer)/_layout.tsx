@@ -2,27 +2,14 @@ import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Tabs, router, useLocalSearchParams, usePathname } from 'expo-router';
-import React, { useMemo } from 'react';
+import { Tabs, usePathname } from 'expo-router';
+import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 
-const TAB_ROUTES = ['/', '/menu', '/loyalty', '/cart', '/profile'] as const;
 const PRIMARY_TOP = '#1493FF';
-const PRIMARY_BOTTOM = '#3CBBEE';
-
-function getActiveTabIndex(pathname: string) {
-  const p = pathname.toLowerCase();
-  if (p.includes('/menu')) return 1;
-  if (p.includes('/loyalty')) return 2;
-  if (p.includes('/cart')) return 3;
-  if (p.includes('/profile')) return 4;
-  if (p === '/' || p.endsWith('/index')) return 0;
-  return -1;
-}
 
 function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any) {
   const insets = useSafeAreaInsets();
@@ -96,10 +83,10 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
 
 function ClassicCustomerTabs() {
   const colors = useColors();
-  const params = useLocalSearchParams<{ success?: string }>();
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
-  const hideTabs = usePathname()?.includes('/cart') && params.success === '1';
+  const pathname = usePathname() ?? '';
+  const hideTabs = pathname.includes('/cart');
 
   return (
     <Tabs
@@ -168,39 +155,7 @@ function ClassicCustomerTabs() {
 }
 
 export default function CustomerTabLayout() {
-  const pathname = usePathname() ?? '/';
-  const activeIndex = getActiveTabIndex(pathname);
-  const canSwipe = Platform.OS === 'ios' && activeIndex >= 0;
-
-  const swipeGesture = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetX([-20, 20])
-        .failOffsetY([-14, 14])
-        .onEnd((e) => {
-          if (activeIndex < 0) return;
-          const fastEnough = Math.abs(e.translationX) > 70 || Math.abs(e.velocityX) > 700;
-          if (!fastEnough) return;
-
-          if (e.translationX < 0 && activeIndex < TAB_ROUTES.length - 1) {
-            Haptics.selectionAsync();
-            router.navigate(TAB_ROUTES[activeIndex + 1] as any);
-          } else if (e.translationX > 0 && activeIndex > 0) {
-            Haptics.selectionAsync();
-            router.navigate(TAB_ROUTES[activeIndex - 1] as any);
-          }
-        }),
-    [activeIndex],
-  );
-
-  const content = <ClassicCustomerTabs />;
-  if (!canSwipe) return content;
-
-  return (
-    <GestureDetector gesture={swipeGesture}>
-      <View style={{ flex: 1 }}>{content}</View>
-    </GestureDetector>
-  );
+  return <ClassicCustomerTabs />;
 }
 
 const styles = StyleSheet.create({
