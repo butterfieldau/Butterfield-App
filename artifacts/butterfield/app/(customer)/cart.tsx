@@ -489,7 +489,7 @@ export default function CartScreen() {
             <Image
               source={require('../../assets/images/butterfield-character.png')}
               style={styles.characterImage}
-              resizeMode="contain"
+              contentFit="contain"
             />
           </View>
         </Animated.View>
@@ -1130,7 +1130,7 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
   // Item cards
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
-  itemThumb:  { width: 90, height: 90 },
+  itemThumb:  { width: 90, alignSelf: 'stretch' },
   removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
   itemBody:   { flex: 1, padding: 12, gap: 4 },
   itemName:   { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },

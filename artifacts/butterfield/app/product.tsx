@@ -213,6 +213,8 @@ export default function ProductDetailScreen() {
       addItem({
         id:          product.id,
         name:        product.name,
+        imageUrl:    photoUrl ?? undefined,
+        images:      photoUrl ? [photoUrl] : [],
         category:    category as any,
         price:       pricePerItem,
         description: customDesc,
