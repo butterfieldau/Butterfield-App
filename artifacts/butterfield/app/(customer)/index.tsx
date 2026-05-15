@@ -189,6 +189,8 @@ function FeatureShortcutTile({
               titleStyle,
             ]}
             numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
           >
             {title}
           </Text>
@@ -792,22 +794,22 @@ const s = StyleSheet.create({
   openText:      { fontSize: 12 },
 
   // ── Feature shortcut tiles ──────────────────────────────────────────────────
-  quickRail:        { paddingHorizontal: 16, gap: 12, marginTop: 18, flexDirection: 'row' },
+  quickRail:        { paddingHorizontal: 14, gap: 8, marginTop: 18, flexDirection: 'row' },
   featureTile:      { flex: 1, aspectRatio: 1, borderRadius: 22, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 4 },
-  featureTileBg:    { flex: 1, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 16, overflow: 'hidden', justifyContent: 'space-between', alignItems: 'center' },
+  featureTileBg:    { flex: 1, paddingHorizontal: 8, paddingTop: 10, paddingBottom: 10, overflow: 'hidden', justifyContent: 'space-between', alignItems: 'center' },
   featureTileImageWrap: { width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 2 },
-  featureTileTitle: { fontSize: 13, lineHeight: 16, letterSpacing: -0.2, textAlign: 'center' },
-  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 8, minHeight: 46, paddingHorizontal: 6, paddingBottom: 2 },
-  featureTileFooterSplit: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
+  featureTileTitle: { fontSize: 14, lineHeight: 17, letterSpacing: -0.2, textAlign: 'center' },
+  featureTileFooter: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', gap: 4, minHeight: 38, paddingHorizontal: 4, paddingBottom: 2 },
+  featureTileFooterSplit: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6 },
   featureTileTitleSplit: { flex: 1, textAlign: 'left' },
-  featureTileArrowWrap: { width: 24, alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 1 },
+  featureTileArrowWrap: { width: 22, alignItems: 'flex-end', justifyContent: 'flex-end', paddingBottom: 1 },
   featureTileImage: { width: '100%', height: '100%' },
-  cookiesTileTitle: { fontSize: 15, lineHeight: 18, textAlign: 'center' },
-  cookiesTileImage: { width: '88%', height: '88%', alignSelf: 'center', transform: [{ translateY: 2 }] },
-  rewardsTileTitle: { fontSize: 15, lineHeight: 18, textAlign: 'center' },
-  rewardsTileImage: { width: '72%', height: '72%', alignSelf: 'center' },
-  skipTileTitle:    { fontSize: 15, lineHeight: 18, textAlign: 'left', maxWidth: 110 },
-  skipTileImage:    { width: '70%', height: '70%', alignSelf: 'center' },
+  cookiesTileTitle: { fontSize: 14, lineHeight: 17, textAlign: 'center' },
+  cookiesTileImage: { width: '90%', height: '90%', alignSelf: 'center', transform: [{ translateY: 2 }] },
+  rewardsTileTitle: { fontSize: 14, lineHeight: 17, textAlign: 'center' },
+  rewardsTileImage: { width: '78%', height: '78%', alignSelf: 'center' },
+  skipTileTitle:    { fontSize: 14, lineHeight: 17, textAlign: 'left' },
+  skipTileImage:    { width: '76%', height: '76%', alignSelf: 'center' },
 
   // ── Shared tile parts ───────────────────────────────────────────────────────
   section:       { marginTop: 26 },
