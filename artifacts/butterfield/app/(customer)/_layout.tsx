@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { GlassContainer, GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, router, useLocalSearchParams, usePathname } from 'expo-router';
@@ -27,6 +28,7 @@ function getActiveTabIndex(pathname: string) {
 function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any) {
   const insets = useSafeAreaInsets();
   const { totalItems } = useCart();
+  const liquidGlass = isLiquidGlassAvailable();
 
   if (hideTabs) return null;
 
@@ -54,7 +56,7 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
         onPress={onPress}
         style={[detached ? styles.detachedTabButton : styles.tabButton, focused && styles.tabButtonActive]}
       >
-        {focused ? (
+        {focused && !liquidGlass ? (
           <>
             <LinearGradient
               colors={['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.82)']}
@@ -78,18 +80,34 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
     );
   };
 
+  const mainPillContent = mainRoutes.map((route: any) => renderTab(route));
+  const accountPillContent = accountRoute ? renderTab(accountRoute, true) : null;
+
   return (
     <View pointerEvents="box-none" style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <View style={styles.tabBarRow}>
-        <BlurView intensity={72} tint="light" style={styles.mainPill}>
-          {mainRoutes.map((route: any) => renderTab(route))}
-        </BlurView>
-        {accountRoute ? (
-          <BlurView intensity={72} tint="light" style={styles.accountPill}>
-            {renderTab(accountRoute, true)}
+      {liquidGlass ? (
+        <GlassContainer style={styles.tabBarRow} spacing={12}>
+          <GlassView glassEffectStyle="regular" colorScheme="light" style={styles.mainPill}>
+            {mainPillContent}
+          </GlassView>
+          {accountRoute ? (
+            <GlassView glassEffectStyle="regular" colorScheme="light" style={styles.accountPill}>
+              {accountPillContent}
+            </GlassView>
+          ) : null}
+        </GlassContainer>
+      ) : (
+        <View style={styles.tabBarRow}>
+          <BlurView intensity={72} tint="light" style={styles.mainPill}>
+            {mainPillContent}
           </BlurView>
-        ) : null}
-      </View>
+          {accountRoute ? (
+            <BlurView intensity={72} tint="light" style={styles.accountPill}>
+              {accountPillContent}
+            </BlurView>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
@@ -99,7 +117,7 @@ function ClassicCustomerTabs() {
   const params = useLocalSearchParams<{ success?: string }>();
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
-  const hideTabs = usePathname()?.includes('/cart') && params.success === '1';
+  const hideTabs = usePathname()?.includes('/cart');
 
   return (
     <Tabs
