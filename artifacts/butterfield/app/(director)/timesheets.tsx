@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorShift } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const BG     = '#F5F6FA';
@@ -175,8 +176,9 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
 }
 
 // ── Edit / Approve Modal ───────────────────────────────────────────────────────
-function ShiftModal({ shift, visible, onClose, onSaved }: {
+function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
   shift: DirectorShift | null; visible: boolean; onClose: () => void; onSaved: () => void;
+  hidePayInfo?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -270,7 +272,7 @@ function ShiftModal({ shift, visible, onClose, onSaved }: {
                   { label: 'Clock Out',     value: shift.clockOut ? new Date(shift.clockOut).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Active' },
                   { label: 'Break',         value: `${shift.unpaidBreakMins ?? 0} min unpaid` },
                   { label: 'Hours Worked',  value: active ? '—' : hrs ? `${hrs.toFixed(2)} hrs` : '—' },
-                  { label: 'Owing',         value: pay ? fmtAUD(pay) : (shift.hourlyRateCents ? fmtAUD(0) : 'No rate set') },
+                  ...(!hidePayInfo ? [{ label: 'Owing', value: pay ? fmtAUD(pay) : (shift.hourlyRateCents ? fmtAUD(0) : 'No rate set') }] : []),
                   ...(isApproved ? [{ label: 'Approved', value: new Date(shift.approvedAt!).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }] : []),
                 ].map(row => (
                   <View key={row.label} style={sm.infoRow}>
@@ -398,6 +400,8 @@ function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySumma
 
 // ── Main Screen ────────────────────────────────────────────────────────────────
 export default function DirectorTimesheetsScreen() {
+  const { user } = useAuth();
+  const isManager = user?.role === 'manager';
   const insets = useSafeAreaInsets();
   const [weekOffset,    setWeekOffset]    = useState(0);
   const [personFilter,  setPersonFilter]  = useState<string>('all');
@@ -538,10 +542,12 @@ export default function DirectorTimesheetsScreen() {
               <Text style={[styles.summaryLabel, { color: MUTED }]}>HOURS WORKED</Text>
               <Text style={[styles.summaryValue, { color: TEXT }]}>{formatHours(stats.totalHrs)}</Text>
             </View>
-            <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-              <Text style={[styles.summaryLabel, { color: MUTED }]}>OWING</Text>
-              <Text style={[styles.summaryValue, { color: BLUE }]}>{fmtAUD(stats.totalOwingCents)}</Text>
-            </View>
+            {!isManager && (
+              <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <Text style={[styles.summaryLabel, { color: MUTED }]}>OWING</Text>
+                <Text style={[styles.summaryValue, { color: BLUE }]}>{fmtAUD(stats.totalOwingCents)}</Text>
+              </View>
+            )}
             <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               <Text style={[styles.summaryLabel, { color: MUTED }]}>SHIFTS</Text>
               <Text style={[styles.summaryValue, { color: TEXT }]}>{stats.completed}</Text>
@@ -573,7 +579,7 @@ export default function DirectorTimesheetsScreen() {
           )}
 
           {/* ── Payroll summary card ─────────────────────────────────────────── */}
-          {personFilter === 'all' && payrollSummary.length > 0 && (
+          {!isManager && personFilter === 'all' && payrollSummary.length > 0 && (
             <PayrollSummaryCard summaries={payrollSummary} weekLabel={weekLabel} />
           )}
 
@@ -671,7 +677,7 @@ export default function DirectorTimesheetsScreen() {
                             {!isActive && (
                               <>
                                 <Text style={[styles.shiftDuration, { color: TEXT }]}>{formatHours(hrs)}</Text>
-                                {p != null && <Text style={[styles.shiftEarnings, { color: BLUE }]}>{fmtAUD(p)}</Text>}
+                                {!isManager && p != null && <Text style={[styles.shiftEarnings, { color: BLUE }]}>{fmtAUD(p)}</Text>}
                               </>
                             )}
                             {isActive && (
@@ -688,8 +694,8 @@ export default function DirectorTimesheetsScreen() {
                           </View>
                         </View>
 
-                        {/* Footer rate row */}
-                        {!isActive && shift.hourlyRateCents != null && (
+                        {/* Footer rate row — directors/masters only, never shown to managers */}
+                        {!isManager && !isActive && shift.hourlyRateCents != null && (
                           <View style={[styles.shiftRateRow, { borderTopColor: BORDER }]}>
                             <Text style={[styles.shiftRateText, { color: MUTED }]}>
                               ${(shift.hourlyRateCents / 100).toFixed(2)}/hr · {formatHours(hrs)} worked
@@ -711,6 +717,7 @@ export default function DirectorTimesheetsScreen() {
         visible={modalVisible}
         onClose={() => { setModalVisible(false); setSelected(null); }}
         onSaved={() => { setModalVisible(false); setSelected(null); }}
+        hidePayInfo={isManager}
       />
     </View>
   );

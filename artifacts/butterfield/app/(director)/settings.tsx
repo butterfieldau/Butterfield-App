@@ -1450,6 +1450,7 @@ const ALL_PERMISSIONS = [
   { key: 'dashboard',     label: 'Dashboard',     icon: 'grid'        },
   { key: 'orders',        label: 'Orders',        icon: 'shopping-bag'},
   { key: 'users',         label: 'Users',         icon: 'users'       },
+  { key: 'timesheets',    label: 'Timesheets',    icon: 'clock'       },
   { key: 'products',      label: 'Products',      icon: 'package'     },
   { key: 'reports',       label: 'Reports',       icon: 'bar-chart-2' },
   { key: 'rewards',       label: 'Rewards',       icon: 'gift'        },

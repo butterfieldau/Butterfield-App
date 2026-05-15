@@ -6,6 +6,7 @@ export const MANAGER_PERMISSIONS = [
   "dashboard",
   "orders",
   "users",
+  "timesheets",
   "products",
   "reports",
   "rewards",

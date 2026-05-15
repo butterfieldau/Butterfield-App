@@ -20,7 +20,7 @@ router.use(requireRole('director', 'manager', 'master'));
 // For managers, enforce per-route permissions based on method + path.
 // Directors and masters pass through unconditionally.
 // Returns a MANAGER_PERMISSIONS string or 'director_only' to block managers entirely.
-function resolveDirectorPermission(method: string, path: string): ManagerPermission | 'director_only' {
+function resolveDirectorPermission(method: string, path: string): ManagerPermission | 'director_only' | 'self_only' {
   // Manager/director management — director-only (inline handlers also guard these)
   if (path.startsWith('/managers') || path.startsWith('/directors')) return 'director_only';
   // User deletion and wholesale-card visibility — director-only
@@ -39,7 +39,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/wholesale' || path.startsWith('/wholesale/')) return 'users';
   if (path.startsWith('/wholesale-cards/')) return 'users';
   if (path === '/create-staff' || path === '/create-wholesale') return 'users';
-  if (path === '/timesheets' || path.startsWith('/timesheets/')) return 'users';
+  if (path === '/timesheets' || path.startsWith('/timesheets/')) return 'self_only';
   if (path === '/wastage') return 'users';
   if (path === '/issues' || path.startsWith('/issues/')) return 'users';
   if (path === '/leave') return 'users';
@@ -928,6 +928,8 @@ router.get('/reports', async (req, res) => {
 
 // ── Timesheets ────────────────────────────────────────────────────────────────
 router.get('/timesheets', async (req, res) => {
+  const viewScope: 'all' | 'self' | undefined = (req as any).managerViewScope;
+
   const rows = await db
     .select({
       id:              staffShiftsTable.id,
@@ -951,7 +953,23 @@ router.get('/timesheets', async (req, res) => {
     .orderBy(desc(staffShiftsTable.clockIn))
     .limit(400);
 
-  return res.json({ data: rows });
+  // Directors and masters: return full data unchanged.
+  if (!viewScope) return res.json({ data: rows });
+
+  const callerId = req.user!.id;
+
+  if (viewScope === 'self') {
+    // Manager without timesheets permission: only their own shifts.
+    const own = rows.filter(r => r.userId === callerId);
+    return res.json({ data: own });
+  }
+
+  // Manager WITH timesheets permission: all shifts but never expose other
+  // staff members' pay rates — that information stays private regardless.
+  const sanitised = rows.map(r =>
+    r.userId === callerId ? r : { ...r, hourlyRateCents: null },
+  );
+  return res.json({ data: sanitised });
 });
 
 router.patch('/timesheets/:id', async (req, res) => {
@@ -961,6 +979,12 @@ router.patch('/timesheets/:id', async (req, res) => {
 
   const [existing] = await db.select().from(staffShiftsTable).where(eq(staffShiftsTable.id, req.params.id));
   if (!existing) return res.status(404).json({ error: 'Shift not found' });
+
+  // Managers with 'self' scope can only edit their own shifts.
+  const viewScope: 'all' | 'self' | undefined = (req as any).managerViewScope;
+  if (viewScope === 'self' && existing.userId !== req.user!.id) {
+    return res.status(403).json({ error: 'Forbidden: you can only edit your own shifts' });
+  }
 
   const updates: Partial<typeof staffShiftsTable.$inferSelect> = {};
 
