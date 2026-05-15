@@ -107,6 +107,8 @@ export const api = {
       request<{ data: LoyaltyLookupResult }>('/loyalty/lookup', { method: 'POST', body: JSON.stringify({ qrPayload: payload }) }),
     addCoffeeStamp: (payload: string, quantity = 1) =>
       request<{ data: LoyaltyLookupResult }>('/loyalty/scan-stamp', { method: 'POST', body: JSON.stringify({ qrPayload: payload, quantity }) }),
+    useFreeCoffee: (payload: string) =>
+      request<{ data: LoyaltyLookupResult & { redeemedAt?: string } }>('/loyalty/use-free-coffee', { method: 'POST', body: JSON.stringify({ qrPayload: payload }) }),
     redeem: (rewardId: string) =>
       request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
     updateBirthday: (birthday: string) =>

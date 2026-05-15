@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Pressable, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 const DARK  = '#0D0604';
 const GREEN  = '#16A34A';
 const AMBER  = '#F59E0B';
+const RED    = '#EF4444';
 const WHITE  = '#FFFFFF';
 const MUTED  = '#8E8E93';
 
@@ -25,14 +26,16 @@ type ScanResult = {
   freeCoffeeRewards: number;
   qrPayload?: string | null;
   earnedFree?: boolean;
+  justRedeemed?: boolean;
 };
 
 export function StampScanScreen() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanning, setScanning] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
-  const [error, setError]   = useState<string | null>(null);
+  const [scanning, setScanning]   = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
+  const [result, setResult]       = useState<ScanResult | null>(null);
+  const [error, setError]         = useState<string | null>(null);
   const lastScanAt = useRef<number>(0);
 
   const handleBarcode = useCallback(async ({ data }: { data: string }) => {
@@ -58,7 +61,7 @@ export function StampScanScreen() {
       setResult({ customerName, customerEmail, loyaltyPoints, stampCount, freeCoffeeRewards, qrPayload });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(e?.message ?? 'Could not record stamp. Try again.');
+      setError(e?.message ?? 'Could not look up customer. Try again.');
     } finally {
       setScanning(false);
     }
@@ -73,10 +76,7 @@ export function StampScanScreen() {
   const addStamp = useCallback(async () => {
     if (!result) return;
     const payload = result.qrPayload ?? '';
-    if (!payload) {
-      setError('This QR code is missing a loyalty token.');
-      return;
-    }
+    if (!payload) { setError('This QR code is missing a loyalty token.'); return; }
     setScanning(true);
     setError(null);
     try {
@@ -84,19 +84,62 @@ export function StampScanScreen() {
       const updated = res.data;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult({
-        customerName: updated.customerName,
-        customerEmail: updated.customerEmail,
-        loyaltyPoints: updated.loyaltyPoints,
-        stampCount: updated.stampCount,
-        freeCoffeeRewards: updated.freeCoffeeRewards,
-        qrPayload: updated.qrPayload ?? payload,
-        earnedFree: updated.earnedFree,
+        customerName:       updated.customerName,
+        customerEmail:      updated.customerEmail,
+        loyaltyPoints:      updated.loyaltyPoints,
+        stampCount:         updated.stampCount,
+        freeCoffeeRewards:  updated.freeCoffeeRewards,
+        qrPayload:          updated.qrPayload ?? payload,
+        earnedFree:         updated.earnedFree,
       });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e?.message ?? 'Could not record stamp. Try again.');
     } finally {
       setScanning(false);
+    }
+  }, [result]);
+
+  const confirmRedeemFreeCoffee = useCallback(() => {
+    if (!result || result.freeCoffeeRewards < 1) return;
+    Alert.alert(
+      'Redeem Free Coffee',
+      `${result.customerName} has ${result.freeCoffeeRewards} free coffee${result.freeCoffeeRewards !== 1 ? 's' : ''} available.\n\nMark 1 as used now?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, redeem',
+          style: 'destructive',
+          onPress: redeemFreeCoffee,
+        },
+      ],
+    );
+  }, [result]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const redeemFreeCoffee = useCallback(async () => {
+    if (!result) return;
+    const payload = result.qrPayload ?? '';
+    if (!payload) { setError('This QR code is missing a loyalty token.'); return; }
+    setRedeeming(true);
+    setError(null);
+    try {
+      const res = await api.loyalty.useFreeCoffee(payload);
+      const updated = res.data;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setResult({
+        customerName:       updated.customerName,
+        customerEmail:      updated.customerEmail,
+        loyaltyPoints:      updated.loyaltyPoints ?? 0,
+        stampCount:         updated.stampCount,
+        freeCoffeeRewards:  updated.freeCoffeeRewards,
+        qrPayload:          updated.qrPayload ?? payload,
+        justRedeemed:       true,
+      });
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(e?.message ?? 'Could not redeem free coffee. Try again.');
+    } finally {
+      setRedeeming(false);
     }
   }, [result]);
 
@@ -118,17 +161,30 @@ export function StampScanScreen() {
   }
 
   if (result) {
-    const displayCount = result.earnedFree ? STAMP_GOAL : result.stampCount;
+    const displayCount  = result.earnedFree ? STAMP_GOAL : result.stampCount;
+    const busy          = scanning || redeeming;
+
     return (
       <View style={[s.root, { paddingTop: insets.top + 20 }]}>
-        <View style={[s.resultCard, result.earnedFree && { borderColor: AMBER, borderWidth: 2 }]}>
-          <View style={[s.resultIcon, { backgroundColor: result.earnedFree ? AMBER : GREEN }]}>
-            <Feather name={result.earnedFree ? 'gift' : 'coffee'} size={36} color={WHITE} />
+        <View style={[
+          s.resultCard,
+          result.earnedFree    && { borderColor: AMBER, borderWidth: 2 },
+          result.justRedeemed  && { borderColor: GREEN, borderWidth: 2 },
+        ]}>
+          <View style={[s.resultIcon, {
+            backgroundColor: result.justRedeemed ? GREEN : result.earnedFree ? AMBER : '#1493FF',
+          }]}>
+            <Feather
+              name={result.justRedeemed ? 'check-circle' : result.earnedFree ? 'gift' : 'coffee'}
+              size={36}
+              color={WHITE}
+            />
           </View>
 
           <Text style={s.resultHeadline}>{result.customerName}</Text>
           <Text style={s.resultSub}>{result.customerEmail}</Text>
 
+          {/* Stats row */}
           <View style={s.statsRow}>
             <View style={s.statChip}>
               <Text style={s.statLabel}>Points</Text>
@@ -136,20 +192,43 @@ export function StampScanScreen() {
             </View>
             <View style={s.statChip}>
               <Text style={s.statLabel}>Stamps</Text>
-              <Text style={s.statValue}>{result.stampCount}/6</Text>
+              <Text style={s.statValue}>{result.stampCount}/{STAMP_GOAL}</Text>
             </View>
-            <View style={s.statChip}>
+            <View style={[s.statChip, result.freeCoffeeRewards > 0 && { borderColor: AMBER, borderWidth: 1 }]}>
               <Text style={s.statLabel}>Free coffees</Text>
-              <Text style={s.statValue}>{result.freeCoffeeRewards}</Text>
+              <Text style={[s.statValue, result.freeCoffeeRewards > 0 && { color: AMBER }]}>
+                {result.freeCoffeeRewards}
+              </Text>
             </View>
           </View>
 
-          {result.earnedFree ? (
-            <Text style={s.resultSub}>Free coffee earned! The stamp card reset for the next round.</Text>
+          {/* Status message */}
+          {result.justRedeemed ? (
+            <View style={[s.bannerBox, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' }]}>
+              <Feather name="check-circle" size={15} color={GREEN} />
+              <Text style={[s.bannerText, { color: '#166534' }]}>
+                Free coffee marked as used. {result.freeCoffeeRewards} remaining.
+              </Text>
+            </View>
+          ) : result.earnedFree ? (
+            <View style={[s.bannerBox, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+              <Feather name="gift" size={15} color={AMBER} />
+              <Text style={[s.bannerText, { color: '#92400E' }]}>
+                Free coffee earned! Stamp card reset.
+              </Text>
+            </View>
+          ) : result.freeCoffeeRewards > 0 ? (
+            <View style={[s.bannerBox, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+              <Feather name="alert-circle" size={15} color="#F97316" />
+              <Text style={[s.bannerText, { color: '#9A3412' }]}>
+                Customer has {result.freeCoffeeRewards} free coffee{result.freeCoffeeRewards !== 1 ? 's' : ''} to redeem.
+              </Text>
+            </View>
           ) : (
-            <Text style={s.resultSub}>Tap below when the customer buys a coffee.</Text>
+            <Text style={s.resultSub}>Tap below to add a stamp for today's coffee.</Text>
           )}
 
+          {/* Stamp dots */}
           <View style={s.dotsRow}>
             {Array.from({ length: STAMP_GOAL }).map((_, i) => (
               <View
@@ -166,23 +245,61 @@ export function StampScanScreen() {
             ))}
           </View>
 
-          {!result.earnedFree && (
+          {!result.earnedFree && !result.justRedeemed && (
             <Text style={s.dotLabel}>
-              {result.stampCount} of {STAMP_GOAL} stamps
-              {' · '}{STAMP_GOAL - result.stampCount} to go
+              {result.stampCount} of {STAMP_GOAL} stamps · {STAMP_GOAL - result.stampCount} to go
             </Text>
           )}
 
+          {/* Action buttons */}
           <View style={s.actionRow}>
-            <Pressable style={s.scanAgainBtn} onPress={addStamp}>
-              <Feather name="coffee" size={16} color={WHITE} />
-              <Text style={s.scanAgainTx}>Mark coffee purchase</Text>
+            {/* Add stamp */}
+            <Pressable
+              style={[s.actionBtn, { backgroundColor: '#1493FF' }, busy && s.btnDisabled]}
+              onPress={addStamp}
+              disabled={busy}
+            >
+              {scanning
+                ? <ActivityIndicator color={WHITE} size="small" />
+                : <Feather name="coffee" size={16} color={WHITE} />
+              }
+              <Text style={s.actionBtnTx}>Mark coffee purchase</Text>
             </Pressable>
-            <Pressable style={[s.scanAgainBtn, { backgroundColor: '#6B7280' }]} onPress={reset}>
+
+            {/* Redeem free coffee — only shown when rewards > 0 */}
+            {result.freeCoffeeRewards > 0 && (
+              <Pressable
+                style={[s.actionBtn, { backgroundColor: AMBER }, busy && s.btnDisabled]}
+                onPress={confirmRedeemFreeCoffee}
+                disabled={busy}
+              >
+                {redeeming
+                  ? <ActivityIndicator color={WHITE} size="small" />
+                  : <Feather name="gift" size={16} color={WHITE} />
+                }
+                <Text style={s.actionBtnTx}>
+                  Use free coffee ({result.freeCoffeeRewards} available)
+                </Text>
+              </Pressable>
+            )}
+
+            {/* Scan next */}
+            <Pressable
+              style={[s.actionBtn, { backgroundColor: '#6B7280' }, busy && s.btnDisabled]}
+              onPress={reset}
+              disabled={busy}
+            >
               <Feather name="maximize" size={16} color={WHITE} />
-              <Text style={s.scanAgainTx}>Scan next customer</Text>
+              <Text style={s.actionBtnTx}>Scan next customer</Text>
             </Pressable>
           </View>
+
+          {error && (
+            <View style={s.errorBox}>
+              <Feather name="alert-circle" size={16} color="#FCA5A5" />
+              <Text style={s.errorTx}>{error}</Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -213,7 +330,7 @@ export function StampScanScreen() {
           {scanning && (
             <View style={s.scanningOverlay}>
               <ActivityIndicator color={WHITE} size="large" />
-              <Text style={{ color: WHITE, fontWeight: '500', marginTop: 10 }}>Recording stamp…</Text>
+              <Text style={{ color: WHITE, fontWeight: '500', marginTop: 10 }}>Looking up customer…</Text>
             </View>
           )}
         </View>
@@ -264,21 +381,28 @@ const s = StyleSheet.create({
   scanningOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
 
   hint:     { color: 'rgba(255,255,255,0.75)', fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 22, paddingHorizontal: 32 },
-  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 12, padding: 14, marginHorizontal: 24 },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 12, padding: 14, marginHorizontal: 24, marginTop: 8 },
   errorTx:  { flex: 1, color: '#FCA5A5', fontSize: 13, fontWeight: '400', lineHeight: 20 },
 
-  resultCard:    { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 28, marginHorizontal: 24, alignItems: 'center', gap: 10, borderColor: 'transparent', borderWidth: 2 },
+  resultCard:    { backgroundColor: '#1C1C1E', borderRadius: 24, padding: 24, marginHorizontal: 16, alignItems: 'center', gap: 10, borderColor: 'transparent', borderWidth: 2 },
   resultIcon:    { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   resultHeadline:{ color: WHITE, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   resultSub:     { color: MUTED, fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
-  statsRow:      { flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 6 },
-  statChip:      { flex: 1, backgroundColor: '#2B2B2E', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', gap: 2 },
-  statLabel:     { color: '#A1A1AA', fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  statValue:     { color: WHITE, fontSize: 17, fontWeight: '700' },
-  dotsRow:       { flexDirection: 'row', gap: 8, marginTop: 8 },
-  dot:           { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  dotLabel:      { color: MUTED, fontSize: 13, fontWeight: '400' },
-  actionRow:     { width: '100%', gap: 10, marginTop: 10 },
-  scanAgainBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1493FF', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 13, marginTop: 8 },
-  scanAgainTx:   { color: WHITE, fontWeight: '700', fontSize: 15 },
+
+  statsRow:  { flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 4 },
+  statChip:  { flex: 1, backgroundColor: '#2B2B2E', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', gap: 2, borderColor: 'transparent', borderWidth: 1 },
+  statLabel: { color: '#A1A1AA', fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue: { color: WHITE, fontSize: 17, fontWeight: '700' },
+
+  bannerBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 12, padding: 12, alignSelf: 'stretch', borderWidth: 1 },
+  bannerText: { flex: 1, fontSize: 13, fontWeight: '500', lineHeight: 18 },
+
+  dotsRow:   { flexDirection: 'row', gap: 8, marginTop: 4 },
+  dot:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  dotLabel:  { color: MUTED, fontSize: 13, fontWeight: '400' },
+
+  actionRow:    { width: '100%', gap: 10, marginTop: 6 },
+  actionBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 14 },
+  actionBtnTx:  { color: WHITE, fontWeight: '700', fontSize: 15 },
+  btnDisabled:  { opacity: 0.55 },
 });

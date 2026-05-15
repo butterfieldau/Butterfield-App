@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable } from '@workspace/db';
-import { eq, desc, and, isNull } from 'drizzle-orm';
+import { eq, desc, and, isNull, sql } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
   applyCoffeeStamps,
@@ -243,6 +243,80 @@ router.get('/ensure-qr', requireAuth, async (req, res) => {
     data: {
       loyaltyQrToken: profile.loyaltyQrToken,
       qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
+    },
+  });
+});
+
+// ── POST /loyalty/use-free-coffee — staff redeems one free coffee reward ─────
+// Security: atomic UPDATE with WHERE free_coffee_rewards > 0 prevents any
+// double-redemption even under concurrent requests. Staff JWT required.
+router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), async (req, res) => {
+  await ensureLoyaltySchemaReady();
+  const { qrPayload } = req.body ?? {};
+  const parsed = parseLoyaltyQrPayload(qrPayload ?? '');
+  if (!parsed) return res.status(400).json({ error: 'QR payload required' });
+
+  // Resolve customer profile
+  let profile = null;
+  if (parsed.token) {
+    [profile] = await db.select().from(customerProfilesTable)
+      .where(eq(customerProfilesTable.loyaltyQrToken, parsed.token));
+  }
+  if (!profile && parsed.userId && parsed.referralCode) {
+    [profile] = await db.select().from(customerProfilesTable)
+      .where(and(
+        eq(customerProfilesTable.userId, parsed.userId),
+        eq(customerProfilesTable.referralCode, parsed.referralCode),
+      ));
+  }
+  if (!profile) return res.status(404).json({ error: 'Customer not found' });
+
+  // Atomic decrement — only succeeds if free_coffee_rewards > 0.
+  // If two staff taps race, only one UPDATE will match the WHERE clause.
+  const [updated] = await db.update(customerProfilesTable)
+    .set({
+      freeCoffeeRewards:  sql`GREATEST(${customerProfilesTable.freeCoffeeRewards} - 1, 0)`,
+      freeCoffeesEarned:  sql`GREATEST(COALESCE(${customerProfilesTable.freeCoffeesEarned}, 0) - 1, 0)`,
+      stampCount:         customerProfilesTable.coffeeStampCount,
+      updatedAt:          new Date(),
+    })
+    .where(and(
+      eq(customerProfilesTable.userId, profile.userId),
+      sql`${customerProfilesTable.freeCoffeeRewards} > 0`,
+    ))
+    .returning();
+
+  if (!updated) {
+    return res.status(409).json({ error: 'No free coffee rewards available for this customer' });
+  }
+
+  const [userRow] = await db
+    .select({ name: usersTable.name, email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, profile.userId));
+
+  // Full audit trail: who redeemed, which QR, when
+  await db.insert(loyaltyActivityLogTable).values({
+    id: randomUUID(),
+    customerId: profile.userId,
+    staffId: req.user!.id,
+    loyaltyQrToken: profile.loyaltyQrToken ?? null,
+    activityType: 'free_coffee_redeemed',
+    pointsDelta: 0,
+    coffeeStampsDelta: 0,
+    freeCoffeeRewardsDelta: -1,
+    description: `Free coffee redeemed by staff (${req.user!.name ?? req.user!.id})`,
+  });
+
+  return res.json({
+    data: {
+      customerName:       userRow?.name ?? 'Customer',
+      customerEmail:      userRow?.email ?? '',
+      loyaltyPoints:      updated.loyaltyPoints ?? 0,
+      stampCount:         updated.coffeeStampCount ?? updated.stampCount ?? 0,
+      freeCoffeeRewards:  updated.freeCoffeeRewards ?? 0,
+      qrPayload:          buildLoyaltyQrPayload(profile.loyaltyQrToken),
+      redeemedAt:         new Date().toISOString(),
     },
   });
 });
