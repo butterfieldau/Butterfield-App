@@ -132,7 +132,7 @@ export function StampScanScreen() {
           <View style={s.statsRow}>
             <View style={s.statChip}>
               <Text style={s.statLabel}>Points</Text>
-              <Text style={s.statValue}>{result.loyaltyPoints.toLocaleString()}</Text>
+              <Text style={s.statValue}>{(result.loyaltyPoints ?? 0).toLocaleString()}</Text>
             </View>
             <View style={s.statChip}>
               <Text style={s.statLabel}>Stamps</Text>

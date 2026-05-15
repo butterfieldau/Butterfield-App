@@ -177,7 +177,7 @@ router.post('/lookup', requireRole('staff', 'director', 'manager'), async (req, 
     data: {
       customerName: userRow?.name ?? 'Customer',
       customerEmail: userRow?.email ?? '',
-      loyaltyPoints: profile.loyaltyPoints,
+      loyaltyPoints: profile.loyaltyPoints ?? 0,
       coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
       stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
@@ -209,8 +209,13 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
   }
   if (!profile) return res.status(404).json({ error: 'Customer not found or QR code mismatch' });
 
+  const [scanUserRow] = await db
+    .select({ name: usersTable.name, email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, profile.userId));
+
   const stampsToAdd = Math.max(1, Math.floor(Number(quantity ?? 1) || 1));
-  const result = await applyCoffeeStamps({
+  const stampResult = await applyCoffeeStamps({
     userId: profile.userId,
     staffId: req.user!.id,
     stampsToAdd,
@@ -220,7 +225,14 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
       : `Coffee stamp added`,
   });
 
-  return res.json({ data: result });
+  return res.json({
+    data: {
+      ...stampResult,
+      customerEmail: scanUserRow?.email ?? '',
+      loyaltyPoints: profile.loyaltyPoints ?? 0,
+      qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
+    },
+  });
 });
 
 // ── GET /loyalty/ensure-qr — self-healing: ensures the current customer has a QR token
