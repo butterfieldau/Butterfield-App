@@ -6,7 +6,7 @@ import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { randomUUID } from 'crypto';
 
 const router = Router();
-router.use(requireRole('director', 'manager'));
+router.use(requireRole('director', 'manager', 'master'));
 // Managers must hold the 'products' permission to access any product/category/option route
 router.use(requireManagerPermission('products'));
 
