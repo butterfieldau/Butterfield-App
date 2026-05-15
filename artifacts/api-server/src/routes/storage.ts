@@ -255,7 +255,9 @@ router.delete(
  */
 router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
   try {
-    const objectFile = await objectStorageService.searchPublicObject((req.params as any).filePath);
+    const rawParam = (req.params as any).filePath;
+    const filePath = Array.isArray(rawParam) ? rawParam.join('/') : String(rawParam ?? '');
+    const objectFile = await objectStorageService.searchPublicObject(filePath);
     if (!objectFile) {
       res.status(404).json({ error: "Object not found" });
       return;
@@ -288,7 +290,9 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * catalog and TestFlight builds before a customer signs in.
  */
 router.get("/storage/objects/*filePath", optionalAuth, async (req: Request, res: Response) => {
-  const objectPath = `/objects/${(req.params as any).filePath}`;
+  const rawParam = (req.params as any).filePath;
+  const filePath = Array.isArray(rawParam) ? rawParam.join('/') : String(rawParam ?? '');
+  const objectPath = `/objects/${filePath}`;
   try {
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
