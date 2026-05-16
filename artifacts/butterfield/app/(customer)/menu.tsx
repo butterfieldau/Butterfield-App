@@ -30,6 +30,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
+
+const SLUG_ICON_MAP: Record<string, string> = {
+  cookies:        'star',
+  coffee:         'coffee',
+  matcha:         'droplet',
+  tea:            'sun',
+  'cold-drinks':  'wind',
+  cold:           'wind',
+  drinks:         'droplet',
+  desserts:       'heart',
+  'soft-serve':   'feather',
+  sandwiches:     'layers',
+  food:           'layers',
+  pastries:       'sun',
+  specials:       'zap',
+  seasonal:       'gift',
+  merch:          'shopping-bag',
+  bundles:        'gift',
+  wholesale:      'truck',
+};
+function categoryIcon(slug: string): string {
+  return SLUG_ICON_MAP[slug] ?? 'tag';
+}
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import SharedProductTile from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -97,16 +120,6 @@ const shimmerCard = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
 });
 
-const CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: 'all',        label: 'All',      icon: 'grid'    },
-  { id: 'cookies',    label: 'Cookies',  icon: 'star'    },
-  { id: 'coffee',     label: 'Coffee',   icon: 'coffee'  },
-  { id: 'desserts',   label: 'Desserts', icon: 'heart'   },
-  { id: 'sandwiches', label: 'Food',     icon: 'layers'  },
-  { id: 'pastries',   label: 'Pastries', icon: 'sun'     },
-  { id: 'drinks',     label: 'Drinks',   icon: 'droplet' },
-  { id: 'bundles',    label: 'Bundles',  icon: 'gift'    },
-];
 
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
@@ -167,6 +180,22 @@ export default function MenuScreen() {
     queryFn: () => api.products.list(),
     retry: 2,
   });
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories'],
+    queryFn: () => api.products.categories(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const displayCategories = useMemo(() => {
+    const all = { id: 'all', label: 'All', icon: 'grid' };
+    const remote = (categoriesData?.data ?? []).map((c: any) => ({
+      id: c.slug,
+      label: c.name,
+      icon: categoryIcon(c.slug),
+    }));
+    return [all, ...remote];
+  }, [categoriesData]);
 
   // Shimmer animation — runs while products are loading
   const shimmerProgress = useSharedValue(0);
@@ -248,7 +277,7 @@ export default function MenuScreen() {
 
         {/* Category carousel — Uber Eats style */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 16 }}>
-          {CATEGORIES.map(cat => {
+          {displayCategories.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
             return (
@@ -310,7 +339,7 @@ export default function MenuScreen() {
                 )}
                 <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
-                  {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
+                  {activeCategory !== 'all' ? ` · ${displayCategories.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
                 </Text>
               </>
             }

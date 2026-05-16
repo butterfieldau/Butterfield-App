@@ -25,7 +25,31 @@ import { FeatureShortcutTile } from '@/components/home/FeatureShortcutTile';
 import { MerchTile } from '@/components/home/MerchTile';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
-import { type ApiProduct } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { api, type ApiProduct } from '@/lib/api';
+
+const SLUG_ICON_MAP: Record<string, string> = {
+  cookies:        'star',
+  coffee:         'coffee',
+  matcha:         'droplet',
+  tea:            'sun',
+  'cold-drinks':  'wind',
+  cold:           'wind',
+  drinks:         'droplet',
+  desserts:       'heart',
+  'soft-serve':   'feather',
+  sandwiches:     'layers',
+  food:           'layers',
+  pastries:       'sun',
+  specials:       'zap',
+  seasonal:       'gift',
+  merch:          'shopping-bag',
+  bundles:        'gift',
+  wholesale:      'truck',
+};
+function categoryIcon(slug: string): string {
+  return SLUG_ICON_MAP[slug] ?? 'tag';
+}
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
@@ -34,14 +58,6 @@ const BLUE_TOP = '#1493FF';
 const BLUE_BTM = '#3CBBEE';
 const CHERRY   = '#D0312D';
 
-const CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: 'all',        label: 'All',      icon: 'grid'    },
-  { id: 'cookies',    label: 'Cookies',  icon: 'star'    },
-  { id: 'coffee',     label: 'Coffee',   icon: 'coffee'  },
-  { id: 'desserts',   label: 'Desserts', icon: 'heart'   },
-  { id: 'sandwiches', label: 'Food',     icon: 'layers'  },
-  { id: 'bundles',    label: 'Bundles',  icon: 'gift'    },
-];
 
 const MERCH = [
   { id: 'merch-retro-shirt',    name: 'Retro Shirt',    price: 50, image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldNEWTEE.jpg?v=1766964759&width=600' },
@@ -89,6 +105,22 @@ export default function CustomerHome() {
     usualItems,
     greeting,
   } = useHomeScreenData();
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories'],
+    queryFn: () => api.products.categories(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const displayCategories = useMemo(() => {
+    const all = { id: 'all', label: 'All', icon: 'grid' };
+    const remote = (categoriesData?.data ?? []).map((c: any) => ({
+      id: c.slug,
+      label: c.name,
+      icon: categoryIcon(c.slug),
+    }));
+    return [all, ...remote];
+  }, [categoriesData]);
 
   const featured = useMemo(
     () => products.filter((p) =>
@@ -379,7 +411,7 @@ export default function CustomerHome() {
           style={s.catScroll}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
         >
-          {CATEGORIES.map((cat) => {
+          {displayCategories.map((cat) => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
             return (
