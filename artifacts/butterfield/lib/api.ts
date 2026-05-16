@@ -442,32 +442,20 @@ export const api = {
       formData.append('file', { uri: fileUri, name: filename, type: contentType } as any);
       formData.append('category', category);
       formData.append('productName', productName);
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${BASE}/storage/products/upload`);
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const data = JSON.parse(xhr.responseText);
-              resolve({ ...data, servingUrl: normalizeServingUrl(data.servingUrl) });
-            } catch {
-              reject(new Error('Invalid response from server'));
-            }
-          } else {
-            try {
-              const body = JSON.parse(xhr.responseText);
-              reject(new Error(body.error ?? `Upload failed (HTTP ${xhr.status})`));
-            } catch {
-              reject(new Error(`Upload failed (HTTP ${xhr.status})`));
-            }
-          }
-        };
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-        xhr.ontimeout = () => reject(new Error('Upload timed out'));
-        xhr.timeout = 120000;
-        xhr.send(formData);
+      const res = await fetch(`${BASE}/storage/products/upload`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Upload failed (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      return {
+        ...data,
+        servingUrl: normalizeServingUrl(data.servingUrl),
+      };
     },
     deleteProductImage: async (objectPath: string): Promise<void> => {
       const token = await getToken();
