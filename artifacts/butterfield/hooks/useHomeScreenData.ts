@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { useStores } from '@/hooks/useStores';
@@ -19,6 +19,13 @@ export type UsualItem = {
 
 export function useHomeScreenData() {
   const { user } = useAuth();
+
+  // Re-evaluate greeting every minute so it updates as hours change
+  const [greetingTick, setGreetingTick] = useState(() => Math.floor(Date.now() / 60_000));
+  useEffect(() => {
+    const id = setInterval(() => setGreetingTick(Math.floor(Date.now() / 60_000)), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['products'],
@@ -157,7 +164,7 @@ export function useHomeScreenData() {
     } catch {
       return { line1: 'Good day!', line2: 'Fresh cookies and great coffee are waiting.' };
     }
-  }, [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt]);
+  }, [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt, greetingTick]);
 
   const serverQrToken    = loyaltyData?.data?.loyaltyQrToken ?? null;
   const [healedQrToken, setHealedQrToken] = useState<string | null>(null);

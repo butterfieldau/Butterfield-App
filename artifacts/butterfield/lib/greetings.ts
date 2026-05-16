@@ -51,7 +51,13 @@ const SESSION_OFFSET = Math.floor(Math.random() * 9973); // prime keeps distribu
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSydneyNow(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  try {
+    const str = new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' });
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+  } catch {}
+  // Fallback: approximate Sydney time (AEST UTC+10; close enough for greeting purposes)
+  return new Date(Date.now() + 10 * 60 * 60 * 1000);
 }
 
 function getAuSeason(month: number): 'summer' | 'autumn' | 'winter' | 'spring' {
@@ -100,8 +106,9 @@ function stablePick<T>(arr: ReadonlyArray<T>, seed: number): T {
   if (!arr || arr.length === 0) {
     throw new Error(`stablePick: empty array (seed=${seed})`);
   }
-  // Normalise seed to a non-negative integer then modulo
-  const idx = ((Math.floor(seed) % arr.length) + arr.length) % arr.length;
+  // Guard against NaN/Infinity (e.g. when getSydneyNow returns Invalid Date)
+  const safeSeed = Number.isFinite(seed) ? seed : Date.now();
+  const idx = ((Math.floor(safeSeed) % arr.length) + arr.length) % arr.length;
   return arr[idx];
 }
 
