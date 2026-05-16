@@ -1,0 +1,195 @@
+Clean up the spacing and layout across the Butterfield Customer Portal only.
+
+Do not change the backend, database, APIs, authentication, orders, loyalty, QR codes, wholesale portal or internal portal logic.
+
+This update is frontend UI only.
+
+Focus on:
+- Customer Portal spacing
+- Page padding
+- Safe area spacing on iPhone
+- Header spacing
+- Bottom navigation spacing
+- Button spacing
+- Card spacing
+- Section spacing
+- Product grid spacing
+- Checkout spacing
+- Loyalty page spacing
+- QR code page spacing
+- Account/profile page spacing
+- Order history spacing
+
+The app currently feels too tight in some areas and too low/high in others. Clean it up so it feels premium, smooth and native like a polished iOS app.
+
+Requirements:
+
+1. Safe area support
+
+Make sure the Customer Portal respects iPhone safe areas properly.
+
+Fix:
+- Content going under the iPhone status bar
+- Header/logo/cart sitting too close to the top
+- Bottom navigation sitting too close to the home indicator
+- Buttons or content touching the bottom edge
+- Pages not having enough top or bottom breathing room
+
+Use proper safe area handling such as:
+- env(safe-area-inset-top)
+- env(safe-area-inset-bottom)
+- SafeAreaView if React Native/Expo is being used
+- Capacitor safe area handling if this is a Capacitor app
+
+2. Global layout spacing
+
+Create a consistent Customer Portal layout system.
+
+Use consistent spacing values across the Customer Portal, for example:
+- Small spacing: 8px
+- Medium spacing: 12px to 16px
+- Large spacing: 20px to 24px
+- Section spacing: 28px to 36px
+
+Do not randomly apply different padding on every page.
+
+Create shared layout wrappers if needed, such as:
+- CustomerPage
+- CustomerContainer
+- CustomerSection
+- CustomerCard
+
+3. Header spacing
+
+Clean up the Customer Portal header.
+
+Make sure:
+- Logo has enough top spacing
+- Cart/profile buttons are not under the status bar
+- Header height feels balanced
+- Header content is vertically centred
+- Header padding is consistent across all pages
+- Header does not overlap page content
+
+4. Bottom navigation spacing
+
+Clean up the bottom navigation.
+
+Make sure:
+- Bottom nav is not too low
+- Bottom nav does not touch the iPhone home bar
+- Icons and labels are vertically centred
+- There is enough bottom padding using safe-area-inset-bottom
+- Page content has enough bottom padding so it does not hide behind the bottom nav
+
+5. Page content spacing
+
+Clean up spacing on all Customer Portal pages including:
+- Home
+- Menu
+- Product details
+- Cart
+- Checkout
+- Loyalty
+- QR code
+- Rewards
+- Orders
+- Profile
+- Settings
+- Login/signup pages if they are part of the customer experience
+
+Make sure:
+- Sections are not cramped
+- Cards have consistent internal padding
+- Buttons have enough breathing room
+- Text is not too close to the screen edges
+- Product grids align neatly
+- Page titles have consistent top and bottom spacing
+- Empty states look centred and polished
+
+6. Product and menu spacing
+
+Clean up the product/menu layout.
+
+Make sure:
+- Product cards have consistent spacing
+- Product images are not cramped
+- Product names and prices align neatly
+- Product grid spacing is consistent
+- Category tabs have comfortable spacing
+- Add-to-cart buttons are easy to tap
+- Product detail pages have clean spacing between image, title, price, options and button
+
+7. Checkout spacing
+
+Clean up the cart and checkout pages.
+
+Make sure:
+- Cart items have consistent padding
+- Quantity controls are easy to tap
+- Totals section has clear spacing
+- Checkout button has proper bottom safe area spacing
+- Payment/order buttons are not too close to the bottom
+- Order notes and options have clean spacing
+
+8. Loyalty and QR spacing
+
+Clean up the Loyalty and QR code pages.
+
+Make sure:
+- QR code is centred and not cramped
+- Loyalty points/stamps display has enough space
+- Rewards cards are neatly spaced
+- Buttons are not too close together
+- Page content does not sit under the header or bottom nav
+
+9. Native app feel
+
+Make the Customer Portal feel more like a premium iOS app.
+
+Use:
+- Smooth spacing
+- Consistent padding
+- Comfortable tap targets
+- Clean margins
+- Better vertical rhythm
+- Proper safe area handling
+- No overlapping UI
+- No cramped text
+- No buttons touching screen edges
+
+10. Do not change working logic
+
+Do not change:
+- Auth logic
+- Customer accounts
+- Orders
+- Products
+- Cart logic
+- Checkout logic
+- Loyalty logic
+- QR code generation
+- Coffee rewards
+- Backend APIs
+- Database schema
+- Wholesale Portal
+- Internal Portal
+
+This is a UI spacing clean-up only.
+
+After completing, test on:
+- iPhone with notch/Dynamic Island
+- iPhone with home indicator
+- Smaller screens
+- Larger screens
+- Browser/mobile preview if available
+
+Check every Customer Portal page and confirm:
+- Nothing overlaps the status bar
+- Nothing overlaps the home indicator
+- Nothing hides behind the bottom nav
+- Header spacing is consistent
+- Bottom nav spacing is consistent
+- Cards and sections feel evenly spaced
+- Buttons are easy to tap
+- The app feels cleaner, more premium and more native

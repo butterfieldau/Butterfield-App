@@ -247,7 +247,7 @@ export default function MenuScreen() {
         </View>
 
         {/* Category carousel — Uber Eats style */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 16 }}>
           {CATEGORIES.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
@@ -281,7 +281,7 @@ export default function MenuScreen() {
             keyExtractor={p => p.id}
             numColumns={2}
             columnWrapperStyle={{ gap: 12 }}
-            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}
+            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 110 }}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
             ListHeaderComponent={
@@ -337,7 +337,7 @@ const s = StyleSheet.create({
 
   // Header
   header:      {
-    paddingHorizontal: 16, paddingBottom: 14, gap: 12, backgroundColor: '#fff',
+    paddingHorizontal: 16, paddingBottom: 16, gap: 14, backgroundColor: '#fff',
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },

@@ -155,7 +155,7 @@ export default function CustomerHome() {
       />
 
       {/* ── FROZEN BLUE HEADER ──────────────────────────────────────────── */}
-      <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.frozenHeader, { paddingTop: insets.top + 10 }]}>
+      <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.frozenHeader, { paddingTop: insets.top + 14 }]}>
         <View style={s.headerTopRow}>
           <Image
             source={require('@/assets/images/logo-white.png')}
@@ -191,7 +191,7 @@ export default function CustomerHome() {
       {/* ── SCROLLABLE CONTENT ──────────────────────────────────────────── */}
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ paddingBottom: 130 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE_TOP} />}
       >
@@ -437,7 +437,7 @@ export default function CustomerHome() {
 
 const s = StyleSheet.create({
   // ── Frozen header ──────────────────────────────────────────────────────────
-  frozenHeader:  { paddingHorizontal: 20, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 14 },
+  frozenHeader:  { paddingHorizontal: 20, paddingBottom: 26, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 16 },
   headerTopRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greetLine1:    { color: '#fff', fontSize: 24, lineHeight: 30, letterSpacing: -0.4 },
   greetLine2:    { color: 'rgba(255,255,255,0.92)', fontSize: 16, lineHeight: 22, marginTop: 4 },
@@ -448,7 +448,7 @@ const s = StyleSheet.create({
   qrBtn:         { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 3 },
 
   // ── Store pickup row ───────────────────────────────────────────────────────
-  pickupRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  pickupRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   pickupIconWrap:{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#E6F4FF', alignItems: 'center', justifyContent: 'center' },
   pickupLabel:   { fontSize: 11, letterSpacing: 0.8, marginBottom: 2 },
   pickupTitle:   { fontSize: 15 },
@@ -456,7 +456,7 @@ const s = StyleSheet.create({
   openText:      { fontSize: 12 },
 
   // ── Quick action rail ──────────────────────────────────────────────────────
-  quickRail:         { paddingHorizontal: 14, gap: 8, marginTop: 18, flexDirection: 'row' },
+  quickRail:         { paddingHorizontal: 16, gap: 10, marginTop: 20, flexDirection: 'row' },
   cookiesTileTitle:  { fontSize: 14, lineHeight: 17, textAlign: 'center' },
   cookiesTileImage:  { width: '90%', height: '90%', alignSelf: 'center', transform: [{ translateY: 2 }] },
   rewardsTileTitle:  { fontSize: 14, lineHeight: 17, textAlign: 'center' },
@@ -483,14 +483,14 @@ const s = StyleSheet.create({
   favBannerText: { fontSize: 9, color: '#fff', letterSpacing: 0.2 },
 
   // ── Category carousel ──────────────────────────────────────────────────────
-  catScroll:    { marginTop: 24 },
+  catScroll:    { marginTop: 28 },
   catTile:      { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
   catIconWrap:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   catTileLabel: { fontSize: 12, textAlign: 'center' },
 
   // ── Featured grid & shared ─────────────────────────────────────────────────
-  section:      { marginTop: 26 },
-  sectionTitle: { fontSize: 22, paddingHorizontal: 16, marginBottom: 12 },
+  section:      { marginTop: 30 },
+  sectionTitle: { fontSize: 22, paddingHorizontal: 16, marginBottom: 14 },
   empty:        { textAlign: 'center', marginTop: 40, fontSize: 14 },
   grid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 });

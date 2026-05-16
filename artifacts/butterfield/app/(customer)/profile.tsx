@@ -76,7 +76,7 @@ export default function AccountScreen() {
     <View style={{ flex: 1, backgroundColor: '#1493FF' }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: 120 }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
       showsVerticalScrollIndicator={false}
     >
       <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16, gap: 16 }}>

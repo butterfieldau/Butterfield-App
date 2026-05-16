@@ -205,7 +205,7 @@ export default function LoyaltyScreen() {
 
       <ScrollView
         style={{ flex: 1, backgroundColor: WHITE }}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BRAND} />}
       >
@@ -465,7 +465,7 @@ export default function LoyaltyScreen() {
 }
 
 const styles = StyleSheet.create({
-  pageHeader: { paddingHorizontal: 20, paddingBottom: 16, gap: 4, backgroundColor: WHITE },
+  pageHeader: { paddingHorizontal: 20, paddingBottom: 20, gap: 6, backgroundColor: WHITE },
   pageLabel: { fontSize: 12, color: MUTED, letterSpacing: 1 },
   pageTitle: { fontSize: 26, color: TEXT },
 
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   tierBtnLabel: { fontSize: 11, letterSpacing: 0.5 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, color: TEXT },
+  sectionTitle: { fontSize: 20, color: TEXT },
   buyBadge: { marginLeft: 'auto', backgroundColor: '#EEF2FB', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   buyBadgeText: { fontSize: 12, color: BRAND },
 
