@@ -108,7 +108,7 @@ export default function StaffTasksScreen() {
 
       {tab === 'tasks' && (
         <View style={{ flex: 1 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'flex-start' }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexShrink: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'flex-start' }}>
             {CATEGORIES.map((c) => (
               <Pressable key={c} onPress={() => { setActiveCat(c); Haptics.selectionAsync(); }}
                 style={[styles.catPill, { backgroundColor: activeCat === c ? CAT_COLORS[c] : CARD, borderRadius: 20, borderWidth: 1, borderColor: activeCat === c ? CAT_COLORS[c] : BORDER }]}>

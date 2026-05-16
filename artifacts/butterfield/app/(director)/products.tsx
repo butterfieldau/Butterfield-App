@@ -1498,7 +1498,7 @@ const styles = StyleSheet.create({
   searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, height: 44 },
   searchInput:   { flex: 1, fontSize: 14, height: 44 },
   filterScroll:  { flexShrink: 0 },
-  filterContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, flexDirection: 'row' },
+  filterContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, flexDirection: 'row', alignItems: 'flex-start' },
   filterTab:     { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   filterText:    { fontSize: 13, color: MUTED },
   count:         { fontSize: 13, marginBottom: 4 },
