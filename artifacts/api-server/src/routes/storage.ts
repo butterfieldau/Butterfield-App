@@ -1,4 +1,4 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import jwt from "jsonwebtoken";
 import sharp from "sharp";
@@ -8,6 +8,7 @@ import { requireAuth, requireRole, type AuthUser } from "../middlewares/auth.js"
 
 /**
  * Compress and resize an image buffer for product use.
+ * - Reads EXIF orientation and auto-rotates
  * - Resizes to fit within 1200×1200 px (preserving aspect ratio, never upscaling)
  * - Converts every format (JPEG, PNG, HEIC/HEIF, WebP) to WebP at quality 82
  * Returns the compressed buffer.
@@ -18,6 +19,39 @@ async function compressProductImage(buffer: Buffer): Promise<Buffer> {
     .resize({ width: 1200, height: 1200, fit: "inside", withoutEnlargement: true })
     .webp({ quality: 82 })
     .toBuffer();
+}
+
+/**
+ * Auth middleware for the product upload route.
+ * Checks the Authorization: Bearer header first, then falls back to a `_token`
+ * form field in the parsed multipart body (needed when the production proxy
+ * strips Authorization headers from multipart/form-data requests).
+ * Must run AFTER multer so req.body fields are available.
+ */
+function requireRoleMultipart(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const header = req.headers.authorization;
+    const formToken = req.body?._token && typeof req.body._token === "string"
+      ? req.body._token
+      : null;
+    const rawToken = header?.startsWith("Bearer ") ? header.slice(7) : formToken;
+
+    if (!rawToken) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    try {
+      const payload = jwt.verify(rawToken, AUTH_SECRET) as AuthUser;
+      req.user = payload;
+      if (!roles.includes(payload.role)) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      next();
+    } catch {
+      res.status(401).json({ error: "Invalid or expired token" });
+    }
+  };
 }
 
 const UPLOAD_INTENT_SECRET =
@@ -191,8 +225,11 @@ router.post("/storage/uploads", requireAuth, upload.single("file"), async (req: 
  */
 router.post(
   "/storage/products/upload",
-  requireRole("director", "manager"),
+  // Multer runs FIRST so req.body fields (including _token fallback) are parsed
+  // before the auth check. Some production proxies strip the Authorization header
+  // from multipart/form-data requests, so we accept the token as a form field too.
   upload.single("file"),
+  requireRoleMultipart("director", "manager"),
   async (req: Request, res: Response) => {
     if (!req.file) {
       res.status(400).json({ error: "No file provided — send multipart/form-data with a 'file' field." });
@@ -217,8 +254,16 @@ router.post(
     const shortId = Date.now().toString().slice(-6);
     const subPath = `products/${category}/${slug}-${shortId}.webp`;
 
+    let compressed: Buffer;
     try {
-      const compressed = await compressProductImage(req.file.buffer);
+      compressed = await compressProductImage(req.file.buffer);
+    } catch (error) {
+      req.log.warn({ err: error }, "Image compression failed — file may be corrupt or unsupported");
+      res.status(400).json({ error: "Could not process image. Please try a different photo (JPEG, PNG, or WebP)." });
+      return;
+    }
+
+    try {
       const result = await objectStorageService.uploadToPath(compressed, "image/webp", subPath, {
         owner: req.user!.id,
         visibility: "public",
