@@ -649,7 +649,7 @@ export default function DirectorOrdersScreen() {
       {/* Date picker row (shown when Pick Date is active) */}
       {viewMode === 'date' && (
         <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'flex-start' }}>
             {pastDays.map((d) => {
               const isActive = isSameDay(d, selectedDate);
               const label = fmtDateChip(d);

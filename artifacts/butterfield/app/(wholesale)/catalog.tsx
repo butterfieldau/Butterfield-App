@@ -812,7 +812,7 @@ export default function WholesaleCatalog() {
             </Pressable>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'flex-start' }}>
           {categories.map((cat) => {
             const active = category === cat;
             const label = cat === 'All' ? 'All Products' : cat.charAt(0).toUpperCase() + cat.slice(1);
@@ -831,7 +831,7 @@ export default function WholesaleCatalog() {
             );
           })}
         </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'flex-start' }}>
           {WHOLESALE_TIERS.map((tier) => (
             <View key={tier.label} style={[styles.tierTag, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }]}>
               <Text style={{ color: '#fff', fontWeight: '600', fontSize: 11 }}>{tier.label}</Text>

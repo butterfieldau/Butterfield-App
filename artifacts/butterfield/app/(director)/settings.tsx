@@ -741,7 +741,7 @@ function StoreHoursSection() {
       {stores.length > 1 && (
         <>
           <Text style={[styles.fieldLabel, { marginBottom: 4 }]}>Select store</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4, alignItems: 'flex-start' }}>
             {stores.map((s: any) => (
               <Pressable
                 key={s.id}

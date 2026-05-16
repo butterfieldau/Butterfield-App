@@ -458,10 +458,10 @@ export default function StaffDashboard() {
         <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
           {[
-            { icon: 'clipboard',      label: 'Tasks',        bg: '#E0F5FE', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
-            { icon: 'alert-triangle', label: 'Log Wastage',  bg: '#FEF3C7', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'wastage' } }) },
-            { icon: 'tool',           label: 'Report Issue', bg: '#FEE2E2', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
-            { icon: 'calendar',       label: 'Leave Request',bg: '#F3E8FF', onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
+            { icon: 'clipboard',      label: 'Tasks',        bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
+            { icon: 'alert-triangle', label: 'Log Wastage',  bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'wastage' } }) },
+            { icon: 'tool',           label: 'Report Issue', bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
+            { icon: 'calendar',       label: 'Leave Request',bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
           ].map((action) => (
             <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
               style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>

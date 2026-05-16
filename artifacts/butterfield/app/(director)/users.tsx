@@ -1347,7 +1347,7 @@ export default function DirectorUsersScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Tab bar + Add buttons */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2, gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2, gap: 8, alignItems: 'flex-start' }}>
           {TABS.map((t) => {
             const active = tab === t;
             return (
