@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
@@ -85,7 +85,14 @@ export default function StaffDashboard() {
   const [breakActiveType, setBreakActiveType] = useState<'paid' | 'unpaid' | null>(null);
   const [breakStartMs, setBreakStartMs] = useState<number>(0);
   const [accUnpaidBreakMs, setAccUnpaidBreakMs] = useState<number>(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef         = useRef<ScrollView>(null);
+  const pendingTasksY     = useRef<number>(0);
+
+  const scrollToPendingTasks = useCallback(() => {
+    Haptics.selectionAsync();
+    scrollRef.current?.scrollTo({ y: pendingTasksY.current, animated: true });
+  }, []);
   const [storePickerVisible, setStorePickerVisible] = useState(false);
   const [pendingCoords, setPendingCoords]           = useState<{ latitude: number; longitude: number } | undefined>();
 
@@ -331,6 +338,7 @@ export default function StaffDashboard() {
     </Modal>
 
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 40 }}
       showsVerticalScrollIndicator={false}
@@ -429,16 +437,22 @@ export default function StaffDashboard() {
           </View>
         </View>
 
-        {/* Task progress */}
-        <View style={[styles.taskProgress, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
+        {/* Task progress — tapping scrolls to pending tasks list */}
+        <Pressable
+          onPress={urgentTasks.length > 0 ? scrollToPendingTasks : undefined}
+          style={({ pressed }) => [styles.taskProgress, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.75 : 1 }]}
+        >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 15 }]}>Today's Tasks</Text>
-            <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
+              {urgentTasks.length > 0 && <Feather name="chevron-down" size={14} color={BLUE} />}
+            </View>
           </View>
           <View style={[styles.progressTrack, { backgroundColor: '#F0F0F0' }]}>
             <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: BLUE }]} />
           </View>
-        </View>
+        </Pressable>
 
         {/* Quick actions */}
         <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>QUICK ACTIONS</Text>
@@ -505,23 +519,48 @@ export default function StaffDashboard() {
           </>
         )}
 
-        {/* Pending tasks */}
+        {/* Pending tasks — grouped in a single card for compact, clean UX */}
         {urgentTasks.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>PENDING TASKS</Text>
-            {urgentTasks.map((task) => (
-              <Pressable key={task.id} onPress={() => handleCompleteTask(task.id, task.isCompleted)}
-                style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftColor: BLUE, borderLeftWidth: 3 }]}>
-                <View style={[styles.taskCheck, { borderColor: task.isCompleted ? '#22C55E' : BORDER, backgroundColor: task.isCompleted ? '#22C55E' : '#fff', borderWidth: 2, borderRadius: 8 }]}>
-                  {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontWeight: '500', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
-                  <Text style={[{ color: BLUE, fontWeight: '400', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }]}>{task.category}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </>
+          <View
+            onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}
+          >
+            <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600', marginBottom: 8 }]}>PENDING TASKS</Text>
+            <View style={[styles.taskListCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+              {urgentTasks.map((task, idx) => (
+                <Pressable
+                  key={task.id}
+                  onPress={() => handleCompleteTask(task.id, task.isCompleted)}
+                  style={({ pressed }) => [
+                    styles.taskRow,
+                    idx < urgentTasks.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <View style={[styles.taskCheck, {
+                    borderColor: task.isCompleted ? '#22C55E' : BLUE,
+                    backgroundColor: task.isCompleted ? '#22C55E' : 'transparent',
+                    borderWidth: 1.5,
+                    borderRadius: 6,
+                  }]}>
+                    {task.isCompleted && <Feather name="check" size={11} color="#fff" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      color: task.isCompleted ? MUTED : TEXT,
+                      fontWeight: '500',
+                      fontSize: 14,
+                      textDecorationLine: task.isCompleted ? 'line-through' : 'none',
+                    }}>
+                      {task.title}
+                    </Text>
+                    <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }}>
+                      {task.category}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         )}
       </View>
     </ScrollView>
@@ -565,8 +604,9 @@ const styles = StyleSheet.create({
   actionCard: { width: '47%', padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   actionIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { fontSize: 13 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  taskCheck: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  taskListCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
+  taskCheck: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   emptySchedule: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
   timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
   scheduleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
