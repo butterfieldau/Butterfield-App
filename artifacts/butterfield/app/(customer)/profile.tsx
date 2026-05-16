@@ -73,21 +73,16 @@ export default function AccountScreen() {
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#1493FF' }}>
-    <ScrollView
-      style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16, gap: 16 }}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
 
-        {/* ── User card ───────────────────────────────────────────────────── */}
-        <LinearGradient
-          colors={['#1493FF', '#3CBBEE']}
-          style={styles.userCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
+      {/* ── Frozen blue gradient header ────────────────────────────────────── */}
+      <LinearGradient
+        colors={['#1493FF', '#3CBBEE']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 14, paddingBottom: 22, paddingHorizontal: 20 }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <AvatarPicker
             initial={initial}
             size={56}
@@ -103,14 +98,22 @@ export default function AccountScreen() {
               <Text style={[styles.userCardPhone, { opacity: 0.6 }]}>No phone saved</Text>
             )}
           </View>
-          {/* Pencil — goes to the single unified Edit Profile screen */}
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/edit-details'); }}
             style={styles.editBtn}
           >
             <Feather name="edit-2" size={15} color={BLUE} />
           </Pressable>
-        </LinearGradient>
+        </View>
+      </LinearGradient>
+
+      {/* ── Scrollable content ─────────────────────────────────────────────── */}
+      <ScrollView
+        style={{ flex: 1, backgroundColor: BG }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+        showsVerticalScrollIndicator={false}
+      >
+      <View style={{ paddingTop: 16, paddingHorizontal: 16, gap: 16 }}>
 
         {/* ── Quick actions ────────────────────────────────────────────────── */}
         <View style={styles.quickRow}>

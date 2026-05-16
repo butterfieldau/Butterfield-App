@@ -1071,14 +1071,19 @@ export default function CartScreen() {
 
   // ── Main render ───────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: CARD }} {...edgeBackPan.panHandlers}>
+    <View style={{ flex: 1, backgroundColor: BG }} {...edgeBackPan.panHandlers}>
 
-      {/* Fixed header */}
-      <View style={[styles.checkoutHeader, { paddingTop: insets.top + 12, backgroundColor: CARD, borderBottomColor: BORDER }]}>
+      {/* Fixed header — blue gradient matching main customer portal */}
+      <LinearGradient
+        colors={['#1493FF', '#3CBBEE']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.checkoutHeader, { paddingTop: insets.top + 14 }]}
+      >
         <View style={styles.checkoutHeaderTop}>
           {step > 0 ? (
             <Pressable onPress={() => setStep((s) => s - 1)} style={styles.backBtn}>
-              <Feather name="chevron-left" size={22} color={TEXT} />
+              <Feather name="chevron-left" size={22} color="#fff" />
             </Pressable>
           ) : (
             <Pressable
@@ -1088,12 +1093,12 @@ export default function CartScreen() {
               }}
               style={styles.backBtn}
             >
-              <Feather name="chevron-left" size={22} color={TEXT} />
+              <Feather name="chevron-left" size={22} color="#fff" />
             </Pressable>
           )}
           <View style={{ alignItems: 'center' }}>
             <Text style={styles.checkoutTitle}>CHECKOUT</Text>
-            <Text style={[styles.checkoutSub, { color: MUTED }]}>{totalItems} item{totalItems !== 1 ? 's' : ''}</Text>
+            <Text style={styles.checkoutSub}>{totalItems} item{totalItems !== 1 ? 's' : ''}</Text>
           </View>
           <View style={{ width: 36 }} />
         </View>
@@ -1105,17 +1110,17 @@ export default function CartScreen() {
             return (
               <View key={tab.label} style={styles.tabItem}>
                 <View style={styles.tabInner}>
-                  <Feather name={tab.icon as any} size={13} color={active ? BLUE : done ? BLUE : MUTED} />
-                  <Text style={[styles.tabLabel, { color: active ? TEXT : done ? BLUE : MUTED, fontWeight: active ? '600' : '400' }]}>
+                  <Feather name={tab.icon as any} size={13} color={active ? '#fff' : done ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)'} />
+                  <Text style={[styles.tabLabel, { color: active ? '#fff' : done ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.45)', fontWeight: active ? '600' : '400' }]}>
                     {tab.label}
                   </Text>
                 </View>
-                {active && <View style={[styles.tabUnderline, { backgroundColor: BLUE }]} />}
+                {active && <View style={[styles.tabUnderline, { backgroundColor: 'rgba(255,255,255,0.9)' }]} />}
               </View>
             );
           })}
         </View>
-      </View>
+      </LinearGradient>
 
       {/* Scrollable content */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -1179,11 +1184,11 @@ export default function CartScreen() {
 
 const styles = StyleSheet.create({
   // Header
-  checkoutHeader:    { borderBottomWidth: 1, paddingBottom: 0 },
+  checkoutHeader:    { paddingBottom: 0 },
   checkoutHeaderTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   backBtn:           { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  checkoutTitle:     { fontSize: 17, fontWeight: '700', color: '#1C1C1E', letterSpacing: 1.5 },
-  checkoutSub:       { fontSize: 12, fontWeight: '400', marginTop: 1 },
+  checkoutTitle:     { fontSize: 17, fontWeight: '700', color: '#fff', letterSpacing: 1.5 },
+  checkoutSub:       { fontSize: 12, fontWeight: '400', marginTop: 1, color: 'rgba(255,255,255,0.75)' },
   // Tab bar
   tabBar:       { flexDirection: 'row' },
   tabItem:      { flex: 1, alignItems: 'center', paddingVertical: 10 },
