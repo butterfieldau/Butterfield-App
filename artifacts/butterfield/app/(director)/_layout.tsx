@@ -150,13 +150,14 @@ export default function DirectorLayout() {
           }}
         />
 
-        {/* ── Hidden for all — accessed via deep links ── */}
-        <Tabs.Screen name="customers"  options={{ href: null }} />
-        <Tabs.Screen name="pricing"    options={{ href: null }} />
-        <Tabs.Screen name="reports"    options={{ href: null }} />
-        <Tabs.Screen name="timesheets" options={{ href: null }} />
-        <Tabs.Screen name="settings"   options={{ href: null }} />
-        <Tabs.Screen name="stores"     options={{ href: null }} />
+        {/* ── Hidden for all — accessed via deep links or internal imports ── */}
+        <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
+        <Tabs.Screen name="customers"        options={{ href: null }} />
+        <Tabs.Screen name="pricing"          options={{ href: null }} />
+        <Tabs.Screen name="reports"          options={{ href: null }} />
+        <Tabs.Screen name="timesheets"       options={{ href: null }} />
+        <Tabs.Screen name="settings"         options={{ href: null }} />
+        <Tabs.Screen name="stores"           options={{ href: null }} />
       </Tabs>
     </View>
   );
