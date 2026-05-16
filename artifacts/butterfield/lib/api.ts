@@ -474,7 +474,39 @@ export const api = {
     },
   },
 
+  stock: {
+    categories: () => request<{ data: { id: string; label: string }[] }>('/stock/categories'),
+    items:       () => request<{ data: StockItem[] }>('/stock/items'),
+    create:      (data: {
+      name: string; category: string; unit?: string;
+      currentQuantity?: number; lowStockThreshold?: number;
+      costCents?: number; supplier?: string; notes?: string;
+    }) => request<{ data: StockItem }>('/stock/items', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: {
+      name?: string; category?: string; unit?: string;
+      currentQuantity?: number; lowStockThreshold?: number;
+      costCents?: number | null; supplier?: string | null; notes?: string | null;
+    }) => request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    updateQuantity: (id: string, currentQuantity: number) =>
+      request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify({ currentQuantity }) }),
+    delete: (id: string) => request<{ data: { success: boolean } }>(`/stock/items/${id}`, { method: 'DELETE' }),
+  },
 };
+
+export interface StockItem {
+  id: string;
+  name: string;
+  category: 'coffee' | 'drinks' | 'front_of_house' | 'sauces' | 'chocolate' | 'kitchen';
+  unit: string;
+  currentQuantity: number;
+  lowStockThreshold: number;
+  costCents?: number | null;
+  supplier?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface GeoSettings {
   shopLat: number;

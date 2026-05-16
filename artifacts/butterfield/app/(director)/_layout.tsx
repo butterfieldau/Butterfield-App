@@ -150,6 +150,9 @@ export default function DirectorLayout() {
           }}
         />
 
+        {/* ── Stock — director and manager ── */}
+        <Tabs.Screen name="stock" options={{ href: null }} />
+
         {/* ── Hidden for all — accessed via deep links or internal imports ── */}
         <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
         <Tabs.Screen name="customers"        options={{ href: null }} />

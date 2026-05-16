@@ -60,6 +60,13 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const operations: Row[] = [
     {
+      icon: 'archive',
+      label: 'Stock & Inventory',
+      sub: 'Track quantities, costs & low-stock alerts',
+      color: GREEN,
+      onPress: () => router.push('/(director)/stock' as any),
+    },
+    {
       icon: 'bar-chart-2',
       label: 'Reports',
       sub: 'Revenue, feedback & analytics',
