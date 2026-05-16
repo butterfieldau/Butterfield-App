@@ -1,9 +1,24 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
 import jwt from "jsonwebtoken";
+import sharp from "sharp";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
 import { getObjectAclPolicy, setObjectAclPolicy } from "../lib/objectAcl.js";
 import { requireAuth, requireRole, type AuthUser } from "../middlewares/auth.js";
+
+/**
+ * Compress and resize an image buffer for product use.
+ * - Resizes to fit within 1200×1200 px (preserving aspect ratio, never upscaling)
+ * - Converts every format (JPEG, PNG, HEIC/HEIF, WebP) to WebP at quality 82
+ * Returns the compressed buffer.
+ */
+async function compressProductImage(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .rotate()
+    .resize({ width: 1200, height: 1200, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer();
+}
 
 const UPLOAD_INTENT_SECRET =
   process.env.SESSION_SECRET ?? "butterfield-dev-only-not-for-production";
@@ -199,18 +214,16 @@ router.post(
     const rawName = String(req.body.productName || "product");
     const category = rawCategory.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/^-+|-+$/g, "");
     const slug = rawName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
-    const ext = req.file.mimetype === "image/png" ? "png"
-      : req.file.mimetype === "image/webp" ? "webp"
-      : "jpg";
     const shortId = Date.now().toString().slice(-6);
-    const subPath = `products/${category}/${slug}-${shortId}.${ext}`;
+    const subPath = `products/${category}/${slug}-${shortId}.webp`;
 
     try {
-      const result = await objectStorageService.uploadToPath(req.file.buffer, req.file.mimetype, subPath, {
+      const compressed = await compressProductImage(req.file.buffer);
+      const result = await objectStorageService.uploadToPath(compressed, "image/webp", subPath, {
         owner: req.user!.id,
         visibility: "public",
       });
-      res.json(result);
+      res.json({ ...result, originalBytes: req.file.size, compressedBytes: compressed.length });
     } catch (error) {
       const configMessage = storageConfigError(error);
       if (configMessage) {
