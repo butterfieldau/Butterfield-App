@@ -7,7 +7,6 @@
     "hello": "tsx ./src/hello.ts",
     "seed-products": "tsx ./src/seed-products.ts",
     "seed-coffee-menu": "tsx ./src/seed-coffee-menu.ts",
-    "seed-cookies": "tsx ./src/seed-cookies.ts",
     "purge-wholesale-card-secrets": "tsx ./src/purge-wholesale-card-secrets.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

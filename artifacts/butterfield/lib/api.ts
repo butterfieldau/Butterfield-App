@@ -442,9 +442,6 @@ export const api = {
       formData.append('file', { uri: fileUri, name: filename, type: contentType } as any);
       formData.append('category', category);
       formData.append('productName', productName);
-      // Include token as a form field fallback: some production proxies strip
-      // the Authorization header from multipart/form-data requests.
-      if (token) formData.append('_token', token);
       const res = await fetch(`${BASE}/storage/products/upload`, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
