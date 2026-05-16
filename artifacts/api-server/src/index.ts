@@ -6,6 +6,11 @@ import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
+// Catch any unhandled rejections so they never crash the process
+process.on('unhandledRejection', (reason: any) => {
+  logger.error({ err: reason?.message ?? String(reason) }, 'Unhandled rejection — continuing');
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
@@ -107,11 +112,9 @@ async function ensureDefaultCategories() {
   }
 }
 
-await initStripe();
-await ensureLoyaltySchemaReady();
-await ensureMasterAccount();
-await ensureDefaultCategories();
-
+// ── Start listening immediately so the port is bound before any async work ──
+// Deployment health checks require the port to be up quickly. All DB/Stripe
+// init runs in the background after the server is already accepting requests.
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -119,3 +122,13 @@ app.listen(port, (err) => {
   }
   logger.info({ port }, "Server listening");
 });
+
+// Background init — errors are fully contained; the server is already up above
+Promise.resolve()
+  .then(() => ensureLoyaltySchemaReady())
+  .then(() => ensureMasterAccount())
+  .then(() => ensureDefaultCategories())
+  .then(() => initStripe())
+  .catch((err: any) => {
+    logger.warn({ err: err?.message }, 'Background startup task failed');
+  });
