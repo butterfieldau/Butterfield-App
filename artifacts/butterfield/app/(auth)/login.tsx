@@ -416,7 +416,7 @@ export default function LoginScreen() {
                   <Feather name="shield" size={13} color="rgba(255,255,255,0.6)" />
                   <Text style={[s.internalBadgeTxt, { fontWeight: '700' }]}>INTERNAL ACCESS</Text>
                 </View>
-                <Text style={[s.internalTitle, { fontWeight: '700' }]}>Staff & Director Sign In</Text>
+                <Text style={[s.internalTitle, { fontWeight: '700' }]}>Internal Portal Sign In</Text>
                 <Text style={[s.internalSub, { fontWeight: '400' }]}>
                   Your role is automatically determined by your credentials.
                 </Text>

@@ -50,9 +50,9 @@ export default function StaffProfileScreen() {
   };
 
   const menuItems = [
-    { icon: 'calendar',       label: 'Request Leave',      sub: 'Annual, sick & personal leave',   onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
+    { icon: 'calendar',       label: 'Request Leave',      sub: 'Annual, sick & personal leave',   onPress: () => router.push({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
     { icon: 'message-circle', label: 'Team Announcements', sub: 'Messages from management',        onPress: () => Alert.alert('Team Announcements', 'No new announcements.\n\nCheck back before your next shift.') },
-    { icon: 'alert-circle',   label: 'Report an Issue',    sub: 'Equipment, safety, maintenance',  onPress: () => router.push({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
+    { icon: 'alert-circle',   label: 'Report an Issue',    sub: 'Equipment, safety, maintenance',  onPress: () => router.push({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
     { icon: 'help-circle',    label: 'Help & Support',     sub: 'Call or email head office', onPress: () => Alert.alert('Help & Support', 'Phone: 0480 769 995\nEmail: hello@butterfieldcookies.com.au\n\nMon–Fri, 8am – 4pm AEST') },
   ];
 

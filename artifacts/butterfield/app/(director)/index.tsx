@@ -12,6 +12,7 @@ import Svg, {
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { StaffDashboard } from './_staff-dashboard';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -215,10 +216,8 @@ function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
-export default function DirectorHome() {
-  const { user } = useAuth();
-
+// ── Director/Master dashboard ─────────────────────────────────────────────────
+function DirectorDashboardInner() {
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['director-stats'],
     queryFn: () => api.director.stats(),
@@ -486,3 +485,12 @@ const ch = StyleSheet.create({
   legendDash: { width: 14, height: 0, borderTopWidth: 1.5, borderStyle: 'dashed' },
   sub:        { fontSize: 10, fontWeight: '400', color: MUTED, marginTop: 6, textAlign: 'center' },
 });
+
+// ── Role-aware wrapper ─────────────────────────────────────────────────────────
+export default function DirectorHome() {
+  const { user } = useAuth();
+  if (user?.role === 'staff' || user?.role === 'manager') {
+    return <StaffDashboard />;
+  }
+  return <DirectorDashboardInner />;
+}

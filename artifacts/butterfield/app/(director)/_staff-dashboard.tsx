@@ -1,14 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, Modal, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -71,12 +69,10 @@ function formatTime12(iso: string): string {
   return `${h}:${m} ${ampm}`;
 }
 
-export default function StaffDashboard() {
-  const insets = useSafeAreaInsets();
+export function StaffDashboard() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
-  // Schedule the daily clock-in reminder once on mount
   useEffect(() => {
     scheduleClockInReminder();
   }, []);
@@ -85,16 +81,17 @@ export default function StaffDashboard() {
   const [breakActiveType, setBreakActiveType] = useState<'paid' | 'unpaid' | null>(null);
   const [breakStartMs, setBreakStartMs] = useState<number>(0);
   const [accUnpaidBreakMs, setAccUnpaidBreakMs] = useState<number>(0);
-  const intervalRef       = useRef<ReturnType<typeof setInterval> | null>(null);
-  const scrollRef         = useRef<ScrollView>(null);
-  const pendingTasksY     = useRef<number>(0);
+  const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef     = useRef<ScrollView>(null);
+  const pendingTasksY = useRef<number>(0);
 
   const scrollToPendingTasks = useCallback(() => {
     Haptics.selectionAsync();
     scrollRef.current?.scrollTo({ y: pendingTasksY.current, animated: true });
   }, []);
+
   const [storePickerVisible, setStorePickerVisible] = useState(false);
-  const [pendingCoords, setPendingCoords]           = useState<{ latitude: number; longitude: number } | undefined>();
+  const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number } | undefined>();
 
   const { data: shiftData, refetch: refetchShift, isRefetching: shiftRefetching } = useQuery({
     queryKey: ['current-shift'], queryFn: () => api.staff.currentShift(), retry: 1,
@@ -163,47 +160,30 @@ export default function StaffDashboard() {
 
   const handleClockIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
-    // Request location first
     let coords: { latitude: number; longitude: number } | undefined;
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === 'granted') {
       try {
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-      } catch { /* use undefined — server will decide */ }
+      } catch { /* use undefined */ }
     } else {
       if (storeAssignments.length > 0) {
-        Alert.alert(
-          'Location Required',
-          'Staff clock-in is tied to your assigned store, so location access is required here. Please enable Location Services and try again.',
-          [{ text: 'OK' }],
-        );
+        Alert.alert('Location Required', 'Staff clock-in is tied to your assigned store, so location access is required here. Please enable Location Services and try again.', [{ text: 'OK' }]);
         return;
       }
-      Alert.alert(
-        'Location Required',
-        'Location access helps verify you\'re at the right store. You can continue for now because no store has been assigned to this account yet.',
-        [
-          { text: 'Continue Anyway', onPress: async () => {
-            await doClockIn(undefined);
-          }},
-          { text: 'Cancel', style: 'cancel' },
-        ],
-      );
+      Alert.alert('Location Required', "Location access helps verify you're at the right store. You can continue for now because no store has been assigned to this account yet.", [
+        { text: 'Continue Anyway', onPress: async () => { await doClockIn(undefined); } },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
       return;
     }
 
     if (!coords && storeAssignments.length > 0) {
-      Alert.alert(
-        'Location Needed',
-        'We could not get a valid location, and this account is tied to an assigned store. Please try again with Location Services enabled.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Location Needed', 'We could not get a valid location, and this account is tied to an assigned store. Please try again with Location Services enabled.', [{ text: 'OK' }]);
       return;
     }
 
-    // If staff assigned to multiple stores, let them pick
     if (storeAssignments.length > 1 && coords) {
       setPendingCoords(coords);
       setStorePickerVisible(true);
@@ -225,12 +205,11 @@ export default function StaffDashboard() {
           try {
             const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             outCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-          } catch { /* ignore — not blocking */ }
+          } catch { /* ignore */ }
           const res = await api.staff.clockOut(unpaidMins, outCoords);
           setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
           qc.invalidateQueries({ queryKey: ['current-shift'] });
           refetchStats();
-          // Notifications: cancel clock-out reminder, reschedule daily clock-in, confirm
           cancelClockOutReminder();
           scheduleClockInReminder();
           const fmtWorked = formatDecimalHours(res.data.hoursWorked);
@@ -294,7 +273,6 @@ export default function StaffDashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
 
-    {/* ── Store picker modal (shown when staff assigned to multiple stores) ── */}
     <Modal visible={storePickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setStorePickerVisible(false)}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -311,10 +289,7 @@ export default function StaffDashboard() {
           {storeAssignments.map(a => (
             <Pressable
               key={a.id}
-              onPress={async () => {
-                setStorePickerVisible(false);
-                await doClockIn(pendingCoords, a.storeId);
-              }}
+              onPress={async () => { setStorePickerVisible(false); await doClockIn(pendingCoords, a.storeId); }}
               style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
             >
               <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -437,7 +412,7 @@ export default function StaffDashboard() {
           </View>
         </View>
 
-        {/* Task progress — tapping scrolls to pending tasks list */}
+        {/* Task progress */}
         <Pressable
           onPress={urgentTasks.length > 0 ? scrollToPendingTasks : undefined}
           style={({ pressed }) => [styles.taskProgress, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.75 : 1 }]}
@@ -458,10 +433,10 @@ export default function StaffDashboard() {
         <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>QUICK ACTIONS</Text>
         <View style={styles.actionsGrid}>
           {[
-            { icon: 'clipboard',      label: 'Tasks',        bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'tasks' } }) },
-            { icon: 'alert-triangle', label: 'Log Wastage',  bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'wastage' } }) },
-            { icon: 'tool',           label: 'Report Issue', bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'issues' } }) },
-            { icon: 'calendar',       label: 'Leave Request',bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(staff)/tasks', params: { initialTab: 'leave' } }) },
+            { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any) },
+            { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'wastage' } } as any) },
+            { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
+            { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
           ].map((action) => (
             <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
               style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
@@ -473,7 +448,7 @@ export default function StaffDashboard() {
           ))}
         </View>
 
-        {/* Today's schedule — only visible to staff with orders permission */}
+        {/* Today's schedule — only if canViewOrders */}
         {canViewOrders && (
           <>
             <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>TODAY'S SCHEDULE</Text>
@@ -496,7 +471,7 @@ export default function StaffDashboard() {
                   };
                   const sc = statusColors[order.status] ?? '#3B82F6';
                   return (
-                    <Pressable key={order.id} onPress={() => router.push('/(staff)/orders')}
+                    <Pressable key={order.id} onPress={() => router.push('/(director)/orders' as any)}
                       style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, borderLeftColor: sc, borderLeftWidth: 3 }]}>
                       <View style={{ flex: 1 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
@@ -519,11 +494,9 @@ export default function StaffDashboard() {
           </>
         )}
 
-        {/* Pending tasks — grouped in a single card for compact, clean UX */}
+        {/* Pending tasks */}
         {urgentTasks.length > 0 && (
-          <View
-            onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}
-          >
+          <View onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}>
             <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600', marginBottom: 8 }]}>PENDING TASKS</Text>
             <View style={[styles.taskListCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               {urgentTasks.map((task, idx) => (
@@ -569,45 +542,39 @@ export default function StaffDashboard() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  greeting: { color: 'rgba(255,255,255,0.85)', fontSize: 14 },
-  name: { color: '#fff', fontSize: 24 },
-  shiftIndicator: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  shiftDot: { width: 6, height: 6, borderRadius: 3 },
-  shiftCard: { borderRadius: 18, padding: 18, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: BORDER },
+  shiftCard:       { borderRadius: 18, padding: 18, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: BORDER },
   shiftCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  shiftCardLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8 },
-  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
-  liveText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  bigStatus: { fontSize: 38, fontWeight: '700', marginTop: 2 },
-  bigElapsed: { fontSize: 38, fontWeight: '700', marginTop: 2 },
-  shiftSub: { fontSize: 13, fontWeight: '400', lineHeight: 19 },
-  mainBtn: { borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 2 },
-  mainBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  breakRow: { flexDirection: 'row', gap: 10 },
-  breakBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 30, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  breakBtnText: { fontSize: 13, fontWeight: '500' },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  locationText: { fontSize: 11, fontWeight: '400' },
-  statsRow: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, borderRadius: 14, padding: 14, gap: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1, borderWidth: 1, borderColor: BORDER },
-  statLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, marginBottom: 2 },
-  statDuration: { fontSize: 22, fontWeight: '700' },
-  statEarnings: { fontSize: 13, fontWeight: '400', marginTop: 1 },
-  taskProgress: { padding: 16, gap: 10 },
-  progressTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4 },
-  sectionTitle: { fontSize: 11, letterSpacing: 1.5, marginTop: 4 },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  actionCard: { width: '47%', padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  actionIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { fontSize: 13 },
-  taskListCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
-  taskCheck: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  emptySchedule: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
-  scheduleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  shiftCardLabel:  { fontSize: 11, fontWeight: '600', letterSpacing: 0.8 },
+  liveBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  liveDot:         { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
+  liveText:        { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  bigStatus:       { fontSize: 38, fontWeight: '700', marginTop: 2 },
+  bigElapsed:      { fontSize: 38, fontWeight: '700', marginTop: 2 },
+  shiftSub:        { fontSize: 13, fontWeight: '400', lineHeight: 19 },
+  mainBtn:         { borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 2 },
+  mainBtnText:     { color: '#fff', fontSize: 16, fontWeight: '600' },
+  breakRow:        { flexDirection: 'row', gap: 10 },
+  breakBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 30, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  breakBtnText:    { fontSize: 13, fontWeight: '500' },
+  locationRow:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  locationText:    { fontSize: 11, fontWeight: '400' },
+  statsRow:        { flexDirection: 'row', gap: 12 },
+  statCard:        { flex: 1, borderRadius: 14, padding: 14, gap: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1, borderWidth: 1, borderColor: BORDER },
+  statLabel:       { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, marginBottom: 2 },
+  statDuration:    { fontSize: 22, fontWeight: '700' },
+  statEarnings:    { fontSize: 13, fontWeight: '400', marginTop: 1 },
+  taskProgress:    { padding: 16, gap: 10 },
+  progressTrack:   { height: 8, borderRadius: 4, overflow: 'hidden' },
+  progressFill:    { height: '100%', borderRadius: 4 },
+  sectionTitle:    { fontSize: 11, letterSpacing: 1.5, marginTop: 4 },
+  actionsGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  actionCard:      { width: '47%', padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  actionIcon:      { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  actionLabel:     { fontSize: 13 },
+  taskListCard:    { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  taskRow:         { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
+  taskCheck:       { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  emptySchedule:   { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
+  timeRow:         { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
+  scheduleCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
 });

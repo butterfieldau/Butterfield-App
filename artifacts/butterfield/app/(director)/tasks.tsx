@@ -3,7 +3,6 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -23,7 +22,6 @@ const CAT_COLORS: Record<string, string> = {
 type TabMode = 'tasks' | 'wastage' | 'issues' | 'leave';
 
 export default function StaffTasksScreen() {
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
   const params = useLocalSearchParams<{ initialTab?: TabMode }>();
@@ -226,10 +224,10 @@ export default function StaffTasksScreen() {
           ))}
           <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 4 }]}>LEAVE TYPE</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {['annual', 'sick', 'personal', 'other'].map((t) => (
-              <Pressable key={t} onPress={() => setLeaveForm((f) => ({ ...f, type: t }))}
-                style={[styles.catPill, { backgroundColor: leaveForm.type === t ? BLUE : CARD, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: leaveForm.type === t ? BLUE : BORDER }]}>
-                <Text style={[{ color: leaveForm.type === t ? '#fff' : MUTED, fontWeight: '500', fontSize: 12, textTransform: 'capitalize' }]}>{t}</Text>
+            {['annual', 'sick', 'personal', 'other'].map((lt) => (
+              <Pressable key={lt} onPress={() => setLeaveForm((f) => ({ ...f, type: lt }))}
+                style={[styles.catPill, { backgroundColor: leaveForm.type === lt ? BLUE : CARD, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: leaveForm.type === lt ? BLUE : BORDER }]}>
+                <Text style={[{ color: leaveForm.type === lt ? '#fff' : MUTED, fontWeight: '500', fontSize: 12, textTransform: 'capitalize' }]}>{lt}</Text>
               </Pressable>
             ))}
           </View>
@@ -243,12 +241,12 @@ export default function StaffTasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 16, gap: 12, paddingBottom: 12 },
-  title: { fontSize: 26 },
-  tabPill: { paddingHorizontal: 16, paddingVertical: 8 },
-  catPill: { paddingHorizontal: 14, paddingVertical: 7 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  header:    { paddingHorizontal: 16, gap: 12, paddingBottom: 12 },
+  title:     { fontSize: 26 },
+  tabPill:   { paddingHorizontal: 16, paddingVertical: 8 },
+  catPill:   { paddingHorizontal: 14, paddingVertical: 7 },
+  taskRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   taskCheck: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  input: { padding: 14, fontSize: 14 },
+  input:     { padding: 14, fontSize: 14 },
   submitBtn: { paddingVertical: 16, alignItems: 'center', marginTop: 8 },
 });
