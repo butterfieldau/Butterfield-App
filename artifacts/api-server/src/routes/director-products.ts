@@ -41,8 +41,23 @@ function parseJsonArr(val: string | null | undefined): string[] {
 // ══════════════════════════════════════════════════════════════════════════════
 
 router.get('/categories', async (_req, res) => {
-  const cats = await db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder));
-  return res.json({ data: cats });
+  const [cats, productMeta] = await Promise.all([
+    db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder)),
+    db.select({ categoryId: productsTable.categoryId, category: productsTable.category })
+      .from(productsTable).where(eq(productsTable.isActive, true)),
+  ]);
+  // Count products per category — prefer categoryId FK to avoid double-counting
+  const byId   = new Map<string, number>();
+  const bySlug = new Map<string, number>();
+  for (const p of productMeta) {
+    if (p.categoryId) byId.set(p.categoryId, (byId.get(p.categoryId) ?? 0) + 1);
+    else if (p.category) bySlug.set(p.category, (bySlug.get(p.category) ?? 0) + 1);
+  }
+  const data = cats.map(cat => ({
+    ...cat,
+    productCount: (byId.get(cat.id) ?? 0) + (bySlug.get(cat.slug) ?? 0),
+  }));
+  return res.json({ data });
 });
 
 router.post('/categories', async (req, res) => {

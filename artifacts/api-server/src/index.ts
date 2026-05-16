@@ -1,7 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { ensureLoyaltySchemaReady } from "./lib/loyaltyIdentity.js";
-import { db } from "@workspace/db";
+import { db, productCategoriesTable } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -76,9 +76,41 @@ async function ensureMasterAccount() {
   }
 }
 
+const DEFAULT_CATEGORIES = [
+  { id: 'cat_cookies',    name: 'Cookies',    slug: 'cookies',    sortOrder: 0,  showWholesale: true  },
+  { id: 'cat_coffee',     name: 'Coffee',     slug: 'coffee',     sortOrder: 10, showWholesale: false },
+  { id: 'cat_desserts',   name: 'Desserts',   slug: 'desserts',   sortOrder: 20, showWholesale: true  },
+  { id: 'cat_bundles',    name: 'Bundles',    slug: 'bundles',    sortOrder: 30, showWholesale: true  },
+  { id: 'cat_sandwiches', name: 'Sandwiches', slug: 'sandwiches', sortOrder: 40, showWholesale: false },
+] as const;
+
+async function ensureDefaultCategories() {
+  try {
+    const existing = await db.select({ id: productCategoriesTable.id }).from(productCategoriesTable);
+    if (existing.length > 0) return;
+    for (const cat of DEFAULT_CATEGORIES) {
+      await db.insert(productCategoriesTable).values({
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        sortOrder: cat.sortOrder,
+        isActive: true,
+        showPublic: true,
+        showWholesale: cat.showWholesale,
+        isPickupAvailable: true,
+        isDeliveryAvailable: false,
+      }).onConflictDoNothing();
+    }
+    logger.info('Default product categories seeded');
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, 'ensureDefaultCategories skipped');
+  }
+}
+
 await initStripe();
 await ensureLoyaltySchemaReady();
 await ensureMasterAccount();
+await ensureDefaultCategories();
 
 app.listen(port, (err) => {
   if (err) {

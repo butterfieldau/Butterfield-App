@@ -1,0 +1,43 @@
+Fix the product category system so the categories shown inside the Product edit/create page are not hardcoded.
+
+Current issue:
+- In the Product edit page, the category selector shows hardcoded categories like cookies, coffee, desserts, bundles, sandwiches.
+- In the Products > Categories tab, it says “No categories yet”.
+- These two areas are not synced.
+
+Required fix:
+1. Create one single source of truth for product categories in the backend/database.
+2. The Categories tab must read from this backend category list.
+3. The Product edit/create page category selector must also read from the exact same backend category list.
+4. Remove all hardcoded category buttons from the Product edit/create form.
+5. When I add a new category from the Categories tab, it must instantly appear as an option inside the Product edit/create page.
+6. When I delete, rename, reorder, enable or disable a category, the Product edit/create page must update to match.
+7. Existing products must keep their selected category linked by category ID, not just plain text, so renaming a category does not break products.
+8. Add proper loading, empty and error states:
+   - If no categories exist, show “No categories yet” in the Categories tab.
+   - In the Product edit/create page, if no categories exist, show “Add a category first” and stop the product from being saved without a valid category.
+9. Seed the backend with the default categories currently shown:
+   - Cookies
+   - Coffee
+   - Desserts
+   - Bundles
+   - Sandwiches
+10. Make sure this is synced across Master, Director, Store Manager and any product management access.
+11. Make sure categories also connect cleanly to the customer ordering portal, wholesale portal and backend product filtering.
+12. Do not break existing products, prices, inventory, images, product options or order history.
+13. Add category sorting/order so I can control what order categories appear in.
+14. Add an active/inactive status so I can hide a category without deleting it.
+15. Make sure all category changes update in real time or refresh properly after saving.
+
+Also fix the spelling everywhere:
+- “catagories” should be “categories”
+- “readying each other” logic should be treated as “reading from each other / synced”
+
+Acceptance test:
+- I add a category in Products > Categories.
+- I go to Edit Product.
+- That new category appears in the category selector.
+- I select it and save the product.
+- I return to Categories and the product count under that category is correct.
+- I rename the category and the product still stays linked.
+- I disable the category and it no longer appears on the customer ordering side, but existing products and order history remain safe.

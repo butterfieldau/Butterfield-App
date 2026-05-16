@@ -24,7 +24,6 @@ const AMBER  = '#F59E0B';
 const PURPLE = '#8B5CF6';
 const PINK   = '#EC4899';
 
-const CATEGORIES = ['cookies','coffee','desserts','bundles','sandwiches','pastries','drinks','merch','other'];
 const PRODUCT_TYPES = ['standard','limited','seasonal','wholesale-only','staff-only'];
 const ALLERGEN_LIST = ['Gluten','Dairy','Eggs','Nuts','Peanuts','Soy','Sesame','Sulphites','Fish','Shellfish'];
 const DIETARY_LIST  = ['Vegan','Vegetarian','Gluten-Free','Dairy-Free','Nut-Free','Halal','Kosher','Low-Sugar'];
@@ -143,7 +142,7 @@ function toDisplayUrl(url: string): string {
 // ─── Default form state ────────────────────────────────────────────────────────
 const BLANK = () => ({
   name: '', shortDescription: '', description: '',
-  category: 'cookies', productType: 'standard',
+  category: 'cookies', categoryId: null as string | null, productType: 'standard',
   price: '', salePrice: '', costPrice: '', wholesalePrice: '',
   gstIncluded: true, sku: '', barcode: '',
   isAvailable: true, isFeatured: false, isNew: false,
@@ -288,6 +287,7 @@ function ProductModal({
         shortDescription: initial.shortDescription ?? '',
         description: initial.description ?? '',
         category: initial.category ?? 'cookies',
+        categoryId: initial.categoryId ?? null,
         productType: initial.productType ?? 'standard',
         price: centsToDisplay(initial.priceCents),
         salePrice: centsToDisplay(initial.salePriceCents),
@@ -421,6 +421,9 @@ function ProductModal({
   const handleSave = async () => {
     if (!f.name.trim()) { Alert.alert('Required', 'Product name is required.'); return; }
     if (!f.price.trim()) { Alert.alert('Required', 'Price is required.'); return; }
+    if (categories.length > 0 && !categories.some((c: any) => c.slug === f.category)) {
+      Alert.alert('Required', 'Please select a category.'); return;
+    }
     setSaving(true);
     try {
       await onSave({
@@ -428,6 +431,7 @@ function ProductModal({
         shortDescription: f.shortDescription.trim() || null,
         description: f.description.trim(),
         category: f.category,
+        categoryId: f.categoryId,
         productType: f.productType,
         priceCents:         displayToCents(f.price),
         salePriceCents:     f.salePrice    ? displayToCents(f.salePrice)    : null,
@@ -514,14 +518,26 @@ function ProductModal({
               <Field label="Full Description">
                 <TextF value={f.description} onChange={v => upd('description', v)} placeholder="Detailed product description…" multiline lines={4} />
               </Field>
-              <Field label="Category">
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {(categories.length > 0 ? categories : CATEGORIES.map(s => ({ id: s, name: s, slug: s }))).map(c => (
-                      <TagChip key={c.id ?? c} label={c.name ?? c} active={f.category === (c.slug ?? c)} color={CAT_COLORS[c.slug ?? c] ?? MUTED} onPress={() => upd('category', c.slug ?? c)} />
-                    ))}
+              <Field label="Category" required>
+                {categories.length === 0 ? (
+                  <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                    <Text style={{ color: MUTED, fontSize: 13, fontWeight: '400' }}>No categories yet — add one in the Categories tab first.</Text>
                   </View>
-                </ScrollView>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {categories.map((c: any) => (
+                        <TagChip
+                          key={c.id}
+                          label={c.name}
+                          active={f.category === c.slug}
+                          color={CAT_COLORS[c.slug] ?? BLUE}
+                          onPress={() => setF(p => ({ ...p, category: c.slug, categoryId: c.id }))}
+                        />
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
               </Field>
               <Field label="Product Type">
                 <Segment options={PRODUCT_TYPES} value={f.productType} onChange={v => upd('productType', v)} />
@@ -830,6 +846,9 @@ function CatalogTab() {
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catDesc, setCatDesc] = useState('');
+  const [catSortOrder, setCatSortOrder] = useState('0');
+  const [catShowPublic, setCatShowPublic] = useState(true);
+  const [catShowWholesale, setCatShowWholesale] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
 
   const { data, refetch, isRefetching } = useQuery({
@@ -838,20 +857,36 @@ function CatalogTab() {
   });
   const cats: any[] = data?.data ?? [];
 
-  const openAddCat = () => { setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc(''); setCatModal(true); };
-  const openEditCat = (c: any) => { setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? ''); setCatModal(true); };
+  const openAddCat = () => {
+    setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc('');
+    setCatSortOrder('0'); setCatShowPublic(true); setCatShowWholesale(false);
+    setCatModal(true);
+  };
+  const openEditCat = (c: any) => {
+    setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? '');
+    setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true); setCatShowWholesale(c.showWholesale ?? false);
+    setCatModal(true);
+  };
 
   const saveCat = async () => {
     if (!catName.trim()) return Alert.alert('Name required');
     setCatSaving(true);
     try {
       const slug = catSlug.trim() || catName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const payload = {
+        name: catName.trim(), slug,
+        description: catDesc.trim() || undefined,
+        sortOrder: parseInt(catSortOrder) || 0,
+        showPublic: catShowPublic,
+        showWholesale: catShowWholesale,
+      };
       if (editCat) {
-        await api.director.updateCategory(editCat.id, { name: catName.trim(), slug, description: catDesc.trim() || undefined });
+        await api.director.updateCategory(editCat.id, payload);
       } else {
-        await api.director.createCategory({ name: catName.trim(), slug, description: catDesc.trim() || undefined });
+        await api.director.createCategory(payload);
       }
       await qc.invalidateQueries({ queryKey: ['director-categories'] });
+      await qc.invalidateQueries({ queryKey: ['categories'] });
       setCatModal(false);
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setCatSaving(false); }
@@ -887,8 +922,13 @@ function CatalogTab() {
         renderItem={({ item: c }) => (
           <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
-              <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>/{c.slug}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
+                <View style={{ backgroundColor: BLUE + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: BLUE }}>{c.productCount ?? 0}</Text>
+                </View>
+              </View>
+              <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>/{c.slug}{c.showPublic ? ' · public' : ''}{c.showWholesale ? ' · wholesale' : ''}</Text>
               {c.description ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
             </View>
             <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
@@ -929,6 +969,11 @@ function CatalogTab() {
               <Field label="Description">
                 <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
               </Field>
+              <Field label="Sort Order">
+                <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+              </Field>
+              <Toggle label="Visible to customers" value={catShowPublic} onChange={setCatShowPublic} color={GREEN} desc="Show in the customer ordering portal and menu" />
+              <Toggle label="Visible to wholesale" value={catShowWholesale} onChange={setCatShowWholesale} color={BLUE} desc="Show in the wholesale product catalog" />
             </View>
           </ScrollView>
         </View>
@@ -1293,7 +1338,10 @@ export default function DirectorProductsScreen() {
       } else {
         await api.director.createProduct(data);
       }
-      await qc.invalidateQueries({ queryKey: ['director-products'] });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['director-products'] }),
+        qc.invalidateQueries({ queryKey: ['director-categories'] }),
+      ]);
       setModalOpen(false);
       setEditTarget(null);
     } catch (e: any) { Alert.alert('Error', e.message); throw e; }

@@ -97,16 +97,10 @@ const shimmerCard = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
 });
 
-const CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: 'all',        label: 'All',      icon: 'grid'    },
-  { id: 'cookies',    label: 'Cookies',  icon: 'star'    },
-  { id: 'coffee',     label: 'Coffee',   icon: 'coffee'  },
-  { id: 'desserts',   label: 'Desserts', icon: 'heart'   },
-  { id: 'sandwiches', label: 'Food',     icon: 'layers'  },
-  { id: 'pastries',   label: 'Pastries', icon: 'sun'     },
-  { id: 'drinks',     label: 'Drinks',   icon: 'droplet' },
-  { id: 'bundles',    label: 'Bundles',  icon: 'gift'    },
-];
+const CAT_ICON_MAP: Record<string, string> = {
+  cookies: 'star', coffee: 'coffee', desserts: 'heart', sandwiches: 'layers',
+  pastries: 'sun', drinks: 'droplet', bundles: 'gift', merch: 'tag',
+};
 
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
@@ -167,6 +161,22 @@ export default function MenuScreen() {
     queryFn: () => api.products.list(),
     retry: 2,
   });
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.products.categories(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const categories = useMemo(() => {
+    const backendCats: any[] = categoriesData?.data ?? [];
+    const items = backendCats.map(c => ({
+      id: c.slug as string,
+      label: c.name as string,
+      icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
+    }));
+    return [{ id: 'all', label: 'All', icon: 'grid' as string }, ...items];
+  }, [categoriesData]);
 
   // Shimmer animation — runs while products are loading
   const shimmerProgress = useSharedValue(0);
@@ -248,7 +258,7 @@ export default function MenuScreen() {
 
         {/* Category carousel — Uber Eats style */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 16 }}>
-          {CATEGORIES.map(cat => {
+          {categories.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
             return (
@@ -310,7 +320,7 @@ export default function MenuScreen() {
                 )}
                 <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
-                  {activeCategory !== 'all' ? ` · ${CATEGORIES.find(c => c.id === activeCategory)?.label ?? activeCategory}` : ''}
+                  {activeCategory !== 'all' ? ` · ${categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory}` : ''}
                 </Text>
               </>
             }
