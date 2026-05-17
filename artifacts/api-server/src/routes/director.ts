@@ -6,7 +6,7 @@ import {
   wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
-  wholesaleCardsTable,
+  wholesaleCardsTable, deletedAccountsTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -30,8 +30,10 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // Manager management — director/master only
   if (path === '/managers' || path.startsWith('/managers/')) return 'director_only';
 
-  // Dashboard
-  if (path === '/stats' || path === '/sessions') return 'dashboard';
+  // Dashboard stats
+  if (path === '/stats' || path === '/stats/revenue' || path === '/sessions') return 'dashboard';
+  // Deleted accounts — director/master only
+  if (path.startsWith('/deleted-accounts')) return 'director_only';
 
   // Orders
   if (path === '/orders' || path.startsWith('/orders/')) return 'orders';
@@ -313,6 +315,28 @@ router.delete('/users/:id', async (req, res) => {
   if (target.role === 'master') return res.status(403).json({ error: 'Master accounts cannot be deleted.' });
   if (target.role === 'director' && req.user!.role !== 'master') return res.status(403).json({ error: 'Only the master account can delete director accounts.' });
   if (!['director', 'master'].includes(req.user!.role)) return res.status(403).json({ error: 'Only directors can delete accounts.' });
+
+  // Snapshot the user's data before hard-deleting — kept for 30 days for recovery
+  const [fullUser] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  const [custProfile]     = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, id));
+  const [staffProfile]    = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, id));
+  const [wholesaleAccount]= await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, id));
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await db.insert(deletedAccountsTable).values({
+    id,
+    deletedBy: req.user!.id,
+    deletedByName: null,
+    expiresAt,
+    role: target.role,
+    email: fullUser?.email ?? '',
+    name: fullUser?.name ?? '',
+    snapshot: {
+      user: fullUser ?? null,
+      customerProfile: custProfile ?? null,
+      staffProfile: staffProfile ?? null,
+      wholesaleAccount: wholesaleAccount ?? null,
+    },
+  }).onConflictDoNothing();
 
   await db.execute(sql`DELETE FROM loyalty_transactions WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM orders WHERE user_id = ${id}`);
@@ -1256,31 +1280,32 @@ router.get('/sessions', async (req, res) => {
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
-    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+    const lastWeekStart = new Date(todayStart.getTime() - 7 * 86400000);
+    const lastWeekEnd   = new Date(lastWeekStart.getTime() + 86400000);
 
-    const [todayOrders, yesterdayOrders, todayLogins, yesterdayLogins] = await Promise.all([
+    const [todayOrders, lastWeekOrders, todayLogins, lastWeekLogins] = await Promise.all([
       db.select({ createdAt: ordersTable.createdAt }).from(ordersTable)
         .where(gte(ordersTable.createdAt, todayStart)),
       db.select({ createdAt: ordersTable.createdAt }).from(ordersTable)
-        .where(and(gte(ordersTable.createdAt, yesterdayStart), lte(ordersTable.createdAt, todayStart))),
+        .where(and(gte(ordersTable.createdAt, lastWeekStart), lte(ordersTable.createdAt, lastWeekEnd))),
       db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
         .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, todayStart))),
       db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
-        .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, yesterdayStart), lte(usersTable.lastLogin as any, todayStart))),
+        .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, lastWeekStart), lte(usersTable.lastLogin as any, lastWeekEnd))),
     ]);
 
-    const todayByHour = new Array(24).fill(0);
-    const yesterdayByHour = new Array(24).fill(0);
+    const todayByHour    = new Array(24).fill(0);
+    const lastWeekByHour = new Array(24).fill(0);
 
-    for (const o of todayOrders)     todayByHour[new Date(o.createdAt).getHours()]++;
-    for (const o of yesterdayOrders) yesterdayByHour[new Date(o.createdAt).getHours()]++;
-    for (const u of todayLogins)     if (u.lastLogin) todayByHour[new Date(u.lastLogin).getHours()]++;
-    for (const u of yesterdayLogins) if (u.lastLogin) yesterdayByHour[new Date(u.lastLogin).getHours()]++;
+    for (const o of todayOrders)    todayByHour[new Date(o.createdAt).getHours()]++;
+    for (const o of lastWeekOrders) lastWeekByHour[new Date(o.createdAt).getHours()]++;
+    for (const u of todayLogins)    if (u.lastLogin) todayByHour[new Date(u.lastLogin).getHours()]++;
+    for (const u of lastWeekLogins) if (u.lastLogin) lastWeekByHour[new Date(u.lastLogin).getHours()]++;
 
-    const totalToday     = todayByHour.reduce((a, b) => a + b, 0);
-    const totalYesterday = yesterdayByHour.reduce((a, b) => a + b, 0);
-    const pctChange      = totalYesterday > 0
-      ? Math.round(((totalToday - totalYesterday) / totalYesterday) * 100)
+    const totalToday    = todayByHour.reduce((a, b) => a + b, 0);
+    const totalLastWeek = lastWeekByHour.reduce((a, b) => a + b, 0);
+    const pctChange     = totalLastWeek > 0
+      ? Math.round(((totalToday - totalLastWeek) / totalLastWeek) * 100)
       : null;
     const liveCount = todayLogins.filter(u =>
       u.lastLogin && (Date.now() - new Date(u.lastLogin).getTime()) < 30 * 60 * 1000,
@@ -1288,10 +1313,10 @@ router.get('/sessions', async (req, res) => {
 
     res.json({
       data: {
-        today:          todayByHour.map((count, hour) => ({ hour, count })),
-        yesterday:      yesterdayByHour.map((count, hour) => ({ hour, count })),
+        today:        todayByHour.map((count, hour) => ({ hour, count })),
+        lastWeek:     lastWeekByHour.map((count, hour) => ({ hour, count })),
         totalToday,
-        totalYesterday,
+        totalLastWeek,
         pctChange,
         liveCount,
       },
@@ -1300,6 +1325,46 @@ router.get('/sessions', async (req, res) => {
     req.log.error(e, 'sessions error');
     res.status(500).json({ error: 'Failed to load sessions' });
   }
+});
+
+// ── Custom revenue range ─────────────────────────────────────────────────────
+router.get('/stats/revenue', async (req, res) => {
+  const { from, to } = req.query;
+  if (!from || !to) return res.status(400).json({ error: 'from and to are required.' });
+  const fromDate = new Date(from as string);
+  const toDate   = new Date(to as string);
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid date format.' });
+  }
+  const [result] = await db.select({ total: sum(ordersTable.totalCents) })
+    .from(ordersTable)
+    .where(and(
+      gte(ordersTable.createdAt, fromDate),
+      lte(ordersTable.createdAt, toDate),
+      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+    ));
+  return res.json({ data: { total: Number(result.total ?? 0), from: fromDate.toISOString(), to: toDate.toISOString() } });
+});
+
+// ── Deleted accounts (30-day soft-delete recovery) ─────────────────────────
+router.get('/deleted-accounts', async (req, res) => {
+  const accounts = await db.select().from(deletedAccountsTable)
+    .where(gte(deletedAccountsTable.expiresAt, new Date()))
+    .orderBy(desc(deletedAccountsTable.deletedAt));
+  return res.json({ data: accounts });
+});
+
+router.post('/deleted-accounts/:id/restore', async (req, res) => {
+  const { id } = req.params;
+  const [deleted] = await db.select().from(deletedAccountsTable).where(eq(deletedAccountsTable.id, id));
+  if (!deleted) return res.status(404).json({ error: 'Deleted account not found or already expired.' });
+  const snap = deleted.snapshot as any;
+  if (snap.user) await db.insert(usersTable).values(snap.user).onConflictDoNothing();
+  if (snap.customerProfile) await db.insert(customerProfilesTable).values(snap.customerProfile).onConflictDoNothing();
+  if (snap.staffProfile) await db.insert(staffProfilesTable).values(snap.staffProfile).onConflictDoNothing();
+  if (snap.wholesaleAccount) await db.insert(wholesaleAccountsTable).values(snap.wholesaleAccount).onConflictDoNothing();
+  await db.delete(deletedAccountsTable).where(eq(deletedAccountsTable.id, id));
+  return res.json({ success: true, data: { name: deleted.name, email: deleted.email } });
 });
 
 export default router;

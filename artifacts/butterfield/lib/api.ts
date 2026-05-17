@@ -218,7 +218,10 @@ export const api = {
   director: {
     stats:               () => request<{ data: any }>('/director/stats'),
     activity:            () => request<{ data: any[] }>('/director/activity'),
-    sessions:            () => request<{ data: { today: {hour:number;count:number}[]; yesterday: {hour:number;count:number}[]; totalToday: number; totalYesterday: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),
+    sessions:            () => request<{ data: { today: {hour:number;count:number}[]; lastWeek: {hour:number;count:number}[]; totalToday: number; totalLastWeek: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),
+    revenue:             (from: string, to: string) => request<{ data: { total: number; from: string; to: string } }>(`/director/stats/revenue?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    deletedAccounts:     () => request<{ data: any[] }>('/director/deleted-accounts'),
+    restoreAccount:      (id: string) => request<{ success: boolean; data: any }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
     orders:              () => request<{ data: any[] }>('/director/orders'),
     updateOrderStatus:   (id: string, status: string) => request<{ data: any }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     users:               () => request<{ data: any[] }>('/director/users'),

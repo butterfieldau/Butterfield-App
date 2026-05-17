@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Animated, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import Svg, {
@@ -59,18 +59,193 @@ function makePath(pts: { x: number; y: number }[], close = false, baseY = 0): st
   return d;
 }
 
+// ── Revenue date-range picker modal ──────────────────────────────────────────
+function fmtDateBox(d: Date) {
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function RevenueRangePicker({
+  visible, onClose, onApply,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onApply: (from: Date, to: Date) => void;
+}) {
+  const [step, setStep]     = useState<'start' | 'end'>('start');
+  const [start, setStart]   = useState<Date | null>(null);
+  const [end, setEnd]       = useState<Date | null>(null);
+  const [calYear, setCalYear]   = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+
+  const today       = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; })[0];
+  const twoYearsAgo = useState(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 2); d.setHours(0,0,0,0); return d; })[0];
+
+  const canGoPrev = new Date(calYear, calMonth, 1) > new Date(twoYearsAgo.getFullYear(), twoYearsAgo.getMonth(), 1);
+  const canGoNext = new Date(calYear, calMonth, 1) < new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const firstDay    = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const dateOf   = (day: number) => new Date(calYear, calMonth, day);
+  const isFut    = (day: number) => { const d = dateOf(day); d.setHours(0,0,0,0); return d > today; };
+  const isStart  = (day: number) => !!start && start.getFullYear() === calYear && start.getMonth() === calMonth && start.getDate() === day;
+  const isEnd    = (day: number) => !!end && end.getFullYear() === calYear && end.getMonth() === calMonth && end.getDate() === day;
+  const isInRange = (day: number) => {
+    if (!start || !end) return false;
+    const d = dateOf(day);
+    return d > start && d < end;
+  };
+  const isToday = (day: number) => today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
+
+  const prevMonth = () => {
+    if (!canGoPrev) return;
+    if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else { setCalMonth(m => m - 1); }
+  };
+  const nextMonth = () => {
+    if (!canGoNext) return;
+    if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else { setCalMonth(m => m + 1); }
+  };
+
+  const handleDayPress = (day: number) => {
+    if (isFut(day)) return;
+    const d = dateOf(day);
+    if (step === 'start') {
+      setStart(d);
+      setEnd(null);
+      setStep('end');
+    } else {
+      if (start && d < start) { setEnd(start); setStart(d); }
+      else { setEnd(d); }
+      setStep('start');
+    }
+    Haptics.selectionAsync();
+  };
+
+  const handleClose = () => { setStart(null); setEnd(null); setStep('start'); onClose(); };
+  const handleApply = () => {
+    if (!start || !end) return;
+    const to = new Date(end); to.setHours(23, 59, 59, 999);
+    onApply(start, to);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+          <Pressable onPress={handleClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
+            <Feather name="x" size={20} color={TEXT} />
+          </Pressable>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT }}>Custom Revenue Range</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
+          {/* Date selection boxes */}
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+            <Pressable
+              onPress={() => setStep('start')}
+              style={{ flex: 1, backgroundColor: step === 'start' ? `${BLUE}12` : CARD, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: step === 'start' ? BLUE : BORDER }}
+            >
+              <Text style={{ fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>From</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: start ? TEXT : MUTED }}>{start ? fmtDateBox(start) : '—'}</Text>
+            </Pressable>
+            <View style={{ justifyContent: 'center' }}>
+              <Feather name="arrow-right" size={18} color={MUTED} />
+            </View>
+            <Pressable
+              onPress={() => { if (start) setStep('end'); }}
+              style={{ flex: 1, backgroundColor: step === 'end' ? `${BLUE}12` : CARD, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: step === 'end' ? BLUE : BORDER }}
+            >
+              <Text style={{ fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>To</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: end ? TEXT : MUTED }}>{end ? fmtDateBox(end) : '—'}</Text>
+            </Pressable>
+          </View>
+
+          <Text style={{ fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 16, fontWeight: '400' }}>
+            {step === 'start' ? 'Tap a date to set the start' : 'Now tap a date to set the end'}
+          </Text>
+
+          {/* Month navigator */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <Pressable onPress={prevMonth} style={{ padding: 10 }} hitSlop={8}>
+              <Feather name="chevron-left" size={22} color={canGoPrev ? TEXT : BORDER} />
+            </Pressable>
+            <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT }}>{monthLabel}</Text>
+            <Pressable onPress={nextMonth} style={{ padding: 10 }} hitSlop={8}>
+              <Feather name="chevron-right" size={22} color={canGoNext ? TEXT : BORDER} />
+            </Pressable>
+          </View>
+
+          {/* Day headers */}
+          <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+            {DAYS.map(d => (
+              <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', color: MUTED }}>{d}</Text>
+            ))}
+          </View>
+
+          {/* Calendar grid */}
+          {Array.from({ length: cells.length / 7 }, (_, row) => (
+            <View key={row} style={{ flexDirection: 'row', marginBottom: 4 }}>
+              {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
+                if (day === null) return <View key={col} style={{ flex: 1, height: 44 }} />;
+                const fut = isFut(day);
+                const sel = isStart(day) || isEnd(day);
+                const inR = isInRange(day);
+                const tod = isToday(day);
+                const textColor = sel ? '#fff' : fut ? BORDER : tod ? BLUE : TEXT;
+                return (
+                  <Pressable
+                    key={col}
+                    onPress={() => handleDayPress(day)}
+                    style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: inR ? `${BLUE}14` : 'transparent' }}
+                  >
+                    <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sel ? BLUE : 'transparent' }}>
+                      <Text style={{ fontSize: 14, fontWeight: sel || tod ? '700' : '400', color: textColor }}>{day}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+
+          {/* Apply button */}
+          {start && end && (
+            <Pressable
+              onPress={handleApply}
+              style={{ marginTop: 20, backgroundColor: NAVY, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
+                Apply — {fmtDateBox(start)} to {fmtDateBox(end)}
+              </Text>
+            </Pressable>
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Sessions line chart ───────────────────────────────────────────────────────
 type HourlyPoint = { hour: number; count: number };
 
 function SessionsChart({
   today,
-  yesterday,
+  lastWeek,
   totalToday,
   pctChange,
   liveCount,
 }: {
   today: HourlyPoint[];
-  yesterday: HourlyPoint[];
+  lastWeek: HourlyPoint[];
   totalToday: number;
   pctChange: number | null;
   liveCount: number;
@@ -83,7 +258,7 @@ function SessionsChart({
 
   const maxVal = Math.max(
     ...today.map(p => p.count),
-    ...yesterday.map(p => p.count),
+    ...lastWeek.map(p => p.count),
     1,
   );
 
@@ -93,12 +268,12 @@ function SessionsChart({
       y: PAD.top  + cH - (p.count / maxVal) * cH,
     }));
 
-  const todayPts     = toXY(today);
-  const yesterdayPts = toXY(yesterday);
+  const todayPts    = toXY(today);
+  const lastWeekPts = toXY(lastWeek);
 
-  const todayLine  = makePath(todayPts);
-  const todayFill  = makePath(todayPts, true, PAD.top + cH);
-  const yestLine   = makePath(yesterdayPts);
+  const todayLine    = makePath(todayPts);
+  const todayFill    = makePath(todayPts, true, PAD.top + cH);
+  const lastWeekLine = makePath(lastWeekPts);
 
   const gridVals = [0, Math.ceil(maxVal / 2), maxVal];
 
@@ -138,10 +313,10 @@ function SessionsChart({
         </View>
         <View style={ch.divider} />
         <View style={ch.statBlock}>
-          <Text style={ch.statLabel}>vs Yesterday</Text>
+          <Text style={ch.statLabel}>vs Last Week</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={[ch.legendDash, { borderColor: MUTED }]} />
-            <Text style={[ch.statVal, { color: MUTED }]}>{yesterday.reduce((a, p) => a + p.count, 0)}</Text>
+            <Text style={[ch.statVal, { color: MUTED }]}>{lastWeek.reduce((a, p) => a + p.count, 0)}</Text>
           </View>
         </View>
       </View>
@@ -166,8 +341,8 @@ function SessionsChart({
           );
         })}
 
-        {/* Yesterday dashed line */}
-        <Path d={yestLine} fill="none" stroke={MUTED} strokeWidth="1.2" strokeDasharray="4 3" opacity="0.55" />
+        {/* Last week dashed line */}
+        <Path d={lastWeekLine} fill="none" stroke={MUTED} strokeWidth="1.2" strokeDasharray="4 3" opacity="0.55" />
 
         {/* Today gradient fill */}
         <Path d={todayFill} fill="url(#todayGrad)" />
@@ -237,6 +412,24 @@ function DirectorDashboardInner() {
     refetchInterval: 60000,
   });
 
+  const [showRevPicker, setShowRevPicker]     = useState(false);
+  const [customRevTotal, setCustomRevTotal]   = useState<number | null>(null);
+  const [customRevRange, setCustomRevRange]   = useState<{ from: Date; to: Date } | null>(null);
+  const [customRevLoading, setCustomRevLoading] = useState(false);
+
+  const handleApplyRevRange = async (from: Date, to: Date) => {
+    setCustomRevLoading(true);
+    setCustomRevRange({ from, to });
+    try {
+      const res = await api.director.revenue(from.toISOString(), to.toISOString());
+      setCustomRevTotal(res.data.total);
+    } catch {
+      setCustomRevTotal(null);
+    } finally {
+      setCustomRevLoading(false);
+    }
+  };
+
   const s        = data?.data;
   const activity: any[] = activityData?.data ?? [];
   const sess     = sessionsData?.data;
@@ -281,7 +474,38 @@ function DirectorDashboardInner() {
                   </View>
                 ))}
               </View>
+              {/* Custom date range row */}
+              <Pressable
+                onPress={() => { setShowRevPicker(true); Haptics.selectionAsync(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.12)' }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Feather name="calendar" size={14} color="rgba(255,255,255,0.65)" />
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: '500' }}>
+                    {customRevRange ? `${fmtDateBox(customRevRange.from)} – ${fmtDateBox(customRevRange.to)}` : 'Custom Date Range'}
+                  </Text>
+                </View>
+                {customRevLoading ? (
+                  <ActivityIndicator size="small" color="rgba(255,255,255,0.65)" />
+                ) : customRevTotal !== null ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{fmtAUD(customRevTotal)}</Text>
+                    <Pressable onPress={() => { setCustomRevTotal(null); setCustomRevRange(null); }}>
+                      <Feather name="x-circle" size={16} color="rgba(255,255,255,0.45)" />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Feather name="chevron-right" size={14} color="rgba(255,255,255,0.45)" />
+                )}
+              </Pressable>
             </View>
+
+            {/* Revenue range picker */}
+            <RevenueRangePicker
+              visible={showRevPicker}
+              onClose={() => setShowRevPicker(false)}
+              onApply={handleApplyRevRange}
+            />
 
             {/* ── Sessions chart ───────────────────────────────── */}
             <View>
@@ -289,7 +513,7 @@ function DirectorDashboardInner() {
               {sess ? (
                 <SessionsChart
                   today={sess.today}
-                  yesterday={sess.yesterday}
+                  lastWeek={sess.lastWeek}
                   totalToday={sess.totalToday}
                   pctChange={sess.pctChange}
                   liveCount={sess.liveCount}

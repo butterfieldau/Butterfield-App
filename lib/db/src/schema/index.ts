@@ -21,3 +21,4 @@ export * from "./password_reset";
 export * from "./stores";
 export * from "./product_catalog";
 export * from "./stock";
+export * from "./deleted_accounts";

@@ -24,7 +24,7 @@ const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
-const TABS = ['Customers', 'Staff', 'Wholesale'];
+const TABS = ['Customers', 'Staff', 'Wholesale', 'Deleted'];
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
   staff:     { bg: '#EDE9FE', text: '#5B21B6' },
@@ -1218,8 +1218,14 @@ export default function DirectorUsersScreen() {
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
   });
-  const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const { data: deletedData, refetch: refetchDeleted } = useQuery({
+    queryKey: ['director-deleted-accounts'],
+    queryFn: () => api.director.deletedAccounts(),
+    refetchInterval: 60000,
+  });
+  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchDeleted);
   const allUsers: any[] = data?.data ?? [];
+  const deletedUsers: any[] = deletedData?.data ?? [];
   const filtered = allUsers.filter((u) => {
     if (tab === 'Customers')  return u.role === 'customer';
     if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager';
@@ -1228,6 +1234,26 @@ export default function DirectorUsersScreen() {
   });
   const openCreate = (type: CreateType) => {
     setCreateType(type); setShowCreate(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+  const handleRestore = async (id: string, name: string) => {
+    Alert.alert('Restore Account', `Restore ${name}'s account?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Restore',
+        onPress: async () => {
+          try {
+            await api.director.restoreAccount(id);
+            await qc.invalidateQueries({ queryKey: ['director-deleted-accounts'] });
+            await qc.invalidateQueries({ queryKey: ['director-users'] });
+            Alert.alert('Restored', `${name}'s account has been restored.`);
+          } catch (e: any) { Alert.alert('Error', e.message); }
+        },
+      },
+    ]);
+  };
+  const fmtRelDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
   };
   const approveStaff = async (userId: string, approved: boolean) => {
     try {
@@ -1257,7 +1283,7 @@ export default function DirectorUsersScreen() {
           })}
         </ScrollView>
         {/* Quick-add strip — only for Staff + Wholesale */}
-        {tab !== 'Customers' && (
+        {tab !== 'Customers' && tab !== 'Deleted' && (
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
             <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
@@ -1274,6 +1300,62 @@ export default function DirectorUsersScreen() {
       {/* Customers → full Shopify-style CRM screen */}
       {tab === 'Customers' ? (
         <DirectorCustomersScreen />
+      ) : tab === 'Deleted' ? (
+        <FlatList
+          data={deletedUsers}
+          keyExtractor={(item) => item.id}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
+              <Feather name="trash-2" size={40} color={MUTED} />
+              <Text style={{ color: MUTED, fontWeight: '400' }}>No recently deleted accounts</Text>
+              <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', fontWeight: '400', paddingHorizontal: 32 }}>
+                Deleted accounts are kept here for 30 days before being permanently removed.
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            const daysLeft = Math.max(0, Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / 86400000));
+            const roleColors = ROLE_COLORS[item.role] ?? { bg: BG, text: MUTED };
+            return (
+              <View style={[styles.userCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.userTop}>
+                  <View style={[styles.avatar, { backgroundColor: roleColors.bg, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Feather name="user" size={20} color={roleColors.text} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[styles.userName, { color: TEXT }]}>{item.name}</Text>
+                    <Text style={[styles.userEmail, { color: MUTED }]}>{item.email}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: roleColors.bg }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: roleColors.text }}>{item.role}</Text>
+                      </View>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: daysLeft <= 5 ? '#FEF2F2' : '#F5F6FA' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: daysLeft <= 5 ? RED : MUTED }}>
+                          {daysLeft}d left
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
+                    Deleted {fmtRelDate(item.deletedAt)}
+                  </Text>
+                  <Pressable
+                    onPress={() => handleRestore(item.id, item.name)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, backgroundColor: '#EBF8FF', borderWidth: 1, borderColor: '#BAE6FD' }}
+                  >
+                    <Feather name="rotate-ccw" size={12} color={BLUE} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>Restore</Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }}
+        />
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
