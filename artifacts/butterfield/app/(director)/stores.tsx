@@ -9,6 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -527,17 +528,15 @@ export default function DirectorStoresScreen() {
   const [editingStore, setEditingStore] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-stores'],
     queryFn: () => api.director.storesList(),
   });
+  const { refreshing, onRefresh: onRefreshStores } = useRefreshControl(
+    async () => { await refetch(); await qc.invalidateQueries({ queryKey: ['director-stores'] }); },
+  );
 
   const stores: any[] = data?.data ?? [];
-
-  const handleRefresh = useCallback(() => {
-    refetch();
-    qc.invalidateQueries({ queryKey: ['director-stores'] });
-  }, [refetch, qc]);
 
   const openAdd = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -586,7 +585,7 @@ export default function DirectorStoresScreen() {
           data={stores}
           keyExtractor={item => item.id}
           contentContainerStyle={{ padding: 16, gap: 10 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} tintColor={BLUE} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshStores} tintColor={BLUE} />}
           renderItem={({ item }) => (
             <StoreCard store={item} onPress={() => openEdit(item)} />
           )}

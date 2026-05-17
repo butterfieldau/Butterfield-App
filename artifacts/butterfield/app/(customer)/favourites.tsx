@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
@@ -14,32 +15,27 @@ function getGradient(p: ApiProduct): [string, string] {
   const g = p.metadata?.gradient?.split(',');
   return g?.length === 2 ? [g[0], g[1]] : ['#1493FF', '#3CBBEE'];
 }
-
 function getPrice(p: ApiProduct): number {
   return (p.prices?.[0]?.unit_amount ?? 0) / 100;
-}
-
 export default function FavouritesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { addItem } = useCart();
-
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['favourites'],
     queryFn: () => api.favourites.list(),
     retry: 1,
   });
 
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+
   const { data: productsData } = useQuery({
     queryKey: ['products'],
     queryFn: () => api.products.list(),
-    retry: 1,
   });
-
   const favouriteIds = new Set((data?.data ?? []).map((f: any) => f.productStripeId));
   const products = (productsData?.data ?? []).filter((p) => favouriteIds.has(p.id));
-
   const handleRemove = async (productId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert('Remove from Favourites', 'Remove this item?', [
@@ -57,7 +53,6 @@ export default function FavouritesScreen() {
       },
     ]);
   };
-
   const handleAddToCart = (p: ApiProduct) => {
     addItem({
       id: p.id,
@@ -71,8 +66,6 @@ export default function FavouritesScreen() {
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('Added to Cart', `${p.name} added to your cart.`);
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -82,7 +75,6 @@ export default function FavouritesScreen() {
         <Text style={[styles.title, { color: colors.foreground, fontWeight: '700' }]}>Favourites</Text>
         <View style={{ width: 38 }} />
       </View>
-
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={colors.primary} />
@@ -92,7 +84,7 @@ export default function FavouritesScreen() {
           data={products}
           keyExtractor={(p) => p.id}
           numColumns={2}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
           columnWrapperStyle={{ gap: 12 }}
           showsVerticalScrollIndicator={false}
@@ -112,7 +104,6 @@ export default function FavouritesScreen() {
                 <Text style={[{ color: '#fff', fontWeight: '600', fontSize: 15 }]}>Browse Menu</Text>
               </Pressable>
             </View>
-          }
           renderItem={({ item: p }) => {
             const gradient = getGradient(p);
             const price = getPrice(p);
@@ -136,15 +127,12 @@ export default function FavouritesScreen() {
                     </Pressable>
                   </View>
                 </View>
-              </View>
             );
           }}
         />
       )}
     </View>
   );
-}
-
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },

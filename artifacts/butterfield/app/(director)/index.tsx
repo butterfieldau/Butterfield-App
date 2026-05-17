@@ -12,6 +12,7 @@ import Svg, {
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
 
 const BG     = '#F5F6FA';
@@ -218,7 +219,7 @@ function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string
 
 // ── Director/Master dashboard ─────────────────────────────────────────────────
 function DirectorDashboardInner() {
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-stats'],
     queryFn: () => api.director.stats(),
     refetchInterval: 30000,
@@ -241,14 +242,14 @@ function DirectorDashboardInner() {
   const sess     = sessionsData?.data;
   const hasAlerts = (s?.users.pendingStaff ?? 0) > 0 || (s?.users.pendingWholesale ?? 0) > 0 || (s?.issues.high ?? 0) > 0;
 
-  const onRefresh = () => { refetch(); refetchActivity(); refetchSessions(); };
+  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchActivity, refetchSessions);
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
 

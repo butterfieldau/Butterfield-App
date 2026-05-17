@@ -9,6 +9,7 @@ import {
   Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorShift } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -23,11 +24,9 @@ const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
 function getWeekStart(ref: Date): Date {
   const d = new Date(ref);
   const day = d.getDay();
@@ -39,10 +38,8 @@ function addWeeks(d: Date, n: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + n * 7);
   return r;
-}
 function formatDate(d: Date): string {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
-}
 function fmtTime(iso: string) {
   const d = new Date(iso);
   let h = d.getHours();
@@ -52,17 +49,12 @@ function fmtTime(iso: string) {
   if (h > 12) h -= 12;
   if (h === 0) h = 12;
   return `${h}:${m}:${s} ${ampm}`;
-}
 function fmtDateGroup(iso: string) {
   return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
-}
 function toDateKey(iso: string) {
-  const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 function parseHoursWorked(raw: string | null | undefined): number {
   if (!raw) return 0;
   const legacyMatch = raw.match(/^(\d+)h\s*(\d+)m$/);
@@ -73,7 +65,6 @@ function parseHoursWorked(raw: string | null | undefined): number {
   if (mOnly) return parseInt(mOnly[1]) / 60;
   const decimal = parseFloat(raw);
   return isNaN(decimal) ? 0 : decimal;
-}
 function formatHours(hrs: number): string {
   const h = Math.floor(hrs);
   const m = Math.round((hrs - h) * 60);
@@ -81,37 +72,28 @@ function formatHours(hrs: number): string {
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
-}
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
 function calcPay(s: DirectorShift): number | null {
   if (!s.clockOut || !s.hourlyRateCents) return null;
   const hrs = parseHoursWorked(s.hoursWorked);
   return Math.round(hrs * s.hourlyRateCents);
-}
 function isoToHHMM(iso: string): string {
-  const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 function applyHHMM(base: string, hhmm: string): string | null {
   const match = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
   const d = new Date(base);
   d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
   return d.toISOString();
-}
 function capitalize(s: string) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
-}
-
 // ── Payroll summary per staff member ─────────────────────────────────────────
 type StaffPaySummary = {
   userId: string; name: string; position: string;
   approvedShifts: number; pendingShifts: number;
   totalHours: number; totalPayCents: number; hasRate: boolean;
 };
-
 function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
   const map = new Map<string, StaffPaySummary>();
   for (const s of shifts) {
@@ -129,12 +111,8 @@ function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
     if (s.approvedAt) entry.approvedShifts++; else entry.pendingShifts++;
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-}
-
 function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): string {
   const rows = shifts.map(s => {
-    const hrs = parseHoursWorked(s.hoursWorked);
-    const pay = calcPay(s);
     const dateStr = new Date(s.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
     return `<tr>
       <td>${s.name ?? ''}</td>
@@ -173,8 +151,6 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
   </tbody></table>
   <div class="footer">Generated ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })} · Butterfield Cookies Pty Ltd</div>
   </body></html>`;
-}
-
 // ── Edit / Approve Modal ───────────────────────────────────────────────────────
 function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
   shift: DirectorShift | null; visible: boolean; onClose: () => void; onSaved: () => void;
@@ -187,7 +163,6 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
   const [brk,     setBrk]     = useState('');
   const [saving,  setSaving]  = useState(false);
   const [tab,     setTab]     = useState<'details' | 'edit'>('details');
-
   React.useEffect(() => {
     if (shift) {
       setInTime(isoToHHMM(shift.clockIn));
@@ -196,7 +171,6 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       setTab('details');
     }
   }, [shift]);
-
   const approve = useMutation({
     mutationFn: (a: boolean) => api.director.updateShift(shift!.id, { approve: a }),
     onSuccess: () => {
@@ -206,7 +180,6 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
     },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
-
   const handleSaveEdit = async () => {
     if (!shift) return;
     setSaving(true);
@@ -218,20 +191,15 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       if (!newIn) { Alert.alert('Invalid time', 'Clock-in time must be in HH:MM format.'); return; }
       if (outTime.trim() && !newOut) { Alert.alert('Invalid time', 'Clock-out time must be in HH:MM format.'); return; }
       await api.director.updateShift(shift.id, { clockIn: newIn, clockOut: newOut, unpaidBreakMins: brkMin });
-      qc.invalidateQueries({ queryKey: ['director-timesheets'] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSaved();
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally { setSaving(false); }
   };
-
   if (!shift) return null;
   const isApproved = !!shift.approvedAt;
   const hrs = shift.hoursWorked ? parseHoursWorked(shift.hoursWorked) : null;
   const pay = calcPay(shift);
   const active = !shift.clockOut;
-
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -245,7 +213,6 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
           </View>
           <View style={{ width: 36 }} />
         </View>
-
         <View style={[sm.subTabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
           {(['details', 'edit'] as const).map(t => (
             <Pressable key={t} onPress={() => setTab(t)} style={[sm.subTab, tab === t && { borderBottomColor: BLUE }]}>
@@ -254,8 +221,6 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
               </Text>
             </Pressable>
           ))}
-        </View>
-
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {tab === 'details' ? (
             <>
@@ -280,7 +245,6 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
                     <Text style={sm.infoValue}>{row.value}</Text>
                   </View>
                 ))}
-              </View>
               {!active && (
                 <View style={sm.card}>
                   <Text style={sm.sectionLabel}>APPROVAL</Text>
@@ -296,24 +260,17 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
                         : <><Feather name="check" size={15} color={GREEN} /><Text style={[sm.actionBtnText, { color: GREEN }]}>Approve</Text></>}
                     </Pressable>
                     <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(false); }}
-                      disabled={approve.isPending}
                       style={[sm.actionBtn, { backgroundColor: !isApproved ? '#FFF7ED' : BG, borderColor: !isApproved ? AMBER : BORDER, flex: 1 }]}>
                       {approve.isPending && isApproved
                         ? <ActivityIndicator size="small" color={AMBER} />
                         : <><Feather name="rotate-ccw" size={15} color={AMBER} /><Text style={[sm.actionBtnText, { color: AMBER }]}>Unapprove</Text></>}
-                    </Pressable>
-                  </View>
                 </View>
               )}
             </>
           ) : (
-            <>
-              <View style={sm.card}>
                 <Text style={sm.sectionLabel}>CLOCK TIMES</Text>
                 <Text style={[sm.approvalHint, { color: MUTED, marginBottom: 14 }]}>
                   Enter times in 24-hour format (HH:MM). Times apply to the same calendar day as the original clock-in.
-                </Text>
-                {[
                   { label: 'Clock In',  icon: 'log-in',  val: inTime,  set: setInTime,  ph: '09:00' },
                   { label: 'Clock Out', icon: 'log-out', val: outTime, set: setOutTime, ph: '17:00' },
                 ].map((f, i) => (
@@ -324,35 +281,26 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
                       <TextInput style={[sm.input, { color: TEXT }]} value={f.val} onChangeText={f.set}
                         placeholder={f.ph} placeholderTextColor={MUTED} keyboardType="numbers-and-punctuation" />
                     </View>
-                  </View>
-                ))}
                 <Text style={[sm.fieldLabel, { marginTop: 12 }]}>Unpaid Break (minutes)</Text>
                 <View style={[sm.inputRow, { borderColor: BORDER }]}>
                   <Feather name="coffee" size={15} color={MUTED} />
                   <TextInput style={[sm.input, { color: TEXT }]} value={brk} onChangeText={setBrk}
                     placeholder="30" placeholderTextColor={MUTED} keyboardType="number-pad" />
-                </View>
-              </View>
               <Pressable onPress={handleSaveEdit} disabled={saving}
                 style={[sm.saveBtn, { opacity: saving ? 0.8 : 1, backgroundColor: NAVY }]}>
                 {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={sm.saveBtnText}>Save Changes</Text>}
               </Pressable>
-            </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
-}
-
 // ── Payroll Summary Card ───────────────────────────────────────────────────────
 function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySummary[]; weekLabel: string }) {
   if (summaries.length === 0) return null;
   const totalPay   = summaries.reduce((a, s) => a + s.totalPayCents, 0);
   const totalHours = summaries.reduce((a, s) => a + s.totalHours, 0);
   const pending    = summaries.reduce((a, s) => a + s.pendingShifts, 0);
-
-  return (
     <View style={[pay.card, { backgroundColor: CARD, borderColor: BORDER }]}>
       <View style={pay.cardHeader}>
         <View style={{ flex: 1 }}>
@@ -361,90 +309,71 @@ function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySumma
             {totalHours.toFixed(1)} total hrs · {summaries.length} staff
             {pending > 0 ? ` · ${pending} shift${pending !== 1 ? 's' : ''} pending` : ''}
           </Text>
-        </View>
         <View style={[pay.totalBadge, { backgroundColor: NAVY + '12' }]}>
           <Text style={[pay.totalAmt, { color: NAVY }]}>{fmtAUD(totalPay)}</Text>
-        </View>
       </View>
       {summaries.map((s, i) => (
         <View key={s.userId} style={[pay.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
           <View style={[pay.avatar, { backgroundColor: s.pendingShifts > 0 ? '#FFF7ED' : '#DCFCE7' }]}>
             <Text style={[pay.avatarText, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{initials(s.name)}</Text>
-          </View>
           <View style={{ flex: 1 }}>
             <Text style={pay.name}>{s.name}</Text>
             <Text style={[pay.pos, { color: MUTED }]}>
               {s.position} · {s.totalHours.toFixed(1)}h
               {s.pendingShifts > 0 && <Text style={{ color: AMBER }}> · {s.pendingShifts} pending</Text>}
             </Text>
-          </View>
           <View style={{ alignItems: 'flex-end' }}>
             {s.hasRate
               ? <Text style={[pay.amt, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{fmtAUD(s.totalPayCents)}</Text>
               : <Text style={[pay.noRate, { color: MUTED }]}>No rate</Text>}
             <Text style={[pay.shifts, { color: MUTED }]}>
               {s.approvedShifts + s.pendingShifts} shift{s.approvedShifts + s.pendingShifts !== 1 ? 's' : ''}
-            </Text>
-          </View>
-        </View>
       ))}
       {pending > 0 && (
         <View style={[pay.warning, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
           <Feather name="alert-circle" size={13} color={AMBER} />
           <Text style={[pay.warningText, { color: '#92400E' }]}>Approve all shifts before processing payroll</Text>
-        </View>
       )}
     </View>
-  );
-}
-
 // ── Main Screen ────────────────────────────────────────────────────────────────
 export default function DirectorTimesheetsScreen() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
-  const insets = useSafeAreaInsets();
   const [weekOffset,    setWeekOffset]    = useState(0);
   const [personFilter,  setPersonFilter]  = useState<string>('all');
   const [selected,      setSelected]      = useState<DirectorShift | null>(null);
   const [modalVisible,  setModalVisible]  = useState(false);
   const [exporting,     setExporting]     = useState(false);
-
   const weekStart = getWeekStart(addWeeks(new Date(), weekOffset));
   const weekEnd   = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
   weekEnd.setHours(23, 59, 59, 999);
-
   const isCurrentWeek = weekOffset === 0;
   const weekLabel = isCurrentWeek
     ? 'This Week'
     : weekOffset === -1
     ? 'Last Week'
     : `${formatDate(weekStart)} – ${formatDate(weekEnd)}`;
-
-  const { data, isLoading, isRefetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-timesheets'],
     queryFn: () => api.director.timesheets(),
     staleTime: 30_000,
-  });
-
   const allShifts: DirectorShift[] = data?.data ?? [];
-
   const weekShifts = useMemo(() => allShifts.filter(s => {
     const d = new Date(s.clockIn);
     return d >= weekStart && d <= weekEnd;
   }), [allShifts, weekStart.toISOString()]);
-
   const people = useMemo(() => {
     const seen = new Map<string, string>();
     weekShifts.forEach(s => { if (s.userId && s.name) seen.set(s.userId, s.name); });
+
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+
     return Array.from(seen.entries()).map(e => ({ id: e[0], name: e[1] })).sort((a, b) => a.name.localeCompare(b.name));
   }, [weekShifts]);
-
   const filtered = useMemo(() =>
     personFilter === 'all' ? weekShifts : weekShifts.filter(s => s.userId === personFilter),
     [weekShifts, personFilter]
-  );
-
   const sections = useMemo(() => {
     const map = new Map<string, { label: string; shifts: DirectorShift[] }>();
     filtered.forEach(s => {
@@ -454,19 +383,14 @@ export default function DirectorTimesheetsScreen() {
     });
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0])).map(e => e[1]);
   }, [filtered]);
-
   const payrollSummary = useMemo(() => buildPayrollSummary(weekShifts), [weekShifts]);
-
   const stats = useMemo(() => {
     const done = filtered.filter(s => s.clockOut);
     const totalHrs = done.reduce((sum, s) => sum + parseHoursWorked(s.hoursWorked), 0);
     const totalOwingCents = done.reduce((sum, s) => { const p = calcPay(s); return sum + (p ?? 0); }, 0);
     return { completed: done.length, totalHrs, totalOwingCents };
-  }, [filtered]);
-
   const handleExport = async () => {
     setExporting(true);
-    try {
       const html = buildTimesheetHtml(filtered.filter(s => s.clockOut), weekStart, weekEnd);
       if (Platform.OS === 'web') {
         const iframe = document.createElement('iframe');
@@ -483,22 +407,16 @@ export default function DirectorTimesheetsScreen() {
       }
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await WebBrowser.openBrowserAsync(uri);
-    } catch (e: any) {
       Alert.alert('Export Error', e.message ?? 'Could not generate timesheet.');
     } finally { setExporting(false); }
-  };
-
   const openShift = (s: DirectorShift) => {
     setSelected(s); setModalVisible(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
         {/* ── Header ──────────────────────────────────────────────────────────── */}
         <View style={[styles.header, { paddingTop: 16 }]}>
@@ -512,48 +430,31 @@ export default function DirectorTimesheetsScreen() {
               {exporting
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <><Feather name="download" size={14} color="#fff" /><Text style={styles.exportBtnText}>Export</Text></>}
-            </Pressable>
-          </View>
-
           {/* Week navigator */}
           <View style={[styles.weekNav, { backgroundColor: CARD, borderColor: BORDER }]}>
             <Pressable onPress={() => { setWeekOffset(o => o - 1); setPersonFilter('all'); }} style={styles.weekNavBtn}>
               <Feather name="chevron-left" size={20} color={TEXT} />
-            </Pressable>
             <View style={{ alignItems: 'center', flex: 1 }}>
               <Text style={[styles.weekLabel, { color: TEXT }]}>{weekLabel}</Text>
               <Text style={[styles.weekSub, { color: MUTED }]}>{weekStart.getFullYear()}</Text>
             </View>
-            <Pressable
               onPress={() => { setWeekOffset(o => Math.min(0, o + 1)); setPersonFilter('all'); }}
               style={[styles.weekNavBtn, { opacity: weekOffset >= 0 ? 0.3 : 1 }]}
               disabled={weekOffset >= 0}
-            >
               <Feather name="chevron-right" size={20} color={TEXT} />
-            </Pressable>
-          </View>
-        </View>
-
         <View style={{ paddingHorizontal: 16, gap: 14 }}>
-
           {/* ── 3 Summary cards ─────────────────────────────────────────────── */}
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               <Text style={[styles.summaryLabel, { color: MUTED }]}>HOURS WORKED</Text>
               <Text style={[styles.summaryValue, { color: TEXT }]}>{formatHours(stats.totalHrs)}</Text>
-            </View>
             {!isManager && (
               <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Text style={[styles.summaryLabel, { color: MUTED }]}>OWING</Text>
                 <Text style={[styles.summaryValue, { color: BLUE }]}>{fmtAUD(stats.totalOwingCents)}</Text>
-              </View>
             )}
-            <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               <Text style={[styles.summaryLabel, { color: MUTED }]}>SHIFTS</Text>
               <Text style={[styles.summaryValue, { color: TEXT }]}>{stats.completed}</Text>
-            </View>
-          </View>
-
           {/* ── Staff filter pills ───────────────────────────────────────────── */}
           {people.length > 0 && (
             <View style={{ gap: 8 }}>
@@ -571,37 +472,27 @@ export default function DirectorTimesheetsScreen() {
                     <Pressable key={p.id} onPress={() => { setPersonFilter(p.id); Haptics.selectionAsync(); }}
                       style={[styles.staffPill, isActive && { backgroundColor: BLUE, borderColor: BLUE }]}>
                       <Text style={[styles.staffPillText, { color: isActive ? '#fff' : TEXT }]}>{p.name.split(' ')[0]}</Text>
-                    </Pressable>
                   );
                 })}
               </ScrollView>
-            </View>
-          )}
-
           {/* ── Payroll summary card ─────────────────────────────────────────── */}
           {!isManager && personFilter === 'all' && payrollSummary.length > 0 && (
             <PayrollSummaryCard summaries={payrollSummary} weekLabel={weekLabel} />
-          )}
-
           {/* ── Loading / empty ──────────────────────────────────────────────── */}
           {isLoading ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <ActivityIndicator color={BLUE} />
-            </View>
           ) : sections.length === 0 ? (
             <View style={[styles.emptyState, { backgroundColor: CARD, borderColor: BORDER }]}>
               <Feather name="clock" size={32} color={BORDER} />
               <Text style={[styles.emptyTitle, { color: TEXT }]}>No shifts this week</Text>
               <Text style={[styles.emptySub, { color: MUTED }]}>No shifts were recorded for this period.</Text>
-            </View>
-          ) : (
             /* ── Shifts grouped by day ──────────────────────────────────────── */
             sections.map((section, si) => {
               const d = new Date(section.shifts[0].clockIn);
               const dayName = DAY_NAMES[d.getDay()];
               const dateStr = `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
               const isToday = new Date().toDateString() === d.toDateString();
-
               return (
                 <View key={si} style={{ gap: 8 }}>
                   <View style={styles.dayHeader}>
@@ -612,15 +503,12 @@ export default function DirectorTimesheetsScreen() {
                         <Text style={styles.todayBadgeText}>Today</Text>
                       </View>
                     )}
-                  </View>
-
                   {section.shifts.map(shift => {
                     const isActive   = !shift.clockOut;
                     const isApproved = !!shift.approvedAt;
                     const hrs  = parseHoursWorked(shift.hoursWorked);
                     const p    = calcPay(shift);
                     const brk  = shift.unpaidBreakMins && shift.unpaidBreakMins > 0 ? shift.unpaidBreakMins : null;
-
                     return (
                       <Pressable
                         key={shift.id}
@@ -655,63 +543,44 @@ export default function DirectorTimesheetsScreen() {
                               {!isActive && isApproved && <Feather name="check-circle" size={13} color={GREEN} />}
                             </View>
                             <Text style={[styles.shiftPos, { color: MUTED }]}>{capitalize(shift.position ?? 'Staff')}</Text>
-                          </View>
                         </View>
-
                         {/* Times row */}
                         <View style={styles.shiftMainRow}>
-                          <View style={{ flex: 1 }}>
                             <View style={styles.shiftTimeRow}>
                               <Text style={[styles.shiftTime, { color: TEXT }]}>{fmtTime(shift.clockIn)}</Text>
                               <Text style={[styles.shiftArrow, { color: MUTED }]}>→</Text>
                               <Text style={[styles.shiftTime, { color: isActive ? '#22C55E' : TEXT }]}>
                                 {isActive ? 'Active' : shift.clockOut ? fmtTime(shift.clockOut) : '—'}
                               </Text>
-                            </View>
                             {brk != null && (
                               <Text style={[styles.breakNote, { color: MUTED }]}>{brk}m unpaid break</Text>
                             )}
-                          </View>
-
                           <View style={{ alignItems: 'flex-end', gap: 4 }}>
                             {!isActive && (
                               <>
                                 <Text style={[styles.shiftDuration, { color: TEXT }]}>{formatHours(hrs)}</Text>
                                 {!isManager && p != null && <Text style={[styles.shiftEarnings, { color: BLUE }]}>{fmtAUD(p)}</Text>}
                               </>
-                            )}
                             {isActive && (
                               <View style={[styles.activePill, { backgroundColor: '#E8FDF0', borderColor: '#86EFAC' }]}>
                                 <View style={[styles.activeDot]} />
                                 <Text style={[styles.activePillText, { color: '#15803D' }]}>Live</Text>
                               </View>
-                            )}
                             {!isActive && !isApproved && (
                               <View style={[styles.pendingPill, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
                                 <Text style={[styles.pendingText, { color: AMBER }]}>Review</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-
                         {/* Footer rate row — directors/masters only, never shown to managers */}
                         {!isManager && !isActive && shift.hourlyRateCents != null && (
                           <View style={[styles.shiftRateRow, { borderTopColor: BORDER }]}>
                             <Text style={[styles.shiftRateText, { color: MUTED }]}>
                               ${(shift.hourlyRateCents / 100).toFixed(2)}/hr · {formatHours(hrs)} worked
-                            </Text>
-                          </View>
                         )}
                       </Pressable>
                     );
                   })}
-                </View>
               );
             })
-          )}
-        </View>
       </ScrollView>
-
       <ShiftModal
         shift={selected}
         visible={modalVisible}
@@ -719,10 +588,6 @@ export default function DirectorTimesheetsScreen() {
         onSaved={() => { setModalVisible(false); setSelected(null); }}
         hidePayInfo={isManager}
       />
-    </View>
-  );
-}
-
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header:          { paddingHorizontal: 16, paddingBottom: 14, gap: 14 },
@@ -773,7 +638,6 @@ const styles = StyleSheet.create({
   liveDot:         { width: 5, height: 5, borderRadius: 3 },
   liveText:        { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
 });
-
 const sm = StyleSheet.create({
   header:           { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   closeBtn:         { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
@@ -797,8 +661,6 @@ const sm = StyleSheet.create({
   actionBtnText:    { fontSize: 14, fontWeight: '600' },
   saveBtn:          { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   saveBtnText:      { color: '#fff', fontSize: 16, fontWeight: '600' },
-});
-
 const pay = StyleSheet.create({
   card:        { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, padding: 16, gap: 0 },
   cardHeader:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
@@ -816,4 +678,3 @@ const pay = StyleSheet.create({
   shifts:      { fontSize: 11, fontWeight: '400', marginTop: 2 },
   warning:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 8 },
   warningText: { flex: 1, fontSize: 12, fontWeight: '500' },
-});

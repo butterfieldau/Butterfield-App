@@ -6,6 +6,7 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { api, type DirectorFeedback } from '@/lib/api';
 
 const BG     = '#F5F6FA';
@@ -54,11 +55,12 @@ function StatBox({ label, value, sub, color }: { label: string; value: string; s
 }
 
 function RevenueTab() {
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-reports'],
     queryFn: () => api.director.reports(),
     staleTime: 60_000,
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const r = data?.data;
   const maxDaily = Math.max(...(r?.dailyRevenue?.map(d => d.totalCents) ?? [1]));
 
@@ -71,7 +73,7 @@ function RevenueTab() {
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       {/* Revenue stats */}
       <Text style={styles.section}>REVENUE</Text>
@@ -157,10 +159,11 @@ function RevenueTab() {
 
 function FeedbackTab() {
   const qc = useQueryClient();
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-feedback'],
     queryFn: () => api.director.allFeedback(),
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const feedback = data?.data ?? [];
 
   const markRead = useMutation({
@@ -186,7 +189,7 @@ function FeedbackTab() {
       keyExtractor={f => f.id}
       contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       ListEmptyComponent={
         <View style={styles.center}>
           <Feather name="message-square" size={32} color={MUTED} />

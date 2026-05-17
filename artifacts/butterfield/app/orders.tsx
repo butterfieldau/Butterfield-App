@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -59,18 +60,19 @@ const STAGES_PICKUP = [
   { key: 'ready_for_pickup',  label: 'Ready for Pickup', icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
   { key: 'completed',         label: 'Collected',        icon: 'star'         as const, desc: 'Enjoy your Butterfield goodies! See you next time.' },
 ];
+
 const STAGES_DELIVERY = [
-  { key: 'received',          label: 'Received',         icon: 'check-circle' as const, desc: 'Your order has been placed successfully.' },
-  { key: 'being_prepared',    label: 'In Preparation',   icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
   { key: 'ready_for_pickup',  label: 'Packed & Ready',   icon: 'box'          as const, desc: 'Your order is packed and ready to leave the kitchen.' },
   { key: 'out_for_delivery',  label: 'Out for Delivery', icon: 'truck'        as const, desc: 'Your order is on its way to you!' },
   { key: 'completed',         label: 'Delivered',        icon: 'star'         as const, desc: 'Your order has been delivered. Enjoy!' },
 ];
+
 const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery'];
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+
 function fmtShort(iso: string) {
   const d = new Date(iso);
   return {
@@ -86,10 +88,8 @@ function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageIt
   const isCompleted = index < currentIndex;
   const isActive    = index === currentIndex;
   const isPending   = index > currentIndex;
-
   const scaleAnim   = useRef(new Animated.Value(isActive ? 0.9 : 1)).current;
   const opacityAnim = useRef(new Animated.Value(isPending ? 0.35 : 1)).current;
-
   useEffect(() => {
     if (isActive) {
       Animated.loop(Animated.sequence([
@@ -101,9 +101,7 @@ function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageIt
     }
     Animated.timing(opacityAnim, { toValue: isPending ? 0.35 : 1, duration: 300, useNativeDriver: true }).start();
   }, [isActive, isPending]);
-
   const color = isCompleted || isActive ? (STAGE_COLOR[stage.key] ?? BLUE) : BORDER;
-
   return (
     <View style={d.stageRow}>
       <View style={{ alignItems: 'center' }}>
@@ -134,7 +132,6 @@ function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageIt
 // ── Order detail modal ───────────────────────────────────────────────────────
 function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () => void }) {
   const insets = useSafeAreaInsets();
-
   const { data, isLoading } = useQuery({
     queryKey: ['order', orderId],
     queryFn: () => api.orders.get(orderId),
@@ -144,21 +141,18 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
     },
     retry: 1,
   });
-
-  const order       = data?.data;
-  const status      = order?.status ?? 'received';
-  const isDelivery  = order?.type === 'delivery';
-  const STAGES      = isDelivery ? STAGES_DELIVERY : STAGES_PICKUP;
-  const stageIndex  = STAGES.findIndex(s => s.key === status);
-  const isCancelled = status === 'cancelled' || status === 'refunded';
-  const isActive    = ACTIVE_STATUSES.includes(status);
-  const statusColor = STAGE_COLOR[status] ?? BLUE;
+  const order        = data?.data;
+  const status       = order?.status ?? 'received';
+  const isDelivery   = order?.type === 'delivery';
+  const STAGES       = isDelivery ? STAGES_DELIVERY : STAGES_PICKUP;
+  const stageIndex   = STAGES.findIndex(s => s.key === status);
+  const isCancelled  = status === 'cancelled' || status === 'refunded';
+  const isActive     = ACTIVE_STATUSES.includes(status);
+  const statusColor  = STAGE_COLOR[status] ?? BLUE;
   const currentStage = STAGES[stageIndex];
   const items: any[] = Array.isArray(order?.items) ? order!.items : [];
-
-  const total         = (order?.totalCents ?? 0) / 100;
-  const pointsEarned  = order?.loyaltyPointsEarned ?? 0;
-
+  const total        = (order?.totalCents ?? 0) / 100;
+  const pointsEarned = order?.loyaltyPointsEarned ?? 0;
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
@@ -172,7 +166,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
           </Text>
           <View style={{ width: 36 }} />
         </View>
-
         {isLoading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator color={BLUE} size="large" />
@@ -184,7 +177,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-
             {/* ── Status card ──────────────────────────────────────────── */}
             <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -220,7 +212,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </View>
               )}
             </View>
-
             {/* ── Live status message ───────────────────────────────────── */}
             {isActive && currentStage && (
               <View style={[d.liveCard, { backgroundColor: statusColor + '12', borderColor: statusColor + '30' }]}>
@@ -230,7 +221,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </Text>
               </View>
             )}
-
             {/* ── Order items ───────────────────────────────────────────── */}
             {items.length > 0 && (
               <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -282,7 +272,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                     );
                   })}
                 </View>
-
                 {/* Totals */}
                 <View style={{ borderTopWidth: 1, borderTopColor: BORDER, marginTop: 12, paddingTop: 12, gap: 6 }}>
                   {(order.loyaltyPointsUsed ?? 0) > 0 && (
@@ -307,7 +296,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </View>
               </View>
             )}
-
             {/* ── Progress pipeline ─────────────────────────────────────── */}
             {!isCancelled ? (
               <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -334,7 +322,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </Text>
               </View>
             )}
-
             {/* ── Delivery address (if applicable) ─────────────────────── */}
             {order.type === 'delivery' && order.deliveryAddress && (
               <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -347,7 +334,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </View>
               </View>
             )}
-
             {/* ── Notes ────────────────────────────────────────────────── */}
             {order.notes && (
               <View style={[d.card, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
@@ -357,7 +343,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </View>
               </View>
             )}
-
           </ScrollView>
         )}
       </View>
@@ -373,15 +358,14 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
   const scheduled = order.scheduledFor ? fmtShort(order.scheduledFor) : null;
   const items: any[] = Array.isArray(order.items) ? order.items : [];
   const progress  = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    const to = order.status === 'completed' ? 1 : order.status === 'cancelled' || order.status === 'refunded' ? 0.15
-             : order.status === 'ready_for_pickup' ? 0.85 : order.status === 'being_prepared' ? 0.55 : 0.25;
+    const to = order.status === 'completed' ? 1
+             : order.status === 'cancelled' || order.status === 'refunded' ? 0.15
+             : order.status === 'ready_for_pickup' ? 0.85
+             : order.status === 'being_prepared' ? 0.55 : 0.25;
     Animated.timing(progress, { toValue: to, duration: 700, useNativeDriver: false }).start();
   }, [order.status]);
-
   const width = progress.interpolate({ inputRange: [0, 1], outputRange: ['16%', '100%'] });
-
   return (
     <Pressable onPress={onPress} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
       <View style={s.topRow}>
@@ -393,26 +377,21 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
           <Text style={[s.badgeText, { color: col.text }]}>{label}</Text>
         </View>
       </View>
-
       <View style={s.progressTrack}>
         <Animated.View style={[s.progressFill, { width, backgroundColor: col.text }]} />
       </View>
-
-      {/* Item summary */}
       {items.length > 0 && (
         <Text style={s.itemSummary} numberOfLines={1}>
           {items.slice(0, 3).map((it: any) => `${it.quantity ?? 1}× ${it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item'}`).join(' · ')}
           {items.length > 3 ? ` +${items.length - 3} more` : ''}
         </Text>
       )}
-
       {scheduled && (
         <View style={s.row}>
           <Feather name="clock" size={12} color={MUTED} />
           <Text style={s.meta}>{scheduled.date} · {scheduled.time}</Text>
         </View>
       )}
-
       <View style={s.bottomRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={s.meta}>Tap for details</Text>
@@ -428,16 +407,13 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
 export default function CustomerOrdersScreen() {
   const insets = useSafeAreaInsets();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['orders'],
     queryFn: () => api.orders.list(),
-    retry: 1,
     refetchInterval: 15000,
   });
-
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const orders = data?.data ?? [];
-
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
@@ -447,7 +423,6 @@ export default function CustomerOrdersScreen() {
         <Text style={s.headerTitle}>My orders</Text>
         <Text style={[s.headerBrand, { color: BLUE }]}>Butterfield</Text>
       </View>
-
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
@@ -457,7 +432,7 @@ export default function CustomerOrdersScreen() {
           data={orders}
           keyExtractor={(o) => o.id}
           contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 100 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 100, gap: 12 }}>
               <Feather name="package" size={30} color={BLUE} />
@@ -473,7 +448,6 @@ export default function CustomerOrdersScreen() {
           )}
         />
       )}
-
       {selectedOrderId && (
         <OrderDetailModal
           orderId={selectedOrderId}
@@ -486,47 +460,47 @@ export default function CustomerOrdersScreen() {
 
 // ── Order list styles ────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  backBtn:     { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: TEXT },
-  headerBrand: { fontSize: 18, fontWeight: '700', fontStyle: 'italic' },
-  emptyTitle:  { fontSize: 18, fontWeight: '700', color: TEXT },
-  emptySub:    { fontSize: 14, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
-  shopBtn:     { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
-  shopBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  card:        { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
-  topRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  orderId:     { fontSize: 16, fontWeight: '700', color: TEXT },
-  orderDate:   { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 3 },
-  badge:       { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  badgeText:   { fontSize: 13, fontWeight: '600' },
+  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
+  backBtn:      { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  headerTitle:  { fontSize: 18, fontWeight: '700', color: TEXT },
+  headerBrand:  { fontSize: 18, fontWeight: '700', fontStyle: 'italic' },
+  emptyTitle:   { fontSize: 18, fontWeight: '700', color: TEXT },
+  emptySub:     { fontSize: 14, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
+  shopBtn:      { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
+  shopBtnText:  { color: '#fff', fontWeight: '600', fontSize: 15 },
+  card:         { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
+  topRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  orderId:      { fontSize: 16, fontWeight: '700', color: TEXT },
+  orderDate:    { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 3 },
+  badge:        { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  badgeText:    { fontSize: 13, fontWeight: '600' },
   progressTrack:{ height: 8, borderRadius: 999, backgroundColor: '#EEF2F7', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 999 },
-  itemSummary: { fontSize: 13, fontWeight: '400', color: MUTED },
-  row:         { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta:        { fontSize: 13, fontWeight: '400', color: MUTED },
-  bottomRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  total:       { fontSize: 16, fontWeight: '700', color: TEXT },
+  itemSummary:  { fontSize: 13, fontWeight: '400', color: MUTED },
+  row:          { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  meta:         { fontSize: 13, fontWeight: '400', color: MUTED },
+  bottomRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  total:        { fontSize: 16, fontWeight: '700', color: TEXT },
 });
 
 // ── Detail modal styles ──────────────────────────────────────────────────────
 const d = StyleSheet.create({
-  header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, backgroundColor: CARD },
-  closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: TEXT, textAlign: 'center' },
-  card:        { borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD },
-  sectionTitle:{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 10 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusDot:   { width: 6, height: 6, borderRadius: 3 },
-  metaRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveCard:    { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
-  itemRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
-  qtyBadge:    { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  totalRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel:  { fontSize: 14, fontWeight: '500', color: MUTED },
-  totalVal:    { fontSize: 14, fontWeight: '600', color: TEXT },
-  pointsEarned:{ borderRadius: 10, padding: 10, borderWidth: 1, alignItems: 'center', marginTop: 4 },
-  stageRow:    { flexDirection: 'row', gap: 14, minHeight: 56 },
-  stageCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  stageLine:   { width: 2, flex: 1, minHeight: 20, borderRadius: 1, marginVertical: 3 },
+  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, backgroundColor: CARD },
+  closeBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
+  headerTitle:  { flex: 1, fontSize: 16, fontWeight: '700', color: TEXT, textAlign: 'center' },
+  card:         { borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 10 },
+  statusBadge:  { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  statusDot:    { width: 6, height: 6, borderRadius: 3 },
+  metaRow:      { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveCard:     { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
+  itemRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  qtyBadge:     { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  totalRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel:   { fontSize: 14, fontWeight: '500', color: MUTED },
+  totalVal:     { fontSize: 14, fontWeight: '600', color: TEXT },
+  pointsEarned: { borderRadius: 10, padding: 10, borderWidth: 1, alignItems: 'center', marginTop: 4 },
+  stageRow:     { flexDirection: 'row', gap: 14, minHeight: 56 },
+  stageCircle:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  stageLine:    { width: 2, flex: 1, minHeight: 20, borderRadius: 1, marginVertical: 3 },
 });

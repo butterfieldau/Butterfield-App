@@ -6,6 +6,7 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
@@ -17,7 +18,6 @@ const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
-
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   received:         { bg: '#FEF9C3', text: '#854D0E' },
@@ -52,7 +52,6 @@ const WHOLESALE_NEXT: Record<string, string[]> = {
   dispatched: ['delivered'],
   delivered: [], cancelled: [],
 };
-
 const FILTER_TABS = [
   { key: 'all',              label: 'All' },
   { key: 'active',           label: 'Active' },
@@ -63,7 +62,6 @@ const FILTER_TABS = [
   { key: 'wholesale',        label: 'Wholesale' },
   { key: 'cancelled',        label: 'Cancelled' },
 ];
-
 // ── Map helper ────────────────────────────────────────────────────────────────
 function openMap(address: string) {
   const q = encodeURIComponent(address);
@@ -72,32 +70,26 @@ function openMap(address: string) {
     : `https://maps.google.com/?q=${q}`;
   Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
 }
-
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function startOfDay(d: Date) {
   const r = new Date(d); r.setHours(0,0,0,0); return r;
-}
 function isSameDay(a: Date | string, b: Date) {
   const ad = new Date(a);
   return ad.getFullYear() === b.getFullYear() &&
     ad.getMonth() === b.getMonth() && ad.getDate() === b.getDate();
-}
 function isThisWeek(d: Date | string) {
   const date = new Date(d);
   const now  = new Date();
   const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
   return date >= weekAgo;
-}
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-}
 function fmtDateChip(d: Date) {
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
   if (isSameDay(d, today)) return 'Today';
   if (isSameDay(d, yesterday)) return 'Yesterday';
   return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
-}
 function getPastDays(n: number) {
   const days: Date[] = [];
   for (let i = 0; i < n; i++) {
@@ -105,8 +97,6 @@ function getPastDays(n: number) {
     days.push(d);
   }
   return days;
-}
-
 // ── Order Detail Modal ────────────────────────────────────────────────────────
 function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing }: {
   order: any; visible: boolean; onClose: () => void;
@@ -117,13 +107,11 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
   if (!order) return null;
-
   const isWholesale = order.orderSource === 'wholesale';
   const items = Array.isArray(order.items) ? order.items : [];
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
   const next   = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
-
   const handleChangeStatus = () => {
     if (next.length === 0) {
       Alert.alert('Status', `This order is ${label} and cannot be advanced further.`); return;
@@ -141,11 +129,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
       { text: 'Cancel', style: 'cancel' as const },
     ]);
   };
-
   const discountCents = order.discountCents ?? 0;
   const loyaltyUsed  = order.loyaltyPointsUsed ?? 0;
   const loyaltyEarned = order.loyaltyPointsEarned ?? 0;
-
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
@@ -164,13 +150,10 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               {new Date(order.createdAt).toLocaleDateString('en-AU', {
                 weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
               })} · {fmtTime(order.createdAt)}
-            </Text>
           </View>
           <View style={{ width: 36 }} />
         </View>
-
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
-
           {/* Status + change button */}
           <View style={[styles.section, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
             <View>
@@ -190,8 +173,6 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                     </>}
               </Pressable>
             )}
-          </View>
-
           <Pressable
             onPress={onPrintReceipt}
             disabled={printing}
@@ -204,9 +185,6 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 <Feather name="printer" size={13} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Print receipt</Text>
               </>
-            )}
-          </Pressable>
-
           {/* Customer / Account */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{isWholesale ? 'Account' : 'Customer'}</Text>
@@ -218,44 +196,25 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 </View>
               )}
               {order.customerEmail && (
-                <View style={styles.detailRow}>
                   <Feather name="mail" size={14} color={MUTED} />
                   <Text style={styles.detailText}>{order.customerEmail}</Text>
-                </View>
-              )}
               {order.customerPhone && (
-                <View style={styles.detailRow}>
                   <Feather name="phone" size={14} color={MUTED} />
                   <Text style={styles.detailText}>{order.customerPhone}</Text>
-                </View>
-              )}
               {order.companyAbn && (
-                <View style={styles.detailRow}>
                   <Feather name="hash" size={14} color={MUTED} />
                   <Text style={styles.detailText}>ABN: {order.companyAbn}</Text>
-                </View>
-              )}
               {isWholesale && order.poReference && (
-                <View style={styles.detailRow}>
                   <Feather name="file-text" size={14} color={MUTED} />
                   <Text style={styles.detailText}>PO: {order.poReference}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
           {/* Delivery / Pickup */}
-          <View style={styles.section}>
             <Text style={styles.sectionLabel}>
               {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery Details' : 'Pickup Details'}
-            </Text>
-            <View style={{ gap: 4, marginTop: 6 }}>
               <View style={styles.detailRow}>
                 <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={MUTED} />
                 <Text style={styles.detailText}>
                   {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
                 </Text>
-              </View>
               {(order.deliveryAddress || order.street) && (() => {
                 const addr = order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ');
                 return (
@@ -270,30 +229,16 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 );
               })()}
               {order.scheduledDate && (
-                <View style={styles.detailRow}>
                   <Feather name="calendar" size={14} color={MUTED} />
                   <Text style={styles.detailText}>
                     {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
                   </Text>
-                </View>
-              )}
               {order.contactName && (
-                <View style={styles.detailRow}>
                   <Feather name="user" size={14} color={MUTED} />
                   <Text style={styles.detailText}>{order.contactName}</Text>
-                </View>
-              )}
               {order.contactPhone && (
-                <View style={styles.detailRow}>
-                  <Feather name="phone" size={14} color={MUTED} />
                   <Text style={styles.detailText}>{order.contactPhone}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
           {/* Items */}
-          <View style={styles.section}>
             <Text style={styles.sectionLabel}>Items ({items.length})</Text>
             <View style={{ gap: 0, marginTop: 6 }}>
               {items.map((item: any, i: number) => {
@@ -308,7 +253,6 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                   return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
                 });
                 const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
-                return (
                   <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 14 }]}>
@@ -317,7 +261,6 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                       <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
                         {qty} × ${(unit / 100).toFixed(2)}
                         {item.priceLabel ? ` · ${item.priceLabel}` : ''}
-                      </Text>
                       {notable.length > 0 && (
                         <Text style={{ color: BLUE, fontWeight: '400', fontSize: 12 }}>
                           {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
@@ -326,57 +269,34 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                       {baristaNote ? (
                         <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic' }}>
                           "{baristaNote}"
-                        </Text>
                       ) : null}
                     </View>
                     <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 14 }]}>
                       ${(line / 100).toFixed(2)}
                     </Text>
                   </View>
-                );
               })}
-            </View>
-          </View>
-
           {/* Financial summary */}
-          <View style={styles.section}>
             <Text style={styles.sectionLabel}>Summary</Text>
             <View style={{ gap: 6, marginTop: 6 }}>
               {discountCents > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Discount</Text>
                   <Text style={[{ color: GREEN, fontWeight: '500', fontSize: 13 }]}>−${(discountCents / 100).toFixed(2)}</Text>
-                </View>
-              )}
               {loyaltyUsed > 0 && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Points redeemed</Text>
                   <Text style={[{ color: GREEN, fontWeight: '500', fontSize: 13 }]}>−{loyaltyUsed} pts</Text>
-                </View>
-              )}
               <View style={[{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }]}>
                 <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 15 }]}>Total</Text>
                 <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 15 }]}>
                   AUD ${((order.totalCents ?? 0) / 100).toFixed(2)}
-                </Text>
-              </View>
               {loyaltyEarned > 0 && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>Points earned</Text>
                   <Text style={[{ color: '#F59E0B', fontWeight: '500', fontSize: 12 }]}>+{loyaltyEarned} pts</Text>
-                </View>
-              )}
               {isWholesale && order.isPaid != null && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>Payment</Text>
                   <Text style={[{ color: order.isPaid ? GREEN : '#EF4444', fontWeight: '500', fontSize: 12 }]}>
                     {order.isPaid ? 'Paid' : 'Awaiting Payment'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
           {/* Notes */}
           {order.notes ? (
             <View style={styles.section}>
@@ -384,30 +304,19 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               <Text style={[{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
                 {order.notes}
               </Text>
-            </View>
           ) : null}
-
         </ScrollView>
       </View>
     </Modal>
   );
-}
-
 // ── Order Card (compact list item) ───────────────────────────────────────────
 function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
-  const isWholesale = order.orderSource === 'wholesale';
-  const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
-  const label  = STATUS_LABEL[order.status] ?? order.status;
   const items  = Array.isArray(order.items) ? order.items : [];
-  const next   = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
-
   const itemSummary = items.slice(0, 3).map((it: any) => {
     const name = it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item';
     const qty  = it.qty ?? it.quantity ?? 1;
     return `${qty}× ${name}`;
   }).join(', ') + (items.length > 3 ? ` +${items.length - 3} more` : '');
-
-  return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, { opacity: pressed ? 0.92 : 1 }]}>
       <View style={[styles.orderCardAccent, { backgroundColor: colors.bg }]}>
         <View style={styles.orderCardTop}>
@@ -417,26 +326,16 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
                 {isWholesale
                   ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
                   : `#BC-${order.id.slice(-6).toUpperCase()}`}
-              </Text>
               {isWholesale && (
                 <View style={{ backgroundColor: '#DCFCE7', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
                   <Text style={{ color: '#166534', fontWeight: '700', fontSize: 9 }}>WHOLESALE</Text>
-                </View>
-              )}
-            </View>
             {order.customerName && (
               <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12 }]}>{order.customerName}</Text>
-            )}
-          </View>
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
             <View style={[{ backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.text + '40', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }]}>
               <Text style={[{ color: colors.text, fontWeight: '600', fontSize: 11 }]}>{label}</Text>
-            </View>
             <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>
               ${((order.totalCents ?? 0) / 100).toFixed(2)}
-            </Text>
-          </View>
-        </View>
         {/* Delivery / Pickup type pill */}
         {!isWholesale && (() => {
           const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
@@ -448,20 +347,12 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
                 <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={11} color={isDelivery ? '#1E40AF' : '#166534'} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: isDelivery ? '#1E40AF' : '#166534' }}>
                   {isDelivery ? 'Delivery' : 'Pickup'}
-                </Text>
-              </View>
               {/* Delivery address preview — tappable */}
               {isDelivery && (order.deliveryAddress || order.street) && (() => {
-                const addr = order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ');
-                return (
                   <Pressable onPress={(e) => { e.stopPropagation?.(); openMap(addr); Haptics.selectionAsync(); }}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flex: 1 }}>
                     <Text style={{ fontSize: 11, color: '#1E40AF', fontWeight: '400', flex: 1 }} numberOfLines={1}>{addr}</Text>
                     <Feather name="external-link" size={10} color="#1E40AF" />
-                  </Pressable>
-                );
-              })()}
-            </View>
           );
         })()}
         <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
@@ -480,34 +371,19 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
               <Feather name="printer" size={11} color="#fff" />
               <Text style={styles.printMiniBtnTxt}>{printing ? '...' : 'Print'}</Text>
             </Pressable>
-            {next.length > 0 && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                 <Feather name="chevron-right" size={12} color={BLUE} />
                 <Text style={[{ color: BLUE, fontWeight: '600', fontSize: 11 }]}>Tap to manage</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </View>
     </Pressable>
-  );
-}
-
 // ── Section header ────────────────────────────────────────────────────────────
 function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionHeaderText}>{title}</Text>
       <View style={[{ backgroundColor: `${BLUE}18`, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }]}>
         <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 11 }]}>{count}</Text>
-      </View>
     </View>
-  );
-}
-
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {
-  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [filter, setFilter]         = useState('all');
   const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
@@ -515,27 +391,25 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
-
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-orders'],
     queryFn: () => api.director.orders(),
     refetchInterval: 20000,
   });
+
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+
   const { data: settingsData } = useQuery({
     queryKey: ['director-settings'],
     queryFn: () => api.director.settings(),
     retry: 1,
-  });
-
   const allOrders = data?.data ?? [];
   const printerIp = (settingsData?.data?.printer_ip ?? '').trim();
   const printerPort = parseInt(settingsData?.data?.printer_port ?? '9100', 10);
-
   const printOrder = async (order: any) => {
     if (!printerIp) {
       Alert.alert('Printer Not Set', 'Set the printer IP in Director Settings first.');
       return;
-    }
     setPrintingOrderId(order.id);
     try {
       await sendReceiptPrint(orderToPrintJob(order), printerIp, printerPort);
@@ -545,9 +419,6 @@ export default function DirectorOrdersScreen() {
       Alert.alert('Print Failed', e.message ?? 'Could not send the receipt to the printer.');
     } finally {
       setPrintingOrderId(null);
-    }
-  };
-
   // Apply status filter
   const statusFiltered = useMemo(() => {
     if (filter === 'all') return allOrders;
@@ -557,47 +428,30 @@ export default function DirectorOrdersScreen() {
     if (filter === 'wholesale') return allOrders.filter((o: any) => o.orderSource === 'wholesale');
     return allOrders.filter((o: any) => o.status === filter);
   }, [allOrders, filter]);
-
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
-
   const todayOrders = useMemo(() =>
     statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)),
     [statusFiltered, today]
-  );
   const thisWeekOrders = useMemo(() =>
     statusFiltered.filter((o: any) => isThisWeek(o.createdAt) && !isSameDay(o.createdAt, today)),
-    [statusFiltered, today]
-  );
   const dateOrders = useMemo(() =>
     statusFiltered.filter((o: any) => isSameDay(o.createdAt, selectedDate)),
     [statusFiltered, selectedDate]
-  );
-
   const pastDays = useMemo(() => getPastDays(30), []);
-
   const handleStatusChange = async (orderId: string, status: string) => {
-    try {
       await api.director.updateOrderStatus(orderId, status);
       await qc.invalidateQueries({ queryKey: ['director-orders'] });
       await qc.invalidateQueries({ queryKey: ['director-stats'] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // Update selectedOrder state locally so modal reflects new status
       setSelectedOrder((prev: any) => prev ? { ...prev, status } : null);
-
       if (status === 'ready_for_pickup') {
         const order = allOrders.find((o: any) => o.id === orderId) ?? selectedOrder;
         if (order) {
           await printOrder({ ...order, status });
         }
       }
-    } catch (e: any) {
       Alert.alert('Error', e.message);
-    }
-  };
-
   const totalToday = statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)).length;
-
-  return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Status filter chips */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -617,13 +471,9 @@ export default function DirectorOrdersScreen() {
               >
                 <Text style={[{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : MUTED }]}>
                   {item.label}
-                </Text>
-              </Pressable>
             );
           }}
         />
-      </View>
-
       {/* Date view selector */}
       <View style={[styles.dateBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {([
@@ -632,20 +482,12 @@ export default function DirectorOrdersScreen() {
           { key: 'date',  label: 'Pick Date' },
         ] as const).map((m) => {
           const active = viewMode === m.key;
-          return (
-            <Pressable
               key={m.key}
               onPress={() => { setViewMode(m.key); if (m.key === 'date') setShowDatePicker(v => !v); else setShowDatePicker(false); Haptics.selectionAsync(); }}
               style={[styles.dateTab, { borderBottomWidth: 2, borderBottomColor: active ? BLUE : 'transparent' }]}
-            >
               <Text style={[{ fontWeight: active ? '700' : '400', fontSize: 13, color: active ? BLUE : MUTED }]}>
                 {m.key === 'date' && viewMode === 'date' ? fmtDateChip(selectedDate) : m.label}
-              </Text>
-            </Pressable>
-          );
         })}
-      </View>
-
       {/* Date picker row (shown when Pick Date is active) */}
       {viewMode === 'date' && (
         <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -663,24 +505,20 @@ export default function DirectorOrdersScreen() {
                   <Text style={[{ fontWeight: '600', fontSize: 12, color: isActive ? '#fff' : TEXT }]}>{label}</Text>
                   <Text style={[{ fontWeight: '400', fontSize: 10, color: isActive ? 'rgba(255,255,255,0.8)' : MUTED }]}>
                     {count} order{count !== 1 ? 's' : ''}
-                  </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
-        </View>
       )}
-
       {/* Content */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} size="large" />
-        </View>
       ) : (
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 0, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >
           {viewMode === 'today' && (
             <>
@@ -689,7 +527,6 @@ export default function DirectorOrdersScreen() {
                 <View style={styles.emptySection}>
                   <Feather name="coffee" size={28} color={BORDER} />
                   <Text style={styles.emptyText}>No orders today yet</Text>
-                </View>
               ) : (
                 todayOrders.map((o: any) => (
                   <OrderCard
@@ -700,72 +537,20 @@ export default function DirectorOrdersScreen() {
                     printing={printingOrderId === o.id}
                   />
                 ))
-              )}
             </>
           )}
-
           {viewMode === 'week' && (
-            <>
-              <SectionHeader title="Today's Orders" count={todayOrders.length} />
-              {todayOrders.length === 0 ? (
-                <View style={styles.emptySection}>
-                  <Text style={styles.emptyText}>No orders today yet</Text>
-                </View>
-              ) : (
-                todayOrders.map((o: any) => (
-                  <OrderCard
-                    key={o.id}
-                    order={o}
-                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                    onPrint={() => printOrder(o)}
-                    printing={printingOrderId === o.id}
-                  />
-                ))
-              )}
               <View style={{ height: 8 }} />
               <SectionHeader title="Earlier This Week" count={thisWeekOrders.length} />
               {thisWeekOrders.length === 0 ? (
-                <View style={styles.emptySection}>
                   <Text style={styles.emptyText}>No other orders this week</Text>
-                </View>
-              ) : (
                 thisWeekOrders.map((o: any) => (
-                  <OrderCard
-                    key={o.id}
-                    order={o}
-                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                    onPrint={() => printOrder(o)}
-                    printing={printingOrderId === o.id}
-                  />
-                ))
-              )}
-            </>
-          )}
-
           {viewMode === 'date' && (
-            <>
               <SectionHeader title={fmtDateChip(selectedDate)} count={dateOrders.length} />
               {dateOrders.length === 0 ? (
-                <View style={styles.emptySection}>
                   <Feather name="calendar" size={28} color={BORDER} />
                   <Text style={styles.emptyText}>No orders on this date</Text>
-                </View>
-              ) : (
                 dateOrders.map((o: any) => (
-                  <OrderCard
-                    key={o.id}
-                    order={o}
-                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                    onPrint={() => printOrder(o)}
-                    printing={printingOrderId === o.id}
-                  />
-                ))
-              )}
-            </>
-          )}
-        </ScrollView>
-      )}
-
       {/* Order detail modal */}
       <OrderDetailModal
         order={selectedOrder}
@@ -775,10 +560,6 @@ export default function DirectorOrdersScreen() {
         onPrintReceipt={() => selectedOrder ? printOrder(selectedOrder) : Promise.resolve()}
         printing={printingOrderId === selectedOrder?.id}
       />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   filterChip:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   dateBar:        { flexDirection: 'row', borderBottomWidth: 1 },

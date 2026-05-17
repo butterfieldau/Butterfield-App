@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
 import { api, type StockItem } from '@/lib/api';
 
@@ -462,7 +463,7 @@ export default function StockScreen() {
   const [editItem, setEditItem]   = useState<Partial<StockItem> | null | false>(false);
   const [manageCats, setManageCats] = useState(false);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['stock-items'],
     queryFn: () => api.stock.items(),
   });
@@ -471,6 +472,7 @@ export default function StockScreen() {
     queryKey: ['stock-categories'],
     queryFn: () => api.stock.categories(),
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchCats);
 
   const items: StockItem[] = data?.data ?? [];
   const categories = catData?.data ?? [];
@@ -678,7 +680,7 @@ export default function StockScreen() {
           data={filtered}
           keyExtractor={(i) => i.id}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={NAVY} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={NAVY} />}
           renderItem={({ item }) => (
             <StockCard
               item={item}

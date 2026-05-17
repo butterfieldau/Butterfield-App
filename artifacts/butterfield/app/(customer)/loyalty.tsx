@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type LoyaltyReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
@@ -29,9 +30,7 @@ const WHITE     = '#FFFFFF';
 const TEXT      = '#1C1C1E';
 const MUTED     = '#8E8E93';
 const BORDER    = '#D8E4EB';
-
 const STAMP_COUNT = 6;
-
 function getBirthdayInfo(isoDate: string): {
   daysUntil: number;
   message: string;
@@ -42,14 +41,11 @@ function getBirthdayInfo(isoDate: string): {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [y, m, d] = isoDate.split('-').map(Number);
-
   // Next birthday this or next year
   let next = new Date(today.getFullYear(), m - 1, d);
   if (next < today) next = new Date(today.getFullYear() + 1, m - 1, d);
   const diff = Math.round((next.getTime() - today.getTime()) / 86400000);
-
   const formatted = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
-
   if (diff === 0) return {
     daysUntil: 0, isBirthday: true, emoji: '🎂',
     message: 'Happy Birthday!',
@@ -89,17 +85,13 @@ function getBirthdayInfo(isoDate: string): {
     daysUntil: diff, isBirthday: false, emoji: '🎂',
     message: `Birthday on ${formatted}`,
     sub: `${diff} days to go — your free cookie will be waiting for you!`,
-  };
 }
-
-
 const HOW_IT_WORKS = [
   { icon: 'coffee', title: 'Earn 1 pt per $1', desc: 'Every dollar you spend earns 1 point automatically.' },
   { icon: 'tag', title: '100 pts = $5 credit', desc: 'Save up your points and redeem them for store credit. No minimum spend.' },
   { icon: 'award', title: 'Climb the tiers', desc: 'Silver at $150 spent · Gold at $500 · Platinum at $1,000 (lifetime).' },
   { icon: 'gift', title: 'Birthday treat', desc: 'Free cookie every birthday week, on us.' },
 ];
-
 export default function LoyaltyScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -107,41 +99,36 @@ export default function LoyaltyScreen() {
   const [redeeming, setRedeeming] = useState<string | null>(null);
   // Fallback QR token fetched via ensure-qr if the main profile had none.
   const [healedQrToken, setHealedQrToken] = useState<string | null>(null);
-
-  const { data: profileData, isLoading, refetch, isRefetching } = useQuery({
+  const { data: profileData, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn: () => api.loyalty.profile(),
   });
+
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+
   const { data: rewardsData } = useQuery({
     queryKey: ['loyalty-rewards'],
     queryFn: () => api.loyalty.rewards(),
-  });
   const { data: txnData } = useQuery({
     queryKey: ['loyalty-transactions'],
     queryFn: () => api.loyalty.transactions(),
-  });
-
   const profile = profileData?.data;
   const rewards = rewardsData?.data ?? [];
   const transactions = txnData?.data ?? [];
-
   const pts = profile?.loyaltyPoints ?? 0;
   const stamps = Math.min(profile?.coffeeStampCount ?? profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
-
   // Use the server-stored tier as the single source of truth (spend-based, never decreases).
   const totalSpentCents = (profile as any)?.totalSpentCents ?? 0;
   const currentTier = getTierConfig(profile?.loyaltyTier ?? 'bronze');
   const nextTier    = getNextTierBySpend(totalSpentCents);
   const spentToNext = nextTier ? nextTier.spendThreshold - totalSpentCents : 0;
   const progress    = nextTier ? Math.min(totalSpentCents / nextTier.spendThreshold, 1) : 1;
-
   const serverQrToken = profile?.loyaltyQrToken ?? null;
   const effectiveQrToken = serverQrToken ?? healedQrToken;
   const qrValue = profile?.qrPayload
     ?? (effectiveQrToken ? `BUTTERFIELD:LOYALTY:${effectiveQrToken}` : null)
     ?? (profile?.userId && profile?.referralCode ? `BUTTERFIELD:${profile.userId}:${profile.referralCode}` : null);
-
   // Self-heal: if the profile loaded but has no QR token, request one silently.
   React.useEffect(() => {
     if (!profile || qrValue) return;
@@ -154,7 +141,6 @@ export default function LoyaltyScreen() {
       })
       .catch(() => {});
   }, [profile?.userId, qrValue]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleRedeem = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
       Alert.alert('Not enough points', `You need ${reward.pointsCost - pts} more points.`);
@@ -180,8 +166,6 @@ export default function LoyaltyScreen() {
         },
       },
     ]);
-  };
-
   if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}>
@@ -189,7 +173,6 @@ export default function LoyaltyScreen() {
       </View>
     );
   }
-
   return (
     <>
       <CustomerQrModal
@@ -202,18 +185,16 @@ export default function LoyaltyScreen() {
         isLoading={isRefetching && !qrValue}
         onRetry={() => { void refetch(); }}
       />
-
       <ScrollView
         style={{ flex: 1, backgroundColor: WHITE }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BRAND} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
       >
         <View style={[styles.pageHeader, { paddingTop: insets.top + 16 }]}>
           <Text style={[styles.pageLabel, { fontWeight: '600' }]}>REWARDS</Text>
           <Text style={[styles.pageTitle, { fontWeight: '700' }]}>Your loyalty card</Text>
         </View>
-
         <View style={{ paddingHorizontal: 16 }}>
           <LinearGradient colors={currentTier.gradient} style={styles.loyaltyCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <Text style={[styles.memberLabel, { fontWeight: '600' }]}>
@@ -222,8 +203,6 @@ export default function LoyaltyScreen() {
             <Text style={[styles.bigPoints, { fontWeight: '700' }]}>{pts.toLocaleString()}</Text>
             <Text style={[styles.ptsWorth, { fontWeight: '400' }]}>
               points · worth ${(Math.floor(pts / 100) * 5).toFixed(0)}
-            </Text>
-
             {nextTier && (
               <View style={styles.progressSection}>
                 <View style={styles.progressLabels}>
@@ -232,14 +211,11 @@ export default function LoyaltyScreen() {
                   </Text>
                   <Text style={[styles.progressLabelText, { fontWeight: '600' }]}>
                     ${(totalSpentCents / 100).toFixed(0)} / ${(nextTier.spendThreshold / 100).toFixed(0)}
-                  </Text>
                 </View>
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-                </View>
               </View>
             )}
-
             <View style={styles.tierRow}>
               {TIERS_ORDERED.map((tier, i) => {
                 const active = tier.key === currentTier.key;
@@ -260,16 +236,11 @@ export default function LoyaltyScreen() {
               })}
             </View>
           </LinearGradient>
-        </View>
-
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Rewards Club</Text>
           <View style={styles.buyBadge}>
             <Text style={[styles.buyBadgeText, { fontWeight: '500' }]}>Buy 5, get 1 free</Text>
           </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 16 }}>
           <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.coffeeCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <View style={styles.coffeeCardTop}>
               <View style={{ flex: 1 }}>
@@ -279,33 +250,20 @@ export default function LoyaltyScreen() {
                 </Text>
                 <Text style={[styles.coffeeDesc, { fontWeight: '400' }]}>
                   Earn {STAMP_COUNT} stamps to unlock your free coffee.
-                </Text>
-              </View>
               <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }} style={styles.qrBtn}>
                 <Feather name="maximize" size={12} color={WHITE} />
                 <Text style={[styles.qrBtnText, { fontWeight: '600' }]}>My QR</Text>
               </Pressable>
-            </View>
-
             <View style={styles.stampRow}>
               {Array.from({ length: STAMP_COUNT }).map((_, i) => {
                 const filled = i < stamps;
-                return (
                   <View key={i} style={[styles.stampCircle, { backgroundColor: filled ? WHITE : 'transparent', borderColor: filled ? WHITE : 'rgba(255,255,255,0.4)', borderWidth: filled ? 0 : 2, borderStyle: filled ? 'solid' : 'dashed' }]}>
                     {filled && <Feather name="coffee" size={14} color={BLUE_DARK} />}
-                  </View>
-                );
-              })}
-            </View>
             <View style={styles.rewardRow}>
               <Feather name="gift" size={14} color={WHITE} />
               <Text style={[styles.rewardRowText, { fontWeight: '600' }]}>
                 {profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0} free coffee reward{((profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0) === 1) ? '' : 's'} available
               </Text>
-            </View>
-          </LinearGradient>
-        </View>
-
         <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
           {(profile as any)?.birthday ? (
             // ── Birthday set: countdown card matching coffee card layout ────
@@ -320,22 +278,16 @@ export default function LoyaltyScreen() {
                   <Text style={[styles.bdSectionLabel, { fontWeight: '600',
                     color: isBd ? '#E879A0' : MUTED }]}>
                     BIRTHDAY
-                  </Text>
                   <Text style={[styles.bdHeading, { fontWeight: '700',
                     color: isBd ? '#BE185D' : TEXT }]}>
                     {bdInfo.emoji} {bdInfo.message}
-                  </Text>
                   <Text style={[styles.bdDesc, { fontWeight: '400',
                     color: isBd ? '#9D174D' : MUTED }]}>
                     {bdInfo.sub}
-                  </Text>
                   <View style={styles.bdEditHint}>
                     <Feather name="settings" size={11} color={MUTED} />
                     <Text style={[styles.bdEditHintText, { fontWeight: '400' }]}>
                       To update your birthday, go to Account → Edit Profile
-                    </Text>
-                  </View>
-                </View>
               );
             })()
           ) : (
@@ -349,30 +301,22 @@ export default function LoyaltyScreen() {
             >
               <Text style={[styles.bdSectionLabel, { fontWeight: '600', color: MUTED }]}>
                 BIRTHDAY
-              </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={[styles.bdHeading, { fontWeight: '700', color: TEXT, flex: 1 }]}>
                   🎂 Add your birthday
-                </Text>
                 <Feather name="chevron-right" size={20} color={MUTED} />
-              </View>
               <Text style={[styles.bdDesc, { fontWeight: '400', color: MUTED }]}>
                 Get a free cookie every birthday week — on us!
-              </Text>
             </Pressable>
           )}
-        </View>
-
         {rewards.length > 0 && (
           <View style={{ marginTop: 24 }}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Redeem rewards</Text>
-            </View>
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {rewards.map((r) => {
                 const canRedeem = pts >= r.pointsCost;
                 const isLocked = r.type === 'tier' && !canRedeem;
-                return (
                   <View key={r.id} style={styles.rewardCard}>
                     <View style={[styles.rewardIcon, { backgroundColor: '#EEF2FB' }]}>
                       <Feather name={r.type === 'tier' ? 'lock' : 'tag'} size={18} color={BRAND} />
@@ -390,11 +334,9 @@ export default function LoyaltyScreen() {
                       <Text style={[styles.rewardPts, { fontWeight: '600', color: r.type === 'tier' ? MUTED : BRAND }]}>
                         {r.type === 'tier' ? 'Tier perk' : `${r.pointsCost} pts`}
                       </Text>
-                    </View>
                     {isLocked ? (
                       <View style={[styles.lockedBtn, { backgroundColor: '#F0F0F0' }]}>
                         <Text style={[styles.lockedBtnText, { fontWeight: '500' }]}>Locked</Text>
-                      </View>
                     ) : (
                       <Pressable
                         onPress={() => handleRedeem(r)}
@@ -407,22 +349,12 @@ export default function LoyaltyScreen() {
                           <Text style={[styles.redeemBtnText, { fontWeight: '600', color: canRedeem ? TEXT : MUTED }]}>
                             {canRedeem ? 'Redeem' : 'Need more'}
                           </Text>
-                        )}
                       </Pressable>
                     )}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
         )}
-
         {transactions.length > 0 && (
-          <View style={{ marginTop: 24 }}>
-            <View style={styles.sectionHeader}>
               <Feather name="clock" size={16} color={TEXT} />
               <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Recent activity</Text>
-            </View>
             <View style={{ paddingHorizontal: 16, gap: 8 }}>
               {transactions.slice(0, 10).map((txn) => (
                 <View key={txn.id} style={styles.txnRow}>
@@ -430,45 +362,28 @@ export default function LoyaltyScreen() {
                     <Text style={[styles.txnDesc, { fontWeight: '500' }]}>{txn.description}</Text>
                     <Text style={[styles.txnDate, { fontWeight: '400' }]}>
                       {new Date(txn.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  </View>
                   <Text style={[styles.txnPts, { fontWeight: '700', color: txn.points > 0 ? BRAND : txn.points < 0 ? '#EF4444' : MUTED }]}>
                     {txn.points > 0 ? '+' : ''}{txn.points}
-                  </Text>
-                </View>
               ))}
-            </View>
-          </View>
-        )}
-
         <View style={{ marginTop: 24 }}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>How it works</Text>
-          </View>
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {HOW_IT_WORKS.map((item) => (
               <View key={item.title} style={styles.howCard}>
                 <View style={[styles.howIcon, { backgroundColor: '#EEF2FB' }]}>
                   <Feather name={item.icon as any} size={18} color={BRAND} />
-                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.howTitle, { fontWeight: '600' }]}>{item.title}</Text>
                   <Text style={[styles.howDesc, { fontWeight: '400' }]}>{item.desc}</Text>
-                </View>
-              </View>
             ))}
-          </View>
-        </View>
       </ScrollView>
     </>
   );
-}
-
 const styles = StyleSheet.create({
   pageHeader: { paddingHorizontal: 20, paddingBottom: 20, gap: 6, backgroundColor: WHITE },
   pageLabel: { fontSize: 12, color: MUTED, letterSpacing: 1 },
   pageTitle: { fontSize: 26, color: TEXT },
-
   loyaltyCard: { borderRadius: 20, padding: 20, gap: 4 },
   memberLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, letterSpacing: 1 },
   bigPoints: { color: WHITE, fontSize: 52, lineHeight: 60 },
@@ -482,12 +397,10 @@ const styles = StyleSheet.create({
   tierBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   tierBtnActive: { backgroundColor: WHITE },
   tierBtnLabel: { fontSize: 11, letterSpacing: 0.5 },
-
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, marginBottom: 12 },
   sectionTitle: { fontSize: 20, color: TEXT },
   buyBadge: { marginLeft: 'auto', backgroundColor: '#EEF2FB', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
   buyBadgeText: { fontSize: 12, color: BRAND },
-
   coffeeCard: { borderRadius: 20, padding: 20, gap: 4 },
   coffeeCardTop: { flexDirection: 'row', alignItems: 'flex-start' },
   coffeeLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11, letterSpacing: 1, marginBottom: 4 },
@@ -499,15 +412,12 @@ const styles = StyleSheet.create({
   stampCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   rewardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   rewardRowText: { color: 'rgba(255,255,255,0.95)', fontSize: 13 },
-
   birthdayCard: { backgroundColor: WHITE, borderRadius: 20, padding: 20, gap: 4, borderWidth: 1.5, borderColor: BORDER },
   bdSectionLabel: { fontSize: 11, letterSpacing: 1, marginBottom: 2 },
   bdHeading:      { fontSize: 32, lineHeight: 40, marginBottom: 2 },
   bdDesc:         { fontSize: 13, lineHeight: 18, marginTop: 4 },
-
   bdEditHint: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#EFF0F2' },
   bdEditHintText: { fontSize: 11, color: MUTED, lineHeight: 15, flex: 1 },
-
   rewardCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
   rewardIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rewardName: { fontSize: 14, color: TEXT },
@@ -519,23 +429,19 @@ const styles = StyleSheet.create({
   lockedBtnText: { fontSize: 13, color: MUTED },
   redeemBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   redeemBtnText: { fontSize: 13 },
-
   txnRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER },
   txnDesc: { fontSize: 13, color: TEXT },
   txnDate: { fontSize: 11, color: MUTED, marginTop: 2 },
   txnPts: { fontSize: 16 },
-
   howCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
   howIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   howTitle: { fontSize: 14, color: TEXT, marginBottom: 2 },
   howDesc: { fontSize: 12, color: MUTED, lineHeight: 17 },
-
   birthdayModal: { backgroundColor: WHITE, borderRadius: 24, padding: 28, marginHorizontal: 20 },
   bdRow: { flexDirection: 'row', gap: 10 },
   bdField: { flex: 1 },
   bdLabel: { fontSize: 12, color: MUTED, marginBottom: 6, letterSpacing: 0.5 },
   bdInput: { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: TEXT, textAlign: 'center', borderWidth: 1, borderColor: BORDER },
-
   qrSheetContent: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   qrModal: {
     alignItems: 'center',

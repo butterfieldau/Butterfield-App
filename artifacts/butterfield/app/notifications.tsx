@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -23,44 +24,35 @@ const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
-
 const DEFAULT_PREFS = {
   orderUpdates:  true,
   rewardsStamps: true,
   newCookies:    true,
   offersPromos:  false,
 };
-
 const PREF_CONFIG = [
   { key: 'orderUpdates',  icon: 'package'   as const, title: 'Order updates',       desc: 'When your order is ready or status changes.' },
   { key: 'rewardsStamps', icon: 'star'      as const, title: 'Rewards & stamps',    desc: 'Free coffee unlocked? We\'ll let you know.' },
   { key: 'newCookies',    icon: 'coffee'    as const, title: 'New cookies',         desc: 'Be first to try our latest bakes.' },
   { key: 'offersPromos',  icon: 'tag'       as const, title: 'Offers & promotions', desc: 'Occasional deals and discounts.' },
 ];
-
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const qc     = useQueryClient();
-
   const [prefs, setPrefs] = useState<Record<string, boolean>>(DEFAULT_PREFS);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved,  setSaved]  = useState<string | null>(null);
-
   const { data: meData, isLoading: meLoading } = useQuery({
     queryKey: ['me'],
     queryFn:  () => api.auth.me(),
     retry: 1,
   });
-
-  const { data, isLoading: annLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading: annLoading, refetch } = useQuery({
     queryKey: ['announcements'],
     queryFn:  () => api.misc.announcements(),
-    retry: 1,
     refetchInterval: 30000,
   });
-
   const announcements = data?.data ?? [];
-
   // Sync prefs from backend when me loads
   useEffect(() => {
     const backendPrefs = (meData?.user as any)?.notificationPreferences;
@@ -68,6 +60,8 @@ export default function NotificationsScreen() {
       setPrefs(p => ({ ...DEFAULT_PREFS, ...backendPrefs }));
     }
   }, [meData]);
+
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
 
   const togglePref = async (key: string) => {
     Haptics.selectionAsync();
@@ -88,9 +82,7 @@ export default function NotificationsScreen() {
       setSaving(null);
     }
   };
-
   const isLoading = meLoading || annLoading;
-
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
@@ -104,9 +96,8 @@ export default function NotificationsScreen() {
           </Text>
         </View>
       </View>
-
       <ScrollView
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 80 }}
       >
         {/* Push notification preferences */}
@@ -118,9 +109,7 @@ export default function NotificationsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>Notification preferences</Text>
               <Text style={s.sectionSub}>Choose what you want to hear about</Text>
-            </View>
           </View>
-
           {meLoading ? (
             <ActivityIndicator color={BLUE} style={{ marginVertical: 12 }} />
           ) : (
@@ -135,7 +124,6 @@ export default function NotificationsScreen() {
                 <View style={s.prefBody}>
                   <Text style={s.prefTitle}>{item.title}</Text>
                   <Text style={s.prefDesc}>{item.desc}</Text>
-                </View>
                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                   <Switch
                     value={!!prefs[item.key]}
@@ -148,33 +136,20 @@ export default function NotificationsScreen() {
                   {saved === item.key && (
                     <Text style={{ fontSize: 10, color: GREEN, fontWeight: '500' }}>Saved</Text>
                   )}
-                </View>
               </View>
             ))
           )}
-        </View>
-
         {/* Latest announcements */}
-        <View style={[s.sectionCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={s.sectionHead}>
             <View style={[s.iconCircle, { backgroundColor: '#DCFCE7' }]}>
               <Feather name="activity" size={16} color="#16A34A" />
-            </View>
-            <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>Latest announcements</Text>
               <Text style={s.sectionSub}>Updates from Butterfield</Text>
-            </View>
-          </View>
-
           {annLoading ? (
-            <ActivityIndicator color={BLUE} style={{ marginVertical: 12 }} />
           ) : announcements.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 20, gap: 8 }}>
               <Feather name="inbox" size={28} color={MUTED} />
               <Text style={s.empty}>No announcements right now.</Text>
               <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>Check back soon for updates!</Text>
-            </View>
-          ) : (
             announcements.map((a: any) => (
               <View key={a.id} style={[s.annRow, { borderTopWidth: 1, borderTopColor: BORDER }]}>
                 <View style={[s.dot, { backgroundColor: a.isPinned ? '#F59E0B' : BLUE }]} />
@@ -188,12 +163,6 @@ export default function NotificationsScreen() {
                     )}
                   </View>
                   <Text style={s.annDesc}>{a.body ?? a.message ?? ''}</Text>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-
         <Text style={[s.footer, { color: MUTED }]}>
           You'll only receive notifications you've enabled above.{'\n'}Preferences are saved automatically.
         </Text>
@@ -201,7 +170,6 @@ export default function NotificationsScreen() {
     </View>
   );
 }
-
 const s = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn:     { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },

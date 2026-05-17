@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -79,11 +80,12 @@ function EmptyState({ icon, message }: { icon: string; message: string }) {
 // ── Issues tab ────────────────────────────────────────────────────────────────
 function IssuesTab() {
   const qc = useQueryClient();
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-all-issues'],
     queryFn: () => api.director.allIssues(),
     staleTime: 0,
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const issues: any[] = data?.data ?? [];
 
   const resolve = useMutation({
@@ -118,7 +120,7 @@ function IssuesTab() {
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       showsVerticalScrollIndicator={false}
     >
       {issues.length === 0
@@ -150,11 +152,12 @@ function IssuesTab() {
 
 // ── Wastage tab ───────────────────────────────────────────────────────────────
 function WastageTab() {
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-all-wastage'],
     queryFn: () => api.director.allWastage(),
     staleTime: 0,
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const wastage: any[] = data?.data ?? [];
 
   const handlePress = (item: any) => {
@@ -174,7 +177,7 @@ function WastageTab() {
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       showsVerticalScrollIndicator={false}
     >
       {totalCost > 0 && (
@@ -221,11 +224,12 @@ function WastageTab() {
 // ── Leave tab ─────────────────────────────────────────────────────────────────
 function LeaveTab() {
   const qc = useQueryClient();
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-all-leave'],
     queryFn: () => api.director.allLeave(),
     staleTime: 0,
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const leave: any[] = data?.data ?? [];
 
   const reviewMut = useMutation({
@@ -257,7 +261,7 @@ function LeaveTab() {
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       showsVerticalScrollIndicator={false}
     >
       {leave.length === 0
@@ -321,11 +325,12 @@ function LeaveTab() {
 // ── Feedback tab ──────────────────────────────────────────────────────────────
 function FeedbackTab() {
   const qc = useQueryClient();
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-all-feedback'],
     queryFn: () => api.director.allFeedback(),
     staleTime: 0,
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const feedback: any[] = data?.data ?? [];
 
   const markRead = useMutation({
@@ -359,7 +364,7 @@ function FeedbackTab() {
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       showsVerticalScrollIndicator={false}
     >
       {unread > 0 && (

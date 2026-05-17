@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type SavedAddress } from '@/lib/api';
 import { SwipeDownSheet } from '@/components/SwipeDownSheet';
@@ -27,23 +28,17 @@ const TEXT = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
 const RED = '#EF4444';
-
 const STATES = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT'];
-
 function iconForLabel(label: string): string {
   const l = label.toLowerCase();
   if (l === 'home') return 'home';
   if (l === 'work') return 'briefcase';
   return 'map-pin';
 }
-
 function formatAddress(a: SavedAddress): string {
   const apt = a.apt ? `${a.apt}/` : '';
   return `${apt}${a.street}, ${a.suburb} ${a.state} ${a.postcode}`;
-}
-
 const BLANK = { label: 'Home', street: '', apt: '', suburb: '', postcode: '', state: 'NSW', isDefault: false };
-
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -52,15 +47,15 @@ export default function AddressesScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(BLANK);
   const [saving, setSaving] = useState(false);
-
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['addresses'],
     queryFn: () => api.addresses.list(),
     retry: 1,
   });
 
-  const addresses = data?.data ?? [];
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
 
+  const addresses = data?.data ?? [];
   const openModal = (addr?: SavedAddress) => {
     if (addr) {
       setEditingId(addr.id);
@@ -72,9 +67,7 @@ export default function AddressesScreen() {
     setModalVisible(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
-
   const closeModal = () => setModalVisible(false);
-
   const handleSave = async () => {
     if (!form.street.trim() || !form.suburb.trim() || !form.postcode.trim()) return Alert.alert('Missing fields', 'Please fill in street, suburb and postcode.');
     setSaving(true);
@@ -87,21 +80,17 @@ export default function AddressesScreen() {
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not save address.');
     } finally { setSaving(false); }
-  };
-
   const handleDelete = (addr: SavedAddress) => {
     Alert.alert(`Remove "${addr.label}"?`, 'This address will be deleted.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => { await api.addresses.delete(addr.id); await qc.invalidateQueries({ queryKey: ['addresses'] }); } },
     ]);
   };
-
   const handleSetDefault = async (addr: SavedAddress) => {
     if (addr.isDefault) return;
     await api.addresses.update(addr.id, { isDefault: true });
     await qc.invalidateQueries({ queryKey: ['addresses'] });
   };
-
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
@@ -109,11 +98,10 @@ export default function AddressesScreen() {
         <Text style={s.headerTitle}>Saved addresses</Text>
         <Text style={[s.headerBrand, { color: BLUE }]}>Butterfield</Text>
       </View>
-
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 120 }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}>
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 120 }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}>
           {addresses.length === 0 ? (
             <View style={[s.emptyCard, { backgroundColor: CARD, borderColor: BORDER }]}>
               <View style={[s.emptyIconCircle, { backgroundColor: '#EBF8FF' }]}><Feather name="map-pin" size={28} color={BLUE} /></View>
@@ -136,7 +124,6 @@ export default function AddressesScreen() {
                     {!addr.isDefault && <Pressable onPress={() => handleSetDefault(addr)} style={[s.actionBtn, { borderRightWidth: 1, borderRightColor: BORDER }]}><Feather name="star" size={13} color={MUTED} /><Text style={[s.actionBtnText, { color: MUTED }]}>Set default</Text></Pressable>}
                     <Pressable onPress={() => openModal(addr)} style={[s.actionBtn, !addr.isDefault ? { borderRightWidth: 1, borderRightColor: BORDER } : {}]}><Feather name="edit-2" size={13} color={BLUE} /><Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text></Pressable>
                     <Pressable onPress={() => handleDelete(addr)} style={s.actionBtn}><Feather name="trash-2" size={13} color={RED} /><Text style={[s.actionBtnText, { color: RED }]}>Remove</Text></Pressable>
-                  </View>
                 </View>
               ))}
               <Pressable onPress={() => openModal()} style={[s.addNewBtn, { borderColor: BLUE }]}><Feather name="plus" size={16} color={BLUE} /><Text style={[s.addNewBtnText, { color: BLUE }]}>Add another address</Text></Pressable>
@@ -144,7 +131,6 @@ export default function AddressesScreen() {
           )}
         </ScrollView>
       )}
-
       <SwipeDownSheet
         visible={modalVisible}
         onClose={closeModal}
@@ -175,8 +161,6 @@ export default function AddressesScreen() {
       </SwipeDownSheet>
     </View>
   );
-}
-
 const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },

@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorReward, type DirectorAnnouncement, type HomeBannerConfig } from '@/lib/api';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
 import { useAuth } from '@/context/AuthContext';
 
@@ -1017,10 +1018,11 @@ function RewardsTab() {
   const [editing, setEditing] = useState<DirectorReward | null>(null);
   const [rTab,    setRTab]    = useState<RewardTabKey>('Active');
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-rewards'],
     queryFn:  () => api.director.rewards(),
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const allRewards = data?.data ?? [];
 
   const activeRewards      = allRewards.filter(r => !r.deletedAt && r.isActive);
@@ -1120,7 +1122,7 @@ function RewardsTab() {
         keyExtractor={r => r.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         ListHeaderComponent={rTab === 'Active' ? (
           <Pressable style={[styles.addBtn, { backgroundColor: BLUE }]} onPress={openNew}>
             <Feather name="plus" size={16} color="#fff" />
@@ -1343,10 +1345,11 @@ function NotifyTab() {
   const [modal, setModal]     = useState(false);
   const [editing, setEditing] = useState<DirectorAnnouncement | null>(null);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-announcements'],
     queryFn: () => api.director.allAnnouncements(),
   });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const announcements = data?.data ?? [];
 
   const deleteAnn = useMutation({
@@ -1378,7 +1381,7 @@ function NotifyTab() {
         keyExtractor={a => a.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         ListHeaderComponent={
           <>
             <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40', marginBottom: 10 }]}>

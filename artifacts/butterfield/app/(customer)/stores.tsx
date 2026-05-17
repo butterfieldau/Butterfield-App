@@ -7,19 +7,18 @@ import {
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
 
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
 function fmt12(t: string): string {
   const [h, m] = t.split(':').map(Number);
   const ampm = h >= 12 ? 'pm' : 'am';
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
-
 function openStatusColor(status: string) {
   if (status === 'open')              return '#16A34A';
   if (status === 'closing_soon')      return '#F59E0B';
@@ -27,13 +26,10 @@ function openStatusColor(status: string) {
   if (status === 'coming_soon')       return '#8B5CF6';
   if (status === 'temporarily_closed')return '#F59E0B';
   return '#8E8E93';
-}
-
 function StoreCard({ store }: { store: any }) {
   const colors = useColors();
   const sc = openStatusColor(store.openStatus);
   const isOpen = store.openStatus === 'open' || store.openStatus === 'closing_soon';
-
   const handleDirections = () => {
     if (!store.latitude || !store.longitude) return;
     const q = store.address
@@ -42,19 +38,15 @@ function StoreCard({ store }: { store: any }) {
     const mapsUrl = `https://maps.apple.com/?q=${encodeURIComponent(q)}&ll=${store.latitude},${store.longitude}`;
     Linking.openURL(mapsUrl);
   };
-
   const handleCall = () => {
     if (!store.phone) return;
     Linking.openURL(`tel:${store.phone.replace(/\s/g, '')}`);
-  };
-
   const todayHours = store.todayHours;
   const todayDisplay = todayHours?.isClosed
     ? 'Closed today'
     : todayHours?.openTime && todayHours?.closeTime
       ? `${fmt12(todayHours.openTime)} – ${fmt12(todayHours.closeTime)}`
       : null;
-
   return (
     <View style={[cs.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {/* Gradient header */}
@@ -72,7 +64,6 @@ function StoreCard({ store }: { store: any }) {
           <Text style={cs.openBadgeText}>{store.openLabel}</Text>
         </View>
       </LinearGradient>
-
       {/* Body */}
       <View style={{ padding: 14, gap: 10 }}>
         {/* Address */}
@@ -81,8 +72,6 @@ function StoreCard({ store }: { store: any }) {
           <Text style={[cs.infoText, { color: colors.foreground }]} numberOfLines={2}>
             {[store.address, store.suburb, store.state, store.postcode].filter(Boolean).join(', ')}
           </Text>
-        </View>
-
         {/* Today's hours */}
         {todayDisplay && (
           <View style={cs.infoRow}>
@@ -90,27 +79,19 @@ function StoreCard({ store }: { store: any }) {
             <Text style={[cs.infoText, { color: colors.foreground }]}>{todayDisplay}</Text>
           </View>
         )}
-
         {/* Phone */}
         {store.phone && (
-          <View style={cs.infoRow}>
             <Feather name="phone" size={14} color={colors.mutedForeground} />
             <Text style={[cs.infoText, { color: colors.foreground }]}>{store.phone}</Text>
-          </View>
-        )}
-
         {/* Services */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
           {store.pickupAvailable   && <View style={cs.serviceChip}><Feather name="shopping-bag" size={11} color="#1493FF" /><Text style={[cs.serviceText, { color: '#1493FF' }]}>Pickup</Text></View>}
           {store.deliveryAvailable && <View style={[cs.serviceChip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Delivery</Text></View>}
           {store.status === 'coming_soon' && <View style={[cs.serviceChip, { backgroundColor: '#EDE9FE' }]}><Feather name="clock" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Coming Soon</Text></View>}
-        </View>
-
         {/* Public notes */}
         {store.publicNotes ? (
           <Text style={[cs.notes, { color: colors.mutedForeground }]}>{store.publicNotes}</Text>
         ) : null}
-
         {/* Action buttons */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
           {store.latitude && store.longitude && (
@@ -123,66 +104,46 @@ function StoreCard({ store }: { store: any }) {
             <Pressable style={[cs.actionBtn, { flex: 1 }]} onPress={handleCall}>
               <Feather name="phone" size={14} color="#16A34A" />
               <Text style={[cs.actionBtnText, { color: '#16A34A' }]}>Call</Text>
-            </Pressable>
-          )}
           {store.pickupAvailable && store.status === 'open' && (
             <Pressable style={[cs.actionBtn, { flex: 1, backgroundColor: '#1493FF' }]} onPress={() => router.push('/(customer)/menu')}>
               <Feather name="shopping-bag" size={14} color="#fff" />
               <Text style={[cs.actionBtnText, { color: '#fff' }]}>Order</Text>
-            </Pressable>
-          )}
-        </View>
       </View>
     </View>
   );
-}
-
 export default function CustomerStoresScreen() {
   const insets = useSafeAreaInsets();
-  const colors = useColors();
-
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['stores'],
     queryFn: () => api.stores.list(),
     staleTime: 60000,
   });
 
-  const stores: any[] = data?.data ?? [];
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
 
-  return (
+  const stores: any[] = data?.data ?? [];
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#1493FF" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1493FF" />}
     >
       {/* Header */}
-      <LinearGradient
         colors={['#1493FF', '#3CBBEE']}
         style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 16 }]}
-      >
         <Text style={cs.heroTitle}>Our Stores</Text>
         <Text style={cs.heroSub}>Find your nearest Butterfield Cookies</Text>
-      </LinearGradient>
-
       <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
         {isLoading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#1493FF" />
-          </View>
         ) : stores.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
             <Feather name="map-pin" size={32} color="#8E8E93" />
             <Text style={{ fontWeight: '600', fontSize: 16, color: '#1C1C1E' }}>No stores listed yet</Text>
             <Text style={{ fontWeight: '400', fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>Check back soon for our upcoming locations.</Text>
-          </View>
         ) : (
           stores.map(store => <StoreCard key={store.id} store={store} />)
-        )}
-      </View>
     </ScrollView>
-  );
-}
-
 const cs = StyleSheet.create({
   hero:            { paddingHorizontal: 20, paddingBottom: 28 },
   heroTitle:       { fontWeight: '700', fontSize: 30, color: '#fff', marginBottom: 4 },

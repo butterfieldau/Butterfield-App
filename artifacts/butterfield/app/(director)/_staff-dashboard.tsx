@@ -10,6 +10,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import {
   scheduleClockInReminder,
   cancelClockInReminder,
@@ -93,7 +94,7 @@ export function StaffDashboard() {
   const [storePickerVisible, setStorePickerVisible] = useState(false);
   const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number } | undefined>();
 
-  const { data: shiftData, refetch: refetchShift, isRefetching: shiftRefetching } = useQuery({
+  const { data: shiftData, refetch: refetchShift } = useQuery({
     queryKey: ['current-shift'], queryFn: () => api.staff.currentShift(), retry: 1,
   });
   const { data: statsData, refetch: refetchStats } = useQuery({
@@ -270,6 +271,8 @@ export function StaffDashboard() {
     ? storeAssignments.find(a => a.storeId === shift.storeId)?.name ?? null
     : null;
 
+  const { refreshing, onRefresh } = useRefreshControl(refetchShift, refetchStats, refetchTasks, refetchOrders);
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
 
@@ -319,8 +322,8 @@ export function StaffDashboard() {
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={shiftRefetching}
-          onRefresh={() => { refetchShift(); refetchTasks(); refetchOrders(); refetchStats(); }}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           tintColor={BLUE}
         />
       }
