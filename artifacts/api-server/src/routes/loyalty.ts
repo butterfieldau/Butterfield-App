@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable } from '@workspace/db';
+import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
 import { eq, desc, and, isNull, sql } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
@@ -20,7 +20,6 @@ router.get('/profile', requireAuth, async (req, res) => {
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
 
   // Always recompute tier from totalSpentCents so it is the single source of truth.
-  // This corrects any stale data (e.g. seeded demo accounts or missed order updates).
   const correctTier =
     profile.totalSpentCents >= 100000 ? 'platinum' :
     profile.totalSpentCents >= 50000  ? 'gold'     :
@@ -100,29 +99,127 @@ router.get('/rewards', async (_req, res) => {
   return res.json({ data: rewards });
 });
 
+// ── GET /loyalty/claimed-rewards — customer's unclaimed/available rewards ─────
+router.get('/claimed-rewards', requireAuth, async (req, res) => {
+  const claimed = await db
+    .select({
+      id: claimedRewardsTable.id,
+      rewardId: claimedRewardsTable.rewardId,
+      status: claimedRewardsTable.status,
+      claimedAt: claimedRewardsTable.claimedAt,
+      redeemedAt: claimedRewardsTable.redeemedAt,
+      orderId: claimedRewardsTable.orderId,
+      pointsSpent: claimedRewardsTable.pointsSpent,
+      voucherValueCents: claimedRewardsTable.voucherValueCents,
+      rewardName: loyaltyRewardsTable.name,
+      rewardDescription: loyaltyRewardsTable.description,
+      rewardType: loyaltyRewardsTable.rewardType,
+      linkedProductId: loyaltyRewardsTable.linkedProductId,
+    })
+    .from(claimedRewardsTable)
+    .leftJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
+    .where(and(
+      eq(claimedRewardsTable.userId, req.user!.id),
+      eq(claimedRewardsTable.status, 'available'),
+    ))
+    .orderBy(desc(claimedRewardsTable.claimedAt));
+
+  return res.json({ data: claimed });
+});
+
+// ── POST /loyalty/redeem — claim a reward (deducts points, creates claimed_rewards row) ──
 router.post('/redeem', requireAuth, async (req, res) => {
   await ensureLoyaltySchemaReady();
   const { rewardId } = req.body;
-  const [reward] = await db.select().from(loyaltyRewardsTable).where(eq(loyaltyRewardsTable.id, rewardId));
+  const [reward] = await db.select().from(loyaltyRewardsTable)
+    .where(and(eq(loyaltyRewardsTable.id, rewardId), isNull(loyaltyRewardsTable.deletedAt)));
   if (!reward) return res.status(404).json({ error: 'Reward not found' });
+  if (!reward.isActive) return res.status(400).json({ error: 'This reward is no longer available' });
+  if (!reward.customerRedeemable) return res.status(400).json({ error: 'This reward cannot be claimed through the app' });
+
+  // Check stock
+  if (reward.stock !== null && reward.stock <= 0) {
+    return res.status(400).json({ error: 'This reward is out of stock' });
+  }
 
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
   if (profile.loyaltyPoints < reward.pointsCost) {
     return res.status(400).json({ error: 'Not enough points' });
   }
+
+  // Deduct points atomically
   await recordLoyaltyPoints({
     userId: req.user!.id,
     pointsDelta: -reward.pointsCost,
     orderId: null,
-    description: `Redeemed: ${reward.name}`,
+    description: `Claimed: ${reward.name}`,
   });
-  const [redemption] = await db.insert(loyaltyRedemptionsTable).values({
+
+  // Decrement stock if limited
+  if (reward.stock !== null) {
+    await db.update(loyaltyRewardsTable)
+      .set({ stock: sql`GREATEST(${loyaltyRewardsTable.stock} - 1, 0)` })
+      .where(eq(loyaltyRewardsTable.id, reward.id));
+  }
+
+  // Create the claimed reward row
+  const [claimed] = await db.insert(claimedRewardsTable).values({
     id: randomUUID(),
     userId: req.user!.id,
     rewardId,
+    status: 'available',
     pointsSpent: reward.pointsCost,
+    voucherValueCents: reward.voucherValueCents ?? null,
   }).returning();
-  return res.json({ data: redemption, reward });
+
+  return res.json({
+    data: {
+      ...claimed,
+      rewardName: reward.name,
+      rewardDescription: reward.description,
+      rewardType: reward.rewardType,
+      linkedProductId: reward.linkedProductId,
+    },
+    reward,
+  });
+});
+
+// ── DELETE /loyalty/claimed-rewards/:id — cancel a claim (restore points) ─────
+router.delete('/claimed-rewards/:id', requireAuth, async (req, res) => {
+  const claimUserId = req.user!.id;
+  const claimRows = await db.select().from(claimedRewardsTable)
+    .where(and(
+      eq(claimedRewardsTable.userId, claimUserId),
+      eq(claimedRewardsTable.status, 'available'),
+    ))
+    .limit(50);
+  const [claimed] = claimRows.filter(r => r.id === req.params.id);
+  if (!claimed) return res.status(404).json({ error: 'Claimed reward not found or already used' });
+
+  // Cancel the claim
+  await db.update(claimedRewardsTable)
+    .set({ status: 'cancelled' })
+    .where(eq(claimedRewardsTable.id, claimed.id));
+
+  // Restore points
+  await recordLoyaltyPoints({
+    userId: req.user!.id,
+    pointsDelta: claimed.pointsSpent,
+    orderId: null,
+    description: `Cancelled claim — points restored`,
+  });
+
+  // Restore stock if limited
+  const [reward] = await db.select({ stock: loyaltyRewardsTable.stock, id: loyaltyRewardsTable.id })
+    .from(loyaltyRewardsTable)
+    .where(eq(loyaltyRewardsTable.id, claimed.rewardId));
+  if (reward && reward.stock !== null) {
+    await db.update(loyaltyRewardsTable)
+      .set({ stock: sql`${loyaltyRewardsTable.stock} + 1` })
+      .where(eq(loyaltyRewardsTable.id, reward.id));
+  }
+
+  return res.json({ success: true, pointsRestored: claimed.pointsSpent });
 });
 
 router.patch('/birthday', requireAuth, async (req, res) => {
@@ -133,7 +230,6 @@ router.patch('/birthday', requireAuth, async (req, res) => {
   }
   const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
   if (!profile) return res.status(404).json({ error: 'Profile not found' });
-  // Once a birthday is set it is locked — contact admin to change it
   if (profile.birthday) {
     return res.status(403).json({ error: 'Birthday is already set and cannot be changed through the app. Please contact hello@butterfield.com.au to update it.' });
   }
@@ -248,15 +344,12 @@ router.get('/ensure-qr', requireAuth, async (req, res) => {
 });
 
 // ── POST /loyalty/use-free-coffee — staff redeems one free coffee reward ─────
-// Security: atomic UPDATE with WHERE free_coffee_rewards > 0 prevents any
-// double-redemption even under concurrent requests. Staff JWT required.
 router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), async (req, res) => {
   await ensureLoyaltySchemaReady();
   const { qrPayload } = req.body ?? {};
   const parsed = parseLoyaltyQrPayload(qrPayload ?? '');
   if (!parsed) return res.status(400).json({ error: 'QR payload required' });
 
-  // Resolve customer profile
   let profile = null;
   if (parsed.token) {
     [profile] = await db.select().from(customerProfilesTable)
@@ -271,8 +364,6 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), asy
   }
   if (!profile) return res.status(404).json({ error: 'Customer not found' });
 
-  // Atomic decrement — only succeeds if free_coffee_rewards > 0.
-  // If two staff taps race, only one UPDATE will match the WHERE clause.
   const [updated] = await db.update(customerProfilesTable)
     .set({
       freeCoffeeRewards:  sql`GREATEST(${customerProfilesTable.freeCoffeeRewards} - 1, 0)`,
@@ -295,7 +386,6 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), asy
     .from(usersTable)
     .where(eq(usersTable.id, profile.userId));
 
-  // Full audit trail: who redeemed, which QR, when
   await db.insert(loyaltyActivityLogTable).values({
     id: randomUUID(),
     customerId: profile.userId,
@@ -322,7 +412,7 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), asy
 });
 
 router.post('/rewards', requireRole('director', 'manager'), async (req, res) => {
-  const { name, description, pointsCost, category, isAppOnly } = req.body;
+  const { name, description, pointsCost, category, isAppOnly, rewardType, voucherValueCents, linkedProductId } = req.body;
   const [reward] = await db.insert(loyaltyRewardsTable).values({
     id: randomUUID(),
     name,
@@ -330,6 +420,9 @@ router.post('/rewards', requireRole('director', 'manager'), async (req, res) => 
     pointsCost,
     category: category ?? 'food',
     isAppOnly: isAppOnly ?? false,
+    rewardType: rewardType ?? 'item_reward',
+    voucherValueCents: voucherValueCents ?? null,
+    linkedProductId: linkedProductId ?? null,
   }).returning();
   return res.status(201).json({ data: reward });
 });

@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type LoyaltyReward } from '@/lib/api';
+import { api, type LoyaltyReward, type ClaimedReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
 
@@ -98,6 +98,7 @@ export default function LoyaltyScreen() {
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
   // Fallback QR token fetched via ensure-qr if the main profile had none.
   const [healedQrToken, setHealedQrToken] = useState<string | null>(null);
   const { data: profileData, isLoading, isRefetching, refetch } = useQuery({
@@ -115,9 +116,14 @@ export default function LoyaltyScreen() {
     queryKey: ['loyalty-transactions'],
     queryFn: () => api.loyalty.transactions(),
   });
+  const { data: claimedData } = useQuery({
+    queryKey: ['loyalty-claimed-rewards'],
+    queryFn: () => api.loyalty.claimedRewards(),
+  });
   const profile = profileData?.data;
   const rewards = rewardsData?.data ?? [];
   const transactions = txnData?.data ?? [];
+  const claimedRewards: ClaimedReward[] = claimedData?.data ?? [];
   const pts = profile?.loyaltyPoints ?? 0;
   const stamps = Math.min(profile?.coffeeStampCount ?? profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
@@ -144,31 +150,70 @@ export default function LoyaltyScreen() {
       })
       .catch(() => {});
   }, [profile?.userId, qrValue]); // eslint-disable-line react-hooks/exhaustive-deps
-  const handleRedeem = async (reward: LoyaltyReward) => {
+  const handleClaim = async (reward: LoyaltyReward) => {
     if (pts < reward.pointsCost) {
-      Alert.alert('Not enough points', `You need ${reward.pointsCost - pts} more points.`);
+      Alert.alert('Not enough points', `You need ${reward.pointsCost - pts} more points to claim this.`);
       return;
     }
-    Alert.alert('Redeem Reward', `Redeem "${reward.title}" for ${reward.pointsCost} points?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Redeem', onPress: async () => {
-          setRedeeming(reward.id);
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          try {
-            await api.loyalty.redeem(reward.id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
-            qc.invalidateQueries({ queryKey: ['loyalty-transactions'] });
-            Alert.alert('Redeemed! 🎉', `Show "${reward.title}" to the team at Butterfield.`);
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          } finally {
-            setRedeeming(null);
-          }
+    const rewardTitle = (reward as any).title ?? reward.name ?? 'Reward';
+    const rewardType = (reward as any).rewardType ?? 'item_reward';
+    const voucherCents = (reward as any).voucherValueCents;
+    const typeLabel = rewardType === 'money_voucher'
+      ? `This will give you a $${((voucherCents ?? 0) / 100).toFixed(2)} voucher to use at checkout.`
+      : 'This free item will be added to your cart at checkout.';
+    Alert.alert(
+      'Claim Reward',
+      `Claim "${rewardTitle}" for ${reward.pointsCost} points?\n\n${typeLabel}\n\nYou can cancel an unused claim from this screen to restore your points.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Claim',
+          onPress: async () => {
+            setRedeeming(reward.id);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            try {
+              await api.loyalty.redeem(reward.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+              qc.invalidateQueries({ queryKey: ['loyalty-transactions'] });
+              qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
+              Alert.alert('Claimed!', `"${rewardTitle}" is ready. Go to Cart to apply it at checkout.`);
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            } finally {
+              setRedeeming(null);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
+  };
+
+  const handleCancelClaim = async (claim: ClaimedReward) => {
+    Alert.alert(
+      'Cancel Claim',
+      `Cancel your claimed "${claim.rewardName}"? Your ${claim.pointsSpent} points will be restored.`,
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Cancel Claim',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(claim.id);
+            try {
+              await api.loyalty.cancelClaim(claim.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+              qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            } finally {
+              setCancelling(null);
+            }
+          },
+        },
+      ],
+    );
   };
   if (isLoading) {
     return (
@@ -340,53 +385,91 @@ export default function LoyaltyScreen() {
               </Text>
             </Pressable>
           )}
-        {rewards.length > 0 && (
+        {claimedRewards.length > 0 && (
           <View style={{ marginTop: 24 }}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Redeem rewards</Text>
+            <View style={[styles.sectionHeader, { paddingHorizontal: 16 }]}>
+              <Feather name="gift" size={16} color={TEXT} />
+              <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Claimed rewards</Text>
             </View>
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
-              {rewards.map((r) => {
-                const canRedeem = pts >= r.pointsCost;
-                const isLocked = r.type === 'tier' && !canRedeem;
+              {claimedRewards.map((c) => {
+                const isVoucher = c.rewardType === 'money_voucher';
+                return (
+                  <View key={c.id} style={[styles.rewardCard, { backgroundColor: '#F0FFF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: 14, padding: 14 }]}>
+                    <View style={[styles.rewardIcon, { backgroundColor: '#D1FAE5' }]}>
+                      <Feather name={isVoucher ? 'tag' : 'gift'} size={18} color="#16A34A" />
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[styles.rewardName, { fontWeight: '600', color: '#166534' }]}>{c.rewardName}</Text>
+                      <Text style={[styles.rewardDesc, { fontWeight: '400', color: '#15803D' }]}>
+                        {isVoucher
+                          ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} voucher — apply at checkout`
+                          : 'Free item — apply at checkout'}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#4ADE80', fontWeight: '500' }}>
+                        Ready to use
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => handleCancelClaim(c)}
+                      disabled={cancelling === c.id}
+                      style={{ padding: 8 }}
+                    >
+                      {cancelling === c.id
+                        ? <ActivityIndicator size="small" color="#EF4444" />
+                        : <Feather name="x-circle" size={20} color="#EF4444" />}
+                    </Pressable>
+                  </View>
+                );
+              })}
+              <Text style={{ fontSize: 11, color: MUTED, textAlign: 'center', paddingBottom: 4 }}>
+                Tap the X to cancel an unused claim and restore your points.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {rewards.filter((r: any) => r.customerRedeemable !== false).length > 0 && (
+          <View style={{ marginTop: 24 }}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Claim a reward</Text>
+            </View>
+            <View style={{ paddingHorizontal: 16, gap: 10 }}>
+              {rewards.filter((r: any) => r.customerRedeemable !== false).map((r) => {
+                const canClaim = pts >= r.pointsCost;
+                const rewardType = (r as any).rewardType ?? 'item_reward';
+                const voucherCents = (r as any).voucherValueCents;
                 return (
                   <View key={r.id} style={styles.rewardCard}>
                     <View style={[styles.rewardIcon, { backgroundColor: '#EEF2FB' }]}>
-                      <Feather name={r.type === 'tier' ? 'lock' : 'tag'} size={18} color={BRAND} />
+                      <Feather name={rewardType === 'money_voucher' ? 'tag' : 'gift'} size={18} color={BRAND} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.rewardName, { fontWeight: '600' }]}>{r.title}</Text>
-                        {r.type === 'tier' && (
-                          <View style={[styles.tierTag, { backgroundColor: '#F59E0B' }]}>
-                            <Text style={[styles.tierTagText, { fontWeight: '700' }]}>Gold</Text>
-                          </View>
-                        )}
-                      </View>
+                      <Text style={[styles.rewardName, { fontWeight: '600' }]}>{(r as any).title ?? r.name}</Text>
                       <Text style={[styles.rewardDesc, { fontWeight: '400' }]}>{r.description}</Text>
-                      <Text style={[styles.rewardPts, { fontWeight: '600', color: r.type === 'tier' ? MUTED : BRAND }]}>
-                        {r.type === 'tier' ? 'Tier perk' : `${r.pointsCost} pts`}
-                      </Text>
+                      {rewardType === 'money_voucher' && voucherCents ? (
+                        <Text style={[styles.rewardPts, { fontWeight: '600', color: '#16A34A' }]}>
+                          ${(voucherCents / 100).toFixed(2)} off — {r.pointsCost} pts
+                        </Text>
+                      ) : (
+                        <Text style={[styles.rewardPts, { fontWeight: '600', color: BRAND }]}>
+                          {r.pointsCost} pts
+                        </Text>
+                      )}
                     </View>
-                    {isLocked ? (
-                      <View style={[styles.lockedBtn, { backgroundColor: '#F0F0F0' }]}>
-                        <Text style={[styles.lockedBtnText, { fontWeight: '500' }]}>Locked</Text>
-                      </View>
-                    ) : (
-                      <Pressable
-                        onPress={() => handleRedeem(r)}
-                        disabled={redeeming === r.id || !canRedeem}
-                        style={[styles.redeemBtn, { backgroundColor: canRedeem ? WHITE : '#F0F0F0', borderColor: canRedeem ? BORDER : 'transparent', borderWidth: 1 }]}
-                      >
-                        {redeeming === r.id ? (
-                          <ActivityIndicator size="small" color={BRAND} />
-                        ) : (
-                          <Text style={[styles.redeemBtnText, { fontWeight: '600', color: canRedeem ? TEXT : MUTED }]}>
-                            {canRedeem ? 'Redeem' : 'Need more'}
-                          </Text>
-                        )}
-                      </Pressable>
-                    )}
+                    <Pressable
+                      onPress={() => handleClaim(r)}
+                      disabled={redeeming === r.id || !canClaim}
+                      style={[styles.redeemBtn, { backgroundColor: canClaim ? WHITE : '#F0F0F0', borderColor: canClaim ? BORDER : 'transparent', borderWidth: 1 }]}
+                    >
+                      {redeeming === r.id ? (
+                        <ActivityIndicator size="small" color={BRAND} />
+                      ) : (
+                        <Text style={[styles.redeemBtnText, { fontWeight: '600', color: canClaim ? TEXT : MUTED }]}>
+                          {canClaim ? 'Claim' : 'Need more'}
+                        </Text>
+                      )}
+                    </Pressable>
                   </View>
                 );
               })}

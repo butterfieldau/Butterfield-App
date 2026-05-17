@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, storeSettingsTable, productsTable, discountCodesTable, discountCodeUsagesTable } from '@workspace/db';
-import { eq, desc, inArray, sql } from 'drizzle-orm';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, productsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, loyaltyRewardsTable } from '@workspace/db';
+import { eq, desc, inArray, sql, and } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { notifyRole, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
@@ -31,10 +31,13 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const {
-    items, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed,
+    items: rawItems, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed,
     deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
     discountCode, discountCodeId: clientDiscountCodeId, paymentMethodType,
+    claimedRewardId,
   } = req.body;
+
+  let items = rawItems;
 
   if (!items?.length) {
     return res.status(400).json({ error: 'Items are required' });
@@ -60,6 +63,49 @@ router.post('/', async (req, res) => {
     if (!profile || profile.loyaltyPoints < claimedLoyaltyPoints) {
       return res.status(400).json({ error: 'Insufficient loyalty points' });
     }
+  }
+
+  // ── Validate claimed reward ────────────────────────────────────────────────
+  let claimedRewardDiscountCents = 0;
+  let claimedRewardData: { id: string; rewardType: string; linkedProductId: string | null; voucherValueCents: number | null } | null = null;
+
+  if (claimedRewardId && typeof claimedRewardId === 'string') {
+    const [claimedRow] = await db
+      .select({
+        id: claimedRewardsTable.id,
+        userId: claimedRewardsTable.userId,
+        status: claimedRewardsTable.status,
+        voucherValueCents: claimedRewardsTable.voucherValueCents,
+        rewardId: claimedRewardsTable.rewardId,
+      })
+      .from(claimedRewardsTable)
+      .where(and(
+        eq(claimedRewardsTable.id, claimedRewardId),
+        eq(claimedRewardsTable.userId, req.user!.id),
+        eq(claimedRewardsTable.status, 'available'),
+      ));
+
+    if (!claimedRow) {
+      return res.status(400).json({ error: 'Claimed reward not found or already used' });
+    }
+
+    const [rewardRow] = await db
+      .select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId })
+      .from(loyaltyRewardsTable)
+      .where(eq(loyaltyRewardsTable.id, claimedRow.rewardId));
+
+    const rewardType = rewardRow?.rewardType ?? 'item_reward';
+    const linkedProductId = rewardRow?.linkedProductId ?? null;
+
+    if (rewardType === 'money_voucher') {
+      claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
+    } else if (rewardType === 'item_reward' && linkedProductId) {
+      // Add the free item to the cart with zero price
+      const freeItem = { productId: linkedProductId, quantity: 1, unitPriceCents: 0, isFreeReward: true };
+      items = [...(items ?? []), freeItem];
+    }
+
+    claimedRewardData = { id: claimedRow.id, rewardType, linkedProductId, voucherValueCents: claimedRow.voucherValueCents };
   }
 
   // ── Server-side discount code validation (client value is not trusted) ────
@@ -89,7 +135,7 @@ router.post('/', async (req, res) => {
   }
 
   // ── Server-side price computation (client totals are not trusted) ─────────
-  const totalDiscountCents = claimedLoyaltyPoints + discountCodeAmountCents;
+  const totalDiscountCents = claimedLoyaltyPoints + discountCodeAmountCents + claimedRewardDiscountCents;
   let computed: Awaited<ReturnType<typeof computeOrderTotal>>;
   try {
     computed = await computeOrderTotal(
@@ -195,6 +241,17 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'Payment intent has already been used' });
     }
     throw err;
+  }
+
+  // ── Mark claimed reward as redeemed ───────────────────────────────────────
+  if (claimedRewardData && isPaid) {
+    try {
+      await db.update(claimedRewardsTable)
+        .set({ status: 'redeemed', redeemedAt: new Date(), orderId })
+        .where(eq(claimedRewardsTable.id, claimedRewardData.id));
+    } catch (err: any) {
+      req.log.error({ err, orderId, claimedRewardId: claimedRewardData.id }, 'Failed to mark claimed reward as redeemed');
+    }
   }
 
   // ── Record discount code usage ─────────────────────────────────────────────

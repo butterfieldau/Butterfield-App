@@ -32,7 +32,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { api, type SavedAddress } from '@/lib/api';
+import { api, type SavedAddress, type ClaimedReward } from '@/lib/api';
 import {
   formatDateChip,
   formatTime,
@@ -152,6 +152,7 @@ function PaymentStepWithStripe({
     discountCode?: string;
     discountCodeId?: string;
     discountAmountCents?: number;
+    claimedRewardId?: string;
   }) => Promise<void>;
 }) {
   const { confirmPayment } = useStripe();
@@ -165,6 +166,13 @@ function PaymentStepWithStripe({
   const [discountError, setDiscountError] = useState('');
   const [validatingDiscount, setValidatingDiscount] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [selectedClaimedRewardId, setSelectedClaimedRewardId] = useState<string | null>(null);
+
+  const { data: claimedRewardsData } = useQuery({
+    queryKey: ['loyalty-claimed-rewards'],
+    queryFn: () => api.loyalty.claimedRewards(),
+  });
+  const claimedRewards: ClaimedReward[] = claimedRewardsData?.data ?? [];
 
   useEffect(() => {
     (async () => {
@@ -176,7 +184,19 @@ function PaymentStepWithStripe({
     })();
   }, []);
 
-  const discountCents = discountApplied?.discountAmountCents ?? 0;
+  // If previously selected reward no longer available, clear selection
+  useEffect(() => {
+    if (selectedClaimedRewardId && !claimedRewards.find(c => c.id === selectedClaimedRewardId)) {
+      setSelectedClaimedRewardId(null);
+    }
+  }, [claimedRewards, selectedClaimedRewardId]);
+
+  const selectedClaimed = claimedRewards.find(c => c.id === selectedClaimedRewardId) ?? null;
+  const claimedRewardDiscountCents = selectedClaimed?.rewardType === 'money_voucher'
+    ? (selectedClaimed.voucherValueCents ?? 0)
+    : 0;
+
+  const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents;
   const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
   const baseForFee = subtotalCents + deliveryCents - discountCents;
   const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
@@ -216,6 +236,7 @@ function PaymentStepWithStripe({
           discountCode: discountApplied?.code,
           discountCodeId: discountApplied?.id,
           discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
         });
       } finally {
         setBusy(false);
@@ -264,6 +285,7 @@ function PaymentStepWithStripe({
           discountCode: discountApplied?.code,
           discountCodeId: discountApplied?.id,
           discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
         });
         return;
       }
@@ -279,6 +301,7 @@ function PaymentStepWithStripe({
         discountCode: discountApplied?.code,
         discountCodeId: discountApplied?.id,
         discountAmountCents: discountApplied?.discountAmountCents,
+        claimedRewardId: selectedClaimedRewardId ?? undefined,
       });
     } catch (e: any) {
       Alert.alert('Payment failed', e?.message ?? 'Please try again.');
@@ -357,6 +380,49 @@ function PaymentStepWithStripe({
         </View>
       )}
 
+      {claimedRewards.length > 0 && (
+        <>
+          <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Rewards</Text>
+          <View style={{ gap: 8 }}>
+            {claimedRewards.map((c) => {
+              const isVoucher = c.rewardType === 'money_voucher';
+              const isSelected = selectedClaimedRewardId === c.id;
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedClaimedRewardId(isSelected ? null : c.id);
+                  }}
+                  style={[
+                    psStyles.methodRow,
+                    { borderColor: isSelected ? GREEN : BORDER, backgroundColor: isSelected ? '#F0FFF4' : CARD },
+                  ]}
+                >
+                  <View style={[psStyles.radioOuter, { borderColor: isSelected ? GREEN : MUTED }]}>
+                    {isSelected && <View style={[psStyles.radioInner, { backgroundColor: GREEN }]} />}
+                  </View>
+                  <Feather name={isVoucher ? 'tag' : 'gift'} size={18} color={isSelected ? '#16A34A' : MUTED} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[psStyles.methodLabel, { color: isSelected ? '#166534' : TEXT }]}>{c.rewardName}</Text>
+                    <Text style={{ fontSize: 12, color: isSelected ? '#15803D' : MUTED }}>
+                      {isVoucher
+                        ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} off your order`
+                        : 'Free item added to order'}
+                    </Text>
+                  </View>
+                  {isSelected && (
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>
+                      {isVoucher ? `-AUD ${((c.voucherValueCents ?? 0) / 100).toFixed(2)}` : 'Free'}
+                    </Text>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
+      )}
+
       <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Discount code</Text>
       {discountApplied ? (
         <View style={psStyles.discountApplied}>
@@ -401,10 +467,22 @@ function PaymentStepWithStripe({
 
       <View style={[psStyles.totalRow, { marginTop: 4 }]}>
         <View style={{ flex: 1, gap: 2 }}>
-          {discountCents > 0 && (
+          {(discountApplied?.discountAmountCents ?? 0) > 0 && (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 12, color: '#16A34A' }}>Discount</Text>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(discountCents / 100).toFixed(2)}</Text>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>Discount code</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {((discountApplied?.discountAmountCents ?? 0) / 100).toFixed(2)}</Text>
+            </View>
+          )}
+          {claimedRewardDiscountCents > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>Reward voucher</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(claimedRewardDiscountCents / 100).toFixed(2)}</Text>
+            </View>
+          )}
+          {selectedClaimed?.rewardType === 'item_reward' && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>Reward item</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>Free</Text>
             </View>
           )}
           {method !== 'pay_at_pickup' && stripeFee > 0 && (
@@ -753,6 +831,7 @@ export default function CartScreen() {
     discountCode?: string;
     discountCodeId?: string;
     discountAmountCents?: number;
+    claimedRewardId?: string;
   }) => {
     setLoading(true);
     try {
@@ -795,10 +874,12 @@ export default function CartScreen() {
         discountCode:     opts.discountCode,
         discountCodeId:   opts.discountCodeId,
         paymentMethodType: opts.paymentMethodType,
+        claimedRewardId:  opts.claimedRewardId,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
       qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+      qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const serverTotal = order.data.totalCents ?? totalCents;
       setConfirmation({ orderId: order.data.id, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType });

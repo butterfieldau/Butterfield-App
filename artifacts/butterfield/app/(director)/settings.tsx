@@ -902,24 +902,33 @@ function StoreHoursSection() {
 function RewardModal({ visible, reward, onClose, onSuccess }: {
   visible: boolean; reward: DirectorReward | null; onClose: () => void; onSuccess: () => void;
 }) {
-  const [name,       setName]       = useState('');
-  const [desc,       setDesc]       = useState('');
-  const [pts,        setPts]        = useState('');
-  const [category,   setCategory]   = useState('food');
-  const [stock,      setStock]      = useState('');
-  const [isAppOnly,  setIsAppOnly]  = useState(false);
-  const [isActive,   setIsActive]   = useState(true);
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState('');
+  const [name,              setName]              = useState('');
+  const [desc,              setDesc]              = useState('');
+  const [pts,               setPts]               = useState('');
+  const [category,          setCategory]          = useState('food');
+  const [stock,             setStock]             = useState('');
+  const [isAppOnly,         setIsAppOnly]         = useState(false);
+  const [isActive,          setIsActive]          = useState(true);
+  const [rewardType,        setRewardType]        = useState<'item_reward' | 'money_voucher'>('item_reward');
+  const [voucherDollars,    setVoucherDollars]    = useState('');
+  const [linkedProductId,   setLinkedProductId]   = useState('');
+  const [customerRedeemable,setCustomerRedeemable]= useState(true);
+  const [loading,           setLoading]           = useState(false);
+  const [error,             setError]             = useState('');
 
   useEffect(() => {
     if (reward) {
       setName(reward.name); setDesc(reward.description); setPts(String(reward.pointsCost));
       setCategory(reward.category); setStock(reward.stock != null ? String(reward.stock) : '');
       setIsAppOnly(reward.isAppOnly); setIsActive(reward.isActive);
+      setRewardType((reward.rewardType as any) ?? 'item_reward');
+      setVoucherDollars(reward.voucherValueCents ? String(reward.voucherValueCents / 100) : '');
+      setLinkedProductId(reward.linkedProductId ?? '');
+      setCustomerRedeemable(reward.customerRedeemable !== false);
     } else {
       setName(''); setDesc(''); setPts(''); setCategory('food'); setStock('');
-      setIsAppOnly(false); setIsActive(true);
+      setIsAppOnly(false); setIsActive(true); setRewardType('item_reward');
+      setVoucherDollars(''); setLinkedProductId(''); setCustomerRedeemable(true);
     }
     setError('');
   }, [reward, visible]);
@@ -929,12 +938,23 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
     if (!name.trim()) { setError('Name is required.'); return; }
     const pointsCost = parseInt(pts, 10);
     if (isNaN(pointsCost) || pointsCost < 1) { setError('Points cost must be a positive number.'); return; }
+    if (rewardType === 'money_voucher') {
+      const dollars = parseFloat(voucherDollars);
+      if (isNaN(dollars) || dollars < 0.01) { setError('Voucher value must be at least $0.01.'); return; }
+    }
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const payload = {
+      const voucherValueCents = rewardType === 'money_voucher'
+        ? Math.round(parseFloat(voucherDollars) * 100)
+        : null;
+      const payload: Record<string, any> = {
         name: name.trim(), description: desc.trim(), pointsCost, category,
         stock: stock ? parseInt(stock, 10) : null, isAppOnly, isActive,
+        rewardType,
+        voucherValueCents,
+        linkedProductId: linkedProductId.trim() || null,
+        customerRedeemable,
       };
       if (reward?.id) await api.director.updateReward(reward.id, payload);
       else            await api.director.createReward(payload);
@@ -957,6 +977,45 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
         </View>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
           {error ? <Text style={[styles.errorText, { color: RED }]}>{error}</Text> : null}
+
+          <View style={{ gap: 8 }}>
+            <Text style={styles.fieldLabel}>Reward type *</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {(['item_reward', 'money_voucher'] as const).map(rt => (
+                <Pressable key={rt} onPress={() => { setRewardType(rt); Haptics.selectionAsync(); }}
+                  style={[styles.chip, { flex: 1, justifyContent: 'center', backgroundColor: rewardType === rt ? BLUE : '#F3F4F6', borderColor: rewardType === rt ? BLUE : BORDER }]}>
+                  <Text style={[styles.chipText, { color: rewardType === rt ? '#fff' : TEXT }]}>
+                    {rt === 'item_reward' ? 'Free item' : 'Money voucher'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              {rewardType === 'money_voucher'
+                ? 'Deducts a dollar amount from the cart total at checkout.'
+                : 'Adds one free linked product to the customer\'s cart at checkout.'}
+            </Text>
+          </View>
+
+          {rewardType === 'money_voucher' && (
+            <View style={{ gap: 6 }}>
+              <Text style={styles.fieldLabel}>Voucher value (AUD) *</Text>
+              <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={voucherDollars}
+                onChangeText={setVoucherDollars} keyboardType="decimal-pad" placeholder="e.g. 5.00"
+                placeholderTextColor={MUTED} />
+              <Text style={{ fontSize: 11, color: MUTED }}>Customer gets this amount off their cart total.</Text>
+            </View>
+          )}
+
+          {rewardType === 'item_reward' && (
+            <View style={{ gap: 6 }}>
+              <Text style={styles.fieldLabel}>Linked product ID (optional)</Text>
+              <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={linkedProductId}
+                onChangeText={setLinkedProductId} placeholder="Leave blank for generic free item"
+                placeholderTextColor={MUTED} autoCapitalize="none" autoCorrect={false} />
+              <Text style={{ fontSize: 11, color: MUTED }}>The Stripe product ID that will be added free to the cart.</Text>
+            </View>
+          )}
 
           <View style={{ gap: 6 }}>
             <Text style={styles.fieldLabel}>Name *</Text>
@@ -989,6 +1048,11 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
             <Text style={styles.fieldLabel}>Stock limit (leave blank for unlimited)</Text>
             <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={stock}
               onChangeText={setStock} keyboardType="number-pad" placeholder="Unlimited" placeholderTextColor={MUTED} />
+          </View>
+          <View style={styles.switchRow}>
+            <Text style={styles.fieldLabel}>Claimable by customers in app</Text>
+            <Switch value={customerRedeemable} onValueChange={v => { setCustomerRedeemable(v); Haptics.selectionAsync(); }}
+              trackColor={{ false: '#D1D5DB', true: GREEN }} thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
           </View>
           <View style={styles.switchRow}>
             <Text style={styles.fieldLabel}>App-only reward</Text>

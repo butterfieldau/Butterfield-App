@@ -98,6 +98,7 @@ export const api = {
       deliveryPostcode?: string; deliveryState?: string;
       paymentMethod?: 'card' | 'pay_at_pickup';
       discountCode?: string; discountCodeId?: string; paymentMethodType?: string;
+      claimedRewardId?: string;
     }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -121,7 +122,11 @@ export const api = {
     useFreeCoffee: (payload: string) =>
       request<{ data: LoyaltyLookupResult & { redeemedAt?: string } }>('/loyalty/use-free-coffee', { method: 'POST', body: JSON.stringify({ qrPayload: payload }) }),
     redeem: (rewardId: string) =>
-      request<{ data: any; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
+      request<{ data: ClaimedReward & { rewardName: string; rewardDescription: string; rewardType: string; linkedProductId: string | null }; reward: LoyaltyReward }>('/loyalty/redeem', { method: 'POST', body: JSON.stringify({ rewardId }) }),
+    claimedRewards: () =>
+      request<{ data: ClaimedReward[] }>('/loyalty/claimed-rewards'),
+    cancelClaim: (claimId: string) =>
+      request<{ success: boolean; pointsRestored: number }>(`/loyalty/claimed-rewards/${claimId}`, { method: 'DELETE' }),
     updateBirthday: (birthday: string) =>
       request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
@@ -667,11 +672,18 @@ export interface LoyaltyLookupResult {
 
 export interface LoyaltyReward {
   id: string;
-  title: string;
+  title?: string;
+  name?: string;
   description: string;
   pointsCost: number;
-  type: string;
+  type?: string;
   isActive: boolean;
+  rewardType?: 'item_reward' | 'money_voucher';
+  voucherValueCents?: number | null;
+  linkedProductId?: string | null;
+  customerRedeemable?: boolean;
+  staffRedeemable?: boolean;
+  stock?: number | null;
 }
 
 export interface SavedAddress {
@@ -737,6 +749,27 @@ export interface DirectorReward {
   expiresAt?: string | null;
   createdAt: string;
   deletedAt?: string | null;
+  rewardType: 'item_reward' | 'money_voucher';
+  voucherValueCents?: number | null;
+  linkedProductId?: string | null;
+  customerRedeemable: boolean;
+  staffRedeemable: boolean;
+}
+
+export interface ClaimedReward {
+  id: string;
+  userId: string;
+  rewardId: string;
+  status: 'available' | 'applied_to_cart' | 'redeemed' | 'expired' | 'cancelled';
+  claimedAt: string;
+  redeemedAt?: string | null;
+  orderId?: string | null;
+  pointsSpent: number;
+  voucherValueCents?: number | null;
+  rewardName?: string;
+  rewardDescription?: string;
+  rewardType?: 'item_reward' | 'money_voucher';
+  linkedProductId?: string | null;
 }
 
 export interface DirectorAnnouncement {

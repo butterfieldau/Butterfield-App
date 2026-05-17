@@ -795,27 +795,48 @@ router.post('/rewards', async (req, res) => {
   const b = req.body ?? {};
   if (!b.name?.trim()) return res.status(400).json({ error: 'Reward name is required.' });
   if (typeof b.pointsCost !== 'number') return res.status(400).json({ error: 'pointsCost must be a number.' });
+  const rewardType = b.rewardType ?? 'item_reward';
+  if (!['item_reward', 'money_voucher'].includes(rewardType)) {
+    return res.status(400).json({ error: 'rewardType must be item_reward or money_voucher.' });
+  }
+  if (rewardType === 'money_voucher' && (!b.voucherValueCents || typeof b.voucherValueCents !== 'number' || b.voucherValueCents < 1)) {
+    return res.status(400).json({ error: 'money_voucher rewards require a voucherValueCents value.' });
+  }
   const [reward] = await db.insert(loyaltyRewardsTable).values({
-    id:          randomUUID(),
-    name:        b.name.trim(),
-    description: b.description?.trim() ?? '',
-    pointsCost:  b.pointsCost,
-    category:    b.category ?? 'food',
-    imageUrl:    b.imageUrl ?? null,
-    isActive:    b.isActive !== false,
-    isAppOnly:   b.isAppOnly === true,
-    stock:       typeof b.stock === 'number' ? b.stock : null,
-    expiresAt:   b.expiresAt ? new Date(b.expiresAt) : null,
+    id:               randomUUID(),
+    name:             b.name.trim(),
+    description:      b.description?.trim() ?? '',
+    pointsCost:       b.pointsCost,
+    category:         b.category ?? 'food',
+    imageUrl:         b.imageUrl ?? null,
+    isActive:         b.isActive !== false,
+    isAppOnly:        b.isAppOnly === true,
+    stock:            typeof b.stock === 'number' ? b.stock : null,
+    expiresAt:        b.expiresAt ? new Date(b.expiresAt) : null,
+    rewardType,
+    voucherValueCents: rewardType === 'money_voucher' ? b.voucherValueCents : null,
+    linkedProductId:  b.linkedProductId ?? null,
+    customerRedeemable: b.customerRedeemable !== false,
+    staffRedeemable:  b.staffRedeemable === true,
   }).returning();
   return res.status(201).json({ data: reward });
 });
 
 router.patch('/rewards/:id', async (req, res) => {
   const b = req.body ?? {};
-  const allowed = ['name','description','pointsCost','category','imageUrl','isActive','isAppOnly','stock'];
+  const allowed = ['name','description','pointsCost','category','imageUrl','isActive','isAppOnly','stock',
+    'rewardType','voucherValueCents','linkedProductId','customerRedeemable','staffRedeemable'];
   const updates: Record<string, any> = {};
   for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
   if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;
+  // Enforce voucher value presence
+  if (updates.rewardType === 'money_voucher' && updates.voucherValueCents === undefined) {
+    const [existing] = await db.select({ rewardType: loyaltyRewardsTable.rewardType, voucherValueCents: loyaltyRewardsTable.voucherValueCents })
+      .from(loyaltyRewardsTable).where(eq(loyaltyRewardsTable.id, req.params.id));
+    if (!existing?.voucherValueCents) {
+      return res.status(400).json({ error: 'money_voucher rewards require voucherValueCents.' });
+    }
+  }
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No fields to update.' });
   const [updated] = await db.update(loyaltyRewardsTable).set(updates)
     .where(and(eq(loyaltyRewardsTable.id, req.params.id), isNull(loyaltyRewardsTable.deletedAt))).returning();

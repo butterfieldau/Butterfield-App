@@ -25,6 +25,11 @@ export const loyaltyRewardsTable = pgTable("loyalty_rewards", {
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   deletedAt: timestamp("deleted_at"),
+  rewardType: text("reward_type").notNull().default("item_reward"),
+  voucherValueCents: integer("voucher_value_cents"),
+  linkedProductId: text("linked_product_id"),
+  staffRedeemable: boolean("staff_redeemable").notNull().default(false),
+  customerRedeemable: boolean("customer_redeemable").notNull().default(true),
 });
 
 export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {
@@ -50,6 +55,18 @@ export const loyaltyActivityLogTable = pgTable("loyalty_activity_log", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const claimedRewardsTable = pgTable("claimed_rewards", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  rewardId: text("reward_id").notNull(),
+  status: text("status").notNull().default("available"),
+  claimedAt: timestamp("claimed_at").notNull().defaultNow(),
+  redeemedAt: timestamp("redeemed_at"),
+  orderId: text("order_id"),
+  pointsSpent: integer("points_spent").notNull(),
+  voucherValueCents: integer("voucher_value_cents"),
+});
+
 export const insertLoyaltyTransactionSchema = createInsertSchema(loyaltyTransactionsTable).omit({ createdAt: true });
 export const insertLoyaltyRewardSchema = createInsertSchema(loyaltyRewardsTable).omit({ createdAt: true });
 export const insertLoyaltyRedemptionSchema = createInsertSchema(loyaltyRedemptionsTable).omit({ redeemedAt: true });
@@ -61,3 +78,4 @@ export type InsertLoyaltyReward = z.infer<typeof insertLoyaltyRewardSchema>;
 export type LoyaltyReward = typeof loyaltyRewardsTable.$inferSelect;
 export type LoyaltyRedemption = typeof loyaltyRedemptionsTable.$inferSelect;
 export type LoyaltyActivityLog = typeof loyaltyActivityLogTable.$inferSelect;
+export type ClaimedReward = typeof claimedRewardsTable.$inferSelect;
