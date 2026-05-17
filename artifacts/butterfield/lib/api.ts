@@ -234,7 +234,7 @@ export const api = {
       paymentMethod?: 'card' | 'pay_at_pickup';
       claimedRewardId?: string;
     }) =>
-      request<{ clientSecret: string; paymentIntentId: string; amountCents: number; discountAmountCents?: number; rewardDiscountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; amountCents: number; discountAmountCents?: number; rewardDiscountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
     stats:               () => request<{ data: any }>('/director/stats'),

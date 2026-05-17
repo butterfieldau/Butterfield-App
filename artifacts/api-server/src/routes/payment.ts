@@ -33,15 +33,11 @@ router.post('/payment-intent', async (req, res) => {
     return res.status(400).json({ error: 'Pay at pickup orders do not require a Stripe payment intent.' });
   }
 
-  if (!items?.length) {
-    return res.status(400).json({ error: 'Items are required to create a payment intent' });
-  }
-
   let totalDiscountCents = 0;
   let validatedDiscountCode: string | null = null;
   let rewardDiscountCents = 0;
   // Strip any client-supplied isFreeReward flags — only the server may set this
-  let enrichedItems = (items as any[]).map(({ isFreeReward: _f, ...rest }: any) => rest);
+  let enrichedItems = (items as any[] ?? []).map(({ isFreeReward: _f, ...rest }: any) => rest);
 
   // ── Validate claimed reward and apply its effect to pricing ───────────────
   if (claimedRewardId && typeof claimedRewardId === 'string') {
@@ -64,27 +60,34 @@ router.post('/payment-intent', async (req, res) => {
       return res.status(400).json({ error: 'This reward has expired' });
     }
 
-    const [rewardRow] = await db.select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId })
+    const [rewardRow] = await db.select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId, name: loyaltyRewardsTable.name })
       .from(loyaltyRewardsTable)
       .where(eq(loyaltyRewardsTable.id, claimedRow.rewardId));
 
     const rewardType = rewardRow?.rewardType ?? 'item_reward';
+    const rewardName = rewardRow?.name ?? 'Free Reward';
     if (rewardType === 'money_voucher') {
       rewardDiscountCents = claimedRow.voucherValueCents ?? 0;
-    } else if (rewardType === 'item_reward' && rewardRow?.linkedProductId) {
+    } else if (rewardType === 'item_reward') {
       // Grant exactly ONE free unit — never make multi-quantity lines entirely free
-      const lid = rewardRow.linkedProductId;
-      const existingIdx = enrichedItems.findIndex((i: any) => i.productId === lid && !i.isFreeReward);
-      if (existingIdx >= 0) {
-        const existingQty = Math.max(1, Math.floor(enrichedItems[existingIdx].quantity ?? 1));
-        if (existingQty === 1) {
-          enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], isFreeReward: true };
+      const lid = rewardRow?.linkedProductId ?? null;
+      if (lid) {
+        const existingIdx = enrichedItems.findIndex((i: any) => i.productId === lid && !i.isFreeReward);
+        if (existingIdx >= 0) {
+          const existingQty = Math.max(1, Math.floor(enrichedItems[existingIdx].quantity ?? 1));
+          if (existingQty === 1) {
+            enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], isFreeReward: true };
+          } else {
+            enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], quantity: existingQty - 1 };
+            enrichedItems = [...enrichedItems, { productId: lid, name: rewardName, quantity: 1, isFreeReward: true }];
+          }
         } else {
-          enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], quantity: existingQty - 1 };
-          enrichedItems = [...enrichedItems, { productId: lid, quantity: 1, isFreeReward: true }];
+          // Item not in cart — inject as new free line (handles empty-cart reward checkout)
+          enrichedItems = [...enrichedItems, { productId: lid, name: rewardName, quantity: 1, isFreeReward: true }];
         }
       } else {
-        enrichedItems = [...enrichedItems, { productId: lid, quantity: 1, isFreeReward: true }];
+        // No linked product — inject named placeholder
+        enrichedItems = [...enrichedItems, { productId: `reward:${claimedRow.id}`, name: rewardName, quantity: 1, isFreeReward: true }];
       }
     }
 
@@ -94,6 +97,11 @@ router.post('/payment-intent', async (req, res) => {
         sql`UPDATE claimed_rewards SET status='applied_to_cart' WHERE id=${claimedRewardId} AND user_id=${req.user!.id} AND status='available'`
       );
     }
+  }
+
+  // Items must be present at this point — either client-supplied or injected by reward
+  if (!enrichedItems.length) {
+    return res.status(400).json({ error: 'Items are required to create a payment intent' });
   }
 
   try {
@@ -126,6 +134,17 @@ router.post('/payment-intent', async (req, res) => {
     );
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
+  }
+
+  // Free orders (e.g. item_reward with empty cart) skip Stripe entirely
+  if (computed.totalCents === 0) {
+    return res.json({
+      paymentRequired: false,
+      clientSecret: null,
+      paymentIntentId: null,
+      amountCents: 0,
+      discountAmountCents: totalDiscountCents,
+    });
   }
 
   if (computed.totalCents < 50) {

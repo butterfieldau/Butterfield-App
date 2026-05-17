@@ -322,6 +322,18 @@ function PaymentStepWithStripe({
         claimedRewardId: selectedClaimedRewardId ?? undefined,
       });
 
+      // Zero-total orders (e.g. free item reward with empty cart) skip Stripe entirely
+      if (intent.amountCents === 0 || intent.paymentRequired === false) {
+        await onSuccess({
+          paymentMethodType: 'free_reward',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+        });
+        return;
+      }
+
       if (method === 'apple_pay' || method === 'google_pay') {
         const displayItems = [
           { label: 'Subtotal', amount: String(subtotalCents / 100), type: 'final' as const, isPending: false },
@@ -329,7 +341,7 @@ function PaymentStepWithStripe({
           ...(discountCents > 0 ? [{ label: 'Discount', amount: String(-discountCents / 100), type: 'final' as const, isPending: false }] : []),
           { label: 'Butterfield Cookies', amount: String(intent.amountCents / 100), type: 'final' as const, isPending: false },
         ];
-        const { error: ppError } = await confirmPlatformPayPayment(intent.clientSecret, {
+        const { error: ppError } = await confirmPlatformPayPayment(intent.clientSecret!, {
           applePay: {
             cartItems: displayItems,
             merchantCountryCode: 'AU',
@@ -345,7 +357,7 @@ function PaymentStepWithStripe({
         } as any);
         if (ppError) throw new Error(ppError.message);
         await onSuccess({
-          stripePaymentIntentId: intent.paymentIntentId,
+          stripePaymentIntentId: intent.paymentIntentId ?? undefined,
           paymentMethodType: method,
           discountCode: discountApplied?.code,
           discountCodeId: discountApplied?.id,
@@ -355,7 +367,7 @@ function PaymentStepWithStripe({
         return;
       }
 
-      const { paymentIntent: pi, error: piError } = await confirmPayment(intent.clientSecret, {
+      const { paymentIntent: pi, error: piError } = await confirmPayment(intent.clientSecret!, {
         paymentMethodType: 'Card',
       } as any);
       if (piError) throw new Error(piError.message);
