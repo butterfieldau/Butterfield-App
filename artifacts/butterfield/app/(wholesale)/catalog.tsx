@@ -27,6 +27,7 @@ import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 import { WS_REORDER_KEY } from './orders';
 import { WS_CART_KEY, WS_OPEN_CHECKOUT_KEY } from './cart';
+import {
   formatDateChip,
   formatTime,
   getDeliveryDates,
@@ -60,6 +61,7 @@ function getPrice(p: ApiProduct): number {
 function getWholesalePrice(basePrice: number, qty: number): number {
   const tier = [...WHOLESALE_TIERS].reverse().find((t) => qty >= t.minQty);
   return basePrice * (1 - (tier?.discount ?? 0));
+}
 interface CartEntry { product: ApiProduct; quantity: number }
 function CompactProductRow({ product, cartEntry, onAdd }: {
   product: ApiProduct;
@@ -102,6 +104,8 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
         {inCart && (
           <View style={styles.inCartBadge}>
             <Text style={styles.inCartBadgeText}>{cartEntry!.quantity}</Text>
+          </View>
+        )}
       </View>
       {/* Name + price info */}
       <View style={{ flex: 1, gap: 2 }}>
@@ -117,6 +121,7 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
             </>
           )}
         </View>
+      </View>
       {/* Qty stepper + Add */}
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
         <View style={styles.stepperRow}>
@@ -132,6 +137,8 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
           />
           <Pressable onPress={increment} style={styles.stepBtn}>
             <Text style={styles.stepBtnText}>+</Text>
+          </Pressable>
+        </View>
         <Pressable
           onPress={handleAdd}
           style={[styles.addBtn, { backgroundColor: added ? '#22C55E' : BLUE }]}
@@ -139,8 +146,10 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
           <Feather name={added ? 'check' : 'plus'} size={11} color="#fff" />
           <Text style={styles.addBtnText}>{added ? 'Added' : 'Add'}</Text>
         </Pressable>
+      </View>
     </View>
   );
+}
 export default function WholesaleCatalog() {
   const insets = useSafeAreaInsets();
   const qc     = useQueryClient();
@@ -198,6 +207,7 @@ export default function WholesaleCatalog() {
       });
       // Open checkout requested by cart tab
       AsyncStorage.getItem(WS_OPEN_CHECKOUT_KEY).then((val) => {
+        if (val) {
           AsyncStorage.removeItem(WS_OPEN_CHECKOUT_KEY);
           // Restore cart from AsyncStorage if local cart is empty
           AsyncStorage.getItem(WS_CART_KEY).then((cartVal) => {
@@ -210,11 +220,15 @@ export default function WholesaleCatalog() {
             setCheckoutStep(0);
             setShowCheckout(true);
           });
-    }, []),
+        }
+      });
+    }, [])
+  );
   // Persist cart to AsyncStorage whenever it changes (shared with cart tab)
   useEffect(() => {
     AsyncStorage.setItem(WS_CART_KEY, JSON.stringify(cart));
   }, [cart]);
+  useEffect(() => {
     if (!pendingReorder || products.length === 0 || reorderProcessed.current) return;
     reorderProcessed.current = true;
     const newCart: CartEntry[] = [];
@@ -238,6 +252,7 @@ export default function WholesaleCatalog() {
       Alert.alert('Cart Ready', msg);
     } else {
       Alert.alert('Products Unavailable', 'None of the products from that order are currently available.');
+    }
     setPendingReorder(null);
   }, [pendingReorder, products]);
   // ──────────────────────────────────────────────────────────────────────
@@ -258,10 +273,12 @@ export default function WholesaleCatalog() {
       if (existing) return prev.map((e) => e.product.id === product.id ? { ...e, quantity: e.quantity + qty } : e);
       return [...prev, { product, quantity: qty }];
     });
+  };
   const removeFromCart  = (productId: string) => setCart((prev) => prev.filter((e) => e.product.id !== productId));
   const updateCartQty   = (productId: string, qty: number) => {
     if (qty <= 0) removeFromCart(productId);
     else setCart((prev) => prev.map((e) => e.product.id === productId ? { ...e, quantity: qty } : e));
+  };
   const subtotalCents = cart.reduce((sum, e) => sum + Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * e.quantity * 100), 0);
   const totalCents    = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
   const totalQty      = cart.reduce((s, e) => s + e.quantity, 0);
@@ -276,23 +293,30 @@ export default function WholesaleCatalog() {
   const pickupPairs: (Date | null)[][] = [];
   for (let i = 0; i < pickupDates.length; i += 2) {
     pickupPairs.push([pickupDates[i], pickupDates[i + 1] ?? null]);
+  }
   const handleOpenCheckout = () => {
     setCheckoutStep(0);
     setShowCheckout(true);
+  };
   const handleContinue = async () => {
     if (checkoutStep === 0) {
       if (cart.length === 0) { Alert.alert('Cart is empty'); return; }
       if (minOrderCents > 0 && subtotalCents < minOrderCents) { Alert.alert('Minimum order', `Minimum wholesale order is AUD ${(minOrderCents / 100).toFixed(2)}.`); return; }
       goToStep(1);
       return;
+    }
     if (checkoutStep === 1) {
       if (orderType === 'pickup') {
         if (!selectedDate || selectedTimeMins === null) { Alert.alert('Select pickup time', 'Please choose a date and time for your pickup.'); return; }
       } else {
         if (!selectedDate) { Alert.alert('Select delivery date', 'Please choose a delivery date.'); return; }
+      }
       goToStep(2);
+    }
     if (checkoutStep === 2) {
       await handlePlaceOrder();
+    }
+  };
   const handlePlaceOrder = async () => {
     setSubmitting(true);
     try {
@@ -303,6 +327,7 @@ export default function WholesaleCatalog() {
         scheduledForDate = d;
       } else if (orderType === 'delivery' && selectedDate) {
         scheduledForDate = selectedDate;
+      }
       const deliveryAddress = orderType === 'delivery' && street.trim()
         ? `${street.trim()}, ${suburb.trim()} NSW ${postcode.trim()}`
         : undefined;
@@ -316,6 +341,7 @@ export default function WholesaleCatalog() {
         deliveryType:  orderType,
         scheduledDate: scheduledForDate?.toISOString(),
         deliveryAddress,
+      });
       qc.invalidateQueries({ queryKey: ['wholesale-orders'] });
       setCart([]); setPoRef(''); setNotes('');
       setSelectedDate(null); setSelectedTimeMins(null);
@@ -328,11 +354,13 @@ export default function WholesaleCatalog() {
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally { setSubmitting(false); }
+  };
   const getContinueLabel = () => {
     if (submitting) return '…';
     if (checkoutStep === 0) return 'Continue to shipping';
     if (checkoutStep === 1) return 'Continue to order';
     return 'Place Order';
+  };
   // ── Checkout overlay ─────────────────────────────────────────────────────
   if (showCheckout) {
     return (
@@ -435,6 +463,7 @@ export default function WholesaleCatalog() {
                   <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '400', marginTop: 4 }}>
                     Minimum wholesale order is AUD {(minOrderCents / 100).toFixed(2)}
                   </Text>
+                )}
               <Text style={styles.shippingNote}>Choose pickup or delivery on the next step.</Text>
             </ScrollView>
             {/* ── PAGE 1: SHIPPING ── */}
@@ -577,13 +606,20 @@ export default function WholesaleCatalog() {
                     <Text style={styles.summaryRowLabel}>Delivery fee</Text>
                     <Text style={styles.summaryRowValue}>
                       {deliveryFeeCents > 0 ? `AUD ${(deliveryFeeCents / 100).toFixed(2)}` : 'Free'}
+                    </Text>
+                </View>
+              )}
             {/* ── PAGE 2: ORDER ── */}
                 <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
                 {cart.map((entry) => {
                   const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                  return (
                     <View key={entry.product.id} style={styles.paymentItem}>
                       <Text style={[styles.paymentItemName, { color: TEXT }]}>{entry.product.name} × {entry.quantity}</Text>
                       <Text style={[styles.paymentItemPrice, { color: MUTED }]}>AUD {(wsPrice * entry.quantity).toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
                 <View style={styles.formFieldWrap}>
                   <Text style={styles.formFieldLabel}>PO Reference (optional)</Text>
                   <TextInput style={[styles.formInput, { color: TEXT, borderColor: BORDER }]} placeholder="e.g. PO-2024-001" placeholderTextColor={MUTED} value={poRef} onChangeText={setPoRef} />
@@ -600,6 +636,9 @@ export default function WholesaleCatalog() {
                     <Text style={[styles.orderDetailText, { color: TEXT }]}>
                       {selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
                       {orderType === 'pickup' && selectedTimeMins !== null ? ` at ${formatTime(selectedTimeMins)}` : ''}
+                    </Text>
+                  </View>
+                )}
               <View style={[styles.secureCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
                 <Feather name="file-text" size={14} color="#22C55E" />
                 <Text style={[styles.secureText, { color: '#166534' }]}>
@@ -615,7 +654,9 @@ export default function WholesaleCatalog() {
             style={[styles.continueBtn, { backgroundColor: (checkoutStep === 0 && minOrderCents > 0 && subtotalCents < minOrderCents) ? '#C7C7CC' : BLUE, opacity: submitting ? 0.8 : 1 }]}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>}
     );
+  }
   // ── Catalog list ─────────────────────────────────────────────────────────
+  return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <LinearGradient colors={['#1A2B4A', '#253B5E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -625,12 +666,15 @@ export default function WholesaleCatalog() {
               <Feather name="shopping-cart" size={16} color="#fff" />
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{totalQty}</Text>
             </Pressable>
+          )}
         <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 }]}>
           <Feather name="search" size={14} color="rgba(255,255,255,0.8)" />
           <TextInput style={{ flex: 1, color: '#fff', fontWeight: '400', fontSize: 14 }} placeholder="Search products..." placeholderTextColor="rgba(255,255,255,0.6)" value={search} onChangeText={setSearch} />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
               <Feather name="x" size={14} color="rgba(255,255,255,0.8)" />
+            </Pressable>
+          )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'flex-start' }}>
           {categories.map((cat) => {
             const active = category === cat;
@@ -672,6 +716,7 @@ export default function WholesaleCatalog() {
             <CompactProductRow product={product} cartEntry={cart.find((e) => e.product.id === product.id)} onAdd={addToCart} />
         />
       )}
+      )}
       {cart.length > 0 && (
         <View style={styles.floatingCartOuter}>
           <Pressable onPress={handleOpenCheckout}>
@@ -685,7 +730,12 @@ export default function WholesaleCatalog() {
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>${(subtotalCents / 100).toFixed(2)}</Text>
                 <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.85)" />
             </LinearGradient>
+          </Pressable>
+        </View>
+      )}
     </KeyboardAvoidingView>
+  );
+}
 const styles = StyleSheet.create({
   // Catalog
   catalogHeader:  { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },

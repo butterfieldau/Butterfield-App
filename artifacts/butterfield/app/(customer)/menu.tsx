@@ -55,7 +55,9 @@ function ShimmerBox({ width = '100%', height = 16, borderRadius = 8, style, shim
       style={[{ width, height, borderRadius, backgroundColor: '#D1D5DB' }, animStyle, style]}
     />
   );
+}
 function ShimmerProductCard({ shimmerProgress }: { shimmerProgress: SharedValue<number> }) {
+  return (
     <View style={shimmerCard.tile}>
       <ShimmerBox width="100%" height={165} borderRadius={0} shimmerProgress={shimmerProgress} />
       <View style={shimmerCard.info}>
@@ -67,6 +69,8 @@ function ShimmerProductCard({ shimmerProgress }: { shimmerProgress: SharedValue<
         </View>
       </View>
     </View>
+  );
+}
 const SHIMMER_COUNT = 6;
 function MenuShimmer({ shimmerProgress }: { shimmerProgress: SharedValue<number> }) {
   const pairs = Array.from({ length: Math.ceil(SHIMMER_COUNT / 2) });
@@ -91,6 +95,7 @@ const CAT_ICON_MAP: Record<string, string> = {
 };
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
+};
 function parseArr(val: any): string[] {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string' && val) {
@@ -98,11 +103,13 @@ function parseArr(val: any): string[] {
     return val.split(',').map((s: string) => s.trim()).filter(Boolean);
   }
   return [];
+}
 function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
   const photoUrl = product.images?.[0] ?? null;
   const palette  = getPalette('coffee');
   const raw      = product as any;
   const cents    = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
+  return (
     <Pressable
       style={s.frequentTile}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
@@ -112,12 +119,17 @@ function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress
           ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
           : <Text style={{ fontSize: 32 }}>{palette.emoji}</Text>
         }
+      </View>
       <View style={{ flex: 1, paddingVertical: 2, gap: 2 }}>
         <Text style={[s.frequentName, { fontWeight: '600' }]} numberOfLines={1}>{product.name}</Text>
         <Text style={[s.frequentPrice, { fontWeight: '400' }]}>${(cents / 100).toFixed(2)}</Text>
+      </View>
       <View style={s.frequentAdd}>
         <Feather name="plus" size={16} color="#fff" />
+      </View>
     </Pressable>
+  );
+}
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ category?: string; skipQueue?: string }>();
@@ -140,6 +152,7 @@ export default function MenuScreen() {
     queryKey: ['categories'],
     queryFn: () => api.products.categories(),
     staleTime: 5 * 60 * 1000,
+  });
   const categories = useMemo(() => {
     const backendCats: any[] = categoriesData?.data ?? [];
     const items = backendCats.map(c => ({
@@ -152,6 +165,7 @@ export default function MenuScreen() {
   // Shimmer animation — runs while products are loading
   const shimmerProgress = useSharedValue(0);
   const contentOpacity  = useSharedValue(isLoading ? 0 : 1);
+  useEffect(() => {
     if (isLoading) {
       contentOpacity.value = 0;
       shimmerProgress.value = 0;
@@ -167,14 +181,18 @@ export default function MenuScreen() {
   }, [isLoading]);
   const contentAnimStyle = useAnimatedStyle(() => ({
     opacity: contentOpacity.value,
+  }));
   const products = data?.data ?? [];
   const favouriteCategory = useFavouriteCategory(products);
+  useEffect(() => {
     if (!userChangedCategory && !params.category && favouriteCategory) {
       setActiveCategory(favouriteCategory);
+    }
   }, [favouriteCategory, params.category, userChangedCategory]);
   const coffeeProducts = useMemo(
     () => products.filter(p => p.metadata?.category === 'coffee').slice(0, 4),
     [products],
+  );
   const filtered = useMemo(() => products.filter(p => {
     const matchCat    = activeCategory === 'all' || p.metadata?.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.description ?? '').toLowerCase().includes(search.toLowerCase());
@@ -185,6 +203,7 @@ export default function MenuScreen() {
     setSelectedProduct(p);
     router.push({ pathname: '/product', params: { id: p.id } } as any);
   };
+  return (
     <View style={s.root}>
       <OfflineBanner />
       {/* ── Header ── */}
@@ -197,6 +216,7 @@ export default function MenuScreen() {
               <Text style={[s.skipBadgeText, { fontWeight: '600' }]}>Skip the Queue</Text>
             </View>
           )}
+        </View>
         {/* Search */}
         <View style={s.searchBar}>
           <Feather name="search" size={16} color="#8E8E93" />
@@ -208,6 +228,7 @@ export default function MenuScreen() {
             onChangeText={setSearch}
           />
           {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#8E8E93" /></Pressable> : null}
+        </View>
         {/* Category carousel — Uber Eats style */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 16 }}>
           {categories.map(cat => {
@@ -232,6 +253,7 @@ export default function MenuScreen() {
             );
           })}
         </ScrollView>
+      </View>
       {isLoading ? (
         <MenuShimmer shimmerProgress={shimmerProgress} />
       ) : (
@@ -256,6 +278,7 @@ export default function MenuScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={[s.frequentTitle, { fontWeight: '700' }]}>Your usual?</Text>
                         <Text style={[s.frequentSub, { fontWeight: '400' }]}>Frequently ordered</Text>
+                      </View>
                       <Pressable onPress={() => router.push('/(customer)/cart')} style={s.viewCartBtn}>
                         <Text style={[s.viewCartText, { fontWeight: '600' }]}>View cart</Text>
                         <Feather name="chevron-right" size={13} color={BLUE} />
@@ -270,6 +293,7 @@ export default function MenuScreen() {
                 <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
                   {activeCategory !== 'all' ? ` · ${categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory}` : ''}
+                </Text>
               </>
             }
             ListEmptyComponent={
@@ -277,12 +301,18 @@ export default function MenuScreen() {
                 <Feather name="search" size={28} color="#D0D0D0" />
                 <Text style={{ color: '#8E8E93', fontWeight: '400', fontSize: 14 }}>No items found.</Text>
               </View>
+            }
             renderItem={({ item: p }) => (
               <View style={{ flex: 1 }}>
                 <SharedProductTile product={p} onPress={() => handleTilePress(p)} />
+              </View>
             )}
+          />
         </Reanimated.View>
       )}
+    </View>
+  );
+}
 const s = StyleSheet.create({
   root:        { flex: 1, backgroundColor: '#fff' },
   // Header
@@ -332,3 +362,4 @@ const s = StyleSheet.create({
   tilePriceRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   priceMain:     { fontSize: 15, color: '#1C1C1E' },
   tileAddBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
+});

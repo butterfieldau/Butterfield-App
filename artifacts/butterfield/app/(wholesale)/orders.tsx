@@ -78,6 +78,7 @@ function mapOrderToInvoice(order: any): Invoice {
     amount:  (order.totalCents ?? 0) / 100,
     status,
   };
+}
 function getOrderLines(order: any): InvoiceLine[] {
   const items: any[] = Array.isArray(order?.items) ? order.items : [];
   if (items.length > 0) {
@@ -86,8 +87,11 @@ function getOrderLines(order: any): InvoiceLine[] {
       qty:         item.qty ?? 1,
       unitPrice:   (item.unitPriceCents ?? 0) / 100,
     }));
+  }
   return [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
+}
 function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any): InvoicePdfData {
+  return {
     number:          invoice.number,
     date:            invoice.date,
     dueDate:         invoice.dueDate,
@@ -98,6 +102,8 @@ function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any):
     deliveryAddress: account?.deliveryAddress ?? '',
     accountNumber:   account?.id?.slice(0, 8).toUpperCase() ?? '',
     lines,
+  };
+}
 // ── Order detail modal ────────────────────────────────────────────────────────
 function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; onClose: () => void; onReorder: (o: any) => void }) {
   const insets = useSafeAreaInsets();
@@ -134,6 +140,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
               <View style={{ backgroundColor: cfg.bg, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
                 <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 12 }}>{cfg.label}</Text>
               </View>
+            </View>
             {stepIdx >= 0 && (
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {STATUS_STEPS.map((step, i) => (
@@ -144,6 +151,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
                     </Text>
                   </View>
                 ))}
+              </View>
             )}
             <Text style={[mdl.sectionTitle, { marginBottom: 8 }]}>Items ({items.length})</Text>
             {items.map((item: any, i: number) => {
@@ -154,6 +162,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < items.length - 1 ? 1 : 0, borderBottomColor: BORDER, gap: 10 }}>
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{qty}</Text>
+                  </View>
                   <Text style={{ flex: 1, color: TEXT, fontWeight: '500', fontSize: 13 }}>{name}</Text>
                   <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
                 </View>
@@ -165,23 +174,30 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
             <InfoRow label="Total (AUD)"          value={`$${(subtotal / 100).toFixed(2)}`} valueColor={BLUE} />
             {order.deliveryType && <InfoRow label="Delivery" value={order.deliveryType === 'pickup' ? 'In-store Pickup' : 'Delivery'} icon="truck" />}
             {order.deliveryAddress && <InfoRow label="Address" value={order.deliveryAddress} icon="map-pin" />}
+          </View>
           <Pressable
             onPress={() => onReorder(order)}
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, padding: 16, borderRadius: 14 }}
           >
             <Feather name="refresh-cw" size={15} color="#fff" />
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Reorder</Text>
+          </Pressable>
         </ScrollView>
       </View>
     </Modal>
   );
+}
 function InfoRow({ label, value, icon, valueColor }: { label: string; value: string; icon?: any; valueColor?: string }) {
+  return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: BORDER }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
         {icon && <Feather name={icon} size={12} color={MUTED} />}
         <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>{label}</Text>
+      </View>
       <Text style={{ color: valueColor ?? TEXT, fontWeight: '500', fontSize: 13, maxWidth: '55%', textAlign: 'right' }}>{value}</Text>
     </View>
+  );
+}
 // ── Invoice detail modal ──────────────────────────────────────────────────────
 function InvoiceDetailModal({
   invoice, lines, account, defCard, onClose, onPdf, onPay, pdfLoading,
@@ -195,38 +211,68 @@ function InvoiceDetailModal({
   const excGst    = subtotal - gst;
   const cfg       = INV_STATUS[invoice.status] ?? { label: invoice.status, color: MUTED, bg: '#F3F4F6' };
   const isOvd     = invoice.status === 'overdue';
+  return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
         <View style={[mdl.header, { paddingTop: insets.top + 8 }]}>
+          <Pressable onPress={onClose} style={mdl.closeBtn}><Feather name="x" size={20} color={TEXT} /></Pressable>
+          <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={mdl.title}>{invoice.number}</Text>
             <Text style={mdl.subtitle}>Issued {invoice.date}</Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
           {isOvd && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12 }}>
+              <Feather name="alert-triangle" size={14} color={RED} />
               <Text style={{ color: RED, fontWeight: '600', fontSize: 13, flex: 1 }}>This invoice is overdue — please contact your account manager</Text>
+            </View>
+          )}
+          <View style={mdl.card}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
                 <Text style={mdl.sectionTitle}>Invoice Status</Text>
                 <Text style={{ color: isOvd ? RED : MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }}>Due {invoice.dueDate}</Text>
+              </View>
               <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, backgroundColor: cfg.bg, borderColor: cfg.color }}>
+                <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 12 }}>{cfg.label}</Text>
+              </View>
+            </View>
+          </View>
+          <View style={mdl.card}>
             <Text style={[mdl.sectionTitle, { marginBottom: 4 }]}>Items ({lines.length})</Text>
             {lines.map((line, i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: i < lines.length - 1 ? 1 : 0, borderBottomColor: BORDER, gap: 10 }}>
                 <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{line.qty}</Text>
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: TEXT, fontWeight: '500', fontSize: 13 }}>{line.description}</Text>
                   <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, marginTop: 2 }}>${line.unitPrice.toFixed(2)} each</Text>
+                </View>
                 <Text style={{ color: TEXT, fontWeight: '600', fontSize: 13 }}>${(line.qty * line.unitPrice).toFixed(2)}</Text>
+              </View>
             ))}
+          </View>
+          <View style={mdl.card}>
             <Text style={[mdl.sectionTitle, { marginBottom: 8 }]}>Invoice Total</Text>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>Subtotal (ex. GST)</Text>
                 <Text style={{ color: TEXT, fontWeight: '400', fontSize: 13 }}>${excGst.toFixed(2)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>GST (10%)</Text>
                 <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>${gst.toFixed(2)}</Text>
+              </View>
               <View style={{ height: 1, backgroundColor: BORDER }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>Total (AUD)</Text>
                 <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${subtotal.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
+              </View>
+            </View>
+          </View>
           {account && (
             <View style={mdl.card}>
               <Text style={[mdl.sectionTitle, { marginBottom: 4 }]}>Billing Details</Text>
@@ -234,6 +280,8 @@ function InvoiceDetailModal({
               {account.abn            && <InfoRow label="ABN"        value={account.abn} />}
               {account.deliveryAddress && <InfoRow label="Delivery"  value={account.deliveryAddress} />}
               {account.id             && <InfoRow label="Account #"  value={account.id.slice(0, 8).toUpperCase()} />}
+            </View>
+          )}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Pressable
               onPress={() => onPdf(invoice)}
@@ -248,6 +296,13 @@ function InvoiceDetailModal({
                 <Feather name="credit-card" size={15} color="#fff" />
                 <Text style={mdl.solidBtnText}>{defCard ? `Pay •${defCard.last4}` : 'Pay Invoice'}</Text>
               </Pressable>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function WholesaleOrdersScreen() {
   const [subtab, setSubtab]             = useState<'orders' | 'invoices'>('orders');
@@ -270,14 +325,17 @@ export default function WholesaleOrdersScreen() {
     if (filter === 'All') return true;
     if (filter === 'Overdue') return isOverdue(o);
     return o.status === filter;
+  });
   const overdueCount = allOrders.filter(isOverdue).length;
   // ── Invoices query ────────────────────────────────────────────────────────
   const { data: invData, isLoading: invLoading } = useQuery({
     queryKey: ['wholesale-invoices'],
     queryFn:  api.wholesale.invoices,
+  });
   const { data: accountData } = useQuery({
     queryKey: ['wholesale-account'],
     queryFn:  api.wholesale.account,
+  });
   const { data: cardsData } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
   const rawInvoiceOrders: any[]  = invData?.data ?? [];
   const invoices: Invoice[]      = rawInvoiceOrders.map(mapOrderToInvoice);
@@ -301,6 +359,7 @@ export default function WholesaleOrdersScreen() {
     await AsyncStorage.setItem(WS_REORDER_KEY, JSON.stringify(reorderItems));
     setSelectedOrder(null);
     router.navigate('/(wholesale)/catalog');
+  };
   const handleDownload = async (invoice: Invoice) => {
     setLoadingId(invoice.id);
     try {
@@ -318,8 +377,10 @@ export default function WholesaleOrdersScreen() {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${invoice.number}`, UTI: 'com.adobe.pdf' });
       } else {
         await Print.printAsync({ uri });
+      }
     } catch (e: any) { Alert.alert('PDF Error', e?.message ?? 'Could not generate PDF.'); }
     finally { setLoadingId(null); }
+  };
   const handlePay = (invoice: Invoice) => {
     if (!defCard) {
       Alert.alert('No Card on File', 'Add a payment card from the Account tab to pay invoices directly.', [
@@ -332,6 +393,8 @@ export default function WholesaleOrdersScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Pay Now', onPress: () => Alert.alert('Payment Submitted', 'Your payment has been submitted for processing.') },
     ]);
+  };
+  return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
       <OrderDetailModal
@@ -555,6 +618,12 @@ export default function WholesaleOrdersScreen() {
           }}
         />
       )}
+          )}
+        }
+      )}
+    </View>
+  );
+}
 // ── Styles ────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
   header:    { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
@@ -601,3 +670,4 @@ const mdl = StyleSheet.create({
   ghostBtnText:{ color: BLUE, fontWeight: '600', fontSize: 13 },
   solidBtn:    { backgroundColor: BLUE },
   solidBtnText:{ color: '#fff', fontWeight: '700', fontSize: 13 },
+});

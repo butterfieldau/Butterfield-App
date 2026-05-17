@@ -124,6 +124,7 @@ export default function AddressesScreen() {
                     {!addr.isDefault && <Pressable onPress={() => handleSetDefault(addr)} style={[s.actionBtn, { borderRightWidth: 1, borderRightColor: BORDER }]}><Feather name="star" size={13} color={MUTED} /><Text style={[s.actionBtnText, { color: MUTED }]}>Set default</Text></Pressable>}
                     <Pressable onPress={() => openModal(addr)} style={[s.actionBtn, !addr.isDefault ? { borderRightWidth: 1, borderRightColor: BORDER } : {}]}><Feather name="edit-2" size={13} color={BLUE} /><Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text></Pressable>
                     <Pressable onPress={() => handleDelete(addr)} style={s.actionBtn}><Feather name="trash-2" size={13} color={RED} /><Text style={[s.actionBtnText, { color: RED }]}>Remove</Text></Pressable>
+                  </View>
                 </View>
               ))}
               <Pressable onPress={() => openModal()} style={[s.addNewBtn, { borderColor: BLUE }]}><Feather name="plus" size={16} color={BLUE} /><Text style={[s.addNewBtnText, { color: BLUE }]}>Add another address</Text></Pressable>
@@ -209,3 +210,9 @@ const s = StyleSheet.create({
   saveBtn: { flex: 2, alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 30 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
+
+}
+
+}
+
+}

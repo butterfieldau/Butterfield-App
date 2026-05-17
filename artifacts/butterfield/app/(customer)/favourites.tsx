@@ -66,6 +66,7 @@ export default function FavouritesScreen() {
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('Added to Cart', `${p.name} added to your cart.`);
+  };
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -104,6 +105,7 @@ export default function FavouritesScreen() {
                 <Text style={[{ color: '#fff', fontWeight: '600', fontSize: 15 }]}>Browse Menu</Text>
               </Pressable>
             </View>
+          }
           renderItem={({ item: p }) => {
             const gradient = getGradient(p);
             const price = getPrice(p);
@@ -127,6 +129,7 @@ export default function FavouritesScreen() {
                     </Pressable>
                   </View>
                 </View>
+              </View>
             );
           }}
         />
@@ -144,3 +147,7 @@ const styles = StyleSheet.create({
   heartBtn: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   addBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });
+
+}
+
+}

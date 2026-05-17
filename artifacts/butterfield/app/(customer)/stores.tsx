@@ -72,6 +72,7 @@ function StoreCard({ store }: { store: any }) {
           <Text style={[cs.infoText, { color: colors.foreground }]} numberOfLines={2}>
             {[store.address, store.suburb, store.state, store.postcode].filter(Boolean).join(', ')}
           </Text>
+        </View>
         {/* Today's hours */}
         {todayDisplay && (
           <View style={cs.infoRow}>
@@ -81,13 +82,17 @@ function StoreCard({ store }: { store: any }) {
         )}
         {/* Phone */}
         {store.phone && (
+          <View style={cs.infoRow}>
             <Feather name="phone" size={14} color={colors.mutedForeground} />
             <Text style={[cs.infoText, { color: colors.foreground }]}>{store.phone}</Text>
+          </View>
+        )}
         {/* Services */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
           {store.pickupAvailable   && <View style={cs.serviceChip}><Feather name="shopping-bag" size={11} color="#1493FF" /><Text style={[cs.serviceText, { color: '#1493FF' }]}>Pickup</Text></View>}
           {store.deliveryAvailable && <View style={[cs.serviceChip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Delivery</Text></View>}
           {store.status === 'coming_soon' && <View style={[cs.serviceChip, { backgroundColor: '#EDE9FE' }]}><Feather name="clock" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Coming Soon</Text></View>}
+        </View>
         {/* Public notes */}
         {store.publicNotes ? (
           <Text style={[cs.notes, { color: colors.mutedForeground }]}>{store.publicNotes}</Text>
@@ -104,13 +109,19 @@ function StoreCard({ store }: { store: any }) {
             <Pressable style={[cs.actionBtn, { flex: 1 }]} onPress={handleCall}>
               <Feather name="phone" size={14} color="#16A34A" />
               <Text style={[cs.actionBtnText, { color: '#16A34A' }]}>Call</Text>
+            </Pressable>
+          )}
           {store.pickupAvailable && store.status === 'open' && (
             <Pressable style={[cs.actionBtn, { flex: 1, backgroundColor: '#1493FF' }]} onPress={() => router.push('/(customer)/menu')}>
               <Feather name="shopping-bag" size={14} color="#fff" />
               <Text style={[cs.actionBtnText, { color: '#fff' }]}>Order</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     </View>
   );
+}
 export default function CustomerStoresScreen() {
   const insets = useSafeAreaInsets();
   const { data, isLoading, refetch } = useQuery({
@@ -122,28 +133,38 @@ export default function CustomerStoresScreen() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
   const stores: any[] = data?.data ?? [];
+  return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1493FF" />}
     >
       {/* Header */}
+      <LinearGradient
         colors={['#1493FF', '#3CBBEE']}
         style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 16 }]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      >
         <Text style={cs.heroTitle}>Our Stores</Text>
         <Text style={cs.heroSub}>Find your nearest Butterfield Cookies</Text>
+      </LinearGradient>
       <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
         {isLoading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#1493FF" />
+          </View>
         ) : stores.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
             <Feather name="map-pin" size={32} color="#8E8E93" />
             <Text style={{ fontWeight: '600', fontSize: 16, color: '#1C1C1E' }}>No stores listed yet</Text>
             <Text style={{ fontWeight: '400', fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>Check back soon for our upcoming locations.</Text>
+          </View>
         ) : (
           stores.map(store => <StoreCard key={store.id} store={store} />)
+        )}
+      </View>
     </ScrollView>
+  );
 const cs = StyleSheet.create({
   hero:            { paddingHorizontal: 20, paddingBottom: 28 },
   heroTitle:       { fontWeight: '700', fontSize: 30, color: '#fff', marginBottom: 4 },
@@ -162,3 +183,9 @@ const cs = StyleSheet.create({
   actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
   actionBtnText:   { fontWeight: '600', fontSize: 13, color: '#1493FF' },
 });
+
+}
+
+}
+
+}

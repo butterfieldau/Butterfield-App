@@ -105,6 +105,7 @@ export default function CustomerHome() {
       metadata: { category: 'merch', available: 'true' },
     } as any);
     router.push({ pathname: '/product', params: { id: item.id } } as any);
+  }, []);
   const handleBannerPress = useCallback(() => {
     if (banner?.buttonUrl) {
       Linking.openURL(banner.buttonUrl).catch(() => {});
@@ -115,9 +116,12 @@ export default function CustomerHome() {
     if (routeKey.startsWith('product:')) {
       const productId = routeKey.replace('product:', '').trim();
       if (productId) { router.push({ pathname: '/product', params: { id: productId } } as any); return; }
+    }
     if (routeKey.startsWith('category:')) {
       const category = routeKey.replace('category:', '').trim();
       router.push({ pathname: '/(customer)/menu', params: category ? { category } : undefined } as any);
+      return;
+    }
     router.push((BANNER_ROUTES[routeKey] ?? `/(customer)/${routeKey}`) as any);
   }, [banner]);
   return (
@@ -137,6 +141,7 @@ export default function CustomerHome() {
         statusText={stampCount >= 6 ? 'Free coffee ready to claim at the counter.' : `${stampCount} of 6 coffee stamps collected.`}
         isLoading={loyaltyRefreshing && !qrValue}
         onRetry={() => { void refetchLoyalty(); }}
+      />
       {/* ── FROZEN BLUE HEADER ──────────────────────────────────────────── */}
       <LinearGradient colors={[BLUE_TOP, BLUE_BTM]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.frozenHeader, { paddingTop: insets.top + 14 }]}>
         <View style={s.headerTopRow}>
@@ -160,6 +165,7 @@ export default function CustomerHome() {
               style={s.qrBtn}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }}
               hitSlop={6}
+            >
               <Feather name="grid" size={16} color={BLUE_TOP} />
             </Pressable>
           </View>
@@ -167,6 +173,7 @@ export default function CustomerHome() {
         <View>
           <Text style={[s.greetLine1, { fontWeight: '800' }]} numberOfLines={2}>{greeting.line1}</Text>
           <Text style={[s.greetLine2, { fontWeight: '500' }]} numberOfLines={2}>{greeting.line2}</Text>
+        </View>
       </LinearGradient>
       {/* ── SCROLLABLE CONTENT ──────────────────────────────────────────── */}
       <ScrollView
@@ -178,6 +185,7 @@ export default function CustomerHome() {
         {/* Hero banner */}
         <View style={{ paddingHorizontal: 16, paddingTop: 12, marginTop: -2 }}>
           <HeroBanner banner={banner} onPress={handleBannerPress} />
+        </View>
         {/* Store pickup row */}
         <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
           <Pressable
@@ -198,8 +206,10 @@ export default function CustomerHome() {
                   {storeHint}
                 </Text>
               </View>
+            </View>
             <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
           </Pressable>
+        </View>
         {/* Quick action tiles */}
         <View style={s.quickRail}>
           <FeatureShortcutTile
@@ -210,25 +220,34 @@ export default function CustomerHome() {
             imageStyle={s.cookiesTileImage}
             titleStyle={s.cookiesTileTitle}
             onPress={() => router.push('/(customer)/menu')}
+          />
+          <FeatureShortcutTile
             title="Rewards club"
+            titleColor="#111827"
             colors={['#FFCBFF', '#FA9E9E']}
             imageSource={require('@/assets/images/butterfield-app-gems.png')}
             imageStyle={s.rewardsTileImage}
             titleStyle={s.rewardsTileTitle}
             onPress={() => router.push('/(customer)/loyalty')}
+          />
+          <FeatureShortcutTile
             title="Skip the queue"
+            titleColor="#111827"
             colors={['#D0E5F3', '#8AC5E4']}
             imageSource={require('@/assets/images/coffee-tray-skip.png')}
             imageStyle={s.skipTileImage}
             titleStyle={s.skipTileTitle}
             onPress={() => router.push({ pathname: '/(customer)/menu', params: { category: 'coffee', skipQueue: '1' } })}
             showArrow
+          />
+        </View>
         {/* Your usual */}
         {usualItems.length > 0 && (
           <View style={s.section}>
             <View style={s.usualHeader}>
               <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', marginBottom: 0 }]}>Your usual</Text>
               <Text style={[s.usualSub, { color: colors.mutedForeground, fontWeight: '400' }]}>1 tap to add</Text>
+            </View>
             <FlatList
               data={usualItems}
               horizontal
@@ -272,12 +291,15 @@ export default function CustomerHome() {
                         <Text style={[s.usualOpts, { color: colors.mutedForeground }]} numberOfLines={1}>{optSummary}</Text>
                       ) : null}
                       <Text style={[s.usualPrice, { color: pal.banner, fontWeight: '700' }]}>${(unitCents / 100).toFixed(2)}</Text>
+                    </View>
                     <View style={[s.usualAddBtn, { backgroundColor: CHERRY }]}>
                       <Feather name="plus" size={16} color="#fff" />
+                    </View>
                   </Pressable>
                 );
               }}
             />
+          </View>
         )}
         {/* Top Sellers */}
         <View style={s.section}>
@@ -291,25 +313,45 @@ export default function CustomerHome() {
             renderItem={({ item: p }) => (
               <View style={{ width: 160 }}>
                 <ProductTile product={p} onPress={() => handleTilePress(p)} />
+              </View>
             )}
+          />
+        </View>
         {/* Fan Favourites */}
         {popular.length > 0 && (
+          <View style={s.section}>
             <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Fan Favourites</Text>
+            <FlatList
               data={popular}
+              horizontal
+              showsHorizontalScrollIndicator={false}
               keyExtractor={(p) => p.id}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
               renderItem={({ item: p }) => {
+                const pal = getPalette((p as any).metadata?.category);
+                const img = (p as any).images?.[0] ?? PRODUCT_IMAGES[p.name] ?? null;
+                return (
                   <Pressable onPress={() => handleTilePress(p)} style={[s.favTile, { backgroundColor: colors.card }]}>
                     <View style={[s.favTop, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
-                        : <Text style={{ fontSize: 36 }}>{pal.emoji}</Text>
+                      {img
+                        ? <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
+                        : <Text style={{ fontSize: 36 }}>{pal.emoji}</Text>}
                       <View style={[s.favBannerStrip, { backgroundColor: img ? 'rgba(0,0,0,0.4)' : pal.banner }]}>
                         <Text style={[s.favBannerText, { fontWeight: '500' }]}>Pickup</Text>
                       </View>
+                    </View>
                     <View style={{ padding: 8, gap: 2 }}>
                       <Text style={[s.favName, { fontWeight: '600', color: colors.foreground }]} numberOfLines={1}>{p.name}</Text>
                       <Text style={{ fontWeight: '700', color: pal.banner, fontSize: 13 }}>
                         ${((p.prices?.[0]?.unit_amount ?? 0) / 100).toFixed(2)}
                       </Text>
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
         {/* Category carousel */}
         <ScrollView
           horizontal
@@ -331,11 +373,13 @@ export default function CustomerHome() {
                 </View>
                 <Text style={[s.catTileLabel, { color: active ? pal.banner : '#3C3C43', fontWeight: active ? '700' : '500' }]}>
                   {cat.label}
+                </Text>
               </Pressable>
             );
           })}
         </ScrollView>
         {/* Featured grid */}
+        <View>
           {isLoading ? (
             <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
           ) : featured.length === 0 ? (
@@ -347,15 +391,25 @@ export default function CustomerHome() {
               {featured.map((p) => (
                 <View key={p.id} style={{ width: '48%' }}>
                   <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                </View>
               ))}
+            </View>
           )}
+        </View>
         {/* Merch */}
+        <View style={s.section}>
           <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Merch</Text>
+          <FlatList
             data={MERCH}
             keyExtractor={(m) => m.id}
             renderItem={({ item }) => <MerchTile item={item} onPress={() => handleMerchPress(item)} />}
+            horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+          />
+        </View>
       </ScrollView>
     </View>
+  );
 }
 const s = StyleSheet.create({
   // ── Frozen header ──────────────────────────────────────────────────────────

@@ -109,6 +109,7 @@ export default function NotificationsScreen() {
             <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>Notification preferences</Text>
               <Text style={s.sectionSub}>Choose what you want to hear about</Text>
+            </View>
           </View>
           {meLoading ? (
             <ActivityIndicator color={BLUE} style={{ marginVertical: 12 }} />
@@ -124,6 +125,7 @@ export default function NotificationsScreen() {
                 <View style={s.prefBody}>
                   <Text style={s.prefTitle}>{item.title}</Text>
                   <Text style={s.prefDesc}>{item.desc}</Text>
+                </View>
                 <View style={{ alignItems: 'flex-end', gap: 4 }}>
                   <Switch
                     value={!!prefs[item.key]}
@@ -136,20 +138,31 @@ export default function NotificationsScreen() {
                   {saved === item.key && (
                     <Text style={{ fontSize: 10, color: GREEN, fontWeight: '500' }}>Saved</Text>
                   )}
+                </View>
               </View>
             ))
           )}
+        </View>
         {/* Latest announcements */}
+        <View style={[s.sectionCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={s.sectionHead}>
             <View style={[s.iconCircle, { backgroundColor: '#DCFCE7' }]}>
               <Feather name="activity" size={16} color="#16A34A" />
+            </View>
+            <View style={{ flex: 1 }}>
               <Text style={s.sectionTitle}>Latest announcements</Text>
               <Text style={s.sectionSub}>Updates from Butterfield</Text>
+            </View>
+          </View>
           {annLoading ? (
+            <ActivityIndicator color={BLUE} style={{ marginVertical: 12 }} />
           ) : announcements.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 20, gap: 8 }}>
               <Feather name="inbox" size={28} color={MUTED} />
               <Text style={s.empty}>No announcements right now.</Text>
               <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>Check back soon for updates!</Text>
+            </View>
+          ) : (
             announcements.map((a: any) => (
               <View key={a.id} style={[s.annRow, { borderTopWidth: 1, borderTopColor: BORDER }]}>
                 <View style={[s.dot, { backgroundColor: a.isPinned ? '#F59E0B' : BLUE }]} />
@@ -163,6 +176,11 @@ export default function NotificationsScreen() {
                     )}
                   </View>
                   <Text style={s.annDesc}>{a.body ?? a.message ?? ''}</Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
         <Text style={[s.footer, { color: MUTED }]}>
           You'll only receive notifications you've enabled above.{'\n'}Preferences are saved automatically.
         </Text>

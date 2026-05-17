@@ -69,6 +69,7 @@ export default function WholesaleDashboard() {
                 <Text style={[s.tierBadgeText, { color: '#92400E' }]}>PENDING</Text>
               </View>
             )}
+          </View>
         </View>
         {/* ── PRIMARY CTA ────────────────────────────────────────────────── */}
         <Pressable onPress={goCatalog} style={s.ctaWrap}>
@@ -79,9 +80,11 @@ export default function WholesaleDashboard() {
           >
             <View style={s.ctaIcon}>
               <Feather name="shopping-bag" size={20} color={BLUE} />
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={s.ctaTitle}>Place a New Order</Text>
               <Text style={s.ctaSub}>Browse catalog · {tierName} pricing applied</Text>
+            </View>
             <Feather name="chevron-right" size={20} color="#fff" />
           </LinearGradient>
         </Pressable>
@@ -96,24 +99,32 @@ export default function WholesaleDashboard() {
             <Text style={s.metricLabel}>Total orders</Text>
             <Text style={[s.metricValue, { color: TEXT }]}>{orders.length}</Text>
             <Text style={s.metricHint}>All-time</Text>
+          </Pressable>
+        </View>
         {/* ── ANNOUNCEMENTS (only if present) ────────────────────────────── */}
         {announcements.length > 0 && (
           <View style={s.section}>
             <View style={s.sectionHeader}>
               <Feather name="bell" size={14} color={AMBER} />
               <Text style={s.sectionTitle}>Latest News</Text>
+            </View>
             {announcements.slice(0, 2).map((a: any, i: number) => (
               <View key={a.id} style={[s.announce, i > 0 && { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 8, paddingTop: 10 }]}>
                 <Text style={s.announceTitle}>{a.title}</Text>
                 <Text style={s.announceBody} numberOfLines={3}>{a.body}</Text>
+              </View>
             ))}
+          </View>
         )}
         {/* ── RECENT ORDERS ──────────────────────────────────────────────── */}
         {recentOrders.length > 0 ? (
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
               <Text style={s.sectionTitle}>Recent Orders</Text>
               <Pressable onPress={goOrders} hitSlop={8}>
                 <Text style={s.linkText}>See all</Text>
               </Pressable>
+            </View>
             {recentOrders.map((order: any, i: number) => {
               const cfg = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
               return (
@@ -134,15 +145,20 @@ export default function WholesaleDashboard() {
                       <Text style={[s.statusPillText, { color: cfg.color }]}>{cfg.label}</Text>
                     </View>
                     <Text style={s.orderAmount}>${(order.totalCents / 100).toFixed(2)}</Text>
+                  </View>
                 </Pressable>
               );
             })}
+          </View>
         ) : (
           <View style={[s.section, { alignItems: 'center', paddingVertical: 28 }]}>
             <View style={s.emptyIcon}>
               <Feather name="package" size={22} color={MUTED} />
+            </View>
             <Text style={s.emptyTitle}>No orders yet</Text>
             <Text style={s.emptySub}>Place your first wholesale order from the catalog.</Text>
+          </View>
+        )}
         {/* ── SUBTLE FOOTER ──────────────────────────────────────────────── */}
         <Pressable
           onPress={() => router.push('/(wholesale)/profile' as any)}
@@ -150,6 +166,7 @@ export default function WholesaleDashboard() {
         >
           <Feather name="info" size={12} color={MUTED} />
           <Text style={s.footerText}>Account details, payment methods & support in the Account tab</Text>
+        </Pressable>
       </View>
       </ScrollView>
     </View>

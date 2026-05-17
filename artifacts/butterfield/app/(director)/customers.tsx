@@ -39,6 +39,7 @@ const BADGE_CFG: Record<string, { label: string; bg: string; text: string }> = {
   needs_follow_up:   { label: 'Follow Up',      bg: '#FFF7ED', text: '#C2410C' },
   flagged:           { label: 'Flagged',        bg: '#FEE2E2', text: '#B91C1C' },
   at_risk:           { label: 'At Risk',        bg: '#FEF3C7', text: '#B45309' },
+};
 const MANUAL_BADGES = [
   'vip', 'high_spend', 'needs_follow_up', 'flagged', 'loyal', 'frequent_buyer', 'inactive', 'at_risk',
 ];
@@ -76,11 +77,14 @@ function autoFormatBdEdit(v: string): string {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0,2)}/${digits.slice(2)}`;
   return `${digits.slice(0,2)}/${digits.slice(2,4)}/${digits.slice(4)}`;
+}
 const STATUS_ORDER_COLOR: Record<string, string> = {
   received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: GREEN,
   out_for_delivery: '#8B5CF6', completed: MUTED, cancelled: RED, refunded: RED,
+};
 function statusLabel(s: string) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 // ── Shopify-style list row ────────────────────────────────────────────────────
 function ShopifyCustomerRow({ item, onPress, isLast }: { item: any; onPress: () => void; isLast: boolean }) {
   const loc = locationStr(item.suburb, item.state);
@@ -101,8 +105,11 @@ function ShopifyCustomerRow({ item, onPress, isLast }: { item: any; onPress: () 
       <View style={[row.badge, item.emailMarketingOptIn ? row.badgeGreen : row.badgeGrey]}>
         <Text style={[row.badgeTx, { color: item.emailMarketingOptIn ? GREEN : MUTED }]}>
           {item.emailMarketingOptIn ? 'Subscribed' : 'Not subscribed'}
+        </Text>
+      </View>
     </Pressable>
   );
+}
 // ── Shopify-style customer detail modal ───────────────────────────────────────
 export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { customerId: string; onClose: () => void; onDelete?: () => void }) {
   const insets  = useSafeAreaInsets();
@@ -146,12 +153,16 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setSavingContact(false); }
+  };
   const addNote = async () => {
     if (!noteText.trim()) return;
     setAddingNote(true);
+    try {
       await api.director.customers.addNote(customerId, noteText.trim());
       setNoteText('');
+    } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setAddingNote(false); }
+  };
   const deleteNote = (noteId: string) => {
     Alert.alert('Delete note', 'Remove this internal note?', [
       { text: 'Cancel', style: 'cancel' },
@@ -163,23 +174,37 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
   const toggleMarketing = async (val: boolean) => {
     if (!customer) return;
     setTogglingMarketing(true);
+    try {
       await api.director.customers.updateMarketing(customerId, val);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setTogglingMarketing(false); }
+  };
   const addBadge = (badge: string) => {
     Alert.alert('Add tag', `Add "${BADGE_CFG[badge]?.label ?? badge}" tag to this customer?`, [
+      { text: 'Cancel', style: 'cancel' },
       { text: 'Add', onPress: async () => {
         try { await api.director.customers.addBadge(customerId, badge); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+        catch (e: any) { Alert.alert('Error', (e as any).message); }
+      }},
+    ]);
+  };
   const removeBadge = (badgeId: string, badge: string) => {
     Alert.alert('Remove tag', `Remove "${BADGE_CFG[badge]?.label ?? badge}" tag?`, [
+      { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => {
         try { await api.director.customers.deleteBadge(customerId, badgeId); refetch(); }
+        catch (e: any) { Alert.alert('Error', (e as any).message); }
+      }},
+    ]);
+  };
   const defaultAddr = customer?.addresses?.find((a: any) => a.isDefault) ?? customer?.addresses?.[0] ?? null;
   const loyaltyTier = customer?.profile?.loyaltyTier;
   const tierCfg     = TIER_CFG[loyaltyTier ?? ''] ?? null;
   const marketingOn = customer?.profile?.emailMarketingOptIn ?? false;
   const manualSet   = new Set((customer?.manualBadges ?? []).map((m: any) => m.badge));
   const allBadges   = customer?.badges ?? [];
+  return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         {/* Header */}
@@ -213,9 +238,13 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                     { text: 'Manager', onPress: async () => {
                           await api.director.customers.promote(customerId, 'manager');
                           Alert.alert('Done', `${customer.name} is now a manager.`);
+                          onClose(); onDelete?.();
+                        }},
                     { text: 'Director', onPress: async () => {
                           await api.director.customers.promote(customerId, 'director');
                           Alert.alert('Done', `${customer.name} is now a director.`);
+                          onClose(); onDelete?.();
+                        }},
                     { text: 'Cancel', style: 'cancel' },
                   ]
                 )},
@@ -235,8 +264,10 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 )
               },
               { text: 'Cancel', style: 'cancel' },
-            ])}>
+            ])}
+          >
             <Feather name="more-horizontal" size={20} color={TEXT} />
+          </Pressable>
         </View>
         {isLoading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -262,9 +293,13 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 {tierCfg && (
                   <View style={[det.tag, { backgroundColor: tierCfg.bg }]}>
                     <Text style={[det.tagTx, { color: tierCfg.color }]}>{tierCfg.label} tier</Text>
+                  </View>
+                )}
                 {customer.status !== 'active' && (
                   <View style={[det.tag, { backgroundColor: '#FEE2E2' }]}>
                     <Text style={[det.tagTx, { color: RED }]}>{customer.status}</Text>
+                  </View>
+                )}
               </View>
             </View>
             {/* ── Insights ── */}
@@ -272,6 +307,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               <Text style={det.sectionTitle}>Insights</Text>
               <Text style={{ fontSize: 13, color: MUTED, fontWeight: '400', lineHeight: 18, marginBottom: 14 }}>
                 Butterfield tracks this customer's purchase history and loyalty to help you personalise their experience.
+              </Text>
               {[
                 { label: 'Total spend',      value: fmtAUD(customer.orderStats?.totalSpentCents ?? 0) },
                 { label: 'Last order',       value: customer.orderStats?.lastOrderAt ? fmtDate(customer.orderStats.lastOrderAt) : 'Never' },
@@ -285,12 +321,15 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                   <Text style={det.infoValue}>{r.value}</Text>
                 </View>
               ))}
+            </View>
             {/* ── Contact information ── */}
+            <View style={[det.section, { borderBottomColor: BORDER }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={det.sectionTitle}>Contact information</Text>
                 <Pressable onPress={() => startEdit(customer)} hitSlop={8}>
                   <Feather name="edit-2" size={16} color={BLUE} />
                 </Pressable>
+              </View>
               {editingContact ? (
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
                   <View style={{ gap: 10 }}>
@@ -315,6 +354,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       </Pressable>
                       <Pressable onPress={saveContact} disabled={savingContact} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY }]}>
                         {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save</Text>}
+                      </Pressable>
                     </View>
                     <View style={[det.infoRow, { borderBottomWidth: 0, paddingHorizontal: 0, marginTop: 2 }]}>
                       <View style={{ flex: 1, gap: 2 }}>
@@ -322,12 +362,15 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                         <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                           Lets this customer choose pay later at pickup on eligible pickup orders.
                         </Text>
+                      </View>
                       <Switch
                         value={ePayAtPickup}
                         onValueChange={setEPayAtPickup}
                         trackColor={{ false: BORDER, true: '#BBF7D0' }}
                         thumbColor={ePayAtPickup ? GREEN : '#9CA3AF'}
                       />
+                    </View>
+                  </View>
                 </KeyboardAvoidingView>
               ) : (
                 <>
@@ -339,10 +382,14 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <Feather name="mail" size={15} color={TEXT} />
                       <Text style={det.contactBtnTx}>Email details</Text>
                     </Pressable>
+                    <Pressable
                       onPress={() => customer.phone ? Alert.alert('Phone', customer.phone) : Alert.alert('No phone', 'No phone number on record.')}
                       style={[det.contactBtn, { backgroundColor: BG, borderColor: BORDER, opacity: customer.phone ? 1 : 0.5 }]}
+                    >
                       <Feather name="phone" size={15} color={TEXT} />
                       <Text style={det.contactBtnTx}>Phone details</Text>
+                    </Pressable>
+                  </View>
                   {defaultAddr && (
                     <>
                       <Text style={[det.infoLabel, { marginBottom: 6 }]}>Default address</Text>
@@ -358,18 +405,24 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                         <Pressable onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)} style={{ padding: 4 }}>
                           <Feather name="copy" size={16} color={MUTED} />
                         </Pressable>
+                      </View>
                     </>
                   )}
                   {customer.profile?.birthday && (
                     <View style={[det.infoRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER }]}>
                       <Text style={det.infoLabel}>Birthday</Text>
                       <Text style={det.infoValue}>{isoToDdMmYyyy(customer.profile.birthday)}</Text>
+                    </View>
+                  )}
                   <View style={[det.infoRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER }]}>
                     <Text style={det.infoLabel}>Pay at pickup</Text>
                     <Text style={det.infoValue}>{customer.profile?.payAtPickupEnabled ? 'Enabled' : 'Disabled'}</Text>
+                  </View>
                 </>
               )}
+            </View>
             {/* ── Note ── */}
+            <View style={[det.section, { borderBottomColor: BORDER }]}>
               <Text style={[det.sectionTitle, { marginBottom: 12 }]}>Note</Text>
               {(customer.notes?.length ?? 0) === 0 && !addingNote && (
                 <Pressable
@@ -379,7 +432,10 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Feather name="plus-circle" size={16} color={BLUE} />
                     <Text style={{ fontSize: 14, color: BLUE, fontWeight: '500' }}>Add note</Text>
+                  </View>
                   <Feather name="chevron-right" size={16} color={MUTED} />
+                </Pressable>
+              )}
               {(addingNote || (customer.notes?.length ?? 0) > 0) && (
                 <View style={{ gap: 10 }}>
                   {customer.notes?.map((note: any) => (
@@ -387,10 +443,14 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                         <View>
                           <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT }}>{note.authorName}</Text>
-                          <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400' }}>{fmtDateTime(note.createdAt)}</Text>
+                              <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400' }}>{fmtDateTime(note.createdAt)}</Text>
+                        </View>
                         <Pressable onPress={() => deleteNote(note.id)} hitSlop={8}>
                           <Feather name="trash-2" size={14} color={RED} />
+                        </Pressable>
+                      </View>
                       <Text style={{ fontSize: 14, color: TEXT, fontWeight: '400', lineHeight: 20 }}>{note.content}</Text>
+                    </View>
                   ))}
                   <TextInput
                     style={[det.noteInput, { borderColor: BORDER, color: TEXT }]}
@@ -404,16 +464,26 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <Pressable onPress={() => { setAddingNote(false); setNoteText(''); }} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
                       <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+                    </Pressable>
                     <Pressable onPress={addNote} disabled={addingNote || !noteText.trim()} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY, opacity: !noteText.trim() ? 0.4 : 1 }]}>
                       {addingNote ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save Note</Text>}
+                    </Pressable>
+                  </View>
                   {(customer.notes?.length ?? 0) > 0 && !addingNote && (
                     <Pressable onPress={() => setAddingNote(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 4 }}>
                       <Feather name="plus-circle" size={15} color={BLUE} />
                       <Text style={{ fontSize: 13, color: BLUE, fontWeight: '500' }}>Add another note</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+            </View>
             {/* ── Tags / Badges ── */}
+            <View style={[det.section, { borderBottomColor: BORDER }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <Feather name="tag" size={16} color={MUTED} />
                 <Text style={det.sectionTitle}>Tags</Text>
+              </View>
               {allBadges.length > 0 ? (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                   {allBadges.map((b: string) => {
@@ -425,14 +495,19 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: cfg.bg, paddingLeft: 8, paddingRight: 5, paddingVertical: 4, borderRadius: 20 }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: cfg.text }}>{cfg.label}</Text>
                           <Feather name="x" size={11} color={cfg.text} />
+                        </Pressable>
                       );
                     }
                     return (
                       <View key={b} style={{ backgroundColor: cfg.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 }}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: cfg.text }}>{cfg.label}</Text>
+                      </View>
                     );
                   })}
+                </View>
+              ) : (
                 <Text style={{ fontSize: 13, color: MUTED, fontWeight: '400', marginBottom: 8 }}>No tags yet.</Text>
+              )}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
                 <Text style={[det.infoLabel, { width: '100%', marginBottom: 4 }]}>Add tag:</Text>
                 {MANUAL_BADGES.filter(b => !allBadges.includes(b)).map(b => (
@@ -441,16 +516,21 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                     <Text style={{ fontSize: 11, fontWeight: '600', color: BADGE_CFG[b]?.text ?? MUTED }}>+ {BADGE_CFG[b]?.label ?? b}</Text>
                   </Pressable>
                 ))}
+              </View>
+            </View>
             {/* ── Marketing subscriptions ── */}
+            <View style={[det.section, { borderBottomColor: BORDER }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <Feather name="mail" size={16} color={MUTED} />
                 <Text style={det.sectionTitle}>Marketing subscriptions</Text>
+              </View>
               <View style={[det.infoRow, { borderBottomWidth: 0 }]}>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={{ fontSize: 14, color: TEXT, fontWeight: '500' }}>Email marketing</Text>
                   <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                     {marketingOn ? 'Subscribed to marketing emails' : 'Not subscribed to marketing emails'}
                   </Text>
+                </View>
                 <Switch
                   value={marketingOn}
                   onValueChange={toggleMarketing}
@@ -459,6 +539,8 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                   thumbColor="#fff"
                   ios_backgroundColor="#D1D5DB"
                 />
+              </View>
+            </View>
             {/* ── Order history ── */}
             <View style={det.section}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -466,40 +548,55 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>
                   {(customer.orders?.length ?? 0)} {customer.orders?.length === 1 ? 'order' : 'orders'}
                 </Text>
+              </View>
               {(customer.orders?.length ?? 0) === 0 ? (
                 <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }}>
                   <Feather name="shopping-bag" size={28} color={MUTED} />
                   <Text style={{ color: MUTED, fontWeight: '400' }}>No orders yet.</Text>
+                </View>
+              ) : (
                 <View style={{ gap: 0 }}>
                   {customer.orders?.map((order: any, i: number) => {
                     const statusColor = STATUS_ORDER_COLOR[order.status] ?? MUTED;
                     const items: any[] = Array.isArray(order.items) ? order.items : [];
                     const isLast = i === (customer.orders.length - 1);
+                    return (
                       <View key={order.id} style={[det.orderRow, !isLast && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>
-                              #{order.id.slice(0, 8).toUpperCase()}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>
+                            #{order.id.slice(0, 8).toUpperCase()}
+                          </Text>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{fmtAUD(order.totalCents)}</Text>
+                        </View>
+                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400', marginBottom: 6 }}>
+                          {customer.name} · {items.length} item{items.length !== 1 ? 's' : ''} · {fmtDateTime(order.createdAt)}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                          <View style={[det.statusPill, { backgroundColor: statusColor + '20' }]}>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: statusColor }}>
+                              {statusLabel(order.status)}
                             </Text>
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{fmtAUD(order.totalCents)}</Text>
                           </View>
-                          <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400', marginBottom: 6 }}>
-                            {customer.name} · {items.length} item{items.length !== 1 ? 's' : ''} · {fmtDateTime(order.createdAt)}
-                          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                            <View style={[det.statusPill, { backgroundColor: statusColor + '20' }]}>
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: statusColor }}>
-                                {statusLabel(order.status)}
+                          {order.type && (
+                            <View style={[det.statusPill, { backgroundColor: BG }]}>
+                              <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>
+                                {order.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                               </Text>
                             </View>
-                            {order.type && (
-                              <View style={[det.statusPill, { backgroundColor: BG }]}>
-                                <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>
-                                  {order.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                                </Text>
-                              </View>
-                            )}
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
           </ScrollView>
         )}
+      </View>
     </Modal>
+  );
+}
 // ── Main screen ──────────────────────────────────────────────────────────────
 export default function DirectorCustomersScreen() {
   const [search, setSearch]         = useState('');
@@ -507,7 +604,11 @@ export default function DirectorCustomersScreen() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-customers', search],
     queryFn:  () => api.director.customers.list({ search }),
-  const customers: any[] = data?.data ?? [];
+  });
+  const customers: any[] = (data as any)?.data ?? [];
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => { setRefreshing(true); await refetch(); setRefreshing(false); };
+  return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Search bar */}
       <View style={[scr.searchBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
@@ -527,12 +628,15 @@ export default function DirectorCustomersScreen() {
               <Feather name="x-circle" size={16} color={MUTED} />
             </Pressable>
           )}
+        </View>
         <Pressable style={[scr.sortBtn, { borderColor: BORDER }]}>
           <Feather name="sliders" size={16} color={MUTED} />
         </Pressable>
+      </View>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} size="large" />
+        </View>
       ) : (
         <FlatList
           data={customers}
@@ -546,6 +650,8 @@ export default function DirectorCustomersScreen() {
               <Feather name="users" size={40} color={MUTED} />
               <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>
                 {search ? 'No customers match your search.' : 'No customers yet.'}
+              </Text>
+            </View>
           }
           renderItem={({ item, index }) => (
             <ShopifyCustomerRow
@@ -553,13 +659,18 @@ export default function DirectorCustomersScreen() {
               onPress={() => setSelectedId(item.id)}
               isLast={index === customers.length - 1}
             />
+          )}
         />
       )}
       {selectedId && (
         <ShopifyCustomerDetailModal
           customerId={selectedId}
           onClose={() => setSelectedId(null)}
+        />
+      )}
     </View>
+  );
+}
 // ── Styles ───────────────────────────────────────────────────────────────────
 const row = StyleSheet.create({
   wrap:      { paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD },
@@ -577,6 +688,7 @@ const scr = StyleSheet.create({
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
   searchInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, height: 44 },
   sortBtn:     { width: 44, height: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
+});
 const det = StyleSheet.create({
   header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, backgroundColor: CARD },
   headerBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
@@ -599,3 +711,5 @@ const det = StyleSheet.create({
   editInput:    { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontWeight: '400', backgroundColor: BG },
   orderRow:     { paddingVertical: 14 },
   statusPill:   { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+});
+}

@@ -64,22 +64,30 @@ export default function StaffTasksScreen() {
   const handleWastage = async () => {
     if (!wastageForm.productName || !wastageForm.quantity || !wastageForm.reason) { Alert.alert('Fill all fields'); return; }
     setSubmitting(true);
+    try {
       await api.staff.submitWastage(wastageForm);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setWastageForm({ productName: '', quantity: '', unit: 'units', reason: '' });
       qc.invalidateQueries({ queryKey: ['staff-wastage'] });
       Alert.alert('Logged', 'Wastage recorded successfully.');
     } catch (e: any) { Alert.alert('Error', e.message); } finally { setSubmitting(false); }
+  };
   const handleIssue = async () => {
     if (!issueForm.title || !issueForm.description) { Alert.alert('Fill all fields'); return; }
+    try {
       await api.staff.submitIssue(issueForm);
       setIssueForm({ title: '', description: '', priority: 'medium' });
       Alert.alert('Reported', 'Issue submitted to management.');
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
   const handleLeave = async () => {
     if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) { Alert.alert('Fill all fields'); return; }
+    try {
       await api.staff.submitLeave(leaveForm);
       setLeaveForm({ startDate: '', endDate: '', type: 'annual', reason: '' });
       Alert.alert('Submitted', 'Leave request sent to management.');
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
   const TABS: { id: TabMode; label: string }[] = [
     { id: 'tasks', label: 'Tasks' }, { id: 'wastage', label: 'Wastage' },
     { id: 'issues', label: 'Issues' }, { id: 'leave', label: 'Leave' },
@@ -149,6 +157,7 @@ export default function StaffTasksScreen() {
           ) : (
             <View style={s.taskCard}>
               {tasks.map((task: any, idx: number) => (
+                <Pressable
                   key={task.id}
                   onPress={() => handleCompleteTask(task.id, task.isCompleted)}
                   style={({ pressed }) => [
@@ -156,6 +165,7 @@ export default function StaffTasksScreen() {
                     idx < tasks.length - 1 && s.taskDivider,
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
+                >
                   <View style={[s.checkbox, {
                     borderColor: task.isCompleted ? GREEN : BLUE,
                     backgroundColor: task.isCompleted ? GREEN : 'transparent',
@@ -172,7 +182,13 @@ export default function StaffTasksScreen() {
                     <Text style={[s.taskCat, { color: CAT_COLORS[task.category] ?? BLUE }]}>
                       {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)}
                       {task.completedBy ? ` · ✓ ${task.completedBy}` : ''}
+                    </Text>
+                  </View>
+                </Pressable>
               ))}
+            </View>
+          )}
+        </ScrollView>
       )}
       {/* ── Wastage tab ────────────────────────────────────────────────────── */}
       {tab === 'wastage' && (
@@ -193,6 +209,8 @@ export default function StaffTasksScreen() {
                 value={(wastageForm as any)[field.key]}
                 onChangeText={(v) => setWastageForm((f) => ({ ...f, [field.key]: v }))}
               />
+            </View>
+          ))}
           <Pressable onPress={handleWastage} disabled={submitting} style={[s.submitBtn, { backgroundColor: BLUE }]}>
             {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>Log Wastage</Text>}
           </Pressable>
@@ -206,47 +224,102 @@ export default function StaffTasksScreen() {
                       <Text style={s.taskTitle}>{w.productName} × {w.quantity}</Text>
                       <Text style={s.taskDesc}>{w.reason}</Text>
                     </View>
+                  </View>
                 ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      )}
       {/* ── Issues tab ─────────────────────────────────────────────────────── */}
       {tab === 'issues' && (
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
           <Text style={s.formTitle}>Report an Issue</Text>
-            { label: 'Title', key: 'title', placeholder: 'Brief description of the issue' },
+          {[
+            { label: 'Title', key: 'title', placeholder: 'Brief description of the issue', multiline: false },
             { label: 'Details', key: 'description', placeholder: 'What happened? Where? When?', multiline: true },
+          ].map((field) => (
+            <View key={field.key}>
+              <Text style={s.fieldLabel}>{field.label.toUpperCase()}</Text>
+              <TextInput
                 style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
                 value={(issueForm as any)[field.key]}
                 onChangeText={(v) => setIssueForm((f) => ({ ...f, [field.key]: v }))}
                 multiline={field.multiline}
                 numberOfLines={field.multiline ? 4 : 1}
+                placeholder={field.placeholder}
+                placeholderTextColor={MUTED}
+              />
+            </View>
+          ))}
           <Text style={s.fieldLabel}>PRIORITY</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {['low', 'medium', 'high', 'urgent'].map((p) => {
               const pColors: Record<string, string> = { low: GREEN, medium: BLUE, high: '#F59E0B', urgent: '#EF4444' };
               const pc = pColors[p] ?? BLUE;
               const active = issueForm.priority === p;
+              return (
+                <Pressable
                   key={p}
                   onPress={() => setIssueForm((f) => ({ ...f, priority: p }))}
                   style={[s.catPill, active && { backgroundColor: pc, borderColor: pc }]}
+                >
+                  <Text style={[s.catPillText, active && { color: '#fff' }]}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           <Pressable onPress={handleIssue} disabled={submitting} style={[s.submitBtn, { backgroundColor: '#EF4444' }]}>
             {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>Report Issue</Text>}
+          </Pressable>
+        </ScrollView>
+      )}
       {/* ── Leave tab ──────────────────────────────────────────────────────── */}
       {tab === 'leave' && (
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
           <Text style={s.formTitle}>Leave Request</Text>
-            { label: 'Start date (DD/MM/YYYY)', key: 'startDate', placeholder: '01/06/2026' },
-            { label: 'End date (DD/MM/YYYY)', key: 'endDate', placeholder: '05/06/2026' },
+          {[
+            { label: 'Start date (DD/MM/YYYY)', key: 'startDate', placeholder: '01/06/2026', multiline: false },
+            { label: 'End date (DD/MM/YYYY)',   key: 'endDate',   placeholder: '05/06/2026', multiline: false },
             { label: 'Reason', key: 'reason', placeholder: 'Reason for leave', multiline: true },
+          ].map((field) => (
+            <View key={field.key}>
+              <Text style={s.fieldLabel}>{field.label.toUpperCase()}</Text>
+              <TextInput
+                style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
                 value={(leaveForm as any)[field.key]}
                 onChangeText={(v) => setLeaveForm((f) => ({ ...f, [field.key]: v }))}
+                placeholder={field.placeholder}
+                placeholderTextColor={MUTED}
+                multiline={field.multiline}
+                numberOfLines={field.multiline ? 4 : 1}
+              />
+            </View>
+          ))}
           <Text style={s.fieldLabel}>LEAVE TYPE</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             {['annual', 'sick', 'personal', 'other'].map((lt) => {
               const active = leaveForm.type === lt;
+              return (
+                <Pressable
                   key={lt}
                   onPress={() => setLeaveForm((f) => ({ ...f, type: lt }))}
                   style={[s.catPill, active && { backgroundColor: BLUE, borderColor: BLUE }]}
+                >
+                  <Text style={[s.catPillText, active && { color: '#fff' }]}>
                     {lt.charAt(0).toUpperCase() + lt.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <Pressable onPress={handleLeave} disabled={submitting} style={[s.submitBtn, { backgroundColor: BLUE }]}>
             {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>Submit Request</Text>}
+          </Pressable>
+        </ScrollView>
+      )}
     </KeyboardAvoidingView>
   );
 }
