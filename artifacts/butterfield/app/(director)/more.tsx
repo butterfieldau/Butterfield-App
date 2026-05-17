@@ -90,6 +90,13 @@ export default function MoreScreen() {
       color: AMBER,
       onPress: () => router.push('/(director)/pricing' as any),
     },
+    {
+      icon: 'percent',
+      label: 'Discount Codes',
+      sub: 'Create & manage promotional codes',
+      color: RED,
+      onPress: () => router.push('/(director)/discounts' as any),
+    },
   ];
 
   const store: Row[] = [

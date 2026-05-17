@@ -1,0 +1,251 @@
+Update the Butterfield customer rewards and points system so rewards are smooth, connected, and can be redeemed properly through checkout or by staff/admin.
+
+Main goal:
+Customers should be able to earn points, unlock rewards, claim rewards, and redeem them correctly. Rewards must sync between the customer app, checkout, staff portal, manager portal, director portal, and master account.
+
+Do not redesign the whole app.
+Keep the current Butterfield app design and layout.
+Only improve the rewards logic, redemption flow, checkout integration, and backend management.
+
+Reward system requirements:
+
+1. Points balance
+- Every customer must have a live points balance.
+- Points must update after eligible purchases.
+- Points must be removed if an order is cancelled, refunded, or manually reversed.
+- Points must be synced across:
+  - Customer account
+  - Rewards page
+  - Checkout
+  - Order history
+  - Staff/backend view
+
+2. Reward types
+Create two reward types in the backend:
+
+A) Money voucher rewards
+Example:
+- $5 off
+- $10 off
+- $20 off
+- Any custom dollar amount
+
+These rewards should work like a voucher at checkout.
+
+B) Item rewards
+Example:
+- Free coffee
+- Free cookie
+- Free soft serve
+- Free drink
+- Any product selected by directors/master account
+
+These rewards should unlock specific products when the customer has enough points.
+
+3. Backend reward management
+In the Director and Master backend, create a proper Rewards Management section where authorised users can:
+- Create a reward
+- Edit a reward
+- Delete/deactivate a reward
+- Choose reward type:
+  - Money voucher
+  - Free item
+- Set required points
+- Set dollar value if it is a money voucher
+- Select the product from the product list if it is an item reward
+- Choose if the reward is active or inactive
+- Choose if staff can redeem it manually
+- Choose if customer can redeem it in-app
+- Set expiry date if needed
+- See how many customers have claimed each reward
+
+Only Master and Directors can create/edit/delete rewards.
+Store Managers can view rewards and redeem approved rewards for customers.
+Staff can only redeem rewards if permission is enabled.
+
+4. Customer reward page
+On the customer Rewards page:
+- Show available rewards based on the customer’s current points.
+- If they do not have enough points, show “Need more”.
+- If they have enough points, show “Claim”.
+- Once claimed, the reward should move into “My rewards” or “Available vouchers”.
+- Show the reward clearly:
+  - Reward name
+  - Points used
+  - Expiry if applicable
+  - Status: available, used, expired
+
+5. Claiming rewards
+When a customer taps “Claim”:
+- Confirm with a simple popup:
+  “Use 350 points to claim Vanilla soft serve?”
+- If confirmed, deduct the points immediately.
+- Create a unique reward claim record linked to that customer.
+- Do not allow the same reward claim to be reused.
+- Claimed rewards must have a unique ID/status:
+  - available
+  - applied_to_cart
+  - redeemed
+  - expired
+  - cancelled/reversed
+
+6. Checkout redemption for money vouchers
+At checkout, if the customer has an available money voucher:
+- Show a clean section that says:
+  “You have $10 in rewards available”
+- Ask:
+  “Use this reward on your order?”
+- Give options:
+  - Apply reward
+  - Not now
+
+When applied:
+- Deduct the voucher value from the checkout total.
+- Show it in the order summary as:
+  “Reward applied: -$10”
+- Do not allow the order total to go below $0.
+- Mark the reward as “applied_to_cart” while checking out.
+- Once order is successfully paid/placed, mark it as “redeemed”.
+- If checkout fails or is cancelled, return the reward to “available”.
+
+Do not show Stripe or any payment provider wording to customers.
+
+7. Checkout redemption for item rewards
+If the customer has claimed a free item reward:
+- The item must only apply to the exact product selected in the backend.
+- At checkout, if the matching item is in the cart, ask:
+  “Use your free [item name] reward?”
+- If applied, reduce that item price to $0.
+- Show in the order summary:
+  “Free reward item applied”
+- Mark the reward as redeemed once the order is completed.
+
+If the item is not in the cart:
+- Show the reward in a small section:
+  “You have a free [item name] available”
+  Button: “Add to order”
+- Tapping it should add the eligible item to the cart and apply the reward.
+
+8. Staff redemption flow
+Staff, Store Managers, Directors and Master accounts need a way to redeem customer rewards manually.
+
+In the backend/staff portal:
+- Staff can search or scan the customer QR code.
+- Open the customer reward profile.
+- See available claimed rewards.
+- Redeem reward manually if permission allows.
+- Confirm before redeeming:
+  “Redeem this reward for customer?”
+- Once redeemed, mark it as used and show:
+  - Redeemed by staff name
+  - Date/time
+  - Store location
+  - Reward used
+
+This is needed for rewards claimed in-store, not just app checkout.
+
+9. QR code integration
+Customer QR code should connect to:
+- Customer profile
+- Coffee stamp rewards
+- Points balance
+- Available claimed rewards
+- Manual staff redemption
+
+When staff scan a QR code, they should be able to:
+- Mark off coffee purchases
+- Redeem free coffee rewards
+- Redeem points-based item rewards
+- View customer’s current available rewards
+
+10. Coffee stamp rewards
+Keep the coffee stamp system separate from general points.
+Coffee rewards are:
+- Buy 6, get 1 free
+- 1 stamp per coffee purchased
+- Free coffee unlocked after 6 stamps
+
+Coffee rewards should be redeemable:
+- In checkout if the customer orders coffee
+- By staff when scanning QR in-store
+
+When free coffee is redeemed:
+- Reset/adjust stamps correctly
+- Keep a history of redeemed free coffees
+- Do not mix coffee stamps with general points unless specifically configured later
+
+11. Order and reward history
+Every reward action must create a history record:
+- Points earned
+- Points deducted
+- Reward claimed
+- Reward applied at checkout
+- Reward redeemed by staff
+- Reward expired
+- Reward reversed due to refund/cancelled order
+
+The customer should see a simple history.
+Directors and Master accounts should see full reward logs.
+
+12. Refund and cancellation logic
+If an order is cancelled or refunded:
+- Remove any points earned from that order.
+- If a reward was used on that order, do not automatically return it unless the refund/cancellation is approved by Director or Master.
+- Add backend option:
+  “Return used reward to customer”
+- If selected, restore the reward as available.
+- Log who approved the reversal.
+
+13. Security and validation
+Make sure the system prevents:
+- Customers using the same reward twice
+- Rewards being applied without enough points
+- Staff redeeming rewards without permission
+- Expired rewards being used
+- Checkout totals going below $0
+- Reward being applied to the wrong product
+- Points being duplicated on page refresh
+- Rewards being duplicated if checkout is clicked twice
+
+Use server-side validation for all points and rewards logic.
+Do not rely only on frontend checks.
+
+14. UI improvements
+Keep the UI clean and native.
+On the Rewards page:
+- Make points rewards, coffee stamps, birthday rewards and redeemable vouchers feel connected but clearly separated.
+- Add sections:
+  - Points balance
+  - Coffee rewards
+  - Available rewards
+  - Redeem rewards
+  - Reward history
+- Buttons should be clear:
+  - Claim
+  - Apply at checkout
+  - Add to order
+  - Redeemed
+  - Need more
+
+15. Testing
+After building, test the following:
+- Customer earns points after purchase
+- Customer claims a money voucher
+- Customer applies voucher at checkout
+- Voucher reduces total correctly
+- Failed checkout returns voucher to available
+- Completed order marks voucher redeemed
+- Customer claims item reward
+- Item reward only applies to selected product
+- Staff can redeem customer reward from QR scan
+- Staff without permission cannot redeem restricted rewards
+- Cancelled/refunded orders reverse points correctly
+- Coffee stamps work separately from points
+- Free coffee reward works through checkout and staff scan
+- Reward history logs correctly
+- Backend reward creation works for Director and Master accounts
+
+Important:
+Do not break current login, product, cart, checkout, customer account, QR code, loyalty points, staff portal, manager portal, director portal, wholesale portal or order system.
+
+The final result should feel like a proper hospitality app rewards system where customers can clearly see what they have earned, claim it, and use it smoothly either online at checkout or in-store through staff.
