@@ -414,9 +414,15 @@ export default function LoyaltyScreen() {
                           : 'Free item — apply at checkout'}
                       </Text>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                        <View style={{ backgroundColor: '#D1FAE5', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
-                          <Text style={{ fontSize: 11, color: '#166534', fontWeight: '600' }}>Ready to use</Text>
-                        </View>
+                        {c.status === 'applied_to_cart' ? (
+                          <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 11, color: '#1D4ED8', fontWeight: '600' }}>Applied to cart</Text>
+                          </View>
+                        ) : (
+                          <View style={{ backgroundColor: '#D1FAE5', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 11, color: '#166534', fontWeight: '600' }}>Ready to use</Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                     <Pressable
