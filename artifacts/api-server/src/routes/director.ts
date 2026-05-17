@@ -815,6 +815,9 @@ router.post('/rewards', async (req, res) => {
   if (rewardType === 'money_voucher' && (!b.voucherValueCents || typeof b.voucherValueCents !== 'number' || b.voucherValueCents < 1)) {
     return res.status(400).json({ error: 'money_voucher rewards require a voucherValueCents value.' });
   }
+  const claimExpiryDays = b.claimExpiryDays != null && Number(b.claimExpiryDays) > 0
+    ? Math.floor(Number(b.claimExpiryDays))
+    : null;
   const [reward] = await db.insert(loyaltyRewardsTable).values({
     id:               randomUUID(),
     name:             b.name.trim(),
@@ -831,6 +834,7 @@ router.post('/rewards', async (req, res) => {
     linkedProductId:  b.linkedProductId ?? null,
     customerRedeemable: b.customerRedeemable !== false,
     staffRedeemable:  b.staffRedeemable === true,
+    claimExpiryDays,
   }).returning();
   return res.status(201).json({ data: reward });
 });
@@ -842,6 +846,11 @@ router.patch('/rewards/:id', async (req, res) => {
   const updates: Record<string, any> = {};
   for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
   if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;
+  if (b.claimExpiryDays !== undefined) {
+    updates.claimExpiryDays = b.claimExpiryDays != null && Number(b.claimExpiryDays) > 0
+      ? Math.floor(Number(b.claimExpiryDays))
+      : null;
+  }
   // Enforce voucher value presence
   if (updates.rewardType === 'money_voucher' && updates.voucherValueCents === undefined) {
     const [existing] = await db.select({ rewardType: loyaltyRewardsTable.rewardType, voucherValueCents: loyaltyRewardsTable.voucherValueCents })

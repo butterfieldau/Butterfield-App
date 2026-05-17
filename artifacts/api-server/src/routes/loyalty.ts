@@ -12,6 +12,10 @@ import {
   recordLoyaltyPoints,
 } from '../lib/loyaltyIdentity.js';
 
+// Infer the Drizzle transaction type from the db object so helper functions
+// can be typed without depending on internal Drizzle generic parameters.
+type DbTx = typeof db extends { transaction: (cb: (tx: infer T) => unknown, ...args: unknown[]) => unknown } ? T : never;
+
 const router = Router();
 void ensureLoyaltySchemaReady();
 
@@ -99,8 +103,92 @@ router.get('/rewards', async (_req, res) => {
   return res.json({ data: rewards });
 });
 
+const DEFAULT_CLAIM_EXPIRY_DAYS = 30;
+
+// ── Shared helper: atomically expire a single claim and restore its points ──
+// Uses UPDATE...RETURNING inside a transaction so only the row actually
+// transitioned (not a pre-fetched snapshot) gets points restored. Returns the
+// points restored (0 if the claim was already in a terminal state).
+async function expireClaimAndRestorePoints(
+  tx: DbTx,
+  claimId: string,
+  userId: string,
+): Promise<number> {
+  type ExecResult = { rows: { points_spent: number }[]; rowCount: number | null };
+  const result = await tx.execute(
+    sql`UPDATE claimed_rewards
+        SET status = 'expired'
+        WHERE id = ${claimId}
+          AND user_id = ${userId}
+          AND status IN ('available', 'applied_to_cart')
+        RETURNING points_spent`
+  ) as unknown as ExecResult;
+
+  const expired = result.rows[0];
+  if (!expired) return 0; // already in a terminal state — do not double-credit
+
+  const pts = Number(expired.points_spent);
+  await tx.execute(
+    sql`UPDATE customer_profiles SET loyalty_points = loyalty_points + ${pts} WHERE user_id = ${userId}`
+  );
+  await tx.insert(loyaltyTransactionsTable).values({
+    id: randomUUID(), userId, points: pts,
+    type: 'earn', description: 'Expired claim — points restored', referenceId: claimId,
+  });
+  await tx.insert(loyaltyActivityLogTable).values({
+    id: randomUUID(), customerId: userId,
+    activityType: 'points_earn', pointsDelta: pts,
+    coffeeStampsDelta: 0, freeCoffeeRewardsDelta: 0,
+    description: 'Expired claim — points restored', orderId: null,
+  });
+  return pts;
+}
+
 // ── GET /loyalty/claimed-rewards — customer's active claims (available + applied_to_cart) ──
+// Performs lazy expiry: any claim with expiresAt in the past is transitioned to 'expired'
+// and the customer's points are restored atomically via UPDATE...RETURNING (race-safe).
 router.get('/claimed-rewards', requireAuth, async (req, res) => {
+  const userId = req.user!.id;
+
+  // Atomically expire all stale claims for this user in one transaction.
+  // UPDATE...RETURNING ensures only rows actually transitioned get points restored,
+  // preventing double-credit from concurrent requests.
+  await db.transaction(async (tx) => {
+    type ExecResult = { rows: { id: string; points_spent: number }[]; rowCount: number | null };
+    const result = await tx.execute(
+      sql`UPDATE claimed_rewards
+          SET status = 'expired'
+          WHERE user_id = ${userId}
+            AND status IN ('available', 'applied_to_cart')
+            AND expires_at IS NOT NULL
+            AND expires_at < now()
+          RETURNING id, points_spent`
+    ) as unknown as ExecResult;
+
+    const expired = result.rows;
+    if (!expired.length) return;
+
+    const totalRestored = expired.reduce((sum, r) => sum + Number(r.points_spent), 0);
+    await tx.execute(
+      sql`UPDATE customer_profiles SET loyalty_points = loyalty_points + ${totalRestored} WHERE user_id = ${userId}`
+    );
+
+    for (const r of expired) {
+      await tx.insert(loyaltyTransactionsTable).values({
+        id: randomUUID(), userId, points: Number(r.points_spent),
+        type: 'earn', description: 'Expired claim — points restored', referenceId: r.id,
+      });
+    }
+
+    await tx.insert(loyaltyActivityLogTable).values({
+      id: randomUUID(), customerId: userId,
+      activityType: 'points_earn', pointsDelta: totalRestored,
+      coffeeStampsDelta: 0, freeCoffeeRewardsDelta: 0,
+      description: `${expired.length} reward${expired.length > 1 ? 's' : ''} expired — points restored`,
+      orderId: null,
+    });
+  });
+
   const claimed = await db
     .select({
       id: claimedRewardsTable.id,
@@ -111,6 +199,7 @@ router.get('/claimed-rewards', requireAuth, async (req, res) => {
       orderId: claimedRewardsTable.orderId,
       pointsSpent: claimedRewardsTable.pointsSpent,
       voucherValueCents: claimedRewardsTable.voucherValueCents,
+      expiresAt: claimedRewardsTable.expiresAt,
       rewardName: loyaltyRewardsTable.name,
       rewardDescription: loyaltyRewardsTable.description,
       rewardType: loyaltyRewardsTable.rewardType,
@@ -119,7 +208,7 @@ router.get('/claimed-rewards', requireAuth, async (req, res) => {
     .from(claimedRewardsTable)
     .leftJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
     .where(and(
-      eq(claimedRewardsTable.userId, req.user!.id),
+      eq(claimedRewardsTable.userId, userId),
       inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
     ))
     .orderBy(desc(claimedRewardsTable.claimedAt));
@@ -141,12 +230,10 @@ router.post('/claimed-rewards/:id/apply', requireAuth, async (req, res) => {
 
   if (!existing) return res.status(404).json({ error: 'Claimed reward not found' });
 
-  // Expiry check: auto-transition to expired and reject
+  // Expiry check: atomically expire and restore points, then reject
   if (existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
-    await db.execute(
-      sql`UPDATE claimed_rewards SET status='expired' WHERE id=${claimId} AND user_id=${userId} AND status IN ('available','applied_to_cart')`
-    );
-    return res.status(409).json({ error: 'This reward has expired' });
+    await db.transaction(async (tx) => expireClaimAndRestorePoints(tx, claimId, userId));
+    return res.status(409).json({ error: 'This reward has expired and your points have been restored' });
   }
 
   if (existing.status === 'applied_to_cart') return res.json({ success: true }); // idempotent
@@ -174,12 +261,10 @@ router.post('/claimed-rewards/:id/unapply', requireAuth, async (req, res) => {
 
   if (!existing) return res.status(404).json({ error: 'Claimed reward not found' });
 
-  // Expiry check: auto-transition to expired and reject
+  // Expiry check: atomically expire and restore points, then reject
   if (existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
-    await db.execute(
-      sql`UPDATE claimed_rewards SET status='expired' WHERE id=${claimId} AND user_id=${userId} AND status IN ('available','applied_to_cart')`
-    );
-    return res.status(409).json({ error: 'This reward has expired' });
+    await db.transaction(async (tx) => expireClaimAndRestorePoints(tx, claimId, userId));
+    return res.status(409).json({ error: 'This reward has expired and your points have been restored' });
   }
 
   if (existing.status === 'available') return res.json({ success: true }); // idempotent
@@ -244,6 +329,11 @@ router.post('/redeem', requireAuth, async (req, res) => {
       }
 
       // 3. Insert claim row — rolled back automatically if anything above fails
+      const expiryDays = typeof reward.claimExpiryDays === 'number' && reward.claimExpiryDays > 0
+        ? reward.claimExpiryDays
+        : DEFAULT_CLAIM_EXPIRY_DAYS;
+      const claimExpiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
+
       const [inserted] = await tx.insert(claimedRewardsTable).values({
         id: claimId,
         userId,
@@ -251,7 +341,7 @@ router.post('/redeem', requireAuth, async (req, res) => {
         status: 'available',
         pointsSpent: reward.pointsCost,
         voucherValueCents: reward.voucherValueCents ?? null,
-        expiresAt: reward.expiresAt ?? null,
+        expiresAt: claimExpiresAt,
       }).returning();
       claimed = inserted;
 

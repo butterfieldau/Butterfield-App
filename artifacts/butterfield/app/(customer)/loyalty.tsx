@@ -87,6 +87,20 @@ function getBirthdayInfo(isoDate: string): {
     sub: `${diff} days to go — your free cookie will be waiting for you!`,
   };
 }
+function getClaimExpiryInfo(expiresAt: string | null): { daysLeft: number; label: string } | null {
+  if (!expiresAt) return null;
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const msLeft = expiry.getTime() - now.getTime();
+  if (msLeft <= 0) return null;
+  // Math.ceil with msLeft > 0 is always ≥ 1, so daysLeft=0 is unreachable here
+  const daysLeft = Math.ceil(msLeft / 86400000);
+  if (daysLeft === 1) return { daysLeft: 1, label: 'Expires tomorrow' };
+  if (daysLeft <= 7) return { daysLeft, label: `Expires in ${daysLeft} days` };
+  const formatted = expiry.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  return { daysLeft, label: `Expires ${formatted}` };
+}
+
 const HOW_IT_WORKS = [
   { icon: 'coffee', title: 'Earn 1 pt per $1', desc: 'Every dollar you spend earns 1 point automatically.' },
   { icon: 'tag', title: '100 pts = $5 credit', desc: 'Save up your points and redeem them for store credit. No minimum spend.' },
@@ -401,26 +415,36 @@ export default function LoyaltyScreen() {
             <View style={{ paddingHorizontal: 16, gap: 10 }}>
               {claimedRewards.map((c) => {
                 const isVoucher = c.rewardType === 'money_voucher';
+                const expiryInfo = getClaimExpiryInfo(c.expiresAt ?? null);
+                const isExpiringSoon = expiryInfo !== null && expiryInfo.daysLeft <= 7;
                 return (
-                  <View key={c.id} style={[styles.rewardCard, { backgroundColor: '#F0FFF4', borderWidth: 1, borderColor: '#86EFAC', borderRadius: 14, padding: 14 }]}>
-                    <View style={[styles.rewardIcon, { backgroundColor: '#D1FAE5' }]}>
-                      <Feather name={isVoucher ? 'tag' : 'gift'} size={18} color="#16A34A" />
+                  <View key={c.id} style={[styles.rewardCard, { backgroundColor: isExpiringSoon ? '#FFFBEB' : '#F0FFF4', borderWidth: 1, borderColor: isExpiringSoon ? '#FCD34D' : '#86EFAC', borderRadius: 14, padding: 14 }]}>
+                    <View style={[styles.rewardIcon, { backgroundColor: isExpiringSoon ? '#FEF3C7' : '#D1FAE5' }]}>
+                      <Feather name={isVoucher ? 'tag' : 'gift'} size={18} color={isExpiringSoon ? '#D97706' : '#16A34A'} />
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[styles.rewardName, { fontWeight: '600', color: '#166534' }]}>{c.rewardName}</Text>
-                      <Text style={[styles.rewardDesc, { fontWeight: '400', color: '#15803D' }]}>
+                      <Text style={[styles.rewardName, { fontWeight: '600', color: isExpiringSoon ? '#92400E' : '#166534' }]}>{c.rewardName}</Text>
+                      <Text style={[styles.rewardDesc, { fontWeight: '400', color: isExpiringSoon ? '#B45309' : '#15803D' }]}>
                         {isVoucher
                           ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} voucher — apply at checkout`
                           : 'Free item — apply at checkout'}
                       </Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
                         {c.status === 'applied_to_cart' ? (
                           <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
                             <Text style={{ fontSize: 11, color: '#1D4ED8', fontWeight: '600' }}>Applied to cart</Text>
                           </View>
                         ) : (
-                          <View style={{ backgroundColor: '#D1FAE5', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 11, color: '#166534', fontWeight: '600' }}>Ready to use</Text>
+                          <View style={{ backgroundColor: isExpiringSoon ? '#FEF3C7' : '#D1FAE5', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 11, color: isExpiringSoon ? '#92400E' : '#166534', fontWeight: '600' }}>Ready to use</Text>
+                          </View>
+                        )}
+                        {expiryInfo !== null && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Feather name="clock" size={10} color={isExpiringSoon ? '#D97706' : MUTED} />
+                            <Text style={{ fontSize: 11, color: isExpiringSoon ? '#D97706' : MUTED, fontWeight: isExpiringSoon ? '600' : '400' }}>
+                              {expiryInfo.label}
+                            </Text>
                           </View>
                         )}
                       </View>

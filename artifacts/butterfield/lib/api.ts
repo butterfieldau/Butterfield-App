@@ -770,6 +770,7 @@ export interface DirectorReward {
   customerRedeemable: boolean;
   staffRedeemable: boolean;
   claimCount?: number;
+  claimExpiryDays?: number | null;
 }
 
 export interface ClaimedReward {
@@ -782,6 +783,7 @@ export interface ClaimedReward {
   orderId?: string | null;
   pointsSpent: number;
   voucherValueCents?: number | null;
+  expiresAt?: string | null;
   rewardName?: string;
   rewardDescription?: string;
   rewardType?: 'item_reward' | 'money_voucher';

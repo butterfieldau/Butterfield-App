@@ -30,6 +30,7 @@ export const loyaltyRewardsTable = pgTable("loyalty_rewards", {
   linkedProductId: text("linked_product_id"),
   staffRedeemable: boolean("staff_redeemable").notNull().default(false),
   customerRedeemable: boolean("customer_redeemable").notNull().default(true),
+  claimExpiryDays: integer("claim_expiry_days"),
 });
 
 export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {

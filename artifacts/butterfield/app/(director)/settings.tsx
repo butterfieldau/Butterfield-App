@@ -957,6 +957,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
   const [voucherDollars,    setVoucherDollars]    = useState('');
   const [linkedProductId,   setLinkedProductId]   = useState('');
   const [customerRedeemable,setCustomerRedeemable]= useState(true);
+  const [claimExpiryDays,   setClaimExpiryDays]   = useState('');
   const [loading,           setLoading]           = useState(false);
   const [error,             setError]             = useState('');
 
@@ -969,10 +970,12 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       setVoucherDollars(reward.voucherValueCents ? String(reward.voucherValueCents / 100) : '');
       setLinkedProductId(reward.linkedProductId ?? '');
       setCustomerRedeemable(reward.customerRedeemable !== false);
+      setClaimExpiryDays(reward.claimExpiryDays != null ? String(reward.claimExpiryDays) : '');
     } else {
       setName(''); setDesc(''); setPts(''); setCategory('food'); setStock('');
       setIsAppOnly(false); setIsActive(true); setRewardType('item_reward');
       setVoucherDollars(''); setLinkedProductId(''); setCustomerRedeemable(true);
+      setClaimExpiryDays('');
     }
     setError('');
   }, [reward, visible]);
@@ -992,6 +995,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       const voucherValueCents = rewardType === 'money_voucher'
         ? Math.round(parseFloat(voucherDollars) * 100)
         : null;
+      const parsedExpiryDays = claimExpiryDays.trim() ? parseInt(claimExpiryDays.trim(), 10) : null;
       const payload: Record<string, any> = {
         name: name.trim(), description: desc.trim(), pointsCost, category,
         stock: stock ? parseInt(stock, 10) : null, isAppOnly, isActive,
@@ -999,6 +1003,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
         voucherValueCents,
         linkedProductId: linkedProductId.trim() || null,
         customerRedeemable,
+        claimExpiryDays: parsedExpiryDays && parsedExpiryDays > 0 ? parsedExpiryDays : null,
       };
       if (reward?.id) await api.director.updateReward(reward.id, payload);
       else            await api.director.createReward(payload);
@@ -1089,6 +1094,14 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
             <Text style={styles.fieldLabel}>Stock limit (leave blank for unlimited)</Text>
             <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={stock}
               onChangeText={setStock} keyboardType="number-pad" placeholder="Unlimited" placeholderTextColor={MUTED} />
+          </View>
+          <View style={{ gap: 6 }}>
+            <Text style={styles.fieldLabel}>Claim expiry (days, leave blank for default 30)</Text>
+            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={claimExpiryDays}
+              onChangeText={setClaimExpiryDays} keyboardType="number-pad" placeholder="30" placeholderTextColor={MUTED} />
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              How many days after claiming before the reward expires and points are restored. Default is 30 days.
+            </Text>
           </View>
           <View style={styles.switchRow}>
             <Text style={styles.fieldLabel}>Claimable by customers in app</Text>

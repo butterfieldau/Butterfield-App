@@ -122,6 +122,8 @@ export async function ensureLoyaltySchemaReady() {
           `ALTER TABLE claimed_rewards ADD COLUMN IF NOT EXISTS expires_at timestamp`,
           `CREATE INDEX IF NOT EXISTS claimed_rewards_user_id_idx ON claimed_rewards (user_id)`,
           `CREATE INDEX IF NOT EXISTS claimed_rewards_status_idx ON claimed_rewards (status)`,
+          // Claim expiry window per reward (task #46)
+          `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS claim_expiry_days integer`,
         ]);
 
         // Backfill: generate QR tokens for any profile that is missing one.
