@@ -324,40 +324,76 @@ router.get('/claimed-rewards/history', requireAuth, async (req, res) => {
 
 // ── DELETE /loyalty/claimed-rewards/:id — cancel a claim (restore points) ─────
 router.delete('/claimed-rewards/:id', requireAuth, async (req, res) => {
-  const claimUserId = req.user!.id;
-  const claimRows = await db.select().from(claimedRewardsTable)
-    .where(and(
-      eq(claimedRewardsTable.userId, claimUserId),
-      inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
-    ))
-    .limit(50);
-  const [claimed] = claimRows.filter(r => r.id === req.params.id);
-  if (!claimed) return res.status(404).json({ error: 'Claimed reward not found or already used' });
+  const userId = req.user!.id;
+  const claimId = String(req.params.id);
 
-  // Cancel the claim
-  await db.update(claimedRewardsTable)
-    .set({ status: 'cancelled' })
-    .where(eq(claimedRewardsTable.id, claimed.id));
+  let pointsRestored = 0;
 
-  // Restore points
-  await recordLoyaltyPoints({
-    userId: req.user!.id,
-    pointsDelta: claimed.pointsSpent,
-    orderId: null,
-    description: `Cancelled claim — points restored`,
-  });
+  try {
+    await db.transaction(async (tx) => {
+      // Atomic conditional cancel — guards against race with concurrent order placement.
+      // Only succeeds if claim is still available/applied_to_cart (not yet redeemed).
+      const [cancelled] = await tx.update(claimedRewardsTable)
+        .set({ status: 'cancelled' })
+        .where(and(
+          eq(claimedRewardsTable.id, claimId),
+          eq(claimedRewardsTable.userId, userId),
+          inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+        ))
+        .returning();
 
-  // Restore stock if limited
-  const [reward] = await db.select({ stock: loyaltyRewardsTable.stock, id: loyaltyRewardsTable.id })
-    .from(loyaltyRewardsTable)
-    .where(eq(loyaltyRewardsTable.id, claimed.rewardId));
-  if (reward && reward.stock !== null) {
-    await db.update(loyaltyRewardsTable)
-      .set({ stock: sql`${loyaltyRewardsTable.stock} + 1` })
-      .where(eq(loyaltyRewardsTable.id, reward.id));
+      if (!cancelled) {
+        throw new Error('CLAIM_NOT_FOUND');
+      }
+
+      pointsRestored = cancelled.pointsSpent;
+
+      // Restore points atomically in the same transaction
+      await tx.execute(
+        sql`UPDATE customer_profiles SET loyalty_points = loyalty_points + ${cancelled.pointsSpent} WHERE user_id = ${userId}`
+      );
+
+      // Restore stock if reward has limited stock
+      const [rewardRow] = await tx.select({ id: loyaltyRewardsTable.id, stock: loyaltyRewardsTable.stock })
+        .from(loyaltyRewardsTable)
+        .where(eq(loyaltyRewardsTable.id, cancelled.rewardId));
+      if (rewardRow?.stock !== null && rewardRow?.stock !== undefined) {
+        await tx.update(loyaltyRewardsTable)
+          .set({ stock: sql`${loyaltyRewardsTable.stock} + 1` })
+          .where(eq(loyaltyRewardsTable.id, rewardRow.id));
+      }
+
+      // Loyalty transaction log
+      await tx.insert(loyaltyTransactionsTable).values({
+        id: randomUUID(),
+        userId,
+        points: cancelled.pointsSpent,
+        type: 'earn',
+        description: 'Cancelled claim — points restored',
+        referenceId: claimId,
+      });
+
+      // Activity log (source for /loyalty/transactions UI)
+      await tx.insert(loyaltyActivityLogTable).values({
+        id: randomUUID(),
+        customerId: userId,
+        activityType: 'points_earn',
+        pointsDelta: cancelled.pointsSpent,
+        coffeeStampsDelta: 0,
+        freeCoffeeRewardsDelta: 0,
+        description: 'Cancelled claim — points restored',
+        orderId: null,
+      });
+    });
+  } catch (txErr: any) {
+    if (txErr?.message === 'CLAIM_NOT_FOUND') {
+      return res.status(404).json({ error: 'Claimed reward not found or already used' });
+    }
+    req.log.error({ txErr, claimId }, 'Failed to cancel claimed reward');
+    return res.status(500).json({ error: 'Failed to cancel claim. Please try again.' });
   }
 
-  return res.json({ success: true, pointsRestored: claimed.pointsSpent });
+  return res.json({ success: true, pointsRestored });
 });
 
 router.patch('/birthday', requireAuth, async (req, res) => {
