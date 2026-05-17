@@ -101,8 +101,13 @@ router.post('/', async (req, res) => {
     if (rewardType === 'money_voucher') {
       claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
     } else if (rewardType === 'item_reward' && linkedProductId) {
-      // Server injects the free item — isFreeReward flag set server-side only
-      items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
+      // If the product is already in cart, mark the first instance free; otherwise add a new free item
+      const existingIdx = items.findIndex((i: any) => i.productId === linkedProductId && !i.isFreeReward);
+      if (existingIdx >= 0) {
+        items[existingIdx] = { ...items[existingIdx], isFreeReward: true };
+      } else {
+        items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
+      }
     }
 
     claimedRewardData = { id: claimedRow.id, rewardType, linkedProductId, voucherValueCents: claimedRow.voucherValueCents };
@@ -384,7 +389,7 @@ router.patch(
         { orderId: order.id, status, screen: '/(customer)/orders' }).catch(() => {});
     }
 
-    // ── On cancellation: restore any associated claimed reward so customer can reuse ──
+    // ── On cancellation: restore claimed reward + reverse loyalty points earned ──
     if (status === 'cancelled' && order) {
       try {
         await db.update(claimedRewardsTable)
@@ -395,6 +400,19 @@ router.patch(
           ));
       } catch (err: any) {
         req.log.error({ err, orderId: order.id }, 'Failed to restore claimed reward on order cancellation');
+      }
+      // Reverse loyalty points earned from this order so the balance stays accurate
+      if (order.loyaltyPointsEarned > 0) {
+        try {
+          await recordLoyaltyPoints({
+            userId: order.userId,
+            pointsDelta: -order.loyaltyPointsEarned,
+            orderId: order.id,
+            description: 'Order cancelled — points reversed',
+          });
+        } catch (err: any) {
+          req.log.error({ err, orderId: order.id }, 'Failed to reverse loyalty points on order cancellation');
+        }
       }
     }
 

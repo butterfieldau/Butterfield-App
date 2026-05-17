@@ -64,8 +64,14 @@ router.post('/payment-intent', async (req, res) => {
     if (rewardType === 'money_voucher') {
       rewardDiscountCents = claimedRow.voucherValueCents ?? 0;
     } else if (rewardType === 'item_reward' && rewardRow?.linkedProductId) {
-      // Add the free item to the items list for pricing — isFreeReward=true so it's priced at $0
-      enrichedItems = [...items, { productId: rewardRow.linkedProductId, quantity: 1, isFreeReward: true }];
+      // If product already in cart, mark first instance free; otherwise add a new free item
+      const lid = rewardRow.linkedProductId;
+      const existingIdx = enrichedItems.findIndex((i: any) => i.productId === lid && !i.isFreeReward);
+      if (existingIdx >= 0) {
+        enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], isFreeReward: true };
+      } else {
+        enrichedItems = [...enrichedItems, { productId: lid, quantity: 1, isFreeReward: true }];
+      }
     }
   }
 

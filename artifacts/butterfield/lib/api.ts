@@ -131,6 +131,8 @@ export const api = {
       request<{ success: boolean }>(`/loyalty/claimed-rewards/${claimId}/apply`, { method: 'POST' }),
     unapplyClaim: (claimId: string) =>
       request<{ success: boolean }>(`/loyalty/claimed-rewards/${claimId}/unapply`, { method: 'POST' }),
+    claimedRewardsHistory: () =>
+      request<{ data: ClaimedReward[] }>('/loyalty/claimed-rewards/history'),
     updateBirthday: (birthday: string) =>
       request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
@@ -230,8 +232,9 @@ export const api = {
       orderType: 'pickup' | 'delivery';
       discountCode?: string;
       paymentMethod?: 'card' | 'pay_at_pickup';
+      claimedRewardId?: string;
     }) =>
-      request<{ clientSecret: string; paymentIntentId: string; amountCents: number; discountAmountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ clientSecret: string; paymentIntentId: string; amountCents: number; discountAmountCents?: number; rewardDiscountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
     stats:               () => request<{ data: any }>('/director/stats'),

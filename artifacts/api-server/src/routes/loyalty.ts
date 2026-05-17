@@ -196,7 +196,7 @@ router.post('/redeem', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Not enough points' });
   }
 
-  // Deduct points atomically
+  // ── Atomic claim: deduct points + optional stock decrement, compensate on insert failure ──
   await recordLoyaltyPoints({
     userId: req.user!.id,
     pointsDelta: -reward.pointsCost,
@@ -204,22 +204,43 @@ router.post('/redeem', requireAuth, async (req, res) => {
     description: `Claimed: ${reward.name}`,
   });
 
-  // Decrement stock if limited
+  let stockDecremented = false;
   if (reward.stock !== null) {
     await db.update(loyaltyRewardsTable)
       .set({ stock: sql`GREATEST(${loyaltyRewardsTable.stock} - 1, 0)` })
       .where(eq(loyaltyRewardsTable.id, reward.id));
+    stockDecremented = true;
   }
 
-  // Create the claimed reward row
-  const [claimed] = await db.insert(claimedRewardsTable).values({
-    id: randomUUID(),
-    userId: req.user!.id,
-    rewardId,
-    status: 'available',
-    pointsSpent: reward.pointsCost,
-    voucherValueCents: reward.voucherValueCents ?? null,
-  }).returning();
+  // Create the claimed reward row — compensate (restore points + stock) if insert fails
+  let claimed: typeof claimedRewardsTable.$inferSelect;
+  try {
+    const [inserted] = await db.insert(claimedRewardsTable).values({
+      id: randomUUID(),
+      userId: req.user!.id,
+      rewardId,
+      status: 'available',
+      pointsSpent: reward.pointsCost,
+      voucherValueCents: reward.voucherValueCents ?? null,
+    }).returning();
+    claimed = inserted;
+  } catch (insertErr: any) {
+    // Compensate: restore points
+    await recordLoyaltyPoints({
+      userId: req.user!.id,
+      pointsDelta: reward.pointsCost,
+      orderId: null,
+      description: `Compensation: points restored (claim insert failed for ${reward.name})`,
+    }).catch(() => {});
+    // Compensate: restore stock if it was decremented
+    if (stockDecremented) {
+      await db.update(loyaltyRewardsTable)
+        .set({ stock: sql`${loyaltyRewardsTable.stock} + 1` })
+        .where(eq(loyaltyRewardsTable.id, reward.id))
+        .catch(() => {});
+    }
+    return res.status(500).json({ error: 'Failed to create claim. Your points have been restored.' });
+  }
 
   return res.json({
     data: {
@@ -231,6 +252,31 @@ router.post('/redeem', requireAuth, async (req, res) => {
     },
     reward,
   });
+});
+
+// ── GET /loyalty/claimed-rewards/history — all claims (all statuses) for history view ──
+router.get('/claimed-rewards/history', requireAuth, async (req, res) => {
+  const history = await db
+    .select({
+      id: claimedRewardsTable.id,
+      rewardId: claimedRewardsTable.rewardId,
+      status: claimedRewardsTable.status,
+      claimedAt: claimedRewardsTable.claimedAt,
+      redeemedAt: claimedRewardsTable.redeemedAt,
+      orderId: claimedRewardsTable.orderId,
+      pointsSpent: claimedRewardsTable.pointsSpent,
+      voucherValueCents: claimedRewardsTable.voucherValueCents,
+      rewardName: loyaltyRewardsTable.name,
+      rewardDescription: loyaltyRewardsTable.description,
+      rewardType: loyaltyRewardsTable.rewardType,
+      linkedProductId: loyaltyRewardsTable.linkedProductId,
+    })
+    .from(claimedRewardsTable)
+    .leftJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
+    .where(eq(claimedRewardsTable.userId, req.user!.id))
+    .orderBy(desc(claimedRewardsTable.claimedAt))
+    .limit(50);
+  return res.json({ data: history });
 });
 
 // ── DELETE /loyalty/claimed-rewards/:id — cancel a claim (restore points) ─────

@@ -289,6 +289,7 @@ function PaymentStepWithStripe({
         items: items as any[],
         orderType,
         discountCode: discountApplied?.code,
+        claimedRewardId: selectedClaimedRewardId ?? undefined,
       });
 
       if (method === 'apple_pay' || method === 'google_pay') {
@@ -515,7 +516,11 @@ function PaymentStepWithStripe({
           )}
           {selectedClaimed?.rewardType === 'item_reward' && (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 12, color: '#16A34A' }}>Reward item</Text>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>
+                {items.some((i) => i.productId === selectedClaimed.linkedProductId)
+                  ? 'Item in cart made free'
+                  : 'Free item added to order'}
+              </Text>
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>Free</Text>
             </View>
           )}

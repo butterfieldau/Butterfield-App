@@ -120,10 +120,17 @@ export default function LoyaltyScreen() {
     queryKey: ['loyalty-claimed-rewards'],
     queryFn: () => api.loyalty.claimedRewards(),
   });
+  const { data: historyData } = useQuery({
+    queryKey: ['loyalty-claimed-rewards-history'],
+    queryFn: () => api.loyalty.claimedRewardsHistory(),
+  });
   const profile = profileData?.data;
   const rewards = rewardsData?.data ?? [];
   const transactions = txnData?.data ?? [];
   const claimedRewards: ClaimedReward[] = claimedData?.data ?? [];
+  // Past claims: redeemed, cancelled, or expired (for history display)
+  const allHistory: ClaimedReward[] = historyData?.data ?? [];
+  const pastClaims = allHistory.filter(c => !['available', 'applied_to_cart'].includes(c.status));
   const pts = profile?.loyaltyPoints ?? 0;
   const stamps = Math.min(profile?.coffeeStampCount ?? profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsLeft = Math.max(0, STAMP_COUNT - stamps);
@@ -406,9 +413,11 @@ export default function LoyaltyScreen() {
                           ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} voucher — apply at checkout`
                           : 'Free item — apply at checkout'}
                       </Text>
-                      <Text style={{ fontSize: 11, color: '#4ADE80', fontWeight: '500' }}>
-                        Ready to use
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <View style={{ backgroundColor: '#D1FAE5', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 11, color: '#166534', fontWeight: '600' }}>Ready to use</Text>
+                        </View>
+                      </View>
                     </View>
                     <Pressable
                       onPress={() => handleCancelClaim(c)}
@@ -425,6 +434,46 @@ export default function LoyaltyScreen() {
               <Text style={{ fontSize: 11, color: MUTED, textAlign: 'center', paddingBottom: 4 }}>
                 Tap the X to cancel an unused claim and restore your points.
               </Text>
+            </View>
+          </View>
+        )}
+
+        {pastClaims.length > 0 && (
+          <View style={{ marginTop: 24 }}>
+            <View style={[styles.sectionHeader, { paddingHorizontal: 16 }]}>
+              <Feather name="clock" size={16} color={TEXT} />
+              <Text style={[styles.sectionTitle, { fontWeight: '700' }]}>Reward history</Text>
+            </View>
+            <View style={{ paddingHorizontal: 16, gap: 8 }}>
+              {pastClaims.map((c) => {
+                const isVoucher = c.rewardType === 'money_voucher';
+                const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
+                  redeemed:   { label: 'Used',      bg: '#EFF6FF', text: '#1D4ED8' },
+                  cancelled:  { label: 'Cancelled', bg: '#FEF2F2', text: '#DC2626' },
+                  expired:    { label: 'Expired',   bg: '#F9FAFB', text: '#6B7280' },
+                };
+                const sc = statusConfig[c.status] ?? { label: c.status, bg: '#F9FAFB', text: '#6B7280' };
+                const claimedDate = c.claimedAt ? new Date(c.claimedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                return (
+                  <View key={c.id} style={[styles.rewardCard, { backgroundColor: '#FAFAFA', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 14, padding: 14, opacity: 0.85 }]}>
+                    <View style={[styles.rewardIcon, { backgroundColor: '#F3F4F6' }]}>
+                      <Feather name={isVoucher ? 'tag' : 'gift'} size={18} color="#9CA3AF" />
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[styles.rewardName, { fontWeight: '600', color: '#374151' }]}>{c.rewardName}</Text>
+                      <Text style={[styles.rewardDesc, { fontWeight: '400', color: '#6B7280' }]}>
+                        {isVoucher ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} voucher` : 'Free item reward'}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <View style={{ backgroundColor: sc.bg, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 11, color: sc.text, fontWeight: '600' }}>{sc.label}</Text>
+                        </View>
+                        {claimedDate ? <Text style={{ fontSize: 11, color: '#9CA3AF' }}>{claimedDate}</Text> : null}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
