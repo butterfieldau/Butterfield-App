@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db, stockItemsTable } from '@workspace/db';
-import { eq, asc } from 'drizzle-orm';
+import { db, stockItemsTable, stockCategoriesTable } from '@workspace/db';
+import { eq, asc, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
@@ -15,22 +15,75 @@ function canEditAll(role?: string) {
   return role === 'director' || role === 'master';
 }
 
-const DEFAULT_CATEGORIES = [
-  { id: 'coffee',         label: 'Coffee'         },
-  { id: 'drinks',         label: 'Drinks'         },
-  { id: 'front_of_house', label: 'Front of House' },
-  { id: 'sauces',         label: 'Sauces'         },
-  { id: 'chocolate',      label: 'Chocolate'      },
-  { id: 'kitchen',        label: 'Kitchen'        },
-  { id: 'milk',           label: 'Milk'           },
-  { id: 'dairy',          label: 'Dairy'          },
-  { id: 'packaging',      label: 'Packaging'      },
-  { id: 'cleaning',       label: 'Cleaning'       },
-];
-
 // ── GET /api/stock/categories ────────────────────────────────────────────────
-router.get('/categories', requireRole('director', 'master', 'manager'), (_req, res) => {
-  res.json({ data: DEFAULT_CATEGORIES });
+// Returns managed category list from DB.
+router.get('/categories', requireRole('director', 'master', 'manager'), async (_req, res) => {
+  const rows = await db
+    .select()
+    .from(stockCategoriesTable)
+    .orderBy(asc(stockCategoriesTable.name));
+  res.json({ data: rows.map((r) => ({ id: r.id, label: r.name })) });
+});
+
+// ── POST /api/stock/categories ───────────────────────────────────────────────
+// Director / master only — create a new category.
+router.post('/categories', requireRole('director', 'master'), async (req, res) => {
+  const { name } = req.body;
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+  const trimmed = name.trim();
+  const id = trimmed.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  if (!id) {
+    res.status(400).json({ error: 'Invalid category name' });
+    return;
+  }
+
+  // Check for duplicate id or name
+  const [existing] = await db
+    .select({ id: stockCategoriesTable.id })
+    .from(stockCategoriesTable)
+    .where(eq(stockCategoriesTable.id, id));
+  if (existing) {
+    res.status(409).json({ error: 'Category already exists' });
+    return;
+  }
+
+  const now = new Date();
+  await db.insert(stockCategoriesTable).values({ id, name: trimmed, createdAt: now });
+  res.status(201).json({ data: { id, label: trimmed } });
+});
+
+// ── DELETE /api/stock/categories/:id ────────────────────────────────────────
+// Director / master only — remove a category.
+// Blocked if any active stock items still use it.
+router.delete('/categories/:id', requireRole('director', 'master'), async (req, res) => {
+  const { id } = req.params;
+
+  const [existing] = await db
+    .select()
+    .from(stockCategoriesTable)
+    .where(eq(stockCategoriesTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: 'Category not found' });
+    return;
+  }
+
+  // Prevent deletion if items still use this category
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(stockItemsTable)
+    .where(eq(stockItemsTable.category, id))
+    .where(eq(stockItemsTable.isActive, true)) as any;
+
+  if (count > 0) {
+    res.status(409).json({ error: `Cannot delete: ${count} item${count > 1 ? 's' : ''} still use this category. Reassign them first.` });
+    return;
+  }
+
+  await db.delete(stockCategoriesTable).where(eq(stockCategoriesTable.id, id));
+  res.json({ data: { success: true } });
 });
 
 // ── GET /api/stock/items ─────────────────────────────────────────────────────
@@ -93,7 +146,6 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
   const { id } = req.params;
   const fullAccess = canEditAll(req.user!.role);
 
-  // Fetch the full row so we can detect threshold crossings after update
   const [existing] = await db
     .select()
     .from(stockItemsTable)
@@ -135,15 +187,13 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
 
   const [updated] = await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, id));
 
-  // ── Low-stock push notification (fire-and-forget) ─────────────────────────
-  // Only notify when quantity actually changed and threshold is configured
+  // ── Low-stock push notification ───────────────────────────────────────────
   if (updates.currentQuantity !== undefined && existing.lowStockThreshold > 0) {
     const oldQty = existing.currentQuantity;
     const newQty = updated.currentQuantity;
     const threshold = updated.lowStockThreshold;
     const itemName = updated.name;
 
-    // Out of stock: quantity just hit zero
     if (newQty <= 0 && oldQty > 0) {
       sendNotification({
         roles: ['director', 'master'],
@@ -152,7 +202,6 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
         body: `${itemName} is now out of stock. Reorder immediately.`,
         data: { stockItemId: id, name: itemName, quantity: newQty },
       }).catch(() => {});
-    // Low stock: just crossed below the threshold (but not already zero)
     } else if (newQty > 0 && newQty <= threshold && oldQty > threshold) {
       sendNotification({
         roles: ['director', 'master'],

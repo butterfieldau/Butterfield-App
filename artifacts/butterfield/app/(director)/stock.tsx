@@ -23,16 +23,41 @@ const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const BLUE   = '#1493FF';
 
-const CAT_META: Record<string, { label: string; color: string; icon: string }> = {
-  coffee:        { label: 'Coffee',         color: '#7C3AED', icon: 'coffee'     },
-  drinks:        { label: 'Drinks',         color: '#06B6D4', icon: 'droplet'    },
-  front_of_house:{ label: 'Front of House', color: '#F59E0B', icon: 'star'       },
-  sauces:        { label: 'Sauces',         color: '#EF4444', icon: 'thermometer'},
-  chocolate:     { label: 'Chocolate',      color: '#92400E', icon: 'gift'       },
-  kitchen:       { label: 'Kitchen',        color: '#22C55E', icon: 'tool'       },
+const CAT_COLORS: Record<string, string> = {
+  coffee:         '#7C3AED',
+  drinks:         '#06B6D4',
+  front_of_house: '#F59E0B',
+  sauces:         '#EF4444',
+  chocolate:      '#92400E',
+  kitchen:        '#22C55E',
+  milk:           '#3B82F6',
+  dairy:          '#8B5CF6',
+  packaging:      '#EC4899',
+  cleaning:       '#14B8A6',
 };
 
-const ALL_CATS = ['all', 'coffee', 'drinks', 'front_of_house', 'sauces', 'chocolate', 'kitchen'] as const;
+const CAT_ICONS: Record<string, string> = {
+  coffee:         'coffee',
+  drinks:         'droplet',
+  front_of_house: 'star',
+  sauces:         'thermometer',
+  chocolate:      'gift',
+  kitchen:        'tool',
+  milk:           'package',
+  dairy:          'package',
+  packaging:      'box',
+  cleaning:       'wind',
+};
+
+const PALETTE = ['#7C3AED','#06B6D4','#F59E0B','#EF4444','#22C55E','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316'];
+
+function catColor(id: string): string {
+  return CAT_COLORS[id] ?? PALETTE[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % PALETTE.length];
+}
+
+function catIcon(id: string): string {
+  return CAT_ICONS[id] ?? 'box';
+}
 
 function centsToAud(c?: number | null) {
   if (c == null) return null;
@@ -46,21 +71,15 @@ function stockLevel(item: StockItem): 'ok' | 'low' | 'out' {
 }
 
 // ── Quantity adjust modal ────────────────────────────────────────────────────
-function QuantityModal({
-  item, onClose, onSave,
-}: {
-  item: StockItem;
-  onClose: () => void;
-  onSave: (qty: number) => void;
+function QuantityModal({ item, onClose, onSave }: {
+  item: StockItem; onClose: () => void; onSave: (qty: number) => void;
 }) {
   const [val, setVal] = useState(String(item.currentQuantity));
-
   const handleSave = () => {
     const n = parseFloat(val);
     if (isNaN(n) || n < 0) { Alert.alert('Invalid', 'Enter a valid number'); return; }
     onSave(n);
   };
-
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={qm.overlay} onPress={onClose}>
@@ -68,14 +87,7 @@ function QuantityModal({
           <Pressable style={qm.sheet} onPress={() => {}}>
             <Text style={qm.title}>{item.name}</Text>
             <Text style={qm.sub}>Update quantity ({item.unit})</Text>
-            <TextInput
-              style={qm.input}
-              value={val}
-              onChangeText={setVal}
-              keyboardType="decimal-pad"
-              selectTextOnFocus
-              autoFocus
-            />
+            <TextInput style={qm.input} value={val} onChangeText={setVal} keyboardType="decimal-pad" selectTextOnFocus autoFocus />
             <View style={qm.row}>
               <Pressable style={[qm.btn, { backgroundColor: BG }]} onPress={onClose}>
                 <Text style={[qm.btnText, { color: TEXT }]}>Cancel</Text>
@@ -102,31 +114,136 @@ const qm = StyleSheet.create({
   btnText:  { fontSize: 15, fontWeight: '600' },
 });
 
-// ── Item edit modal (director only) ─────────────────────────────────────────
-const DEFAULT_CATS = [
-  { id: 'coffee',         label: 'Coffee'         },
-  { id: 'drinks',         label: 'Drinks'         },
-  { id: 'front_of_house', label: 'Front of House' },
-  { id: 'sauces',         label: 'Sauces'         },
-  { id: 'chocolate',      label: 'Chocolate'      },
-  { id: 'kitchen',        label: 'Kitchen'        },
-  { id: 'milk',           label: 'Milk'           },
-  { id: 'dairy',          label: 'Dairy'          },
-  { id: 'packaging',      label: 'Packaging'      },
-  { id: 'cleaning',       label: 'Cleaning'       },
-];
+// ── Manage Categories modal ──────────────────────────────────────────────────
+function ManageCategoriesModal({
+  onClose, categories, onCreated, onDeleted, itemCategories,
+}: {
+  onClose: () => void;
+  categories: { id: string; label: string }[];
+  onCreated: (name: string) => Promise<void>;
+  onDeleted: (id: string) => Promise<void>;
+  itemCategories: string[];
+}) {
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleAdd = async () => {
+    const t = newName.trim();
+    if (!t) return;
+    setSaving(true);
+    try { await onCreated(t); setNewName(''); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+    catch { } finally { setSaving(false); }
+  };
+
+  const handleDelete = (cat: { id: string; label: string }) => {
+    const inUse = itemCategories.includes(cat.id);
+    if (inUse) {
+      Alert.alert('Cannot Delete', `"${cat.label}" still has items assigned to it. Reassign or delete those items first.`);
+      return;
+    }
+    Alert.alert('Delete Category', `Remove "${cat.label}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        setDeleting(cat.id);
+        try { await onDeleted(cat.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+        catch (e: any) { Alert.alert('Error', e.message); }
+        finally { setDeleting(null); }
+      }},
+    ]);
+  };
+
+  return (
+    <Modal animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={mm.header}>
+          <Text style={mm.title}>Manage Categories</Text>
+          <Pressable onPress={onClose} style={mm.closeBtn}>
+            <Feather name="x" size={18} color={MUTED} />
+          </Pressable>
+        </View>
+
+        {/* Add new */}
+        <View style={mm.addRow}>
+          <TextInput
+            style={mm.addInput}
+            value={newName}
+            onChangeText={setNewName}
+            placeholder="New category name…"
+            placeholderTextColor={MUTED}
+            returnKeyType="done"
+            onSubmitEditing={handleAdd}
+          />
+          <Pressable onPress={handleAdd} disabled={saving || !newName.trim()} style={[mm.addBtn, (!newName.trim() || saving) && { opacity: 0.4 }]}>
+            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="plus" size={18} color="#fff" />}
+          </Pressable>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+          {categories.length === 0 && (
+            <Text style={{ color: MUTED, textAlign: 'center', marginTop: 24 }}>No categories yet.</Text>
+          )}
+          {categories.map((cat) => {
+            const color = catColor(cat.id);
+            const inUse = itemCategories.includes(cat.id);
+            const isDeleting = deleting === cat.id;
+            return (
+              <View key={cat.id} style={mm.row}>
+                <View style={[mm.dot, { backgroundColor: color + '22' }]}>
+                  <Feather name={catIcon(cat.id) as any} size={14} color={color} />
+                </View>
+                <Text style={mm.catName}>{cat.label}</Text>
+                {inUse && (
+                  <View style={mm.inUseBadge}>
+                    <Text style={mm.inUseTxt}>IN USE</Text>
+                  </View>
+                )}
+                <Pressable
+                  onPress={() => handleDelete(cat)}
+                  disabled={isDeleting}
+                  style={[mm.deleteBtn, isDeleting && { opacity: 0.4 }]}
+                >
+                  {isDeleting
+                    ? <ActivityIndicator size="small" color={RED} />
+                    : <Feather name="trash-2" size={15} color={RED} />
+                  }
+                </Pressable>
+              </View>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const mm = StyleSheet.create({
+  header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  title:     { fontSize: 18, fontWeight: '700', color: TEXT },
+  closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  addRow:    { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  addInput:  { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: TEXT },
+  addBtn:    { width: 44, height: 44, borderRadius: 10, backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center' },
+  row:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  dot:       { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  catName:   { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
+  inUseBadge:{ backgroundColor: BLUE + '18', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  inUseTxt:  { fontSize: 10, fontWeight: '700', color: BLUE },
+  deleteBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: RED + '12', alignItems: 'center', justifyContent: 'center' },
+});
+
+// ── Item edit modal ──────────────────────────────────────────────────────────
 const COMMON_UNITS = ['units', 'kg', 'g', 'L', 'mL', 'bags', 'boxes', 'bottles', 'cans', 'rolls', 'sheets'];
 
-function EditModal({
-  item, onClose, onSave,
-}: {
+function EditModal({ item, onClose, onSave, categories }: {
   item: Partial<StockItem> | null;
   onClose: () => void;
   onSave: (data: any) => void;
+  categories: { id: string; label: string }[];
 }) {
   const isNew = !item?.id;
   const [name, setName]           = useState(item?.name ?? '');
-  const [category, setCategory]   = useState(item?.category ?? 'coffee');
+  const [category, setCategory]   = useState(item?.category ?? categories[0]?.id ?? '');
   const [customCat, setCustomCat] = useState('');
   const [unit, setUnit]           = useState(item?.unit ?? 'units');
   const [qty, setQty]             = useState(String(item?.currentQuantity ?? 0));
@@ -137,7 +254,8 @@ function EditModal({
 
   const handleSave = () => {
     if (!name.trim()) { Alert.alert('Validation', 'Name is required'); return; }
-    const payload: any = {
+    if (!category) { Alert.alert('Validation', 'Category is required'); return; }
+    onSave({
       name: name.trim(),
       category,
       unit: unit.trim() || 'units',
@@ -146,8 +264,7 @@ function EditModal({
       costCents: cost ? Math.round(parseFloat(cost.replace(/[^0-9.]/g, '')) * 100) : null,
       supplier: supplier.trim() || null,
       notes: notes.trim() || null,
-    };
-    onSave(payload);
+    });
   };
 
   return (
@@ -168,14 +285,14 @@ function EditModal({
 
               <Label>Category *</Label>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                {DEFAULT_CATS.map((c) => {
-                  const m = CAT_META[c.id] ?? { color: MUTED, label: c.label };
+                {categories.map((c) => {
+                  const color = catColor(c.id);
                   const active = category === c.id;
                   return (
                     <Pressable
                       key={c.id}
                       onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCustomCat(''); }}
-                      style={[em.catChip, active && { backgroundColor: m.color, borderColor: m.color }]}
+                      style={[em.catChip, active && { backgroundColor: color, borderColor: color }]}
                     >
                       <Text style={[em.catLabel, active && { color: '#fff' }]}>{c.label}</Text>
                     </Pressable>
@@ -185,7 +302,10 @@ function EditModal({
               <TextInput
                 style={[em.input, { marginBottom: 16 }]}
                 value={customCat}
-                onChangeText={(v) => { setCustomCat(v); if (v.trim()) setCategory(v.trim().toLowerCase().replace(/\s+/g, '_')); }}
+                onChangeText={(v) => {
+                  setCustomCat(v);
+                  if (v.trim()) setCategory(v.trim().toLowerCase().replace(/\s+/g, '_'));
+                }}
                 placeholder="Or type a custom category…"
                 placeholderTextColor={MUTED}
               />
@@ -214,28 +334,14 @@ function EditModal({
               <Label>Cost per unit (AUD)</Label>
               <View style={em.costRow}>
                 <Text style={em.costPrefix}>$</Text>
-                <TextInput
-                  style={[em.input, { flex: 1 }]}
-                  value={cost}
-                  onChangeText={setCost}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00  (director only)"
-                  placeholderTextColor={MUTED}
-                />
+                <TextInput style={[em.input, { flex: 1 }]} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholder="0.00  (director only)" placeholderTextColor={MUTED} />
               </View>
 
               <Label>Supplier</Label>
               <TextInput style={em.input} value={supplier} onChangeText={setSupplier} placeholder="Supplier name" placeholderTextColor={MUTED} />
 
               <Label>Notes</Label>
-              <TextInput
-                style={[em.input, { height: 70, textAlignVertical: 'top' }]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Any notes…"
-                placeholderTextColor={MUTED}
-                multiline
-              />
+              <TextInput style={[em.input, { height: 70, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} placeholder="Any notes…" placeholderTextColor={MUTED} multiline />
 
               <View style={em.btnRow}>
                 <Pressable style={[em.btn, { backgroundColor: BG }]} onPress={onClose}>
@@ -258,46 +364,38 @@ function Label({ children }: { children: string }) {
 }
 
 const em = StyleSheet.create({
-  overlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet:    { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '92%' },
-  title:    { fontSize: 20, fontWeight: '700', color: TEXT },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  label:    { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
-  input:    { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT },
-  catChip:  { borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
-  catLabel: { fontSize: 13, fontWeight: '600', color: MUTED },
-  unitChip: { borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6 },
-  unitLabel:{ fontSize: 12, fontWeight: '500', color: MUTED },
-  costRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  costPrefix:{ fontSize: 18, fontWeight: '600', color: TEXT, marginBottom: 0 },
-  btnRow:   { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 8 },
-  btn:      { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  btnTxt:   { fontSize: 15, fontWeight: '700' },
+  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet:     { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '92%' },
+  title:     { fontSize: 20, fontWeight: '700', color: TEXT },
+  closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  label:     { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
+  input:     { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT },
+  catChip:   { borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
+  catLabel:  { fontSize: 13, fontWeight: '600', color: MUTED },
+  unitChip:  { borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6 },
+  unitLabel: { fontSize: 12, fontWeight: '500', color: MUTED },
+  costRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  costPrefix:{ fontSize: 18, fontWeight: '600', color: TEXT },
+  btnRow:    { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 8 },
+  btn:       { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  btnTxt:    { fontSize: 15, fontWeight: '700' },
 });
 
 // ── Stock item card ──────────────────────────────────────────────────────────
-function StockCard({
-  item,
-  isDirector,
-  onQtyPress,
-  onEditPress,
-  onDeletePress,
-}: {
-  item: StockItem;
-  isDirector: boolean;
-  onQtyPress: () => void;
-  onEditPress: () => void;
-  onDeletePress: () => void;
+function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }: {
+  item: StockItem; isDirector: boolean;
+  onQtyPress: () => void; onEditPress: () => void; onDeletePress: () => void;
 }) {
   const level = stockLevel(item);
-  const catMeta = CAT_META[item.category] ?? { color: MUTED, icon: 'box', label: item.category };
+  const color = catColor(item.category);
+  const icon  = catIcon(item.category);
   const levelColor = level === 'out' ? RED : level === 'low' ? AMBER : GREEN;
 
   return (
     <View style={sc.card}>
       <View style={sc.left}>
-        <View style={[sc.catDot, { backgroundColor: catMeta.color + '22' }]}>
-          <Feather name={catMeta.icon as any} size={14} color={catMeta.color} />
+        <View style={[sc.catDot, { backgroundColor: color + '22' }]}>
+          <Feather name={icon as any} size={14} color={color} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={sc.name} numberOfLines={1}>{item.name}</Text>
@@ -312,15 +410,11 @@ function StockCard({
           </View>
         </View>
       </View>
-
       <View style={sc.right}>
         {isDirector && item.costCents != null && (
           <Text style={sc.cost}>{centsToAud(item.costCents)}/{item.unit}</Text>
         )}
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); onQtyPress(); }}
-          style={[sc.qtyBtn, { borderColor: levelColor }]}
-        >
+        <Pressable onPress={() => { Haptics.selectionAsync(); onQtyPress(); }} style={[sc.qtyBtn, { borderColor: levelColor }]}>
           <Text style={[sc.qtyNum, { color: levelColor }]}>{item.currentQuantity}</Text>
           <Text style={sc.qtyUnit}>{item.unit}</Text>
         </Pressable>
@@ -366,16 +460,28 @@ export default function StockScreen() {
   const [search, setSearch]       = useState('');
   const [qtyItem, setQtyItem]     = useState<StockItem | null>(null);
   const [editItem, setEditItem]   = useState<Partial<StockItem> | null | false>(false);
+  const [manageCats, setManageCats] = useState(false);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['stock-items'],
     queryFn: () => api.stock.items(),
   });
 
-  const items: StockItem[] = data?.data ?? [];
+  const { data: catData, refetch: refetchCats } = useQuery({
+    queryKey: ['stock-categories'],
+    queryFn: () => api.stock.categories(),
+  });
 
-  const lowCount = useMemo(() =>
-    items.filter((i) => stockLevel(i) !== 'ok').length, [items]);
+  const items: StockItem[] = data?.data ?? [];
+  const categories = catData?.data ?? [];
+
+  // Only show filter tabs for categories that actually have items
+  const activeCatIds = useMemo(() => {
+    const set = new Set(items.map((i) => i.category));
+    return Array.from(set).sort();
+  }, [items]);
+
+  const lowCount = useMemo(() => items.filter((i) => stockLevel(i) !== 'ok').length, [items]);
 
   const filtered = useMemo(() => {
     let list = items;
@@ -419,6 +525,24 @@ export default function StockScreen() {
     ]);
   };
 
+  const handleCreateCategory = async (name: string) => {
+    await api.stock.createCategory(name);
+    qc.invalidateQueries({ queryKey: ['stock-categories'] });
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    await api.stock.deleteCategory(id);
+    qc.invalidateQueries({ queryKey: ['stock-categories'] });
+    if (catFilter === id) setCatFilter('all');
+  };
+
+  // Label for a category id (from managed list or formatted id)
+  const catLabel = (id: string) => {
+    const found = categories.find((c) => c.id === id);
+    if (found) return found.label;
+    return id.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Header ── */}
@@ -436,13 +560,21 @@ export default function StockScreen() {
             )}
           </View>
           {isDirector && (
-            <Pressable
-              onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
-              style={s.addBtn}
-            >
-              <Feather name="plus" size={18} color="#fff" />
-              <Text style={s.addBtnTxt}>Add</Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
+                style={s.manageBtn}
+              >
+                <Feather name="tag" size={16} color={NAVY} />
+              </Pressable>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
+                style={s.addBtn}
+              >
+                <Feather name="plus" size={18} color="#fff" />
+                <Text style={s.addBtnTxt}>Add</Text>
+              </Pressable>
+            </View>
           )}
         </View>
 
@@ -463,28 +595,41 @@ export default function StockScreen() {
           )}
         </View>
 
-        {/* Category filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-          {ALL_CATS.map((c) => {
-            const active = catFilter === c;
-            const meta = c === 'all' ? { label: 'All', color: NAVY } : CAT_META[c];
-            const count = c === 'all' ? items.length : items.filter((i) => i.category === c).length;
-            return (
-              <Pressable
-                key={c}
-                onPress={() => { Haptics.selectionAsync(); setCatFilter(c); }}
-                style={[s.catTab, active && { backgroundColor: meta.color, borderColor: meta.color }]}
-              >
-                <Text style={[s.catTabTxt, active && { color: '#fff' }]}>{meta.label}</Text>
-                {count > 0 && (
+        {/* Category filter — only categories with items */}
+        {(activeCatIds.length > 0 || items.length > 0) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+            {/* All tab */}
+            <Pressable
+              key="all"
+              onPress={() => { Haptics.selectionAsync(); setCatFilter('all'); }}
+              style={[s.catTab, catFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}
+            >
+              <Text style={[s.catTabTxt, catFilter === 'all' && { color: '#fff' }]}>All</Text>
+              <View style={[s.catCount, catFilter === 'all' && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
+                <Text style={[s.catCountTxt, catFilter === 'all' && { color: '#fff' }]}>{items.length}</Text>
+              </View>
+            </Pressable>
+            {/* One tab per category that has items */}
+            {activeCatIds.map((catId) => {
+              const active = catFilter === catId;
+              const color  = catColor(catId);
+              const count  = items.filter((i) => i.category === catId).length;
+              const label  = catLabel(catId);
+              return (
+                <Pressable
+                  key={catId}
+                  onPress={() => { Haptics.selectionAsync(); setCatFilter(catId); }}
+                  style={[s.catTab, active && { backgroundColor: color, borderColor: color }]}
+                >
+                  <Text style={[s.catTabTxt, active && { color: '#fff' }]}>{label}</Text>
                   <View style={[s.catCount, active && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
                     <Text style={[s.catCountTxt, active && { color: '#fff' }]}>{count}</Text>
                   </View>
-                )}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* ── Stats strip ── */}
@@ -503,7 +648,7 @@ export default function StockScreen() {
           {isDirector && (() => {
             const costed = items.filter((i) => i.costCents != null);
             if (costed.length === 0) return null;
-            const total = costed.reduce((s, i) => s + (i.costCents! * i.currentQuantity), 0);
+            const total = costed.reduce((acc, i) => acc + (i.costCents! * i.currentQuantity), 0);
             return (
               <View style={[s.statPill, { backgroundColor: GREEN + '15' }]}>
                 <Feather name="dollar-sign" size={13} color={GREEN} />
@@ -546,22 +691,20 @@ export default function StockScreen() {
         />
       )}
 
-      {/* ── Quantity modal (manager + director) ── */}
+      {/* ── Quantity modal ── */}
       {qtyItem && (
         <QuantityModal
           item={qtyItem}
           onClose={() => setQtyItem(null)}
-          onSave={(qty) => {
-            updateQtyMut.mutate({ id: qtyItem.id, qty });
-            setQtyItem(null);
-          }}
+          onSave={(qty) => { updateQtyMut.mutate({ id: qtyItem.id, qty }); setQtyItem(null); }}
         />
       )}
 
-      {/* ── Edit/create modal (director only) ── */}
+      {/* ── Edit/create modal ── */}
       {isDirector && editItem !== false && (
         <EditModal
           item={editItem}
+          categories={categories}
           onClose={() => setEditItem(false)}
           onSave={(d) => {
             if (editItem && 'id' in editItem && editItem.id) {
@@ -572,6 +715,17 @@ export default function StockScreen() {
           }}
         />
       )}
+
+      {/* ── Manage categories modal ── */}
+      {isDirector && manageCats && (
+        <ManageCategoriesModal
+          onClose={() => setManageCats(false)}
+          categories={categories}
+          itemCategories={activeCatIds}
+          onCreated={handleCreateCategory}
+          onDeleted={handleDeleteCategory}
+        />
+      )}
     </View>
   );
 }
@@ -580,6 +734,7 @@ const s = StyleSheet.create({
   header:      { backgroundColor: BG, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   title:       { fontSize: 22, fontWeight: '700', color: TEXT },
+  manageBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   addBtnTxt:   { fontSize: 14, fontWeight: '700', color: '#fff' },
   searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },

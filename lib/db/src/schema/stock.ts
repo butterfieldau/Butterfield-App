@@ -2,6 +2,14 @@ import { pgTable, text, integer, real, boolean, timestamp } from "drizzle-orm/pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+export const stockCategoriesTable = pgTable("stock_categories", {
+  id:        text("id").primaryKey(),
+  name:      text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type StockCategory = typeof stockCategoriesTable.$inferSelect;
+
 export const stockItemsTable = pgTable("stock_items", {
   id:                text("id").primaryKey(),
   name:              text("name").notNull(),

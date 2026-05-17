@@ -475,9 +475,11 @@ export const api = {
   },
 
   stock: {
-    categories: () => request<{ data: { id: string; label: string }[] }>('/stock/categories'),
-    items:       () => request<{ data: StockItem[] }>('/stock/items'),
-    create:      (data: {
+    categories:       () => request<{ data: { id: string; label: string }[] }>('/stock/categories'),
+    createCategory:   (name: string) => request<{ data: { id: string; label: string } }>('/stock/categories', { method: 'POST', body: JSON.stringify({ name }) }),
+    deleteCategory:   (id: string) => request<{ data: { success: boolean } }>(`/stock/categories/${id}`, { method: 'DELETE' }),
+    items:            () => request<{ data: StockItem[] }>('/stock/items'),
+    create:           (data: {
       name: string; category: string; unit?: string;
       currentQuantity?: number; lowStockThreshold?: number;
       costCents?: number; supplier?: string; notes?: string;
