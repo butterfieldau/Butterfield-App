@@ -422,6 +422,13 @@ function PaymentStepWithStripe({
             {claimedRewards.map((c) => {
               const isVoucher = c.rewardType === 'money_voucher';
               const isSelected = selectedClaimedRewardId === c.id;
+              const itemAlreadyInCart = !isVoucher && c.linkedProductId != null &&
+                items.some(i => i.productId === c.linkedProductId);
+              const itemSubtitle = isVoucher
+                ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} off your order`
+                : itemAlreadyInCart
+                  ? `${c.rewardName} in your cart — tap to make it free`
+                  : `Tap to add ${c.rewardName} to your order for free`;
               return (
                 <Pressable
                   key={c.id}
@@ -441,9 +448,7 @@ function PaymentStepWithStripe({
                   <View style={{ flex: 1 }}>
                     <Text style={[psStyles.methodLabel, { color: isSelected ? '#166534' : TEXT }]}>{c.rewardName}</Text>
                     <Text style={{ fontSize: 12, color: isSelected ? '#15803D' : MUTED }}>
-                      {isVoucher
-                        ? `$${((c.voucherValueCents ?? 0) / 100).toFixed(2)} off your order`
-                        : 'Free item added to order'}
+                      {itemSubtitle}
                     </Text>
                   </View>
                   {isSelected && (
@@ -518,8 +523,8 @@ function PaymentStepWithStripe({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 12, color: '#16A34A' }}>
                 {items.some((i) => i.productId === selectedClaimed.linkedProductId)
-                  ? 'Item in cart made free'
-                  : 'Free item added to order'}
+                  ? `${selectedClaimed.rewardName} made free`
+                  : `${selectedClaimed.rewardName} added free`}
               </Text>
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>Free</Text>
             </View>

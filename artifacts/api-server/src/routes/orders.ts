@@ -223,56 +223,57 @@ router.post('/', async (req, res) => {
     }
   }
 
-  // ── Insert order with server-authoritative values ─────────────────────────
+  // ── Insert order + mark reward redeemed atomically ────────────────────────
+  // Both must succeed together: if the claim is already consumed, the order is rolled back.
   const orderId = randomUUID();
   const pointsEarned = Math.floor(authorativeTotalCents / 100);
-  let order: typeof ordersTable.$inferSelect;
+  let order!: typeof ordersTable.$inferSelect;
   const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free';
   try {
-    const [inserted] = await db.insert(ordersTable).values({
-      id: orderId,
-      userId: req.user!.id,
-      status: 'received',
-      type: type ?? 'pickup',
-      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
-      notes,
-      totalCents: authorativeTotalCents,
-      stripePaymentIntentId: stripePaymentIntentId ?? null,
-      stripePaymentStatus,
-      items,
-      loyaltyPointsEarned: isPaid ? pointsEarned : 0,
-      loyaltyPointsUsed: isPaid ? claimedLoyaltyPoints : 0,
-      discountCents: authorativeDiscountCents,
-      discountCode: validatedDiscountCode,
-      discountCodeId: validatedDiscountCodeId,
-      paymentMethodType: paymentMethodType as string ?? null,
-      deliveryAddress,
-    }).returning();
-    order = inserted;
+    await db.transaction(async (tx) => {
+      const [inserted] = await tx.insert(ordersTable).values({
+        id: orderId,
+        userId: req.user!.id,
+        status: 'received',
+        type: type ?? 'pickup',
+        scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+        notes,
+        totalCents: authorativeTotalCents,
+        stripePaymentIntentId: stripePaymentIntentId ?? null,
+        stripePaymentStatus,
+        items,
+        loyaltyPointsEarned: isPaid ? pointsEarned : 0,
+        loyaltyPointsUsed: isPaid ? claimedLoyaltyPoints : 0,
+        discountCents: authorativeDiscountCents,
+        discountCode: validatedDiscountCode,
+        discountCodeId: validatedDiscountCodeId,
+        paymentMethodType: paymentMethodType as string ?? null,
+        deliveryAddress,
+      }).returning();
+      order = inserted;
+
+      // Claim transition inside the same transaction — rolls back order if claim is gone
+      if (claimedRewardData) {
+        const redeemResult = await tx.update(claimedRewardsTable)
+          .set({ status: 'redeemed', redeemedAt: new Date(), orderId })
+          .where(and(
+            eq(claimedRewardsTable.id, claimedRewardData.id),
+            inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+          ))
+          .returning({ id: claimedRewardsTable.id });
+        if (redeemResult.length === 0) {
+          throw new Error('REWARD_ALREADY_CONSUMED');
+        }
+      }
+    });
   } catch (err: any) {
     if (err?.code === '23505' && err?.constraint_name?.includes('stripe_payment_intent_id')) {
       return res.status(409).json({ error: 'Payment intent has already been used' });
     }
-    throw err;
-  }
-
-  // ── Mark claimed reward as redeemed (atomic status guard prevents double-use) ─
-  // Reward is consumed when the order is placed, regardless of payment method.
-  if (claimedRewardData) {
-    try {
-      const redeemResult = await db.update(claimedRewardsTable)
-        .set({ status: 'redeemed', redeemedAt: new Date(), orderId })
-        .where(and(
-          eq(claimedRewardsTable.id, claimedRewardData.id),
-          inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
-        ))
-        .returning({ id: claimedRewardsTable.id });
-      if (redeemResult.length === 0) {
-        req.log.warn({ orderId, claimedRewardId: claimedRewardData.id }, 'Claimed reward already consumed — possible concurrent request');
-      }
-    } catch (err: any) {
-      req.log.error({ err, orderId, claimedRewardId: claimedRewardData.id }, 'Failed to mark claimed reward as redeemed');
+    if (err?.message === 'REWARD_ALREADY_CONSUMED') {
+      return res.status(409).json({ error: 'This reward has already been used. Please remove it and try again.' });
     }
+    throw err;
   }
 
   // ── Record discount code usage ─────────────────────────────────────────────

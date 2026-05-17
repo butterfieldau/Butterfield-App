@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
+import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, loyaltyTransactionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
 import { eq, desc, and, isNull, sql, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
@@ -250,8 +250,19 @@ router.post('/redeem', requireAuth, async (req, res) => {
         status: 'available',
         pointsSpent: reward.pointsCost,
         voucherValueCents: reward.voucherValueCents ?? null,
+        expiresAt: reward.expiresAt ?? null,
       }).returning();
       claimed = inserted;
+
+      // 4. Loyalty transaction log — inside the transaction so it rolls back with the claim
+      await tx.insert(loyaltyTransactionsTable).values({
+        id: randomUUID(),
+        userId,
+        points: -reward.pointsCost,
+        type: 'redeem',
+        description: `Claimed: ${reward.name}`,
+        referenceId: claimId,
+      });
     });
   } catch (txErr: any) {
     const msg = String(txErr?.message ?? '');
@@ -260,14 +271,6 @@ router.post('/redeem', requireAuth, async (req, res) => {
     req.log.error({ txErr }, 'Reward claim transaction failed');
     return res.status(500).json({ error: 'Failed to claim reward. Please try again.' });
   }
-
-  // Non-critical: audit log (best-effort, outside the transaction)
-  recordLoyaltyPoints({
-    userId,
-    pointsDelta: -reward.pointsCost,
-    orderId: null,
-    description: `Claimed: ${reward.name}`,
-  }).catch((logErr: any) => req.log.warn({ logErr }, 'Failed to write loyalty audit log after claim'));
 
   return res.json({
     data: {
