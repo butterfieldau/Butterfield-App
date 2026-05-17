@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -51,15 +51,10 @@ export default function WholesaleDashboard() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
       <LinearGradient
-        colors={['#1493FF', '#3CBBEE']}
-        style={[s.hero, { paddingTop: insets.top + 18 }]}
+        colors={['#1A2B4A', '#253B5E']}
+        style={[s.hero, { paddingTop: 16 }]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
       >
-        <Image
-          source={require('@/assets/images/logo-white.png')}
-          style={{ width: 130, height: 42, alignSelf: 'center', marginBottom: 14 }}
-          resizeMode="contain"
-        />
         <Text style={s.heroGreeting}>Good day, {firstName}</Text>
         {account?.companyName && <Text style={s.heroCompany}>{account.companyName}</Text>}
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, alignItems: 'center' }}>

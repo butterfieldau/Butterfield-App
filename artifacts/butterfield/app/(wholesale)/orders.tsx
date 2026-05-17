@@ -456,9 +456,9 @@ export default function WholesaleOrdersScreen() {
 
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <LinearGradient
-        colors={['#1493FF', '#3CBBEE']}
+        colors={['#1A2B4A', '#253B5E']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[st.header, { paddingTop: insets.top + 16 }]}
+        style={[st.header, { paddingTop: 16 }]}
       >
         {/* Sub-tab switcher */}
         <View style={st.segmentRow}>

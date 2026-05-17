@@ -7,29 +7,30 @@ import { sendNotification } from '../lib/notificationService.js';
 
 const router = Router();
 
-const VALID_CATEGORIES = ['coffee', 'drinks', 'front_of_house', 'sauces', 'chocolate', 'kitchen'] as const;
-type StockCategory = typeof VALID_CATEGORIES[number];
-
-function isValidCategory(v: unknown): v is StockCategory {
-  return typeof v === 'string' && (VALID_CATEGORIES as readonly string[]).includes(v);
+function isValidCategory(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0;
 }
 
 function canEditAll(role?: string) {
   return role === 'director' || role === 'master';
 }
 
-const STOCK_CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { id: 'coffee',         label: 'Coffee'         },
   { id: 'drinks',         label: 'Drinks'         },
   { id: 'front_of_house', label: 'Front of House' },
   { id: 'sauces',         label: 'Sauces'         },
   { id: 'chocolate',      label: 'Chocolate'      },
   { id: 'kitchen',        label: 'Kitchen'        },
+  { id: 'milk',           label: 'Milk'           },
+  { id: 'dairy',          label: 'Dairy'          },
+  { id: 'packaging',      label: 'Packaging'      },
+  { id: 'cleaning',       label: 'Cleaning'       },
 ];
 
 // ── GET /api/stock/categories ────────────────────────────────────────────────
 router.get('/categories', requireRole('director', 'master', 'manager'), (_req, res) => {
-  res.json({ data: STOCK_CATEGORIES });
+  res.json({ data: DEFAULT_CATEGORIES });
 });
 
 // ── GET /api/stock/items ─────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ router.post('/items', requireRole('director', 'master'), async (req, res) => {
     return;
   }
   if (!isValidCategory(category)) {
-    res.status(400).json({ error: `category must be one of: ${VALID_CATEGORIES.join(', ')}` });
+    res.status(400).json({ error: 'category must be a non-empty string' });
     return;
   }
 
@@ -70,7 +71,7 @@ router.post('/items', requireRole('director', 'master'), async (req, res) => {
   const item = {
     id: randomUUID(),
     name: name.trim(),
-    category: category as StockCategory,
+    category: category.trim(),
     unit: typeof unit === 'string' && unit.trim() ? unit.trim() : 'units',
     currentQuantity: typeof currentQuantity === 'number' && currentQuantity >= 0 ? currentQuantity : 0,
     lowStockThreshold: typeof lowStockThreshold === 'number' && lowStockThreshold >= 0 ? lowStockThreshold : 0,
@@ -112,7 +113,7 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
       updates.name = name.trim();
     }
     if (category !== undefined) {
-      if (!isValidCategory(category)) { res.status(400).json({ error: `category must be one of: ${VALID_CATEGORIES.join(', ')}` }); return; }
+      if (!isValidCategory(category)) { res.status(400).json({ error: 'category must be a non-empty string' }); return; }
       updates.category = category;
     }
     if (unit !== undefined) updates.unit = typeof unit === 'string' && unit.trim() ? unit.trim() : 'units';

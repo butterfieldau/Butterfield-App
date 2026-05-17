@@ -98,9 +98,9 @@ export default function WholesaleCartScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <LinearGradient
-        colors={['#1493FF', '#3CBBEE']}
+        colors={['#1A2B4A', '#253B5E']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[s.header, { paddingTop: insets.top + 16 }]}
+        style={[s.header, { paddingTop: 16 }]}
       >
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Text style={s.title}>Cart</Text>

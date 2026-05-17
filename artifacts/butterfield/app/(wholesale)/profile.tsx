@@ -130,7 +130,7 @@ export default function WholesaleAccount() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
-      <LinearGradient colors={['#1493FF', '#3CBBEE']} style={[s.hero, { paddingTop: insets.top + 18 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      <LinearGradient colors={['#1A2B4A', '#253B5E']} style={[s.hero, { paddingTop: 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <AvatarPicker
           initial={initial}
           size={68}

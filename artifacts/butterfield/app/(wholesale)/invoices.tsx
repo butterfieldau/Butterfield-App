@@ -353,7 +353,7 @@ export default function WholesaleInvoices() {
       />
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <LinearGradient colors={['#1493FF', '#3CBBEE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[ss.header, { paddingTop: insets.top + 16 }]}>
+      <LinearGradient colors={['#1A2B4A', '#253B5E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[ss.header, { paddingTop: 16 }]}>
         <Text style={[ss.title, { color: '#fff' }]}>Invoices</Text>
         <View style={ss.summaryRow}>
           <View style={[ss.summaryCard, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' }]}>

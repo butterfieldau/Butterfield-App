@@ -103,7 +103,18 @@ const qm = StyleSheet.create({
 });
 
 // ── Item edit modal (director only) ─────────────────────────────────────────
-const VALID_CATS = ['coffee', 'drinks', 'front_of_house', 'sauces', 'chocolate', 'kitchen'] as const;
+const DEFAULT_CATS = [
+  { id: 'coffee',         label: 'Coffee'         },
+  { id: 'drinks',         label: 'Drinks'         },
+  { id: 'front_of_house', label: 'Front of House' },
+  { id: 'sauces',         label: 'Sauces'         },
+  { id: 'chocolate',      label: 'Chocolate'      },
+  { id: 'kitchen',        label: 'Kitchen'        },
+  { id: 'milk',           label: 'Milk'           },
+  { id: 'dairy',          label: 'Dairy'          },
+  { id: 'packaging',      label: 'Packaging'      },
+  { id: 'cleaning',       label: 'Cleaning'       },
+];
 const COMMON_UNITS = ['units', 'kg', 'g', 'L', 'mL', 'bags', 'boxes', 'bottles', 'cans', 'rolls', 'sheets'];
 
 function EditModal({
@@ -116,6 +127,7 @@ function EditModal({
   const isNew = !item?.id;
   const [name, setName]           = useState(item?.name ?? '');
   const [category, setCategory]   = useState(item?.category ?? 'coffee');
+  const [customCat, setCustomCat] = useState('');
   const [unit, setUnit]           = useState(item?.unit ?? 'units');
   const [qty, setQty]             = useState(String(item?.currentQuantity ?? 0));
   const [threshold, setThreshold] = useState(String(item?.lowStockThreshold ?? 0));
@@ -155,21 +167,28 @@ function EditModal({
               <TextInput style={em.input} value={name} onChangeText={setName} placeholder="e.g. Full Cream Milk" placeholderTextColor={MUTED} />
 
               <Label>Category *</Label>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-                {VALID_CATS.map((c) => {
-                  const m = CAT_META[c];
-                  const active = category === c;
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                {DEFAULT_CATS.map((c) => {
+                  const m = CAT_META[c.id] ?? { color: MUTED, label: c.label };
+                  const active = category === c.id;
                   return (
                     <Pressable
-                      key={c}
-                      onPress={() => { Haptics.selectionAsync(); setCategory(c); }}
+                      key={c.id}
+                      onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCustomCat(''); }}
                       style={[em.catChip, active && { backgroundColor: m.color, borderColor: m.color }]}
                     >
-                      <Text style={[em.catLabel, active && { color: '#fff' }]}>{m.label}</Text>
+                      <Text style={[em.catLabel, active && { color: '#fff' }]}>{c.label}</Text>
                     </Pressable>
                   );
                 })}
               </ScrollView>
+              <TextInput
+                style={[em.input, { marginBottom: 16 }]}
+                value={customCat}
+                onChangeText={(v) => { setCustomCat(v); if (v.trim()) setCategory(v.trim().toLowerCase().replace(/\s+/g, '_')); }}
+                placeholder="Or type a custom category…"
+                placeholderTextColor={MUTED}
+              />
 
               <Label>Unit</Label>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>

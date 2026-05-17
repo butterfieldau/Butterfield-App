@@ -1,20 +1,11 @@
-import { pgTable, text, integer, real, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-
-export const stockCategoryEnum = pgEnum("stock_category", [
-  "coffee",
-  "drinks",
-  "front_of_house",
-  "sauces",
-  "chocolate",
-  "kitchen",
-]);
 
 export const stockItemsTable = pgTable("stock_items", {
   id:                text("id").primaryKey(),
   name:              text("name").notNull(),
-  category:          stockCategoryEnum("category").notNull(),
+  category:          text("category").notNull().default("other"),
   unit:              text("unit").notNull().default("units"),
   currentQuantity:   real("current_quantity").notNull().default(0),
   lowStockThreshold: real("low_stock_threshold").notNull().default(0),
