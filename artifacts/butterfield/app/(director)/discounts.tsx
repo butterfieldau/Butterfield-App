@@ -18,20 +18,31 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '@/lib/api';
 
-const BG    = '#0F1729';
-const CARD  = '#1A2B4A';
-const CARD2 = '#243555';
-const TEXT  = '#E8EDF5';
-const MUTED = '#7B8DB0';
-const BORDER= '#2C3E60';
+const BG    = '#F5F6FA';
+const CARD  = '#FFFFFF';
+const CARD2 = '#F3F4F6';
+const TEXT  = '#1C1C1E';
+const MUTED = '#8E8E93';
+const BORDER= '#E5E7EB';
 const NAVY  = '#1A2B4A';
 const RED   = '#D20001';
-const GREEN = '#22C55E';
+const GREEN = '#16A34A';
 const BLUE  = '#3B82F6';
-const GOLD  = '#F59E0B';
+const GOLD  = '#B45309';
+
+// ── Date helpers (Australian format DD/MM/YYYY ↔ ISO) ──────────────────────
+function isoToAU(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return [
+    String(d.getUTCDate()).padStart(2, '0'),
+    String(d.getUTCMonth() + 1).padStart(2, '0'),
+    String(d.getUTCFullYear()),
+  ].join('/');
+}
 
 type DiscountType = 'percentage' | 'fixed_amount' | 'free_delivery';
 
@@ -149,6 +160,7 @@ export default function DirectorDiscountsScreen() {
   const [form, setForm] = useState<Partial<DiscountCode>>(BLANK);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [expiryDisplay, setExpiryDisplay] = useState('');
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-discount-codes'],
@@ -167,12 +179,14 @@ export default function DirectorDiscountsScreen() {
   const openCreate = () => {
     setEditing(null);
     setForm({ ...BLANK });
+    setExpiryDisplay('');
     setModalVisible(true);
   };
 
   const openEdit = (dc: DiscountCode) => {
     setEditing(dc);
     setForm({ ...dc });
+    setExpiryDisplay(isoToAU(dc.expiresAt));
     setModalVisible(true);
   };
 
@@ -180,6 +194,7 @@ export default function DirectorDiscountsScreen() {
     setModalVisible(false);
     setEditing(null);
     setForm({ ...BLANK });
+    setExpiryDisplay('');
   };
 
   const save = async () => {
@@ -191,9 +206,11 @@ export default function DirectorDiscountsScreen() {
         code: form.code!.trim().toUpperCase(),
         description: form.description || null,
         discountType: form.discountType,
-        discountValue: form.discountType === 'percentage' ? Number(form.discountValue) : Math.round(Number(form.discountValue) * 100),
-        maxDiscountCents: form.maxDiscountCents ? Math.round(Number(form.maxDiscountCents) * 100) : null,
-        minOrderCents: form.minOrderCents ? Math.round(Number(form.minOrderCents) * 100) : 0,
+        // discountValue is already in cents for fixed_amount (set by onChange * 100)
+        discountValue: Number(form.discountValue ?? 0),
+        // maxDiscountCents and minOrderCents already in cents from onChange handler
+        maxDiscountCents: form.maxDiscountCents ? Number(form.maxDiscountCents) : null,
+        minOrderCents: Number(form.minOrderCents ?? 0),
         expiresAt: form.expiresAt || null,
         startDate: form.startDate || null,
         isActive: form.isActive !== false,
@@ -266,17 +283,14 @@ export default function DirectorDiscountsScreen() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
-      <LinearGradient
-        colors={['#1A2B4A', '#0F1729']}
-        style={s.header}
-      >
+      <View style={s.header}>
         <View style={s.headerRow}>
           <View>
             <Text style={s.headerTitle}>Discount Codes</Text>
             <Text style={s.headerSub}>Create and manage promotional codes</Text>
           </View>
           <Pressable onPress={openCreate} style={s.addBtn}>
-            <Feather name="plus" size={18} color="#fff" />
+            <Feather name="plus" size={16} color="#fff" />
             <Text style={s.addBtnText}>New Code</Text>
           </Pressable>
         </View>
@@ -294,7 +308,7 @@ export default function DirectorDiscountsScreen() {
             </Pressable>
           ))}
         </View>
-      </LinearGradient>
+      </View>
 
       {isLoading ? (
         <View style={s.loadingWrap}>
@@ -506,10 +520,26 @@ export default function DirectorDiscountsScreen() {
             </View>
 
             <FormField
-              label="Expiry date (optional, ISO format YYYY-MM-DD)"
-              value={form.expiresAt ? form.expiresAt.substring(0, 10) : ''}
-              onChange={(v) => setField('expiresAt', v ? new Date(v).toISOString() : null)}
-              placeholder="2025-12-31"
+              label="Expiry date (optional, DD/MM/YYYY)"
+              value={expiryDisplay}
+              onChange={(v) => {
+                // Strip non-digits, limit to 8
+                const digits = v.replace(/\D/g, '').slice(0, 8);
+                // Auto-insert slashes: DD/MM/YYYY
+                let formatted = digits;
+                if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+                if (digits.length > 4) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+                setExpiryDisplay(formatted);
+                if (digits.length === 8) {
+                  const iso = `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+                  const d = new Date(iso);
+                  setField('expiresAt', isNaN(d.getTime()) ? null : iso);
+                } else {
+                  setField('expiresAt', null);
+                }
+              }}
+              placeholder="31/12/2025"
+              keyboardType="numeric"
             />
 
             <FormField
@@ -537,7 +567,7 @@ export default function DirectorDiscountsScreen() {
 
 const s = StyleSheet.create({
   root:         { flex: 1, backgroundColor: BG },
-  header:       { paddingHorizontal: 16, paddingBottom: 0 },
+  header:       { paddingHorizontal: 16, paddingBottom: 0, backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER },
   headerRow:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 14, gap: 12 },
   headerTitle:  { fontSize: 20, fontWeight: '700', color: TEXT },
   headerSub:    { fontSize: 13, color: MUTED, marginTop: 2 },
