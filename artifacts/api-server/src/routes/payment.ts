@@ -3,7 +3,7 @@ import { requireAuth } from '../middlewares/auth.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { db, claimedRewardsTable, loyaltyRewardsTable } from '@workspace/db';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 
 const router = Router();
 
@@ -64,14 +64,27 @@ router.post('/payment-intent', async (req, res) => {
     if (rewardType === 'money_voucher') {
       rewardDiscountCents = claimedRow.voucherValueCents ?? 0;
     } else if (rewardType === 'item_reward' && rewardRow?.linkedProductId) {
-      // If product already in cart, mark first instance free; otherwise add a new free item
+      // Grant exactly ONE free unit — never make multi-quantity lines entirely free
       const lid = rewardRow.linkedProductId;
       const existingIdx = enrichedItems.findIndex((i: any) => i.productId === lid && !i.isFreeReward);
       if (existingIdx >= 0) {
-        enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], isFreeReward: true };
+        const existingQty = Math.max(1, Math.floor(enrichedItems[existingIdx].quantity ?? 1));
+        if (existingQty === 1) {
+          enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], isFreeReward: true };
+        } else {
+          enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], quantity: existingQty - 1 };
+          enrichedItems = [...enrichedItems, { productId: lid, quantity: 1, isFreeReward: true }];
+        }
       } else {
         enrichedItems = [...enrichedItems, { productId: lid, quantity: 1, isFreeReward: true }];
       }
+    }
+
+    // Idempotently transition claim to applied_to_cart so server tracks checkout state
+    if (claimedRow.status === 'available') {
+      await db.execute(
+        sql`UPDATE claimed_rewards SET status='applied_to_cart' WHERE id=${claimedRewardId} AND user_id=${req.user!.id} AND status='available'`
+      );
     }
   }
 

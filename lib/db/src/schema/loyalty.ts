@@ -65,6 +65,7 @@ export const claimedRewardsTable = pgTable("claimed_rewards", {
   orderId: text("order_id"),
   pointsSpent: integer("points_spent").notNull(),
   voucherValueCents: integer("voucher_value_cents"),
+  expiresAt: timestamp("expires_at"),
 });
 
 export const insertLoyaltyTransactionSchema = createInsertSchema(loyaltyTransactionsTable).omit({ createdAt: true });

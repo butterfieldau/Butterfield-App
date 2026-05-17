@@ -101,10 +101,18 @@ router.post('/', async (req, res) => {
     if (rewardType === 'money_voucher') {
       claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
     } else if (rewardType === 'item_reward' && linkedProductId) {
-      // If the product is already in cart, mark the first instance free; otherwise add a new free item
+      // Grant exactly ONE free unit — never make multi-quantity lines entirely free
       const existingIdx = items.findIndex((i: any) => i.productId === linkedProductId && !i.isFreeReward);
       if (existingIdx >= 0) {
-        items[existingIdx] = { ...items[existingIdx], isFreeReward: true };
+        const existingQty = Math.max(1, Math.floor(items[existingIdx].quantity ?? 1));
+        if (existingQty === 1) {
+          // Single unit in cart — mark the whole line free
+          items[existingIdx] = { ...items[existingIdx], isFreeReward: true };
+        } else {
+          // Multiple units — reduce paid quantity by 1 and add a separate free unit
+          items[existingIdx] = { ...items[existingIdx], quantity: existingQty - 1 };
+          items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
+        }
       } else {
         items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
       }

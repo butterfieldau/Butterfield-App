@@ -133,13 +133,22 @@ router.post('/claimed-rewards/:id/apply', requireAuth, async (req, res) => {
   const claimId = String(req.params.id);
   const userId  = req.user!.id;
 
-  // First check if it already exists at all and is owned by this user
+  // Fetch claim including expiresAt for expiry validation
   const [existing] = await db
-    .select({ status: claimedRewardsTable.status })
+    .select({ status: claimedRewardsTable.status, expiresAt: claimedRewardsTable.expiresAt })
     .from(claimedRewardsTable)
     .where(and(eq(claimedRewardsTable.id, claimId), eq(claimedRewardsTable.userId, userId)));
 
   if (!existing) return res.status(404).json({ error: 'Claimed reward not found' });
+
+  // Expiry check: auto-transition to expired and reject
+  if (existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
+    await db.execute(
+      sql`UPDATE claimed_rewards SET status='expired' WHERE id=${claimId} AND user_id=${userId} AND status IN ('available','applied_to_cart')`
+    );
+    return res.status(409).json({ error: 'This reward has expired' });
+  }
+
   if (existing.status === 'applied_to_cart') return res.json({ success: true }); // idempotent
   if (existing.status !== 'available') {
     return res.status(409).json({ error: `Cannot apply a reward with status: ${existing.status}` });
@@ -159,11 +168,20 @@ router.post('/claimed-rewards/:id/unapply', requireAuth, async (req, res) => {
   const userId  = req.user!.id;
 
   const [existing] = await db
-    .select({ status: claimedRewardsTable.status })
+    .select({ status: claimedRewardsTable.status, expiresAt: claimedRewardsTable.expiresAt })
     .from(claimedRewardsTable)
     .where(and(eq(claimedRewardsTable.id, claimId), eq(claimedRewardsTable.userId, userId)));
 
   if (!existing) return res.status(404).json({ error: 'Claimed reward not found' });
+
+  // Expiry check: auto-transition to expired and reject
+  if (existing.expiresAt && new Date(existing.expiresAt) < new Date()) {
+    await db.execute(
+      sql`UPDATE claimed_rewards SET status='expired' WHERE id=${claimId} AND user_id=${userId} AND status IN ('available','applied_to_cart')`
+    );
+    return res.status(409).json({ error: 'This reward has expired' });
+  }
+
   if (existing.status === 'available') return res.json({ success: true }); // idempotent
   if (existing.status !== 'applied_to_cart') {
     return res.status(409).json({ error: `Cannot unapply a reward with status: ${existing.status}` });
