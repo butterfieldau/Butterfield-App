@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -91,20 +91,20 @@ const shimmerCard = StyleSheet.create({
 });
 const CAT_ICON_MAP: Record<string, string> = {
   coffee:        'coffee',
-  matcha:        '🍵',
-  tea:           '🫖',
-  cookies:       '🍪',
-  'cold-drinks': '🧊',
-  'soft-serve':  '🍦',
+  matcha:        'mc:leaf',
+  tea:           'mc:cup-water',
+  cookies:       'mc:cookie-outline',
+  'cold-drinks': 'mc:snowflake',
+  'soft-serve':  'mc:ice-cream',
   specials:      'zap',
   seasonal:      'sun',
   merch:         'tag',
-  boxes:         '🎁',
-  desserts:      'heart',
+  boxes:         'box',
+  desserts:      'mc:cake-variant-outline',
   sandwiches:    'layers',
   pastries:      'sun',
   drinks:        'droplet',
-  bundles:       '🎁',
+  bundles:       'gift',
 };
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
@@ -254,8 +254,8 @@ export default function MenuScreen() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {(cat.icon.codePointAt(0)! > 127)
-                    ? <Text style={{ fontSize: 16, lineHeight: 20 }}>{cat.icon}</Text>
+                  {cat.icon.startsWith('mc:')
+                    ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
                     : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
                   }
                 </View>

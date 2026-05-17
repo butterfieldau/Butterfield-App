@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,20 +37,20 @@ const BLUE_BTM = '#3CBBEE';
 const CHERRY   = '#D0312D';
 const CAT_ICON_MAP: Record<string, string> = {
   coffee:        'coffee',
-  matcha:        '🍵',
-  tea:           '🫖',
-  cookies:       '🍪',
-  'cold-drinks': '🧊',
-  'soft-serve':  '🍦',
+  matcha:        'mc:leaf',
+  tea:           'mc:cup-water',
+  cookies:       'mc:cookie-outline',
+  'cold-drinks': 'mc:snowflake',
+  'soft-serve':  'mc:ice-cream',
   specials:      'zap',
   seasonal:      'sun',
   merch:         'tag',
-  boxes:         '🎁',
-  desserts:      'heart',
+  boxes:         'box',
+  desserts:      'mc:cake-variant-outline',
   sandwiches:    'layers',
-  pastries:      'sun',
+  pastries:      'mc:croissant',
   drinks:        'droplet',
-  bundles:       '🎁',
+  bundles:       'gift',
 };
 const MERCH = [
   { id: 'merch-retro-shirt',    name: 'Retro Shirt',    price: 50, image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldNEWTEE.jpg?v=1766964759&width=600' },
@@ -106,7 +106,7 @@ export default function CustomerHome() {
     const items = backendCats.map(c => ({
       id: c.slug as string,
       label: c.name as string,
-      icon: CAT_ICON_MAP[c.slug] ?? '🛍️',
+      icon: CAT_ICON_MAP[c.slug] ?? 'tag',
     }));
     return [{ id: 'all', label: 'All', icon: 'grid' }, ...items];
   }, [categoriesData]);
@@ -394,8 +394,8 @@ export default function CustomerHome() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {(cat.icon.codePointAt(0)! > 127)
-                    ? <Text style={{ fontSize: 16, lineHeight: 20 }}>{cat.icon}</Text>
+                  {cat.icon.startsWith('mc:')
+                    ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
                     : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
                   }
                 </View>
