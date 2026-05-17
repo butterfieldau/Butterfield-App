@@ -20,12 +20,15 @@ router.use(requireRole('director', 'manager', 'master'));
 // For managers, enforce per-route permissions based on method + path.
 // Directors and masters pass through unconditionally.
 // Returns a MANAGER_PERMISSIONS string or 'director_only' to block managers entirely.
-function resolveDirectorPermission(method: string, path: string): ManagerPermission | 'director_only' | 'self_only' {
-  // Manager/director management — director-only (inline handlers also guard these)
-  if (path.startsWith('/managers') || path.startsWith('/directors')) return 'director_only';
+function resolveDirectorPermission(method: string, path: string): ManagerPermission | 'director_only' | 'self_only' | 'always' {
+  // Director-only: adding/removing directors
+  if (path.startsWith('/directors')) return 'director_only';
   // User deletion and wholesale-card visibility — director-only
   if (method === 'DELETE' && path.startsWith('/users/')) return 'director_only';
   if (path.startsWith('/wholesale-cards/') && path.endsWith('/visibility')) return 'director_only';
+
+  // Managers: all managers can create and manage other managers
+  if (path === '/managers' || path.startsWith('/managers/')) return 'always';
 
   // Dashboard
   if (path === '/stats' || path === '/sessions') return 'dashboard';
@@ -47,8 +50,11 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // Products
   if (path === '/products' || path.startsWith('/products/')) return 'products';
 
-  // Settings
-  if (path === '/settings' || path === '/home-banner' || path.startsWith('/printer/')) return 'settings';
+  // Settings (store/printer) — geofencing is stripped server-side for managers
+  if (path === '/settings' || path.startsWith('/printer/')) return 'settings';
+
+  // Banner — separate permission so directors can grant it independently of settings
+  if (path === '/home-banner') return 'banners';
 
   // Rewards
   if (path === '/rewards' || path.startsWith('/rewards/')) return 'rewards';
@@ -650,7 +656,12 @@ router.get('/settings', async (req, res) => {
 });
 
 router.patch('/settings', async (req, res) => {
-  const updates = req.body as Record<string, string>;
+  let updates = req.body as Record<string, string>;
+  // Managers cannot modify geo-fence settings — strip them out server-side
+  if (req.user!.role === 'manager') {
+    const { geo_radius_meters, shop_lat, shop_lng, ...rest } = updates;
+    updates = rest;
+  }
   for (const [key, value] of Object.entries(updates)) {
     await db.insert(storeSettingsTable).values({ key, value, updatedBy: req.user!.id })
       .onConflictDoUpdate({ target: storeSettingsTable.key, set: { value, updatedAt: new Date(), updatedBy: req.user!.id } });
@@ -1116,7 +1127,7 @@ function parsePerms(raw?: string | null): string[] {
 }
 
 router.get('/managers', async (req, res) => {
-  if (!['director', 'master'].includes(req.user?.role ?? '')) {
+  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) {
     return res.status(403).json({ error: 'Director only' });
   }
   const managers = await db.select({
@@ -1139,7 +1150,7 @@ router.get('/managers', async (req, res) => {
 });
 
 router.post('/managers', async (req, res) => {
-  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   const { name, email, password, permissions = [], notes } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
@@ -1157,7 +1168,7 @@ router.post('/managers', async (req, res) => {
 });
 
 router.patch('/managers/:id/permissions', async (req, res) => {
-  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   const { permissions, notes } = req.body;
   const updates: Record<string, any> = {};
   if (Array.isArray(permissions)) updates.permissions = JSON.stringify(permissions);
@@ -1171,7 +1182,7 @@ router.patch('/managers/:id/permissions', async (req, res) => {
 });
 
 router.delete('/managers/:id', async (req, res) => {
-  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
   await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
   return res.json({ success: true });

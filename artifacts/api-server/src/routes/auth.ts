@@ -365,13 +365,20 @@ router.get('/me', requireAuth, async (req, res) => {
   } else if (dbUser.role === 'wholesale') {
     const [wa] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, user.id));
     profile = wa;
+  } else if (dbUser.role === 'manager') {
+    const [mp] = await db.select().from(managerProfilesTable).where(eq(managerProfilesTable.userId, user.id));
+    profile = mp;
   }
   let notifPrefs: Record<string, boolean> | null = null;
   if (dbUser.notificationPreferences) {
     try { notifPrefs = JSON.parse(dbUser.notificationPreferences); } catch {}
   }
+  let managerPermissions: string[] | null = null;
+  if (dbUser.role === 'manager' && profile) {
+    try { managerPermissions = JSON.parse((profile as any).permissions ?? '[]'); } catch { managerPermissions = []; }
+  }
   return res.json({
-    user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone, profileImage: dbUser.profileImage, notificationPreferences: notifPrefs },
+    user: { id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone, profileImage: dbUser.profileImage, notificationPreferences: notifPrefs, managerPermissions },
     profile,
   });
 });

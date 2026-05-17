@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -26,8 +26,6 @@ const GREEN  = '#22C55E';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
 
-const BASE_TABS   = ['Store', 'Banner', 'Rewards', 'Notify', 'Managers'] as const;
-const MASTER_TABS = ['Store', 'Banner', 'Rewards', 'Notify', 'Managers', 'Directors'] as const;
 type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Managers' | 'Directors';
 
 const REWARD_CATEGORIES = ['food', 'drink', 'discount', 'experience', 'merchandise'];
@@ -282,6 +280,8 @@ function BannerTab() {
 
 // ─── Store Settings ──────────────────────────────────────────────────────────
 function StoreTab() {
+  const { user } = useAuth();
+  const canEditGeo = user?.role === 'director' || user?.role === 'master';
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['director-settings'],
@@ -476,34 +476,38 @@ function StoreTab() {
         </View>
       </View>
 
-      <Text style={styles.section}>STAFF GEO-FENCE</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-        <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
-          <Feather name="map-pin" size={13} color={BLUE} />
-          <Text style={[styles.infoBannerText, { color: BLUE }]}>
-            Staff must be within this radius of the store coordinates to clock in.
-          </Text>
-        </View>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Check-in radius (metres)</Text>
-          <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={geoRadius}
-            onChangeText={setGeoRadius} keyboardType="number-pad" placeholder="20" placeholderTextColor={MUTED} />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={styles.coordRow}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.fieldLabel}>Shop latitude</Text>
-            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={shopLat}
-              onChangeText={setShopLat} keyboardType="decimal-pad" placeholder="-33.8349" placeholderTextColor={MUTED} />
+      {canEditGeo && (
+        <>
+          <Text style={styles.section}>STAFF GEO-FENCE</Text>
+          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
+              <Feather name="map-pin" size={13} color={BLUE} />
+              <Text style={[styles.infoBannerText, { color: BLUE }]}>
+                Staff must be within this radius of the store coordinates to clock in.
+              </Text>
+            </View>
+            <View style={{ gap: 6 }}>
+              <Text style={styles.fieldLabel}>Check-in radius (metres)</Text>
+              <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={geoRadius}
+                onChangeText={setGeoRadius} keyboardType="number-pad" placeholder="20" placeholderTextColor={MUTED} />
+            </View>
+            <View style={[styles.divider, { backgroundColor: BORDER }]} />
+            <View style={styles.coordRow}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.fieldLabel}>Shop latitude</Text>
+                <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={shopLat}
+                  onChangeText={setShopLat} keyboardType="decimal-pad" placeholder="-33.8349" placeholderTextColor={MUTED} />
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.fieldLabel}>Shop longitude</Text>
+                <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={shopLng}
+                  onChangeText={setShopLng} keyboardType="decimal-pad" placeholder="150.9942" placeholderTextColor={MUTED} />
+              </View>
+            </View>
+            <Text style={[styles.hint, { color: MUTED }]}>Butterfield Merrylands: –33.8349, 150.9942</Text>
           </View>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.fieldLabel}>Shop longitude</Text>
-            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={shopLng}
-              onChangeText={setShopLng} keyboardType="decimal-pad" placeholder="150.9942" placeholderTextColor={MUTED} />
-          </View>
-        </View>
-        <Text style={[styles.hint, { color: MUTED }]}>Butterfield Merrylands: –33.8349, 150.9942</Text>
-      </View>
+        </>
+      )}
 
       <Text style={styles.section}>RECEIPT PRINTER</Text>
       <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 12 }]}>
@@ -1460,6 +1464,7 @@ const ALL_PERMISSIONS = [
   { key: 'announcements', label: 'Announcements', icon: 'bell'        },
   { key: 'settings',      label: 'Settings',      icon: 'settings'    },
   { key: 'pricing',       label: 'Pricing',       icon: 'dollar-sign' },
+  { key: 'banners',       label: 'Banner',        icon: 'image'       },
 ] as const;
 
 const INDIGO = '#3730A3';
@@ -1815,8 +1820,26 @@ function DirectorsTab() {
 export default function DirectorSettingsScreen() {
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const { user } = useAuth();
-  const isMaster = user?.role === 'master';
-  const TABS = isMaster ? MASTER_TABS : BASE_TABS;
+  const isMaster  = user?.role === 'master';
+  const isManager = user?.role === 'manager';
+
+  // Fetch manager permissions so we can conditionally show the Banner tab
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.auth.me(),
+    enabled: isManager,
+  });
+  const managerPerms: string[] = (meData?.user as any)?.managerPermissions ?? [];
+
+  const TABS = useMemo<TabKey[]>(() => {
+    const base: TabKey[] = ['Store'];
+    // Banner tab: always for director/master; for managers only if granted 'banners' permission
+    if (!isManager || managerPerms.includes('banners')) base.push('Banner');
+    base.push('Rewards', 'Notify', 'Managers');
+    if (isMaster) base.push('Directors');
+    return base;
+  }, [isManager, isMaster, managerPerms]);
+
   const [tab, setTab] = useState<TabKey>('Store');
 
   // Jump to the requested tab when navigated from More screen
@@ -1824,7 +1847,7 @@ export default function DirectorSettingsScreen() {
     if (tabParam && (TABS as readonly string[]).includes(tabParam)) {
       setTab(tabParam as TabKey);
     }
-  }, [tabParam]);
+  }, [tabParam, TABS]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>

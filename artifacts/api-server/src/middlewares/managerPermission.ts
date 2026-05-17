@@ -49,13 +49,14 @@ export function requireManagerPermission(permission: ManagerPermission) {
 /**
  * Middleware that enforces per-path manager permissions using a resolver function.
  * The resolver receives (method, path) and returns either a required
- * ManagerPermission, 'director_only' (blocks managers entirely), or 'self_only'
+ * ManagerPermission, 'director_only' (blocks managers entirely), 'self_only'
  * (always allows managers through, but sets req.managerViewScope = 'self' | 'all'
- *  based on whether they hold the 'timesheets' permission).
+ *  based on whether they hold the 'timesheets' permission), or 'always'
+ * (allows all managers through unconditionally).
  * Directors and masters always pass through; non-managers receive 403.
  */
 export function requireManagerRoutePermission(
-  resolver: (method: string, path: string) => ManagerPermission | 'director_only' | 'self_only',
+  resolver: (method: string, path: string) => ManagerPermission | 'director_only' | 'self_only' | 'always',
 ) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
@@ -70,6 +71,10 @@ export function requireManagerRoutePermission(
       const required = resolver(req.method, req.path);
       if (required === 'director_only') {
         res.status(403).json({ error: 'Forbidden: director access only' });
+        return;
+      }
+      if (required === 'always') {
+        next();
         return;
       }
       const perms = await loadManagerPermissions(req.user.id);
