@@ -18,9 +18,10 @@
       "bundleIdentifier": "au.com.butterfieldcookies.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Butterfield uses the camera to scan loyalty stamps and order codes.",
-        "NSLocationWhenInUseUsageDescription": "Butterfield uses your location to help show nearby stores.",
-        "NSPhotoLibraryUsageDescription": "Butterfield uses photo library access when you choose a profile photo.",
+        "NSCameraUsageDescription": "Butterfield uses the camera to scan loyalty QR codes and earn coffee stamps at the counter.",
+        "NSLocationWhenInUseUsageDescription": "Butterfield uses your location to verify you are at a Butterfield store when signing in as a staff member.",
+        "NSPhotoLibraryUsageDescription": "Butterfield uses your photo library so you can upload a profile picture.",
+        "NSUserNotificationsUsageDescription": "Butterfield sends notifications for order updates, loyalty rewards, and special offers. You can manage these in Settings.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

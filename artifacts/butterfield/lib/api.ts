@@ -79,6 +79,8 @@ export const api = {
     me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
     updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
       request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteAccount: () =>
+      request<{ success: boolean; message: string }>('/auth/account', { method: 'DELETE' }),
   },
   products: {
     list:       ()         => request<{ data: ApiProduct[] }>('/products'),

@@ -69,7 +69,7 @@ export default function AccountScreen() {
     { icon: 'bell'        as const, label: 'Notifications',   onPress: () => router.push('/notifications') },
     { icon: 'map-pin'     as const, label: 'Saved addresses', onPress: () => router.push('/addresses') },
     { icon: 'navigation'  as const, label: 'Find a store',    onPress: () => router.push('/(customer)/stores' as any) },
-    { icon: 'help-circle' as const, label: 'Help & support',  onPress: () => Alert.alert('Help & Support', 'Phone: 0480 769 995\nEmail: hello@butterfieldcookies.com.au\n\nHours: Mon–Sat 9am–5pm\n\nVisit us at:\n2 Main Lane, Merrylands NSW 2160') },
+    { icon: 'help-circle' as const, label: 'Help & support',  onPress: () => router.push('/help-support') },
   ];
 
   return (
@@ -185,6 +185,15 @@ export default function AccountScreen() {
           <Text style={[styles.signOutText, { color: RED }]}>Sign Out</Text>
         </Pressable>
 
+        {/* ── Legal links ──────────────────────────────────────────────────── */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
+          <Pressable onPress={() => { const WebBrowser = require('expo-web-browser'); WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/privacy-policy'); }}>
+            <Text style={[styles.legalLink, { color: MUTED }]}>Privacy Policy</Text>
+          </Pressable>
+          <Pressable onPress={() => { const WebBrowser = require('expo-web-browser'); WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/terms-of-service'); }}>
+            <Text style={[styles.legalLink, { color: MUTED }]}>Terms of Service</Text>
+          </Pressable>
+        </View>
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version 1.0.0</Text>
       </View>
     </ScrollView>
@@ -218,5 +227,6 @@ const styles = StyleSheet.create({
 
   signOutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 16, borderWidth: 1 },
   signOutText: { fontSize: 15, fontWeight: '600' },
+  legalLink:   { fontSize: 12, fontWeight: '400', textDecorationLine: 'underline' },
   version:     { textAlign: 'center', fontSize: 12, fontWeight: '400' },
 });

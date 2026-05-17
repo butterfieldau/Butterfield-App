@@ -387,6 +387,20 @@ export default function LoginScreen() {
                 )}
               </Pressable>
 
+              {(mode === 'register' || isWholesaleApply) && (
+                <Text style={[s.termsText, { color: MUTED }]}>
+                  By creating an account you agree to our{' '}
+                  <Text
+                    style={{ color: BLUE, fontWeight: '600' }}
+                    onPress={() => WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/terms-of-service')}
+                  >Terms of Service</Text>
+                  {' '}and{' '}
+                  <Text
+                    style={{ color: BLUE, fontWeight: '600' }}
+                    onPress={() => WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/privacy-policy')}
+                  >Privacy Policy</Text>.
+                </Text>
+              )}
               {!isWholesale && (
                 <Pressable onPress={() => { setMode(mode === 'register' ? 'login' : 'register'); setError(''); Haptics.selectionAsync(); }} style={{ alignItems: 'center', paddingVertical: 4 }}>
                   <Text style={[s.toggleText, { fontWeight: '400', color: MUTED }]}>
@@ -525,4 +539,5 @@ const s = StyleSheet.create({
   geoBanner:       { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
   geoText:         { flex: 1, fontSize: 13 },
   geoNote:         { flex: 1, fontSize: 11, lineHeight: 16 },
+  termsText:       { fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });

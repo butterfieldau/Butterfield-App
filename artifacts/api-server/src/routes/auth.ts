@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
@@ -738,6 +738,27 @@ router.post('/reset-password', async (req, res) => {
     .where(eq(usersTable.id, payload.sub));
 
   return res.json({ success: true, message: 'Password updated successfully.' });
+});
+
+// ── Account deletion (GDPR / App Store requirement) ────────────────────────
+router.delete('/account', requireAuth, async (req, res) => {
+  const userId = (req as any).user.id;
+  const [user] = await db.select({ id: usersTable.id, email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) return res.status(404).json({ error: 'Account not found.' });
+  if (DEMO_EMAILS.includes(user.email)) {
+    return res.status(403).json({ error: 'Demo accounts cannot be deleted.' });
+  }
+  // Remove personal data in dependency order
+  try { await db.delete(loyaltyTransactionsTable).where(eq(loyaltyTransactionsTable.userId, userId)); } catch {}
+  try { await db.delete(favouritesTable).where(eq(favouritesTable.userId, userId)); } catch {}
+  try { await db.delete(customerProfilesTable).where(eq(customerProfilesTable.userId, userId)); } catch {}
+  // Anonymise the user row (keeps order FK references intact for business records)
+  const anon = `deleted-${randomUUID()}@deleted.invalid`;
+  await db.update(usersTable)
+    .set({ email: anon, name: 'Deleted User', phone: null, passwordHash: '', updatedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+  return res.json({ success: true, message: 'Account deleted.' });
 });
 
 export default router;
