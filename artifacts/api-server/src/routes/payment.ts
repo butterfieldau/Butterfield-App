@@ -76,7 +76,7 @@ router.post('/payment-intent', async (req, res) => {
         if (existingIdx >= 0) {
           const existingQty = Math.max(1, Math.floor(enrichedItems[existingIdx].quantity ?? 1));
           if (existingQty === 1) {
-            enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], isFreeReward: true };
+            enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], name: enrichedItems[existingIdx].name ?? rewardName, isFreeReward: true };
           } else {
             enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], quantity: existingQty - 1 };
             enrichedItems = [...enrichedItems, { productId: lid, name: rewardName, quantity: 1, isFreeReward: true }];

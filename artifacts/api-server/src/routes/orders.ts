@@ -116,8 +116,8 @@ router.post('/', async (req, res) => {
         if (existingIdx >= 0) {
           const existingQty = Math.max(1, Math.floor(items[existingIdx].quantity ?? 1));
           if (existingQty === 1) {
-            // Single unit in cart — mark the whole line free
-            items[existingIdx] = { ...items[existingIdx], isFreeReward: true };
+            // Single unit in cart — mark the whole line free (preserve/set name)
+            items[existingIdx] = { ...items[existingIdx], name: items[existingIdx].name ?? rewardName, isFreeReward: true };
           } else {
             // Multiple units — reduce paid quantity by 1 and add a separate free unit
             items[existingIdx] = { ...items[existingIdx], quantity: existingQty - 1 };
