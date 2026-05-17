@@ -324,6 +324,48 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 </View>
               ))}
             </View>
+            {/* ── Loyalty activity ── */}
+            <View style={[det.section, { borderBottomColor: BORDER }]}>
+              <Text style={det.sectionTitle}>Loyalty</Text>
+              {[
+                { label: 'Current points',   value: String(customer.profile?.loyaltyPoints ?? 0) },
+                { label: 'Tier',             value: customer.profile?.loyaltyTier ? (customer.profile.loyaltyTier.charAt(0).toUpperCase() + customer.profile.loyaltyTier.slice(1)) : 'Bronze' },
+                { label: 'Stamps',           value: `${customer.profile?.stampCount ?? 0} / 6` },
+                { label: 'Points earned',    value: String((customer as any).loyaltyStats?.totalEarnedPoints ?? 0) },
+                { label: 'Points redeemed',  value: String((customer as any).loyaltyStats?.totalRedeemedPoints ?? 0) },
+              ].map((r, i, arr) => (
+                <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                  <Text style={det.infoLabel}>{r.label}</Text>
+                  <Text style={det.infoValue}>{r.value}</Text>
+                </View>
+              ))}
+              {((customer as any).loyaltyTransactions?.length ?? 0) > 0 && (
+                <>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>
+                    Recent activity
+                  </Text>
+                  {((customer as any).loyaltyTransactions as any[]).slice(0, 10).map((txn: any, i: number, arr: any[]) => {
+                    const pts = txn.points ?? 0;
+                    const isEarn = pts >= 0;
+                    return (
+                      <View key={txn.id ?? i} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                        <View style={{ flex: 1, gap: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT }}>
+                            {txn.description ?? txn.type ?? 'Transaction'}
+                          </Text>
+                          <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>
+                            {fmtDate(txn.createdAt)}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: isEarn ? GREEN : RED }}>
+                          {isEarn ? '+' : ''}{pts} pts
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </>
+              )}
+            </View>
             {/* ── Contact information ── */}
             <View style={[det.section, { borderBottomColor: BORDER }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

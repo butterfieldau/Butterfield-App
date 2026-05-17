@@ -40,10 +40,6 @@ router.post('/', async (req, res) => {
   // Strip any client-supplied isFreeReward flags — only the server may inject this after validating a claim
   const items: any[] = (rawItems ?? []).map(({ isFreeReward: _f, ...rest }: any) => rest);
 
-  if (!items?.length) {
-    return res.status(400).json({ error: 'Items are required' });
-  }
-
   // ── Sydney-only delivery enforcement ─────────────────────────────────────
   if (type === 'delivery') {
     const state = (deliveryState ?? '').toString().trim().toUpperCase();
@@ -103,34 +99,46 @@ router.post('/', async (req, res) => {
     }
 
     const [rewardRow] = await db
-      .select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId })
+      .select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId, name: loyaltyRewardsTable.name })
       .from(loyaltyRewardsTable)
       .where(eq(loyaltyRewardsTable.id, claimedRow.rewardId));
 
     const rewardType = rewardRow?.rewardType ?? 'item_reward';
     const linkedProductId = rewardRow?.linkedProductId ?? null;
+    const rewardName = rewardRow?.name ?? 'Free Reward';
 
     if (rewardType === 'money_voucher') {
       claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
-    } else if (rewardType === 'item_reward' && linkedProductId) {
-      // Grant exactly ONE free unit — never make multi-quantity lines entirely free
-      const existingIdx = items.findIndex((i: any) => i.productId === linkedProductId && !i.isFreeReward);
-      if (existingIdx >= 0) {
-        const existingQty = Math.max(1, Math.floor(items[existingIdx].quantity ?? 1));
-        if (existingQty === 1) {
-          // Single unit in cart — mark the whole line free
-          items[existingIdx] = { ...items[existingIdx], isFreeReward: true };
+    } else if (rewardType === 'item_reward') {
+      if (linkedProductId) {
+        // Grant exactly ONE free unit — never make multi-quantity lines entirely free
+        const existingIdx = items.findIndex((i: any) => i.productId === linkedProductId && !i.isFreeReward);
+        if (existingIdx >= 0) {
+          const existingQty = Math.max(1, Math.floor(items[existingIdx].quantity ?? 1));
+          if (existingQty === 1) {
+            // Single unit in cart — mark the whole line free
+            items[existingIdx] = { ...items[existingIdx], isFreeReward: true };
+          } else {
+            // Multiple units — reduce paid quantity by 1 and add a separate free unit
+            items[existingIdx] = { ...items[existingIdx], quantity: existingQty - 1 };
+            items.push({ productId: linkedProductId, name: rewardName, quantity: 1, isFreeReward: true });
+          }
         } else {
-          // Multiple units — reduce paid quantity by 1 and add a separate free unit
-          items[existingIdx] = { ...items[existingIdx], quantity: existingQty - 1 };
-          items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
+          // Item not in cart — inject as a new free line (handles empty-cart reward checkout)
+          items.push({ productId: linkedProductId, name: rewardName, quantity: 1, isFreeReward: true });
         }
       } else {
-        items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
+        // No linked product (e.g. "any item" reward) — inject a named placeholder
+        items.push({ productId: `reward:${claimedRow.id}`, name: rewardName, quantity: 1, isFreeReward: true });
       }
     }
 
     claimedRewardData = { id: claimedRow.id, rewardType, linkedProductId, voucherValueCents: claimedRow.voucherValueCents };
+  }
+
+  // Items must be present at this point — either from client or injected by the free-item reward above
+  if (!items.length) {
+    return res.status(400).json({ error: 'Items are required' });
   }
 
   // ── Server-side discount code validation (client value is not trusted) ────

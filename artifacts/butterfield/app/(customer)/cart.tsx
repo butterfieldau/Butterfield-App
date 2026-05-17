@@ -1083,7 +1083,7 @@ export default function CartScreen() {
   }
 
   // ── Empty cart ───────────────────────────────────────────────────────────
-  if (items.length === 0) {
+  if (items.length === 0 && step !== 2) {
     return (
       <View style={[styles.emptyWrap, { paddingTop: insets.top + 60 }]} {...edgeBackPan.panHandlers}>
         <Pressable
@@ -1100,6 +1100,12 @@ export default function CartScreen() {
         </View>
         <Text style={styles.emptyTitle}>Your cart is empty</Text>
         <Text style={styles.emptySub}>Add something delicious from the menu</Text>
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setStep(2); }}
+          style={[styles.continueBtn, { backgroundColor: CHERRY, paddingHorizontal: 28, marginTop: 8 }]}
+        >
+          <Text style={styles.continueBtnText}>Redeem a free reward</Text>
+        </Pressable>
       </View>
     );
   }
@@ -1465,8 +1471,19 @@ export default function CartScreen() {
   // ── Payment step ─────────────────────────────────────────────────────────
   const renderPaymentStep = () => (
     <View style={styles.stepWrap}>
+      {items.length === 0 && (
+        <View style={{ backgroundColor: '#F0FDF4', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: '#BBF7D0' }}>
+          <Feather name="gift" size={18} color="#16A34A" />
+          <Text style={{ flex: 1, color: '#15803D', fontSize: 13, fontWeight: '500', lineHeight: 18 }}>
+            Select a free reward below — your item will be added automatically at checkout.
+          </Text>
+        </View>
+      )}
       <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
+        {items.length === 0 ? (
+          <Text style={{ color: MUTED, fontSize: 13, fontWeight: '400' }}>No items yet — select a reward below</Text>
+        ) : null}
         {items.map((item) => (
           <View key={item.cartItemId} style={styles.paymentItem}>
             <Text style={[styles.paymentItemName, { color: TEXT }]}>{item.productName} × {item.quantity}</Text>
@@ -1569,7 +1586,7 @@ export default function CartScreen() {
           )}
           <View style={{ alignItems: 'center' }}>
             <Text style={styles.checkoutTitle}>CHECKOUT</Text>
-            <Text style={styles.checkoutSub}>{totalItems} item{totalItems !== 1 ? 's' : ''}</Text>
+            <Text style={styles.checkoutSub}>{items.length === 0 && step === 2 ? 'Reward checkout' : `${totalItems} item${totalItems !== 1 ? 's' : ''}`}</Text>
           </View>
           <View style={{ width: 36 }} />
         </View>

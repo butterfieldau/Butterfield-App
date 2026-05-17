@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import {
   db, usersTable, customerProfilesTable, ordersTable,
   wholesaleAccountsTable, userAddressesTable,
-  customerNotesTable, customerBadgesTable,
+  customerNotesTable, customerBadgesTable, loyaltyTransactionsTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, and, inArray, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -169,7 +169,7 @@ router.get('/customers', async (req, res) => {
 router.get('/customers/:id', async (req, res) => {
   const { id } = req.params;
 
-  const [[user], profile, orders, waList, addresses, notes, badges] = await Promise.all([
+  const [[user], profile, orders, waList, addresses, notes, badges, loyaltyTxns] = await Promise.all([
     db.select().from(usersTable).where(eq(usersTable.id, id)),
     db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, id)),
     db.select().from(ordersTable).where(eq(ordersTable.userId, id)).orderBy(desc(ordersTable.createdAt)).limit(50),
@@ -177,6 +177,7 @@ router.get('/customers/:id', async (req, res) => {
     db.select().from(userAddressesTable).where(eq(userAddressesTable.userId, id)),
     db.select().from(customerNotesTable).where(eq(customerNotesTable.userId, id)).orderBy(desc(customerNotesTable.createdAt)),
     db.select().from(customerBadgesTable).where(eq(customerBadgesTable.userId, id)),
+    db.select().from(loyaltyTransactionsTable).where(eq(loyaltyTransactionsTable.userId, id)).orderBy(desc(loyaltyTransactionsTable.createdAt)).limit(20),
   ]);
 
   if (!user) return res.status(404).json({ error: 'Customer not found.' });
@@ -205,6 +206,9 @@ router.get('/customers/:id', async (req, res) => {
   const manualList  = badges.map(b => b.badge);
   const allBadges   = [...new Set([...autoBadges, ...manualList])];
 
+  const totalEarnedPoints   = loyaltyTxns.filter(t => t.points > 0).reduce((s, t) => s + t.points, 0);
+  const totalRedeemedPoints = loyaltyTxns.filter(t => t.points < 0).reduce((s, t) => s + Math.abs(t.points), 0);
+
   return res.json({
     data: {
       id: user.id, name: user.name, email: user.email, phone: user.phone,
@@ -217,6 +221,8 @@ router.get('/customers/:id', async (req, res) => {
       notes,
       badges: allBadges,
       manualBadges: badges,
+      loyaltyStats: { totalEarnedPoints, totalRedeemedPoints },
+      loyaltyTransactions: loyaltyTxns,
     },
   });
 });
