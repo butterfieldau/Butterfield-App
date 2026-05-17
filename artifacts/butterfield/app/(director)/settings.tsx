@@ -1852,16 +1852,14 @@ export default function DirectorSettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={[styles.tabBar, { borderBottomColor: BORDER, flex: 1 }]}>
-          {(TABS as readonly string[]).map(t => (
-            <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
-              onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
-              <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]}>{t}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
+      <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
+        {(TABS as readonly string[]).map(t => (
+          <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
+            onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
+            <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]}>{t}</Text>
+          </Pressable>
+        ))}
+      </View>
       {tab === 'Store'     && <StoreTab />}
       {tab === 'Banner'    && <BannerTab />}
       {tab === 'Rewards'   && <RewardsTab />}
