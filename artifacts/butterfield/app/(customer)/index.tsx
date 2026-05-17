@@ -379,24 +379,74 @@ export default function CustomerHome() {
             );
           })}
         </ScrollView>
-        {/* Featured grid */}
-        <View>
-          {isLoading ? (
-            <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
-          ) : featured.length === 0 ? (
-            <Text style={[s.empty, { color: colors.mutedForeground, fontWeight: '400' }]}>
-              No products in this category yet.
-            </Text>
-          ) : (
-            <View style={[s.grid, { paddingHorizontal: 16 }]}>
-              {featured.map((p) => (
-                <View key={p.id} style={{ width: '48%' }}>
+        {/* Category product rows */}
+        {isLoading ? (
+          <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
+        ) : activeCategory === 'all' ? (
+          CATEGORIES.filter((cat) => cat.id !== 'all').map((cat) => {
+            const catItems = products
+              .filter((p) => (p as any).metadata?.category === cat.id)
+              .slice(0, 8);
+            if (catItems.length === 0) return null;
+            return (
+              <View key={cat.id} style={s.section}>
+                <View style={s.catRowHeader}>
+                  <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', paddingHorizontal: 0, marginBottom: 0 }]}>
+                    {cat.label}
+                  </Text>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(customer)/menu', params: { category: cat.id } } as any); }}
+                  >
+                    <Text style={[s.viewMoreLink, { color: BLUE_TOP }]}>View more</Text>
+                  </Pressable>
+                </View>
+                <FlatList
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  data={catItems}
+                  keyExtractor={(p) => p.id}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                  renderItem={({ item: p }) => (
+                    <View style={{ width: 160 }}>
+                      <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                    </View>
+                  )}
+                />
+              </View>
+            );
+          })
+        ) : featured.length === 0 ? (
+          <Text style={[s.empty, { color: colors.mutedForeground, fontWeight: '400' }]}>
+            No products in this category yet.
+          </Text>
+        ) : (
+          <View style={s.section}>
+            <View style={s.catRowHeader}>
+              <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', paddingHorizontal: 0, marginBottom: 0 }]}>
+                {CATEGORIES.find((c) => c.id === activeCategory)?.label ?? activeCategory}
+              </Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(customer)/menu', params: { category: activeCategory } } as any); }}
+              >
+                <Text style={[s.viewMoreLink, { color: BLUE_TOP }]}>View more</Text>
+              </Pressable>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={featured.slice(0, 8)}
+              keyExtractor={(p) => p.id}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              renderItem={({ item: p }) => (
+                <View style={{ width: 160 }}>
                   <ProductTile product={p} onPress={() => handleTilePress(p)} />
                 </View>
-              ))}
-            </View>
-          )}
-        </View>
+              )}
+            />
+          </View>
+        )}
         {/* Merch */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Merch</Text>
@@ -459,9 +509,11 @@ const s = StyleSheet.create({
   catTile:      { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
   catIconWrap:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   catTileLabel: { fontSize: 12, textAlign: 'center' },
-  // ── Featured grid & shared ─────────────────────────────────────────────────
-  section:      { marginTop: 30 },
-  sectionTitle: { fontSize: 22, paddingHorizontal: 16, marginBottom: 14 },
-  empty:        { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  grid:         { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  // ── Category rows & shared ─────────────────────────────────────────────────
+  section:       { marginTop: 30 },
+  sectionTitle:  { fontSize: 22, paddingHorizontal: 16, marginBottom: 14 },
+  catRowHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 14 },
+  viewMoreLink:  { fontSize: 14, fontWeight: '600' },
+  empty:         { textAlign: 'center', marginTop: 40, fontSize: 14 },
+  grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 });

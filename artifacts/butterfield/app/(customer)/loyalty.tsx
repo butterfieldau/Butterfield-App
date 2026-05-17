@@ -249,6 +249,8 @@ export default function LoyaltyScreen() {
           <View style={styles.buyBadge}>
             <Text style={[styles.buyBadgeText, { fontWeight: '500' }]}>Buy 5, get 1 free</Text>
           </View>
+        </View>
+        <View style={{ paddingHorizontal: 16 }}>
           <LinearGradient colors={[BLUE_CARD, BLUE_DARK]} style={styles.coffeeCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <View style={styles.coffeeCardTop}>
               <View style={{ flex: 1 }}>
