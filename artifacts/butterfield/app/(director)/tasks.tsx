@@ -2,7 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+} from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -13,10 +16,12 @@ const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const GREEN  = '#22C55E';
 
 const CATEGORIES = ['daily', 'opening', 'closing', 'prep', 'cleaning', 'training'];
 const CAT_COLORS: Record<string, string> = {
-  daily: '#3B82F6', opening: '#22C55E', closing: '#F59E0B', prep: '#F97316', cleaning: '#8B5CF6', training: '#06B6D4',
+  daily: '#3B82F6', opening: '#22C55E', closing: '#F59E0B',
+  prep: '#F97316', cleaning: '#8B5CF6', training: '#06B6D4',
 };
 
 type TabMode = 'tasks' | 'wastage' | 'issues' | 'leave';
@@ -36,8 +41,17 @@ export default function StaffTasksScreen() {
   const [activeCat, setActiveCat] = useState('daily');
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: tasksData, refetch, isRefetching } = useQuery({ queryKey: ['staff-tasks', activeCat], queryFn: () => api.staff.tasks(activeCat), retry: 1 });
-  const { data: wastageData, refetch: refetchWastage } = useQuery({ queryKey: ['staff-wastage'], queryFn: () => api.staff.wastage(), retry: 1, enabled: tab === 'wastage' });
+  const { data: tasksData, refetch, isRefetching } = useQuery({
+    queryKey: ['staff-tasks', activeCat],
+    queryFn: () => api.staff.tasks(activeCat),
+    retry: 1,
+  });
+  const { data: wastageData, refetch: refetchWastage } = useQuery({
+    queryKey: ['staff-wastage'],
+    queryFn: () => api.staff.wastage(),
+    retry: 1,
+    enabled: tab === 'wastage',
+  });
   const tasks = tasksData?.data ?? [];
   const wastageList = wastageData?.data ?? [];
 
@@ -47,8 +61,10 @@ export default function StaffTasksScreen() {
 
   const handleCompleteTask = async (id: string, isCompleted: boolean) => {
     Haptics.selectionAsync();
-    try { await api.staff.completeTask(id, !isCompleted); qc.invalidateQueries({ queryKey: ['staff-tasks', activeCat] }); }
-    catch (e: any) { Alert.alert('Error', e.message); }
+    try {
+      await api.staff.completeTask(id, !isCompleted);
+      qc.invalidateQueries({ queryKey: ['staff-tasks', activeCat] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
   };
 
   const handleWastage = async () => {
@@ -90,149 +106,238 @@ export default function StaffTasksScreen() {
     { id: 'issues', label: 'Issues' }, { id: 'leave', label: 'Leave' },
   ];
 
+  const completedCount = tasks.filter((t: any) => t.isCompleted).length;
+  const totalCount = tasks.length;
+
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.header, { paddingTop: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-        <Text style={[styles.title, { fontWeight: '700', color: TEXT }]}>Staff Tools</Text>
+
+      {/* ── Page header ────────────────────────────────────────────────────── */}
+      <View style={s.header}>
+        <Text style={s.title}>Staff Tools</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {TABS.map((t) => (
-            <Pressable key={t.id} onPress={() => { setTab(t.id); Haptics.selectionAsync(); }}
-              style={[styles.tabPill, { backgroundColor: tab === t.id ? BLUE : BG, borderRadius: 20, borderWidth: 1, borderColor: tab === t.id ? BLUE : BORDER }]}>
-              <Text style={[{ fontWeight: '600', fontSize: 13, color: tab === t.id ? '#fff' : MUTED }]}>{t.label}</Text>
+            <Pressable
+              key={t.id}
+              onPress={() => { setTab(t.id); Haptics.selectionAsync(); }}
+              style={[s.tabPill, tab === t.id && { backgroundColor: BLUE, borderColor: BLUE }]}
+            >
+              <Text style={[s.tabPillText, tab === t.id && { color: '#fff' }]}>{t.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
       </View>
 
+      {/* ── Tasks tab ──────────────────────────────────────────────────────── */}
       {tab === 'tasks' && (
-        <View style={{ flex: 1 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexShrink: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 12, alignItems: 'flex-start' }}>
-            {CATEGORIES.map((c) => (
-              <Pressable key={c} onPress={() => { setActiveCat(c); Haptics.selectionAsync(); }}
-                style={[styles.catPill, { backgroundColor: activeCat === c ? CAT_COLORS[c] : CARD, borderRadius: 20, borderWidth: 1, borderColor: activeCat === c ? CAT_COLORS[c] : BORDER }]}>
-                <Text style={[{ fontWeight: '600', fontSize: 12, color: activeCat === c ? '#fff' : MUTED, textTransform: 'capitalize' }]}>{c}</Text>
-              </Pressable>
-            ))}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 14 }}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
+        >
+          {/* Category filter */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginHorizontal: -16 }}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2 }}
+          >
+            {CATEGORIES.map((c) => {
+              const active = activeCat === c;
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => { setActiveCat(c); Haptics.selectionAsync(); }}
+                  style={[s.catPill, active && { backgroundColor: CAT_COLORS[c], borderColor: CAT_COLORS[c] }]}
+                >
+                  <Text style={[s.catPillText, active && { color: '#fff' }]}>
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
-          <FlatList
-            data={tasks}
-            keyExtractor={(t) => t.id}
-            refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingBottom: 40 }}
-            ListEmptyComponent={<Text style={[{ color: MUTED, textAlign: 'center', marginTop: 40, fontWeight: '400' }]}>No tasks in this category.</Text>}
-            renderItem={({ item: task }) => (
-              <Pressable onPress={() => handleCompleteTask(task.id, task.isCompleted)}
-                style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftColor: task.isCompleted ? '#22C55E' : (CAT_COLORS[task.category] ?? BLUE), borderLeftWidth: 3 }]}>
-                <View style={[styles.taskCheck, { borderColor: task.isCompleted ? '#22C55E' : BORDER, backgroundColor: task.isCompleted ? '#22C55E' : '#fff', borderWidth: 2, borderRadius: 8 }]}>
-                  {task.isCompleted && <Feather name="check" size={12} color="#fff" />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[{ color: task.isCompleted ? MUTED : TEXT, fontWeight: '500', fontSize: 14, textDecorationLine: task.isCompleted ? 'line-through' : 'none' }]}>{task.title}</Text>
-                  {task.description && <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 2 }]}>{task.description}</Text>}
-                  {task.completedBy && <Text style={[{ color: '#22C55E', fontWeight: '400', fontSize: 11, marginTop: 3 }]}>✓ {task.completedBy}</Text>}
-                </View>
-              </Pressable>
-            )}
-          />
-        </View>
-      )}
 
-      {tab === 'wastage' && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
-          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 20, marginBottom: 4 }]}>Log Wastage</Text>
-          {[
-            { label: 'Product name', key: 'productName', placeholder: 'e.g. Classic Choc Chip' },
-            { label: 'Quantity', key: 'quantity', placeholder: 'e.g. 3', keyboardType: 'number-pad' as const },
-            { label: 'Reason', key: 'reason', placeholder: 'e.g. Burnt, dropped, overproduced' },
-          ].map((field) => (
-            <View key={field.key}>
-              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
-              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontWeight: '400', borderRadius: 12, borderColor: BORDER, borderWidth: 1 }]}
-                placeholder={field.placeholder} placeholderTextColor={MUTED}
-                keyboardType={field.keyboardType}
-                value={(wastageForm as any)[field.key]} onChangeText={(v) => setWastageForm((f) => ({ ...f, [field.key]: v }))} />
+          {/* Progress summary */}
+          {totalCount > 0 && (
+            <View style={s.progressRow}>
+              <Text style={s.progressLabel}>
+                {completedCount}/{totalCount} complete
+              </Text>
+              <View style={s.progressTrack}>
+                <View style={[s.progressFill, { width: `${(completedCount / totalCount) * 100}%` as any }]} />
+              </View>
             </View>
-          ))}
-          <Pressable onPress={handleWastage} disabled={submitting} style={[styles.submitBtn, { backgroundColor: BLUE, borderRadius: 14 }]}>
-            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontWeight: '700', fontSize: 16 }]}>Log Wastage</Text>}
-          </Pressable>
-          {wastageList.length > 0 && (
-            <View style={{ gap: 8, marginTop: 8 }}>
-              <Text style={[{ color: MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 1 }]}>RECENT LOGS</Text>
-              {wastageList.slice(0, 5).map((w: any) => (
-                <View key={w.id} style={[styles.taskRow, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 13 }]}>{w.productName} × {w.quantity}</Text>
-                    <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 11 }]}>{w.reason}</Text>
+          )}
+
+          {/* Task list card */}
+          {tasks.length === 0 ? (
+            <Text style={s.empty}>No tasks in this category.</Text>
+          ) : (
+            <View style={s.taskCard}>
+              {tasks.map((task: any, idx: number) => (
+                <Pressable
+                  key={task.id}
+                  onPress={() => handleCompleteTask(task.id, task.isCompleted)}
+                  style={({ pressed }) => [
+                    s.taskRow,
+                    idx < tasks.length - 1 && s.taskDivider,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                >
+                  <View style={[s.checkbox, {
+                    borderColor: task.isCompleted ? GREEN : BLUE,
+                    backgroundColor: task.isCompleted ? GREEN : 'transparent',
+                  }]}>
+                    {task.isCompleted && <Feather name="check" size={11} color="#fff" />}
                   </View>
-                </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.taskTitle, task.isCompleted && s.taskDone]}>
+                      {task.title}
+                    </Text>
+                    {task.description && !task.isCompleted && (
+                      <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>
+                    )}
+                    <Text style={[s.taskCat, { color: CAT_COLORS[task.category] ?? BLUE }]}>
+                      {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)}
+                      {task.completedBy ? ` · ✓ ${task.completedBy}` : ''}
+                    </Text>
+                  </View>
+                </Pressable>
               ))}
             </View>
           )}
         </ScrollView>
       )}
 
+      {/* ── Wastage tab ────────────────────────────────────────────────────── */}
+      {tab === 'wastage' && (
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
+          <Text style={s.formTitle}>Log Wastage</Text>
+          {[
+            { label: 'Product name', key: 'productName', placeholder: 'e.g. Classic Choc Chip' },
+            { label: 'Quantity', key: 'quantity', placeholder: 'e.g. 3', keyboardType: 'number-pad' as const },
+            { label: 'Reason', key: 'reason', placeholder: 'e.g. Burnt, dropped, overproduced' },
+          ].map((field) => (
+            <View key={field.key}>
+              <Text style={s.fieldLabel}>{field.label.toUpperCase()}</Text>
+              <TextInput
+                style={s.input}
+                placeholder={field.placeholder}
+                placeholderTextColor={MUTED}
+                keyboardType={field.keyboardType}
+                value={(wastageForm as any)[field.key]}
+                onChangeText={(v) => setWastageForm((f) => ({ ...f, [field.key]: v }))}
+              />
+            </View>
+          ))}
+          <Pressable onPress={handleWastage} disabled={submitting} style={[s.submitBtn, { backgroundColor: BLUE }]}>
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>Log Wastage</Text>}
+          </Pressable>
+          {wastageList.length > 0 && (
+            <View style={{ gap: 8, marginTop: 8 }}>
+              <Text style={s.sectionLabel}>RECENT LOGS</Text>
+              <View style={s.taskCard}>
+                {wastageList.slice(0, 5).map((w: any, idx: number) => (
+                  <View key={w.id} style={[s.taskRow, idx < Math.min(wastageList.length, 5) - 1 && s.taskDivider]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.taskTitle}>{w.productName} × {w.quantity}</Text>
+                      <Text style={s.taskDesc}>{w.reason}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* ── Issues tab ─────────────────────────────────────────────────────── */}
       {tab === 'issues' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
-          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 20, marginBottom: 4 }]}>Report an Issue</Text>
+          <Text style={s.formTitle}>Report an Issue</Text>
           {[
             { label: 'Title', key: 'title', placeholder: 'Brief description of the issue' },
             { label: 'Details', key: 'description', placeholder: 'What happened? Where? When?', multiline: true },
           ].map((field) => (
             <View key={field.key}>
-              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
-              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontWeight: '400', borderRadius: 12, borderColor: BORDER, borderWidth: 1, minHeight: field.multiline ? 80 : 50 }]}
-                placeholder={field.placeholder} placeholderTextColor={MUTED}
-                value={(issueForm as any)[field.key]} onChangeText={(v) => setIssueForm((f) => ({ ...f, [field.key]: v }))}
-                multiline={field.multiline} numberOfLines={field.multiline ? 4 : 1} />
+              <Text style={s.fieldLabel}>{field.label.toUpperCase()}</Text>
+              <TextInput
+                style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
+                placeholder={field.placeholder}
+                placeholderTextColor={MUTED}
+                value={(issueForm as any)[field.key]}
+                onChangeText={(v) => setIssueForm((f) => ({ ...f, [field.key]: v }))}
+                multiline={field.multiline}
+                numberOfLines={field.multiline ? 4 : 1}
+              />
             </View>
           ))}
-          <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 4 }]}>PRIORITY</Text>
+          <Text style={s.fieldLabel}>PRIORITY</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {['low', 'medium', 'high', 'urgent'].map((p) => {
-              const pColors: Record<string, string> = { low: '#22C55E', medium: BLUE, high: '#F59E0B', urgent: '#EF4444' };
+              const pColors: Record<string, string> = { low: GREEN, medium: BLUE, high: '#F59E0B', urgent: '#EF4444' };
               const pc = pColors[p] ?? BLUE;
+              const active = issueForm.priority === p;
               return (
-                <Pressable key={p} onPress={() => setIssueForm((f) => ({ ...f, priority: p }))}
-                  style={[styles.catPill, { backgroundColor: issueForm.priority === p ? pc : CARD, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: issueForm.priority === p ? pc : BORDER }]}>
-                  <Text style={[{ color: issueForm.priority === p ? '#fff' : MUTED, fontWeight: '500', fontSize: 12, textTransform: 'capitalize' }]}>{p}</Text>
+                <Pressable
+                  key={p}
+                  onPress={() => setIssueForm((f) => ({ ...f, priority: p }))}
+                  style={[s.catPill, active && { backgroundColor: pc, borderColor: pc }]}
+                >
+                  <Text style={[s.catPillText, active && { color: '#fff' }]}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </Text>
                 </Pressable>
               );
             })}
           </View>
-          <Pressable onPress={handleIssue} disabled={submitting} style={[styles.submitBtn, { backgroundColor: '#EF4444', borderRadius: 14 }]}>
-            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontWeight: '700', fontSize: 16 }]}>Report Issue</Text>}
+          <Pressable onPress={handleIssue} disabled={submitting} style={[s.submitBtn, { backgroundColor: '#EF4444' }]}>
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>Report Issue</Text>}
           </Pressable>
         </ScrollView>
       )}
 
+      {/* ── Leave tab ──────────────────────────────────────────────────────── */}
       {tab === 'leave' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }}>
-          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 20, marginBottom: 4 }]}>Leave Request</Text>
+          <Text style={s.formTitle}>Leave Request</Text>
           {[
             { label: 'Start date (DD/MM/YYYY)', key: 'startDate', placeholder: '01/06/2026' },
             { label: 'End date (DD/MM/YYYY)', key: 'endDate', placeholder: '05/06/2026' },
             { label: 'Reason', key: 'reason', placeholder: 'Reason for leave', multiline: true },
           ].map((field) => (
             <View key={field.key}>
-              <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 6 }]}>{field.label.toUpperCase()}</Text>
-              <TextInput style={[styles.input, { backgroundColor: CARD, color: TEXT, fontWeight: '400', borderRadius: 12, borderColor: BORDER, borderWidth: 1, minHeight: field.multiline ? 80 : 50 }]}
-                placeholder={field.placeholder} placeholderTextColor={MUTED}
-                value={(leaveForm as any)[field.key]} onChangeText={(v) => setLeaveForm((f) => ({ ...f, [field.key]: v }))}
-                multiline={field.multiline} />
+              <Text style={s.fieldLabel}>{field.label.toUpperCase()}</Text>
+              <TextInput
+                style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
+                placeholder={field.placeholder}
+                placeholderTextColor={MUTED}
+                value={(leaveForm as any)[field.key]}
+                onChangeText={(v) => setLeaveForm((f) => ({ ...f, [field.key]: v }))}
+                multiline={field.multiline}
+              />
             </View>
           ))}
-          <Text style={[{ color: MUTED, fontWeight: '500', fontSize: 12, marginBottom: 4 }]}>LEAVE TYPE</Text>
+          <Text style={s.fieldLabel}>LEAVE TYPE</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {['annual', 'sick', 'personal', 'other'].map((lt) => (
-              <Pressable key={lt} onPress={() => setLeaveForm((f) => ({ ...f, type: lt }))}
-                style={[styles.catPill, { backgroundColor: leaveForm.type === lt ? BLUE : CARD, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: leaveForm.type === lt ? BLUE : BORDER }]}>
-                <Text style={[{ color: leaveForm.type === lt ? '#fff' : MUTED, fontWeight: '500', fontSize: 12, textTransform: 'capitalize' }]}>{lt}</Text>
-              </Pressable>
-            ))}
+            {['annual', 'sick', 'personal', 'other'].map((lt) => {
+              const active = leaveForm.type === lt;
+              return (
+                <Pressable
+                  key={lt}
+                  onPress={() => setLeaveForm((f) => ({ ...f, type: lt }))}
+                  style={[s.catPill, active && { backgroundColor: BLUE, borderColor: BLUE }]}
+                >
+                  <Text style={[s.catPillText, active && { color: '#fff' }]}>
+                    {lt.charAt(0).toUpperCase() + lt.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-          <Pressable onPress={handleLeave} disabled={submitting} style={[styles.submitBtn, { backgroundColor: BLUE, borderRadius: 14 }]}>
-            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[{ color: '#fff', fontWeight: '700', fontSize: 16 }]}>Submit Request</Text>}
+          <Pressable onPress={handleLeave} disabled={submitting} style={[s.submitBtn, { backgroundColor: BLUE }]}>
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.submitBtnText}>Submit Request</Text>}
           </Pressable>
         </ScrollView>
       )}
@@ -240,13 +345,36 @@ export default function StaffTasksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  header:    { paddingHorizontal: 16, gap: 12, paddingBottom: 12 },
-  title:     { fontSize: 26 },
-  tabPill:   { paddingHorizontal: 16, paddingVertical: 8 },
-  catPill:   { paddingHorizontal: 14, paddingVertical: 7 },
-  taskRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  taskCheck: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  input:     { padding: 14, fontSize: 14 },
-  submitBtn: { paddingVertical: 16, alignItems: 'center', marginTop: 8 },
+const s = StyleSheet.create({
+  header:        { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, gap: 12 },
+  title:         { fontSize: 26, fontWeight: '700', color: TEXT },
+
+  tabPill:       { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
+  tabPillText:   { fontSize: 13, fontWeight: '600', color: MUTED },
+
+  catPill:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  catPillText:   { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'capitalize' },
+
+  progressRow:   { gap: 6 },
+  progressLabel: { fontSize: 12, fontWeight: '600', color: MUTED },
+  progressTrack: { height: 4, backgroundColor: BORDER, borderRadius: 2, overflow: 'hidden' },
+  progressFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
+
+  taskCard:      { backgroundColor: CARD, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden' },
+  taskRow:       { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
+  taskDivider:   { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  checkbox:      { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  taskTitle:     { fontSize: 14, fontWeight: '500', color: TEXT },
+  taskDone:      { color: MUTED, textDecorationLine: 'line-through' },
+  taskDesc:      { fontSize: 12, color: MUTED, marginTop: 2 },
+  taskCat:       { fontSize: 11, fontWeight: '500', marginTop: 3 },
+
+  empty:         { color: MUTED, textAlign: 'center', marginTop: 40, fontWeight: '400' },
+  sectionLabel:  { fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1 },
+
+  formTitle:     { fontSize: 20, fontWeight: '700', color: TEXT, marginBottom: 4 },
+  fieldLabel:    { fontSize: 12, fontWeight: '500', color: MUTED, marginBottom: 6 },
+  input:         { backgroundColor: CARD, color: TEXT, borderRadius: 12, borderColor: BORDER, borderWidth: 1, padding: 14, fontSize: 14 },
+  submitBtn:     { paddingVertical: 16, alignItems: 'center', borderRadius: 14, marginTop: 8 },
+  submitBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });

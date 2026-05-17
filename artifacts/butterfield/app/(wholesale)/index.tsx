@@ -4,7 +4,6 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -27,7 +26,6 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 export default function WholesaleDashboard() {
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
   const { data: accountData }       = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
@@ -49,33 +47,34 @@ export default function WholesaleDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
-      <LinearGradient
-        colors={['#1A2B4A', '#253B5E']}
-        style={[s.hero, { paddingTop: 16 }]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      >
-        <Text style={s.heroGreeting}>Good day, {firstName}</Text>
-        {account?.companyName && <Text style={s.heroCompany}>{account.companyName}</Text>}
-        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, alignItems: 'center' }}>
-          <View style={s.tierBadge}>
-            <Feather name="award" size={11} color="#fff" />
-            <Text style={s.tierBadgeText}>{tierName.toUpperCase()} TIER</Text>
-          </View>
-          {isPending && (
-            <View style={[s.tierBadge, { backgroundColor: 'rgba(255,200,0,0.3)' }]}>
-              <Text style={s.tierBadgeText}>PENDING APPROVAL</Text>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
-
       <ScrollView
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />}
       >
       <View style={{ paddingHorizontal: 16, gap: 14, paddingTop: 16 }}>
+
+        {/* ── ACCOUNT INFO STRIP ─────────────────────────────────────────── */}
+        <View style={s.accountStrip}>
+          <View style={{ flex: 1 }}>
+            {account?.companyName
+              ? <Text style={s.accountName}>{account.companyName}</Text>
+              : <Text style={s.accountName}>{user?.name}</Text>
+            }
+            <Text style={s.accountSub}>{user?.email}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <View style={s.tierBadge}>
+              <Feather name="award" size={11} color={BLUE} />
+              <Text style={s.tierBadgeText}>{tierName.toUpperCase()} TIER</Text>
+            </View>
+            {isPending && (
+              <View style={[s.tierBadge, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+                <Text style={[s.tierBadgeText, { color: '#92400E' }]}>PENDING</Text>
+              </View>
+            )}
+          </View>
+        </View>
 
         {/* ── PRIMARY CTA ────────────────────────────────────────────────── */}
         <Pressable onPress={goCatalog} style={s.ctaWrap}>
@@ -184,11 +183,11 @@ export default function WholesaleDashboard() {
 }
 
 const s = StyleSheet.create({
-  hero:            { paddingHorizontal: 20, paddingBottom: 22 },
-  heroGreeting:    { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '400' },
-  heroCompany:     { color: '#fff', fontSize: 24, fontWeight: '700', marginTop: 2 },
-  tierBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  tierBadgeText:   { color: '#fff', fontWeight: '700', fontSize: 10, letterSpacing: 0.5 },
+  accountStrip:    { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  accountName:     { color: TEXT, fontSize: 15, fontWeight: '700' },
+  accountSub:      { color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 1 },
+  tierBadge:       { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 8, borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 8, paddingVertical: 4 },
+  tierBadgeText:   { color: BLUE, fontWeight: '700', fontSize: 10, letterSpacing: 0.5 },
 
   ctaWrap:         { borderRadius: 16, shadowColor: BLUE, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6 },
   cta:             { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 16 },
