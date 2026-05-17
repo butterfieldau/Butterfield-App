@@ -790,11 +790,13 @@ router.get('/rewards', async (req, res) => {
   const rewards = await db.select().from(loyaltyRewardsTable).orderBy(loyaltyRewardsTable.pointsCost);
 
   // Enrich each reward with its claim count (redeemed claims only)
-  const claimCounts = await db.execute(
+  const claimCountResult = await db.execute(
     sql.raw(`SELECT reward_id, COUNT(*) as cnt FROM claimed_rewards WHERE status = 'redeemed' GROUP BY reward_id`)
   );
+  const claimRows: { reward_id: string; cnt: string }[] =
+    (claimCountResult as unknown as { rows?: { reward_id: string; cnt: string }[] }).rows ?? [];
   const countMap = new Map<string, number>(
-    (claimCounts as unknown as { reward_id: string; cnt: string }[]).map(r => [r.reward_id, parseInt(r.cnt, 10)])
+    claimRows.map(r => [r.reward_id, parseInt(r.cnt, 10)])
   );
 
   return res.json({

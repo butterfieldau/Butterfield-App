@@ -245,10 +245,20 @@ function PaymentStepWithStripe({
     qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
   };
 
+  // Access full cart items (with prices) to compute item-reward discount for display
+  const { items: cartItemsWithPrices } = useCart();
+
   const selectedClaimed = claimedRewards.find(c => c.id === selectedClaimedRewardId) ?? null;
-  const claimedRewardDiscountCents = selectedClaimed?.rewardType === 'money_voucher'
-    ? (selectedClaimed.voucherValueCents ?? 0)
-    : 0;
+  const claimedRewardDiscountCents = useMemo(() => {
+    if (!selectedClaimed) return 0;
+    if (selectedClaimed.rewardType === 'money_voucher') return selectedClaimed.voucherValueCents ?? 0;
+    if (selectedClaimed.rewardType === 'item_reward' && selectedClaimed.linkedProductId) {
+      // One free unit of the linked product — subtract its unit price from the display total
+      const matchingItem = cartItemsWithPrices.find(i => i.productId === selectedClaimed.linkedProductId);
+      return matchingItem ? matchingItem.unitPriceCents : 0;
+    }
+    return 0;
+  }, [selectedClaimed, cartItemsWithPrices]);
 
   const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents;
   const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;

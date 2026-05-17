@@ -222,13 +222,14 @@ router.post('/redeem', requireAuth, async (req, res) => {
   try {
     await db.transaction(async (tx) => {
       // 1. Conditional points deduction — guards against race-condition overspend
+      type ExecResult = { rows: unknown[]; rowCount: number | null };
       const deductResult = await tx.execute(
         sql`UPDATE customer_profiles
             SET loyalty_points = loyalty_points - ${reward.pointsCost}
             WHERE user_id = ${userId} AND loyalty_points >= ${reward.pointsCost}
             RETURNING loyalty_points`
-      );
-      if (!(deductResult as any).rows?.length && !(deductResult as any).rowCount) {
+      ) as unknown as ExecResult;
+      if (!deductResult.rows.length && !deductResult.rowCount) {
         throw Object.assign(new Error('INSUFFICIENT_POINTS'), { status: 400 });
       }
 
@@ -236,8 +237,8 @@ router.post('/redeem', requireAuth, async (req, res) => {
       if (reward.stock !== null) {
         const stockResult = await tx.execute(
           sql`UPDATE loyalty_rewards SET stock = stock - 1 WHERE id = ${reward.id} AND stock > 0 RETURNING stock`
-        );
-        if (!(stockResult as any).rows?.length && !(stockResult as any).rowCount) {
+        ) as unknown as ExecResult;
+        if (!stockResult.rows.length && !stockResult.rowCount) {
           throw Object.assign(new Error('OUT_OF_STOCK'), { status: 400 });
         }
       }
