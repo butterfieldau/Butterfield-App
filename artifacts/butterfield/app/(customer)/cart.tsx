@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { StripeProvider, usePaymentSheet } from '@stripe/stripe-react-native';
+import { CardField, StripeProvider, useStripe, usePlatformPay, PlatformPay } from '@stripe/stripe-react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -79,10 +79,61 @@ function SectionLabel({ title }: { title: string }) {
   return <Text style={styles.sectionLabel}>{title}</Text>;
 }
 
-function StripeCheckoutButton({
+type PayMethod = 'credit_card' | 'apple_pay' | 'google_pay' | 'pay_at_pickup';
+
+interface ValidatedDiscount {
+  id: string;
+  code: string;
+  discountAmountCents: number;
+  discountType: string;
+  description: string | null;
+}
+
+function PaymentMethodRow({
+  method,
+  selected,
+  label,
+  subtitle,
+  icon,
+  onPress,
+  disabled,
+}: {
+  method: PayMethod;
+  selected: boolean;
+  label: string;
+  subtitle?: string;
+  icon: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        psStyles.methodRow,
+        selected ? { borderColor: BLUE, backgroundColor: LIGHT_BLUE } : { borderColor: BORDER, backgroundColor: CARD },
+        disabled ? { opacity: 0.45 } : {},
+      ]}
+    >
+      <Feather name={icon as any} size={20} color={selected ? BLUE : MUTED} />
+      <View style={{ flex: 1 }}>
+        <Text style={[psStyles.methodLabel, { color: selected ? BLUE : TEXT }]}>{label}</Text>
+        {subtitle ? <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{subtitle}</Text> : null}
+      </View>
+      <View style={[psStyles.radioOuter, selected ? { borderColor: BLUE } : { borderColor: BORDER }]}>
+        {selected && <View style={[psStyles.radioInner, { backgroundColor: BLUE }]} />}
+      </View>
+    </Pressable>
+  );
+}
+
+function PaymentStepWithStripe({
   items,
   orderType,
-  merchantDisplayName,
+  subtotalCents,
+  canPayAtPickup,
+  stripeReady,
   onSuccess,
 }: {
   items: Array<{
@@ -92,57 +143,333 @@ function StripeCheckoutButton({
     selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
   }>;
   orderType: 'pickup' | 'delivery';
-  merchantDisplayName: string;
-  onSuccess: (paymentIntentId: string) => Promise<void>;
+  subtotalCents: number;
+  canPayAtPickup: boolean;
+  stripeReady: boolean;
+  onSuccess: (opts: {
+    stripePaymentIntentId?: string;
+    paymentMethodType: string;
+    discountCode?: string;
+    discountCodeId?: string;
+    discountAmountCents?: number;
+  }) => Promise<void>;
 }) {
-  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
+  const { confirmPayment } = useStripe();
+  const { isPlatformPaySupported, confirmPlatformPayPayment } = usePlatformPay();
+
+  const defaultMethod: PayMethod = Platform.OS === 'ios' ? 'apple_pay' : Platform.OS === 'android' ? 'google_pay' : 'credit_card';
+  const [method, setMethod] = useState<PayMethod>(defaultMethod);
+  const [platformPayAvailable, setPlatformPayAvailable] = useState(false);
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountApplied, setDiscountApplied] = useState<ValidatedDiscount | null>(null);
+  const [discountError, setDiscountError] = useState('');
+  const [validatingDiscount, setValidatingDiscount] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const payNow = async () => {
+  useEffect(() => {
+    (async () => {
+      const ok = await isPlatformPaySupported();
+      setPlatformPayAvailable(ok);
+      if (!ok && (method === 'apple_pay' || method === 'google_pay')) {
+        setMethod('credit_card');
+      }
+    })();
+  }, []);
+
+  const discountCents = discountApplied?.discountAmountCents ?? 0;
+  const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
+  const baseForFee = subtotalCents + deliveryCents - discountCents;
+  const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
+  const totalCents = Math.max(0, baseForFee + stripeFee);
+  const totalLabel = `AUD ${(totalCents / 100).toFixed(2)}`;
+
+  const applyDiscount = async () => {
+    const code = discountInput.trim().toUpperCase();
+    if (!code) return;
+    setValidatingDiscount(true);
+    setDiscountError('');
+    try {
+      const res = await api.discounts.validate({ code, items: items as any[], orderType });
+      setDiscountApplied(res);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setDiscountError(e?.message ?? 'Invalid discount code.');
+      setDiscountApplied(null);
+    } finally {
+      setValidatingDiscount(false);
+    }
+  };
+
+  const removeDiscount = () => {
+    setDiscountApplied(null);
+    setDiscountInput('');
+    setDiscountError('');
+  };
+
+  const handlePay = async () => {
     if (busy) return;
+    if (method === 'pay_at_pickup') {
+      setBusy(true);
+      try {
+        await onSuccess({
+          paymentMethodType: 'pay_at_pickup',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (!stripeReady) {
+      Alert.alert('Payment unavailable', 'Payment processing is not available right now.');
+      return;
+    }
+
     setBusy(true);
     try {
       const intent = await api.payment.createIntent({
-        items,
+        items: items as any[],
         orderType,
-        paymentMethod: 'card',
+        discountCode: discountApplied?.code,
       });
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: intent.clientSecret,
-        merchantDisplayName,
-        allowsDelayedPaymentMethods: true,
+
+      if (method === 'apple_pay' || method === 'google_pay') {
+        const displayItems = [
+          { label: 'Subtotal', amount: String(subtotalCents / 100), type: 'final' as const, isPending: false },
+          ...(deliveryCents > 0 ? [{ label: 'Delivery', amount: String(deliveryCents / 100), type: 'final' as const, isPending: false }] : []),
+          ...(discountCents > 0 ? [{ label: 'Discount', amount: String(-discountCents / 100), type: 'final' as const, isPending: false }] : []),
+          { label: 'Butterfield Cookies', amount: String(intent.amountCents / 100), type: 'final' as const, isPending: false },
+        ];
+        const { error: ppError } = await confirmPlatformPayPayment(intent.clientSecret, {
+          applePay: {
+            cartItems: displayItems,
+            merchantCountryCode: 'AU',
+            currencyCode: 'AUD',
+          },
+          googlePay: {
+            testEnv: false,
+            merchantName: 'Butterfield Cookies',
+            merchantCountryCode: 'AU',
+            currencyCode: 'AUD',
+            billingAddressConfig: { format: PlatformPay.BillingAddressFormat.Full },
+          },
+        } as any);
+        if (ppError) throw new Error(ppError.message);
+        await onSuccess({
+          stripePaymentIntentId: intent.paymentIntentId,
+          paymentMethodType: method,
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+        });
+        return;
+      }
+
+      const { paymentIntent: pi, error: piError } = await confirmPayment(intent.clientSecret, {
+        paymentMethodType: 'Card',
       } as any);
-      if (initError) throw new Error(initError.message);
-      const { error: presentError } = await presentPaymentSheet();
-      if (presentError) throw new Error(presentError.message);
-      await onSuccess(intent.paymentIntentId);
+      if (piError) throw new Error(piError.message);
+      if (!pi) throw new Error('Payment confirmation failed.');
+      await onSuccess({
+        stripePaymentIntentId: pi.id,
+        paymentMethodType: 'credit_card',
+        discountCode: discountApplied?.code,
+        discountCodeId: discountApplied?.id,
+        discountAmountCents: discountApplied?.discountAmountCents,
+      });
     } catch (e: any) {
-      Alert.alert('Stripe payment failed', e?.message ?? 'Please try again.');
+      Alert.alert('Payment failed', e?.message ?? 'Please try again.');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Pressable
-      onPress={payNow}
-      disabled={busy}
-      style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: busy ? 0.8 : 1 }]}
-    >
-      {busy ? (
-        <ActivityIndicator color="#fff" />
-      ) : (
-        <Text style={styles.continueBtnText}>Pay with Stripe</Text>
+    <View style={psStyles.wrap}>
+      <Text style={psStyles.sectionTitle}>Payment method</Text>
+
+      {stripeReady && platformPayAvailable && (
+        <>
+          {Platform.OS === 'ios' && (
+            <PaymentMethodRow
+              method="apple_pay"
+              selected={method === 'apple_pay'}
+              label="Apple Pay"
+              subtitle="Touch ID or Face ID"
+              icon="smartphone"
+              onPress={() => setMethod('apple_pay')}
+            />
+          )}
+          {Platform.OS === 'android' && (
+            <PaymentMethodRow
+              method="google_pay"
+              selected={method === 'google_pay'}
+              label="Google Pay"
+              subtitle="Tap to pay"
+              icon="smartphone"
+              onPress={() => setMethod('google_pay')}
+            />
+          )}
+        </>
       )}
-    </Pressable>
+
+      {stripeReady && (
+        <PaymentMethodRow
+          method="credit_card"
+          selected={method === 'credit_card'}
+          label="Credit or debit card"
+          subtitle="Visa, Mastercard, Amex"
+          icon="credit-card"
+          onPress={() => setMethod('credit_card')}
+        />
+      )}
+
+      {canPayAtPickup && orderType === 'pickup' && (
+        <PaymentMethodRow
+          method="pay_at_pickup"
+          selected={method === 'pay_at_pickup'}
+          label="Pay at pickup"
+          subtitle="Pay in store when you arrive"
+          icon="map-pin"
+          onPress={() => setMethod('pay_at_pickup')}
+        />
+      )}
+
+      {!stripeReady && orderType !== 'pickup' && (
+        <View style={[psStyles.noticeRow, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+          <Feather name="alert-triangle" size={14} color="#D97706" />
+          <Text style={{ flex: 1, fontSize: 12, color: '#92400E' }}>
+            Card payments are not available right now. Please try again later.
+          </Text>
+        </View>
+      )}
+
+      {method === 'credit_card' && stripeReady && (
+        <View style={psStyles.cardFieldWrap}>
+          <CardField
+            postalCodeEnabled={false}
+            style={{ height: 50, width: '100%' }}
+            cardStyle={{ backgroundColor: '#FFFFFF', textColor: TEXT, borderWidth: 0 }}
+          />
+        </View>
+      )}
+
+      <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Discount code</Text>
+      {discountApplied ? (
+        <View style={psStyles.discountApplied}>
+          <Feather name="tag" size={14} color="#16A34A" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534' }}>{discountApplied.code}</Text>
+            {discountApplied.description ? (
+              <Text style={{ fontSize: 11, color: '#4ADE80', marginTop: 1 }}>{discountApplied.description}</Text>
+            ) : null}
+          </View>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
+            -AUD {(discountApplied.discountAmountCents / 100).toFixed(2)}
+          </Text>
+          <Pressable onPress={removeDiscount} style={{ padding: 4 }}>
+            <Feather name="x" size={16} color="#16A34A" />
+          </Pressable>
+        </View>
+      ) : (
+        <View style={psStyles.discountRow}>
+          <TextInput
+            style={[psStyles.discountInput, { borderColor: discountError ? CHERRY : BORDER, color: TEXT }]}
+            placeholder="Enter code"
+            placeholderTextColor={MUTED}
+            value={discountInput}
+            onChangeText={(t) => { setDiscountInput(t); setDiscountError(''); }}
+            autoCapitalize="characters"
+            returnKeyType="done"
+            onSubmitEditing={applyDiscount}
+          />
+          <Pressable
+            onPress={applyDiscount}
+            disabled={!discountInput.trim() || validatingDiscount}
+            style={[psStyles.applyBtn, { backgroundColor: discountInput.trim() ? BLUE : BORDER }]}
+          >
+            {validatingDiscount
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={{ fontSize: 13, fontWeight: '600', color: discountInput.trim() ? '#fff' : MUTED }}>Apply</Text>}
+          </Pressable>
+        </View>
+      )}
+      {!!discountError && <Text style={{ fontSize: 12, color: CHERRY, marginTop: 2 }}>{discountError}</Text>}
+
+      <View style={[psStyles.totalRow, { marginTop: 4 }]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          {discountCents > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>Discount</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(discountCents / 100).toFixed(2)}</Text>
+            </View>
+          )}
+          {method !== 'pay_at_pickup' && stripeFee > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: MUTED }}>Card processing fee</Text>
+              <Text style={{ fontSize: 12, color: MUTED }}>AUD {(stripeFee / 100).toFixed(2)}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <Pressable
+        onPress={handlePay}
+        disabled={busy || (!stripeReady && method !== 'pay_at_pickup')}
+        style={[
+          styles.continueBtn,
+          {
+            backgroundColor: busy ? '#9CA3AF' : CHERRY,
+            opacity: busy ? 0.85 : 1,
+            marginTop: 4,
+          },
+        ]}
+      >
+        {busy ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.continueBtnText}>
+            {method === 'pay_at_pickup' ? 'Place Order' : `Pay ${totalLabel}`}
+          </Text>
+        )}
+      </Pressable>
+
+      <View style={[psStyles.secureRow]}>
+        <Feather name="lock" size={11} color={MUTED} />
+        <Text style={{ fontSize: 11, color: MUTED }}>
+          {method === 'pay_at_pickup' ? 'Order will be paid at pickup.' : 'Secured by Stripe. Your card details are never stored.'}
+        </Text>
+      </View>
+    </View>
   );
 }
+
+const psStyles = StyleSheet.create({
+  wrap:          { gap: 10 },
+  sectionTitle:  { fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  methodRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5 },
+  methodLabel:   { fontSize: 14, fontWeight: '600' },
+  radioOuter:    { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  radioInner:    { width: 10, height: 10, borderRadius: 5 },
+  cardFieldWrap: { backgroundColor: CARD, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, padding: 12, overflow: 'hidden' },
+  discountRow:   { flexDirection: 'row', gap: 8 },
+  discountInput: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '600', letterSpacing: 1.5, backgroundColor: CARD },
+  applyBtn:      { paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  discountApplied:{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, backgroundColor: '#F0FDF4', borderWidth: 1.5, borderColor: '#86EFAC' },
+  totalRow:      { gap: 4 },
+  secureRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingTop: 4 },
+  noticeRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+});
 
 interface Confirmation {
   orderId: string;
   totalCents: number;
   type: string;
   scheduledLabel?: string;
+  paymentMethodType?: string;
 }
 
 type ConfettiPiece = {
@@ -227,7 +554,6 @@ export default function CartScreen() {
   const [notes, setNotes]                     = useState('');
   const [loading, setLoading]                 = useState(false);
   const [confirmation, setConfirmation]       = useState<Confirmation | null>(null);
-  const [paymentMethod, setPaymentMethod]     = useState<'card' | 'pay_at_pickup'>('card');
   const successCardOpacity = useSharedValue(0);
   const successCardScale = useSharedValue(0.92);
   const pointsOpacity = useSharedValue(0);
@@ -364,19 +690,8 @@ export default function CartScreen() {
     }
   }, [orderType, defaultAddress]);
 
-  useEffect(() => {
-    if (orderType !== 'pickup' || !canPayAtPickup) {
-      setPaymentMethod('card');
-    }
-  }, [orderType, canPayAtPickup]);
-
-  const effectivePaymentMethod: 'card' | 'pay_at_pickup' =
-    orderType === 'pickup' && canPayAtPickup && paymentMethod === 'pay_at_pickup'
-      ? 'pay_at_pickup'
-      : 'card';
-
   const subtotalCents = totalPriceCents;
-  const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, effectivePaymentMethod);
+  const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, 'card');
 
   const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
@@ -430,12 +745,15 @@ export default function CartScreen() {
       setStep(2);
       return;
     }
-    if (step === 2) {
-      await handlePlaceOrder();
-    }
   };
 
-  const handlePlaceOrder = async (stripePaymentIntentId?: string) => {
+  const handlePlaceOrder = async (opts: {
+    stripePaymentIntentId?: string;
+    paymentMethodType: string;
+    discountCode?: string;
+    discountCodeId?: string;
+    discountAmountCents?: number;
+  }) => {
     setLoading(true);
     try {
       let scheduledForDate: Date | undefined;
@@ -472,14 +790,18 @@ export default function CartScreen() {
         deliveryAddress,
         deliveryPostcode: orderType === 'delivery' ? postcode.trim() : undefined,
         deliveryState:    orderType === 'delivery' ? 'NSW' : undefined,
-        paymentMethod:    effectivePaymentMethod,
-        stripePaymentIntentId,
+        paymentMethod:    opts.paymentMethodType === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
+        stripePaymentIntentId: opts.stripePaymentIntentId,
+        discountCode:     opts.discountCode,
+        discountCodeId:   opts.discountCodeId,
+        paymentMethodType: opts.paymentMethodType,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
       qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setConfirmation({ orderId: order.data.id, totalCents, type: orderType, scheduledLabel });
+      const serverTotal = order.data.totalCents ?? totalCents;
+      setConfirmation({ orderId: order.data.id, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
     } finally {
@@ -490,8 +812,7 @@ export default function CartScreen() {
   const getContinueLabel = () => {
     if (loading) return '…';
     if (step === 0) return 'Continue to shipping';
-    if (step === 1) return 'Continue to payment';
-    return 'Place Order';
+    return 'Continue to payment';
   };
 
   // ── Confirmation screen ──────────────────────────────────────────────────
@@ -546,7 +867,7 @@ export default function CartScreen() {
               <View style={[styles.successInfoBox, { backgroundColor: 'rgba(255,248,231,0.92)', borderColor: '#F0A030' }]}>
                 <Feather name="alert-circle" size={16} color="#D97706" />
                 <Text style={styles.successInfoText}>
-                  {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
+                  {confirmation.paymentMethodType === 'pay_at_pickup'
                     ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
                     : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
                 </Text>
@@ -558,7 +879,7 @@ export default function CartScreen() {
                 </View>
               )}
               <Text style={styles.successTotal}>
-                {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
+                {confirmation.paymentMethodType === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
               </Text>
               <Pressable
                 onPress={() => {
@@ -665,9 +986,7 @@ export default function CartScreen() {
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryRowLabel}>
-            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Stripe card fee'}
-          </Text>
+          <Text style={styles.summaryRowLabel}>Estimated card fee</Text>
           <Text style={styles.summaryRowValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
@@ -956,9 +1275,7 @@ export default function CartScreen() {
         )}
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryRowLabel}>
-            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Stripe card fee'}
-          </Text>
+          <Text style={styles.summaryRowLabel}>Estimated card fee</Text>
           <Text style={styles.summaryRowValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
         </View>
         <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
@@ -995,41 +1312,7 @@ export default function CartScreen() {
             </View>
           </>
         )}
-        <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryRowLabel}>
-            {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Stripe card fee'}
-          </Text>
-          <Text style={styles.summaryRowValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
-        </View>
-        <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
-        <View style={styles.summaryRow}>
-          <Text style={[styles.summaryRowLabel, styles.summaryTotalLabel]}>Total</Text>
-          <Text style={[styles.summaryRowValue, styles.summaryTotalValue]}>AUD {(totalCents / 100).toFixed(2)}</Text>
-        </View>
       </View>
-
-      {orderType === 'pickup' && canPayAtPickup && (
-        <View style={[styles.paymentChoiceCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>Payment choice</Text>
-            <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED, lineHeight: 17 }}>
-              This customer can pay now by card or pay at pickup.
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <Text style={{ fontSize: 11, fontWeight: '600', color: effectivePaymentMethod === 'pay_at_pickup' ? GREEN : BLUE }}>
-              {effectivePaymentMethod === 'pay_at_pickup' ? 'Pay at pickup' : 'Pay by card'}
-            </Text>
-            <Switch
-              value={effectivePaymentMethod === 'pay_at_pickup'}
-              onValueChange={(v) => setPaymentMethod(v ? 'pay_at_pickup' : 'card')}
-              trackColor={{ false: BORDER, true: '#BBF7D0' }}
-              thumbColor={effectivePaymentMethod === 'pay_at_pickup' ? GREEN : '#9CA3AF'}
-            />
-          </View>
-        </View>
-      )}
 
       <View style={[styles.orderDetailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <View style={styles.orderDetailRow}>
@@ -1058,14 +1341,27 @@ export default function CartScreen() {
         )}
       </View>
 
-      <View style={[styles.secureCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-        <Feather name="lock" size={14} color="#22C55E" />
-        <Text style={[styles.secureText, { color: '#166534' }]}>
-          {orderType === 'pickup' && canPayAtPickup && effectivePaymentMethod === 'pay_at_pickup'
-            ? 'Your order will be paid at pickup.'
-            : 'Your order is securely processed with Stripe card checkout.'}
-        </Text>
-      </View>
+      {stripePublishableKey ? (
+        <StripeProvider publishableKey={stripePublishableKey}>
+          <PaymentStepWithStripe
+            items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
+            orderType={orderType}
+            subtotalCents={subtotalCents}
+            canPayAtPickup={canPayAtPickup}
+            stripeReady
+            onSuccess={handlePlaceOrder}
+          />
+        </StripeProvider>
+      ) : (
+        <PaymentStepWithStripe
+          items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
+          orderType={orderType}
+          subtotalCents={subtotalCents}
+          canPayAtPickup={canPayAtPickup}
+          stripeReady={false}
+          onSuccess={handlePlaceOrder}
+        />
+      )}
     </View>
   );
 
@@ -1136,46 +1432,24 @@ export default function CartScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Sticky bottom bar */}
-      {!confirmation && (
+      {/* Sticky bottom bar — only for cart (step 0) and shipping (step 1) */}
+      {!confirmation && step < 2 && (
         <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
           <View style={styles.bottomTotal}>
             <Text style={styles.bottomTotalLabel}>TOTAL</Text>
             <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
           </View>
-          {step === 2 && effectivePaymentMethod === 'card' ? (
-            stripePublishableKey ? (
-            <StripeProvider publishableKey={stripePublishableKey}>
-              <StripeCheckoutButton
-                items={items.map((i) => ({
-                  productId: i.productId,
-                  variantId: i.variantId ?? null,
-                  quantity: i.quantity,
-                  selectedOptions: i.selectedOptions,
-                }))}
-                orderType={orderType}
-                merchantDisplayName={stripeMerchantDisplayName}
-                onSuccess={handlePlaceOrder}
-              />
-              </StripeProvider>
+          <Pressable
+            onPress={handleContinue}
+            disabled={loading}
+            style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
             ) : (
-              <View style={[styles.continueBtn, { backgroundColor: '#9CA3AF', opacity: 0.9, alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={styles.continueBtnText}>Stripe not configured</Text>
-              </View>
-            )
-          ) : (
-            <Pressable
-              onPress={handleContinue}
-              disabled={loading}
-              style={[styles.continueBtn, { backgroundColor: CHERRY, opacity: loading ? 0.8 : 1 }]}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>
-              )}
-            </Pressable>
-          )}
+              <Text style={styles.continueBtnText}>{getContinueLabel()}</Text>
+            )}
+          </Pressable>
         </View>
       )}
     </View>

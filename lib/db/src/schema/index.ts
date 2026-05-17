@@ -22,3 +22,4 @@ export * from "./stores";
 export * from "./product_catalog";
 export * from "./stock";
 export * from "./deleted_accounts";
+export * from "./discount_codes";

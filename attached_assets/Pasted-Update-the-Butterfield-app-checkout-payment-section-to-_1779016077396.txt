@@ -1,0 +1,150 @@
+Update the Butterfield app checkout payment section to work like a clean native in-app payment experience, similar to the reference style shown, while keeping Butterfield’s current checkout layout and branding.
+
+Main goal:
+Keep the current Butterfield checkout structure, but change the payment section so it feels like a smooth in-app payment form with:
+- Credit Card
+- Apple Pay for customers using Apple devices only
+- Google Pay for customers using Android / Google Play devices only
+- optional Pay at Pickup if enabled
+
+Do not show “Stripe” anywhere in the customer-facing checkout.
+
+Design requirements:
+- Keep the existing checkout page layout structure
+- Keep the order summary card
+- Keep the pickup/delivery details card
+- Keep the total section at the bottom
+- Keep the main payment button at the bottom
+- Do not redesign the full page from scratch
+- Only improve and replace the payment section to match a cleaner in-app payment experience
+
+Payment section requirements:
+- Add a payment section titled “Payment”
+- Show helper text: “All transactions are secure and encrypted.”
+- Show selectable payment options:
+  1. Credit Card
+  2. Apple Pay, only for customers using Apple products/devices where Apple Pay is available
+  3. Google Pay, only for customers using Android / Google Play devices where Google Pay is available
+  4. Pay at Pickup, optional and only if this setting is enabled
+
+Platform display rules:
+- Apple Pay must only show on Apple devices such as iPhone, iPad, or compatible Apple environments where Apple Pay is supported
+- Apple Pay must not show on Android devices
+- Google Pay must only show on Android / Google Play supported devices where Google Pay is available
+- Google Pay must not show on iPhone or Apple-only environments
+- If Apple Pay or Google Pay is not available on the customer’s device, hide that payment option completely
+- If neither Apple Pay nor Google Pay is available, show Credit Card as the main payment option
+- Do not show disabled or unavailable payment options
+
+Credit Card option:
+- When Credit Card is selected, expand a clean in-app card entry form
+- Fields:
+  - Card number
+  - Expiration date
+  - Security code
+  - Name on card
+- Optional checkbox:
+  - Use pickup/delivery details as billing details
+- This must remain inside the app
+- Do not open Stripe Checkout
+- Do not redirect to a browser
+- Do not open a hosted Stripe page
+
+Apple Pay option:
+- Apple Pay should only appear for customers using Apple devices where Apple Pay is available
+- When Apple Pay is selected, do not show card fields
+- Show Apple Pay as a selectable payment method row
+- Tapping the main button should trigger the native Apple Pay sheet inside the app
+
+Google Pay option:
+- Google Pay should only appear for customers using Android / Google Play devices where Google Pay is available
+- When Google Pay is selected, do not show card fields
+- Show Google Pay as a selectable payment method row
+- Tapping the main button should trigger the native Google Pay sheet inside the app
+
+Pay at Pickup option:
+- If enabled, show as a selectable payment method
+- If selected, the order should be placed without taking payment now
+- Mark the order as unpaid / pay at pickup in the backend
+
+Button logic:
+- Keep the bottom main button style
+- Change the button label dynamically:
+  - Credit Card selected: “Pay by Credit Card”
+  - Apple Pay selected: “Pay with Apple Pay”
+  - Google Pay selected: “Pay with Google Pay”
+  - Pay at Pickup selected: “Place Order”
+
+Replace current Stripe wording:
+- Remove “Pay with Stripe”
+- Remove “Stripe card fee”
+- Replace “Stripe card fee” with “Processing fee”
+- Replace “Your order is securely processed with Stripe card checkout” with “Your payment is secure and encrypted.”
+- Do not mention Stripe anywhere on the customer-facing screen
+
+Technical requirements:
+- Stripe may remain the backend processor only
+- Use Stripe PaymentIntent server-side
+- Use native in-app payment flows only
+- Do not use Stripe Checkout
+- Do not use Payment Links
+- Do not use browser redirects
+- Do not use webview checkout popups
+- Use device/platform detection to decide which wallet payment options are shown
+- Use Apple Pay availability checks before showing Apple Pay
+- Use Google Pay availability checks before showing Google Pay
+
+Implementation requirements:
+- For Credit Card, use embedded in-app card entry or Stripe PaymentSheet embedded flow
+- For Apple Pay, use native Apple Pay integration through Stripe’s native SDK / Platform Pay
+- For Google Pay, use native Google Pay integration through Stripe’s native SDK / Platform Pay
+- Payment must happen smoothly inside the app
+- Apple Pay must only initialise on Apple-supported devices
+- Google Pay must only initialise on Android / Google Play supported devices
+- Do not initialise Apple Pay or Google Pay if the device does not support it
+
+Backend requirements:
+- Create payment intent with:
+  - order total
+  - currency AUD
+  - customer ID
+  - order ID
+  - cart items
+  - fees
+  - discounts
+  - loyalty usage
+  - pickup or delivery details
+- On payment success:
+  - mark order as paid
+  - create the order
+  - save payment method type
+  - update customer order history
+  - update loyalty points
+  - trigger receipt / confirmation
+  - show success screen
+- On payment cancel:
+  - return user to checkout
+  - keep cart intact
+- On payment failure:
+  - show clean error
+  - do not create a paid order
+  - keep cart intact
+
+Admin/backend display:
+- Show payment method as:
+  - Credit Card
+  - Apple Pay
+  - Google Pay
+  - Pay at Pickup
+- Do not show Stripe as the payment method to customers or staff
+- Internally it is fine to store Stripe payment intent IDs for refunds and reconciliation
+
+Do not break:
+- cart logic
+- order summary
+- pickup scheduling
+- delivery logic
+- loyalty points
+- discounts
+- customer accounts
+- order history

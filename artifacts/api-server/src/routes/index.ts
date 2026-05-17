@@ -19,6 +19,7 @@ import managerRouter from "./manager.js";
 import storageRouter from "./storage.js";
 import notificationsRouter from "./notifications.js";
 import stockRouter from "./stock.js";
+import discountsRouter from "./discounts.js";
 
 const router: IRouter = Router();
 
@@ -40,6 +41,7 @@ router.use(storesRouter);
 router.use("/manager", managerRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/stock", stockRouter);
+router.use("/discounts", discountsRouter);
 router.use(storageRouter);
 router.use(miscRouter);
 

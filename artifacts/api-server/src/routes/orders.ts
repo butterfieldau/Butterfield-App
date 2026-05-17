@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, storeSettingsTable, productsTable } from '@workspace/db';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, productsTable, discountCodesTable, discountCodeUsagesTable } from '@workspace/db';
+import { eq, desc, inArray, sql } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { notifyRole, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
+import { validateDiscountCode } from '../lib/discountUtils.js';
 import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
@@ -29,7 +30,12 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { items, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed, deliveryAddress, deliveryPostcode, deliveryState, paymentMethod } = req.body;
+  const {
+    items, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed,
+    deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
+    discountCode, discountCodeId: clientDiscountCodeId, paymentMethodType,
+  } = req.body;
+
   if (!items?.length) {
     return res.status(400).json({ error: 'Items are required' });
   }
@@ -56,14 +62,41 @@ router.post('/', async (req, res) => {
     }
   }
 
+  // ── Server-side discount code validation (client value is not trusted) ────
+  let discountCodeAmountCents = 0;
+  let validatedDiscountCodeId: string | null = null;
+  let validatedDiscountCode: string | null = null;
+
+  const resolvedOrderType: 'pickup' | 'delivery' = type === 'delivery' ? 'delivery' : 'pickup';
+  const resolvedPaymentMethod = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card';
+
+  if (discountCode && typeof discountCode === 'string') {
+    try {
+      const base = await computeOrderTotal(items, resolvedOrderType, 0, 'card');
+      const validated = await validateDiscountCode(
+        discountCode,
+        req.user!.id,
+        req.user!.role,
+        base.subtotalCents,
+        resolvedOrderType,
+      );
+      discountCodeAmountCents = validated.discountAmountCents;
+      validatedDiscountCodeId = validated.id;
+      validatedDiscountCode = validated.code;
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message ?? 'Invalid discount code.' });
+    }
+  }
+
   // ── Server-side price computation (client totals are not trusted) ─────────
+  const totalDiscountCents = claimedLoyaltyPoints + discountCodeAmountCents;
   let computed: Awaited<ReturnType<typeof computeOrderTotal>>;
   try {
     computed = await computeOrderTotal(
       items,
-      type === 'delivery' ? 'delivery' : 'pickup',
-      claimedLoyaltyPoints,
-      paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
+      resolvedOrderType,
+      totalDiscountCents,
+      resolvedPaymentMethod,
     );
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
@@ -93,15 +126,12 @@ router.post('/', async (req, res) => {
   }
 
   // ── Stripe payment intent verification ────────────────────────────────────
-  // When a payment intent ID is supplied, the server MUST verify with Stripe that:
-  //   1. The intent has not already been used to create another order (replay guard)
-  //   2. The intent belongs to the authenticated user (metadata.userId)
-  //   3. The intent has status 'succeeded'
-  //   4. The charged amount matches the server-computed total (within 1 cent)
-  // Any failure rejects the order — the client cannot self-certify payment.
-  let stripePaymentStatus: 'pending' | 'paid' | 'pay_at_pickup' = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'pending';
+  let stripePaymentStatus: 'pending' | 'paid' | 'pay_at_pickup' | 'free' =
+    authorativeTotalCents === 0 ? 'free'
+    : paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup'
+    : 'pending';
+
   if (stripePaymentIntentId) {
-    // ── Replay guard: reject if this PI is already linked to any order ────
     const [existingOrder] = await db
       .select({ id: ordersTable.id })
       .from(ordersTable)
@@ -135,12 +165,10 @@ router.post('/', async (req, res) => {
   }
 
   // ── Insert order with server-authoritative values ─────────────────────────
-  // The DB has a partial unique index on stripe_payment_intent_id (WHERE NOT NULL).
-  // This is the hard, atomic guard against replay — any concurrent request that
-  // races past the pre-check above will be caught here with a 23505 violation.
   const orderId = randomUUID();
   const pointsEarned = Math.floor(authorativeTotalCents / 100);
   let order: typeof ordersTable.$inferSelect;
+  const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free';
   try {
     const [inserted] = await db.insert(ordersTable).values({
       id: orderId,
@@ -153,9 +181,12 @@ router.post('/', async (req, res) => {
       stripePaymentIntentId: stripePaymentIntentId ?? null,
       stripePaymentStatus,
       items,
-      loyaltyPointsEarned: stripePaymentStatus === 'paid' ? pointsEarned : 0,
-      loyaltyPointsUsed: stripePaymentStatus === 'paid' ? claimedLoyaltyPoints : 0,
+      loyaltyPointsEarned: isPaid ? pointsEarned : 0,
+      loyaltyPointsUsed: isPaid ? claimedLoyaltyPoints : 0,
       discountCents: authorativeDiscountCents,
+      discountCode: validatedDiscountCode,
+      discountCodeId: validatedDiscountCodeId,
+      paymentMethodType: paymentMethodType as string ?? null,
       deliveryAddress,
     }).returning();
     order = inserted;
@@ -166,10 +197,27 @@ router.post('/', async (req, res) => {
     throw err;
   }
 
-  // ── Update customer loyalty profile — only for confirmed paid orders ───────
-  // Pending/unpaid orders do not award loyalty points or increment spend, to
-  // prevent loyalty inflation via unverified payment claims.
-  if (stripePaymentStatus === 'paid') {
+  // ── Record discount code usage ─────────────────────────────────────────────
+  if (validatedDiscountCodeId && validatedDiscountCode && discountCodeAmountCents > 0) {
+    try {
+      await db
+        .update(discountCodesTable)
+        .set({ usageCount: sql`${discountCodesTable.usageCount} + 1`, updatedAt: new Date() })
+        .where(eq(discountCodesTable.id, validatedDiscountCodeId));
+      await db.insert(discountCodeUsagesTable).values({
+        id: randomUUID(),
+        discountCodeId: validatedDiscountCodeId,
+        userId: req.user!.id,
+        orderId,
+        discountAmountCents: discountCodeAmountCents,
+      });
+    } catch (usageErr) {
+      req.log.error({ usageErr, orderId }, 'Failed to record discount code usage');
+    }
+  }
+
+  // ── Update customer loyalty profile ────────────────────────────────────────
+  if (isPaid) {
     try {
       const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
       if (profile) {
@@ -221,7 +269,7 @@ router.post('/', async (req, res) => {
     }
   }
 
-  // ── Notify staff and customer of the new order (best effort) ─────────────
+  // ── Notify staff and customer of the new order ────────────────────────────
   const itemCount = Array.isArray(items) ? items.length : 1;
   void notifyRole(
     'staff',
@@ -234,7 +282,7 @@ router.post('/', async (req, res) => {
   void notifyUser(
     req.user!.id,
     'order_confirmed',
-    'Order Received 🍪',
+    'Order Received',
     'We\'ve got your order and will have it ready soon!',
     { orderId, screen: '/(customer)/orders' },
   ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
@@ -243,7 +291,6 @@ router.post('/', async (req, res) => {
 });
 
 // ── Status updates are restricted to staff and management roles ───────────
-// Customers must not be able to advance or cancel their own orders or others'.
 router.patch(
   '/:id/status',
   requireRole('staff', 'director', 'manager', 'master'),
@@ -259,10 +306,10 @@ router.patch(
       .returning();
 
     const STATUS_MSG: Record<string, string> = {
-      being_prepared:   'Your order is being prepared. ☕',
-      ready_for_pickup: 'Your order is ready for pickup! 🎉',
-      out_for_delivery: 'Your order is on its way! 🚚',
-      completed:        'Your order is complete. Thanks for visiting! 🍪',
+      being_prepared:   'Your order is being prepared.',
+      ready_for_pickup: 'Your order is ready for pickup!',
+      out_for_delivery: 'Your order is on its way!',
+      completed:        'Your order is complete. Thanks for visiting!',
       cancelled:        'Your order has been cancelled.',
       refunded:         'Your order has been refunded.',
     };

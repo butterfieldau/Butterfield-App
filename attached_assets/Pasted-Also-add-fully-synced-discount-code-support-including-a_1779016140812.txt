@@ -1,0 +1,72 @@
+Also add fully synced discount code support, including a customer discount code field in checkout and a backend discount code management area where only Master and Director accounts can create, edit, activate, deactivate and manage discount codes. 
+
+Discount code requirements:
+- Add discount code support to the Butterfield checkout
+- Customers should be able to enter a discount code during checkout before payment
+- The discount code field should sit neatly above the order total or inside the order summary card
+- Show a clear “Apply” button next to the discount code field
+- If the code is valid, apply the discount immediately and update the order summary, processing fee if affected, and final total
+- If the code is invalid, expired, inactive, already used, or not eligible for the order, show a clean error message
+- Do not clear the customer’s cart if the discount code fails
+- Discount codes must work with Credit Card, Apple Pay, Google Pay and Pay at Pickup
+- The final amount sent to the payment processor must be the discounted total, not the original total
+
+Backend discount code management:
+- Add a discount code management section in the backend for Master and Director accounts only
+- Master and Director accounts should be able to create, edit, activate, deactivate and delete discount codes
+- Staff and Store Manager accounts must not be able to create, edit or delete discount codes
+- Store Manager accounts may only view discount codes if permission is specifically enabled by Master or Director
+- Discount code data must be synced across the customer checkout, backend, order history, receipts, and reporting
+
+Discount code creation fields:
+- Code name
+- Discount code, for example WELCOME10
+- Discount type:
+  - percentage discount
+  - fixed dollar discount
+  - free delivery, if delivery exists
+- Discount value
+- Start date
+- Expiry date
+- Active / inactive status
+- Minimum order spend
+- Maximum discount amount, for percentage discounts
+- Usage limit per code
+- Usage limit per customer
+- Eligible products
+- Eligible categories
+- Excluded products
+- Customer eligibility:
+  - all customers
+  - selected customers
+  - first order only
+  - loyalty customers only
+  - wholesale customers excluded by default unless manually enabled
+- Pickup or delivery eligibility
+- Internal notes for directors/master only
+
+Checkout discount behaviour:
+- Validate discount codes server-side, not just on the frontend
+- Prevent customers from using expired, inactive or over-limit codes
+- Prevent customers from stacking multiple discount codes unless stacking is intentionally enabled in the backend
+- Default setting should be one discount code per order
+- Recalculate subtotal, discounts, fees, loyalty points and final total after a code is applied
+- If the cart changes after a discount code is applied, revalidate the code automatically
+- If the customer logs out, changes account, changes pickup/delivery method, or changes cart items, recheck the discount code before payment
+- If the discount code makes the order total $0, allow the order to be placed without card, Apple Pay or Google Pay payment, but still create the order properly
+
+Order and reporting requirements:
+- Save the discount code used on the order record
+- Save discount amount, discount type and original total before discount
+- Show discount code and discount amount in customer order history
+- Show discount code and discount amount in the admin/director order details
+- Show discount code and discount amount on receipts
+- Include discounts in backend sales reports
+- Refunds and cancellations must correctly reverse loyalty points based on the final discounted paid amount
+- If an order is refunded, the system should not automatically reset the discount code usage unless manually allowed by Master or Director
+
+Security requirements:
+- Never trust the discount amount from the frontend
+- The backend must calculate and approve the discount
+- Customers must not be able to edit discount values, eligibility rules or final totals through the frontend
+- Discount code permissions must be restricted to Master and Director accounts

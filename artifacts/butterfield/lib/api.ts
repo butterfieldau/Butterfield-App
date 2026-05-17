@@ -95,10 +95,19 @@ export const api = {
       items: any[]; type: string; scheduledFor?: string; notes?: string;
       totalCents: number; stripePaymentIntentId?: string;
       loyaltyPointsUsed?: number; discountCents?: number; deliveryAddress?: string;
-      deliveryPostcode?: string; deliveryState?: string; paymentMethod?: 'card' | 'pay_at_pickup';
+      deliveryPostcode?: string; deliveryState?: string;
+      paymentMethod?: 'card' | 'pay_at_pickup';
+      discountCode?: string; discountCodeId?: string; paymentMethodType?: string;
     }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  },
+  discounts: {
+    validate: (data: { code: string; items: any[]; orderType?: string }) =>
+      request<{ valid: boolean; id: string; code: string; discountAmountCents: number; discountType: string; description: string | null }>(
+        '/discounts/validate',
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
   },
   loyalty: {
     profile: () => request<{ data: LoyaltyProfile }>('/loyalty/profile'),
@@ -210,10 +219,10 @@ export const api = {
         selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
       }>;
       orderType: 'pickup' | 'delivery';
-      discountCents?: number;
+      discountCode?: string;
       paymentMethod?: 'card' | 'pay_at_pickup';
     }) =>
-      request<{ clientSecret: string; paymentIntentId: string }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ clientSecret: string; paymentIntentId: string; amountCents: number; discountAmountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
     stats:               () => request<{ data: any }>('/director/stats'),
@@ -336,6 +345,12 @@ export const api = {
     createAnnouncement:  (data: Partial<DirectorAnnouncement>) => request<{ data: DirectorAnnouncement }>('/director/announcements', { method: 'POST', body: JSON.stringify(data) }),
     updateAnnouncement:  (id: string, data: Partial<DirectorAnnouncement>) => request<{ data: DirectorAnnouncement }>(`/director/announcements/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAnnouncement:  (id: string) => request<{ success: boolean }>(`/director/announcements/${id}`, { method: 'DELETE' }),
+
+    // Discount codes
+    discountCodes:       () => request<{ data: any[] }>('/director/discount-codes'),
+    createDiscountCode:  (data: any) => request<{ data: any }>('/director/discount-codes', { method: 'POST', body: JSON.stringify(data) }),
+    updateDiscountCode:  (id: string, data: any) => request<{ data: any }>(`/director/discount-codes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteDiscountCode:  (id: string) => request<{ success: boolean }>(`/director/discount-codes/${id}`, { method: 'DELETE' }),
 
     // Reports
     reports:             () => request<{ data: DirectorReports }>('/director/reports'),

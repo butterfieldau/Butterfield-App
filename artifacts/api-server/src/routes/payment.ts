@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
+import { validateDiscountCode } from '../lib/discountUtils.js';
 
 const router = Router();
 
@@ -24,17 +25,35 @@ router.get('/config', async (_req, res) => {
 router.use(requireAuth);
 
 router.post('/payment-intent', async (req, res) => {
-  const { items, orderType, discountCents, paymentMethod } = req.body;
+  const { items, orderType, discountCode, paymentMethod } = req.body;
 
   if (paymentMethod === 'pay_at_pickup') {
     return res.status(400).json({ error: 'Pay at pickup orders do not require a Stripe payment intent.' });
   }
-  if (orderType === 'delivery' && paymentMethod === 'pay_at_pickup') {
-    return res.status(400).json({ error: 'Pay at pickup is only available for pickup orders.' });
-  }
 
   if (!items?.length) {
     return res.status(400).json({ error: 'Items are required to create a payment intent' });
+  }
+
+  let totalDiscountCents = 0;
+  let validatedDiscountCode: string | null = null;
+
+  try {
+    const base = await computeOrderTotal(items, orderType ?? 'pickup', 0, 'card');
+
+    if (discountCode && typeof discountCode === 'string') {
+      const validated = await validateDiscountCode(
+        discountCode,
+        req.user!.id,
+        req.user!.role,
+        base.subtotalCents,
+        orderType ?? 'pickup',
+      );
+      totalDiscountCents = validated.discountAmountCents;
+      validatedDiscountCode = validated.code;
+    }
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message ?? 'Could not validate discount code' });
   }
 
   let computed: Awaited<ReturnType<typeof computeOrderTotal>>;
@@ -42,8 +61,8 @@ router.post('/payment-intent', async (req, res) => {
     computed = await computeOrderTotal(
       items,
       orderType ?? 'pickup',
-      discountCents ?? 0,
-      paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
+      totalDiscountCents,
+      'card',
     );
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
@@ -63,12 +82,15 @@ router.post('/payment-intent', async (req, res) => {
       metadata: {
         userId: req.user!.id,
         computedAmountCents: String(computed.totalCents),
+        discountCode: validatedDiscountCode ?? '',
+        discountCents: String(totalDiscountCents),
       },
     });
     return res.json({
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
       amountCents: computed.totalCents,
+      discountAmountCents: totalDiscountCents,
     });
   } catch (err: any) {
     req.log.error({ err }, 'Payment intent creation failed');

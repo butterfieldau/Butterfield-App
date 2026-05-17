@@ -6,7 +6,7 @@ import {
   wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
-  wholesaleCardsTable, deletedAccountsTable,
+  wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -18,6 +18,7 @@ const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
 
 // For managers, enforce per-route permissions based on method + path.
+// Discount code management is director/master only.
 // Directors and masters pass through unconditionally.
 // Returns a MANAGER_PERMISSIONS string or 'director_only' to block managers entirely.
 function resolveDirectorPermission(method: string, path: string): ManagerPermission | 'director_only' | 'self_only' | 'always' {
@@ -34,6 +35,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/stats' || path === '/stats/revenue' || path === '/sessions') return 'dashboard';
   // Deleted accounts — director/master only
   if (path.startsWith('/deleted-accounts')) return 'director_only';
+  if (path.startsWith('/discount-codes')) return 'director_only';
 
   // Orders
   if (path === '/orders' || path.startsWith('/orders/')) return 'orders';
@@ -1365,6 +1367,103 @@ router.post('/deleted-accounts/:id/restore', async (req, res) => {
   if (snap.wholesaleAccount) await db.insert(wholesaleAccountsTable).values(snap.wholesaleAccount).onConflictDoNothing();
   await db.delete(deletedAccountsTable).where(eq(deletedAccountsTable.id, id));
   return res.json({ success: true, data: { name: deleted.name, email: deleted.email } });
+});
+
+// ── Discount codes (director / master only) ───────────────────────────────
+
+router.get('/discount-codes', async (req, res) => {
+  const codes = await db
+    .select()
+    .from(discountCodesTable)
+    .orderBy(desc(discountCodesTable.createdAt));
+  return res.json({ data: codes });
+});
+
+router.post('/discount-codes', async (req, res) => {
+  const {
+    code, description, discountType, discountValue, maxDiscountCents, minOrderCents,
+    startDate, expiresAt, isActive, usageLimitTotal, usageLimitPerCustomer,
+    eligibleProducts, eligibleCategories, excludedProducts,
+    customerEligibility, selectedCustomerIds, wholesaleEligible,
+    orderTypeEligibility, stackable, internalNotes,
+  } = req.body;
+
+  if (!code || typeof code !== 'string') return res.status(400).json({ error: 'Code is required.' });
+  if (!discountType) return res.status(400).json({ error: 'Discount type is required.' });
+  if (discountValue === undefined || discountValue === null) return res.status(400).json({ error: 'Discount value is required.' });
+
+  const normalised = code.trim().toUpperCase();
+  const [existing] = await db.select({ id: discountCodesTable.id }).from(discountCodesTable).where(eq(discountCodesTable.code, normalised));
+  if (existing) return res.status(409).json({ error: 'A discount code with this code already exists.' });
+
+  const [created] = await db.insert(discountCodesTable).values({
+    id: randomUUID(),
+    code: normalised,
+    description: description ?? null,
+    discountType,
+    discountValue: Number(discountValue),
+    maxDiscountCents: maxDiscountCents ?? null,
+    minOrderCents: minOrderCents ?? 0,
+    startDate: startDate ? new Date(startDate) : null,
+    expiresAt: expiresAt ? new Date(expiresAt) : null,
+    isActive: isActive !== false,
+    usageLimitTotal: usageLimitTotal ?? null,
+    usageLimitPerCustomer: usageLimitPerCustomer ?? 1,
+    usageCount: 0,
+    eligibleProducts: eligibleProducts ?? null,
+    eligibleCategories: eligibleCategories ?? null,
+    excludedProducts: excludedProducts ?? null,
+    customerEligibility: customerEligibility ?? 'all',
+    selectedCustomerIds: selectedCustomerIds ?? null,
+    wholesaleEligible: wholesaleEligible ?? false,
+    orderTypeEligibility: orderTypeEligibility ?? 'both',
+    stackable: stackable ?? false,
+    internalNotes: internalNotes ?? null,
+    createdByUserId: req.user!.id,
+  }).returning();
+
+  return res.status(201).json({ data: created });
+});
+
+router.patch('/discount-codes/:id', async (req, res) => {
+  const { id } = req.params;
+  const [existing] = await db.select().from(discountCodesTable).where(eq(discountCodesTable.id, id));
+  if (!existing) return res.status(404).json({ error: 'Discount code not found.' });
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  const allowed = [
+    'description', 'discountType', 'discountValue', 'maxDiscountCents', 'minOrderCents',
+    'startDate', 'expiresAt', 'isActive', 'usageLimitTotal', 'usageLimitPerCustomer',
+    'eligibleProducts', 'eligibleCategories', 'excludedProducts',
+    'customerEligibility', 'selectedCustomerIds', 'wholesaleEligible',
+    'orderTypeEligibility', 'stackable', 'internalNotes',
+  ];
+  for (const key of allowed) {
+    if (key in req.body) {
+      if ((key === 'startDate' || key === 'expiresAt') && req.body[key]) {
+        updates[key] = new Date(req.body[key]);
+      } else {
+        updates[key] = req.body[key];
+      }
+    }
+  }
+  if (req.body.code) {
+    const newCode = req.body.code.trim().toUpperCase();
+    const [conflict] = await db.select({ id: discountCodesTable.id }).from(discountCodesTable).where(eq(discountCodesTable.code, newCode));
+    if (conflict && conflict.id !== id) return res.status(409).json({ error: 'Another discount code with this code already exists.' });
+    updates['code'] = newCode;
+  }
+
+  const [updated] = await db.update(discountCodesTable).set(updates as any).where(eq(discountCodesTable.id, id)).returning();
+  return res.json({ data: updated });
+});
+
+router.delete('/discount-codes/:id', async (req, res) => {
+  const { id } = req.params;
+  const [existing] = await db.select({ id: discountCodesTable.id }).from(discountCodesTable).where(eq(discountCodesTable.id, id));
+  if (!existing) return res.status(404).json({ error: 'Discount code not found.' });
+  await db.delete(discountCodesTable).where(eq(discountCodesTable.id, id));
+  return res.json({ success: true });
 });
 
 export default router;
