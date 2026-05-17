@@ -1835,7 +1835,8 @@ export default function DirectorSettingsScreen() {
     const base: TabKey[] = ['Store'];
     // Banner tab: always for director/master; for managers only if granted 'banners' permission
     if (!isManager || managerPerms.includes('banners')) base.push('Banner');
-    base.push('Rewards', 'Notify', 'Managers');
+    base.push('Rewards', 'Notify');
+    if (!isManager) base.push('Managers');
     if (isMaster) base.push('Directors');
     return base;
   }, [isManager, isMaster, managerPerms]);

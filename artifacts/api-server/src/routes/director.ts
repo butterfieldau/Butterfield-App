@@ -27,8 +27,8 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (method === 'DELETE' && path.startsWith('/users/')) return 'director_only';
   if (path.startsWith('/wholesale-cards/') && path.endsWith('/visibility')) return 'director_only';
 
-  // Managers: all managers can create and manage other managers
-  if (path === '/managers' || path.startsWith('/managers/')) return 'always';
+  // Manager management — director/master only
+  if (path === '/managers' || path.startsWith('/managers/')) return 'director_only';
 
   // Dashboard
   if (path === '/stats' || path === '/sessions') return 'dashboard';
@@ -314,7 +314,6 @@ router.delete('/users/:id', async (req, res) => {
   if (target.role === 'director' && req.user!.role !== 'master') return res.status(403).json({ error: 'Only the master account can delete director accounts.' });
   if (!['director', 'master'].includes(req.user!.role)) return res.status(403).json({ error: 'Only directors can delete accounts.' });
 
-  await db.execute(sql`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id = ${id})`);
   await db.execute(sql`DELETE FROM loyalty_transactions WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM orders WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM customer_profiles WHERE user_id = ${id}`);
@@ -1127,7 +1126,7 @@ function parsePerms(raw?: string | null): string[] {
 }
 
 router.get('/managers', async (req, res) => {
-  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) {
+  if (!['director', 'master'].includes(req.user?.role ?? '')) {
     return res.status(403).json({ error: 'Director only' });
   }
   const managers = await db.select({
@@ -1150,7 +1149,7 @@ router.get('/managers', async (req, res) => {
 });
 
 router.post('/managers', async (req, res) => {
-  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   const { name, email, password, permissions = [], notes } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
@@ -1168,7 +1167,7 @@ router.post('/managers', async (req, res) => {
 });
 
 router.patch('/managers/:id/permissions', async (req, res) => {
-  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   const { permissions, notes } = req.body;
   const updates: Record<string, any> = {};
   if (Array.isArray(permissions)) updates.permissions = JSON.stringify(permissions);
@@ -1182,7 +1181,7 @@ router.patch('/managers/:id/permissions', async (req, res) => {
 });
 
 router.delete('/managers/:id', async (req, res) => {
-  if (!['director', 'master', 'manager'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
+  if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
   await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
   return res.json({ success: true });

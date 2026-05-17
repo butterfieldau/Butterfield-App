@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
 import DirectorCustomersScreen from './customers';
 import {
@@ -1300,9 +1301,17 @@ export default function DirectorUsersScreen() {
                   style={styles.userTop}
                   onPress={sp ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); } : undefined}
                 >
-                  <View style={[styles.avatar, { backgroundColor: roleColors.bg }]}>
-                    <Text style={[styles.avatarText, { color: roleColors.text }]}>{initials(u.name)}</Text>
-                  </View>
+                  {u.profileImage ? (
+                    <Image
+                      source={{ uri: u.profileImage }}
+                      style={[styles.avatar, { backgroundColor: roleColors.bg }]}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[styles.avatar, { backgroundColor: roleColors.bg }]}>
+                      <Text style={[styles.avatarText, { color: roleColors.text }]}>{initials(u.name)}</Text>
+                    </View>
+                  )}
                   <View style={{ flex: 1, gap: 3 }}>
                     <View style={styles.nameRow}>
                       <Text style={styles.userName}>{u.name}</Text>

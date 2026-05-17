@@ -35,7 +35,7 @@ export default function DirectorLayout() {
                    : isManager ? '#16A34A'
                    : isMaster  ? '#7C3AED'
                    :             '#EF4444';
-  const headerBg   = isManager ? '#0A1A0A' : NAVY;
+  const headerBg   = NAVY;
 
   return (
     <View style={{ flex: 1, backgroundColor: headerBg }}>

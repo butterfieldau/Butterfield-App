@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -58,6 +59,8 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const isManager = user?.role === 'manager';
   const operations: Row[] = [
     {
       icon: 'archive',
@@ -118,13 +121,13 @@ export default function MoreScreen() {
       color: '#06B6D4',
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Notify' } } as any),
     },
-    {
+    ...(!isManager ? [{
       icon: 'shield',
       label: 'Manager Access',
       sub: 'Permissions & portal access',
       color: NAVY,
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Managers' } } as any),
-    },
+    }] : []),
   ];
 
   return (
