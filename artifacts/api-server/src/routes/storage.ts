@@ -151,9 +151,11 @@ router.post("/storage/uploads", requireAuth, upload.single("file"), async (req: 
   }
   try {
     const contentType = req.file.mimetype || "application/octet-stream";
+    // Profile photos must be readable by the Image component without auth headers,
+    // so they are stored as public. The objectPath is a UUID — not guessable.
     const result = await objectStorageService.uploadBuffer(req.file.buffer, contentType, {
       owner: req.user!.id,
-      visibility: "private",
+      visibility: "public",
     });
     res.json(result);
   } catch (error) {
