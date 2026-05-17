@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, stockItemsTable, stockCategoriesTable } from '@workspace/db';
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
@@ -59,7 +59,7 @@ router.post('/categories', requireRole('director', 'master'), async (req, res) =
 // Director / master only — remove a category.
 // Blocked if any active stock items still use it.
 router.delete('/categories/:id', requireRole('director', 'master'), async (req, res) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
 
   const [existing] = await db
     .select()
@@ -74,8 +74,7 @@ router.delete('/categories/:id', requireRole('director', 'master'), async (req, 
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(stockItemsTable)
-    .where(eq(stockItemsTable.category, id))
-    .where(eq(stockItemsTable.isActive, true)) as any;
+    .where(and(eq(stockItemsTable.category, id), eq(stockItemsTable.isActive, true)));
 
   if (count > 0) {
     res.status(409).json({ error: `Cannot delete: ${count} item${count > 1 ? 's' : ''} still use this category. Reassign them first.` });
@@ -143,7 +142,7 @@ router.post('/items', requireRole('director', 'master'), async (req, res) => {
 // ── PATCH /api/stock/items/:id ───────────────────────────────────────────────
 // Director / master: all fields. Manager: currentQuantity only.
 router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (req, res) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const fullAccess = canEditAll(req.user!.role);
 
   const [existing] = await db
@@ -224,7 +223,7 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
 // ── DELETE /api/stock/items/:id ──────────────────────────────────────────────
 // Director / master only — soft delete.
 router.delete('/items/:id', requireRole('director', 'master'), async (req, res) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const [existing] = await db
     .select({ id: stockItemsTable.id })
     .from(stockItemsTable)
