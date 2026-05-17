@@ -240,7 +240,7 @@ router.post('/', async (req, res) => {
   const orderId = randomUUID();
   const pointsEarned = Math.floor(authorativeTotalCents / 100);
   let order!: typeof ordersTable.$inferSelect;
-  const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free';
+  const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free' || stripePaymentStatus === 'pay_at_pickup';
   try {
     await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(ordersTable).values({
