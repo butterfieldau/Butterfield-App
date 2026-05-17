@@ -10,7 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api, type DirectorReward, type DirectorAnnouncement, type HomeBannerConfig } from '@/lib/api';
+import { api, type DirectorReward, type DirectorProduct, type DirectorAnnouncement, type HomeBannerConfig } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
 import { useAuth } from '@/context/AuthContext';
@@ -898,6 +898,50 @@ function StoreHoursSection() {
   );
 }
 
+// ─── Product Picker (used inside RewardModal for item rewards) ────────────────
+function ProductPicker({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['director-products-picker'],
+    queryFn:  () => api.director.products(),
+    staleTime: 60_000,
+  });
+  const products: DirectorProduct[] = (data?.data ?? []).filter((p: DirectorProduct) => p.isActive);
+
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={styles.fieldLabel}>Linked product (optional)</Text>
+      {isLoading ? (
+        <ActivityIndicator color={BLUE} size="small" style={{ alignSelf: 'flex-start' }} />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <Pressable
+            onPress={() => { onSelect(''); Haptics.selectionAsync(); }}
+            style={[styles.chip, {
+              backgroundColor: !selectedId ? BLUE : '#F3F4F6',
+              borderColor: !selectedId ? BLUE : BORDER,
+            }]}>
+            <Text style={[styles.chipText, { color: !selectedId ? '#fff' : TEXT }]}>None</Text>
+          </Pressable>
+          {products.map((p: DirectorProduct) => (
+            <Pressable
+              key={p.id}
+              onPress={() => { onSelect(p.id); Haptics.selectionAsync(); }}
+              style={[styles.chip, {
+                backgroundColor: selectedId === p.id ? BLUE : '#F3F4F6',
+                borderColor: selectedId === p.id ? BLUE : BORDER,
+              }]}>
+              <Text style={[styles.chipText, { color: selectedId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>
+                {p.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+      <Text style={{ fontSize: 11, color: MUTED }}>Select the product that will be added free to the customer's cart.</Text>
+    </View>
+  );
+}
+
 // ─── Reward Form Modal ────────────────────────────────────────────────────────
 function RewardModal({ visible, reward, onClose, onSuccess }: {
   visible: boolean; reward: DirectorReward | null; onClose: () => void; onSuccess: () => void;
@@ -1008,13 +1052,10 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
           )}
 
           {rewardType === 'item_reward' && (
-            <View style={{ gap: 6 }}>
-              <Text style={styles.fieldLabel}>Linked product ID (optional)</Text>
-              <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={linkedProductId}
-                onChangeText={setLinkedProductId} placeholder="Leave blank for generic free item"
-                placeholderTextColor={MUTED} autoCapitalize="none" autoCorrect={false} />
-              <Text style={{ fontSize: 11, color: MUTED }}>The Stripe product ID that will be added free to the cart.</Text>
-            </View>
+            <ProductPicker
+              selectedId={linkedProductId}
+              onSelect={setLinkedProductId}
+            />
           )}
 
           <View style={{ gap: 6 }}>
@@ -1245,8 +1286,14 @@ function RewardsTab() {
               </View>
               <View style={styles.rewardMeta}>
                 <Text style={styles.rewardMetaText}>#{r.category}</Text>
+                <Text style={styles.rewardMetaText}>
+                  · {r.rewardType === 'money_voucher' ? `Voucher $${((r.voucherValueCents ?? 0) / 100).toFixed(2)}` : 'Free item'}
+                </Text>
                 {r.isAppOnly     && <Text style={styles.rewardMetaText}>· App only</Text>}
                 {r.stock != null && <Text style={styles.rewardMetaText}>· Stock: {r.stock}</Text>}
+                {(r.claimCount ?? 0) > 0 && (
+                  <Text style={styles.rewardMetaText}>· {r.claimCount} redeemed</Text>
+                )}
               </View>
               <View style={styles.rewardActions}>
                 {isDeleted ? (

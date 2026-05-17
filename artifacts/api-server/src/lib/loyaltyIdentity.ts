@@ -101,6 +101,26 @@ export async function ensureLoyaltySchemaReady() {
           )`,
           // Add staff_id column to existing activity log tables (idempotent)
           `ALTER TABLE loyalty_activity_log ADD COLUMN IF NOT EXISTS staff_id text`,
+          // Reward type columns on loyalty_rewards (task #43)
+          `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS reward_type text NOT NULL DEFAULT 'item_reward'`,
+          `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS voucher_value_cents integer`,
+          `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS linked_product_id text`,
+          `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS staff_redeemable boolean NOT NULL DEFAULT false`,
+          `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS customer_redeemable boolean NOT NULL DEFAULT true`,
+          // Claimed rewards table (task #43)
+          `CREATE TABLE IF NOT EXISTS claimed_rewards (
+            id text PRIMARY KEY,
+            user_id text NOT NULL,
+            reward_id text NOT NULL,
+            status text NOT NULL DEFAULT 'available',
+            claimed_at timestamp NOT NULL DEFAULT now(),
+            redeemed_at timestamp,
+            order_id text,
+            points_spent integer NOT NULL,
+            voucher_value_cents integer
+          )`,
+          `CREATE INDEX IF NOT EXISTS claimed_rewards_user_id_idx ON claimed_rewards (user_id)`,
+          `CREATE INDEX IF NOT EXISTS claimed_rewards_status_idx ON claimed_rewards (status)`,
         ]);
 
         // Backfill: generate QR tokens for any profile that is missing one.

@@ -736,6 +736,14 @@ export interface StaffMember {
   hourlyRateCents: number;
 }
 
+export interface DirectorProduct {
+  id: string;
+  name: string;
+  priceCents: number;
+  isActive: boolean;
+  category?: string | null;
+}
+
 export interface DirectorReward {
   id: string;
   name: string;
@@ -754,6 +762,7 @@ export interface DirectorReward {
   linkedProductId?: string | null;
   customerRedeemable: boolean;
   staffRedeemable: boolean;
+  claimCount?: number;
 }
 
 export interface ClaimedReward {

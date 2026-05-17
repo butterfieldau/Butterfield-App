@@ -788,7 +788,18 @@ router.get('/rewards', async (req, res) => {
   await db.delete(loyaltyRewardsTable)
     .where(and(isNotNull(loyaltyRewardsTable.deletedAt), lt(loyaltyRewardsTable.deletedAt, cutoff)));
   const rewards = await db.select().from(loyaltyRewardsTable).orderBy(loyaltyRewardsTable.pointsCost);
-  return res.json({ data: rewards });
+
+  // Enrich each reward with its claim count (redeemed claims only)
+  const claimCounts = await db.execute(
+    sql.raw(`SELECT reward_id, COUNT(*) as cnt FROM claimed_rewards WHERE status = 'redeemed' GROUP BY reward_id`)
+  );
+  const countMap = new Map<string, number>(
+    (claimCounts as unknown as { reward_id: string; cnt: string }[]).map(r => [r.reward_id, parseInt(r.cnt, 10)])
+  );
+
+  return res.json({
+    data: rewards.map(r => ({ ...r, claimCount: countMap.get(r.id) ?? 0 })),
+  });
 });
 
 router.post('/rewards', async (req, res) => {

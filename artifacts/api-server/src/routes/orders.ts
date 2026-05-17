@@ -244,7 +244,8 @@ router.post('/', async (req, res) => {
   }
 
   // ── Mark claimed reward as redeemed ───────────────────────────────────────
-  if (claimedRewardData && isPaid) {
+  // Reward is consumed when the order is successfully placed, regardless of payment method.
+  if (claimedRewardData) {
     try {
       await db.update(claimedRewardsTable)
         .set({ status: 'redeemed', redeemedAt: new Date(), orderId })

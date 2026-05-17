@@ -12,6 +12,9 @@ export interface OrderItemInput {
   variantId?: string | null;
   quantity: number;
   selectedOptions?: { optionId?: string; groupId?: string; priceAdjustmentCents?: number }[];
+  /** When true, this item is a free reward — skip catalog price lookup and use 0. */
+  isFreeReward?: boolean;
+  unitPriceCents?: number;
 }
 
 export interface ComputedOrderTotal {
@@ -74,6 +77,13 @@ export async function computeOrderTotal(
   const itemizedCents: ComputedOrderTotal['itemizedCents'] = [];
 
   for (const item of items) {
+    // Free reward items bypass catalog pricing entirely
+    if (item.isFreeReward) {
+      const qty = Math.max(1, Math.floor(item.quantity));
+      itemizedCents.push({ productId: item.productId, variantId: item.variantId, unitCents: 0, quantity: qty, lineCents: 0 });
+      continue;
+    }
+
     const product = productMap.get(item.productId);
     if (!product || !product.isActive) {
       throw new Error(`Product not found or unavailable: ${item.productId}`);
