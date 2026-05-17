@@ -90,8 +90,21 @@ const shimmerCard = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
 });
 const CAT_ICON_MAP: Record<string, string> = {
-  cookies: 'star', coffee: 'coffee', desserts: 'heart', sandwiches: 'layers',
-  pastries: 'sun', drinks: 'droplet', bundles: 'gift', merch: 'tag',
+  coffee:        'coffee',
+  matcha:        '🍵',
+  tea:           '🫖',
+  cookies:       '🍪',
+  'cold-drinks': '🧊',
+  'soft-serve':  '🍦',
+  specials:      'zap',
+  seasonal:      'sun',
+  merch:         'tag',
+  boxes:         '🎁',
+  desserts:      'heart',
+  sandwiches:    'layers',
+  pastries:      'sun',
+  drinks:        'droplet',
+  bundles:       '🎁',
 };
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
@@ -241,7 +254,10 @@ export default function MenuScreen() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                  {(cat.icon.codePointAt(0)! > 127)
+                    ? <Text style={{ fontSize: 16, lineHeight: 20 }}>{cat.icon}</Text>
+                    : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                  }
                 </View>
                 <Text style={[s.catLabel, {
                   color: active ? pal.banner : '#3C3C43',

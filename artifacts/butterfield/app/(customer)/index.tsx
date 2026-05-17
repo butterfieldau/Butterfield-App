@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   ActivityIndicator,
   FlatList,
@@ -25,7 +26,7 @@ import { FeatureShortcutTile } from '@/components/home/FeatureShortcutTile';
 import { MerchTile } from '@/components/home/MerchTile';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
-import { type ApiProduct } from '@/lib/api';
+import { api, type ApiProduct } from '@/lib/api';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
@@ -34,14 +35,23 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 const BLUE_TOP = '#1493FF';
 const BLUE_BTM = '#3CBBEE';
 const CHERRY   = '#D0312D';
-const CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: 'all',        label: 'All',      icon: 'grid'    },
-  { id: 'cookies',    label: 'Cookies',  icon: 'star'    },
-  { id: 'coffee',     label: 'Coffee',   icon: 'coffee'  },
-  { id: 'desserts',   label: 'Desserts', icon: 'heart'   },
-  { id: 'sandwiches', label: 'Food',     icon: 'layers'  },
-  { id: 'bundles',    label: 'Bundles',  icon: 'gift'    },
-];
+const CAT_ICON_MAP: Record<string, string> = {
+  coffee:        'coffee',
+  matcha:        '🍵',
+  tea:           '🫖',
+  cookies:       '🍪',
+  'cold-drinks': '🧊',
+  'soft-serve':  '🍦',
+  specials:      'zap',
+  seasonal:      'sun',
+  merch:         'tag',
+  boxes:         '🎁',
+  desserts:      'heart',
+  sandwiches:    'layers',
+  pastries:      'sun',
+  drinks:        'droplet',
+  bundles:       '🎁',
+};
 const MERCH = [
   { id: 'merch-retro-shirt',    name: 'Retro Shirt',    price: 50, image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldNEWTEE.jpg?v=1766964759&width=600' },
   { id: 'merch-bucket-hat',     name: 'Bucket Hat',     price: 20, image: 'https://butterfieldcookies.com.au/cdn/shop/files/butterefieldhat2.jpg?v=1764301783&width=600' },
@@ -86,6 +96,20 @@ export default function CustomerHome() {
 
   } = useHomeScreenData();
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchLoyalty);
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.products.categories(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const categories = useMemo(() => {
+    const backendCats: any[] = categoriesData?.data ?? [];
+    const items = backendCats.map(c => ({
+      id: c.slug as string,
+      label: c.name as string,
+      icon: CAT_ICON_MAP[c.slug] ?? '🛍️',
+    }));
+    return [{ id: 'all', label: 'All', icon: 'grid' }, ...items];
+  }, [categoriesData]);
   const featured = useMemo(
     () => products.filter((p) =>
       activeCategory === 'all' ? true : p.metadata?.category === activeCategory,
@@ -360,7 +384,7 @@ export default function CustomerHome() {
           style={s.catScroll}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
         >
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
             return (
@@ -370,7 +394,10 @@ export default function CustomerHome() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                  {(cat.icon.codePointAt(0)! > 127)
+                    ? <Text style={{ fontSize: 16, lineHeight: 20 }}>{cat.icon}</Text>
+                    : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                  }
                 </View>
                 <Text style={[s.catTileLabel, { color: active ? pal.banner : '#3C3C43', fontWeight: active ? '700' : '500' }]}>
                   {cat.label}
@@ -383,7 +410,7 @@ export default function CustomerHome() {
         {isLoading ? (
           <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
         ) : activeCategory === 'all' ? (
-          CATEGORIES.filter((cat) => cat.id !== 'all').map((cat) => {
+          categories.filter((cat) => cat.id !== 'all').map((cat) => {
             const catItems = products
               .filter((p) => (p as any).metadata?.category === cat.id)
               .slice(0, 8);
@@ -424,7 +451,7 @@ export default function CustomerHome() {
           <View style={s.section}>
             <View style={s.catRowHeader}>
               <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', paddingHorizontal: 0, marginBottom: 0 }]}>
-                {CATEGORIES.find((c) => c.id === activeCategory)?.label ?? activeCategory}
+                {categories.find((c) => c.id === activeCategory)?.label ?? activeCategory}
               </Text>
               <Pressable
                 hitSlop={8}
