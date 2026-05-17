@@ -13,6 +13,10 @@ function isValidCategory(v: unknown): v is StockCategory {
   return typeof v === 'string' && (VALID_CATEGORIES as readonly string[]).includes(v);
 }
 
+function canEditAll(role?: string) {
+  return role === 'director' || role === 'master';
+}
+
 const STOCK_CATEGORIES = [
   { id: 'coffee',         label: 'Coffee'         },
   { id: 'drinks',         label: 'Drinks'         },
@@ -23,14 +27,14 @@ const STOCK_CATEGORIES = [
 ];
 
 // ── GET /api/stock/categories ────────────────────────────────────────────────
-router.get('/categories', requireRole('director', 'manager'), (_req, res) => {
+router.get('/categories', requireRole('director', 'master', 'manager'), (_req, res) => {
   res.json({ data: STOCK_CATEGORIES });
 });
 
 // ── GET /api/stock/items ─────────────────────────────────────────────────────
-// Directors see costCents; managers do not.
-router.get('/items', requireRole('director', 'manager'), async (req, res) => {
-  const isDirector = req.user!.role === 'director';
+// Directors / master see costCents; managers do not.
+router.get('/items', requireRole('director', 'master', 'manager'), async (req, res) => {
+  const fullAccess = canEditAll(req.user!.role);
 
   const rows = await db
     .select()
@@ -39,8 +43,7 @@ router.get('/items', requireRole('director', 'manager'), async (req, res) => {
     .orderBy(asc(stockItemsTable.category), asc(stockItemsTable.name));
 
   const data = rows.map((item) => {
-    if (isDirector) return item;
-    // Strip cost data for managers
+    if (fullAccess) return item;
     const { costCents: _c, ...rest } = item;
     return rest;
   });
@@ -49,8 +52,8 @@ router.get('/items', requireRole('director', 'manager'), async (req, res) => {
 });
 
 // ── POST /api/stock/items ────────────────────────────────────────────────────
-// Director only — create a new stock item.
-router.post('/items', requireRole('director'), async (req, res) => {
+// Director / master only — create a new stock item.
+router.post('/items', requireRole('director', 'master'), async (req, res) => {
   const { name, category, unit, currentQuantity, lowStockThreshold, costCents, supplier, notes } = req.body;
 
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -83,11 +86,10 @@ router.post('/items', requireRole('director'), async (req, res) => {
 });
 
 // ── PATCH /api/stock/items/:id ───────────────────────────────────────────────
-// Directors can update all fields.
-// Managers can only update currentQuantity.
-router.patch('/items/:id', requireRole('director', 'manager'), async (req, res) => {
+// Director / master: all fields. Manager: currentQuantity only.
+router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (req, res) => {
   const { id } = req.params;
-  const isDirector = req.user!.role === 'director';
+  const fullAccess = canEditAll(req.user!.role);
 
   const [existing] = await db
     .select({ id: stockItemsTable.id })
@@ -101,7 +103,7 @@ router.patch('/items/:id', requireRole('director', 'manager'), async (req, res) 
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
 
-  if (isDirector) {
+  if (fullAccess) {
     const { name, category, unit, currentQuantity, lowStockThreshold, costCents, supplier, notes } = req.body;
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) { res.status(400).json({ error: 'name must be a non-empty string' }); return; }
@@ -118,7 +120,6 @@ router.patch('/items/:id', requireRole('director', 'manager'), async (req, res) 
     if (supplier !== undefined) updates.supplier = typeof supplier === 'string' ? supplier.trim() || null : null;
     if (notes !== undefined) updates.notes = typeof notes === 'string' ? notes.trim() || null : null;
   } else {
-    // Manager: quantity adjustment only
     const { currentQuantity } = req.body;
     if (currentQuantity === undefined || typeof currentQuantity !== 'number') {
       res.status(400).json({ error: 'currentQuantity (number) is required' });
@@ -130,7 +131,7 @@ router.patch('/items/:id', requireRole('director', 'manager'), async (req, res) 
   await db.update(stockItemsTable).set(updates as any).where(eq(stockItemsTable.id, id));
 
   const [updated] = await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, id));
-  if (isDirector) {
+  if (fullAccess) {
     res.json({ data: updated });
   } else {
     const { costCents: _c, ...rest } = updated;
@@ -139,8 +140,8 @@ router.patch('/items/:id', requireRole('director', 'manager'), async (req, res) 
 });
 
 // ── DELETE /api/stock/items/:id ──────────────────────────────────────────────
-// Director only — soft delete.
-router.delete('/items/:id', requireRole('director'), async (req, res) => {
+// Director / master only — soft delete.
+router.delete('/items/:id', requireRole('director', 'master'), async (req, res) => {
   const { id } = req.params;
   const [existing] = await db
     .select({ id: stockItemsTable.id })
