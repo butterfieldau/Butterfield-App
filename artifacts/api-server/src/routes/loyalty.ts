@@ -214,51 +214,60 @@ router.post('/redeem', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Not enough points' });
   }
 
-  // ── Atomic claim: deduct points + optional stock decrement, compensate on insert failure ──
-  await recordLoyaltyPoints({
-    userId: req.user!.id,
+  // ── Truly atomic claim: points + stock + row creation in a single DB transaction ──
+  const claimId = randomUUID();
+  const userId  = req.user!.id;
+  let claimed: typeof claimedRewardsTable.$inferSelect | undefined;
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Conditional points deduction — guards against race-condition overspend
+      const deductResult = await tx.execute(
+        sql`UPDATE customer_profiles
+            SET loyalty_points = loyalty_points - ${reward.pointsCost}
+            WHERE user_id = ${userId} AND loyalty_points >= ${reward.pointsCost}
+            RETURNING loyalty_points`
+      );
+      if (!(deductResult as any).rows?.length && !(deductResult as any).rowCount) {
+        throw Object.assign(new Error('INSUFFICIENT_POINTS'), { status: 400 });
+      }
+
+      // 2. Conditional stock decrement — guards against overselling limited rewards
+      if (reward.stock !== null) {
+        const stockResult = await tx.execute(
+          sql`UPDATE loyalty_rewards SET stock = stock - 1 WHERE id = ${reward.id} AND stock > 0 RETURNING stock`
+        );
+        if (!(stockResult as any).rows?.length && !(stockResult as any).rowCount) {
+          throw Object.assign(new Error('OUT_OF_STOCK'), { status: 400 });
+        }
+      }
+
+      // 3. Insert claim row — rolled back automatically if anything above fails
+      const [inserted] = await tx.insert(claimedRewardsTable).values({
+        id: claimId,
+        userId,
+        rewardId,
+        status: 'available',
+        pointsSpent: reward.pointsCost,
+        voucherValueCents: reward.voucherValueCents ?? null,
+      }).returning();
+      claimed = inserted;
+    });
+  } catch (txErr: any) {
+    const msg = String(txErr?.message ?? '');
+    if (msg === 'INSUFFICIENT_POINTS') return res.status(400).json({ error: 'Not enough points' });
+    if (msg === 'OUT_OF_STOCK') return res.status(400).json({ error: 'This reward is out of stock' });
+    req.log.error({ txErr }, 'Reward claim transaction failed');
+    return res.status(500).json({ error: 'Failed to claim reward. Please try again.' });
+  }
+
+  // Non-critical: audit log (best-effort, outside the transaction)
+  recordLoyaltyPoints({
+    userId,
     pointsDelta: -reward.pointsCost,
     orderId: null,
     description: `Claimed: ${reward.name}`,
-  });
-
-  let stockDecremented = false;
-  if (reward.stock !== null) {
-    await db.update(loyaltyRewardsTable)
-      .set({ stock: sql`GREATEST(${loyaltyRewardsTable.stock} - 1, 0)` })
-      .where(eq(loyaltyRewardsTable.id, reward.id));
-    stockDecremented = true;
-  }
-
-  // Create the claimed reward row — compensate (restore points + stock) if insert fails
-  let claimed: typeof claimedRewardsTable.$inferSelect;
-  try {
-    const [inserted] = await db.insert(claimedRewardsTable).values({
-      id: randomUUID(),
-      userId: req.user!.id,
-      rewardId,
-      status: 'available',
-      pointsSpent: reward.pointsCost,
-      voucherValueCents: reward.voucherValueCents ?? null,
-    }).returning();
-    claimed = inserted;
-  } catch (insertErr: any) {
-    // Compensate: restore points
-    await recordLoyaltyPoints({
-      userId: req.user!.id,
-      pointsDelta: reward.pointsCost,
-      orderId: null,
-      description: `Compensation: points restored (claim insert failed for ${reward.name})`,
-    }).catch(() => {});
-    // Compensate: restore stock if it was decremented
-    if (stockDecremented) {
-      await db.update(loyaltyRewardsTable)
-        .set({ stock: sql`${loyaltyRewardsTable.stock} + 1` })
-        .where(eq(loyaltyRewardsTable.id, reward.id))
-        .catch(() => {});
-    }
-    return res.status(500).json({ error: 'Failed to create claim. Your points have been restored.' });
-  }
+  }).catch((logErr: any) => req.log.warn({ logErr }, 'Failed to write loyalty audit log after claim'));
 
   return res.json({
     data: {

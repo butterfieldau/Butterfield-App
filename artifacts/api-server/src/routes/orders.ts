@@ -378,6 +378,17 @@ router.patch(
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
+
+    // Read current status BEFORE updating so we can guard idempotent side-effects
+    const [currentOrder] = await db
+      .select({ id: ordersTable.id, status: ordersTable.status })
+      .from(ordersTable)
+      .where(eq(ordersTable.id, String(req.params.id)));
+    if (!currentOrder) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    const previousStatus = currentOrder.status;
+
     const [order] = await db.update(ordersTable)
       .set({ status, updatedAt: new Date() })
       .where(eq(ordersTable.id, String(req.params.id)))
@@ -398,7 +409,8 @@ router.patch(
     }
 
     // ── On cancellation: restore claimed reward + reverse loyalty points earned ──
-    if (status === 'cancelled' && order) {
+    // Guard: only run once — skip if order was already cancelled before this call
+    if (status === 'cancelled' && previousStatus !== 'cancelled' && order) {
       try {
         await db.update(claimedRewardsTable)
           .set({ status: 'available', redeemedAt: null, orderId: null })
