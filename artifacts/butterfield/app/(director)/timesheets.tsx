@@ -38,8 +38,10 @@ function addWeeks(d: Date, n: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + n * 7);
   return r;
+}
 function formatDate(d: Date): string {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
 function fmtTime(iso: string) {
   const d = new Date(iso);
   let h = d.getHours();
@@ -49,12 +51,17 @@ function fmtTime(iso: string) {
   if (h > 12) h -= 12;
   if (h === 0) h = 12;
   return `${h}:${m}:${s} ${ampm}`;
+}
 function fmtDateGroup(iso: string) {
   return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
+}
 function toDateKey(iso: string) {
+  const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 function parseHoursWorked(raw: string | null | undefined): number {
   if (!raw) return 0;
   const legacyMatch = raw.match(/^(\d+)h\s*(\d+)m$/);
@@ -65,6 +72,7 @@ function parseHoursWorked(raw: string | null | undefined): number {
   if (mOnly) return parseInt(mOnly[1]) / 60;
   const decimal = parseFloat(raw);
   return isNaN(decimal) ? 0 : decimal;
+}
 function formatHours(hrs: number): string {
   const h = Math.floor(hrs);
   const m = Math.round((hrs - h) * 60);
@@ -72,22 +80,29 @@ function formatHours(hrs: number): string {
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
+}
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
 function calcPay(s: DirectorShift): number | null {
   if (!s.clockOut || !s.hourlyRateCents) return null;
   const hrs = parseHoursWorked(s.hoursWorked);
   return Math.round(hrs * s.hourlyRateCents);
+}
 function isoToHHMM(iso: string): string {
+  const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 function applyHHMM(base: string, hhmm: string): string | null {
   const match = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
   const d = new Date(base);
   d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
   return d.toISOString();
+}
 function capitalize(s: string) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
 // ── Payroll summary per staff member ─────────────────────────────────────────
 type StaffPaySummary = {
   userId: string; name: string; position: string;
@@ -111,8 +126,11 @@ function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
     if (s.approvedAt) entry.approvedShifts++; else entry.pendingShifts++;
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): string {
   const rows = shifts.map(s => {
+    const hrs = parseHoursWorked(s.hoursWorked);
+    const pay = calcPay(s);
     const dateStr = new Date(s.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
     return `<tr>
       <td>${s.name ?? ''}</td>
@@ -151,6 +169,7 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
   </tbody></table>
   <div class="footer">Generated ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })} · Butterfield Cookies Pty Ltd</div>
   </body></html>`;
+}
 // ── Edit / Approve Modal ───────────────────────────────────────────────────────
 function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
   shift: DirectorShift | null; visible: boolean; onClose: () => void; onSaved: () => void;
@@ -306,6 +325,7 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       </KeyboardAvoidingView>
     </Modal>
   );
+}
 // ── Payroll Summary Card ───────────────────────────────────────────────────────
 function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySummary[]; weekLabel: string }) {
   if (summaries.length === 0) return null;
@@ -356,6 +376,7 @@ function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySumma
       )}
     </View>
   );
+}
 // ── Main Screen ────────────────────────────────────────────────────────────────
 export default function DirectorTimesheetsScreen() {
   const { user } = useAuth();
@@ -459,6 +480,7 @@ export default function DirectorTimesheetsScreen() {
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <><Feather name="download" size={14} color="#fff" /><Text style={styles.exportBtnText}>Export</Text></>}
             </Pressable>
+          </View>
           {/* Week navigator */}
           <View style={[styles.weekNav, { backgroundColor: CARD, borderColor: BORDER }]}>
             <Pressable onPress={() => { setWeekOffset(o => o - 1); setPersonFilter('all'); }} style={styles.weekNavBtn}>
@@ -642,6 +664,7 @@ export default function DirectorTimesheetsScreen() {
             })}
             </>
           )}
+        </View>
       </ScrollView>
       <ShiftModal
         shift={selected}
@@ -650,6 +673,9 @@ export default function DirectorTimesheetsScreen() {
         onSaved={() => { setModalVisible(false); setSelected(null); }}
         hidePayInfo={isManager}
       />
+    </View>
+  );
+}
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header:          { paddingHorizontal: 16, paddingBottom: 14, gap: 14 },

@@ -26,6 +26,25 @@ function openStatusColor(status: string) {
   if (status === 'coming_soon')       return '#8B5CF6';
   if (status === 'temporarily_closed')return '#F59E0B';
   return '#8E8E93';
+}
+const cs = StyleSheet.create({
+  hero:            { paddingHorizontal: 20, paddingBottom: 28 },
+  heroTitle:       { fontWeight: '700', fontSize: 30, color: '#fff', marginBottom: 4 },
+  heroSub:         { fontWeight: '400', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
+  card:            { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  cardBanner:      { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardBannerTitle: { fontWeight: '700', fontSize: 16, color: '#fff', flex: 1 },
+  openBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  dot:             { width: 7, height: 7, borderRadius: 4 },
+  openBadgeText:   { fontWeight: '600', fontSize: 11, color: '#fff' },
+  infoRow:         { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  infoText:        { fontWeight: '400', fontSize: 13, flex: 1, lineHeight: 18 },
+  serviceChip:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  serviceText:     { fontWeight: '500', fontSize: 11 },
+  notes:           { fontWeight: '400', fontSize: 12, fontStyle: 'italic' },
+  actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
+  actionBtnText:   { fontWeight: '600', fontSize: 13, color: '#1493FF' },
+});
 function StoreCard({ store }: { store: any }) {
   const colors = useColors();
   const sc = openStatusColor(store.openStatus);
@@ -41,6 +60,7 @@ function StoreCard({ store }: { store: any }) {
   const handleCall = () => {
     if (!store.phone) return;
     Linking.openURL(`tel:${store.phone.replace(/\s/g, '')}`);
+  };
   const todayHours = store.todayHours;
   const todayDisplay = todayHours?.isClosed
     ? 'Closed today'
@@ -124,6 +144,7 @@ function StoreCard({ store }: { store: any }) {
 }
 export default function CustomerStoresScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useColors();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stores'],
     queryFn: () => api.stores.list(),
@@ -165,27 +186,4 @@ export default function CustomerStoresScreen() {
       </View>
     </ScrollView>
   );
-const cs = StyleSheet.create({
-  hero:            { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTitle:       { fontWeight: '700', fontSize: 30, color: '#fff', marginBottom: 4 },
-  heroSub:         { fontWeight: '400', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
-  card:            { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  cardBanner:      { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardBannerTitle: { fontWeight: '700', fontSize: 16, color: '#fff', flex: 1 },
-  openBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  dot:             { width: 7, height: 7, borderRadius: 4 },
-  openBadgeText:   { fontWeight: '600', fontSize: 11, color: '#fff' },
-  infoRow:         { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  infoText:        { fontWeight: '400', fontSize: 13, flex: 1, lineHeight: 18 },
-  serviceChip:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  serviceText:     { fontWeight: '500', fontSize: 11 },
-  notes:           { fontWeight: '400', fontSize: 12, fontStyle: 'italic' },
-  actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  actionBtnText:   { fontWeight: '600', fontSize: 13, color: '#1493FF' },
-});
-
-}
-
-}
-
 }

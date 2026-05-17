@@ -17,6 +17,7 @@ function getGradient(p: ApiProduct): [string, string] {
 }
 function getPrice(p: ApiProduct): number {
   return (p.prices?.[0]?.unit_amount ?? 0) / 100;
+}
 export default function FavouritesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -136,6 +137,7 @@ export default function FavouritesScreen() {
       )}
     </View>
   );
+}
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
@@ -147,7 +149,3 @@ const styles = StyleSheet.create({
   heartBtn: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   addBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });
-
-}
-
-}

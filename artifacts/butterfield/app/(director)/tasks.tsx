@@ -41,14 +41,13 @@ export default function StaffTasksScreen() {
     queryFn: () => api.staff.tasks(activeCat),
     retry: 1,
   });
-
-  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchWastage);
-
   const { data: wastageData, refetch: refetchWastage } = useQuery({
     queryKey: ['staff-wastage'],
     queryFn: () => api.staff.wastage(),
     enabled: tab === 'wastage',
   });
+
+  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchWastage);
   const tasks = tasksData?.data ?? [];
   const wastageList = wastageData?.data ?? [];
   const [wastageForm, setWastageForm] = useState({ productName: '', quantity: '', unit: 'units', reason: '' });

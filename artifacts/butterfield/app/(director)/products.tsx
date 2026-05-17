@@ -590,8 +590,8 @@ function ProductModal({
                       </Text>
                     </>
                   )}
-              )}
               </Pressable>
+              )}
               <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 4 }} />
               {/* Gallery */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
@@ -629,13 +629,13 @@ function ProductModal({
                         >
                           <Feather name="x" size={14} color="#fff" />
                         </Pressable>
+                      </View>
                     ) : null}
                   </View>
                 ))
               )}
-            {/* close core tab fragment */}
             </>}
-                TAB 2 — STATUS: All visibility / sale toggles
+            {/* TAB 2 — STATUS: All visibility / sale toggles */}
             {modalTab === 'status' && <>
               <SectionHeader title="Sale & Visibility" icon="eye" color={GREEN} />
               <Toggle label="Available for sale"    value={f.isAvailable}          onChange={v => upd('isAvailable', v)}          color={GREEN}  desc="Show this product to customers" />
@@ -735,18 +735,21 @@ function ProductModal({
                   {DAYS_LIST.map(d => (
                     <TagChip key={d} label={d} active={f.availableDays.includes(d)} color={BLUE} onPress={() => toggleArr('availableDays', d)} />
                   ))}
+                </View>
               </Field>
               <Field label="Available Times">
                 <TextF value={f.availableTimes} onChange={v => upd('availableTimes', v)} placeholder="e.g. 07:00-15:00" />
               </Field>
             </>}
             {editing && initial?.id && <VariantsCard productId={initial.id} />}
+          </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 // ─── Category list sub-screen ──────────────────────────────────────────────────
 function CatalogTab() {
+  const qc = useQueryClient();
   const [catModal, setCatModal] = useState(false);
   const [editCat, setEditCat] = useState<any>(null);
   const [catName, setCatName] = useState('');
@@ -838,6 +841,7 @@ function CatalogTab() {
             <Pressable onPress={() => deleteCat(c)} style={{ padding: 8 }} hitSlop={4}>
               <Feather name="trash-2" size={16} color={RED} />
             </Pressable>
+          </View>
         )}
       />
       {/* FAB */}
@@ -847,31 +851,38 @@ function CatalogTab() {
       </Pressable>
       {/* Category modal */}
       <Modal visible={catModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setCatModal(false)}>
+        <View style={{ flex: 1 }}>
+          <View style={modal.header}>
             <Pressable onPress={() => setCatModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editCat ? 'Edit Category' : 'New Category'}</Text>
             <Pressable onPress={saveCat} style={[modal.saveBtn, { backgroundColor: catSaving ? MUTED : NAVY }]} disabled={catSaving}>
               <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{catSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
-              <Field label="Name" required>
-                <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-              <Field label="Slug (URL key)">
-                <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} autoCapitalize="none" />
-              </Field>
-              <Field label="Description">
-                <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
-              </Field>
-              <Field label="Sort Order">
-                <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-              <Toggle label="Visible to customers" value={catShowPublic} onChange={setCatShowPublic} color={GREEN} desc="Show in the customer ordering portal and menu" />
-              <Toggle label="Visible to wholesale" value={catShowWholesale} onChange={setCatShowWholesale} color={BLUE} desc="Show in the wholesale product catalog" />
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
+            <Field label="Name" required>
+              <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+            </Field>
+            <Field label="Slug (URL key)">
+              <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} autoCapitalize="none" />
+            </Field>
+            <Field label="Description">
+              <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
+            </Field>
+            <Field label="Sort Order">
+              <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+            </Field>
+            <Toggle label="Visible to customers" value={catShowPublic} onChange={setCatShowPublic} color={GREEN} desc="Show in the customer ordering portal and menu" />
+            <Toggle label="Visible to wholesale" value={catShowWholesale} onChange={setCatShowWholesale} color={BLUE} desc="Show in the wholesale product catalog" />
+          </ScrollView>
+        </View>
       </Modal>
     </View>
   );
 }
 // ─── Option Groups sub-screen ──────────────────────────────────────────────────
 function OptionsTab() {
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: AMBER };
   // ── Group CRUD state ────────────────────────────────────────────────────────
@@ -1132,6 +1143,7 @@ function OptionsTab() {
 }
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorProductsScreen() {
+  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'options'>('products');
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');

@@ -38,6 +38,7 @@ function iconForLabel(label: string): string {
 function formatAddress(a: SavedAddress): string {
   const apt = a.apt ? `${a.apt}/` : '';
   return `${apt}${a.street}, ${a.suburb} ${a.state} ${a.postcode}`;
+}
 const BLANK = { label: 'Home', street: '', apt: '', suburb: '', postcode: '', state: 'NSW', isDefault: false };
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
@@ -80,6 +81,7 @@ export default function AddressesScreen() {
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Could not save address.');
     } finally { setSaving(false); }
+  };
   const handleDelete = (addr: SavedAddress) => {
     Alert.alert(`Remove "${addr.label}"?`, 'This address will be deleted.', [
       { text: 'Cancel', style: 'cancel' },
@@ -162,6 +164,7 @@ export default function AddressesScreen() {
       </SwipeDownSheet>
     </View>
   );
+}
 const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   backBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
@@ -210,9 +213,3 @@ const s = StyleSheet.create({
   saveBtn: { flex: 2, alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderRadius: 30 },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });
-
-}
-
-}
-
-}

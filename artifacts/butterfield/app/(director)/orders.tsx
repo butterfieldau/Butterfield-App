@@ -377,6 +377,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
 }
 // ── Order Card (compact list item) ───────────────────────────────────────────
 function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
+  const isWholesale = order.orderSource === 'wholesale';
+  const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
+  const label = STATUS_LABEL[order.status] ?? order.status;
   const items  = Array.isArray(order.items) ? order.items : [];
   const itemSummary = items.slice(0, 3).map((it: any) => {
     const name = it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item';

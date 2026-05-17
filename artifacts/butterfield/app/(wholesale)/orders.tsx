@@ -205,6 +205,7 @@ function InvoiceDetailModal({
   invoice: Invoice | null; lines: InvoiceLine[]; account: any; defCard: any;
   onClose: () => void; onPdf: (inv: Invoice) => void; onPay: (inv: Invoice) => void; pdfLoading: boolean;
 }) {
+  const insets    = useSafeAreaInsets();
   if (!invoice) return null;
   const subtotal  = invoice.amount;
   const gst       = subtotal / 11;
@@ -411,6 +412,7 @@ export default function WholesaleOrdersScreen() {
         onPdf={handleDownload}
         onPay={handlePay}
         pdfLoading={loadingId === selectedInvoice?.id}
+      />
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <LinearGradient
         colors={['#1A2B4A', '#253B5E']}
@@ -420,9 +422,11 @@ export default function WholesaleOrdersScreen() {
         {/* Sub-tab switcher */}
         <View style={st.segmentRow}>
           {(['orders', 'invoices'] as const).map(tab => (
+            <Pressable
               key={tab}
               onPress={() => { setSubtab(tab); Haptics.selectionAsync(); }}
               style={[st.segmentBtn, subtab === tab && st.segmentBtnActive]}
+            >
               <Feather
                 name={tab === 'orders' ? 'file-text' : 'dollar-sign'}
                 size={13}
@@ -431,7 +435,9 @@ export default function WholesaleOrdersScreen() {
               <Text style={[st.segmentLabel, subtab === tab && st.segmentLabelActive]}>
                 {tab === 'orders' ? 'Orders' : 'Invoices'}
               </Text>
+            </Pressable>
           ))}
+        </View>
         {/* Context row below segment */}
         {subtab === 'orders' ? (
           <>
@@ -456,28 +462,35 @@ export default function WholesaleOrdersScreen() {
                   >
                     <Text style={{ color: active ? (isOvdFilter ? RED : BLUE) : 'rgba(255,255,255,0.85)', fontWeight: '600', fontSize: 12 }}>
                       {FILTER_LABELS[f] ?? f}{isOvdFilter && overdueCount > 0 ? ` (${overdueCount})` : ''}
+                    </Text>
                   </Pressable>
                 );
               }}
             />
           </>
         ) : (
+          <>
             <Text style={st.headerTitle}>Invoices</Text>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <View style={[st.statCard, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' }]}>
                 <Text style={[st.statLabel, { color: 'rgba(255,255,255,0.8)' }]}>OUTSTANDING</Text>
                 <Text style={[st.statValue, { color: '#fff' }]}>${totalPending.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
+              </View>
               {invOverdueCount > 0 && (
                 <View style={[st.statCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
                   <Text style={[st.statLabel, { color: '#991B1B' }]}>OVERDUE</Text>
                   <Text style={[st.statValue, { color: '#991B1B' }]}>{invOverdueCount} invoice{invOverdueCount !== 1 ? 's' : ''}</Text>
+                </View>
               )}
+            </View>
+          </>
         )}
       </LinearGradient>
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subtab === 'orders' ? (
         isLoading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
+        ) : (
           <FlatList
             data={orders}
             keyExtractor={(o: any) => o.id}
@@ -489,12 +502,14 @@ export default function WholesaleOrdersScreen() {
                 <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14, textAlign: 'center' }}>
                   {filter === 'Overdue' ? 'No overdue orders.' : 'No orders yet.\nBrowse the catalog to place your first order.'}
                 </Text>
+              </View>
             }
             renderItem={({ item: order }: { item: any }) => {
               const cfg = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
               const items = Array.isArray(order.items) ? order.items : [];
               const stepIdx = STATUS_STEPS.indexOf(order.status);
               const overdue = isOverdue(order);
+              return (
                 <Pressable
                   onPress={() => { setSelectedOrder(order); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
                   style={[st.orderCard, { backgroundColor: CARD, borderLeftColor: overdue ? RED : cfg.color }]}
@@ -506,6 +521,7 @@ export default function WholesaleOrdersScreen() {
                       </Text>
                       <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, marginTop: 2 }}>
                         {new Date(order.createdAt).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                      </Text>
                       {overdue && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                           <Feather name="alert-circle" size={11} color={RED} />
@@ -518,11 +534,14 @@ export default function WholesaleOrdersScreen() {
                         <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 11 }}>{cfg.label}</Text>
                       </View>
                       <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${(order.totalCents / 100).toFixed(2)}</Text>
+                    </View>
+                  </View>
                   {stepIdx >= 0 && (
                     <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
                       {STATUS_STEPS.map((step, i) => (
                         <View key={step} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i <= stepIdx ? cfg.color : BORDER }} />
                       ))}
+                    </View>
                   )}
                   <View style={{ gap: 2, marginTop: 8 }}>
                     {items.slice(0, 2).map((item: any, i: number) => {
@@ -533,11 +552,13 @@ export default function WholesaleOrdersScreen() {
                         <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                           <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12, flex: 1 }}>{qty}× {name}</Text>
                           <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
+                        </View>
                       );
                     })}
                     {items.length > 2 && (
                       <Text style={{ color: BLUE, fontWeight: '400', fontSize: 11, marginTop: 2 }}>+{items.length - 2} more — tap to view all</Text>
                     )}
+                  </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                     {order.scheduledDate ? (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -545,11 +566,15 @@ export default function WholesaleOrdersScreen() {
                         <Text style={{ color: overdue ? RED : MUTED, fontWeight: '400', fontSize: 11 }}>
                           {order.deliveryType === 'pickup' ? 'Pickup' : 'Delivery'} · {new Date(order.scheduledDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
                         </Text>
+                      </View>
                     ) : <View />}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                       <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11 }}>Details</Text>
                       <Feather name="chevron-right" size={12} color={BLUE} />
+                    </View>
+                  </View>
                 </Pressable>
+              );
             }}
           />
         )
@@ -568,25 +593,36 @@ export default function WholesaleOrdersScreen() {
                   <Feather name="file-text" size={40} color={MUTED} />
                   <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14 }}>No invoices yet</Text>
                   <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Your invoices appear here once you place orders</Text>
+                </View>
               )
           }
           ListHeaderComponent={
+            <Pressable
               onPress={() => router.push('/(wholesale)/profile' as any)}
               style={st.payMethod}
+            >
               {defCard ? (
                 <>
                   <View style={[st.payIcon, { backgroundColor: BRAND_BG[defCard.cardBrand] ?? '#1A3A8C' }]}>
                     <Feather name="credit-card" size={14} color="#fff" />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={st.payLabel}>Payment Method</Text>
                     <Text style={st.payValue}>{defCard.cardBrand} •••• {defCard.last4}</Text>
+                  </View>
                   <Text style={{ color: BLUE, fontWeight: '600', fontSize: 12 }}>Manage</Text>
                   <Feather name="chevron-right" size={15} color={MUTED} />
                 </>
               ) : (
+                <>
                   <View style={[st.payIcon, { backgroundColor: '#E0F5FE' }]}>
                     <Feather name="plus" size={14} color={BLUE} />
-                    <Text style={[st.payValue, { color: BLUE }]}>Add a card to pay invoices</Text>
+                  </View>
+                  <Text style={[st.payValue, { color: BLUE }]}>Add a card to pay invoices</Text>
+                </>
+              )}
+            </Pressable>
+          }
           renderItem={({ item: invoice }) => {
             const isPdfLoading = loadingId === invoice.id;
             const isOvd        = invoice.status === 'overdue';
@@ -597,29 +633,36 @@ export default function WholesaleOrdersScreen() {
                 style={({ pressed }) => [st.invoiceCard, { borderLeftColor: isOvd ? RED : BLUE, opacity: pressed ? 0.92 : 1 }]}
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
                     <Text style={st.invoiceNum}>{invoice.number}</Text>
                     <Text style={st.invoiceMeta}>{invoice.date} · {lineCount} line{lineCount !== 1 ? 's' : ''}</Text>
                     <Text style={[st.invoiceDue, isOvd && { color: RED }]}>Due {invoice.dueDate}</Text>
+                  </View>
                   <View style={{ alignItems: 'flex-end', gap: 6 }}>
                     <InvoiceStatusBadge status={invoice.status} />
                     <Text style={st.invoiceAmount}>${invoice.amount.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
+                  </View>
+                </View>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                  <Pressable
                     onPress={(e) => { e.stopPropagation?.(); handleDownload(invoice); }}
                     disabled={isPdfLoading}
                     style={[st.actionBtn, st.actionGhost, { opacity: isPdfLoading ? 0.7 : 1, flex: invoice.status !== 'paid' ? 1 : 2 }]}
+                  >
                     {isPdfLoading ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="download" size={13} color={BLUE} />}
                     <Text style={st.actionGhostText}>{isPdfLoading ? 'Saving…' : 'PDF'}</Text>
+                  </Pressable>
                   {invoice.status !== 'paid' && (
                     <Pressable onPress={(e) => { e.stopPropagation?.(); handlePay(invoice); }} style={[st.actionBtn, st.actionPrimary]}>
                       <Feather name="credit-card" size={13} color="#fff" />
                       <Text style={st.actionPrimaryText}>{defCard ? `Pay •${defCard.last4}` : 'Pay'}</Text>
                     </Pressable>
+                  )}
+                </View>
+              </Pressable>
             );
           }}
         />
-      )}
-          )}
-        }
       )}
     </View>
   );

@@ -29,6 +29,7 @@ import { type ApiProduct } from '@/lib/api';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 
 const BLUE_TOP = '#1493FF';
 const BLUE_BTM = '#3CBBEE';

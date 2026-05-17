@@ -596,7 +596,7 @@ export default function DirectorStoresScreen() {
         store={editingStore}
         visible={showEditor}
         onClose={() => setShowEditor(false)}
-        onSaved={handleRefresh}
+        onSaved={onRefreshStores}
       />
     </View>
   );

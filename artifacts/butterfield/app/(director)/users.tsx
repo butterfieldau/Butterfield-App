@@ -254,6 +254,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   {sp?.employeeId ? (
                     <Text style={sp_s.empId}>Employee ID: {sp.employeeId}</Text>
                   ) : null}
+                </View>
               </View>
               {/* ── Clock in / out button ────────────────────────────── */}
               <Pressable
@@ -308,6 +309,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                           placeholder={label} placeholderTextColor={MUTED}
                           keyboardType={kbType as any} autoCapitalize={cap} />
                       </View>
+                    </View>
                   ))}
                   <Text style={[sp_s.sectionLabel, { marginTop: 16 }]}>ADDRESS</Text>
                   <View style={sp_s.fieldWrap}>
@@ -358,6 +360,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                       : <Text style={sp_s.saveBtnText}>Save Changes</Text>
                     }
                   </Pressable>
+                </View>
               )}
               {/* ── Info summary (read mode) ─────────────────────────── */}
               {!editing && (
@@ -956,6 +959,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <Text style={wdl.sectionLabel}>CARDS ON FILE</Text>
               {cardsLoading && <ActivityIndicator size="small" color={BLUE} />}
+            </View>
             {!cardsLoading && cards.length === 0 && (
               <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>No cards saved by this account yet.</Text>
             )}
@@ -1050,6 +1054,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
     setAbn(''); setPhone(''); setPosition('Crew'); setDepartment('floor');
     setEmploymentStatus('casual'); setHourlyRate(''); setAddress(''); setTfn('');
     setIsManager(false); setError(''); setLoading(false);
+  };
   const handleClose = () => { reset(); onClose(); };
   const handleSubmit = async () => {
     setError('');
@@ -1063,6 +1068,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
       setError('Password must be at least 8 characters.'); return;
     }
     setLoading(true);
+    try {
       if (type === 'staff') {
         const rateVal = hourlyRate.trim() ? Math.round(parseFloat(hourlyRate) * 100) : undefined;
         await api.director.createStaff({
@@ -1201,6 +1207,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
   );
 }
 export default function DirectorUsersScreen() {
+  const qc = useQueryClient();
   const [tab, setTab] = useState('Customers');
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
@@ -1374,6 +1381,7 @@ export default function DirectorUsersScreen() {
         visible={!!selectedStaffId}
         userId={selectedStaffId}
         onClose={() => setSelectedStaffId(null)}
+        onRefresh={handleRefreshUsers}
         onDelete={() => { setSelectedStaffId(null); handleRefreshUsers(); }}
       />
     </View>

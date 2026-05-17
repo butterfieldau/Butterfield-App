@@ -54,7 +54,7 @@ function fmtDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 function fmtDateTime(iso: string | null | undefined) {
-  return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso ?? '').toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 function locationStr(suburb?: string | null, state?: string | null) {
   if (suburb && state) return `${suburb} ${state}, Australia`;
@@ -171,6 +171,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
         catch (e: any) { Alert.alert('Error', e.message); }
       }},
     ]);
+  };
   const toggleMarketing = async (val: boolean) => {
     if (!customer) return;
     setTogglingMarketing(true);
@@ -253,7 +254,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 Alert.alert(
                   'Delete Customer',
                   `Permanently delete ${customer.name}?\n\nAll orders, loyalty points, and login access will be removed. This cannot be undone.`,
-                    { text: 'Delete', style: 'destructive', onPress: async () => {
+                  [{ text: 'Delete', style: 'destructive', onPress: async () => {
                       try {
                         await api.director.deleteUser(customerId);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -261,7 +262,8 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                         onDelete?.();
                       } catch (e: any) { Alert.alert('Error', e.message); }
                     }},
-                )
+                    { text: 'Cancel', style: 'cancel' },
+                  ])
               },
               { text: 'Cancel', style: 'cancel' },
             ])}
@@ -712,4 +714,3 @@ const det = StyleSheet.create({
   orderRow:     { paddingVertical: 14 },
   statusPill:   { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
 });
-}
