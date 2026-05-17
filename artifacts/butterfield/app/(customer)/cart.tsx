@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -167,12 +167,29 @@ function PaymentStepWithStripe({
   const [validatingDiscount, setValidatingDiscount] = useState(false);
   const [busy, setBusy] = useState(false);
   const [selectedClaimedRewardId, setSelectedClaimedRewardId] = useState<string | null>(null);
+  const selectedRewardRef = useRef<string | null>(null);
+  const qc = useQueryClient();
 
   const { data: claimedRewardsData } = useQuery({
     queryKey: ['loyalty-claimed-rewards'],
     queryFn: () => api.loyalty.claimedRewards(),
   });
   const claimedRewards: ClaimedReward[] = claimedRewardsData?.data ?? [];
+
+  // Keep ref in sync for cleanup on unmount
+  useEffect(() => {
+    selectedRewardRef.current = selectedClaimedRewardId;
+  }, [selectedClaimedRewardId]);
+
+  // Unapply any applied reward when the payment step unmounts (abandoned checkout)
+  useEffect(() => {
+    return () => {
+      if (selectedRewardRef.current) {
+        api.loyalty.unapplyClaim(selectedRewardRef.current).catch(() => {});
+        selectedRewardRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -190,6 +207,23 @@ function PaymentStepWithStripe({
       setSelectedClaimedRewardId(null);
     }
   }, [claimedRewards, selectedClaimedRewardId]);
+
+  // Apply/unapply reward on the server to track cart state
+  const handleSelectReward = async (claimId: string | null) => {
+    const prev = selectedClaimedRewardId;
+    if (prev === claimId) return;
+
+    if (prev) {
+      // Unapply the previously selected reward
+      api.loyalty.unapplyClaim(prev).catch(() => {});
+    }
+    if (claimId) {
+      // Apply the newly selected reward (best-effort, non-blocking)
+      api.loyalty.applyClaim(claimId).catch(() => {});
+    }
+    setSelectedClaimedRewardId(claimId);
+    qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
+  };
 
   const selectedClaimed = claimedRewards.find(c => c.id === selectedClaimedRewardId) ?? null;
   const claimedRewardDiscountCents = selectedClaimed?.rewardType === 'money_voucher'
@@ -392,7 +426,7 @@ function PaymentStepWithStripe({
                   key={c.id}
                   onPress={() => {
                     Haptics.selectionAsync();
-                    setSelectedClaimedRewardId(isSelected ? null : c.id);
+                    handleSelectReward(isSelected ? null : c.id);
                   }}
                   style={[
                     psStyles.methodRow,

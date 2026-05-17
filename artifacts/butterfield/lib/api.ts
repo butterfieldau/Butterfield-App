@@ -127,6 +127,10 @@ export const api = {
       request<{ data: ClaimedReward[] }>('/loyalty/claimed-rewards'),
     cancelClaim: (claimId: string) =>
       request<{ success: boolean; pointsRestored: number }>(`/loyalty/claimed-rewards/${claimId}`, { method: 'DELETE' }),
+    applyClaim: (claimId: string) =>
+      request<{ success: boolean }>(`/loyalty/claimed-rewards/${claimId}/apply`, { method: 'POST' }),
+    unapplyClaim: (claimId: string) =>
+      request<{ success: boolean }>(`/loyalty/claimed-rewards/${claimId}/unapply`, { method: 'POST' }),
     updateBirthday: (birthday: string) =>
       request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },

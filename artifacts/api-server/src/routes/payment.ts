@@ -3,7 +3,7 @@ import { requireAuth } from '../middlewares/auth.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { db, claimedRewardsTable, loyaltyRewardsTable } from '@workspace/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 const router = Router();
 
@@ -40,14 +40,15 @@ router.post('/payment-intent', async (req, res) => {
   let totalDiscountCents = 0;
   let validatedDiscountCode: string | null = null;
   let rewardDiscountCents = 0;
-  let enrichedItems = [...items];
+  // Strip any client-supplied isFreeReward flags — only the server may set this
+  let enrichedItems = (items as any[]).map(({ isFreeReward: _f, ...rest }: any) => rest);
 
   // ── Validate claimed reward and apply its effect to pricing ───────────────
   if (claimedRewardId && typeof claimedRewardId === 'string') {
     const claimRows = await db.select().from(claimedRewardsTable)
       .where(and(
         eq(claimedRewardsTable.userId, req.user!.id),
-        eq(claimedRewardsTable.status, 'available'),
+        inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
       ));
     const claimedRow = claimRows.find(r => r.id === claimedRewardId);
 

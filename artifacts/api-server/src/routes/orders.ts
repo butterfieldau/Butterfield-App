@@ -37,7 +37,8 @@ router.post('/', async (req, res) => {
     claimedRewardId,
   } = req.body;
 
-  let items = rawItems;
+  // Strip any client-supplied isFreeReward flags — only the server may inject this after validating a claim
+  const items: any[] = (rawItems ?? []).map(({ isFreeReward: _f, ...rest }: any) => rest);
 
   if (!items?.length) {
     return res.status(400).json({ error: 'Items are required' });
@@ -82,7 +83,7 @@ router.post('/', async (req, res) => {
       .where(and(
         eq(claimedRewardsTable.id, claimedRewardId),
         eq(claimedRewardsTable.userId, req.user!.id),
-        eq(claimedRewardsTable.status, 'available'),
+        inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
       ));
 
     if (!claimedRow) {
@@ -100,9 +101,8 @@ router.post('/', async (req, res) => {
     if (rewardType === 'money_voucher') {
       claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
     } else if (rewardType === 'item_reward' && linkedProductId) {
-      // Add the free item to the cart with zero price
-      const freeItem = { productId: linkedProductId, quantity: 1, unitPriceCents: 0, isFreeReward: true };
-      items = [...(items ?? []), freeItem];
+      // Server injects the free item — isFreeReward flag set server-side only
+      items.push({ productId: linkedProductId, quantity: 1, isFreeReward: true });
     }
 
     claimedRewardData = { id: claimedRow.id, rewardType, linkedProductId, voucherValueCents: claimedRow.voucherValueCents };
@@ -243,13 +243,20 @@ router.post('/', async (req, res) => {
     throw err;
   }
 
-  // ── Mark claimed reward as redeemed ───────────────────────────────────────
-  // Reward is consumed when the order is successfully placed, regardless of payment method.
+  // ── Mark claimed reward as redeemed (atomic status guard prevents double-use) ─
+  // Reward is consumed when the order is placed, regardless of payment method.
   if (claimedRewardData) {
     try {
-      await db.update(claimedRewardsTable)
+      const redeemResult = await db.update(claimedRewardsTable)
         .set({ status: 'redeemed', redeemedAt: new Date(), orderId })
-        .where(eq(claimedRewardsTable.id, claimedRewardData.id));
+        .where(and(
+          eq(claimedRewardsTable.id, claimedRewardData.id),
+          inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+        ))
+        .returning({ id: claimedRewardsTable.id });
+      if (redeemResult.length === 0) {
+        req.log.warn({ orderId, claimedRewardId: claimedRewardData.id }, 'Claimed reward already consumed — possible concurrent request');
+      }
     } catch (err: any) {
       req.log.error({ err, orderId, claimedRewardId: claimedRewardData.id }, 'Failed to mark claimed reward as redeemed');
     }
@@ -375,6 +382,20 @@ router.patch(
     if (order && msg) {
       notifyUser(order.userId, 'order_status', 'Butterfield Cookies', msg,
         { orderId: order.id, status, screen: '/(customer)/orders' }).catch(() => {});
+    }
+
+    // ── On cancellation: restore any associated claimed reward so customer can reuse ──
+    if (status === 'cancelled' && order) {
+      try {
+        await db.update(claimedRewardsTable)
+          .set({ status: 'available', redeemedAt: null, orderId: null })
+          .where(and(
+            eq(claimedRewardsTable.orderId, order.id),
+            eq(claimedRewardsTable.status, 'redeemed'),
+          ));
+      } catch (err: any) {
+        req.log.error({ err, orderId: order.id }, 'Failed to restore claimed reward on order cancellation');
+      }
     }
 
     return res.json({ data: order });

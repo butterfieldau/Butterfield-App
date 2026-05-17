@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
-import { eq, desc, and, isNull, sql } from 'drizzle-orm';
+import { eq, desc, and, isNull, sql, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
   applyCoffeeStamps,
@@ -99,7 +99,7 @@ router.get('/rewards', async (_req, res) => {
   return res.json({ data: rewards });
 });
 
-// ── GET /loyalty/claimed-rewards — customer's unclaimed/available rewards ─────
+// ── GET /loyalty/claimed-rewards — customer's active claims (available + applied_to_cart) ──
 router.get('/claimed-rewards', requireAuth, async (req, res) => {
   const claimed = await db
     .select({
@@ -120,11 +120,60 @@ router.get('/claimed-rewards', requireAuth, async (req, res) => {
     .leftJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
     .where(and(
       eq(claimedRewardsTable.userId, req.user!.id),
-      eq(claimedRewardsTable.status, 'available'),
+      inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
     ))
     .orderBy(desc(claimedRewardsTable.claimedAt));
 
   return res.json({ data: claimed });
+});
+
+// ── POST /loyalty/claimed-rewards/:id/apply — mark claim as applied to cart ──
+// Idempotent: if already applied_to_cart, returns success.
+router.post('/claimed-rewards/:id/apply', requireAuth, async (req, res) => {
+  const claimId = String(req.params.id);
+  const userId  = req.user!.id;
+
+  // First check if it already exists at all and is owned by this user
+  const [existing] = await db
+    .select({ status: claimedRewardsTable.status })
+    .from(claimedRewardsTable)
+    .where(and(eq(claimedRewardsTable.id, claimId), eq(claimedRewardsTable.userId, userId)));
+
+  if (!existing) return res.status(404).json({ error: 'Claimed reward not found' });
+  if (existing.status === 'applied_to_cart') return res.json({ success: true }); // idempotent
+  if (existing.status !== 'available') {
+    return res.status(409).json({ error: `Cannot apply a reward with status: ${existing.status}` });
+  }
+
+  // Atomic conditional update — only transitions from 'available'
+  await db.execute(
+    sql`UPDATE claimed_rewards SET status='applied_to_cart' WHERE id=${claimId} AND user_id=${userId} AND status='available'`
+  );
+  return res.json({ success: true });
+});
+
+// ── POST /loyalty/claimed-rewards/:id/unapply — revert claim back to available ──
+// Idempotent: if already available, returns success.
+router.post('/claimed-rewards/:id/unapply', requireAuth, async (req, res) => {
+  const claimId = String(req.params.id);
+  const userId  = req.user!.id;
+
+  const [existing] = await db
+    .select({ status: claimedRewardsTable.status })
+    .from(claimedRewardsTable)
+    .where(and(eq(claimedRewardsTable.id, claimId), eq(claimedRewardsTable.userId, userId)));
+
+  if (!existing) return res.status(404).json({ error: 'Claimed reward not found' });
+  if (existing.status === 'available') return res.json({ success: true }); // idempotent
+  if (existing.status !== 'applied_to_cart') {
+    return res.status(409).json({ error: `Cannot unapply a reward with status: ${existing.status}` });
+  }
+
+  // Atomic conditional update — only transitions from 'applied_to_cart'
+  await db.execute(
+    sql`UPDATE claimed_rewards SET status='available' WHERE id=${claimId} AND user_id=${userId} AND status='applied_to_cart'`
+  );
+  return res.json({ success: true });
 });
 
 // ── POST /loyalty/redeem — claim a reward (deducts points, creates claimed_rewards row) ──
@@ -190,7 +239,7 @@ router.delete('/claimed-rewards/:id', requireAuth, async (req, res) => {
   const claimRows = await db.select().from(claimedRewardsTable)
     .where(and(
       eq(claimedRewardsTable.userId, claimUserId),
-      eq(claimedRewardsTable.status, 'available'),
+      inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
     ))
     .limit(50);
   const [claimed] = claimRows.filter(r => r.id === req.params.id);
