@@ -3,6 +3,7 @@ import { db, stockItemsTable } from '@workspace/db';
 import { eq, asc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { requireRole } from '../middlewares/auth.js';
+import { sendNotification } from '../lib/notificationService.js';
 
 const router = Router();
 
@@ -91,8 +92,9 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
   const { id } = req.params;
   const fullAccess = canEditAll(req.user!.role);
 
+  // Fetch the full row so we can detect threshold crossings after update
   const [existing] = await db
-    .select({ id: stockItemsTable.id })
+    .select()
     .from(stockItemsTable)
     .where(eq(stockItemsTable.id, id));
 
@@ -131,6 +133,36 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
   await db.update(stockItemsTable).set(updates as any).where(eq(stockItemsTable.id, id));
 
   const [updated] = await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, id));
+
+  // ── Low-stock push notification (fire-and-forget) ─────────────────────────
+  // Only notify when quantity actually changed and threshold is configured
+  if (updates.currentQuantity !== undefined && existing.lowStockThreshold > 0) {
+    const oldQty = existing.currentQuantity;
+    const newQty = updated.currentQuantity;
+    const threshold = updated.lowStockThreshold;
+    const itemName = updated.name;
+
+    // Out of stock: quantity just hit zero
+    if (newQty <= 0 && oldQty > 0) {
+      sendNotification({
+        roles: ['director', 'master'],
+        type: 'stock_out',
+        title: '🚨 Out of Stock',
+        body: `${itemName} is now out of stock. Reorder immediately.`,
+        data: { stockItemId: id, name: itemName, quantity: newQty },
+      }).catch(() => {});
+    // Low stock: just crossed below the threshold (but not already zero)
+    } else if (newQty > 0 && newQty <= threshold && oldQty > threshold) {
+      sendNotification({
+        roles: ['director', 'master'],
+        type: 'stock_low',
+        title: '⚠️ Low Stock Alert',
+        body: `${itemName} is running low — only ${newQty} ${updated.unit} remaining.`,
+        data: { stockItemId: id, name: itemName, quantity: newQty, threshold },
+      }).catch(() => {});
+    }
+  }
+
   if (fullAccess) {
     res.json({ data: updated });
   } else {

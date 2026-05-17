@@ -133,7 +133,7 @@ export default function MoreScreen() {
       contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[s.header, { paddingTop: insets.top > 0 ? insets.top + 8 : 20 }]}>
+      <View style={[s.header, { paddingTop: 20 }]}>
         <Text style={s.headerTitle}>More</Text>
         <Text style={s.headerSub}>Tools, settings & configuration</Text>
       </View>

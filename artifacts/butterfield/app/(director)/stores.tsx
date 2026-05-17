@@ -554,7 +554,7 @@ export default function DirectorStoresScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Header */}
-      <View style={[s.header, { paddingTop: insets.top > 0 ? insets.top + 8 : 20 }]}>
+      <View style={[s.header, { paddingTop: 20 }]}>
         <View>
           <Text style={s.headerTitle}>Store Locations</Text>
           <Text style={s.headerSub}>{stores.length} location{stores.length !== 1 ? 's' : ''} configured</Text>
