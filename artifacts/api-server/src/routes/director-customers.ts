@@ -169,7 +169,7 @@ router.get('/customers', async (req, res) => {
 router.get('/customers/:id', async (req, res) => {
   const { id } = req.params;
 
-  const [[user], profile, orders, waList, addresses, notes, badges, loyaltyTxns] = await Promise.all([
+  const [[user], profile, orders, waList, addresses, notes, badges, loyaltyTxns, loyaltyAgg] = await Promise.all([
     db.select().from(usersTable).where(eq(usersTable.id, id)),
     db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, id)),
     db.select().from(ordersTable).where(eq(ordersTable.userId, id)).orderBy(desc(ordersTable.createdAt)).limit(50),
@@ -178,6 +178,13 @@ router.get('/customers/:id', async (req, res) => {
     db.select().from(customerNotesTable).where(eq(customerNotesTable.userId, id)).orderBy(desc(customerNotesTable.createdAt)),
     db.select().from(customerBadgesTable).where(eq(customerBadgesTable.userId, id)),
     db.select().from(loyaltyTransactionsTable).where(eq(loyaltyTransactionsTable.userId, id)).orderBy(desc(loyaltyTransactionsTable.createdAt)).limit(20),
+    db.select({
+      type:  loyaltyTransactionsTable.type,
+      total: sql<number>`coalesce(sum(${loyaltyTransactionsTable.points}), 0)`,
+    })
+      .from(loyaltyTransactionsTable)
+      .where(eq(loyaltyTransactionsTable.userId, id))
+      .groupBy(loyaltyTransactionsTable.type),
   ]);
 
   if (!user) return res.status(404).json({ error: 'Customer not found.' });
@@ -206,8 +213,10 @@ router.get('/customers/:id', async (req, res) => {
   const manualList  = badges.map(b => b.badge);
   const allBadges   = [...new Set([...autoBadges, ...manualList])];
 
-  const totalEarnedPoints   = loyaltyTxns.filter(t => t.points > 0).reduce((s, t) => s + t.points, 0);
-  const totalRedeemedPoints = loyaltyTxns.filter(t => t.points < 0).reduce((s, t) => s + Math.abs(t.points), 0);
+  const earnTypes = ['earn', 'bonus', 'birthday_bonus', 'referral'];
+  const redeemTypes = ['redeem', 'expire'];
+  const totalEarnedPoints   = loyaltyAgg.filter(r => earnTypes.includes(r.type)).reduce((s, r) => s + Number(r.total), 0);
+  const totalRedeemedPoints = loyaltyAgg.filter(r => redeemTypes.includes(r.type)).reduce((s, r) => s + Math.abs(Number(r.total)), 0);
 
   return res.json({
     data: {

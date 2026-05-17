@@ -297,9 +297,16 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 return (
                   <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 14 }]}>
-                        {name}{variant ? ` · ${variant}` : ''}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 14 }]}>
+                          {name}{variant ? ` · ${variant}` : ''}
+                        </Text>
+                        {item.isFreeReward && (
+                          <View style={{ backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', letterSpacing: 0.5 }}>FREE</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
                         {qty} × ${(unit / 100).toFixed(2)}
                         {item.priceLabel ? ` · ${item.priceLabel}` : ''}

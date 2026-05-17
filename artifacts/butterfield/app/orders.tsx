@@ -243,10 +243,17 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                           <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{qty}</Text>
                         </View>
                         <View style={{ flex: 1, gap: 2 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>
-                            {item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item'}
-                            {variant ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${variant}`}</Text> : null}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>
+                              {item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item'}
+                              {variant ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${variant}`}</Text> : null}
+                            </Text>
+                            {item.isFreeReward && (
+                              <View style={{ backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', letterSpacing: 0.5 }}>FREE</Text>
+                              </View>
+                            )}
+                          </View>
                           {unitCents > 0 && (
                             <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                               ${(unitCents / 100).toFixed(2)} each
