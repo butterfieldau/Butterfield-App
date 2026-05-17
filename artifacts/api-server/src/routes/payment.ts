@@ -56,6 +56,14 @@ router.post('/payment-intent', async (req, res) => {
       return res.status(400).json({ error: 'Claimed reward not found or already used' });
     }
 
+    // Enforce expiry — atomically transition to expired and reject
+    if (claimedRow.expiresAt && claimedRow.expiresAt < new Date()) {
+      await db.execute(
+        sql`UPDATE claimed_rewards SET status='expired' WHERE id=${claimedRewardId} AND user_id=${req.user!.id} AND status IN ('available','applied_to_cart')`
+      );
+      return res.status(400).json({ error: 'This reward has expired' });
+    }
+
     const [rewardRow] = await db.select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId })
       .from(loyaltyRewardsTable)
       .where(eq(loyaltyRewardsTable.id, claimedRow.rewardId));

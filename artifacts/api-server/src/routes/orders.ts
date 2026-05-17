@@ -78,6 +78,7 @@ router.post('/', async (req, res) => {
         status: claimedRewardsTable.status,
         voucherValueCents: claimedRewardsTable.voucherValueCents,
         rewardId: claimedRewardsTable.rewardId,
+        expiresAt: claimedRewardsTable.expiresAt,
       })
       .from(claimedRewardsTable)
       .where(and(
@@ -88,6 +89,17 @@ router.post('/', async (req, res) => {
 
     if (!claimedRow) {
       return res.status(400).json({ error: 'Claimed reward not found or already used' });
+    }
+
+    // Enforce expiry — atomically transition to expired and reject
+    if (claimedRow.expiresAt && claimedRow.expiresAt < new Date()) {
+      await db.update(claimedRewardsTable)
+        .set({ status: 'expired' })
+        .where(and(
+          eq(claimedRewardsTable.id, claimedRow.id),
+          inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+        ));
+      return res.status(400).json({ error: 'This reward has expired' });
     }
 
     const [rewardRow] = await db

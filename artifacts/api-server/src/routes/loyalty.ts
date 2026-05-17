@@ -263,6 +263,18 @@ router.post('/redeem', requireAuth, async (req, res) => {
         description: `Claimed: ${reward.name}`,
         referenceId: claimId,
       });
+
+      // 5. Activity log — source of truth for /loyalty/transactions endpoint
+      await tx.insert(loyaltyActivityLogTable).values({
+        id: randomUUID(),
+        customerId: userId,
+        activityType: 'points_redeem',
+        pointsDelta: -reward.pointsCost,
+        coffeeStampsDelta: 0,
+        freeCoffeeRewardsDelta: 0,
+        description: `Claimed: ${reward.name}`,
+        orderId: null,
+      });
     });
   } catch (txErr: any) {
     const msg = String(txErr?.message ?? '');

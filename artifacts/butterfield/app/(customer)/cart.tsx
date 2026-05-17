@@ -168,6 +168,8 @@ function PaymentStepWithStripe({
   const [busy, setBusy] = useState(false);
   const [selectedClaimedRewardId, setSelectedClaimedRewardId] = useState<string | null>(null);
   const selectedRewardRef = useRef<string | null>(null);
+  const [freeRewardLine, setFreeRewardLine] = useState<{ productId: string; name: string } | null>(null);
+  const freeRewardLineRef = useRef<{ productId: string; name: string } | null>(null);
   const qc = useQueryClient();
 
   const { data: claimedRewardsData } = useQuery({
@@ -181,6 +183,11 @@ function PaymentStepWithStripe({
     selectedRewardRef.current = selectedClaimedRewardId;
   }, [selectedClaimedRewardId]);
 
+  // Keep freeRewardLineRef in sync so unmount cleanup can access current value
+  useEffect(() => {
+    freeRewardLineRef.current = freeRewardLine;
+  }, [freeRewardLine]);
+
   // Unapply any applied reward when the payment step unmounts (abandoned checkout)
   useEffect(() => {
     return () => {
@@ -188,6 +195,8 @@ function PaymentStepWithStripe({
         api.loyalty.unapplyClaim(selectedRewardRef.current).catch(() => {});
         selectedRewardRef.current = null;
       }
+      freeRewardLineRef.current = null;
+      setFreeRewardLine(null);
     };
   }, []);
 
@@ -213,13 +222,24 @@ function PaymentStepWithStripe({
     const prev = selectedClaimedRewardId;
     if (prev === claimId) return;
 
+    // Clear any previously injected free item line
+    setFreeRewardLine(null);
+
     if (prev) {
-      // Unapply the previously selected reward
       api.loyalty.unapplyClaim(prev).catch(() => {});
     }
     if (claimId) {
-      // Apply the newly selected reward (best-effort, non-blocking)
       api.loyalty.applyClaim(claimId).catch(() => {});
+
+      // If it's an item reward whose linked product is not already in cart,
+      // show a visible free item line so the customer sees what will be added.
+      const claim = claimedRewards.find(c => c.id === claimId);
+      if (claim?.rewardType === 'item_reward' && claim.linkedProductId != null) {
+        const alreadyInCart = items.some(i => i.productId === claim.linkedProductId);
+        if (!alreadyInCart) {
+          setFreeRewardLine({ productId: claim.linkedProductId, name: claim.rewardName ?? claim.linkedProductId });
+        }
+      }
     }
     setSelectedClaimedRewardId(claimId);
     qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
@@ -461,6 +481,26 @@ function PaymentStepWithStripe({
             })}
           </View>
         </>
+      )}
+
+      {freeRewardLine && (
+        <View style={{ marginBottom: 4 }}>
+          <Text style={[psStyles.sectionTitle, { marginTop: 0, marginBottom: 6 }]}>Added to order</Text>
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            backgroundColor: '#F0FFF4', borderRadius: 10, borderWidth: 1,
+            borderColor: '#BBF7D0', padding: 12,
+          }}>
+            <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="gift" size={18} color="#16A34A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534' }}>{freeRewardLine.name}</Text>
+              <Text style={{ fontSize: 11, color: '#15803D', marginTop: 1 }}>Qty: 1 — reward applied at checkout</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#16A34A' }}>Free</Text>
+          </View>
+        </View>
       )}
 
       <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Discount code</Text>
