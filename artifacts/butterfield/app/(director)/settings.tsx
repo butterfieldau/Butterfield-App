@@ -2027,19 +2027,14 @@ export default function DirectorSettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.tabBar, { borderBottomColor: BORDER }]}
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-around' }}
-      >
+      <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
         {(TABS as readonly string[]).map(t => (
           <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
             onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
             <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]} numberOfLines={1}>{t}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
       {tab === 'Store'     && <StoreTab />}
       {tab === 'Banner'    && <BannerTab />}
       {tab === 'Rewards'   && <RewardsTab />}
@@ -2054,8 +2049,8 @@ const styles = StyleSheet.create({
   center:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
   emptyText:     { fontSize: 14, fontWeight: '400', color: '#8E8E93' },
   tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1 },
-  tabBtn:        { paddingHorizontal: 14, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabText:       { fontSize: 13, fontWeight: '600' },
+  tabBtn:        { flex: 1, paddingHorizontal: 4, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabText:       { fontSize: 11, fontWeight: '600' },
   section:       { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 1.5, marginTop: 4 },
   card:          { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
   row:           { flexDirection: 'row', alignItems: 'center', gap: 12 },
