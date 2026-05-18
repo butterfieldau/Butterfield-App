@@ -425,12 +425,6 @@ export default function LoginScreen() {
                   <Text style={[s.submittedBody, { fontWeight: '400', color: MUTED }]}>
                     Your application has been submitted. Someone from our team will be in contact with you soon.
                   </Text>
-                  <Pressable
-                    onPress={() => { setSubmitted(false); setMode('login'); clearPublic(); Haptics.selectionAsync(); }}
-                    style={[s.submitBtn, { backgroundColor: BLUE, marginTop: 8 }]}
-                  >
-                    <Text style={[s.submitBtnText, { fontWeight: '700' }]}>Back to Sign In</Text>
-                  </Pressable>
                 </View>
               ) : (
               <Pressable onPress={handlePublicSubmit} disabled={loading} style={[s.submitBtn, { backgroundColor: '#D0312D', opacity: loading ? 0.85 : 1 }]}>
