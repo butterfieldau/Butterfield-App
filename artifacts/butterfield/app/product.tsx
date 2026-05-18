@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
-import { getPalette, getOptions } from '@/constants/categoryColors';
+import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { api } from '@/lib/api';
 
@@ -147,7 +147,6 @@ export default function ProductDetailScreen() {
 
   const category     = (product as any)?.category ?? product?.metadata?.category ?? 'cookies';
   const palette      = getPalette(category);
-  const options      = getOptions(category);
   const galleryUrls  = useMemo(() => {
     const combined = [
       ...((product?.images ?? []) as string[]),
@@ -410,39 +409,50 @@ export default function ProductDetailScreen() {
               </Text>
             )}
 
-            {/* Customise options */}
-            {options.length > 0 && (
-              <View style={{ marginTop: 20, gap: 14 }}>
-                <Text style={[s.sectionTitle, { fontWeight: '700' }]}>Customise</Text>
-                {options.map((section: any) => (
-                  <View key={section.label} style={{ gap: 8 }}>
-                    <Text style={[s.optLabel, { fontWeight: '600' }]}>{section.label}</Text>
-                    <View style={s.chipRow}>
-                      {section.choices.map((choice: string) => {
-                        const sel = (selections[section.label] ?? []).includes(choice);
-                        return (
-                          <Pressable
-                            key={choice}
-                            onPress={() => toggle(section.label, choice)}
-                            style={[s.selChip, sel
-                              ? { backgroundColor: palette.banner, borderColor: palette.banner }
-                              : { backgroundColor: '#fff', borderColor: BORDER }
-                            ]}
-                          >
-                            <Text style={[s.selChipText, {
-                              fontWeight: sel ? '600' : '400',
-                              color: sel ? '#fff' : TEXT,
-                            }]}>
-                              {choice}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
+            {/* Customise options — only shown when director has configured them on this product */}
+            {(() => {
+              const productCustomizations = parseArr((product as any)?.customizations ?? product?.metadata?.customizations);
+              const parsedSections: { label: string; choices: string[] }[] = [];
+              for (const item of productCustomizations) {
+                try {
+                  const parsed = typeof item === 'string' ? JSON.parse(item) : item;
+                  if (parsed?.label && Array.isArray(parsed?.choices)) parsedSections.push(parsed);
+                } catch {}
+              }
+              if (parsedSections.length === 0) return null;
+              return (
+                <View style={{ marginTop: 20, gap: 14 }}>
+                  <Text style={[s.sectionTitle, { fontWeight: '700' }]}>Customise</Text>
+                  {parsedSections.map((section) => (
+                    <View key={section.label} style={{ gap: 8 }}>
+                      <Text style={[s.optLabel, { fontWeight: '600' }]}>{section.label}</Text>
+                      <View style={s.chipRow}>
+                        {section.choices.map((choice: string) => {
+                          const sel = (selections[section.label] ?? []).includes(choice);
+                          return (
+                            <Pressable
+                              key={choice}
+                              onPress={() => toggle(section.label, choice)}
+                              style={[s.selChip, sel
+                                ? { backgroundColor: palette.banner, borderColor: palette.banner }
+                                : { backgroundColor: '#fff', borderColor: BORDER }
+                              ]}
+                            >
+                              <Text style={[s.selChipText, {
+                                fontWeight: sel ? '600' : '400',
+                                color: sel ? '#fff' : TEXT,
+                              }]}>
+                                {choice}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
-            )}
+                  ))}
+                </View>
+              );
+            })()}
 
             {/* Allergens */}
             {allergens.length > 0 && (

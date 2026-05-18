@@ -28,11 +28,12 @@ import Reanimated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { useCart } from '@/context/CartContext';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
-import SharedProductTile from '@/components/ProductTile';
+import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 
@@ -145,6 +146,7 @@ function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress
 }
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
+  const { addItemToCart } = useCart();
   const params = useLocalSearchParams<{ category?: string; skipQueue?: string }>();
   const [search, setSearch]           = useState('');
   const [activeCategory, setActiveCategory] = useState(params.category ?? 'all');
@@ -215,6 +217,22 @@ export default function MenuScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedProduct(p);
     router.push({ pathname: '/product', params: { id: p.id } } as any);
+  };
+  const handleAddToCart = (p: ApiProduct) => {
+    const raw = p as any;
+    const priceCents = raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0;
+    addItemToCart({
+      productId: p.id,
+      productName: p.name,
+      variantId: undefined,
+      variantName: undefined,
+      basePriceCents: priceCents,
+      selectedOptions: [],
+      quantity: 1,
+      imageUrl: p.images?.[0] ?? PRODUCT_IMAGES[p.name],
+      category: p.metadata?.category,
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
   return (
     <View style={s.root}>
@@ -320,7 +338,7 @@ export default function MenuScreen() {
             }
             renderItem={({ item: p }) => (
               <View style={{ flex: 1 }}>
-                <SharedProductTile product={p} onPress={() => handleTilePress(p)} />
+                <SharedProductTile product={p} onPress={() => handleTilePress(p)} onAddToCart={() => handleAddToCart(p)} />
               </View>
             )}
           />

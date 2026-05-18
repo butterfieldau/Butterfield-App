@@ -59,6 +59,35 @@ function BannerTab() {
   const [buttonRoute,     setButtonRoute]     = useState('menu');
   const [buttonUrl,       setButtonUrl]       = useState('');
   const [saving,          setSaving]          = useState(false);
+  const [uploading,       setUploading]       = useState(false);
+
+  const pickAndUploadBannerImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Allow photo access to upload a banner image.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [2, 1],
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const ext  = asset.uri.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+    const name = `banner-${Date.now()}.${ext}`;
+    setUploading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const { servingUrl } = await api.storage.uploadFile(asset.uri, name, mime);
+      setImageUrl(servingUrl);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message ?? 'Could not upload image.');
+    } finally { setUploading(false); }
+  };
 
   useEffect(() => {
     if (banner) {
@@ -122,9 +151,31 @@ function BannerTab() {
       </View>
 
       <Text style={styles.section}>BACKGROUND IMAGE</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 8 }]}>
+      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+        {/* Upload button */}
+        <Pressable
+          onPress={pickAndUploadBannerImage}
+          disabled={uploading}
+          style={[styles.addBtn, { backgroundColor: uploading ? MUTED : BLUE, opacity: uploading ? 0.8 : 1 }]}
+        >
+          {uploading
+            ? <ActivityIndicator color="#fff" size="small" />
+            : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="upload" size={16} color="#fff" />
+                <Text style={styles.addBtnText}>Upload Photo from Camera Roll</Text>
+              </View>
+            )}
+        </Pressable>
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: '100%', height: 120, borderRadius: 10, resizeMode: 'cover' }}
+          />
+        ) : null}
+        <View style={[styles.divider, { backgroundColor: BORDER }]} />
         <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Image URL</Text>
+          <Text style={styles.fieldLabel}>Or paste an image URL</Text>
           <TextInput
             style={[styles.input, { borderColor: BORDER, color: TEXT }]}
             value={imageUrl}
@@ -136,7 +187,7 @@ function BannerTab() {
             keyboardType="url"
           />
         </View>
-        <Text style={[styles.hint, { color: MUTED }]}>Use a high-contrast landscape image (e.g. coffee splash, cookies). Best at 1200×600px.</Text>
+        <Text style={[styles.hint, { color: MUTED }]}>Best at 1200×600px landscape.</Text>
       </View>
 
       <Text style={styles.section}>HEADLINE TEXT</Text>
@@ -1976,14 +2027,19 @@ export default function DirectorSettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.tabBar, { borderBottomColor: BORDER }]}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-around' }}
+      >
         {(TABS as readonly string[]).map(t => (
           <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
             onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
-            <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]}>{t}</Text>
+            <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]} numberOfLines={1}>{t}</Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
       {tab === 'Store'     && <StoreTab />}
       {tab === 'Banner'    && <BannerTab />}
       {tab === 'Rewards'   && <RewardsTab />}
@@ -1998,7 +2054,7 @@ const styles = StyleSheet.create({
   center:        { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
   emptyText:     { fontSize: 14, fontWeight: '400', color: '#8E8E93' },
   tabBar:        { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1 },
-  tabBtn:        { flex: 1, paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:        { paddingHorizontal: 14, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText:       { fontSize: 13, fontWeight: '600' },
   section:       { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 1.5, marginTop: 4 },
   card:          { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },

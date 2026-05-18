@@ -19,9 +19,10 @@ export const PRODUCT_IMAGES: Record<string, string> = {
 interface Props {
   product: ApiProduct;
   onPress: () => void;
+  onAddToCart?: () => void;
 }
 
-export default function ProductTile({ product, onPress }: Props) {
+export default function ProductTile({ product, onPress, onAddToCart }: Props) {
   const raw       = product as any;
   const priceCents = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
   const saleCents  = raw.salePriceCents;
@@ -74,10 +75,12 @@ export default function ProductTile({ product, onPress }: Props) {
             ${display.toFixed(2)}
           </Text>
           <Pressable
-            onPress={() => {
+            onPress={(e) => {
+              e.stopPropagation();
               if (!isSoldOut) {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onPress();
+                if (onAddToCart) onAddToCart();
+                else onPress();
               }
             }}
             style={s.addBtn}

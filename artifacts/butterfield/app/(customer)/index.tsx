@@ -121,6 +121,23 @@ export default function CustomerHome() {
     setSelectedProduct(p);
     router.push({ pathname: '/product', params: { id: p.id } } as any);
   }, []);
+
+  const handleAddToCart = useCallback((p: ApiProduct) => {
+    const raw = p as any;
+    const priceCents = raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0;
+    addItemToCart({
+      productId: p.id,
+      productName: p.name,
+      variantId: undefined,
+      variantName: undefined,
+      basePriceCents: priceCents,
+      selectedOptions: [],
+      quantity: 1,
+      imageUrl: p.images?.[0] ?? PRODUCT_IMAGES[p.name],
+      category: p.metadata?.category,
+    });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [addItemToCart]);
   const handleMerchPress = useCallback((item: typeof MERCH[number]) => {
     setSelectedProduct({
       id: item.id, name: item.name,
@@ -292,16 +309,7 @@ export default function CustomerHome() {
                 return (
                   <Pressable
                     style={[s.usualCard, { backgroundColor: colors.card }]}
-                    onPress={() => {
-                      addItemToCart({
-                        productId: p.id, productName: p.name,
-                        variantId, variantName, basePriceCents,
-                        selectedOptions: selectedOptions ?? [],
-                        quantity, imageUrl: p.images?.[0],
-                        category: (p as any).metadata?.category,
-                      });
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    }}
+                    onPress={() => handleTilePress(p)}
                     android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
                   >
                     <View style={[s.usualImgWrap, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
@@ -317,9 +325,23 @@ export default function CustomerHome() {
                       ) : null}
                       <Text style={[s.usualPrice, { color: pal.banner, fontWeight: '700' }]}>${(unitCents / 100).toFixed(2)}</Text>
                     </View>
-                    <View style={[s.usualAddBtn, { backgroundColor: CHERRY }]}>
+                    <Pressable
+                      style={[s.usualAddBtn, { backgroundColor: CHERRY }]}
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        addItemToCart({
+                          productId: p.id, productName: p.name,
+                          variantId, variantName, basePriceCents,
+                          selectedOptions: selectedOptions ?? [],
+                          quantity, imageUrl: p.images?.[0],
+                          category: (p as any).metadata?.category,
+                        });
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      }}
+                    >
                       <Feather name="plus" size={16} color="#fff" />
-                    </View>
+                    </Pressable>
                   </Pressable>
                 );
               }}
@@ -337,7 +359,7 @@ export default function CustomerHome() {
             contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
             renderItem={({ item: p }) => (
               <View style={{ width: 160 }}>
-                <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                <ProductTile product={p} onPress={() => handleTilePress(p)} onAddToCart={() => handleAddToCart(p)} />
               </View>
             )}
           />
@@ -436,7 +458,7 @@ export default function CustomerHome() {
                   contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
                   renderItem={({ item: p }) => (
                     <View style={{ width: 160 }}>
-                      <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                      <ProductTile product={p} onPress={() => handleTilePress(p)} onAddToCart={() => handleAddToCart(p)} />
                     </View>
                   )}
                 />
@@ -468,7 +490,7 @@ export default function CustomerHome() {
               contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
               renderItem={({ item: p }) => (
                 <View style={{ width: 160 }}>
-                  <ProductTile product={p} onPress={() => handleTilePress(p)} />
+                  <ProductTile product={p} onPress={() => handleTilePress(p)} onAddToCart={() => handleAddToCart(p)} />
                 </View>
               )}
             />
