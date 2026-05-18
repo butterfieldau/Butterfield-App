@@ -27,7 +27,7 @@ interface AuthContextValue {
     coords?: { latitude: number; longitude: number }
   ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
-  wholesaleApply: (data: { email: string; password: string; name: string; phone?: string; companyName: string; abn?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
+  wholesaleApply: (data: { email: string; password: string; name: string; phone: string; companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   socialLogin: (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }

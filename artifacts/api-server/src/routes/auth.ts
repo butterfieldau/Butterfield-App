@@ -216,18 +216,45 @@ router.post('/staff-login', async (req, res) => {
 });
 
 router.post('/wholesale-apply', async (req, res) => {
-  const { email, password, name, phone, companyName, abn, deliveryAddress } = req.body;
+  const { email, password, name, phone, companyName, abn, deliveryAddress, howDidYouHear } = req.body;
   if (!email || !password || !name || !companyName) {
     return res.status(400).json({ error: 'Email, password, name and company name are required.' });
+  }
+  if (!phone || !phone.trim()) {
+    return res.status(400).json({ error: 'Phone number is required.' });
+  }
+  if (!deliveryAddress || !deliveryAddress.trim()) {
+    return res.status(400).json({ error: 'Business address is required.' });
   }
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (existing.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
   const passwordHash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
   const accountId = randomUUID();
-  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'wholesale', name, phone });
-  await db.insert(wholesaleAccountsTable).values({ id: accountId, userId, companyName, abn, contactName: name, phone, deliveryAddress, status: 'pending' });
-  return res.status(201).json({ message: 'Application received. Our wholesale team will be in touch within 1-2 business days.', userId });
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'wholesale', name, phone: phone.trim() });
+  await db.insert(wholesaleAccountsTable).values({
+    id: accountId,
+    userId,
+    companyName,
+    abn: abn || null,
+    contactName: name,
+    phone: phone.trim(),
+    email: email.toLowerCase(),
+    deliveryAddress: deliveryAddress.trim(),
+    howDidYouHear: howDidYouHear || null,
+    status: 'pending',
+  });
+  // Fire-and-forget push notification to directors and masters
+  import('../lib/notificationService.js').then(({ sendNotification }) => {
+    sendNotification({
+      roles: ['director', 'master'],
+      type: 'wholesale_application',
+      title: 'New Stockist Registration',
+      body: `${companyName} has applied for a wholesale account.`,
+      data: { accountId, companyName },
+    }).catch(() => {});
+  }).catch(() => {});
+  return res.status(201).json({ message: 'Your application has been submitted. Someone from our team will be in contact with you soon.', userId });
 });
 
 // ── Seed demo accounts (development only) ────────────────────────────────────

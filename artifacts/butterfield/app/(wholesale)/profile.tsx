@@ -212,6 +212,8 @@ export default function WholesaleAccount() {
               <Detail label="Company"        value={account?.companyName ?? '—'} />
               <Detail label="ABN"            value={account?.abn ?? '—'} />
               <Detail label="Contact"        value={account?.contactName ?? user?.name ?? '—'} />
+              <Detail label="Phone"          value={account?.phone ?? '—'} />
+              {account?.howDidYouHear ? <Detail label="Referred via" value={account.howDidYouHear} /> : null}
               <Detail label="Account Status" value={statusLabel} valueColor={statusColor} last />
             </View>
           )}

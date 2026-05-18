@@ -53,6 +53,9 @@ export default function LoginScreen() {
   const [phone, setPhone]               = useState('');
   const [companyName, setCompanyName]   = useState('');
   const [abn, setAbn]                   = useState('');
+  const [address, setAddress]           = useState('');
+  const [howDidYouHear, setHowDidYouHear] = useState('');
+  const [submitted, setSubmitted]       = useState(false);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState('');
   const [successMsg, setSuccessMsg]     = useState('');
@@ -81,7 +84,7 @@ export default function LoginScreen() {
 
   const clearPublic = () => {
     setEmail(''); setPassword(''); setName(''); setPhone(''); setCompanyName(''); setAbn('');
-    setError(''); setSuccessMsg(''); setShowPw(false);
+    setAddress(''); setHowDidYouHear(''); setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
   // ── Google OAuth (via WebBrowser implicit flow — no native crypto needed) ───
@@ -166,13 +169,18 @@ export default function LoginScreen() {
         if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
         router.replace('/(tabs)');
       } else if (isWholesaleApply) {
+        if (!name.trim()) { setError('Full name is required.'); setLoading(false); return; }
+        if (!phone.trim()) { setError('Phone number is required.'); setLoading(false); return; }
+        if (!address.trim()) { setError('Business address is required.'); setLoading(false); return; }
         const res = await wholesaleApply({
-          email: email.trim(), password, name: name.trim() || email.trim(),
+          email: email.trim(), password, name: name.trim(),
           companyName: companyName.trim(), abn: abn.trim() || undefined,
+          phone: phone.trim(), deliveryAddress: address.trim(),
+          howDidYouHear: howDidYouHear || undefined,
         });
         if (!res.success) { setError(res.error ?? 'Application failed.'); return; }
-        setSuccessMsg("Application submitted! We'll review it within 1 business day.");
         clearPublic();
+        setSubmitted(true);
       } else {
         const res = await login(email.trim(), password, selectedRole);
         if (!res.success) { setError(res.error ?? 'Login failed.'); return; }
@@ -279,7 +287,7 @@ export default function LoginScreen() {
                   {(['login', 'wholesale-apply'] as const).map((m) => (
                     <Pressable
                       key={m}
-                      onPress={() => { setMode(m); clearPublic(); Haptics.selectionAsync(); }}
+                      onPress={() => { setMode(m); clearPublic(); setSubmitted(false); Haptics.selectionAsync(); }}
                       style={[s.segBtn, { backgroundColor: mode === m ? CARD : 'transparent' }]}
                     >
                       <Text style={[s.segBtnText, { fontWeight: mode === m ? '600' : '400', color: mode === m ? TEXT : MUTED }]}>
@@ -332,21 +340,21 @@ export default function LoginScreen() {
                 </>
               )}
 
-              {(mode === 'register' || isWholesaleApply) && (
+              {!submitted && (mode === 'register' || isWholesaleApply) && (
                 <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="user" size={16} color={MUTED} />
                   <TextInput style={[s.input, { color: TEXT }]} placeholder="Full name" placeholderTextColor={MUTED} value={name} onChangeText={setName} autoCapitalize="words" />
                 </View>
               )}
 
-              {mode === 'register' && (
+              {!submitted && mode === 'register' && (
                 <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="phone" size={16} color={MUTED} />
                   <TextInput style={[s.input, { color: TEXT }]} placeholder="Mobile number (required)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
                 </View>
               )}
 
-              {isWholesaleApply && (
+              {!submitted && isWholesaleApply && (
                 <>
                   <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                     <Feather name="briefcase" size={16} color={MUTED} />
@@ -356,19 +364,48 @@ export default function LoginScreen() {
                     <Feather name="hash" size={16} color={MUTED} />
                     <TextInput style={[s.input, { color: TEXT }]} placeholder="ABN (optional)" placeholderTextColor={MUTED} value={abn} onChangeText={setAbn} keyboardType="numeric" />
                   </View>
+                  <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                    <Feather name="phone" size={16} color={MUTED} />
+                    <TextInput style={[s.input, { color: TEXT }]} placeholder="Phone number (required)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+                  </View>
+                  <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                    <Feather name="map-pin" size={16} color={MUTED} />
+                    <TextInput style={[s.input, { color: TEXT }]} placeholder="Business address (required)" placeholderTextColor={MUTED} value={address} onChangeText={setAddress} autoCapitalize="words" />
+                  </View>
                 </>
               )}
 
-              <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
-                <Feather name="mail" size={16} color={MUTED} />
-                <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-              </View>
+              {!submitted && (
+                <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <Feather name="mail" size={16} color={MUTED} />
+                  <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+                </View>
+              )}
 
-              <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
-                <Feather name="lock" size={16} color={MUTED} />
-                <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPw} />
-                <Pressable onPress={() => setShowPw(p => !p)}><Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
-              </View>
+              {!submitted && (
+                <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
+                  <Feather name="lock" size={16} color={MUTED} />
+                  <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPw} />
+                  <Pressable onPress={() => setShowPw(p => !p)}><Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
+                </View>
+              )}
+
+              {!submitted && isWholesaleApply && (
+                <>
+                  <Text style={[s.hearLabel, { fontWeight: '600', color: TEXT }]}>How did you hear about us?</Text>
+                  <View style={s.hearRow}>
+                    {['Social media', 'Google / Search', 'Word of mouth', 'Trade show / Event', 'Other'].map((opt) => (
+                      <Pressable
+                        key={opt}
+                        onPress={() => { setHowDidYouHear(howDidYouHear === opt ? '' : opt); Haptics.selectionAsync(); }}
+                        style={[s.hearPill, { backgroundColor: howDidYouHear === opt ? BLUE : CARD, borderColor: howDidYouHear === opt ? BLUE : BORDER }]}
+                      >
+                        <Text style={[s.hearPillText, { fontWeight: howDidYouHear === opt ? '600' : '400', color: howDidYouHear === opt ? '#fff' : MUTED }]}>{opt}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
 
               {mode === 'login' && !isWholesaleApply && (
                 <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={{ alignSelf: 'flex-end', marginTop: -4 }}>
@@ -379,6 +416,23 @@ export default function LoginScreen() {
               {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontWeight: '400' }]}>{error}</Text></View> : null}
               {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontWeight: '400' }]}>{successMsg}</Text></View> : null}
 
+              {isWholesaleApply && submitted ? (
+                <View style={s.submittedBox}>
+                  <View style={[s.submittedIcon, { backgroundColor: '#F0FDF4' }]}>
+                    <Feather name="check-circle" size={32} color={GREEN} />
+                  </View>
+                  <Text style={[s.submittedTitle, { fontWeight: '700', color: TEXT }]}>Application Submitted!</Text>
+                  <Text style={[s.submittedBody, { fontWeight: '400', color: MUTED }]}>
+                    Your application has been submitted. Someone from our team will be in contact with you soon.
+                  </Text>
+                  <Pressable
+                    onPress={() => { setSubmitted(false); setMode('login'); clearPublic(); Haptics.selectionAsync(); }}
+                    style={[s.submitBtn, { backgroundColor: BLUE, marginTop: 8 }]}
+                  >
+                    <Text style={[s.submitBtnText, { fontWeight: '700' }]}>Back to Sign In</Text>
+                  </Pressable>
+                </View>
+              ) : (
               <Pressable onPress={handlePublicSubmit} disabled={loading} style={[s.submitBtn, { backgroundColor: '#D0312D', opacity: loading ? 0.85 : 1 }]}>
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : (
                   <Text style={[s.submitBtnText, { fontWeight: '700' }]}>
@@ -386,8 +440,9 @@ export default function LoginScreen() {
                   </Text>
                 )}
               </Pressable>
+              )}
 
-              {(mode === 'register' || isWholesaleApply) && (
+              {(mode === 'register' || isWholesaleApply) && !submitted && (
                 <Text style={[s.termsText, { color: MUTED }]}>
                   By creating an account you agree to our{' '}
                   <Text
@@ -540,4 +595,12 @@ const s = StyleSheet.create({
   geoText:         { flex: 1, fontSize: 13 },
   geoNote:         { flex: 1, fontSize: 11, lineHeight: 16 },
   termsText:       { fontSize: 12, textAlign: 'center', lineHeight: 18 },
+  hearLabel:       { fontSize: 13, color: TEXT, marginTop: 2, marginBottom: -4 },
+  hearRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  hearPill:        { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  hearPillText:    { fontSize: 13 },
+  submittedBox:    { alignItems: 'center', gap: 12, paddingVertical: 16 },
+  submittedIcon:   { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
+  submittedTitle:  { fontSize: 20, textAlign: 'center' },
+  submittedBody:   { fontSize: 14, textAlign: 'center', lineHeight: 20, paddingHorizontal: 8 },
 });

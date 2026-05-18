@@ -65,8 +65,8 @@ export const api = {
     staffLogin: (data: { email: string; password: string; latitude?: number; longitude?: number }) =>
       request<{ token: string; user: ApiUser }>('/auth/staff-login', { method: 'POST', body: JSON.stringify(data) }),
     wholesaleApply: (data: {
-      email: string; password: string; name: string; phone?: string;
-      companyName: string; abn?: string; deliveryAddress?: string;
+      email: string; password: string; name: string; phone: string;
+      companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string;
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
     socialLogin: (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),

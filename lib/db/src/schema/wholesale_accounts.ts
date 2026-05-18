@@ -40,6 +40,7 @@ export const wholesaleAccountsTable = pgTable("wholesale_accounts", {
   // legacy field — superseded by minimumOrderCents
   minOrderCents: integer("min_order_cents").notNull().default(20000),
   leadTimeDays: integer("lead_time_days").notNull().default(2),
+  howDidYouHear: text("how_did_you_hear"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
