@@ -9,7 +9,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "butterfieldcookies.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au"
       },
       "ios": {
         "simulator": false
@@ -18,7 +18,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "butterfieldcookies.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au"
       },
       "ios": {
         "simulator": false
@@ -27,7 +27,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "butterfieldcookies.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au"
       },
       "ios": {
         "distribution": "store",
