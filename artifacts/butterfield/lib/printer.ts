@@ -77,7 +77,7 @@ async function sendPrinterBytes(printerIp: string, printerPort: number, result: 
   let TcpSocket: any;
   try {
     const mod = await import('react-native-tcp-socket');
-    TcpSocket = mod.default;
+    TcpSocket = mod?.default ?? mod;
   } catch {
     throw new Error(
       'Direct printer connection requires a custom development build or the production app — ' +
@@ -85,18 +85,25 @@ async function sendPrinterBytes(printerIp: string, printerPort: number, result: 
     );
   }
 
+  if (!TcpSocket?.createConnection || typeof TcpSocket.createConnection !== 'function') {
+    throw new Error(
+      'Printer connection is unavailable in this build. Please reinstall the latest app build and try again.',
+    );
+  }
+
   return new Promise<void>((resolve, reject) => {
     let settled = false;
+    let socket: any;
 
     const done = (err?: Error) => {
       if (settled) return;
       settled = true;
-      socket.destroy();
+      try { socket?.destroy?.(); } catch {}
       if (err) reject(err);
       else resolve();
     };
 
-    const socket = TcpSocket.createConnection(
+    socket = TcpSocket.createConnection(
       { host: printerIp, port, connectTimeout: 8000 },
       () => {
         socket.write(bytes, undefined, (writeErr: Error | null) => {

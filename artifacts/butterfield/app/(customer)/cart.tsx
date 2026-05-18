@@ -1013,11 +1013,6 @@ export default function CartScreen() {
     }).format(new Date());
     return (
       <View style={[styles.successWrap, { backgroundColor: '#FFFFFF' }]}>
-        <View style={styles.confettiLayer} pointerEvents="none">
-          {celebrationPieces.map((piece) => (
-            <ConfettiPieceView key={piece.id} piece={piece} />
-          ))}
-        </View>
         <ScrollView
           style={{ flex: 1, width: '100%', backgroundColor: '#FFFFFF' }}
           contentContainerStyle={{
@@ -1025,78 +1020,80 @@ export default function CartScreen() {
             alignItems: 'center',
             paddingHorizontal: 20,
             paddingTop: insets.top + 12,
-            paddingBottom: insets.bottom + 22,
+            paddingBottom: insets.bottom + 24,
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View style={[styles.successCard, successCardStyle]}>
+          <View style={styles.successCard}>
             <View style={styles.successGlow}>
-              <View style={styles.successTopBar}>
-                <Pressable
-                  onPress={() => {
-                    clearCart();
-                    router.dismissAll();
-                    router.replace('/(tabs)');
-                  }}
-                  style={styles.successTopBack}
-                >
-                  <Feather name="chevron-left" size={22} color={CHERRY} />
-                </Pressable>
-                <Text style={styles.successTopTitle}>Thank You</Text>
-                <View style={styles.successTopSpacer} />
-              </View>
-              <Animated.View style={[styles.characterStage, characterStyle]} pointerEvents="none">
-                <View style={styles.characterFrame}>
-                  <Image
-                    source={require('../../assets/images/thank-you-cookie-character.png')}
-                    style={styles.characterImage}
-                    contentFit="contain"
-                  />
-                </View>
-              </Animated.View>
-              <View style={styles.successHero}>
-                <Text style={styles.successTitle}>Thank you!</Text>
-                <Text style={styles.successOrderLine}>
-                  Order Number: <Text style={styles.successOrderStrong}>{orderShortId}</Text>
-                </Text>
-                <Text style={styles.successDescription}>
-                  {confirmation.paymentMethodType === 'pay_at_pickup'
-                    ? 'Your order is locked in. Please pay at pickup and check My Orders for live updates.'
-                    : 'Your order was placed successfully. Go to My Orders any time to check the live status.'}
-                </Text>
-              </View>
-              <Animated.View style={[styles.successSummaryCard, pointsStyle]}>
-                <View style={styles.successSummaryTop}>
-                  <View style={styles.successSummaryPriceWrap}>
-                    <Text style={styles.successSummaryPrice}>AUD {(confirmation.totalCents / 100).toFixed(2)}</Text>
-                    <Text style={styles.successSummaryOrderId}>{orderShortId}</Text>
-                  </View>
+              <View style={styles.successContentBlock}>
+                <View style={styles.successTopBar}>
                   <Pressable
                     onPress={() => {
                       clearCart();
                       router.dismissAll();
-                      router.replace('/orders');
+                      router.replace('/(tabs)');
                     }}
-                    style={styles.successTrackLink}
+                    style={styles.successTopBack}
                   >
-                    <Text style={styles.successTrackText}>Track</Text>
+                    <Feather name="chevron-left" size={22} color={CHERRY} />
                   </Pressable>
+                  <Text style={styles.successTopTitle}>Thank You</Text>
+                  <View style={styles.successTopSpacer} />
                 </View>
-                <View style={styles.successDivider} />
-                <View style={styles.successSummaryBottom}>
-                  <View style={styles.successStatusRow}>
-                    <Feather name="package" size={14} color="#A35A00" />
-                    <Text style={styles.successStatusText}>Being prepared</Text>
+                <View style={styles.characterStage} pointerEvents="none">
+                  <View style={styles.characterFrame}>
+                    <Image
+                      source={require('../../assets/images/thank-you-cookie-character.png')}
+                      style={styles.characterImage}
+                      contentFit="contain"
+                    />
                   </View>
-                  <Text style={styles.successDateText}>{placedLabel}</Text>
                 </View>
-              </Animated.View>
-              <View style={styles.successPointsInline}>
-                <Feather name="star" size={15} color="#A35A00" />
-                <Text style={styles.successPointsInlineText}>
-                  You earned <Text style={styles.successPointsInlineStrong}>+{earnedPoints} points</Text> from this order
-                </Text>
+                <View style={styles.successHero}>
+                  <Text style={styles.successTitle}>Thank you!</Text>
+                  <Text style={styles.successOrderLine}>
+                    Order Number: <Text style={styles.successOrderStrong}>{orderShortId}</Text>
+                  </Text>
+                  <Text style={styles.successDescription}>
+                    {confirmation.paymentMethodType === 'pay_at_pickup'
+                      ? 'Your order is locked in. Please pay at pickup and check My Orders for live updates.'
+                      : 'Your order was placed successfully. Go to My Orders any time to check the live status.'}
+                  </Text>
+                </View>
+                <View style={styles.successSummaryCard}>
+                  <View style={styles.successSummaryTop}>
+                    <View style={styles.successSummaryPriceWrap}>
+                      <Text style={styles.successSummaryPrice}>AUD {(confirmation.totalCents / 100).toFixed(2)}</Text>
+                      <Text style={styles.successSummaryOrderId}>{orderShortId}</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        clearCart();
+                        router.dismissAll();
+                        router.replace('/orders');
+                      }}
+                      style={styles.successTrackLink}
+                    >
+                      <Text style={styles.successTrackText}>Track</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.successDivider} />
+                  <View style={styles.successSummaryBottom}>
+                    <View style={styles.successStatusRow}>
+                      <Feather name="package" size={14} color="#A35A00" />
+                      <Text style={styles.successStatusText}>Being prepared</Text>
+                    </View>
+                    <Text style={styles.successDateText}>{placedLabel}</Text>
+                  </View>
+                </View>
+                <View style={styles.successPointsInline}>
+                  <Feather name="star" size={15} color="#A35A00" />
+                  <Text style={styles.successPointsInlineText}>
+                    You earned <Text style={styles.successPointsInlineStrong}>+{earnedPoints} points</Text> from this order
+                  </Text>
+                </View>
               </View>
               <Pressable
                 onPress={() => {
@@ -1109,7 +1106,7 @@ export default function CartScreen() {
                 <Text style={styles.returnHomeBtnText}>Return home</Text>
               </Pressable>
             </View>
-          </Animated.View>
+          </View>
         </ScrollView>
       </View>
     );
@@ -1773,11 +1770,12 @@ const styles = StyleSheet.create({
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Success
   successWrap:    { flex: 1, overflow: 'visible', backgroundColor: '#FFFFFF' },
-  successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2, maxWidth: 430, paddingTop: 8 },
+  successCard:    { width: '100%', alignItems: 'center', zIndex: 2, maxWidth: 430, paddingTop: 8, flexGrow: 1 },
   successGlow:    {
     width: '100%',
+    flex: 1,
     alignItems: 'center',
-    gap: 20,
+    justifyContent: 'space-between',
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 0,
@@ -1787,14 +1785,15 @@ const styles = StyleSheet.create({
   },
   successTitle:   { fontSize: 28, fontWeight: '800', color: '#444444', textAlign: 'center', letterSpacing: -0.3 },
   confettiLayer:  { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
-  characterStage: { position: 'relative', left: 0, right: 0, bottom: 0, height: 250, justifyContent: 'flex-end', alignItems: 'center', marginTop: 12, marginBottom: -8 },
-  characterFrame: { width: 220, maxWidth: '72%', aspectRatio: 3195 / 3402 },
+  characterStage: { position: 'relative', left: 0, right: 0, bottom: 0, height: 226, justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, marginBottom: -6 },
+  characterFrame: { width: 198, maxWidth: '66%', aspectRatio: 3195 / 3402 },
   characterImage: { width: '100%', height: '100%' },
+  successContentBlock: { width: '100%', alignItems: 'center', gap: 18 },
   successTopBar: { width: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#ECECEC', paddingBottom: 14 },
   successTopBack: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -6 },
   successTopTitle: { fontSize: 18, fontWeight: '600', color: '#222222', textAlign: 'center' },
   successTopSpacer: { width: 36, height: 36 },
-  successHero: { alignItems: 'center', gap: 12, width: '100%', paddingTop: 6 },
+  successHero: { alignItems: 'center', gap: 12, width: '100%', paddingTop: 4 },
   successOrderLine: { fontSize: 16, fontWeight: '500', color: '#555555', textAlign: 'center' },
   successOrderStrong: { fontWeight: '800', color: '#3A3A3A' },
   successDescription: { fontSize: 14, fontWeight: '400', color: '#575757', lineHeight: 22, textAlign: 'center', maxWidth: 320 },
@@ -1823,10 +1822,10 @@ const styles = StyleSheet.create({
   successStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   successStatusText: { fontSize: 14, fontWeight: '500', color: '#5A5A5A' },
   successDateText: { fontSize: 14, fontWeight: '500', color: '#777777' },
-  successPointsInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: -2 },
+  successPointsInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, marginBottom: 8 },
   successPointsInlineText: { fontSize: 14, fontWeight: '500', color: '#5B3A00', textAlign: 'center' },
   successPointsInlineStrong: { fontWeight: '800', color: '#8A4D00' },
-  returnHomeBtn: { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 18, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  returnHomeBtn: { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 18, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   returnHomeBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
