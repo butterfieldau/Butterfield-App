@@ -56,8 +56,18 @@ function getSydneyNow(): Date {
     const d = new Date(str);
     if (!isNaN(d.getTime())) return d;
   } catch {}
-  // Fallback: approximate Sydney time (AEST UTC+10; close enough for greeting purposes)
-  return new Date(Date.now() + 10 * 60 * 60 * 1000);
+  // Fallback: build a plain date string representing Sydney wall-clock time (AEST UTC+10).
+  // We MUST NOT use new Date(Date.now() + 10h) directly because .getHours() applies
+  // the device's local timezone offset a second time, double-counting on Sydney devices.
+  const shifted = new Date(Date.now() + 10 * 60 * 60 * 1000);
+  const Y  = shifted.getUTCFullYear();
+  const M  = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const D  = String(shifted.getUTCDate()).padStart(2, '0');
+  const h  = String(shifted.getUTCHours()).padStart(2, '0');
+  const mi = String(shifted.getUTCMinutes()).padStart(2, '0');
+  const s  = String(shifted.getUTCSeconds()).padStart(2, '0');
+  // No timezone suffix → parsed as local time → getHours() returns correct Sydney hour
+  return new Date(`${Y}-${M}-${D}T${h}:${mi}:${s}`);
 }
 
 function getAuSeason(month: number): 'summer' | 'autumn' | 'winter' | 'spring' {
