@@ -1005,87 +1005,108 @@ export default function CartScreen() {
   // ── Confirmation screen ──────────────────────────────────────────────────
   if (confirmation) {
     const earnedPoints = Math.max(0, Math.floor(confirmation.totalCents / 100));
+    const orderShortId = `#${confirmation.orderId.slice(0, 8).toUpperCase()}`;
+    const placedLabel = new Intl.DateTimeFormat('en-AU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date());
     return (
-      <View style={[styles.successWrap]}>
+      <View style={[styles.successWrap, { backgroundColor: '#FFFFFF' }]}>
         <View style={styles.confettiLayer} pointerEvents="none">
           {celebrationPieces.map((piece) => (
             <ConfettiPieceView key={piece.id} piece={piece} />
           ))}
         </View>
-        <Animated.View style={[styles.characterStage, characterStyle]} pointerEvents="none">
-          <View style={styles.characterFrame}>
-            <Image
-              source={require('../../assets/images/butterfield-character.png')}
-              style={styles.characterImage}
-              contentFit="contain"
-            />
-          </View>
-        </Animated.View>
         <ScrollView
-          style={{ flex: 1, width: '100%' }}
+          style={{ flex: 1, width: '100%', backgroundColor: '#FFFFFF' }}
           contentContainerStyle={{
             flexGrow: 1,
             alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 24,
-            paddingTop: insets.top + 34,
-            paddingBottom: insets.bottom + 32,
+            paddingHorizontal: 20,
+            paddingTop: insets.top + 12,
+            paddingBottom: insets.bottom + 22,
           }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <Animated.View style={[styles.successCard, successCardStyle]}>
             <View style={styles.successGlow}>
-              <LinearGradient colors={['#1493FF', '#3CBBEE']} style={styles.successIcon}>
-                <Feather name="check" size={36} color="#fff" />
-              </LinearGradient>
-              <Text style={styles.successTitle}>Thanks, your order is in!</Text>
-              <Text style={styles.successId}>#{confirmation.orderId.slice(0, 8).toUpperCase()}</Text>
-              <Animated.View style={[styles.successPointsBox, pointsStyle]}>
-                <View style={styles.successPointsBadge}>
-                  <Feather name="star" size={16} color="#7A4B00" />
-                </View>
-                <View style={styles.successPointsCopy}>
-                  <Text style={styles.successPointsLabel}>You just earned</Text>
-                  <Text allowFontScaling={false} maxFontSizeMultiplier={1} style={styles.successPointsNumber}>+{earnedPoints}</Text>
-                  <Text style={styles.successPointsSuffix}>points from this order</Text>
+              <View style={styles.successTopBar}>
+                <Pressable
+                  onPress={() => {
+                    clearCart();
+                    router.dismissAll();
+                    router.replace('/(tabs)');
+                  }}
+                  style={styles.successTopBack}
+                >
+                  <Feather name="chevron-left" size={22} color={CHERRY} />
+                </Pressable>
+                <Text style={styles.successTopTitle}>Thank You</Text>
+                <View style={styles.successTopSpacer} />
+              </View>
+              <Animated.View style={[styles.characterStage, characterStyle]} pointerEvents="none">
+                <View style={styles.characterFrame}>
+                  <Image
+                    source={require('../../assets/images/thank-you-cookie-character.png')}
+                    style={styles.characterImage}
+                    contentFit="contain"
+                  />
                 </View>
               </Animated.View>
-              <View style={[styles.successInfoBox, { backgroundColor: 'rgba(255,248,231,0.92)', borderColor: '#F0A030' }]}>
-                <Feather name="alert-circle" size={16} color="#D97706" />
-                <Text style={styles.successInfoText}>
+              <View style={styles.successHero}>
+                <Text style={styles.successTitle}>Thank you!</Text>
+                <Text style={styles.successOrderLine}>
+                  Order Number: <Text style={styles.successOrderStrong}>{orderShortId}</Text>
+                </Text>
+                <Text style={styles.successDescription}>
                   {confirmation.paymentMethodType === 'pay_at_pickup'
-                    ? 'Your order will be paid at pickup. Please wait for your notification before coming in.'
-                    : 'Your order is not ready until you receive confirmation. Please wait for your notification before coming in.'}
+                    ? 'Your order is locked in. Please pay at pickup and check My Orders for live updates.'
+                    : 'Your order was placed successfully. Go to My Orders any time to check the live status.'}
                 </Text>
               </View>
-              {confirmation.scheduledLabel && (
-                <View style={styles.slotBox}>
-                  <Feather name="clock" size={14} color="#0E6FA1" />
-                  <Text style={styles.slotText}>{confirmation.scheduledLabel}</Text>
+              <Animated.View style={[styles.successSummaryCard, pointsStyle]}>
+                <View style={styles.successSummaryTop}>
+                  <View style={styles.successSummaryPriceWrap}>
+                    <Text style={styles.successSummaryPrice}>AUD {(confirmation.totalCents / 100).toFixed(2)}</Text>
+                    <Text style={styles.successSummaryOrderId}>{orderShortId}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      clearCart();
+                      router.dismissAll();
+                      router.replace('/orders');
+                    }}
+                    style={styles.successTrackLink}
+                  >
+                    <Text style={styles.successTrackText}>Track</Text>
+                  </Pressable>
                 </View>
-              )}
-              <Text style={styles.successTotal}>
-                {confirmation.paymentMethodType === 'pay_at_pickup' ? 'Total due at pickup' : 'Total paid'}: AUD {(confirmation.totalCents / 100).toFixed(2)}
-              </Text>
+                <View style={styles.successDivider} />
+                <View style={styles.successSummaryBottom}>
+                  <View style={styles.successStatusRow}>
+                    <Feather name="package" size={14} color="#A35A00" />
+                    <Text style={styles.successStatusText}>Being prepared</Text>
+                  </View>
+                  <Text style={styles.successDateText}>{placedLabel}</Text>
+                </View>
+              </Animated.View>
+              <View style={styles.successPointsInline}>
+                <Feather name="star" size={15} color="#A35A00" />
+                <Text style={styles.successPointsInlineText}>
+                  You earned <Text style={styles.successPointsInlineStrong}>+{earnedPoints} points</Text> from this order
+                </Text>
+              </View>
               <Pressable
                 onPress={() => {
                   clearCart();
                   router.dismissAll();
                   router.replace('/(tabs)');
                 }}
-                style={styles.trackBtn}
+                style={styles.returnHomeBtn}
               >
-                <Text style={styles.trackBtnText}>Back to Home</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  clearCart();
-                  router.dismissAll();
-                  router.replace('/orders');
-                }}
-              >
-                <Text style={[styles.successInfoText, { textAlign: 'center', marginTop: 4, textDecorationLine: 'underline' }]}>View my orders</Text>
+                <Text style={styles.returnHomeBtnText}>Return home</Text>
               </Pressable>
             </View>
           </Animated.View>
@@ -1751,44 +1772,62 @@ const styles = StyleSheet.create({
   continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Success
-  successWrap:    { flex: 1, overflow: 'visible', backgroundColor: '#F6F8FC' },
-  successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2, maxWidth: 430 },
+  successWrap:    { flex: 1, overflow: 'visible', backgroundColor: '#FFFFFF' },
+  successCard:    { width: '100%', alignItems: 'center', gap: 16, zIndex: 2, maxWidth: 430, paddingTop: 8 },
   successGlow:    {
     width: '100%',
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 22,
-    paddingHorizontal: 20,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#E5EAF2',
+    gap: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 0,
+    borderWidth: 0,
     backgroundColor: '#FFFFFF',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
     overflow: 'hidden',
   },
-  successIcon:    { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  successTitle:   { fontSize: 28, fontWeight: '800', color: '#083B57', textAlign: 'center', letterSpacing: -0.3 },
-  successId:      { fontSize: 14, fontWeight: '600', color: 'rgba(8,59,87,0.72)', letterSpacing: 0.8 },
+  successTitle:   { fontSize: 28, fontWeight: '800', color: '#444444', textAlign: 'center', letterSpacing: -0.3 },
   confettiLayer:  { ...StyleSheet.absoluteFillObject, overflow: 'visible' },
-  characterStage: { position: 'absolute', left: -56, right: -56, bottom: -18, height: 420, justifyContent: 'flex-end', alignItems: 'center' },
-  characterFrame: { width: '112%', maxWidth: 560, aspectRatio: 4256.5 / 3401.6 },
+  characterStage: { position: 'relative', left: 0, right: 0, bottom: 0, height: 250, justifyContent: 'flex-end', alignItems: 'center', marginTop: 12, marginBottom: -8 },
+  characterFrame: { width: 220, maxWidth: '72%', aspectRatio: 3195 / 3402 },
   characterImage: { width: '100%', height: '100%' },
-  successPointsBox: { flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'stretch', backgroundColor: '#FFF4D9', borderColor: '#F1C86A', borderWidth: 1.5, borderRadius: 20, paddingVertical: 16, paddingHorizontal: 16 },
-  successPointsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFE7A6', alignItems: 'center', justifyContent: 'center' },
-  successPointsCopy: { flex: 1, gap: 2 },
-  successPointsLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, color: '#8A5B00', textTransform: 'uppercase' },
-  successPointsNumber: { fontSize: 56, lineHeight: 58, fontWeight: '800', color: '#7A4B00', includeFontPadding: false, textAlignVertical: 'center', letterSpacing: -1 },
-  successPointsSuffix: { fontSize: 14, fontWeight: '500', color: '#5B3A00' },
-  successInfoBox: { flexDirection: 'row', gap: 10, padding: 16, borderWidth: 1.5, borderRadius: 12, alignSelf: 'stretch', alignItems: 'flex-start', backgroundColor: '#FFF8EC' },
-  successInfoText:{ flex: 1, color: '#92400E', fontSize: 13, fontWeight: '500', lineHeight: 20 },
-  slotBox:        { flexDirection: 'row', gap: 8, alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#D7E8F5', backgroundColor: '#F4FAFF', alignSelf: 'stretch', justifyContent: 'center' },
-  slotText:       { fontSize: 14, fontWeight: '500', color: '#0E3957' },
-  successTotal:   { fontSize: 15, fontWeight: '600', color: '#334155' },
-  trackBtn:       { backgroundColor: '#1493FF', borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
-  trackBtnText:   { color: '#fff', fontSize: 15, fontWeight: '600' },
+  successTopBar: { width: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#ECECEC', paddingBottom: 14 },
+  successTopBack: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginLeft: -6 },
+  successTopTitle: { fontSize: 18, fontWeight: '600', color: '#222222', textAlign: 'center' },
+  successTopSpacer: { width: 36, height: 36 },
+  successHero: { alignItems: 'center', gap: 12, width: '100%', paddingTop: 6 },
+  successOrderLine: { fontSize: 16, fontWeight: '500', color: '#555555', textAlign: 'center' },
+  successOrderStrong: { fontWeight: '800', color: '#3A3A3A' },
+  successDescription: { fontSize: 14, fontWeight: '400', color: '#575757', lineHeight: 22, textAlign: 'center', maxWidth: 320 },
+  successSummaryCard: {
+    alignSelf: 'stretch',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    gap: 12,
+  },
+  successSummaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
+  successSummaryPriceWrap: { flex: 1, gap: 3 },
+  successSummaryPrice: { fontSize: 18, fontWeight: '700', color: '#2E2E2E' },
+  successSummaryOrderId: { fontSize: 14, fontWeight: '500', color: '#707070' },
+  successTrackLink: { paddingHorizontal: 6, paddingVertical: 4 },
+  successTrackText: { fontSize: 16, fontWeight: '700', color: '#E94677' },
+  successDivider: { height: 1, backgroundColor: '#EFEFEF' },
+  successSummaryBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  successStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  successStatusText: { fontSize: 14, fontWeight: '500', color: '#5A5A5A' },
+  successDateText: { fontSize: 14, fontWeight: '500', color: '#777777' },
+  successPointsInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: -2 },
+  successPointsInlineText: { fontSize: 14, fontWeight: '500', color: '#5B3A00', textAlign: 'center' },
+  successPointsInlineStrong: { fontWeight: '800', color: '#8A4D00' },
+  returnHomeBtn: { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 18, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  returnHomeBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   emptyBackBtn:    { position: 'absolute', left: 16, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
