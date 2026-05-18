@@ -1072,7 +1072,10 @@ export default function CartScreen() {
                       onPress={() => {
                         clearCart();
                         router.dismissAll();
-                        router.replace('/orders');
+                        router.replace('/(tabs)/profile');
+                        setTimeout(() => {
+                          router.push('/orders');
+                        }, 0);
                       }}
                       style={styles.successTrackLink}
                     >

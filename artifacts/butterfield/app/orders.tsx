@@ -421,10 +421,17 @@ export default function CustomerOrdersScreen() {
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const orders = data?.data ?? [];
+  const handleExit = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/(tabs)/profile');
+  };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
-        <Pressable onPress={() => router.back()} style={s.backBtn}>
+        <Pressable onPress={handleExit} style={s.backBtn}>
           <Feather name="arrow-left" size={22} color={TEXT} />
         </Pressable>
         <Text style={s.headerTitle}>My orders</Text>
