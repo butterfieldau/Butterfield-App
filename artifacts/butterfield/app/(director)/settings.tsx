@@ -2004,7 +2004,10 @@ export default function DirectorSettingsScreen() {
     queryFn: () => api.auth.me(),
     enabled: isManager,
   });
-  const managerPerms: string[] = (meData?.user as any)?.managerPermissions ?? [];
+  const managerPerms: string[] = useMemo(
+    () => (meData?.user as any)?.managerPermissions ?? [],
+    [meData],
+  );
 
   const TABS = useMemo<TabKey[]>(() => {
     const base: TabKey[] = ['Store'];
