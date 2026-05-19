@@ -6,7 +6,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: true,
+    shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
   }),
@@ -16,6 +16,15 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
 const NOTIFICATION_SOUND = 'butterfield-push-tone.mp3';
+
+export async function clearAppBadge(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await Notifications.setBadgeCountAsync(0);
+  } catch {
+    // Non-fatal — badge clearing is best-effort
+  }
+}
 
 /**
  * Request permission and register the Expo push token with the backend.
@@ -27,6 +36,8 @@ export async function registerPushToken(authToken: string): Promise<string | nul
   if (Platform.OS === 'web') return null;
 
   try {
+    await clearAppBadge();
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -84,6 +95,7 @@ export async function registerPushToken(authToken: string): Promise<string | nul
 export async function deregisterPushToken(authToken: string): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
+    await clearAppBadge();
     const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
     await fetch(`${API_BASE}/notifications/register-token`, {

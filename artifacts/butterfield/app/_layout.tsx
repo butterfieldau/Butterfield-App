@@ -4,9 +4,10 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Image, StyleSheet, View } from "react-native";
+import { Animated, AppState, Image, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -14,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { clearAppBadge } from "@/lib/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -113,6 +115,30 @@ export default function RootLayout() {
     // Hide the native Expo splash immediately — the JS overlay takes over
     // so there's no visible gap between the two layers.
     SplashScreen.hideAsync();
+  }, []);
+
+  useEffect(() => {
+    clearAppBadge().catch(() => {});
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        clearAppBadge().catch(() => {});
+      }
+    });
+
+    const receivedSub = Notifications.addNotificationReceivedListener(() => {
+      clearAppBadge().catch(() => {});
+    });
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener(() => {
+      clearAppBadge().catch(() => {});
+    });
+
+    return () => {
+      appStateSub.remove();
+      receivedSub.remove();
+      responseSub.remove();
+    };
   }, []);
 
   return (

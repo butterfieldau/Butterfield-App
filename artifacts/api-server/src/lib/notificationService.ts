@@ -81,7 +81,6 @@ export async function sendNotification(opts: SendNotificationOptions): Promise<v
         data: opts.data ?? {},
         sound: NOTIFICATION_SOUND,
         channelId: NOTIFICATION_CHANNEL_ID,
-        badge: 1,
       }));
 
       const chunks = expo.chunkPushNotifications(messages);
