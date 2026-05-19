@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { logger } from './logger.js';
 
 const expo = new Expo({ useFcmV1: true } as any);
-const NOTIFICATION_SOUND = 'new-message-2.mp3';
+const NOTIFICATION_SOUND = 'butterfield-push-tone.mp3';
 const NOTIFICATION_CHANNEL_ID = 'butterfield-staff';
 
 export interface SendNotificationOptions {

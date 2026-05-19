@@ -15,7 +15,7 @@ Notifications.setNotificationHandler({
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
-const NOTIFICATION_SOUND = 'new-message-2.mp3';
+const NOTIFICATION_SOUND = 'butterfield-push-tone.mp3';
 
 /**
  * Request permission and register the Expo push token with the backend.
