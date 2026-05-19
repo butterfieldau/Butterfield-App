@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
@@ -29,6 +30,9 @@ const GREEN   = '#22C55E';
 const GOOGLE_RED = '#4285F4';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+
+// Required so the OAuth redirect is handled correctly when the browser returns
+WebBrowser.maybeCompleteAuthSession();
 
 const PUBLIC_ROLES = [
   { role: 'customer'  as UserRole, label: 'Customer',  subtitle: 'Order, earn\nrewards & explore', icon: 'coffee'  },
@@ -78,6 +82,38 @@ export default function LoginScreen() {
   const [iError, setIError]               = useState('');
   const [geoStatus, setGeoStatus]         = useState<'idle' | 'acquiring' | 'ready' | 'denied'>('idle');
 
+  // ── Google Sign-In (PKCE via expo-auth-session) ──────────────────────────
+  const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: GOOGLE_CLIENT_ID ?? '',
+  });
+
+  React.useEffect(() => {
+    if (!googleResponse) return;
+    if (googleResponse.type === 'success') {
+      const accessToken = googleResponse.authentication?.accessToken;
+      if (!accessToken) {
+        setError('Google sign-in failed — no token received.');
+        setSocialLoading(null);
+        return;
+      }
+      socialLogin({ provider: 'google', accessToken })
+        .then((result) => {
+          if (!result.success) setError(result.error ?? 'Google sign-in failed.');
+          else {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace('/(tabs)');
+          }
+        })
+        .catch((e: any) => setError(e.message ?? 'Google sign-in failed.'))
+        .finally(() => setSocialLoading(null));
+    } else if (googleResponse.type === 'error') {
+      setError('Google sign-in failed. Please try again.');
+      setSocialLoading(null);
+    } else {
+      setSocialLoading(null);
+    }
+  }, [googleResponse]);
+
   const isWholesale      = selectedRole === 'wholesale';
   const isWholesaleApply = mode === 'wholesale-apply';
   const showSocial       = !isWholesale && mode !== 'wholesale-apply' && !showInternal;
@@ -87,42 +123,13 @@ export default function LoginScreen() {
     setAddress(''); setHowDidYouHear(''); setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
-  // ── Google OAuth (via WebBrowser implicit flow — no native crypto needed) ───
+  // ── Google Sign-In ────────────────────────────────────────────────────────
   const handleGoogleSignIn = async () => {
-    if (!GOOGLE_CLIENT_ID) {
-      setError('Google sign-in is not configured yet.');
-      return;
-    }
+    if (!GOOGLE_CLIENT_ID) { setError('Google sign-in is not configured yet.'); return; }
     setError('');
     setSocialLoading('google');
-    try {
-      const redirectUri = 'butterfield://';
-      const state = Math.random().toString(36).substring(2);
-      const url =
-        `https://accounts.google.com/o/oauth2/v2/auth` +
-        `?client_id=${GOOGLE_CLIENT_ID}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&response_type=token` +
-        `&scope=${encodeURIComponent('openid profile email')}` +
-        `&state=${state}`;
-      const result = await WebBrowser.openAuthSessionAsync(url, redirectUri);
-      if (result.type !== 'success') { setSocialLoading(null); return; }
-      const fragment = result.url.split('#')[1] ?? '';
-      const params = new URLSearchParams(fragment);
-      const accessToken = params.get('access_token');
-      if (!accessToken) { setError('Google sign-in failed — no token received.'); return; }
-      const loginResult = await socialLogin({
-        provider: 'google',
-        accessToken,
-      });
-      if (!loginResult.success) { setError(loginResult.error ?? 'Google sign-in failed.'); return; }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
-    } catch (e: any) {
-      setError(e.message ?? 'Google sign-in failed.');
-    } finally {
-      setSocialLoading(null);
-    }
+    await googlePromptAsync();
+    // Result handled in the useEffect above
   };
 
   // ── Apple Sign-In ───────────────────────────────────────────────────────────

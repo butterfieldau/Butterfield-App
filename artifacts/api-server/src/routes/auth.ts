@@ -774,6 +774,59 @@ router.post('/reset-password', async (req, res) => {
   return res.json({ success: true, message: 'Password updated successfully.' });
 });
 
+// ── Social login (Google / Apple) ────────────────────────────────────────────
+router.post('/social', async (req, res) => {
+  const { provider, accessToken } = req.body ?? {};
+  if (provider !== 'google' || typeof accessToken !== 'string' || !accessToken) {
+    return res.status(400).json({ error: 'provider and accessToken are required.' });
+  }
+
+  // Verify the token with Google — never trust client-supplied user data
+  let googleUser: { id: string; email: string; name?: string; verified_email?: boolean };
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!r.ok) return res.status(401).json({ error: 'Invalid or expired Google token.' });
+    googleUser = await r.json() as typeof googleUser;
+  } catch {
+    return res.status(502).json({ error: 'Could not reach Google to verify token.' });
+  }
+
+  if (!googleUser.email) {
+    return res.status(401).json({ error: 'No email returned from Google.' });
+  }
+
+  const normalEmail = googleUser.email.toLowerCase();
+
+  // Find existing user by email
+  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalEmail));
+
+  if (!user) {
+    // Create a new customer account
+    const id = randomUUID();
+    [user] = await db.insert(usersTable).values({
+      id,
+      email: normalEmail,
+      name: googleUser.name ?? normalEmail.split('@')[0],
+      role: 'customer' as const,
+      passwordHash: '',
+      socialProvider: 'google',
+      socialId: googleUser.id,
+    }).returning();
+    await getOrCreateCustomerLoyaltyProfile(id);
+  } else if (!user.socialId) {
+    // Link Google to an existing email/password account
+    await db.update(usersTable)
+      .set({ socialProvider: 'google', socialId: googleUser.id, updatedAt: new Date() })
+      .where(eq(usersTable.id, user.id));
+  }
+
+  const token = signToken(user);
+  const { passwordHash: _pw, ...safeUser } = user;
+  return res.json({ token, user: safeUser });
+});
+
 // ── Account deletion (GDPR / App Store requirement) ────────────────────────
 router.delete('/account', requireAuth, async (req, res) => {
   const userId = (req as any).user.id;

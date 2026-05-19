@@ -22,7 +22,14 @@
         "NSLocationWhenInUseUsageDescription": "Butterfield uses your location to verify you are at a Butterfield store when signing in as a staff member.",
         "NSPhotoLibraryUsageDescription": "Butterfield uses your photo library so you can upload a profile picture.",
         "NSUserNotificationsUsageDescription": "Butterfield sends notifications for order updates, loyalty rewards, and special offers. You can manage these in Settings.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.119890251041-tsgds8o83po7p4gaeqqfnph67e3fpt46"
+            ]
+          }
+        ]
       }
     },
     "android": {},
