@@ -26,19 +26,32 @@ const MUTED = '#8E8E93';
 const BORDER= '#E5E7EB';
 const RED   = '#EF4444';
 
-// ── Wholesale pricing tiers ───────────────────────────────────────────────────
-const WS_TIERS = [
-  { minQty: 1,  discount: 0    },
-  { minQty: 10, discount: 0.10 },
-  { minQty: 25, discount: 0.20 },
-  { minQty: 50, discount: 0.30 },
-];
-function wsPrice(bp: number, qty: number) {
-  const tier = [...WS_TIERS].reverse().find(t => qty >= t.minQty);
-  return bp * (1 - (tier?.discount ?? 0));
+// ── Pricing context (mirrors the server engine priority order) ────────────────
+interface PricingContext {
+  tierId: string | null;
+  tierName: string | null;
+  qtyBreaks: Array<{ id: string; productId: string; minQty: number; unitPriceCents: number }>;
+  customPrices: Array<{ id: string; productId: string; unitPriceCents: number | null }>;
 }
-function basePrice(p: ApiProduct) {
-  return (p.prices?.[0]?.unit_amount ?? (p as any).priceCents ?? 0) / 100;
+
+function computePriceInfo(
+  productId: string,
+  qty: number,
+  baseCents: number,
+  ctx: PricingContext | null,
+): { unitCents: number; isCustom: boolean; isQtyBreak: boolean } {
+  if (!ctx || !baseCents) return { unitCents: baseCents, isCustom: false, isQtyBreak: false };
+  const custom = ctx.customPrices.find((cp) => cp.productId === productId && cp.unitPriceCents);
+  if (custom?.unitPriceCents) return { unitCents: custom.unitPriceCents, isCustom: true, isQtyBreak: false };
+  const applicable = [...(ctx.qtyBreaks ?? [])]
+    .filter((qb) => qb.productId === productId && qb.unitPriceCents && qty >= qb.minQty)
+    .sort((a, b) => b.minQty - a.minQty)[0];
+  if (applicable?.unitPriceCents) return { unitCents: applicable.unitPriceCents, isCustom: false, isQtyBreak: true };
+  return { unitCents: baseCents, isCustom: false, isQtyBreak: false };
+}
+
+function baseCentsFor(p: ApiProduct): number {
+  return (p as any).unitPriceCents ?? (p.prices?.[0]?.unit_amount ?? 0);
 }
 
 interface CartEntry { product: ApiProduct; quantity: number }
@@ -54,7 +67,21 @@ export default function WholesaleCartScreen() {
     queryFn:  () => api.wholesale.account(),
     staleTime: 60_000,
   });
-  const deliveryFeeCents: number = accountData?.data?.deliveryFeeCents ?? 0;
+  const account = accountData?.data ?? null;
+  const deliveryFeeCents: number = account?.deliveryFeeCents ?? 0;
+
+  const { data: pricingData } = useQuery({
+    queryKey: ['wholesale-pricing-context'],
+    queryFn:  () => api.wholesale.pricingContext(),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const pricingCtx = (pricingData?.data ?? null) as PricingContext | null;
+
+  // Minimum order — account-level override takes priority over tier default
+  const minOrderCents: number = (account?.minOrderCents ?? 0) > 0
+    ? (account?.minOrderCents ?? 0)
+    : (account?.tier?.minOrderCents ?? 0);
 
   // Reload cart from AsyncStorage every time this tab gains focus
   useFocusEffect(useCallback(() => {
@@ -83,11 +110,14 @@ export default function WholesaleCartScreen() {
     saveCart(cart.filter(e => e.product.id !== id));
   };
 
-  const subtotalCents = cart.reduce(
-    (s, e) => s + Math.round(wsPrice(basePrice(e.product), e.quantity) * e.quantity * 100), 0,
-  );
+  const subtotalCents = cart.reduce((s, e) => {
+    const bc = baseCentsFor(e.product);
+    return s + computePriceInfo(e.product.id, e.quantity, bc, pricingCtx).unitCents * e.quantity;
+  }, 0);
   const totalCents = subtotalCents + (deliveryFeeCents > 0 ? deliveryFeeCents : 0);
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
+
+  const belowMin = minOrderCents > 0 && subtotalCents < minOrderCents;
 
   const handleCheckout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -134,10 +164,10 @@ export default function WholesaleCartScreen() {
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 160 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: entry }) => {
-            const bp       = basePrice(entry.product);
-            const wp       = wsPrice(bp, entry.quantity);
-            const lineTotal= Math.round(wp * entry.quantity * 100);
-            const imgUri   = (entry.product as any).images?.[0] ?? (entry.product as any).imageUrl;
+            const bc = baseCentsFor(entry.product);
+            const priceInfo = computePriceInfo(entry.product.id, entry.quantity, bc, pricingCtx);
+            const lineTotalCents = priceInfo.unitCents * entry.quantity;
+            const imgUri = (entry.product as any).images?.[0] ?? (entry.product as any).imageUrl;
             return (
               <View style={s.card}>
                 {imgUri ? (
@@ -154,8 +184,20 @@ export default function WholesaleCartScreen() {
                       <Feather name="x" size={15} color={MUTED} />
                     </Pressable>
                   </View>
-                  <Text style={s.lineTotal}>AUD {(lineTotal / 100).toFixed(2)}</Text>
-                  <Text style={s.unitPrice}>AUD {wp.toFixed(2)} / unit</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={s.lineTotal}>AUD {(lineTotalCents / 100).toFixed(2)}</Text>
+                    {priceInfo.isCustom && (
+                      <View style={s.priceBadge}>
+                        <Text style={s.priceBadgeText}>Custom</Text>
+                      </View>
+                    )}
+                    {priceInfo.isQtyBreak && (
+                      <View style={s.priceBadge}>
+                        <Text style={s.priceBadgeText}>Qty price</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={s.unitPrice}>AUD {(priceInfo.unitCents / 100).toFixed(2)} / unit</Text>
                   <View style={s.qtyRow}>
                     <Pressable
                       onPress={() => updateQty(entry.product.id, entry.quantity - 1)}
@@ -195,9 +237,9 @@ export default function WholesaleCartScreen() {
                   AUD {(totalCents / 100).toFixed(2)}
                 </Text>
               </View>
-              {subtotalCents < 5000 && (
+              {belowMin && (
                 <Text style={{ color: RED, fontSize: 12, fontWeight: '400', marginTop: 4 }}>
-                  Minimum wholesale order is AUD 50.00
+                  Minimum wholesale order is AUD {(minOrderCents / 100).toFixed(2)}
                 </Text>
               )}
             </View>
@@ -206,7 +248,7 @@ export default function WholesaleCartScreen() {
       )}
 
       {cart.length > 0 && (
-        <View style={[s.footer, { paddingBottom: 12 }]}>
+        <View style={[s.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <View style={s.footerInner}>
             <View>
               <Text style={s.footerLabel}>TOTAL</Text>
@@ -214,8 +256,8 @@ export default function WholesaleCartScreen() {
             </View>
             <Pressable
               onPress={handleCheckout}
-              disabled={subtotalCents < 5000}
-              style={[s.checkoutBtn, { backgroundColor: subtotalCents < 5000 ? '#C7C7CC' : BLUE }]}
+              disabled={belowMin}
+              style={[s.checkoutBtn, { backgroundColor: belowMin ? '#C7C7CC' : BLUE }]}
             >
               <Feather name="shopping-bag" size={15} color="#fff" />
               <Text style={s.checkoutBtnText}>Proceed to Checkout</Text>
@@ -246,6 +288,9 @@ const s = StyleSheet.create({
   qtyRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
   qtyBtn:      { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
   qtyNum:      { fontSize: 15, fontWeight: '700', color: TEXT, minWidth: 28, textAlign: 'center' },
+
+  priceBadge:     { backgroundColor: '#EBF8FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  priceBadgeText: { fontSize: 10, fontWeight: '600', color: BLUE },
 
   summaryCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10, marginTop: 4 },
   sumRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
