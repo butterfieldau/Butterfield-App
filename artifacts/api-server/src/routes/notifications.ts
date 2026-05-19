@@ -129,21 +129,32 @@ router.get('/preferences', requireAuth, async (req, res) => {
 });
 
 router.patch('/preferences', requireAuth, async (req, res) => {
-  const { orderUpdates, promotions, rewards, staffAlerts, wholesaleAlerts } = req.body ?? {};
-  const prefs = JSON.stringify({
-    orderUpdates: orderUpdates ?? true,
-    promotions: promotions ?? true,
-    rewards: rewards ?? true,
-    staffAlerts: staffAlerts ?? true,
-    wholesaleAlerts: wholesaleAlerts ?? true,
-  });
+  const incoming = req.body ?? {};
 
+  // Fetch existing saved prefs so we can merge (not overwrite) keys from other devices
+  const [user] = await db
+    .select({ notificationPreferences: usersTable.notificationPreferences })
+    .from(usersTable)
+    .where(eq(usersTable.id, req.user!.id));
+
+  let existing: Record<string, boolean> = {};
+  try {
+    existing = user?.notificationPreferences ? JSON.parse(user.notificationPreferences) : {};
+  } catch { /* ignore */ }
+
+  // Merge: only accept boolean values from the request
+  const merged: Record<string, boolean> = { ...existing };
+  for (const [key, val] of Object.entries(incoming)) {
+    if (typeof val === 'boolean') merged[key] = val;
+  }
+
+  const prefs = JSON.stringify(merged);
   await db
     .update(usersTable)
     .set({ notificationPreferences: prefs, updatedAt: new Date() })
     .where(eq(usersTable.id, req.user!.id));
 
-  return res.json({ ok: true, data: JSON.parse(prefs) });
+  return res.json({ ok: true, data: merged });
 });
 
 export default router;

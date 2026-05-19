@@ -219,6 +219,11 @@ export const api = {
     homeBanner: () => request<{ data: HomeBannerConfig | null }>('/home-banner'),
     context: () => request<{ data: LiveContext }>('/context'),
   },
+  notifications: {
+    getPreferences:    () => request<{ data: Record<string, boolean> }>('/notifications/preferences'),
+    updatePreferences: (prefs: Record<string, boolean>) =>
+      request<{ ok: boolean; data: Record<string, boolean> }>('/notifications/preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),
+  },
   welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
     config: () => request<{ data: { publishableKey: string | null; merchantDisplayName: string } }>('/payment/config'),

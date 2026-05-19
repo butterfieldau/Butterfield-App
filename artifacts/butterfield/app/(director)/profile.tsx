@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
 import {
@@ -50,10 +51,11 @@ export default function StaffProfileScreen() {
   };
 
   const menuItems = [
-    { icon: 'calendar',       label: 'Request Leave',      sub: 'Annual, sick & personal leave',   onPress: () => router.push({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
-    { icon: 'message-circle', label: 'Team Announcements', sub: 'Messages from management',        onPress: () => Alert.alert('Team Announcements', 'No new announcements.\n\nCheck back before your next shift.') },
-    { icon: 'alert-circle',   label: 'Report an Issue',    sub: 'Equipment, safety, maintenance',  onPress: () => router.push({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
-    { icon: 'help-circle',    label: 'Help & Support',     sub: 'Call or email head office', onPress: () => Alert.alert('Help & Support', 'Phone: 0480 769 995\nEmail: hello@butterfieldcookies.com.au\n\nMon–Fri, 8am – 4pm AEST') },
+    { icon: 'calendar',       label: 'Request Leave',         sub: 'Annual, sick & personal leave',   onPress: () => router.push({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
+    { icon: 'message-circle', label: 'Team Announcements',    sub: 'Messages from management',        onPress: () => Alert.alert('Team Announcements', 'No new announcements.\n\nCheck back before your next shift.') },
+    { icon: 'bell',           label: 'Notification Settings', sub: 'Control what you get notified about', onPress: () => { Haptics.selectionAsync(); router.push('/notification-prefs' as any); } },
+    { icon: 'alert-circle',   label: 'Report an Issue',       sub: 'Equipment, safety, maintenance',  onPress: () => router.push({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
+    { icon: 'help-circle',    label: 'Help & Support',        sub: 'Call or email head office', onPress: () => Alert.alert('Help & Support', 'Phone: 0480 769 995\nEmail: hello@butterfieldcookies.com.au\n\nMon–Fri, 8am – 4pm AEST') },
   ];
 
   return (

@@ -62,6 +62,13 @@ export default function MoreScreen() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
   const operations: Row[] = [
+    ...(isManager ? [{
+      icon: 'package',
+      label: 'Products',
+      sub: 'Manage product availability & listings',
+      color: BLUE,
+      onPress: () => router.push('/(director)/products' as any),
+    }] : []),
     {
       icon: 'archive',
       label: 'Stock & Inventory',
@@ -83,20 +90,20 @@ export default function MoreScreen() {
       color: PURPLE,
       onPress: () => router.push('/(director)/timesheets' as any),
     },
-    {
+    ...(!isManager ? [{
       icon: 'tag',
       label: 'Pricing & Tiers',
       sub: 'Wholesale pricing rules',
       color: AMBER,
       onPress: () => router.push('/(director)/pricing' as any),
-    },
-    {
+    }] : []),
+    ...(!isManager ? [{
       icon: 'percent',
       label: 'Discount Codes',
       sub: 'Create & manage promotional codes',
       color: RED,
       onPress: () => router.push('/(director)/discounts' as any),
-    },
+    }] : []),
   ];
 
   const store: Row[] = [
@@ -127,6 +134,13 @@ export default function MoreScreen() {
       sub: 'Push notifications & banners',
       color: '#06B6D4',
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Notify' } } as any),
+    },
+    {
+      icon: 'bell-off',
+      label: 'My Notification Settings',
+      sub: 'Control what you get notified about',
+      color: PURPLE,
+      onPress: () => router.push('/notification-prefs' as any),
     },
     ...(!isManager ? [{
       icon: 'shield',

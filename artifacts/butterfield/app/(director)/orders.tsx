@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 
 const BG     = '#F5F6FA';
@@ -104,11 +105,12 @@ function getPastDays(n: number) {
   return days;
 }
 // ── Order Detail Modal ────────────────────────────────────────────────────────
-function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing }: {
+function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing, canCancelRefund }: {
   order: any; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string) => Promise<void>;
   onPrintReceipt: () => Promise<void>;
   printing: boolean;
+  canCancelRefund: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
@@ -117,7 +119,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   const items = Array.isArray(order.items) ? order.items : [];
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
-  const next   = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
+  // Filter cancel/refund from action list for non-directors (managers cannot cancel or refund)
+  const rawNext = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
+  const next = canCancelRefund ? rawNext : rawNext.filter((s: string) => s !== 'cancelled' && s !== 'refunded');
   const handleChangeStatus = () => {
     if (next.length === 0) {
       Alert.alert('Status', `This order is ${label} and cannot be advanced further.`); return;
@@ -609,6 +613,8 @@ function CalendarModal({
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canCancelRefund = user?.role === 'director' || user?.role === 'master';
   const [filter, setFilter]         = useState('all');
   const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -840,6 +846,7 @@ export default function DirectorOrdersScreen() {
         onStatusChange={handleStatusChange}
         onPrintReceipt={() => selectedOrder ? printOrder(selectedOrder) : Promise.resolve()}
         printing={printingOrderId === selectedOrder?.id}
+        canCancelRefund={canCancelRefund}
       />
 
       {/* Calendar date picker */}

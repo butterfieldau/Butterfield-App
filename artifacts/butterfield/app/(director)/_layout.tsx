@@ -130,13 +130,13 @@ export default function DirectorLayout() {
           }}
         />
 
-        {/* ── Products — manager, director, master ── */}
+        {/* ── Products — director, master only (managers access via More) ── */}
         <Tabs.Screen
           name="products"
           options={{
             title: 'Products',
             tabBarIcon: ({ color, size }) => <Feather name="package" size={size} color={color} />,
-            href: isStaff ? null : undefined,
+            href: (isStaff || isManager) ? null : undefined,
           }}
         />
 

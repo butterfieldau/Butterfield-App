@@ -13,6 +13,8 @@ import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
 import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
+import { recordLoyaltyPoints } from '../lib/loyaltyIdentity.js';
+import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
@@ -247,12 +249,18 @@ router.patch('/orders/:id/status', async (req, res) => {
   const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
   const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
 
+  // Cancelling or refunding is director/master only — managers cannot do this
+  const isDirectorOrMaster = req.user!.role === 'director' || req.user!.role === 'master';
+  if ((status === 'cancelled' || status === 'refunded') && !isDirectorOrMaster) {
+    return res.status(403).json({ error: 'Only directors and masters can cancel or refund orders.' });
+  }
+
   const CUSTOMER_STATUS_MSG: Record<string, string> = {
     being_prepared:   'Your order is being prepared. ☕',
     ready_for_pickup: 'Your order is ready for pickup! 🎉',
     out_for_delivery: 'Your order is on its way! 🚚',
     completed:        'Your order is complete. Thanks for visiting! 🍪',
-    cancelled:        'Your order has been cancelled.',
+    cancelled:        'Your order has been cancelled. A refund has been initiated where applicable.',
     refunded:         'Your order has been refunded.',
   };
   const WHOLESALE_STATUS_MSG: Record<string, string> = {
@@ -263,16 +271,62 @@ router.patch('/orders/:id/status', async (req, res) => {
   };
 
   const [customerOrder] = await db
-    .select({ id: ordersTable.id, userId: ordersTable.userId })
+    .select()
     .from(ordersTable).where(eq(ordersTable.id, id));
   if (customerOrder) {
     if (!CUSTOMER_VALID.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+    const previousStatus = customerOrder.status;
     const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
     const msg = CUSTOMER_STATUS_MSG[status];
     if (msg) {
       notifyUser(customerOrder.userId, 'order_status', 'Butterfield Cookies', msg,
         { orderId: id, status, screen: '/(customer)/orders' }).catch(() => {});
     }
+
+    // On cancellation or refund: reverse loyalty points + restore claimed rewards + Stripe refund
+    const isCancelOrRefund = (status === 'cancelled' || status === 'refunded');
+    const wasAlreadyCancelledOrRefunded = previousStatus === 'cancelled' || previousStatus === 'refunded';
+    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && updated) {
+      // Restore claimed reward if any
+      try {
+        await db.update(claimedRewardsTable)
+          .set({ status: 'available', redeemedAt: null, orderId: null })
+          .where(and(
+            eq(claimedRewardsTable.orderId, updated.id),
+            eq(claimedRewardsTable.status, 'redeemed'),
+          ));
+      } catch (err: any) {
+        req.log.error({ err, orderId: updated.id }, 'Failed to restore claimed reward on director cancellation');
+      }
+
+      // Reverse loyalty points earned from this order
+      if (updated.loyaltyPointsEarned > 0) {
+        try {
+          await recordLoyaltyPoints({
+            userId: updated.userId,
+            pointsDelta: -updated.loyaltyPointsEarned,
+            orderId: updated.id,
+            description: `Order ${status} — points reversed`,
+          });
+        } catch (err: any) {
+          req.log.error({ err, orderId: updated.id }, 'Failed to reverse loyalty points on director cancellation');
+        }
+      }
+
+      // Trigger Stripe refund if order was paid online
+      if (updated.stripePaymentIntentId) {
+        try {
+          const { getUncachableStripeClient } = await import('../stripeClient.js');
+          const stripe = await getUncachableStripeClient();
+          await stripe.refunds.create({ payment_intent: updated.stripePaymentIntentId });
+          req.log.info({ orderId: updated.id, paymentIntentId: updated.stripePaymentIntentId }, 'Stripe refund issued on order cancellation');
+        } catch (err: any) {
+          // Non-fatal: log but don't fail the request — refund may already exist or be ineligible
+          req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on order cancellation');
+        }
+      }
+    }
+
     return res.json({ data: updated });
   }
 

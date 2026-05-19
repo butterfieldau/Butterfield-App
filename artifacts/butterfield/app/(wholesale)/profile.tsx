@@ -269,6 +269,17 @@ export default function WholesaleAccount() {
           />
         </Group>
 
+        {/* ── ACCOUNT ────────────────────────────────────────────────────── */}
+        <Group title="Account">
+          <Row
+            icon="bell"
+            iconBg="#EDE9FE"
+            label="Notification Settings"
+            onPress={() => { Haptics.selectionAsync(); router.push('/notification-prefs' as any); }}
+            last
+          />
+        </Group>
+
         {/* ── SUPPORT ────────────────────────────────────────────────────── */}
         <Group title="Support">
           <Row icon="phone" label={accountMgr ? `Call ${accountMgr}` : 'Call Sales Rep'} value="0480 769 995" onPress={openPhone} />
