@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
@@ -29,10 +29,10 @@ const BORDER  = '#E5E7EB';
 const GREEN   = '#22C55E';
 const GOOGLE_RED = '#4285F4';
 
-const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+const GOOGLE_IOS_CLIENT_ID = '119890251041-tsgds8o83po7p4gaeqqfnph67e3fpt46.apps.googleusercontent.com';
 
-// Required so the OAuth redirect is handled correctly when the browser returns
-WebBrowser.maybeCompleteAuthSession();
+// Configure the native Google Sign-In SDK once at module load time
+GoogleSignin.configure({ iosClientId: GOOGLE_IOS_CLIENT_ID });
 
 const PUBLIC_ROLES = [
   { role: 'customer'  as UserRole, label: 'Customer',  subtitle: 'Order, earn\nrewards & explore', icon: 'coffee'  },
@@ -82,37 +82,6 @@ export default function LoginScreen() {
   const [iError, setIError]               = useState('');
   const [geoStatus, setGeoStatus]         = useState<'idle' | 'acquiring' | 'ready' | 'denied'>('idle');
 
-  // ── Google Sign-In (PKCE via expo-auth-session) ──────────────────────────
-  const [, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    iosClientId: GOOGLE_CLIENT_ID ?? '',
-  });
-
-  React.useEffect(() => {
-    if (!googleResponse) return;
-    if (googleResponse.type === 'success') {
-      const accessToken = googleResponse.authentication?.accessToken;
-      if (!accessToken) {
-        setError('Google sign-in failed — no token received.');
-        setSocialLoading(null);
-        return;
-      }
-      socialLogin({ provider: 'google', accessToken })
-        .then((result) => {
-          if (!result.success) setError(result.error ?? 'Google sign-in failed.');
-          else {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.replace('/(tabs)');
-          }
-        })
-        .catch((e: any) => setError(e.message ?? 'Google sign-in failed.'))
-        .finally(() => setSocialLoading(null));
-    } else if (googleResponse.type === 'error') {
-      setError('Google sign-in failed. Please try again.');
-      setSocialLoading(null);
-    } else {
-      setSocialLoading(null);
-    }
-  }, [googleResponse]);
 
   const isWholesale      = selectedRole === 'wholesale';
   const isWholesaleApply = mode === 'wholesale-apply';
@@ -123,13 +92,32 @@ export default function LoginScreen() {
     setAddress(''); setHowDidYouHear(''); setError(''); setSuccessMsg(''); setShowPw(false);
   };
 
-  // ── Google Sign-In ────────────────────────────────────────────────────────
+  // ── Google Sign-In (native iOS SDK) ──────────────────────────────────────
   const handleGoogleSignIn = async () => {
-    if (!GOOGLE_CLIENT_ID) { setError('Google sign-in is not configured yet.'); return; }
     setError('');
     setSocialLoading('google');
-    await googlePromptAsync();
-    // Result handled in the useEffect above
+    try {
+      const signInResult = await GoogleSignin.signIn();
+      const idToken = signInResult.data?.idToken;
+      if (!idToken) {
+        setError('Google sign-in failed — no token received.');
+        setSocialLoading(null);
+        return;
+      }
+      const result = await socialLogin({ provider: 'google', idToken });
+      if (!result.success) {
+        setError(result.error ?? 'Google sign-in failed.');
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.replace('/(tabs)');
+      }
+    } catch (e: any) {
+      if (e.code !== 'SIGN_IN_CANCELLED') {
+        setError('Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setSocialLoading(null);
+    }
   };
 
   // ── Apple Sign-In ───────────────────────────────────────────────────────────

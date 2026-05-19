@@ -776,17 +776,15 @@ router.post('/reset-password', async (req, res) => {
 
 // ── Social login (Google / Apple) ────────────────────────────────────────────
 router.post('/social', async (req, res) => {
-  const { provider, accessToken } = req.body ?? {};
-  if (provider !== 'google' || typeof accessToken !== 'string' || !accessToken) {
-    return res.status(400).json({ error: 'provider and accessToken are required.' });
+  const { provider, idToken } = req.body ?? {};
+  if (provider !== 'google' || typeof idToken !== 'string' || !idToken) {
+    return res.status(400).json({ error: 'provider and idToken are required.' });
   }
 
-  // Verify the token with Google — never trust client-supplied user data
-  let googleUser: { id: string; email: string; name?: string; verified_email?: boolean };
+  // Verify the ID token with Google's tokeninfo endpoint — never trust client-supplied user data
+  let googleUser: { sub: string; email: string; name?: string; email_verified?: string };
   try {
-    const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
     if (!r.ok) return res.status(401).json({ error: 'Invalid or expired Google token.' });
     googleUser = await r.json() as typeof googleUser;
   } catch {
@@ -795,6 +793,10 @@ router.post('/social', async (req, res) => {
 
   if (!googleUser.email) {
     return res.status(401).json({ error: 'No email returned from Google.' });
+  }
+
+  if (googleUser.email_verified !== 'true') {
+    return res.status(401).json({ error: 'Google account email is not verified.' });
   }
 
   const normalEmail = googleUser.email.toLowerCase();
@@ -812,13 +814,13 @@ router.post('/social', async (req, res) => {
       role: 'customer' as const,
       passwordHash: '',
       socialProvider: 'google',
-      socialId: googleUser.id,
+      socialId: googleUser.sub,
     }).returning();
     await getOrCreateCustomerLoyaltyProfile(id);
   } else if (!user.socialId) {
     // Link Google to an existing email/password account
     await db.update(usersTable)
-      .set({ socialProvider: 'google', socialId: googleUser.id, updatedAt: new Date() })
+      .set({ socialProvider: 'google', socialId: googleUser.sub, updatedAt: new Date() })
       .where(eq(usersTable.id, user.id));
   }
 

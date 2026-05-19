@@ -68,7 +68,7 @@ export const api = {
       email: string; password: string; name: string; phone: string;
       companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string;
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
-    socialLogin: (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) =>
+    socialLogin: (data: { provider: 'google'; idToken: string } | { provider: 'apple'; idToken: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
     forgotPassword: (data: { email?: string; phone?: string; method: 'email' | 'sms' }) =>
       request<{ success: boolean; message: string; destination?: string; method?: string; devOtp?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),

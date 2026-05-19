@@ -28,7 +28,7 @@ interface AuthContextValue {
   ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
   wholesaleApply: (data: { email: string; password: string; name: string; phone: string; companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
-  socialLogin: (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) => Promise<{ success: boolean; error?: string }>;
+  socialLogin: (data: { provider: 'google'; idToken: string } | { provider: 'apple'; idToken: string }) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const socialLogin = useCallback(async (data: { provider: 'google'; accessToken: string } | { provider: 'apple'; idToken: string }) => {
+  const socialLogin = useCallback(async (data: { provider: 'google'; idToken: string } | { provider: 'apple'; idToken: string }) => {
     try {
       const res = await api.auth.socialLogin(data);
       await saveToken(res.token);
