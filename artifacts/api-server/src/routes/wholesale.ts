@@ -6,6 +6,7 @@ import {
 } from '@workspace/db';
 import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { sendNotification } from '../lib/notificationService.js';
 import {
   calculateWholesalePrice,
   canCustomerAccessProduct,
@@ -181,6 +182,16 @@ router.post('/orders', async (req, res) => {
       deliveryType: deliveryType ?? 'pickup',
       scheduledDate: scheduledDate ?? null,
     }).returning();
+
+    const itemCount = Array.isArray(itemsWithNames) ? itemsWithNames.reduce((sum, item) => sum + Math.max(1, Number(item.qty ?? 1) || 1), 0) : 1;
+    void sendNotification({
+      roles: ['manager', 'director', 'master'],
+      type: 'new_wholesale_order',
+      title: 'New Wholesale Order',
+      body: `${account.companyName} · ${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(finalTotalCents / 100).toFixed(2)}`,
+      data: { orderId: order.id, screen: '/(wholesale)/orders' },
+    }).catch(() => {});
+
     return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, finalTotalCents } } });
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Order validation failed' });

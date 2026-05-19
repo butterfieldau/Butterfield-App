@@ -3,12 +3,27 @@ import { randomUUID } from 'crypto';
 import { db, ordersTable, customerProfilesTable, storeSettingsTable, productsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, loyaltyRewardsTable } from '@workspace/db';
 import { eq, desc, inArray, sql, and } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
-import { notifyRole, notifyUser } from '../lib/notificationService.js';
+import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
+
+function sendNotificationToInternalTeam(
+  type: string,
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+) {
+  return sendNotification({
+    roles: ['staff', 'manager', 'director', 'master'],
+    type,
+    title,
+    body,
+    data,
+  });
+}
 
 router.use(requireAuth);
 
@@ -370,13 +385,12 @@ router.post('/', async (req, res) => {
 
   // ── Notify staff and customer of the new order ────────────────────────────
   const itemCount = Array.isArray(items) ? items.length : 1;
-  void notifyRole(
-    'staff',
+  void sendNotificationToInternalTeam(
     'new_order',
     'New Order In',
     `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
     { orderId, screen: '/(staff)/orders' },
-  ).catch((err) => req.log.warn({ err, orderId }, 'Staff order notification failed'));
+  ).catch((err) => req.log.warn({ err, orderId }, 'Internal order notification failed'));
 
   void notifyUser(
     req.user!.id,

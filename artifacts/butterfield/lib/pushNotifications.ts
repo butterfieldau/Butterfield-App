@@ -15,6 +15,7 @@ Notifications.setNotificationHandler({
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
+const NOTIFICATION_SOUND = 'new-message-2.mp3';
 
 /**
  * Request permission and register the Expo push token with the backend.
@@ -43,6 +44,14 @@ export async function registerPushToken(authToken: string): Promise<string | nul
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#1493FF',
+        sound: NOTIFICATION_SOUND,
+      });
+      await Notifications.setNotificationChannelAsync('butterfield-staff', {
+        name: 'Butterfield staff',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#1493FF',
+        sound: NOTIFICATION_SOUND,
       });
     }
 

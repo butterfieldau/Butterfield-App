@@ -5,6 +5,8 @@ import { randomUUID } from 'crypto';
 import { logger } from './logger.js';
 
 const expo = new Expo({ useFcmV1: true } as any);
+const NOTIFICATION_SOUND = 'new-message-2.mp3';
+const NOTIFICATION_CHANNEL_ID = 'butterfield-staff';
 
 export interface SendNotificationOptions {
   /** Target a single user by ID */
@@ -77,7 +79,8 @@ export async function sendNotification(opts: SendNotificationOptions): Promise<v
         title: opts.title,
         body: opts.body,
         data: opts.data ?? {},
-        sound: 'default',
+        sound: NOTIFICATION_SOUND,
+        channelId: NOTIFICATION_CHANNEL_ID,
         badge: 1,
       }));
 

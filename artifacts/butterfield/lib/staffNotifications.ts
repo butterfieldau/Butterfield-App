@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 const CLOCK_IN_NOTIF_ID  = 'staff-clock-in-daily';
 const CLOCK_OUT_NOTIF_ID = 'staff-clock-out-reminder';
+const NOTIFICATION_SOUND = 'new-message-2.mp3';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -36,7 +37,7 @@ export async function scheduleClockInReminder(): Promise<void> {
       content: {
         title: "You're starting soon",
         body: "Don't forget to clock in when you arrive at the store.",
-        sound: true,
+        sound: NOTIFICATION_SOUND,
         data: { type: 'clock_in_reminder' },
       },
       trigger: {
@@ -77,7 +78,7 @@ export async function scheduleClockOutReminder(shiftStartIso: string): Promise<v
       content: {
         title: "Long shift! Don't forget to clock out",
         body: "You've been on shift for 8 hours. Time to clock out when you leave.",
-        sound: true,
+        sound: NOTIFICATION_SOUND,
         data: { type: 'clock_out_reminder' },
       },
       trigger: {
@@ -100,7 +101,7 @@ export async function sendClockInConfirmation(): Promise<void> {
       content: {
         title: 'Clocked in ✓',
         body: "Your shift has started. Have a great day!",
-        sound: true,
+        sound: NOTIFICATION_SOUND,
         data: { type: 'clock_in_confirm' },
       },
       trigger: null,
@@ -114,7 +115,7 @@ export async function sendClockOutConfirmation(hoursWorked: string): Promise<voi
       content: {
         title: 'Shift complete ✓',
         body: `Great work! You worked ${hoursWorked} today. See you next shift.`,
-        sound: true,
+        sound: NOTIFICATION_SOUND,
         data: { type: 'clock_out_confirm' },
       },
       trigger: null,

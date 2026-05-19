@@ -44,10 +44,9 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
           "color": "#1493FF",
           "defaultChannel": "butterfield-staff",
-          "sounds": []
+          "sounds": ["./assets/sounds/new-message-2.mp3"]
         }
       ]
     ],
