@@ -109,6 +109,7 @@ function StoreEditorModal({
   const [geofenceRadius,   setGeofenceRadius]    = useState('100');
   const [phone,            setPhone]             = useState('');
   const [email,            setEmail]             = useState('');
+  const [website,          setWebsite]           = useState('');
   const [status,           setStatus]            = useState<string>('open');
   const [pickupAvailable,  setPickupAvailable]   = useState(true);
   const [deliveryAvailable,setDeliveryAvailable] = useState(false);
@@ -137,6 +138,7 @@ function StoreEditorModal({
       setGeofenceRadius(String(store.geofenceRadius ?? 100));
       setPhone(store.phone ?? '');
       setEmail(store.email ?? '');
+      setWebsite(store.website ?? '');
       setStatus(store.status ?? 'open');
       setPickupAvailable(store.pickupAvailable ?? true);
       setDeliveryAvailable(store.deliveryAvailable ?? false);
@@ -145,7 +147,7 @@ function StoreEditorModal({
     } else {
       setName(''); setAddressLine(''); setSuburb(''); setState(''); setPostcode('');
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
-      setPhone(''); setEmail(''); setStatus('open'); setPickupAvailable(true);
+      setPhone(''); setEmail(''); setWebsite(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
     }
     setSearchQuery(''); setSearchResults([]);
@@ -221,6 +223,7 @@ function StoreEditorModal({
         geofenceRadius: parseInt(geofenceRadius) || 100,
         phone: phone.trim() || null,
         email: email.trim() || null,
+        website: website.trim() || null,
         status,
         pickupAvailable,
         deliveryAvailable,
@@ -364,6 +367,7 @@ function StoreEditorModal({
               </View>
               <Field label="Phone"           value={phone}       onChangeText={setPhone}    placeholder="+61 2 9000 0000" keyboardType="phone-pad" />
               <Field label="Email"           value={email}       onChangeText={setEmail}    placeholder="merrylands@butterfield.com" keyboardType="email-address" />
+              <Field label="Website"         value={website}     onChangeText={setWebsite}  placeholder="https://butterfieldcookies.com.au" keyboardType="url" />
             </View>
           </View>
 

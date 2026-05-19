@@ -21,6 +21,7 @@ export const storesTable = pgTable("stores", {
   geofenceRadius:   integer("geofence_radius").notNull().default(100),
   phone:            text("phone"),
   email:            text("email"),
+  website:          text("website"),
   imageUrl:         text("image_url"),
   status:           storeStatusEnum("status").notNull().default("open"),
   pickupAvailable:  boolean("pickup_available").notNull().default(true),
