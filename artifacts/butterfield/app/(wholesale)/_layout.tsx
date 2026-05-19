@@ -88,13 +88,13 @@ export default function WholesaleLayout() {
       />
 
       <Tabs
+        tabBar={isIOS ? () => null : undefined}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
-          // Fully collapse & hide the native tab bar on iOS — the glass pill above handles it
           tabBarStyle: isIOS
-            ? { position: 'absolute', height: 0, minHeight: 0, opacity: 0, overflow: 'hidden' }
+            ? { display: 'none' }
             : { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
           tabBarLabelStyle: { fontWeight: '500', fontSize: 11 },
         }}

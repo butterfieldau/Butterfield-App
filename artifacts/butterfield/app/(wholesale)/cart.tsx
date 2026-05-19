@@ -105,11 +105,12 @@ export default function WholesaleCartScreen() {
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[s.header, { paddingTop: 16 }]}
       >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Pressable onPress={() => router.navigate('/(wholesale)/catalog')} style={s.backBtn} hitSlop={8}>
+            <Feather name="chevron-left" size={24} color="rgba(255,255,255,0.9)" />
+          </Pressable>
           <Text style={s.title}>Cart</Text>
-          {totalQty > 0 && (
-            <Text style={s.sub}>{totalQty} item{totalQty !== 1 ? 's' : ''}</Text>
-          )}
+          <Text style={s.sub}>{totalQty > 0 ? `${totalQty} item${totalQty !== 1 ? 's' : ''}` : ''}</Text>
         </View>
       </LinearGradient>
 
@@ -233,9 +234,10 @@ export default function WholesaleCartScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { paddingHorizontal: 16, paddingBottom: 16 },
-  title:  { color: '#fff', fontSize: 26, fontWeight: '700' },
-  sub:    { color: 'rgba(255,255,255,0.8)', fontWeight: '400', fontSize: 13 },
+  header:  { paddingHorizontal: 16, paddingBottom: 16 },
+  title:   { color: '#fff', fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  sub:     { color: 'rgba(255,255,255,0.8)', fontWeight: '400', fontSize: 13, minWidth: 60, textAlign: 'right' },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 
   emptyIcon:     { width: 80, height: 80, borderRadius: 40, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' },
   emptyTitle:    { fontSize: 20, fontWeight: '700', color: TEXT },

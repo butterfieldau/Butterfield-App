@@ -140,13 +140,13 @@ export default function DirectorLayout() {
       />
 
       <Tabs
+        tabBar={isIOS ? () => null : undefined}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
-          // Collapse native tab bar completely — glass pill above handles rendering
           tabBarStyle: isIOS
-            ? { position: 'absolute', height: 0, minHeight: 0, opacity: 0, overflow: 'hidden' }
+            ? { display: 'none' }
             : {
                 backgroundColor: '#FFFFFF',
                 borderTopColor: '#E5E7EB',

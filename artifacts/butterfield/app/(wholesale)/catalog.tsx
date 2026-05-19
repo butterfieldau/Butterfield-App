@@ -10,6 +10,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -362,9 +363,8 @@ export default function WholesaleCatalog() {
     return 'Place Order';
   };
   // ── Checkout overlay ─────────────────────────────────────────────────────
-  if (showCheckout) {
-    return (
-      <View style={{ flex: 1, backgroundColor: CARD }}>
+  const checkoutContent = (
+    <View style={{ flex: 1, backgroundColor: CARD }}>
         {/* Header */}
         <View style={[styles.checkoutHeader, { paddingTop: insets.top + 12, borderBottomColor: BORDER }]}>
           <View style={styles.checkoutHeaderTop}>
@@ -691,7 +691,7 @@ export default function WholesaleCatalog() {
           </ScrollView>
         </KeyboardAvoidingView>
         {/* Sticky bottom bar */}
-        <View style={[styles.bottomBar, { paddingBottom: 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16, backgroundColor: CARD, borderTopColor: BORDER }]}>
           <View style={styles.bottomTotal}>
             <Text style={styles.bottomTotalLabel}>TOTAL</Text>
             <Text style={styles.bottomTotalAmount}>AUD {(totalCents / 100).toFixed(2)}</Text>
@@ -702,10 +702,10 @@ export default function WholesaleCatalog() {
           </Pressable>
         </View>
       </View>
-    );
-  }
+  );
   // ── Catalog list ─────────────────────────────────────────────────────────
   return (
+    <>
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <LinearGradient colors={['#1A2B4A', '#253B5E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: 16 }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -794,6 +794,15 @@ export default function WholesaleCatalog() {
         </View>
       )}
     </KeyboardAvoidingView>
+    <Modal
+      visible={showCheckout}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowCheckout(false)}
+    >
+      {checkoutContent}
+    </Modal>
+    </>
   );
 }
 const styles = StyleSheet.create({
