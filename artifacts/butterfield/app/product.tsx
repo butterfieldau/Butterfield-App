@@ -614,7 +614,7 @@ const s = StyleSheet.create({
   selChipSub:   { fontSize: 12, color: MUTED },
   // Apple-style option cards
   optionGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  optionCard:   { width: '47%', minHeight: 64, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 10, gap: 4 },
+  optionCard:   { flexBasis: '47%', flexGrow: 1, minHeight: 64, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 10, gap: 4 },
   optionCardText: { fontSize: 15, fontWeight: '500', textAlign: 'center' },
   optionCardSub:  { fontSize: 12, fontWeight: '400', textAlign: 'center' },
   reqBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FECACA' },
