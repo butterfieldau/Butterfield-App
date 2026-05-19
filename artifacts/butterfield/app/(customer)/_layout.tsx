@@ -1,5 +1,4 @@
 import { Feather } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, usePathname } from 'expo-router';
@@ -8,8 +7,11 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
+import { GlassTabPill, GlassTabContainer } from '@/components/GlassTabPill';
 
 const PRIMARY_TOP = '#1493FF';
+const ACTIVE_TEXT = '#0C5A87';
+const IDLE_TEXT   = '#2D2F33';
 
 function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any) {
   const insets = useSafeAreaInsets();
@@ -17,7 +19,9 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
 
   if (hideTabs) return null;
 
-  const mainRoutes = state.routes.filter((route: any) => ['index', 'menu', 'loyalty', 'cart'].includes(route.name));
+  const mainRoutes = state.routes.filter((route: any) =>
+    ['index', 'menu', 'loyalty', 'cart'].includes(route.name)
+  );
   const accountRoute = state.routes.find((route: any) => route.name === 'profile');
 
   const renderTab = (route: any, detached = false) => {
@@ -25,7 +29,7 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
     const focused = state.index === routeIndex;
     const options = descriptors[route.key]?.options ?? {};
     const label = options.title ?? route.name;
-    const iconColor = focused ? '#0C5A87' : '#2D2F33';
+    const iconColor = focused ? ACTIVE_TEXT : IDLE_TEXT;
 
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -39,44 +43,49 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
       <Pressable
         key={route.key}
         onPress={onPress}
-        style={[detached ? styles.detachedTabButton : styles.tabButton, focused && styles.tabButtonActive]}
+        style={[detached ? s.detachedTab : s.tab, focused && s.tabActive]}
       >
         {focused ? (
-          <>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.82)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.activeGlow} />
-          </>
+          <LinearGradient
+            colors={['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.82)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
         ) : null}
-        <View style={styles.tabIconWrap}>
+        <View style={s.iconWrap}>
           {options.tabBarIcon ? options.tabBarIcon({ color: iconColor, focused, size: 22 }) : null}
           {route.name === 'cart' && totalItems > 0 ? (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{String(totalItems > 99 ? '99+' : totalItems)}</Text>
+            <View style={s.badge}>
+              <Text style={s.badgeText}>{String(totalItems > 99 ? '99+' : totalItems)}</Text>
             </View>
           ) : null}
         </View>
-        <Text style={[styles.tabLabel, { color: iconColor, fontWeight: focused ? '700' : '500' }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+        <Text
+          style={[s.label, { color: iconColor, fontWeight: focused ? '700' : '500' }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {label}
+        </Text>
       </Pressable>
     );
   };
 
   return (
-    <View pointerEvents="box-none" style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <View style={styles.tabBarRow}>
-        <BlurView intensity={72} tint="light" style={styles.mainPill}>
+    <View pointerEvents="box-none" style={[s.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      {/* GlassContainer makes adjacent GlassTabPills merge at iOS 26+ */}
+      <GlassTabContainer spacing={12} style={s.row}>
+        <GlassTabPill style={s.mainPill} colorScheme="light">
           {mainRoutes.map((route: any) => renderTab(route))}
-        </BlurView>
+        </GlassTabPill>
+
         {accountRoute ? (
-          <BlurView intensity={72} tint="light" style={styles.accountPill}>
+          <GlassTabPill style={s.accountPill} colorScheme="light">
             {renderTab(accountRoute, true)}
-          </BlurView>
+          </GlassTabPill>
         ) : null}
-      </View>
+      </GlassTabContainer>
     </View>
   );
 }
@@ -90,7 +99,9 @@ function ClassicCustomerTabs() {
 
   return (
     <Tabs
-      tabBar={(props) => (isIOS ? <LiquidCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
+      tabBar={(props) =>
+        isIOS ? <LiquidCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined
+      }
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.mutedForeground,
@@ -147,9 +158,9 @@ function ClassicCustomerTabs() {
           tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
         }}
       />
-      <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
-      <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
-      <Tabs.Screen name="stores" options={{ href: null, title: 'Our Stores' }} />
+      <Tabs.Screen name="favourites"  options={{ href: null, title: 'Favourites' }} />
+      <Tabs.Screen name="track/[id]"  options={{ href: null, title: 'Track Order' }} />
+      <Tabs.Screen name="stores"      options={{ href: null, title: 'Our Stores' }} />
     </Tabs>
   );
 }
@@ -158,15 +169,15 @@ export default function CustomerTabLayout() {
   return <ClassicCustomerTabs />;
 }
 
-const styles = StyleSheet.create({
-  tabBarWrap: {
+const s = StyleSheet.create({
+  wrap: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     paddingHorizontal: 16,
   },
-  tabBarRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 12,
@@ -178,22 +189,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 34,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.74)',
-    backgroundColor: 'rgba(255,255,255,0.66)',
   },
   accountPill: {
     width: 78,
     height: 78,
     borderRadius: 39,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.74)',
-    backgroundColor: 'rgba(255,255,255,0.66)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  tabButton: {
+  tab: {
     flex: 1,
     minHeight: 62,
     borderRadius: 26,
@@ -204,7 +213,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     gap: 4,
   },
-  detachedTabButton: {
+  detachedTab: {
     width: 64,
     height: 64,
     borderRadius: 32,
@@ -213,24 +222,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     gap: 4,
   },
-  tabButtonActive: {
+  tabActive: {
     shadowColor: PRIMARY_TOP,
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
   },
-  activeGlow: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 32,
-    backgroundColor: 'rgba(20,147,255,0.12)',
-  },
-  tabIconWrap: {
+  iconWrap: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cartBadge: {
+  badge: {
     position: 'absolute',
     top: -6,
     right: -10,
@@ -242,13 +246,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  cartBadgeText: {
+  badgeText: {
     color: '#fff',
     fontSize: 9,
     fontWeight: '700',
     lineHeight: 12,
   },
-  tabLabel: {
+  label: {
     fontSize: 10,
     letterSpacing: -0.2,
     textAlign: 'center',
