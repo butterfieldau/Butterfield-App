@@ -41,6 +41,8 @@ import {
   getPickupTimeMins,
   getSydneyNow,
   isSameDay,
+  isStoreOpen,
+  getAsapUnavailableReason,
 } from '@/lib/dateUtils';
 import { getPalette } from '@/constants/categoryColors';
 
@@ -726,6 +728,9 @@ export default function CartScreen() {
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
   const [selectedDate, setSelectedDate]       = useState<Date | null>(null);
   const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
+  const [pickupMode, setPickupMode]           = useState<'asap' | 'scheduled'>(() =>
+    isStoreOpen(getSydneyNow()) ? 'asap' : 'scheduled'
+  );
   const [street, setStreet]                   = useState('');
   const [suburb, setSuburb]                   = useState('');
   const [postcode, setPostcode]               = useState('');
@@ -878,6 +883,7 @@ export default function CartScreen() {
   const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, 'card');
 
   const sydNow        = getSydneyNow();
+  const storeOpen     = isStoreOpen(sydNow);
   const deliveryDates = getDeliveryDates();
   const pickupDates   = getPickupDates();
   const pickupTimes   = selectedDate ? getPickupTimeMins(selectedDate, sydNow) : [];
@@ -900,7 +906,7 @@ export default function CartScreen() {
     }
     if (step === 1) {
       if (orderType === 'pickup') {
-        if (!selectedDate || selectedTimeMins === null) {
+        if (pickupMode === 'scheduled' && (!selectedDate || selectedTimeMins === null)) {
           Alert.alert('Select pickup time', 'Please choose a date and time for your pickup.');
           return;
         }
@@ -943,11 +949,15 @@ export default function CartScreen() {
     try {
       let scheduledForDate: Date | undefined;
       let scheduledLabel: string | undefined;
-      if (orderType === 'pickup' && selectedDate && selectedTimeMins !== null) {
-        const d = new Date(selectedDate);
-        d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
-        scheduledForDate = d;
-        scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)} at ${formatTime(selectedTimeMins)}`;
+      if (orderType === 'pickup') {
+        if (pickupMode === 'asap') {
+          scheduledLabel = 'Pickup: Within 10 minutes';
+        } else if (selectedDate && selectedTimeMins !== null) {
+          const d = new Date(selectedDate);
+          d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
+          scheduledForDate = d;
+          scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)} at ${formatTime(selectedTimeMins)}`;
+        }
       } else if (orderType === 'delivery' && selectedDate) {
         scheduledForDate = selectedDate;
         scheduledLabel = `Delivery on ${selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}`;
@@ -1228,7 +1238,13 @@ export default function CartScreen() {
           return (
             <Pressable
               key={t.id}
-              onPress={() => { setOrderType(t.id as any); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+              onPress={() => {
+              setOrderType(t.id as any);
+              setSelectedDate(null);
+              setSelectedTimeMins(null);
+              if (t.id === 'pickup') setPickupMode(isStoreOpen(getSydneyNow()) ? 'asap' : 'scheduled');
+              Haptics.selectionAsync();
+            }}
               style={[styles.orderTypeCard, {
                 backgroundColor: active ? LIGHT_BLUE : CARD,
                 borderColor:     active ? BLUE : BORDER,
@@ -1260,12 +1276,72 @@ export default function CartScreen() {
         </View>
       )}
 
-      <View style={styles.chooseDateHeader}>
-        <Feather name="calendar" size={18} color={TEXT} />
-        <Text style={styles.chooseDateTitle}>
-          {orderType === 'delivery' ? 'Choose a delivery date' : 'Choose a pickup date'}
-        </Text>
-      </View>
+      {/* ASAP / Schedule toggle — pickup only */}
+      {orderType === 'pickup' && (
+        <View style={{ gap: 10 }}>
+          {/* ASAP option */}
+          <Pressable
+            onPress={() => {
+              if (!storeOpen) return;
+              setPickupMode('asap');
+              setSelectedDate(null);
+              setSelectedTimeMins(null);
+              Haptics.selectionAsync();
+            }}
+            disabled={!storeOpen}
+            style={[styles.pickupModeCard, {
+              backgroundColor: pickupMode === 'asap' && storeOpen ? LIGHT_BLUE : CARD,
+              borderColor:     pickupMode === 'asap' && storeOpen ? BLUE : BORDER,
+              borderWidth:     pickupMode === 'asap' && storeOpen ? 2 : 1,
+              opacity:         storeOpen ? 1 : 0.6,
+            }]}
+          >
+            <View style={[styles.pickupModeIcon, { backgroundColor: pickupMode === 'asap' && storeOpen ? BLUE : BG }]}>
+              <Feather name="zap" size={18} color={pickupMode === 'asap' && storeOpen ? '#fff' : MUTED} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.pickupModeLabel, { color: pickupMode === 'asap' && storeOpen ? BLUE : TEXT }]}>ASAP</Text>
+              <Text style={[styles.pickupModeSub, { color: pickupMode === 'asap' && storeOpen ? BLUE : MUTED }]}>
+                {storeOpen ? 'Within 10 minutes' : getAsapUnavailableReason(sydNow)}
+              </Text>
+            </View>
+            <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', borderColor: pickupMode === 'asap' && storeOpen ? BLUE : BORDER }}>
+              {pickupMode === 'asap' && storeOpen && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE }} />}
+            </View>
+          </Pressable>
+
+          {/* Schedule for later */}
+          <Pressable
+            onPress={() => { setPickupMode('scheduled'); Haptics.selectionAsync(); }}
+            style={[styles.pickupModeCard, {
+              backgroundColor: pickupMode === 'scheduled' ? LIGHT_BLUE : CARD,
+              borderColor:     pickupMode === 'scheduled' ? BLUE : BORDER,
+              borderWidth:     pickupMode === 'scheduled' ? 2 : 1,
+            }]}
+          >
+            <View style={[styles.pickupModeIcon, { backgroundColor: pickupMode === 'scheduled' ? BLUE : BG }]}>
+              <Feather name="calendar" size={18} color={pickupMode === 'scheduled' ? '#fff' : MUTED} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.pickupModeLabel, { color: pickupMode === 'scheduled' ? BLUE : TEXT }]}>Schedule for later</Text>
+              <Text style={[styles.pickupModeSub, { color: pickupMode === 'scheduled' ? BLUE : MUTED }]}>Choose a date & time</Text>
+            </View>
+            <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', borderColor: pickupMode === 'scheduled' ? BLUE : BORDER }}>
+              {pickupMode === 'scheduled' && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: BLUE }} />}
+            </View>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Date header — only for delivery or scheduled pickup */}
+      {(orderType === 'delivery' || pickupMode === 'scheduled') && (
+        <View style={styles.chooseDateHeader}>
+          <Feather name="calendar" size={18} color={TEXT} />
+          <Text style={styles.chooseDateTitle}>
+            {orderType === 'delivery' ? 'Choose a delivery date' : 'Choose a pickup date'}
+          </Text>
+        </View>
+      )}
 
       {orderType === 'delivery' ? (
         <>
@@ -1297,7 +1373,7 @@ export default function CartScreen() {
             </View>
           ))}
         </>
-      ) : (
+      ) : pickupMode === 'scheduled' ? (
         <>
           {pickupPairs.map((pair, ri) => (
             <View key={ri} style={styles.dateGrid}>
@@ -1351,7 +1427,7 @@ export default function CartScreen() {
             </>
           )}
         </>
-      )}
+      ) : null}
 
       {orderType === 'delivery' && (
         <>
@@ -1548,7 +1624,12 @@ export default function CartScreen() {
               : 'In-store Pickup · Butterfield Merrylands'}
           </Text>
         </View>
-        {selectedDate && (
+        {orderType === 'pickup' && pickupMode === 'asap' ? (
+          <View style={styles.orderDetailRow}>
+            <Feather name="clock" size={14} color={BLUE} />
+            <Text style={[styles.orderDetailText, { color: TEXT }]}>Within 10 minutes</Text>
+          </View>
+        ) : selectedDate ? (
           <View style={styles.orderDetailRow}>
             <Feather name="calendar" size={14} color={BLUE} />
             <Text style={[styles.orderDetailText, { color: TEXT }]}>
@@ -1557,7 +1638,7 @@ export default function CartScreen() {
                 : selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
             </Text>
           </View>
-        )}
+        ) : null}
         {contactName && (
           <View style={styles.orderDetailRow}>
             <Feather name="user" size={14} color={BLUE} />
@@ -1730,6 +1811,11 @@ const styles = StyleSheet.create({
   deliveryInfoTag:  { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   deliveryInfoTitle:{ fontSize: 15, fontWeight: '700', color: '#1C1C1E', marginTop: 2 },
   deliveryInfoSub:  { fontSize: 12, fontWeight: '400', color: '#8E8E93', marginTop: 2 },
+  // Pickup mode toggle cards (ASAP / Schedule)
+  pickupModeCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14 },
+  pickupModeIcon:  { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  pickupModeLabel: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
+  pickupModeSub:   { fontSize: 12, fontWeight: '400', marginTop: 2 },
   // Choose date header
   chooseDateHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   chooseDateTitle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },

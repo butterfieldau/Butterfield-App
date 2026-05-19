@@ -90,6 +90,41 @@ export function getPickupTimeMins(date: Date, syd: Date): number[] {
   return slots;
 }
 
+/**
+ * Returns true if the store is currently open for ASAP pickup.
+ * Hours: 6:30am – 9pm daily.
+ * Mon–Wed break: 3pm – 4:30pm.
+ */
+export function isStoreOpen(syd: Date): boolean {
+  const totalMins = syd.getHours() * 60 + syd.getMinutes();
+  const OPEN_MINS  = 6 * 60 + 30;  // 6:30am
+  const CLOSE_MINS = 21 * 60;       // 9pm
+  if (totalMins < OPEN_MINS || totalMins >= CLOSE_MINS) return false;
+  const dow = syd.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed
+  if (dow >= 1 && dow <= 3) {
+    const BREAK_START = 15 * 60;      // 3pm
+    const BREAK_END   = 16 * 60 + 30; // 4:30pm
+    if (totalMins >= BREAK_START && totalMins < BREAK_END) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns a human-readable reason why ASAP pickup is currently unavailable.
+ */
+export function getAsapUnavailableReason(syd: Date): string {
+  const totalMins = syd.getHours() * 60 + syd.getMinutes();
+  const CLOSE_MINS = 21 * 60;
+  const dow = syd.getDay();
+  if (dow >= 1 && dow <= 3) {
+    const BREAK_START = 15 * 60;
+    const BREAK_END   = 16 * 60 + 30;
+    if (totalMins >= BREAK_START && totalMins < BREAK_END) return 'Back at 4:30pm';
+  }
+  if (totalMins >= CLOSE_MINS) return 'Opens tomorrow at 6:30am';
+  return 'Available from 6:30am';
+}
+
 export interface DeliveryDate {
   date: Date;
   label: string;
