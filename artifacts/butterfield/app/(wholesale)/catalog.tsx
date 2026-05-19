@@ -20,7 +20,6 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
@@ -176,7 +175,6 @@ function CompactProductRow({ product, cartEntry, onAdd, pricingCtx }: {
   );
 }
 export default function WholesaleCatalog() {
-  const insets = useSafeAreaInsets();
   const qc     = useQueryClient();
   const [search, setSearch]       = useState('');
   const [category, setCategory]   = useState('All');
@@ -401,7 +399,7 @@ export default function WholesaleCatalog() {
     return (
       <View style={{ flex: 1, backgroundColor: CARD }}>
         {/* Header */}
-        <View style={[styles.checkoutHeader, { paddingTop: insets.top + 12, borderBottomColor: BORDER }]}>
+        <View style={[styles.checkoutHeader, { paddingTop: 12, borderBottomColor: BORDER }]}>
           <View style={styles.checkoutHeaderTop}>
             {checkoutStep > 0 ? (
               <Pressable onPress={() => goToStep(checkoutStep - 1)} style={styles.backBtn}>
@@ -754,19 +752,19 @@ export default function WholesaleCatalog() {
             </Pressable>
           )}
         </View>
-        <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, borderColor: 'rgba(255,255,255,0.3)', borderWidth: 1 }]}>
-          <Feather name="search" size={14} color="rgba(255,255,255,0.8)" />
-          <TextInput style={{ flex: 1, color: '#fff', fontWeight: '400', fontSize: 14 }} placeholder="Search products..." placeholderTextColor="rgba(255,255,255,0.6)" value={search} onChangeText={setSearch} />
+        <View style={[styles.searchBar, { backgroundColor: '#fff', borderRadius: 12 }]}>
+          <Feather name="search" size={14} color={MUTED} />
+          <TextInput style={{ flex: 1, color: TEXT, fontWeight: '400', fontSize: 14 }} placeholder="Search products..." placeholderTextColor={MUTED} value={search} onChangeText={setSearch} />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
-              <Feather name="x" size={14} color="rgba(255,255,255,0.8)" />
+              <Feather name="x" size={14} color={MUTED} />
             </Pressable>
           )}
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'flex-start' }}>
-          {categories.map((cat) => {
+          {categories.filter((cat) => cat !== 'All').map((cat) => {
             const active = category === cat;
-            const label = cat === 'All' ? 'All Products' : cat.charAt(0).toUpperCase() + cat.slice(1);
+            const label = cat.charAt(0).toUpperCase() + cat.slice(1);
             return (
               <Pressable
                 key={cat}
@@ -782,11 +780,6 @@ export default function WholesaleCatalog() {
             );
           })}
         </ScrollView>
-        {pricingCtx?.tierName && (
-          <View style={[styles.tierTag, { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }]}>
-            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 11 }}>{pricingCtx.tierName}</Text>
-          </View>
-        )}
       </LinearGradient>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
