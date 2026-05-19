@@ -1437,7 +1437,7 @@ const styles = StyleSheet.create({
   fabText:       { color: '#fff', fontSize: 15 },
 });
 const modal = StyleSheet.create({
-  header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
+  header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
   closeBtn:    { width: 36, height: 36, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   title:       { flex: 1, fontSize: 17, textAlign: 'center' },
   saveBtn:     { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12 },
