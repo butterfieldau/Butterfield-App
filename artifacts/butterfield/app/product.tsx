@@ -84,12 +84,13 @@ function StatusPill({ label, color, textColor }: { label: string; color: string;
 
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
-  const { addItem } = useCart();
+  const { addItemToCart } = useCart();
   const qc = useQueryClient();
   const params = useLocalSearchParams<{ id?: string }>();
   const routeProductId = Array.isArray(params.id) ? params.id[0] : params.id;
   const selectedProduct = getSelectedProduct();
   const [selections, setSelections] = useState<Record<string, string[]>>({});
+  const [missingRequired, setMissingRequired] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
   const [togglingFav, setTogglingFav] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -104,17 +105,33 @@ export default function ProductDetailScreen() {
   );
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
+  const productId = routeProductId ?? (selectedProduct as any)?.id ?? null;
+
   const { data: routeProductData, isLoading: isRouteProductLoading } = useQuery({
-    queryKey: ['product-detail-route', routeProductId],
-    queryFn: () => api.products.get(String(routeProductId)),
-    enabled: !selectedProduct && !!routeProductId,
+    queryKey: ['product-detail-route', productId],
+    queryFn: () => api.products.get(String(productId)),
+    enabled: !!productId,
     retry: 1,
     staleTime: 60_000,
   });
 
-  const product = selectedProduct && (!routeProductId || selectedProduct.id === routeProductId)
-    ? selectedProduct
-    : (routeProductData?.data as any) ?? null;
+  const product = (routeProductData?.data as any)
+    ?? (selectedProduct && (!routeProductId || (selectedProduct as any).id === routeProductId) ? selectedProduct : null);
+
+  // Option groups returned by GET /products/:id
+  const optGroups: any[] = (routeProductData?.data as any)?.optionGroups ?? [];
+
+  // Auto-select defaults when optGroups first load
+  React.useEffect(() => {
+    if (!optGroups.length) return;
+    const defs: Record<string, string[]> = {};
+    for (const g of optGroups) {
+      if (g.selectionType === 'text') continue;
+      const def = (g.options ?? []).find((o: any) => o.isDefault);
+      if (def) defs[g.id] = [def.id];
+    }
+    if (Object.keys(defs).length) setSelections(defs);
+  }, [optGroups.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     return () => setSelectedProduct(null);
@@ -159,7 +176,20 @@ export default function ProductDetailScreen() {
   const priceCents   = (product as any)?.priceCents ?? product?.prices?.[0]?.unit_amount ?? 0;
   const saleCents    = (product as any)?.salePriceCents;
   const displayCents = saleCents ?? priceCents;
-  const pricePerItem = displayCents / 100;
+
+  // Live price: base + sum of all selected option adjustments
+  const optionsTotal = React.useMemo(() => {
+    let t = 0;
+    for (const g of optGroups)
+      for (const id of selections[g.id] ?? []) {
+        const o = (g.options ?? []).find((o: any) => o.id === id);
+        if (o) t += o.priceAdjustmentCents ?? 0;
+      }
+    return t;
+  }, [selections, optGroups]);
+
+  const unitCents    = displayCents + optionsTotal;
+  const pricePerItem = unitCents / 100;
   const total        = pricePerItem * qty;
 
   const allergens    = parseArr((product as any)?.allergens  ?? product?.metadata?.allergens);
@@ -200,39 +230,50 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const toggle = (section: string, choice: string) => {
+  const toggleOption = (groupId: string, optId: string, type: string) => {
     Haptics.selectionAsync();
+    setMissingRequired(prev => prev.filter(id => id !== groupId));
     setSelections(prev => {
-      const cur = prev[section] ?? [];
-      const already = cur.includes(choice);
-      return { ...prev, [section]: already ? cur.filter(c => c !== choice) : [...cur, choice] };
+      const cur = prev[groupId] ?? [];
+      if (type === 'single') return { ...prev, [groupId]: [optId] };
+      return { ...prev, [groupId]: cur.includes(optId) ? cur.filter(x => x !== optId) : [...cur, optId] };
     });
   };
 
   const handleAddToCart = () => {
     if (!available) return;
-    const customParts: string[] = [];
-    Object.entries(selections).forEach(([sec, choices]) => {
-      if (choices.length > 0) customParts.push(`${sec}: ${choices.join(', ')}`);
-    });
-    const customDesc = customParts.length > 0
-      ? `${product.description} · ${customParts.join(' · ')}`
-      : product.description;
 
-    for (let i = 0; i < qty; i++) {
-      addItem({
-        id:          product.id,
-        name:        product.name,
-        imageUrl:    photoUrl ?? undefined,
-        images:      photoUrl ? [photoUrl] : [],
-        category:    category as any,
-        price:       pricePerItem,
-        description: customDesc,
-        available:   true,
-        gradient:    [palette.bg, palette.banner] as [string, string],
-        priceId:     product.prices?.[0]?.id,
-      });
+    // Validate required groups
+    const missing = optGroups.filter(
+      g => g.isRequired && g.selectionType !== 'text' && !(selections[g.id]?.length),
+    );
+    if (missing.length) {
+      setMissingRequired(missing.map(g => g.id));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
     }
+
+    // Build selectedOptions for cart
+    const opts = optGroups
+      .filter(g => g.selectionType !== 'text')
+      .flatMap(g => (selections[g.id] ?? []).map(id => {
+        const o = (g.options ?? []).find((o: any) => o.id === id);
+        return o ? {
+          groupId: g.id, groupName: g.name,
+          optionId: o.id, optionName: o.name,
+          priceAdjustmentCents: o.priceAdjustmentCents ?? 0,
+        } : null;
+      }).filter(Boolean)) as any[];
+
+    addItemToCart({
+      productId:      product.id,
+      productName:    product.name,
+      basePriceCents: displayCents,
+      selectedOptions: opts,
+      quantity:        qty,
+      imageUrl:        photoUrl ?? undefined,
+      category,
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   };
@@ -409,50 +450,60 @@ export default function ProductDetailScreen() {
               </Text>
             )}
 
-            {/* Customise options — only shown when director has configured them on this product */}
-            {(() => {
-              const productCustomizations = parseArr((product as any)?.customizations ?? product?.metadata?.customizations);
-              const parsedSections: { label: string; choices: string[] }[] = [];
-              for (const item of productCustomizations) {
-                try {
-                  const parsed = typeof item === 'string' ? JSON.parse(item) : item;
-                  if (parsed?.label && Array.isArray(parsed?.choices)) parsedSections.push(parsed);
-                } catch {}
-              }
-              if (parsedSections.length === 0) return null;
-              return (
-                <View style={{ marginTop: 20, gap: 14 }}>
-                  <Text style={[s.sectionTitle, { fontWeight: '700' }]}>Customise</Text>
-                  {parsedSections.map((section) => (
-                    <View key={section.label} style={{ gap: 8 }}>
-                      <Text style={[s.optLabel, { fontWeight: '600' }]}>{section.label}</Text>
+            {/* ── Option groups (from director configuration) ─────────────── */}
+            {optGroups.length > 0 && (
+              <View style={{ marginTop: 20, gap: 16 }}>
+                {optGroups.map((g: any) => {
+                  const sel  = selections[g.id] ?? [];
+                  const opts = (g.options ?? []).filter((o: any) => o.isActive !== false);
+                  const isMissing = missingRequired.includes(g.id);
+                  return (
+                    <View key={g.id}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <Text style={[s.sectionTitle, { fontWeight: '700' }]}>{g.name}</Text>
+                        {g.isRequired
+                          ? <View style={[s.reqBadge, isMissing && { backgroundColor: RED + '22', borderColor: RED }]}>
+                              <Text style={[s.reqText, isMissing && { color: RED }]}>Required</Text>
+                            </View>
+                          : <Text style={[s.optLabel, { fontWeight: '400' }]}>Optional</Text>
+                        }
+                      </View>
+                      {isMissing && (
+                        <Text style={{ fontSize: 12, color: RED, marginBottom: 8, fontWeight: '500' }}>
+                          Please make a selection
+                        </Text>
+                      )}
                       <View style={s.chipRow}>
-                        {section.choices.map((choice: string) => {
-                          const sel = (selections[section.label] ?? []).includes(choice);
+                        {opts.map((opt: any) => {
+                          const active = sel.includes(opt.id);
+                          const adj    = opt.priceAdjustmentCents ?? 0;
                           return (
                             <Pressable
-                              key={choice}
-                              onPress={() => toggle(section.label, choice)}
-                              style={[s.selChip, sel
-                                ? { backgroundColor: palette.banner, borderColor: palette.banner }
-                                : { backgroundColor: '#fff', borderColor: BORDER }
+                              key={opt.id}
+                              onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
+                              style={[s.selChip,
+                                active
+                                  ? { backgroundColor: palette.banner, borderColor: palette.banner }
+                                  : { backgroundColor: '#fff', borderColor: isMissing ? RED + '66' : BORDER },
                               ]}
                             >
-                              <Text style={[s.selChipText, {
-                                fontWeight: sel ? '600' : '400',
-                                color: sel ? '#fff' : TEXT,
-                              }]}>
-                                {choice}
+                              <Text style={[s.selChipText, { fontWeight: active ? '600' : '400', color: active ? '#fff' : TEXT }]}>
+                                {opt.name}
                               </Text>
+                              {adj !== 0 && (
+                                <Text style={[s.selChipSub, active && { color: 'rgba(255,255,255,0.8)' }]}>
+                                  {adj > 0 ? ` +$${(adj / 100).toFixed(2)}` : ` -$${(Math.abs(adj) / 100).toFixed(2)}`}
+                                </Text>
+                              )}
                             </Pressable>
                           );
                         })}
                       </View>
                     </View>
-                  ))}
-                </View>
-              );
-            })()}
+                  );
+                })}
+              </View>
+            )}
 
             {/* Allergens */}
             {allergens.length > 0 && (
@@ -501,6 +552,7 @@ export default function ProductDetailScreen() {
               <Pressable onPress={handleAddToCart} style={[s.addBtn, { backgroundColor: BLUE }]}>
                 <Text style={[s.addBtnText, { fontWeight: '700' }]}>
                   Add to bag · AUD {total.toFixed(2)}
+                  {qty > 1 ? ` (×${qty})` : ''}
                 </Text>
               </Pressable>
             )}
@@ -550,10 +602,13 @@ const s = StyleSheet.create({
   stepBtn:      { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   stepNum:      { fontSize: 20, color: TEXT, minWidth: 28, textAlign: 'center' },
 
-  // Chips
+  // Chips + Option groups
   chipRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  selChip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5 },
+  selChip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center' },
   selChipText:  { fontSize: 13 },
+  selChipSub:   { fontSize: 12, color: MUTED },
+  reqBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FECACA' },
+  reqText:      { fontSize: 11, fontWeight: '600', color: '#DC2626' },
   scroll:       { flex: 1 },
   galleryContent:{ gap: 8, paddingRight: 4 },
   galleryThumbWrap:{ width: 58, height: 58, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER, backgroundColor: '#F3F4F6' },

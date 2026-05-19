@@ -1,0 +1,69 @@
+Fix the Butterfield app product options system properly.
+
+Current issue:
+Options are being created in the Director/Product backend, but they are not showing on the actual customer product page. The option system must be cleaned up and linked properly, not patched on top of the current messy setup.
+
+Main requirements:
+- Product option groups must be managed from one backend source of truth.
+- Options must be assignable by category.
+- After selecting a category, I must be able to choose which products inside that category can use that option group.
+- A product can have more than one option group.
+- Example:
+  - Category: Coffee
+  - Product: Latte
+  - Option group: Size
+  - Options: Small, Medium, Large
+- Options must show on the customer product detail page when the product is opened.
+- If an option has an extra price, it must automatically add to the product price.
+- The final Add to Bag price must update live based on selected options and quantity.
+- Selected options must carry through to cart, checkout, order summary, backend orders and receipts.
+- Do not break existing products, categories, cart, checkout, loyalty, wholesale, staff, manager, director or master accounts.
+
+Backend/admin requirements:
+- Add/edit/delete option groups.
+- Add/edit/delete individual options.
+- Set option group as required or optional.
+- Set option group selection type:
+  - Single select
+  - Multi select
+- Set price adjustment per option.
+- Assign option groups to:
+  - Entire category
+  - Selected products inside that category
+- Allow removing an option group from a product or category.
+- Do not duplicate option data across multiple tables/components unless properly relational.
+- Existing options must be migrated/normalised if needed.
+
+Customer UX requirements:
+- When opening a product, show option groups neatly before Add to Bag.
+- Required options must be clearly marked.
+- Single select should use clean pill/card selectors.
+- Multi select should allow multiple choices.
+- Keep it simple and smooth, not overwhelming.
+- Do not allow Add to Bag until required options are selected.
+- Show clear validation if required options are missing.
+- Display the selected option price clearly, for example:
+  - Small +$4.50
+  - Medium +$5.50
+  - Large +$7.00
+- Update button price like:
+  Add to bag · AUD 5.50
+
+Pricing logic:
+- Final item price = base product price + selected option price adjustments.
+- Quantity must multiply the final configured item price.
+- Cart and checkout must use the configured item price, not just the base product price.
+- Orders must store selected option names, IDs and price adjustments at the time of purchase so future option edits do not change old orders.
+
+Important:
+Before coding, inspect the existing product, category, cart, checkout and order structure.
+Refactor cleanly around the existing architecture.
+Remove duplicate or dead option logic if it exists.
+Do not create a second separate option system.
+Test with:
+1. Coffee category
+2. Latte product
+3. Size option group with Small, Medium and Large
+4. Confirm it appears on the customer product page
+5. Confirm selected size changes the Add to Bag price
+6. Confirm selected options appear in cart, checkout and backend order view
