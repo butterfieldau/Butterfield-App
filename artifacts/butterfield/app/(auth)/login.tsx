@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
@@ -31,8 +30,11 @@ const GOOGLE_RED = '#4285F4';
 
 const GOOGLE_IOS_CLIENT_ID = '119890251041-tsgds8o83po7p4gaeqqfnph67e3fpt46.apps.googleusercontent.com';
 
-// Configure the native Google Sign-In SDK once at module load time
-GoogleSignin.configure({ iosClientId: GOOGLE_IOS_CLIENT_ID });
+let GoogleSignin: typeof import('@react-native-google-signin/google-signin').GoogleSignin | null = null;
+try {
+  GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+  GoogleSignin!.configure({ iosClientId: GOOGLE_IOS_CLIENT_ID });
+} catch {}
 
 const PUBLIC_ROLES = [
   { role: 'customer'  as UserRole, label: 'Customer',  subtitle: 'Order, earn\nrewards & explore', icon: 'coffee'  },
@@ -94,6 +96,10 @@ export default function LoginScreen() {
 
   // ── Google Sign-In (native iOS SDK) ──────────────────────────────────────
   const handleGoogleSignIn = async () => {
+    if (!GoogleSignin) {
+      setError('Google Sign-In is not available in this build.');
+      return;
+    }
     setError('');
     setSocialLoading('google');
     try {
@@ -314,8 +320,8 @@ export default function LoginScreen() {
                     )}
                     <Pressable
                       onPress={handleGoogleSignIn}
-                      disabled={socialLoading !== null}
-                      style={[s.socialBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, flex: 1 }]}
+                      disabled={socialLoading !== null || !GoogleSignin}
+                      style={[s.socialBtn, { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, flex: 1, opacity: GoogleSignin ? 1 : 0.45 }]}
                     >
                       {socialLoading === 'google'
                         ? <ActivityIndicator color={GOOGLE_RED} size="small" />
