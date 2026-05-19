@@ -46,7 +46,7 @@ interface CartEntry { product: ApiProduct; quantity: number }
 // ── Screen ───────────────────────────────────────────────────────────────────
 export default function WholesaleCartScreen() {
   const insets = useSafeAreaInsets();
-  const [cart, setCart]     = useState<CartEntry[]>([]);
+  const [cart, setCart]       = useState<CartEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { data: accountData } = useQuery({
@@ -56,7 +56,6 @@ export default function WholesaleCartScreen() {
   });
   const deliveryFeeCents: number = accountData?.data?.deliveryFeeCents ?? 0;
 
-  // Reload cart from AsyncStorage every time this tab gains focus
   useFocusEffect(useCallback(() => {
     setLoading(true);
     AsyncStorage.getItem(WS_CART_KEY).then(val => {
@@ -88,17 +87,16 @@ export default function WholesaleCartScreen() {
   );
   const totalCents = subtotalCents + (deliveryFeeCents > 0 ? deliveryFeeCents : 0);
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
-
-  // Glass tab bar sits above safe-area: pill height (78) + wrap paddingBottom
-  const tabBarOffset = Platform.OS === 'ios'
-    ? Math.max(insets.bottom, 12) + 78
-    : 0;
+  const meetsMinimum = subtotalCents >= 5000;
 
   const handleCheckout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await AsyncStorage.setItem(WS_OPEN_CHECKOUT_KEY, '1');
     router.navigate('/(wholesale)/catalog');
   };
+
+  // Bottom padding for list: just safe area (no tab bar on cart screen)
+  const listBottom = insets.bottom + 24;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -136,13 +134,13 @@ export default function WholesaleCartScreen() {
         <FlatList
           data={cart}
           keyExtractor={e => e.product.id}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: tabBarOffset + 80 }}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: listBottom }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: entry }) => {
-            const bp       = basePrice(entry.product);
-            const wp       = wsPrice(bp, entry.quantity);
-            const lineTotal= Math.round(wp * entry.quantity * 100);
-            const imgUri   = (entry.product as any).images?.[0] ?? (entry.product as any).imageUrl;
+            const bp        = basePrice(entry.product);
+            const wp        = wsPrice(bp, entry.quantity);
+            const lineTotal = Math.round(wp * entry.quantity * 100);
+            const imgUri    = (entry.product as any).images?.[0] ?? (entry.product as any).imageUrl;
             return (
               <View style={s.card}>
                 {imgUri ? (
@@ -179,7 +177,8 @@ export default function WholesaleCartScreen() {
             );
           }}
           ListFooterComponent={(
-            <View style={[s.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={s.summaryCard}>
+              {/* Line items */}
               <View style={s.sumRow}>
                 <Text style={s.sumLabel}>Subtotal ({cart.length} product{cart.length !== 1 ? 's' : ''})</Text>
                 <Text style={s.sumValue}>AUD {(subtotalCents / 100).toFixed(2)}</Text>
@@ -195,38 +194,39 @@ export default function WholesaleCartScreen() {
               )}
               <View style={s.sumDivider} />
               <View style={s.sumRow}>
-                <Text style={[s.sumLabel, { color: TEXT, fontWeight: '700' }]}>Order Total</Text>
-                <Text style={[s.sumValue, { color: BLUE, fontWeight: '700', fontSize: 16 }]}>
+                <Text style={[s.sumLabel, { color: TEXT, fontWeight: '700', fontSize: 15 }]}>Order Total</Text>
+                <Text style={[s.sumValue, { color: BLUE, fontWeight: '700', fontSize: 17 }]}>
                   AUD {(totalCents / 100).toFixed(2)}
                 </Text>
               </View>
-              {subtotalCents < 5000 && (
-                <Text style={{ color: RED, fontSize: 12, fontWeight: '400', marginTop: 4 }}>
-                  Minimum wholesale order is AUD 50.00
+
+              {/* Minimum order warning */}
+              {!meetsMinimum && (
+                <View style={s.warningRow}>
+                  <Feather name="alert-circle" size={13} color={RED} />
+                  <Text style={s.warningText}>Minimum wholesale order is AUD 50.00</Text>
+                </View>
+              )}
+
+              {/* Checkout button — lives right in the summary card */}
+              <View style={s.sumDivider} />
+              <Pressable
+                onPress={handleCheckout}
+                disabled={!meetsMinimum}
+                style={[s.checkoutBtn, { backgroundColor: meetsMinimum ? BLUE : '#C7C7CC' }]}
+              >
+                <Feather name="shopping-bag" size={16} color="#fff" />
+                <Text style={s.checkoutBtnText}>Proceed to Checkout</Text>
+              </Pressable>
+
+              {meetsMinimum && (
+                <Text style={s.checkoutNote}>
+                  Your order will be confirmed by your account manager
                 </Text>
               )}
             </View>
           )}
         />
-      )}
-
-      {cart.length > 0 && (
-        <View style={[s.footer, { bottom: tabBarOffset }]}>
-          <View style={s.footerInner}>
-            <View>
-              <Text style={s.footerLabel}>TOTAL</Text>
-              <Text style={s.footerTotal}>AUD {(totalCents / 100).toFixed(2)}</Text>
-            </View>
-            <Pressable
-              onPress={handleCheckout}
-              disabled={subtotalCents < 5000}
-              style={[s.checkoutBtn, { backgroundColor: subtotalCents < 5000 ? '#C7C7CC' : BLUE }]}
-            >
-              <Feather name="shopping-bag" size={15} color="#fff" />
-              <Text style={s.checkoutBtnText}>Proceed to Checkout</Text>
-            </Pressable>
-          </View>
-        </View>
       )}
     </View>
   );
@@ -252,16 +252,31 @@ const s = StyleSheet.create({
   qtyBtn:      { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
   qtyNum:      { fontSize: 15, fontWeight: '700', color: TEXT, minWidth: 28, textAlign: 'center' },
 
-  summaryCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 10, marginTop: 4 },
+  summaryCard: {
+    backgroundColor: CARD,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 16,
+    gap: 12,
+    marginTop: 4,
+  },
   sumRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sumLabel:    { fontSize: 13, fontWeight: '400', color: MUTED },
   sumValue:    { fontSize: 14, fontWeight: '600', color: TEXT },
-  sumDivider:  { height: 1, backgroundColor: BORDER },
+  sumDivider:  { height: StyleSheet.hairlineWidth, backgroundColor: BORDER },
 
-  footer:          { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 16, paddingTop: 12 },
-  footerInner:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  footerLabel:     { fontSize: 10, fontWeight: '600', color: MUTED, letterSpacing: 0.5 },
-  footerTotal:     { fontSize: 18, fontWeight: '700', color: TEXT },
-  checkoutBtn:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 24 },
-  checkoutBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  warningRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  warningText: { color: RED, fontSize: 12, fontWeight: '400', flex: 1 },
+
+  checkoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 28,
+  },
+  checkoutBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  checkoutNote:    { fontSize: 11, color: MUTED, textAlign: 'center', lineHeight: 15 },
 });

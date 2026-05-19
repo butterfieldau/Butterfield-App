@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, Tabs } from 'expo-router';
+import { router, Tabs, useRouter } from 'expo-router';
+import { usePathname } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,21 +17,11 @@ const NAVY = '#1A2B4A';
 const ACTIVE_TEXT = '#0C5A87';
 const IDLE_TEXT   = '#2D2F33';
 
-// Per-route label + icon config (role-sensitive routes resolved at render time)
-const ROUTE_META: Record<string, { icon: string; label: string }> = {
-  orders:   { icon: 'shopping-bag', label: 'Orders'    },
-  scan:     { icon: 'maximize',     label: 'Scan'      },
-  tasks:    { icon: 'clipboard',    label: 'Tasks'     },
-  staffhub: { icon: 'users',        label: 'Staff Hub' },
-  profile:  { icon: 'user',         label: 'Profile'   },
-  users:    { icon: 'users',        label: 'People'    },
-  products: { icon: 'package',      label: 'Products'  },
-  more:     { icon: 'grid',         label: 'More'      },
-};
-
-function DirectorGlassTabBar({ state, navigation }: any) {
-  const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+function DirectorGlassTabBar() {
+  const pathname  = usePathname();
+  const nav       = useRouter();
+  const insets    = useSafeAreaInsets();
+  const { user }  = useAuth();
 
   const isStaff    = user?.role === 'staff';
   const isManager  = user?.role === 'manager';
@@ -45,46 +36,48 @@ function DirectorGlassTabBar({ state, navigation }: any) {
     ? (staffProfileData?.data as any)?.canViewOrders === true
     : true;
 
-  // Ordered list of route names visible for the current role
-  const visibleNames = useMemo<string[]>(() => {
-    if (isStaff) {
-      const names = ['index', 'scan', 'tasks', 'profile'];
-      if (canViewOrders) names.splice(1, 0, 'orders');
-      return names;
-    }
-    if (isManager) return ['index', 'orders', 'tasks', 'staffhub', 'more'];
-    return ['index', 'orders', 'users', 'products', 'more']; // director / master
-  }, [isStaff, isManager, canViewOrders]);
+  const allTabs = useMemo(() => [
+    {
+      name: 'index',
+      path: isStaff ? '/(director)' : isManager ? '/(director)' : '/(director)',
+      icon: isInternal ? 'clock' : 'home',
+      label: isInternal ? 'Dashboard' : 'Home',
+      hidden: false,
+    },
+    { name: 'orders',   path: '/(director)/orders',   icon: 'shopping-bag', label: 'Orders',    hidden: isStaff && !canViewOrders },
+    { name: 'scan',     path: '/(director)/scan',     icon: 'maximize',     label: 'Scan',      hidden: !isStaff },
+    { name: 'tasks',    path: '/(director)/tasks',    icon: 'clipboard',    label: 'Tasks',     hidden: !isInternal },
+    { name: 'staffhub', path: '/(director)/staffhub', icon: 'users',        label: 'Staff Hub', hidden: !isManager },
+    { name: 'profile',  path: '/(director)/profile',  icon: 'user',         label: 'Profile',   hidden: !isStaff },
+    { name: 'users',    path: '/(director)/users',    icon: 'users',        label: 'People',    hidden: isInternal },
+    { name: 'products', path: '/(director)/products', icon: 'package',      label: 'Products',  hidden: isStaff || isManager },
+    { name: 'more',     path: '/(director)/more',     icon: 'grid',         label: 'More',      hidden: isStaff },
+  ], [isStaff, isManager, isInternal, canViewOrders]);
 
-  const visibleRoutes = useMemo(
-    () => state.routes.filter((r: any) => visibleNames.includes(r.name)),
-    [state.routes, visibleNames],
-  );
+  const visibleTabs = useMemo(() => allTabs.filter(t => !t.hidden), [allTabs]);
+
+  const isActive = (name: string) => {
+    if (name === 'index') {
+      return !visibleTabs.slice(1).some(t => pathname.includes(`/${t.name}`));
+    }
+    return pathname.includes(`/${name}`);
+  };
 
   return (
     <View pointerEvents="box-none" style={[s.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <GlassTabContainer spacing={12} style={s.row}>
         <GlassTabPill style={s.pill} colorScheme="light">
-          {visibleRoutes.map((route: any) => {
-            const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
-            const focused    = state.index === routeIndex;
-            const iconColor  = focused ? ACTIVE_TEXT : IDLE_TEXT;
-
-            // index route is role-aware
-            const meta = route.name === 'index'
-              ? { icon: isInternal ? 'clock' : 'home', label: isInternal ? 'Dashboard' : 'Home' }
-              : (ROUTE_META[route.name] ?? { icon: 'grid', label: route.name });
+          {visibleTabs.map((tab) => {
+            const focused   = isActive(tab.name);
+            const iconColor = focused ? ACTIVE_TEXT : IDLE_TEXT;
 
             const onPress = () => {
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) {
-                Haptics.selectionAsync();
-                navigation.navigate(route.name);
-              }
+              Haptics.selectionAsync();
+              nav.navigate(tab.path as any);
             };
 
             return (
-              <Pressable key={route.key} onPress={onPress} style={[s.tab, focused && s.tabActive]}>
+              <Pressable key={tab.name} onPress={onPress} style={[s.tab, focused && s.tabActive]}>
                 {focused ? (
                   <LinearGradient
                     colors={['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.82)']}
@@ -93,12 +86,12 @@ function DirectorGlassTabBar({ state, navigation }: any) {
                     style={StyleSheet.absoluteFill}
                   />
                 ) : null}
-                <Feather name={meta.icon as any} size={22} color={iconColor} />
+                <Feather name={tab.icon as any} size={22} color={iconColor} />
                 <Text
                   style={[s.label, { color: iconColor, fontWeight: focused ? '700' : '500' }]}
                   numberOfLines={1}
                 >
-                  {meta.label}
+                  {tab.label}
                 </Text>
               </Pressable>
             );
@@ -147,13 +140,13 @@ export default function DirectorLayout() {
       />
 
       <Tabs
-        tabBar={(props) => (isIOS ? <DirectorGlassTabBar {...props} /> : undefined)}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
+          // Collapse native tab bar completely — glass pill above handles rendering
           tabBarStyle: isIOS
-            ? { display: 'none' }
+            ? { position: 'absolute', height: 0, minHeight: 0, opacity: 0, overflow: 'hidden' }
             : {
                 backgroundColor: '#FFFFFF',
                 borderTopColor: '#E5E7EB',
@@ -162,7 +155,6 @@ export default function DirectorLayout() {
           tabBarLabelStyle: { fontWeight: '500', fontSize: 10, marginBottom: 2 },
         }}
       >
-        {/* ── Dashboard / Home — all roles ── */}
         <Tabs.Screen
           name="index"
           options={{
@@ -172,8 +164,6 @@ export default function DirectorLayout() {
             ),
           }}
         />
-
-        {/* ── Orders — all except staff without canViewOrders ── */}
         <Tabs.Screen
           name="orders"
           options={{
@@ -182,8 +172,6 @@ export default function DirectorLayout() {
             href: isStaff && !canViewOrders ? null : undefined,
           }}
         />
-
-        {/* ── Scan — staff only ── */}
         <Tabs.Screen
           name="scan"
           options={{
@@ -192,8 +180,6 @@ export default function DirectorLayout() {
             href: isStaff ? undefined : null,
           }}
         />
-
-        {/* ── Tasks — staff and manager ── */}
         <Tabs.Screen
           name="tasks"
           options={{
@@ -202,8 +188,6 @@ export default function DirectorLayout() {
             href: isInternal ? undefined : null,
           }}
         />
-
-        {/* ── Staff Hub — manager only ── */}
         <Tabs.Screen
           name="staffhub"
           options={{
@@ -212,8 +196,6 @@ export default function DirectorLayout() {
             href: isManager ? undefined : null,
           }}
         />
-
-        {/* ── Profile — staff only ── */}
         <Tabs.Screen
           name="profile"
           options={{
@@ -222,8 +204,6 @@ export default function DirectorLayout() {
             href: isStaff ? undefined : null,
           }}
         />
-
-        {/* ── People — director / master only ── */}
         <Tabs.Screen
           name="users"
           options={{
@@ -232,8 +212,6 @@ export default function DirectorLayout() {
             href: isInternal ? null : undefined,
           }}
         />
-
-        {/* ── Products — director, master only (managers access via More) ── */}
         <Tabs.Screen
           name="products"
           options={{
@@ -242,8 +220,6 @@ export default function DirectorLayout() {
             href: (isStaff || isManager) ? null : undefined,
           }}
         />
-
-        {/* ── More — manager, director, master ── */}
         <Tabs.Screen
           name="more"
           options={{
@@ -252,9 +228,7 @@ export default function DirectorLayout() {
             href: isStaff ? null : undefined,
           }}
         />
-
-        {/* ── Hidden for all — accessed via deep links or internal navigation ── */}
-        <Tabs.Screen name="stock"           options={{ href: null }} />
+        <Tabs.Screen name="stock"            options={{ href: null }} />
         <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
         <Tabs.Screen name="customers"        options={{ href: null }} />
         <Tabs.Screen name="pricing"          options={{ href: null }} />
@@ -264,6 +238,9 @@ export default function DirectorLayout() {
         <Tabs.Screen name="settings"         options={{ href: null }} />
         <Tabs.Screen name="stores"           options={{ href: null }} />
       </Tabs>
+
+      {/* Glass pill outside Tabs — never part of the native tab bar stack */}
+      {isIOS && <DirectorGlassTabBar />}
     </View>
   );
 }

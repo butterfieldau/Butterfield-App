@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, Tabs } from 'expo-router';
+import { router, Tabs, usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,34 +14,40 @@ const BLUE  = '#1493FF';
 const ACTIVE_TEXT = '#0C5A87';
 const IDLE_TEXT   = '#2D2F33';
 
-const WHOLESALE_TABS = [
-  { name: 'index',   title: 'Dashboard', icon: 'grid' },
-  { name: 'catalog', title: 'Catalog',   icon: 'package' },
-  { name: 'cart',    title: 'Cart',      icon: 'shopping-cart' },
-  { name: 'orders',  title: 'Orders',    icon: 'file-text' },
-  { name: 'profile', title: 'Account',   icon: 'user' },
+const TABS = [
+  { name: 'index',   path: '/(wholesale)',         title: 'Dashboard', icon: 'grid'          },
+  { name: 'catalog', path: '/(wholesale)/catalog', title: 'Catalog',   icon: 'package'       },
+  { name: 'cart',    path: '/(wholesale)/cart',    title: 'Cart',      icon: 'shopping-cart' },
+  { name: 'orders',  path: '/(wholesale)/orders',  title: 'Orders',    icon: 'file-text'     },
+  { name: 'profile', path: '/(wholesale)/profile', title: 'Account',   icon: 'user'          },
 ] as const;
 
-function WholesaleGlassTabBar({ state, navigation }: any) {
-  const insets = useSafeAreaInsets();
+function WholesaleGlassTabBar() {
+  const pathname   = usePathname();
+  const nav        = useRouter();
+  const insets     = useSafeAreaInsets();
+
+  // Hide tab bar entirely on the Cart screen
+  if (pathname.includes('/cart')) return null;
+
+  const isActive = (name: string) => {
+    if (name === 'index') {
+      return !TABS.slice(1).some(t => pathname.includes(`/${t.name}`));
+    }
+    return pathname.includes(`/${name}`);
+  };
 
   return (
     <View pointerEvents="box-none" style={[s.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <GlassTabContainer spacing={12} style={s.row}>
         <GlassTabPill style={s.pill} colorScheme="light">
-          {WHOLESALE_TABS.map((tab) => {
-            const route = state.routes.find((r: any) => r.name === tab.name);
-            if (!route) return null;
-            const routeIndex = state.routes.findIndex((r: any) => r.name === tab.name);
-            const focused = state.index === routeIndex;
+          {TABS.map((tab) => {
+            const focused   = isActive(tab.name);
             const iconColor = focused ? ACTIVE_TEXT : IDLE_TEXT;
 
             const onPress = () => {
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) {
-                Haptics.selectionAsync();
-                navigation.navigate(tab.name);
-              }
+              Haptics.selectionAsync();
+              nav.navigate(tab.path as any);
             };
 
             return (
@@ -80,14 +86,15 @@ export default function WholesaleLayout() {
         backgroundColor={NAVY}
         onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
       />
+
       <Tabs
-        tabBar={(props) => (isIOS ? <WholesaleGlassTabBar {...props} /> : undefined)}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
+          // Fully collapse & hide the native tab bar on iOS — the glass pill above handles it
           tabBarStyle: isIOS
-            ? { display: 'none' }
+            ? { position: 'absolute', height: 0, minHeight: 0, opacity: 0, overflow: 'hidden' }
             : { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
           tabBarLabelStyle: { fontWeight: '500', fontSize: 11 },
         }}
@@ -100,6 +107,9 @@ export default function WholesaleLayout() {
         <Tabs.Screen name="invoices"  options={{ href: null }} />
         <Tabs.Screen name="addresses" options={{ href: null }} />
       </Tabs>
+
+      {/* Glass pill rendered OUTSIDE Tabs so it is never part of the native tab bar stack */}
+      {isIOS && <WholesaleGlassTabBar />}
     </View>
   );
 }
