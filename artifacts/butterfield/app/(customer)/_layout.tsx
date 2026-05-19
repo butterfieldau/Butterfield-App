@@ -17,11 +17,10 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
 
   if (hideTabs) return null;
 
-  const tabRoutes = state.routes.filter((route: any) =>
-    ['index', 'menu', 'loyalty', 'cart', 'profile'].includes(route.name),
-  );
+  const mainRoutes = state.routes.filter((route: any) => ['index', 'menu', 'loyalty', 'cart'].includes(route.name));
+  const accountRoute = state.routes.find((route: any) => route.name === 'profile');
 
-  const renderTab = (route: any) => {
+  const renderTab = (route: any, detached = false) => {
     const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
     const focused = state.index === routeIndex;
     const options = descriptors[route.key]?.options ?? {};
@@ -40,18 +39,10 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
       <Pressable
         key={route.key}
         onPress={onPress}
-        style={[styles.tabButton, focused && styles.tabButtonActive]}
+        style={[detached ? styles.detachedTabButton : styles.tabButton, focused && styles.tabButtonActive]}
       >
         {focused ? (
-          <>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.84)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.activeGlow} />
-          </>
+          <View style={styles.activeGlow} />
         ) : null}
         <View style={styles.tabIconWrap}>
           {options.tabBarIcon ? options.tabBarIcon({ color: iconColor, focused, size: 22 }) : null}
@@ -68,15 +59,16 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
 
   return (
     <View pointerEvents="box-none" style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <BlurView intensity={78} tint="light" style={styles.mainPill}>
-        <LinearGradient
-          colors={['rgba(255,255,255,0.78)', 'rgba(255,255,255,0.56)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {tabRoutes.map((route: any) => renderTab(route))}
-      </BlurView>
+      <View style={styles.tabBarRow}>
+        <BlurView intensity={72} tint="light" style={styles.mainPill}>
+          {mainRoutes.map((route: any) => renderTab(route))}
+        </BlurView>
+        {accountRoute ? (
+          <BlurView intensity={72} tint="light" style={styles.accountPill}>
+            {renderTab(accountRoute, true)}
+          </BlurView>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -166,43 +158,63 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 16,
   },
-  mainPill: {
+  tabBarRow: {
     flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 10,
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  mainPill: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     borderRadius: 34,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-    backgroundColor: 'rgba(255,255,255,0.58)',
-    shadowColor: '#5EA8D7',
-    shadowOpacity: 0.16,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    borderColor: 'rgba(255,255,255,0.74)',
+    backgroundColor: 'rgba(255,255,255,0.66)',
+  },
+  accountPill: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.74)',
+    backgroundColor: 'rgba(255,255,255,0.66)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   tabButton: {
     flex: 1,
-    minHeight: 64,
-    borderRadius: 24,
+    minHeight: 62,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
     paddingVertical: 8,
     overflow: 'hidden',
-    gap: 5,
+    gap: 4,
+  },
+  detachedTabButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    gap: 4,
   },
   tabButtonActive: {
     shadowColor: PRIMARY_TOP,
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   activeGlow: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 24,
-    backgroundColor: 'rgba(20,147,255,0.13)',
+    borderRadius: 32,
+    backgroundColor: 'rgba(20,147,255,0.18)',
   },
   tabIconWrap: {
     width: 28,
@@ -230,7 +242,7 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
-    letterSpacing: 0,
+    letterSpacing: -0.2,
     textAlign: 'center',
   },
 });
