@@ -3,6 +3,7 @@
  * Uses Intl.DateTimeFormat.formatToParts() which is reliable across all JS engines
  * (Chrome, Hermes/React Native, Safari) unlike toLocaleString() parsing.
  */
+import { WS_CUTOFF_HOUR, WS_DELIVERY_SCHEDULE } from '@/constants/wholesaleConfig';
 
 export function getSydneyNow(): Date {
   const now = new Date();
@@ -99,27 +100,25 @@ export interface DeliveryDate {
 export function getDeliveryDates(): DeliveryDate[] {
   const syd = getSydneyNow();
   const results: DeliveryDate[] = [];
-  for (let i = 1; i <= 14 && results.length < 8; i++) {
+  for (let i = 1; i <= 21 && results.length < 8; i++) {
     const d = new Date(syd);
     d.setDate(d.getDate() + i);
     d.setHours(0, 0, 0, 0);
-    const day = d.getDay();
-    const label = d.toLocaleDateString('en-AU', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
+    const dow = d.getDay();
+    const schedule = WS_DELIVERY_SCHEDULE.find((s) => s.deliveryDow === dow);
+    if (!schedule) continue;
+    const label = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    // Cutoff = WS_CUTOFF_HOUR on the calendar day immediately before delivery
+    const cutoff = new Date(d);
+    cutoff.setDate(d.getDate() + schedule.cutoffDayOffset);
+    cutoff.setHours(WS_CUTOFF_HOUR, 0, 0, 0);
+    const available = syd.getTime() < cutoff.getTime();
+    results.push({
+      date: d,
+      label,
+      available,
+      note: available ? undefined : `Order by ${schedule.cutoffLabel}`,
     });
-    if (day === 1) {
-      // Monday — order must be placed before Sat 5pm
-      const cutoff = new Date(d);
-      cutoff.setDate(d.getDate() - 2);
-      cutoff.setHours(17, 0, 0, 0);
-      const available = syd.getTime() < cutoff.getTime();
-      results.push({ date: d, label, available, note: available ? undefined : 'Closed (Sat 5pm)' });
-    } else if (day === 4) {
-      // Thursday — always available
-      results.push({ date: d, label, available: true });
-    }
   }
   return results;
 }

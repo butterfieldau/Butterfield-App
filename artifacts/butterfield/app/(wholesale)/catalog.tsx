@@ -551,7 +551,7 @@ export default function WholesaleCatalog() {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.deliveryInfoTag, { color: BLUE }]}>SYDNEY DELIVERY</Text>
                     <Text style={styles.deliveryInfoTitle}>Invoiced on dispatch</Text>
-                    <Text style={styles.deliveryInfoSub}>Mondays &amp; Thursdays, 8am – 5pm. 24 hours notice required.</Text>
+                    <Text style={styles.deliveryInfoSub}>Mondays &amp; Thursdays, 8am – 5pm. Order by 6pm the day before delivery.</Text>
                   </View>
                 </View>
               )}

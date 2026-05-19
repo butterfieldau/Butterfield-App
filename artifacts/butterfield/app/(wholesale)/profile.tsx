@@ -11,6 +11,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
+import { WS_DELIVERY_SCHEDULE, WS_LEAD_TIME_LABEL } from '@/constants/wholesaleConfig';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -144,9 +145,12 @@ export default function WholesaleAccount() {
     );
   };
   const openFaqs = () => {
+    const scheduleLines = WS_DELIVERY_SCHEDULE
+      .map(s => `  ${s.deliveryLabel} delivery → ${s.cutoffFull}`)
+      .join('\n');
     Alert.alert(
       'Wholesale FAQs',
-      `Cut-off times:\n  Monday delivery → Friday 12pm AEST\n  Thursday delivery → Tuesday 12pm AEST\n\nMinimum order: ${minOrderDisplay}\nLead time: 2 business days\nPayment terms: ${paymentTerms}`
+      `Cut-off times:\n${scheduleLines}\n\nMinimum order: ${minOrderDisplay}\nLead time: ${WS_LEAD_TIME_LABEL}\nPayment terms: ${paymentTerms}`
     );
   };
 
@@ -370,10 +374,15 @@ export default function WholesaleAccount() {
           />
           {showSchedule && (
             <View style={s.expand}>
-              <Detail label="Monday delivery"   value="Order by Fri 12pm" />
-              <Detail label="Thursday delivery" value="Order by Tue 12pm" />
-              <Detail label="Minimum order"     value={minOrderDisplay} />
-              <Detail label="Lead time"         value="2 business days" last />
+              {WS_DELIVERY_SCHEDULE.map((slot) => (
+                <Detail
+                  key={slot.deliveryLabel}
+                  label={`${slot.deliveryLabel} delivery`}
+                  value={`Order by ${slot.cutoffLabel}`}
+                />
+              ))}
+              <Detail label="Minimum order" value={minOrderDisplay} />
+              <Detail label="Lead time"     value={WS_LEAD_TIME_LABEL} last />
             </View>
           )}
         </Group>
