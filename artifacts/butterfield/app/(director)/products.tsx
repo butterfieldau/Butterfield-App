@@ -1069,11 +1069,16 @@ function OptionsTab() {
       </Pressable>
       {/* ── Group Modal ─────────────────────────────────────────────────────── */}
       <Modal visible={groupModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGroupModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={modal.header}>
             <Pressable onPress={() => setGroupModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editGroup ? 'Edit Option Group' : 'New Option Group'}</Text>
             <Pressable onPress={saveGroup} style={[modal.saveBtn, { backgroundColor: gSaving ? MUTED : NAVY }]} disabled={gSaving}>
               <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
+            <View style={form.card}>
               <Field label="Group Name" required>
                 <TextInput value={gName} onChangeText={setGName} placeholder="e.g. Milk Type, Size, Extras"
                   placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
@@ -1097,6 +1102,7 @@ function OptionsTab() {
                 </View>
                 <Switch value={gRequired} onValueChange={setGRequired} trackColor={{ false: BORDER, true: AMBER }} thumbColor="#fff" />
               </View>
+            </View>
             {categories.length > 0 && (
               <View style={form.card}>
                 <SectionHeader title="Applies To Categories" icon="grid" color={BLUE} />
@@ -1112,14 +1118,21 @@ function OptionsTab() {
                 </View>
               </View>
             )}
+          </ScrollView>
+        </View>
       </Modal>
       {/* ── Option Modal ─────────────────────────────────────────────────────── */}
       <Modal visible={optModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOptModal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={modal.header}>
             <Pressable onPress={() => setOptModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editOpt ? 'Edit Option' : 'New Option'}</Text>
             <Pressable onPress={saveOpt} style={[modal.saveBtn, { backgroundColor: oSaving ? MUTED : NAVY }]} disabled={oSaving}>
               <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
+            <View style={form.card}>
               <Field label="Option Name" required>
                 <TextInput value={oName} onChangeText={setOName} placeholder="e.g. Oat Milk, Extra Shot, Large"
                   placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
@@ -1137,6 +1150,9 @@ function OptionsTab() {
                 </View>
                 <Switch value={oDefault} onValueChange={setODefault} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
               </View>
+            </View>
+          </ScrollView>
+        </View>
       </Modal>
     </View>
   );
