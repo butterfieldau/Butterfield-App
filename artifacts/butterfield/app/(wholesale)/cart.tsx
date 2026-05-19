@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable,
+  ActivityIndicator, FlatList, Platform, Pressable,
   StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -89,6 +89,11 @@ export default function WholesaleCartScreen() {
   const totalCents = subtotalCents + (deliveryFeeCents > 0 ? deliveryFeeCents : 0);
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
 
+  // Glass tab bar sits above safe-area: pill height (78) + wrap paddingBottom
+  const tabBarOffset = Platform.OS === 'ios'
+    ? Math.max(insets.bottom, 12) + 78
+    : 0;
+
   const handleCheckout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await AsyncStorage.setItem(WS_OPEN_CHECKOUT_KEY, '1');
@@ -131,7 +136,7 @@ export default function WholesaleCartScreen() {
         <FlatList
           data={cart}
           keyExtractor={e => e.product.id}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 160 }}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: tabBarOffset + 80 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: entry }) => {
             const bp       = basePrice(entry.product);
@@ -206,7 +211,7 @@ export default function WholesaleCartScreen() {
       )}
 
       {cart.length > 0 && (
-        <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[s.footer, { bottom: tabBarOffset }]}>
           <View style={s.footerInner}>
             <View>
               <Text style={s.footerLabel}>TOTAL</Text>

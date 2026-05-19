@@ -87,7 +87,7 @@ export default function WholesaleLayout() {
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: isIOS
-            ? { position: 'absolute', height: 0, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
+            ? { display: 'none' }
             : { backgroundColor: '#fff', borderTopColor: '#EFEFEF', borderTopWidth: 1 },
           tabBarLabelStyle: { fontWeight: '500', fontSize: 11 },
         }}

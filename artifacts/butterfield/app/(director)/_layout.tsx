@@ -153,7 +153,7 @@ export default function DirectorLayout() {
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: isIOS
-            ? { position: 'absolute', height: 0, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
+            ? { display: 'none' }
             : {
                 backgroundColor: '#FFFFFF',
                 borderTopColor: '#E5E7EB',
