@@ -198,9 +198,35 @@ Login screen has a **Demo accounts** strip with one-tap auto-fill for each role.
 - **API**: director-only CRUD at `/api/director/managers` (PATCH permissions, DELETE downgrades to staff role)
 - **Permissions enforced**: UI level (which tabs appear). All director API routes accept `requireRole('director', 'manager')`.
 
+## Wholesale Account Management (Director/Master)
+
+### Account Manager
+- Fields: `accountManager` (name), `accountManagerPhone`, `accountManagerEmail` on `wholesale_accounts`
+- Director-only write via `PATCH /api/director/wholesale/:id` (fields: `accountManagerName`, `accountManagerPhone`, `accountManagerEmail`)
+- Wholesale portal profile shows assigned manager card with tap-to-call / tap-to-email — read-only for wholesale customers
+- If no manager assigned: nothing shown (no placeholder noise)
+
+### Credit Management
+- **Default: NO credit** — `creditEnabled: false`, `creditLimitCents: 0`, `paymentTerms: null` for all new accounts
+- Director enables credit manually: toggle `creditEnabled`, set `creditLimitCents` (AUD), optionally `paymentTerms` and `creditNotes`
+- Credit section only appears in wholesale portal when `creditEnabled = true AND creditLimitCents > 0`
+- Removes all previous $5,000 automatic defaults from schema, seed, and application routes
+
+### Invoice Delivery
+- `accountsEmail` field on `wholesale_accounts` — the accounts team email for invoice delivery
+- Director can set it; wholesale customer can also update it themselves via `PATCH /api/wholesale/account/accounts-email`
+- In wholesale profile: editable inline (tap to edit, save/cancel)
+
+### Pay To Details (static, in wholesale profile)
+- Butterfield Cookies PTY LTD
+- BSB: 067 873 | Account: 1465 8181
+- ABN: 24 680 761 166
+- Displayed in a clean "Pay To" card in the wholesale profile screen
+
 ## Pending Items
 - **Stripe integration**: Connect via Replit Integrations → run `pnpm --filter @workspace/scripts run seed-products` to sync real Stripe products
 - **Push notifications**: expo-notifications scaffolded but not wired to backend
+- **Invoice generation**: Wire `accountsEmail` to actual invoice email sending (Resend integration)
 
 ## Key Files
 - `artifacts/butterfield/lib/api.ts` — typed fetch wrapper for all API calls

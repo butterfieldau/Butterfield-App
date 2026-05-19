@@ -759,14 +759,20 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   user: any; wa: any; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [creditAud, setCreditAud]       = useState('');
-  const [payTerms, setPayTerms]         = useState('');
-  const [deliveryAddr, setDeliveryAddr] = useState('');
+  const [creditEnabled, setCreditEnabled]   = useState(false);
+  const [creditAud, setCreditAud]           = useState('');
+  const [creditNotes, setCreditNotes]       = useState('');
+  const [payTerms, setPayTerms]             = useState('');
+  const [deliveryAddr, setDeliveryAddr]     = useState('');
   const [deliveryFeeAud, setDeliveryFeeAud] = useState('');
-  const [minOrderAud, setMinOrderAud]   = useState('');
-  const [suspended, setSuspended]     = useState(false);
-  const [suspendReason, setSuspendReason] = useState('');
-  const [saving, setSaving]           = useState(false);
+  const [minOrderAud, setMinOrderAud]       = useState('');
+  const [accountMgrName, setAccountMgrName] = useState('');
+  const [accountMgrPhone, setAccountMgrPhone] = useState('');
+  const [accountMgrEmail, setAccountMgrEmail] = useState('');
+  const [acctEmail, setAcctEmail]           = useState('');
+  const [suspended, setSuspended]           = useState(false);
+  const [suspendReason, setSuspendReason]   = useState('');
+  const [saving, setSaving]                 = useState(false);
   const { data: cardsData, isLoading: cardsLoading, refetch: refetchCards } = useQuery({
     queryKey: ['director-ws-cards', wa?.id],
     queryFn: () => api.director.wholesaleCards(wa!.id),
@@ -775,11 +781,17 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   const cards = (cardsData as any)?.data ?? [];
   useEffect(() => {
     if (wa) {
+      setCreditEnabled(wa.creditEnabled ?? false);
       setCreditAud(wa.creditLimitCents ? String(wa.creditLimitCents / 100) : '');
-      setPayTerms(wa.paymentTerms ?? '30 days');
+      setCreditNotes(wa.creditNotes ?? '');
+      setPayTerms(wa.paymentTerms ?? '');
       setDeliveryAddr(wa.deliveryAddress ?? '');
       setDeliveryFeeAud(wa.deliveryFeeCents ? String(wa.deliveryFeeCents / 100) : '');
       setMinOrderAud((wa.minimumOrderCents ?? wa.minOrderCents) ? String((wa.minimumOrderCents ?? wa.minOrderCents) / 100) : '');
+      setAccountMgrName(wa.accountManager ?? '');
+      setAccountMgrPhone(wa.accountManagerPhone ?? '');
+      setAccountMgrEmail(wa.accountManagerEmail ?? '');
+      setAcctEmail(wa.accountsEmail ?? '');
       setSuspended(wa.isSuspended ?? false);
       setSuspendReason(wa.suspendedReason ?? '');
     }
@@ -807,17 +819,24 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const creditCents   = creditAud       ? Math.round(parseFloat(creditAud)       * 100) : undefined;
+      const creditCents   = creditAud       ? Math.round(parseFloat(creditAud)       * 100) : 0;
       const deliveryCents = deliveryFeeAud  ? Math.round(parseFloat(deliveryFeeAud)  * 100) : 0;
       const minOrderCents = minOrderAud     ? Math.round(parseFloat(minOrderAud)     * 100) : undefined;
       await api.director.updateWholesale(wa.id, {
-        creditLimitCents:  isNaN(creditCents as number)   ? undefined : creditCents,
-        paymentTerms:      payTerms.trim()   || undefined,
-        deliveryAddress:   deliveryAddr.trim() || undefined,
-        deliveryFeeCents:  isNaN(deliveryCents) ? 0 : deliveryCents,
-        minimumOrderCents: isNaN(minOrderCents as number) ? undefined : minOrderCents,
+        creditEnabled,
+        creditLimitCents:    isNaN(creditCents) ? 0 : creditCents,
+        creditNotes:         creditNotes.trim() || null,
+        paymentTerms:        payTerms.trim()    || null,
+        deliveryAddress:     deliveryAddr.trim() || undefined,
+        deliveryFeeCents:    isNaN(deliveryCents) ? 0 : deliveryCents,
+        minimumOrderCents:   isNaN(minOrderCents as number) ? undefined : minOrderCents,
+        accountManagerName:  accountMgrName.trim()  || null,
+        accountManagerPhone: accountMgrPhone.trim() || null,
+        accountManagerEmail: accountMgrEmail.trim() || null,
+        accountsEmail:       acctEmail.trim()       || null,
       });
       Alert.alert('Saved', 'Wholesale account updated.');
+      onRefresh();
       onClose();
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setSaving(false); }
@@ -877,30 +896,110 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
               })}
             </View>
           </View>
-          {/* Edit fields */}
+          {/* Account Manager */}
           <View style={wdl.card}>
-            <Text style={wdl.sectionLabel}>ACCOUNT SETTINGS</Text>
-            <Text style={wdl.fieldLabel}>Credit Limit (AUD)</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
-              <TextInput
-                style={[wdl.input, { color: TEXT }]}
-                placeholder="e.g. 5000"
-                placeholderTextColor={MUTED}
-                value={creditAud}
-                onChangeText={setCreditAud}
-                keyboardType="decimal-pad"
-              />
-            </View>
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Payment Terms</Text>
+            <Text style={wdl.sectionLabel}>ACCOUNT MANAGER</Text>
+            <Text style={wdl.fieldNote}>Assigned rep visible to this wholesale customer (read-only for them).</Text>
+            <Text style={wdl.fieldLabel}>Manager Name</Text>
             <View style={[wdl.inputRow, { borderColor: BORDER }]}>
               <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. 30 days"
-                value={payTerms}
-                onChangeText={setPayTerms}
+                placeholder="e.g. Sarah Thompson"
+                value={accountMgrName}
+                onChangeText={setAccountMgrName}
               />
             </View>
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Delivery Address</Text>
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Manager Phone</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. 0400 000 000"
+                value={accountMgrPhone}
+                onChangeText={setAccountMgrPhone}
+                keyboardType="phone-pad"
+              />
+            </View>
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Manager Email</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. sarah@butterfield.com.au"
+                value={accountMgrEmail}
+                onChangeText={setAccountMgrEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+          {/* Credit Management */}
+          <View style={wdl.card}>
+            <Text style={wdl.sectionLabel}>CREDIT MANAGEMENT</Text>
+            <Text style={wdl.fieldNote}>No credit is issued by default. Enable manually to grant credit terms.</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Credit Account</Text>
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>
+                  {creditEnabled ? 'Credit enabled — customer can order on account' : 'Disabled — pay on order'}
+                </Text>
+              </View>
+              <Switch
+                value={creditEnabled}
+                onValueChange={setCreditEnabled}
+                trackColor={{ false: '#D1D5DB', true: GREEN }}
+                thumbColor="#fff"
+                ios_backgroundColor="#D1D5DB"
+              />
+            </View>
+            {creditEnabled && (
+              <>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Credit Limit (AUD)</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
+                  <TextInput
+                    style={[wdl.input, { color: TEXT }]}
+                    placeholder="e.g. 5000"
+                    placeholderTextColor={MUTED}
+                    value={creditAud}
+                    onChangeText={setCreditAud}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Payment Terms</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. Net 30, Net 14, EOM"
+                    value={payTerms}
+                    onChangeText={setPayTerms}
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Credit Notes (internal)</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER, height: 64, alignItems: 'flex-start', paddingTop: 10 }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="Internal notes about credit terms..."
+                    value={creditNotes}
+                    onChangeText={setCreditNotes}
+                    multiline
+                  />
+                </View>
+              </>
+            )}
+          </View>
+          {/* Invoice email */}
+          <View style={wdl.card}>
+            <Text style={wdl.sectionLabel}>INVOICE DELIVERY</Text>
+            <Text style={wdl.fieldNote}>Invoices are sent to this email. The customer can also set this themselves.</Text>
+            <Text style={wdl.fieldLabel}>Accounts Team Email</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. accounts@company.com.au"
+                value={acctEmail}
+                onChangeText={setAcctEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+          </View>
+          {/* Delivery settings */}
+          <View style={wdl.card}>
+            <Text style={wdl.sectionLabel}>DELIVERY SETTINGS</Text>
+            <Text style={wdl.fieldLabel}>Delivery Address</Text>
             <View style={[wdl.inputRow, { borderColor: BORDER, height: 72, alignItems: 'flex-start', paddingTop: 12 }]}>
               <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
                 placeholder="Street, suburb, postcode"
@@ -1531,6 +1630,7 @@ const wdl = StyleSheet.create({
   infoValue:       { color: '#1C1C1E', fontWeight: '500', fontSize: 13, maxWidth: '55%', textAlign: 'right' },
   statusBtn:       { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
   statusBtnText:   { fontSize: 13, fontWeight: '600' },
+  fieldNote:       { fontSize: 12, fontWeight: '400', color: '#8E8E93', marginBottom: 10, lineHeight: 17 },
   fieldLabel:      { fontSize: 12, fontWeight: '600', color: '#8E8E93', marginBottom: 6 },
   inputRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: '#F5F6FA' },
   input:           { flex: 1, fontSize: 15, fontWeight: '400' },

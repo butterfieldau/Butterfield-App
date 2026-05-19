@@ -20,16 +20,24 @@ export const wholesaleAccountsTable = pgTable("wholesale_accounts", {
   customPricingEnabled: boolean("custom_pricing_enabled").notNull().default(false),
   isSuspended: boolean("is_suspended").notNull().default(false),
   suspendedReason: text("suspended_reason"),
-  creditLimitCents: integer("credit_limit_cents").notNull().default(500000),
+  // Credit management — no automatic credit; director/master must enable manually
+  creditEnabled: boolean("credit_enabled").notNull().default(false),
+  creditLimitCents: integer("credit_limit_cents").notNull().default(0),
   currentBalanceCents: integer("current_balance_cents").notNull().default(0),
-  paymentTerms: text("payment_terms").notNull().default("net14"),
+  creditNotes: text("credit_notes"),
+  // Payment terms — defaults to pay on order; director/master sets if credit is enabled
+  paymentTerms: text("payment_terms").default("pay_on_order"),
   // delivery fee charged to this customer (cents, 0 = free)
   deliveryFeeCents: integer("delivery_fee_cents").notNull().default(0),
   // whether delivery orders are permitted for this account
   deliveryAllowed: boolean("delivery_allowed").notNull().default(true),
   minimumOrderCents: integer("minimum_order_cents").notNull().default(20000),
-  accountManager: text("account_manager").notNull().default("Sarah"),
-  accountManagerEmail: text("account_manager_email").notNull().default("wholesale@butterfield.com.au"),
+  // Account manager details — set by director/master only
+  accountManager: text("account_manager"),
+  accountManagerPhone: text("account_manager_phone"),
+  accountManagerEmail: text("account_manager_email"),
+  // Accounts team email — for invoice delivery; wholesale customer can set this themselves
+  accountsEmail: text("accounts_email"),
   status: text("status").notNull().default("pending"),
   approvedAt: timestamp("approved_at"),
   // customer-visible notes (e.g. delivery instructions)

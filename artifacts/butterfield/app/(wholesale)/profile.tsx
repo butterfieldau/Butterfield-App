@@ -4,10 +4,10 @@ import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
@@ -21,12 +21,17 @@ const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
 const RED    = '#DC2626';
 
-// Apple-style grouped section header
+const PAY_TO = {
+  name:    'Butterfield Cookies PTY LTD',
+  bsb:     '067 873',
+  account: '1465 8181',
+  abn:     '24 680 761 166',
+};
+
 function SectionLabel({ children }: { children: string }) {
   return <Text style={s.sectionLabel}>{children.toUpperCase()}</Text>;
 }
 
-// Disclosure row in a grouped list
 function Row({
   icon, iconBg, label, value, onPress, last, danger, chevron = true, rightSlot,
 }: {
@@ -51,7 +56,6 @@ function Row({
   );
 }
 
-// Expandable section card
 function Group({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <View style={{ gap: 6 }}>
@@ -61,12 +65,21 @@ function Group({ title, children }: { title?: string; children: React.ReactNode 
   );
 }
 
+function Detail({ label, value, valueColor, last }: { label: string; value: string; valueColor?: string; last?: boolean }) {
+  return (
+    <View style={[s.detail, !last && s.detailBorder]}>
+      <Text style={s.detailLabel}>{label}</Text>
+      <Text style={[s.detailValue, valueColor && { color: valueColor }]} numberOfLines={2}>{value}</Text>
+    </View>
+  );
+}
+
 export default function WholesaleAccount() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
-  const { data: accountData } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
+  const { data: accountData, refetch: refetchAccount } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
   const { data: ordersData }  = useQuery({ queryKey: ['wholesale-orders'],  queryFn: () => api.wholesale.orders(),  retry: 1 });
 
   const account       = accountData?.data;
@@ -75,19 +88,34 @@ export default function WholesaleAccount() {
   const totalSpent    = orders.reduce((s: number, o: any) => s + (o.totalCents ?? 0), 0);
   const creditUsed    = account?.currentBalanceCents ?? 0;
   const creditLimit   = account?.creditLimitCents ?? 0;
+  const creditEnabled = account?.creditEnabled ?? false;
   const tierName      = account?.tier?.name ?? account?.pricingTier ?? 'Standard';
-  const paymentTermsRaw = account?.tier?.paymentTermsDays ?? account?.paymentTerms;
-  const paymentTerms  = typeof paymentTermsRaw === 'number'
-    ? `${paymentTermsRaw} days`
-    : (paymentTermsRaw ?? 'Net 14').toString().replace(/^net/i, 'Net ');
-  const discount      = account?.tier?.defaultDiscountPct ?? account?.tier?.discountPercent;
-  const accountMgr    = account?.accountManager;
+
+  // Payment terms display
+  const rawTerms = account?.paymentTerms;
+  const paymentTerms = !rawTerms || rawTerms === 'pay_on_order'
+    ? 'Pay on order'
+    : typeof rawTerms === 'number'
+      ? `${rawTerms} days`
+      : rawTerms.replace(/^net\s*/i, 'Net ');
+
+  // Account manager
+  const accountMgr      = account?.accountManager;
+  const accountMgrPhone = account?.accountManagerPhone;
   const accountMgrEmail = account?.accountManagerEmail;
-  // Effective minimum order: account-level override takes priority over tier default
-  const minOrderCents = account?.minOrderCents || account?.tier?.minOrderCents || 0;
-  const minOrderDisplay = minOrderCents > 0
-    ? `$${(minOrderCents / 100).toFixed(2)} AUD`
-    : '—';
+
+  // Accounts team email (editable)
+  const [editingAcctEmail, setEditingAcctEmail] = useState(false);
+  const [acctEmailDraft, setAcctEmailDraft]     = useState('');
+
+  const updateEmailMutation = useMutation({
+    mutationFn: (email: string | null) => api.wholesale.updateAccountsEmail(email),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['wholesale-account'] }); setEditingAcctEmail(false); },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
+  const minOrderCents = account?.minimumOrderCents || account?.minOrderCents || 0;
+  const minOrderDisplay = minOrderCents > 0 ? `$${(minOrderCents / 100).toFixed(2)} AUD` : '—';
   const fullAddress   = [account?.deliveryAddress, [account?.suburb, account?.state, account?.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 
   const [showBusiness, setShowBusiness] = useState(false);
@@ -103,23 +131,22 @@ export default function WholesaleAccount() {
     ]);
   };
 
-  const openPhone = () => {
+  const openPhone = (phone: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL('tel:0480769995').catch(() =>
-      Alert.alert('Sales Representative', 'Phone: 0480 769 995\nEmail: accounts@butterfieldcookies.com.au\n\nMon–Fri, 8am – 4pm AEST')
+    Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() =>
+      Alert.alert('Phone', phone)
     );
   };
-  const openEmail = () => {
+  const openEmail = (email: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const addr = accountMgrEmail ?? 'accounts@butterfieldcookies.com.au';
-    Linking.openURL(`mailto:${addr}?subject=Wholesale Account Enquiry`).catch(() =>
-      Alert.alert('Email', addr)
+    Linking.openURL(`mailto:${email}?subject=Wholesale Account Enquiry`).catch(() =>
+      Alert.alert('Email', email)
     );
   };
   const openFaqs = () => {
     Alert.alert(
       'Wholesale FAQs',
-      `Cut-off times:\n  Monday delivery → Friday 12pm AEST\n  Thursday delivery → Tuesday 12pm AEST\n\nMinimum order: ${minOrderDisplay}\nLead time: 2 business days\nPayment terms: ${paymentTerms} from invoice`
+      `Cut-off times:\n  Monday delivery → Friday 12pm AEST\n  Thursday delivery → Tuesday 12pm AEST\n\nMinimum order: ${minOrderDisplay}\nLead time: 2 business days\nPayment terms: ${paymentTerms}`
     );
   };
 
@@ -127,9 +154,11 @@ export default function WholesaleAccount() {
   const statusColor = account?.status === 'approved' ? GREEN : account?.status === 'rejected' ? RED : '#F59E0B';
   const statusLabel = account?.status === 'approved' ? 'Approved' : account?.status === 'pending' ? 'Pending' : account?.status ?? '—';
 
+  const acctEmail = account?.accountsEmail ?? '';
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* ── HERO (frozen/sticky — outside ScrollView) ────────────────────── */}
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <LinearGradient colors={['#1A2B4A', '#253B5E']} style={[s.hero, { paddingTop: 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <AvatarPicker
           initial={initial}
@@ -143,7 +172,7 @@ export default function WholesaleAccount() {
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
           <View style={s.heroPill}>
             <Feather name="award" size={10} color="#fff" />
-            <Text style={s.heroPillText}>{tierName.toUpperCase()}{discount != null ? ` · −${discount}%` : ''}</Text>
+            <Text style={s.heroPillText}>{tierName.toUpperCase()}</Text>
           </View>
           <View style={[s.heroPill, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: account?.status === 'approved' ? '#86efac' : '#fde68a' }} />
@@ -155,7 +184,7 @@ export default function WholesaleAccount() {
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 16, gap: 18, paddingTop: 14 }}>
 
-        {/* ── STATS STRIP ────────────────────────────────────────────────── */}
+        {/* ── STATS STRIP ─────────────────────────────────────────────────── */}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {[
             { label: 'Orders',    value: String(orders.length) },
@@ -169,8 +198,8 @@ export default function WholesaleAccount() {
           ))}
         </View>
 
-        {/* ── CREDIT (only if a credit limit exists) ─────────────────────── */}
-        {creditLimit > 0 && (
+        {/* ── CREDIT ACCOUNT (only shown when credit is enabled) ───────────── */}
+        {creditEnabled && creditLimit > 0 && (
           <View style={s.creditCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View>
@@ -191,13 +220,107 @@ export default function WholesaleAccount() {
           </View>
         )}
 
-        {/* ── PAYMENT METHODS (cards live here now) ──────────────────────── */}
+        {/* ── ACCOUNT MANAGER ─────────────────────────────────────────────── */}
+        {accountMgr ? (
+          <Group title="Your Account Manager">
+            <View style={s.mgrCard}>
+              <View style={s.mgrAvatar}>
+                <Text style={s.mgrAvatarText}>{accountMgr.charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.mgrName}>{accountMgr}</Text>
+                {accountMgrPhone ? (
+                  <Pressable onPress={() => openPhone(accountMgrPhone)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                    <Feather name="phone" size={12} color={BLUE} />
+                    <Text style={s.mgrContact}>{accountMgrPhone}</Text>
+                  </Pressable>
+                ) : null}
+                {accountMgrEmail ? (
+                  <Pressable onPress={() => openEmail(accountMgrEmail)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                    <Feather name="mail" size={12} color={BLUE} />
+                    <Text style={s.mgrContact}>{accountMgrEmail}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          </Group>
+        ) : null}
+
+        {/* ── PAYMENT METHODS ─────────────────────────────────────────────── */}
         <View style={{ gap: 6 }}>
           <SectionLabel>Payment Methods</SectionLabel>
           <PaymentMethods />
         </View>
 
-        {/* ── BUSINESS DETAILS (collapsible) ─────────────────────────────── */}
+        {/* ── PAY TO (bank details) ────────────────────────────────────────── */}
+        <Group title="Pay To">
+          <View style={s.payToCard}>
+            <Text style={s.payToName}>{PAY_TO.name}</Text>
+            <View style={s.payToRow}>
+              <Text style={s.payToLabel}>BSB</Text>
+              <Text style={s.payToValue}>{PAY_TO.bsb}</Text>
+            </View>
+            <View style={s.payToRow}>
+              <Text style={s.payToLabel}>Account</Text>
+              <Text style={s.payToValue}>{PAY_TO.account}</Text>
+            </View>
+            <View style={[s.payToRow, { borderBottomWidth: 0 }]}>
+              <Text style={s.payToLabel}>ABN</Text>
+              <Text style={s.payToValue}>{PAY_TO.abn}</Text>
+            </View>
+          </View>
+        </Group>
+
+        {/* ── ACCOUNTS EMAIL (editable) ────────────────────────────────────── */}
+        <Group title="Invoice Delivery">
+          {editingAcctEmail ? (
+            <View style={s.acctEmailEdit}>
+              <Text style={s.acctEmailHint}>Invoices are sent to this address. Leave blank to receive invoices to your login email.</Text>
+              <TextInput
+                style={s.acctEmailInput}
+                placeholder="accounts@yourcompany.com.au"
+                placeholderTextColor={MUTED}
+                value={acctEmailDraft}
+                onChangeText={setAcctEmailDraft}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                <Pressable
+                  style={[s.acctEmailBtn, { backgroundColor: BLUE }]}
+                  onPress={() => updateEmailMutation.mutate(acctEmailDraft.trim() || null)}
+                  disabled={updateEmailMutation.isPending}
+                >
+                  <Text style={[s.acctEmailBtnText, { color: '#fff' }]}>
+                    {updateEmailMutation.isPending ? 'Saving…' : 'Save'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[s.acctEmailBtn, { backgroundColor: '#F3F4F6' }]}
+                  onPress={() => setEditingAcctEmail(false)}
+                >
+                  <Text style={[s.acctEmailBtnText, { color: TEXT }]}>Cancel</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Row
+              icon="mail"
+              iconBg="#DCFCE7"
+              label={acctEmail ? 'Accounts email' : 'Add accounts email'}
+              value={acctEmail || 'Not set'}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setAcctEmailDraft(acctEmail);
+                setEditingAcctEmail(true);
+              }}
+              last
+            />
+          )}
+        </Group>
+
+        {/* ── BUSINESS DETAILS (collapsible) ──────────────────────────────── */}
         <Group title="Business">
           <Row
             icon="briefcase"
@@ -229,8 +352,10 @@ export default function WholesaleAccount() {
           {showBilling && (
             <View style={s.expand}>
               <Detail label="Pricing Tier"     value={tierName} />
-              {discount != null && <Detail label="Discount" value={`${discount}% off all products`} />}
-              <Detail label="Payment Terms"   value={paymentTerms} />
+              <Detail label="Payment Terms"    value={paymentTerms} />
+              {creditEnabled && creditLimit > 0 && (
+                <Detail label="Credit Limit" value={`$${(creditLimit / 100).toFixed(0)}`} />
+              )}
               <Detail label="Delivery Address" value={fullAddress || '—'} last />
             </View>
           )}
@@ -253,7 +378,7 @@ export default function WholesaleAccount() {
           )}
         </Group>
 
-        {/* ── ACCESS LINKS ───────────────────────────────────────────────── */}
+        {/* ── QUICK LINKS ─────────────────────────────────────────────────── */}
         <Group title="Quick Links">
           <Row
             icon="file-text"
@@ -269,25 +394,35 @@ export default function WholesaleAccount() {
           />
         </Group>
 
-        {/* ── ACCOUNT ────────────────────────────────────────────────────── */}
+        {/* ── ACCOUNT ─────────────────────────────────────────────────────── */}
         <Group title="Account">
           <Row
             icon="bell"
             iconBg="#EDE9FE"
             label="Notification Settings"
             onPress={() => { Haptics.selectionAsync(); router.push('/notification-prefs' as any); }}
-            last
           />
+          {!accountMgr ? (
+            <Row
+              icon="help-circle"
+              iconBg="#FEF3C7"
+              label="Support"
+              value="accounts@butterfieldcookies.com.au"
+              onPress={() => openEmail('accounts@butterfieldcookies.com.au')}
+              last
+            />
+          ) : (
+            <Row
+              icon="help-circle"
+              iconBg="#FEF3C7"
+              label="Wholesale FAQs"
+              onPress={openFaqs}
+              last
+            />
+          )}
         </Group>
 
-        {/* ── SUPPORT ────────────────────────────────────────────────────── */}
-        <Group title="Support">
-          <Row icon="phone" label={accountMgr ? `Call ${accountMgr}` : 'Call Sales Rep'} value="0480 769 995" onPress={openPhone} />
-          <Row icon="mail"  label="Email Support" value={accountMgrEmail ? accountMgrEmail.split('@')[0] + '@…' : 'accounts@…'} onPress={openEmail} />
-          <Row icon="help-circle" iconBg="#FEF3C7" label="Wholesale FAQs" onPress={openFaqs} last />
-        </Group>
-
-        {/* ── SIGN OUT ───────────────────────────────────────────────────── */}
+        {/* ── SIGN OUT ─────────────────────────────────────────────────────── */}
         <Pressable onPress={handleLogout} style={s.signOut}>
           <Feather name="log-out" size={15} color={RED} />
           <Text style={s.signOutText}>Sign Out</Text>
@@ -300,19 +435,8 @@ export default function WholesaleAccount() {
   );
 }
 
-function Detail({ label, value, valueColor, last }: { label: string; value: string; valueColor?: string; last?: boolean }) {
-  return (
-    <View style={[s.detail, !last && s.detailBorder]}>
-      <Text style={s.detailLabel}>{label}</Text>
-      <Text style={[s.detailValue, valueColor && { color: valueColor }]} numberOfLines={2}>{value}</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   hero:            { paddingHorizontal: 20, paddingBottom: 22, alignItems: 'center', gap: 4 },
-  avatar:          { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', marginBottom: 6 },
-  avatarText:      { color: '#fff', fontSize: 26, fontWeight: '700' },
   heroName:        { color: '#fff', fontSize: 20, fontWeight: '700' },
   heroSub:         { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '400' },
   heroPill:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
@@ -329,8 +453,25 @@ const s = StyleSheet.create({
   barTrack:        { height: 6, borderRadius: 3, backgroundColor: BG, overflow: 'hidden' },
   barFill:         { height: '100%', borderRadius: 3 },
 
-  sectionLabel:    { color: MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 0.7, marginLeft: 4 },
+  mgrCard:         { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingHorizontal: 14, paddingVertical: 14 },
+  mgrAvatar:       { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1A2B4A', alignItems: 'center', justifyContent: 'center' },
+  mgrAvatarText:   { color: '#fff', fontSize: 18, fontWeight: '700' },
+  mgrName:         { color: TEXT, fontWeight: '700', fontSize: 15 },
+  mgrContact:      { color: BLUE, fontWeight: '500', fontSize: 13 },
 
+  payToCard:       { paddingHorizontal: 14, paddingVertical: 12 },
+  payToName:       { color: TEXT, fontWeight: '700', fontSize: 14, marginBottom: 10 },
+  payToRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  payToLabel:      { color: MUTED, fontWeight: '400', fontSize: 13 },
+  payToValue:      { color: TEXT, fontWeight: '600', fontSize: 13 },
+
+  acctEmailEdit:   { padding: 14 },
+  acctEmailHint:   { color: MUTED, fontWeight: '400', fontSize: 12, marginBottom: 10 },
+  acctEmailInput:  { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER },
+  acctEmailBtn:    { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  acctEmailBtnText:{ fontWeight: '600', fontSize: 14 },
+
+  sectionLabel:    { color: MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 0.7, marginLeft: 4 },
   group:           { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
 
   row:             { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: 50 },

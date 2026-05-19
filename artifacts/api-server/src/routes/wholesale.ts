@@ -51,6 +51,18 @@ router.get('/account', async (req, res) => {
 // Alias kept for client compatibility
 router.get('/profile', (_req, res) => res.redirect(307, '/api/wholesale/account'));
 
+// Wholesale customer updates their own accounts team email (for invoice delivery)
+router.patch('/account/accounts-email', async (req, res) => {
+  const { accountsEmail } = req.body;
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found.' });
+  const [updated] = await db.update(wholesaleAccountsTable)
+    .set({ accountsEmail: accountsEmail ? String(accountsEmail).trim() : null, updatedAt: new Date() })
+    .where(eq(wholesaleAccountsTable.id, account.id))
+    .returning();
+  return res.json({ data: updated });
+});
+
 // Tier-aware catalog: returns only products this customer can access,
 // with the secure unit price computed for qty=1.
 router.get('/catalog', async (req, res) => {
@@ -75,7 +87,6 @@ router.get('/catalog', async (req, res) => {
         customerId: req.user!.id,
         accountId: ctx.accountId,
         tierId: ctx.tierId,
-        customPricingEnabled: ctx.customPricingEnabled,
       });
       unitPriceCents = price.unitCents;
       priceSource = price.source;

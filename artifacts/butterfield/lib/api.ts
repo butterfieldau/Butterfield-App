@@ -191,6 +191,8 @@ export const api = {
     updateCard:  (id: string, data: { nameOnCard?: string; cardBrand?: string; last4?: string; expiry?: string; isDefault?: boolean }) =>
       request<{ data: any }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCard:  (id: string) => request<{ success: boolean }>(`/wholesale/cards/${id}`, { method: 'DELETE' }),
+    updateAccountsEmail: (accountsEmail: string | null) =>
+      request<{ data: any }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
   },
   favourites: {
     list: () => request<{ data: { productStripeId: string }[] }>('/favourites'),
@@ -347,7 +349,19 @@ export const api = {
       request<{ data: any }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
     suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
-    updateWholesale:     (accountId: string, data: { creditLimitCents?: number; paymentTerms?: string; deliveryAddress?: string; deliveryFeeCents?: number; minimumOrderCents?: number }) =>
+    updateWholesale:     (accountId: string, data: {
+      creditEnabled?: boolean;
+      creditLimitCents?: number;
+      creditNotes?: string | null;
+      paymentTerms?: string | null;
+      deliveryAddress?: string;
+      deliveryFeeCents?: number;
+      minimumOrderCents?: number;
+      accountManagerName?: string | null;
+      accountManagerPhone?: string | null;
+      accountManagerEmail?: string | null;
+      accountsEmail?: string | null;
+    }) =>
       request<{ data: any }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     wholesaleCards:      (accountId: string) => request<{ data: any[] }>(`/director/wholesale/${accountId}/cards`),
 

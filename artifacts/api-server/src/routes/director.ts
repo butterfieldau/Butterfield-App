@@ -606,19 +606,30 @@ router.patch('/wholesale/:accountId/status', async (req, res) => {
   return res.json({ data: updated });
 });
 
-// ── Wholesale account general update (credit limit, payment terms, delivery address, delivery fee, min order) ──
+// ── Wholesale account general update ─────────────────────────────────────────
 router.patch('/wholesale/:accountId', async (req, res) => {
   const { accountId } = req.params;
   const updates: Record<string, any> = {};
+  // Credit management
+  if (req.body.creditEnabled       !== undefined) updates.creditEnabled       = Boolean(req.body.creditEnabled);
   if (req.body.creditLimitCents    !== undefined) updates.creditLimitCents    = Number(req.body.creditLimitCents);
-  if (req.body.paymentTerms        !== undefined) updates.paymentTerms        = String(req.body.paymentTerms);
+  if (req.body.creditNotes         !== undefined) updates.creditNotes         = req.body.creditNotes ? String(req.body.creditNotes) : null;
+  // Payment & delivery
+  if (req.body.paymentTerms        !== undefined) updates.paymentTerms        = req.body.paymentTerms ? String(req.body.paymentTerms) : null;
   if (req.body.deliveryAddress     !== undefined) updates.deliveryAddress     = String(req.body.deliveryAddress);
   if (req.body.deliveryFeeCents    !== undefined) updates.deliveryFeeCents    = Number(req.body.deliveryFeeCents);
   if (req.body.minimumOrderCents   !== undefined) {
     updates.minimumOrderCents = Number(req.body.minimumOrderCents);
-    updates.minOrderCents     = Number(req.body.minimumOrderCents); // keep legacy field in sync
+    updates.minOrderCents     = Number(req.body.minimumOrderCents);
   }
+  // Account manager details (director/master only)
+  if (req.body.accountManagerName  !== undefined) updates.accountManager      = req.body.accountManagerName ? String(req.body.accountManagerName) : null;
+  if (req.body.accountManagerPhone !== undefined) updates.accountManagerPhone = req.body.accountManagerPhone ? String(req.body.accountManagerPhone) : null;
+  if (req.body.accountManagerEmail !== undefined) updates.accountManagerEmail = req.body.accountManagerEmail ? String(req.body.accountManagerEmail) : null;
+  // Accounts team email (for invoice delivery)
+  if (req.body.accountsEmail       !== undefined) updates.accountsEmail       = req.body.accountsEmail ? String(req.body.accountsEmail) : null;
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No updatable fields provided.' });
+  updates.updatedAt = new Date();
   const [updated] = await db.update(wholesaleAccountsTable).set(updates).where(eq(wholesaleAccountsTable.id, accountId)).returning();
   if (!updated) return res.status(404).json({ error: 'Wholesale account not found.' });
   return res.json({ data: updated });
