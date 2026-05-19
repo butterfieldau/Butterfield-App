@@ -206,7 +206,7 @@ export default function WholesaleCartScreen() {
       )}
 
       {cart.length > 0 && (
-        <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={[s.footer, { paddingBottom: 12 }]}>
           <View style={s.footerInner}>
             <View>
               <Text style={s.footerLabel}>TOTAL</Text>
