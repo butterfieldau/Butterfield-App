@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import {
   db, wholesaleOrdersTable, wholesaleAccountsTable, productsTable, pricingTiersTable,
-  wholesaleCardsTable,
+  wholesaleCardsTable, quantityPriceBreaksTable, customerPricingTable,
 } from '@workspace/db';
 import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -196,6 +196,62 @@ router.post('/orders', async (req, res) => {
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Order validation failed' });
   }
+});
+
+// Returns this customer's tier, qty breaks, and custom prices in one call.
+// The client uses this to compute correct prices as quantity changes, without
+// hitting the server on every keypress. The server re-validates at checkout.
+router.get('/pricing-context', async (req, res) => {
+  const ctx = await loadPriceContextForAccount(req.user!.id);
+  if (!ctx) return res.status(404).json({ error: 'Account not found' });
+  if (ctx.isSuspended) return res.status(403).json({ error: 'Your account is suspended.' });
+
+  let tierName: string | null = null;
+  let tierStatus: string | null = null;
+  let tierQtyBreaks: any[] = [];
+
+  if (ctx.tierId) {
+    const [tier] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, ctx.tierId));
+    if (tier && tier.status === 'active') {
+      tierName = tier.name;
+      tierStatus = tier.status;
+      tierQtyBreaks = await db.select().from(quantityPriceBreaksTable).where(
+        and(
+          eq(quantityPriceBreaksTable.scope, 'tier'),
+          eq(quantityPriceBreaksTable.tierId, ctx.tierId),
+          eq(quantityPriceBreaksTable.isActive, true),
+        )
+      ).orderBy(asc(quantityPriceBreaksTable.minQty));
+    }
+  }
+
+  const customerQtyBreaks = await db.select().from(quantityPriceBreaksTable).where(
+    and(
+      eq(quantityPriceBreaksTable.scope, 'customer'),
+      eq(quantityPriceBreaksTable.customerId, req.user!.id),
+      eq(quantityPriceBreaksTable.isActive, true),
+    )
+  ).orderBy(asc(quantityPriceBreaksTable.minQty));
+
+  const customPrices = await db.select().from(customerPricingTable).where(
+    and(
+      eq(customerPricingTable.customerId, req.user!.id),
+      eq(customerPricingTable.isActive, true),
+    )
+  );
+
+  return res.json({
+    data: {
+      tierId: ctx.tierId,
+      tierName,
+      tierStatus,
+      // All active qty breaks for this customer's tier + customer-specific breaks
+      qtyBreaks: [...tierQtyBreaks, ...customerQtyBreaks],
+      // Custom per-product prices for this customer
+      customPrices,
+      minOrderCents: ctx.minOrderCents,
+    },
+  });
 });
 
 function safeParseJson(s: string): any[] {

@@ -44,12 +44,6 @@ const LIGHT_BLUE = '#EBF8FF';
 const TEXT       = '#1C1C1E';
 const MUTED      = '#8E8E93';
 const BORDER     = '#E5E7EB';
-const WHOLESALE_TIERS = [
-  { minQty: 1,  label: 'Retail',      discount: 0    },
-  { minQty: 10, label: 'Trade (10+)', discount: 0.10 },
-  { minQty: 25, label: 'Bulk (25+)',  discount: 0.20 },
-  { minQty: 50, label: 'Volume (50+)',discount: 0.30 },
-];
 const CHECKOUT_TABS = [
   { label: 'CART',    icon: 'shopping-bag' },
   { label: 'SHIPPING',icon: 'truck' },
@@ -58,27 +52,47 @@ const CHECKOUT_TABS = [
 function getPrice(p: ApiProduct): number {
   return (p.prices?.[0]?.unit_amount ?? 0) / 100;
 }
-function getWholesalePrice(basePrice: number, qty: number): number {
-  const tier = [...WHOLESALE_TIERS].reverse().find((t) => qty >= t.minQty);
-  return basePrice * (1 - (tier?.discount ?? 0));
+interface PricingContext {
+  tierId: string | null;
+  tierName: string | null;
+  qtyBreaks: Array<{ id: string; productId: string; minQty: number; unitPriceCents: number }>;
+  customPrices: Array<{ id: string; productId: string; unitPriceCents: number | null }>;
+}
+function computePriceInfo(
+  productId: string,
+  qty: number,
+  baseCents: number,
+  ctx: PricingContext | null,
+): { unitCents: number; isCustom: boolean; isQtyBreak: boolean; activeBreakMinQty: number | null } {
+  if (!ctx || !baseCents) return { unitCents: baseCents, isCustom: false, isQtyBreak: false, activeBreakMinQty: null };
+  const custom = ctx.customPrices.find((cp) => cp.productId === productId && cp.unitPriceCents);
+  if (custom?.unitPriceCents) return { unitCents: custom.unitPriceCents, isCustom: true, isQtyBreak: false, activeBreakMinQty: null };
+  const applicable = [...(ctx.qtyBreaks ?? [])]
+    .filter((qb) => qb.productId === productId && qb.unitPriceCents && qty >= qb.minQty)
+    .sort((a, b) => b.minQty - a.minQty)[0];
+  if (applicable?.unitPriceCents) return { unitCents: applicable.unitPriceCents, isCustom: false, isQtyBreak: true, activeBreakMinQty: applicable.minQty };
+  return { unitCents: baseCents, isCustom: false, isQtyBreak: false, activeBreakMinQty: null };
 }
 interface CartEntry { product: ApiProduct; quantity: number }
-function CompactProductRow({ product, cartEntry, onAdd }: {
+function CompactProductRow({ product, cartEntry, onAdd, pricingCtx }: {
   product: ApiProduct;
   cartEntry?: CartEntry;
   onAdd: (product: ApiProduct, qty: number) => void;
+  pricingCtx: PricingContext | null;
 }) {
-  const defaultQty     = String((product as any).minOrderQty ?? 12);
+  const defaultQty  = String((product as any).minOrderQty ?? 12);
   const [qty, setQty]  = useState(defaultQty);
   const [added, setAdded] = useState(false);
-  const addedTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const basePrice      = getPrice(product);
-  const parsedQty      = Math.max(1, parseInt(qty) || 1);
-  const wsPrice        = getWholesalePrice(basePrice, parsedQty);
-  const tier           = [...WHOLESALE_TIERS].reverse().find((t) => parsedQty >= t.minQty);
-  const palette        = getPalette(product.metadata?.category);
-  const imageUrl       = (product as any).images?.[0];
-  const inCart         = !!cartEntry;
+  const addedTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const baseCents   = (product as any).unitPriceCents ?? (product.prices?.[0]?.unit_amount ?? 0);
+  const parsedQty   = Math.max(1, parseInt(qty) || 1);
+  const priceInfo   = computePriceInfo(product.id, parsedQty, baseCents, pricingCtx);
+  const palette     = getPalette(product.metadata?.category);
+  const imageUrl    = (product as any).images?.[0];
+  const inCart      = !!cartEntry;
+  const productBreaks = pricingCtx
+    ? [...(pricingCtx.qtyBreaks ?? [])].filter((qb) => qb.productId === product.id).sort((a, b) => a.minQty - b.minQty)
+    : [];
   useEffect(() => () => { if (addedTimer.current) clearTimeout(addedTimer.current); }, []);
   const increment = () => { const n = parsedQty + 1; setQty(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
   const decrement = () => { const n = Math.max(1, parsedQty - 1); setQty(String(n)); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
@@ -111,16 +125,27 @@ function CompactProductRow({ product, cartEntry, onAdd }: {
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.compactName} numberOfLines={1}>{product.name}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={styles.compactPrice}>${wsPrice.toFixed(2)}</Text>
-          {tier && tier.discount > 0 && (
-            <>
-              <Text style={styles.compactStrike}>${basePrice.toFixed(2)}</Text>
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountBadgeText}>−{tier.discount * 100}%</Text>
-              </View>
-            </>
+          <Text style={styles.compactPrice}>${(priceInfo.unitCents / 100).toFixed(2)}</Text>
+          {priceInfo.isCustom && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountBadgeText}>Custom</Text>
+            </View>
+          )}
+          {priceInfo.isQtyBreak && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountBadgeText}>{priceInfo.activeBreakMinQty}+ price</Text>
+            </View>
           )}
         </View>
+        {productBreaks.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 2 }}>
+            {productBreaks.map((qb) => (
+              <Text key={qb.id} style={[styles.breakTag, { color: parsedQty >= qb.minQty ? BLUE : MUTED }]}>
+                {qb.minQty}+ ${(qb.unitPriceCents / 100).toFixed(2)}
+              </Text>
+            ))}
+          </ScrollView>
+        )}
       </View>
       {/* Qty stepper + Add */}
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
@@ -187,6 +212,12 @@ export default function WholesaleCatalog() {
   const [submitting, setSubmitting] = useState(false);
   const { data, isLoading, refetch } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.catalog(), retry: 1 });
   const products = data?.data ?? [];
+  const { data: pricingData } = useQuery({
+    queryKey: ['wholesale-pricing-context'],
+    queryFn:  () => api.wholesale.pricingContext(),
+    staleTime: 60_000,
+    retry: false,
+  });
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
@@ -279,7 +310,11 @@ export default function WholesaleCatalog() {
     if (qty <= 0) removeFromCart(productId);
     else setCart((prev) => prev.map((e) => e.product.id === productId ? { ...e, quantity: qty } : e));
   };
-  const subtotalCents = cart.reduce((sum, e) => sum + Math.round(getWholesalePrice(getPrice(e.product), e.quantity) * e.quantity * 100), 0);
+  const pricingCtx = (pricingData?.data ?? null) as PricingContext | null;
+  const subtotalCents = cart.reduce((sum, e) => {
+    const bc = (e.product as any).unitPriceCents ?? (e.product.prices?.[0]?.unit_amount ?? 0);
+    return sum + computePriceInfo(e.product.id, e.quantity, bc, pricingCtx).unitCents * e.quantity;
+  }, 0);
   const totalCents    = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
   const totalQty      = cart.reduce((s, e) => s + e.quantity, 0);
   const sydNow        = getSydneyNow();
@@ -419,7 +454,8 @@ export default function WholesaleCatalog() {
             {/* ── PAGE 0: CART ── */}
             <ScrollView style={{ width: SCREEN_W, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {cart.map((entry) => {
-                const wsPrice  = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                const bc = (entry.product as any).unitPriceCents ?? (entry.product.prices?.[0]?.unit_amount ?? 0);
+                const wsPrice = computePriceInfo(entry.product.id, entry.quantity, bc, pricingCtx).unitCents / 100;
                 const palette  = getPalette(entry.product.metadata?.category);
                 const imageUrl = (entry.product as any).images?.[0];
                 return (
@@ -650,7 +686,8 @@ export default function WholesaleCatalog() {
             <ScrollView style={{ width: SCREEN_W, backgroundColor: BG }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={[styles.paymentHeader, { color: TEXT }]}>Order Summary</Text>
               {cart.map((entry) => {
-                const wsPrice = getWholesalePrice(getPrice(entry.product), entry.quantity);
+                const bc = (entry.product as any).unitPriceCents ?? (entry.product.prices?.[0]?.unit_amount ?? 0);
+                const wsPrice = computePriceInfo(entry.product.id, entry.quantity, bc, pricingCtx).unitCents / 100;
                 return (
                   <View key={entry.product.id} style={styles.paymentItem}>
                     <Text style={[styles.paymentItemName, { color: TEXT }]}>{entry.product.name} × {entry.quantity}</Text>
@@ -745,14 +782,11 @@ export default function WholesaleCatalog() {
             );
           })}
         </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, alignItems: 'flex-start' }}>
-          {WHOLESALE_TIERS.map((tier) => (
-            <View key={tier.label} style={[styles.tierTag, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' }]}>
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 11 }}>{tier.label}</Text>
-              {tier.discount > 0 && <Text style={{ color: 'rgba(255,255,255,0.7)', fontWeight: '400', fontSize: 10 }}>−{tier.discount * 100}%</Text>}
-            </View>
-          ))}
-        </ScrollView>
+        {pricingCtx?.tierName && (
+          <View style={[styles.tierTag, { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }]}>
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 11 }}>{pricingCtx.tierName}</Text>
+          </View>
+        )}
       </LinearGradient>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
@@ -769,7 +803,7 @@ export default function WholesaleCatalog() {
             </View>
           }
           renderItem={({ item: product }) => (
-            <CompactProductRow product={product} cartEntry={cart.find((e) => e.product.id === product.id)} onAdd={addToCart} />
+            <CompactProductRow product={product} cartEntry={cart.find((e) => e.product.id === product.id)} onAdd={addToCart} pricingCtx={pricingCtx} />
           )}
         />
       )}
@@ -813,6 +847,7 @@ const styles = StyleSheet.create({
   compactStrike:    { fontSize: 11, fontWeight: '400', color: MUTED, textDecorationLine: 'line-through' },
   discountBadge:    { backgroundColor: `${BLUE}18`, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 },
   discountBadgeText:{ fontSize: 10, fontWeight: '700', color: BLUE },
+  breakTag:         { fontSize: 10, fontWeight: '600', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: `${BLUE}12` },
   stepperRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, overflow: 'hidden', height: 34 },
   stepBtn:          { width: 32, height: 34, alignItems: 'center', justifyContent: 'center' },
   stepBtnText:      { fontSize: 18, color: TEXT, fontWeight: '400', lineHeight: 22 },

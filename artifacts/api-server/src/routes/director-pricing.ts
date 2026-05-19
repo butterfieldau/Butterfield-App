@@ -8,19 +8,22 @@ import {
   wholesaleAccountsTable,
   productsTable,
 } from '@workspace/db';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, ne, isNull, or } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
-import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { calculateWholesalePrice, loadPriceContextForAccount } from '../lib/wholesalePricing.js';
 
 const router = Router();
-router.use(requireRole('director', 'manager', 'master'));
-// Managers must hold the 'pricing' permission to access any pricing route
-router.use(requireManagerPermission('pricing'));
+
+// Wholesale pricing management: director and master only.
+// Managers and staff have no access to pricing controls.
+router.use(requireRole('director', 'master'));
 
 // ── Pricing tiers CRUD ───────────────────────────────────────────────────────
+
 router.get('/tiers', async (_req, res) => {
-  const tiers = await db.select().from(pricingTiersTable).orderBy(pricingTiersTable.sortOrder, pricingTiersTable.name);
+  const tiers = await db.select().from(pricingTiersTable)
+    .where(ne(pricingTiersTable.status, 'archived'))
+    .orderBy(pricingTiersTable.sortOrder, pricingTiersTable.name);
   return res.json({ data: tiers });
 });
 
@@ -37,25 +40,18 @@ router.post('/tiers', async (req, res) => {
     id: randomUUID(),
     name: b.name.trim(),
     description: b.description ?? '',
-    status: b.status ?? 'active',
-    defaultDiscountPct: b.defaultDiscountPct ?? 0,
-    minOrderCents: b.minOrderCents ?? 0,
-    minOrderQty: b.minOrderQty ?? 0,
-    weeklyOrderVolumeCents: b.weeklyOrderVolumeCents ?? null,
-    monthlyOrderVolumeCents: b.monthlyOrderVolumeCents ?? null,
-    paymentTerms: b.paymentTerms ?? 'net14',
-    deliveryEnabled: b.deliveryEnabled ?? true,
-    pickupEnabled: b.pickupEnabled ?? true,
-    freeDeliveryThresholdCents: b.freeDeliveryThresholdCents ?? null,
-    cutOffTime: b.cutOffTime ?? '12:00',
-    leadTimeDays: b.leadTimeDays ?? 2,
-    productAccessRule: b.productAccessRule ?? 'all',
-    allowedProductIds: b.allowedProductIds ? JSON.stringify(b.allowedProductIds) : null,
-    allowedCategories: b.allowedCategories ? JSON.stringify(b.allowedCategories) : null,
-    requiresApproval: b.requiresApproval ?? false,
-    notes: b.notes ?? null,
-    internalNotes: b.internalNotes ?? null,
-    sortOrder: b.sortOrder ?? 0,
+    status: b.status === 'inactive' ? 'inactive' : 'active',
+    defaultDiscountPct: 0,
+    minOrderCents: 0,
+    minOrderQty: 0,
+    paymentTerms: 'net14',
+    deliveryEnabled: true,
+    pickupEnabled: true,
+    cutOffTime: '12:00',
+    leadTimeDays: 2,
+    productAccessRule: 'all',
+    requiresApproval: false,
+    sortOrder: 0,
     createdBy: req.user!.id,
   }).returning();
   return res.status(201).json({ data: tier });
@@ -63,43 +59,64 @@ router.post('/tiers', async (req, res) => {
 
 router.patch('/tiers/:id', async (req, res) => {
   const b = req.body ?? {};
-  const allowed = [
-    'name','description','status','defaultDiscountPct','minOrderCents','minOrderQty',
-    'weeklyOrderVolumeCents','monthlyOrderVolumeCents','paymentTerms',
-    'deliveryEnabled','pickupEnabled','freeDeliveryThresholdCents',
-    'cutOffTime','leadTimeDays','productAccessRule',
-    'requiresApproval','notes','internalNotes','sortOrder',
-  ] as const;
   const updates: Record<string, any> = {};
-  for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
-  if (b.allowedProductIds !== undefined) updates.allowedProductIds = b.allowedProductIds ? JSON.stringify(b.allowedProductIds) : null;
-  if (b.allowedCategories !== undefined) updates.allowedCategories = b.allowedCategories ? JSON.stringify(b.allowedCategories) : null;
+  if (b.name !== undefined) updates.name = b.name.trim();
+  if (b.description !== undefined) updates.description = b.description;
+  if (b.status !== undefined) {
+    if (!['active', 'inactive'].includes(b.status)) return res.status(400).json({ error: 'Status must be active or inactive.' });
+    updates.status = b.status;
+  }
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
-  const [tier] = await db.update(pricingTiersTable).set(updates).where(eq(pricingTiersTable.id, req.params.id)).returning();
+  const [tier] = await db.update(pricingTiersTable).set(updates)
+    .where(eq(pricingTiersTable.id, req.params.id)).returning();
   if (!tier) return res.status(404).json({ error: 'Tier not found' });
   return res.json({ data: tier });
 });
 
+// Delete a tier — automatically unassigns all customers from that tier first
 router.delete('/tiers/:id', async (req, res) => {
-  // Soft archive — never hard delete (preserves price history)
+  const { force } = req.body ?? {};
+
+  // Count how many wholesale accounts are on this tier
+  const assigned = await db.select().from(wholesaleAccountsTable)
+    .where(eq(wholesaleAccountsTable.tierId, req.params.id));
+
+  if (assigned.length > 0 && !force) {
+    return res.status(409).json({
+      error: `${assigned.length} customer${assigned.length !== 1 ? 's are' : ' is'} assigned to this tier.`,
+      assignedCount: assigned.length,
+      canForce: true,
+    });
+  }
+
+  // Unassign all customers from this tier
+  if (assigned.length > 0) {
+    await db.update(wholesaleAccountsTable)
+      .set({ tierId: null, updatedAt: new Date() })
+      .where(eq(wholesaleAccountsTable.tierId, req.params.id));
+  }
+
+  // Archive the tier (preserve for order audit trail)
   const [tier] = await db.update(pricingTiersTable)
     .set({ status: 'archived', updatedAt: new Date() })
     .where(eq(pricingTiersTable.id, req.params.id))
     .returning();
   if (!tier) return res.status(404).json({ error: 'Tier not found' });
-  return res.json({ success: true, data: tier });
+
+  return res.json({ success: true, unassignedCount: assigned.length });
 });
 
-// ── Quantity price breaks ────────────────────────────────────────────────────
+// ── Quantity price breaks CRUD ───────────────────────────────────────────────
+
 router.get('/quantity-breaks', async (req, res) => {
   const { productId, tierId, customerId } = req.query;
-  const conds: any[] = [];
-  if (productId) conds.push(eq(quantityPriceBreaksTable.productId, productId as string));
-  if (tierId)    conds.push(eq(quantityPriceBreaksTable.tierId, tierId as string));
-  if (customerId)conds.push(eq(quantityPriceBreaksTable.customerId, customerId as string));
+  const conds: any[] = [eq(quantityPriceBreaksTable.isActive, true)];
+  if (productId)  conds.push(eq(quantityPriceBreaksTable.productId, productId as string));
+  if (tierId)     conds.push(eq(quantityPriceBreaksTable.tierId, tierId as string));
+  if (customerId) conds.push(eq(quantityPriceBreaksTable.customerId, customerId as string));
   const breaks = await db.select().from(quantityPriceBreaksTable)
-    .where(conds.length ? and(...conds) : undefined)
+    .where(and(...conds))
     .orderBy(desc(quantityPriceBreaksTable.createdAt));
   return res.json({ data: breaks });
 });
@@ -108,10 +125,10 @@ router.post('/quantity-breaks', async (req, res) => {
   const b = req.body ?? {};
   if (!b.productId) return res.status(400).json({ error: 'productId is required.' });
   if (typeof b.minQty !== 'number' || b.minQty < 1) return res.status(400).json({ error: 'minQty must be a positive number.' });
-  if (b.unitPriceCents == null && b.discountPct == null) return res.status(400).json({ error: 'Provide unitPriceCents or discountPct.' });
+  if (!b.unitPriceCents || b.unitPriceCents <= 0) return res.status(400).json({ error: 'unitPriceCents (price per unit) is required.' });
   const scope = b.scope === 'customer' ? 'customer' : 'tier';
   if (scope === 'tier' && !b.tierId)        return res.status(400).json({ error: 'tierId required for tier scope.' });
-  if (scope === 'customer' && !b.customerId)return res.status(400).json({ error: 'customerId required for customer scope.' });
+  if (scope === 'customer' && !b.customerId) return res.status(400).json({ error: 'customerId required for customer scope.' });
 
   const [created] = await db.insert(quantityPriceBreaksTable).values({
     id: randomUUID(),
@@ -120,13 +137,10 @@ router.post('/quantity-breaks', async (req, res) => {
     tierId: scope === 'tier' ? b.tierId : null,
     customerId: scope === 'customer' ? b.customerId : null,
     minQty: b.minQty,
-    maxQty: b.maxQty ?? null,
-    unitPriceCents: b.unitPriceCents ?? null,
-    discountPct: b.discountPct ?? null,
-    startsAt: b.startsAt ? new Date(b.startsAt) : null,
-    endsAt: b.endsAt ? new Date(b.endsAt) : null,
-    isActive: b.isActive ?? true,
-    notes: b.notes ?? null,
+    maxQty: null,
+    unitPriceCents: b.unitPriceCents,
+    discountPct: null,
+    isActive: b.isActive !== false,
     createdBy: req.user!.id,
   }).returning();
   return res.status(201).json({ data: created });
@@ -135,33 +149,34 @@ router.post('/quantity-breaks', async (req, res) => {
 router.patch('/quantity-breaks/:id', async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
-  for (const k of ['minQty','maxQty','unitPriceCents','discountPct','isActive','notes'] as const) {
-    if (b[k] !== undefined) updates[k] = b[k];
-  }
-  if (b.startsAt !== undefined) updates.startsAt = b.startsAt ? new Date(b.startsAt) : null;
-  if (b.endsAt   !== undefined) updates.endsAt   = b.endsAt   ? new Date(b.endsAt)   : null;
+  if (b.minQty !== undefined)       updates.minQty = b.minQty;
+  if (b.unitPriceCents !== undefined) updates.unitPriceCents = b.unitPriceCents;
+  if (b.isActive !== undefined)     updates.isActive = b.isActive;
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
-  const [updated] = await db.update(quantityPriceBreaksTable).set(updates).where(eq(quantityPriceBreaksTable.id, req.params.id)).returning();
+  const [updated] = await db.update(quantityPriceBreaksTable).set(updates)
+    .where(eq(quantityPriceBreaksTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Quantity break not found' });
   return res.json({ data: updated });
 });
 
+// Hard delete — immediately removes from pricing; order history retains the priceSource label
 router.delete('/quantity-breaks/:id', async (req, res) => {
-  // Soft archive — preserve history for past order audit trails
-  const [updated] = await db.update(quantityPriceBreaksTable)
-    .set({ isActive: false, updatedAt: new Date() })
+  const [deleted] = await db.delete(quantityPriceBreaksTable)
     .where(eq(quantityPriceBreaksTable.id, req.params.id))
     .returning();
-  if (!updated) return res.status(404).json({ error: 'Quantity break not found' });
-  return res.json({ success: true, data: updated });
+  if (!deleted) return res.status(404).json({ error: 'Quantity break not found' });
+  return res.json({ success: true });
 });
 
-// ── Customer custom pricing ──────────────────────────────────────────────────
+// ── Customer custom pricing CRUD ─────────────────────────────────────────────
+
 router.get('/customer-pricing', async (req, res) => {
   const { customerId } = req.query;
+  const conds: any[] = [eq(customerPricingTable.isActive, true)];
+  if (customerId) conds.push(eq(customerPricingTable.customerId, customerId as string));
   const rows = await db.select().from(customerPricingTable)
-    .where(customerId ? eq(customerPricingTable.customerId, customerId as string) : undefined)
+    .where(and(...conds))
     .orderBy(desc(customerPricingTable.createdAt));
   return res.json({ data: rows });
 });
@@ -169,20 +184,17 @@ router.get('/customer-pricing', async (req, res) => {
 router.post('/customer-pricing', async (req, res) => {
   const b = req.body ?? {};
   if (!b.customerId) return res.status(400).json({ error: 'customerId is required.' });
-  if (!b.productId && !b.category) return res.status(400).json({ error: 'productId or category is required.' });
-  if (b.unitPriceCents == null && b.discountPct == null) return res.status(400).json({ error: 'Provide unitPriceCents or discountPct.' });
+  if (!b.productId)  return res.status(400).json({ error: 'productId is required.' });
+  if (!b.unitPriceCents || b.unitPriceCents <= 0) return res.status(400).json({ error: 'unitPriceCents (price per unit) is required.' });
 
   const [created] = await db.insert(customerPricingTable).values({
     id: randomUUID(),
     customerId: b.customerId,
-    productId: b.productId ?? null,
-    category: b.category ?? null,
-    unitPriceCents: b.unitPriceCents ?? null,
-    discountPct: b.discountPct ?? null,
-    startsAt: b.startsAt ? new Date(b.startsAt) : null,
-    endsAt: b.endsAt ? new Date(b.endsAt) : null,
-    isActive: b.isActive ?? true,
-    notes: b.notes ?? null,
+    productId: b.productId,
+    category: null,
+    unitPriceCents: b.unitPriceCents,
+    discountPct: null,
+    isActive: b.isActive !== false,
     createdBy: req.user!.id,
   }).returning();
   return res.status(201).json({ data: created });
@@ -191,35 +203,31 @@ router.post('/customer-pricing', async (req, res) => {
 router.patch('/customer-pricing/:id', async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
-  for (const k of ['unitPriceCents','discountPct','isActive','notes'] as const) {
-    if (b[k] !== undefined) updates[k] = b[k];
-  }
-  if (b.startsAt !== undefined) updates.startsAt = b.startsAt ? new Date(b.startsAt) : null;
-  if (b.endsAt   !== undefined) updates.endsAt   = b.endsAt   ? new Date(b.endsAt)   : null;
+  if (b.unitPriceCents !== undefined) updates.unitPriceCents = b.unitPriceCents;
+  if (b.isActive !== undefined)      updates.isActive = b.isActive;
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
-  const [updated] = await db.update(customerPricingTable).set(updates).where(eq(customerPricingTable.id, req.params.id)).returning();
+  const [updated] = await db.update(customerPricingTable).set(updates)
+    .where(eq(customerPricingTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Custom price not found' });
   return res.json({ data: updated });
 });
 
+// Hard delete — immediately removes from pricing; order history retains priceSource label
 router.delete('/customer-pricing/:id', async (req, res) => {
-  // Soft archive — preserve history for past order audit trails
-  const [updated] = await db.update(customerPricingTable)
-    .set({ isActive: false, updatedAt: new Date() })
+  const [deleted] = await db.delete(customerPricingTable)
     .where(eq(customerPricingTable.id, req.params.id))
     .returning();
-  if (!updated) return res.status(404).json({ error: 'Custom price not found' });
-  return res.json({ success: true, data: updated });
+  if (!deleted) return res.status(404).json({ error: 'Custom price not found' });
+  return res.json({ success: true });
 });
 
-// ── Assign tier / suspend / custom-pricing flag on wholesale account ─────────
+// ── Assign / unassign tier on a wholesale account ────────────────────────────
+
 router.patch('/wholesale/:accountId/tier', async (req, res) => {
-  const { tierId, customPricingEnabled } = req.body ?? {};
+  const { tierId } = req.body ?? {};
   const updates: Record<string, any> = { updatedAt: new Date() };
-  if (tierId !== undefined) updates.tierId = tierId || null;
-  if (customPricingEnabled !== undefined) updates.customPricingEnabled = !!customPricingEnabled;
-  if (Object.keys(updates).length === 1) return res.status(400).json({ error: 'Nothing to update.' });
+  updates.tierId = tierId || null;
   const [updated] = await db.update(wholesaleAccountsTable).set(updates)
     .where(eq(wholesaleAccountsTable.id, req.params.accountId)).returning();
   if (!updated) return res.status(404).json({ error: 'Account not found' });
@@ -236,6 +244,7 @@ router.patch('/wholesale/:accountId/suspend', async (req, res) => {
 });
 
 // ── Product wholesale access controls ────────────────────────────────────────
+
 router.patch('/products/:id/wholesale-access', async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = { updatedAt: new Date() };
@@ -249,9 +258,6 @@ router.patch('/products/:id/wholesale-access', async (req, res) => {
     updates.wholesaleAllowedTierIds = b.wholesaleAllowedTierIds ? JSON.stringify(b.wholesaleAllowedTierIds) : null;
   if (b.wholesaleAllowedCustomerIds !== undefined)
     updates.wholesaleAllowedCustomerIds = b.wholesaleAllowedCustomerIds ? JSON.stringify(b.wholesaleAllowedCustomerIds) : null;
-  if (b.wholesaleRequiresApproval !== undefined) updates.wholesaleRequiresApproval = !!b.wholesaleRequiresApproval;
-  if (b.wholesaleMaxQtyPerCustomer !== undefined) updates.wholesaleMaxQtyPerCustomer = b.wholesaleMaxQtyPerCustomer ?? null;
-  if (b.wholesaleOrderByRequest !== undefined) updates.wholesaleOrderByRequest = !!b.wholesaleOrderByRequest;
   if (b.isWholesaleAvailable !== undefined) updates.isWholesaleAvailable = !!b.isWholesaleAvailable;
 
   if (Object.keys(updates).length === 1) return res.status(400).json({ error: 'No fields to update.' });
@@ -260,7 +266,8 @@ router.patch('/products/:id/wholesale-access', async (req, res) => {
   return res.json({ data: updated });
 });
 
-// ── Pricing preview — show which rule applies for a product/customer/qty ─────
+// ── Pricing preview ───────────────────────────────────────────────────────────
+
 router.post('/pricing-preview', async (req, res) => {
   const { customerId, productId, qty } = req.body ?? {};
   if (!customerId || !productId || !qty) return res.status(400).json({ error: 'customerId, productId, qty required.' });
@@ -272,7 +279,6 @@ router.post('/pricing-preview', async (req, res) => {
       customerId,
       accountId: ctx.accountId,
       tierId: ctx.tierId,
-      customPricingEnabled: ctx.customPricingEnabled,
     });
     return res.json({ data: result });
   } catch (err: any) {

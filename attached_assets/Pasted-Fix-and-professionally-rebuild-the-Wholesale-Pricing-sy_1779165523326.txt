@@ -1,0 +1,224 @@
+Fix and professionally rebuild the Wholesale Pricing system across the Butterfield app.
+
+The current wholesale pricing setup is messy and partly implemented. I need it cleaned up properly so Directors and Master accounts can fully control wholesale pricing from the backend, and the Wholesale portal, account pages, product pages and checkout all read the correct pricing logic smoothly.
+
+Important:
+Do not create automatic price breaks.
+Do not auto-discount based on quantity unless that exact qty break has been manually created in the backend.
+Wholesale pricing must only apply from what has been manually added by a Director or Master account.
+
+Access control:
+- Master can create, edit, assign and delete everything.
+- Director can create, edit, assign and delete everything.
+- Store Manager and Staff must not be able to change wholesale pricing unless already allowed elsewhere, but by default this should be Director/Master only.
+- Wholesale customers can only see the pricing assigned to their own account.
+
+Build these sections inside the Director/Master portal:
+
+1. Wholesale Tiers
+Create a clean tab called “Wholesale Tiers”.
+
+Features:
+- Add new tier
+- Edit tier name
+- Edit tier description
+- Delete tier
+- View customers assigned to that tier
+- Optional tier status: Active / Inactive
+
+Example tiers:
+- Cafe Partner
+- Premium Stockist
+- Distributor
+- Custom Account
+
+A tier on its own should not automatically discount anything unless pricing rules have been added to products or qty breaks.
+
+2. Qty Breaks
+Create a tab called “Qty Breaks”.
+
+This must allow Directors/Master accounts to manually create qty break rules.
+
+Fields:
+- Product
+- Tier
+- Minimum quantity
+- Price per unit at that quantity
+- Optional note
+- Active / Inactive
+
+Rules:
+- Qty breaks only apply when the customer is assigned to the selected tier.
+- Qty breaks only apply to the selected product.
+- Qty breaks only apply when the minimum quantity is reached.
+- If no qty break exists for that product, tier and quantity, do not apply any automatic discount.
+- If there are multiple valid qty breaks, apply the best matching manual break based on the highest minimum quantity reached.
+- Allow editing and deleting each qty break.
+- Deleted qty breaks must stop affecting pricing immediately.
+
+Example:
+Product: Choc Chip Cookie
+Tier: Cafe Partner
+Minimum qty: 24
+Price: $4.20 each
+
+Only customers assigned to Cafe Partner should receive this price, and only when buying 24 or more.
+
+3. Custom Pricing Per Customer
+Create a tab called “Custom Customer Pricing”.
+
+This allows a Director/Master to set a special price for a specific wholesale customer.
+
+Fields:
+- Customer
+- Product
+- Custom price
+- Optional minimum quantity
+- Optional note
+- Active / Inactive
+
+Rules:
+- Custom customer pricing overrides tier pricing and qty breaks.
+- If a customer has a custom price for a product, use that custom price.
+- If the custom price has a minimum quantity, only apply it once that quantity is reached.
+- If no custom price exists, fallback to assigned tier pricing/qty breaks.
+- If no tier or qty break applies, use the standard wholesale product price.
+- Custom pricing can be edited and deleted.
+- Deleted custom pricing must stop affecting pricing immediately.
+
+4. Assign Tiers to Customers
+Create a clean tab called “Assign Customer Tiers”.
+
+Features:
+- Search wholesale customers
+- View current assigned tier
+- Assign tier
+- Change tier
+- Remove tier
+- Save changes
+- Show assigned tier inside the wholesale customer profile
+- Allow tier assignment to be deleted/removed
+
+Rules:
+- Each wholesale customer should only have one main tier at a time unless the existing database already supports multiple, but keep it simple and clean with one primary tier.
+- If no tier is assigned, they should only see standard wholesale prices unless they have custom customer pricing.
+
+5. Wholesale Portal Pricing Flow
+Update the Wholesale portal so all product prices are pulled from the backend pricing rules.
+
+Pricing priority must be:
+
+1. Custom customer pricing
+2. Matching manual qty break for the customer’s assigned tier
+3. Standard assigned tier product pricing if this already exists
+4. Standard wholesale product price
+5. Normal retail price only if no wholesale price exists
+
+Important:
+- Do not apply any automatic percentage discounts.
+- Do not apply any automatic quantity discounts.
+- Only apply prices that exist in the backend.
+- Make sure the wholesale product cards, product details page, cart and checkout all show the same correct price.
+- If price changes because of quantity, update it live in the cart and checkout.
+- Show clear pricing text, for example:
+  “Wholesale price”
+  “Tier price”
+  “Qty break applied”
+  “Custom account price”
+
+6. Checkout Sync
+Wholesale checkout must use the exact same price calculation as the Wholesale portal.
+
+Fix this properly:
+- Product cards
+- Product detail page
+- Cart
+- Checkout
+- Order confirmation
+- Director/Master order view
+- Customer order history
+- Invoices/order summaries if included
+
+There must be no mismatch where the product page shows one price and checkout charges another.
+
+7. Deleting Rules
+Any wholesale pricing rule must be deletable.
+
+Make sure these can be deleted:
+- Tiers
+- Qty breaks
+- Custom customer pricing
+- Customer tier assignments
+
+When deleting:
+- Ask for confirmation
+- Remove it properly from the database
+- Refresh the UI
+- Make sure deleted rules no longer affect wholesale pricing
+- If a tier is deleted, either remove the tier assignment from customers or block deletion until customers are reassigned. Use the cleaner and safer option.
+
+8. Database Cleanup
+Review the current messy implementation and clean it.
+
+Create or clean up database tables/models for:
+- wholesale_tiers
+- wholesale_qty_breaks
+- wholesale_customer_pricing
+- wholesale_customer_tier_assignments
+
+Use the existing project structure and naming conventions where possible.
+
+Each record should include:
+- id
+- created_at
+- updated_at
+- created_by
+- active status where needed
+
+Do not break existing wholesale accounts, orders, products or checkout.
+
+9. UI/UX Requirements
+The Director/Master wholesale pricing area must feel clean and professional.
+
+Use:
+- Tabs
+- Tables
+- Search
+- Filters
+- Add/Edit modal
+- Delete confirmation
+- Empty states
+- Success/error messages
+- Mobile-friendly layout
+- Clear labels
+
+Make it feel like a serious backend system, not a rushed admin page.
+
+10. Testing Required Before Completion
+Before marking this complete, test the full flow properly.
+
+Test cases:
+- Create a tier
+- Assign tier to wholesale customer
+- Create qty break for a product and tier
+- Log in as wholesale customer and confirm pricing appears correctly
+- Add product below qty break and confirm no discount applies
+- Increase quantity to qty break and confirm manual price applies
+- Add custom customer pricing and confirm it overrides tier/qty pricing
+- Remove custom pricing and confirm it falls back to tier/qty pricing
+- Delete qty break and confirm checkout no longer uses it
+- Delete tier assignment and confirm customer goes back to standard wholesale pricing
+- Confirm cart and checkout always match
+- Confirm order confirmation and order history show the charged price correctly
+- Confirm Director/Master order view shows the correct price source
+
+11. Important Final Requirement
+Do not hand this back until the pricing logic has been tested end-to-end.
+
+I want the system to work professionally from:
+Director/Master backend
+to Wholesale customer portal
+to account/product/cart/checkout
+to order history and admin order view.
+
+The final result should be clean, secure, reliable and easy for Directors/Master accounts to manage.

@@ -1,761 +1,671 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useMemo, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
-  Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG     = '#F5F6FA';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const NAVY   = '#1A2B4A';
-const RED    = '#F40009';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
+const NAVY  = '#1A2B4A';
+const BLUE  = '#1493FF';
+const RED   = '#EF4444';
+const GREEN = '#22C55E';
+const AMBER = '#F59E0B';
+const BG    = '#F5F6FA';
+const CARD  = '#FFFFFF';
+const TEXT  = '#1C1C1E';
+const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
 
 type Tab = 'tiers' | 'breaks' | 'custom' | 'assign';
-
-interface TierForm {
-  id?: string;
-  name: string;
-  description: string;
-  status: 'active' | 'hidden' | 'archived';
-  defaultDiscountPct: string;
-  minOrderCents: string;
-  minOrderQty: string;
-  paymentTerms: string;
-  cutOffTime: string;
-  leadTimeDays: string;
-  freeDeliveryThresholdCents: string;
-  productAccessRule: 'all' | 'tiers' | 'whitelist' | 'category';
-  deliveryEnabled: boolean;
-  pickupEnabled: boolean;
-  requiresApproval: boolean;
-  notes: string;
-  internalNotes: string;
-}
-
-const EMPTY_TIER: TierForm = {
-  name: '',
-  description: '',
-  status: 'active',
-  defaultDiscountPct: '0',
-  minOrderCents: '0',
-  minOrderQty: '0',
-  paymentTerms: 'net14',
-  cutOffTime: '12:00',
-  leadTimeDays: '2',
-  freeDeliveryThresholdCents: '',
-  productAccessRule: 'all',
-  deliveryEnabled: true,
-  pickupEnabled: true,
-  requiresApproval: false,
-  notes: '',
-  internalNotes: '',
-};
-
-function fmtAUD(cents: number | null | undefined): string {
-  if (!cents && cents !== 0) return '—';
-  return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  active: GREEN, hidden: AMBER, archived: MUTED,
-};
-
-const PAYMENT_TERMS = [
-  { v: 'on_order', l: 'Invoice on order' },
-  { v: 'net7',     l: '7 days' },
-  { v: 'net14',    l: '14 days' },
-  { v: 'net30',    l: '30 days' },
-  { v: 'custom',   l: 'Custom' },
+const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'tiers',  label: 'Tiers',      icon: 'layers' },
+  { id: 'breaks', label: 'Qty Breaks', icon: 'trending-down' },
+  { id: 'custom', label: 'Custom',     icon: 'user' },
+  { id: 'assign', label: 'Assign',     icon: 'tag' },
 ];
 
-export default function PricingScreen() {
+interface TierForm  { id?: string; name: string; description: string; status: 'active' | 'inactive' }
+interface BreakForm {
+  id?: string; productId: string; scope: 'tier' | 'customer';
+  tierId: string; customerId: string; minQty: string; unitPrice: string; isActive: boolean;
+}
+interface CustomForm { id?: string; customerId: string; productId: string; unitPrice: string; isActive: boolean }
+
+const EMPTY_TIER:   TierForm   = { name: '', description: '', status: 'active' };
+const EMPTY_BREAK:  BreakForm  = { productId: '', scope: 'tier', tierId: '', customerId: '', minQty: '', unitPrice: '', isActive: true };
+const EMPTY_CUSTOM: CustomForm = { customerId: '', productId: '', unitPrice: '', isActive: true };
+
+export default function DirectorPricing() {
+  const qc     = useQueryClient();
   const insets = useSafeAreaInsets();
-  const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('tiers');
 
-  // ── Tiers ─────────────────────────────────────────────────────────────────
-  const tiersQ = useQuery({
-    queryKey: ['director', 'tiers'],
+  const [tierModal,   setTierModal]   = useState(false);
+  const [tierForm,    setTierForm]    = useState<TierForm>(EMPTY_TIER);
+  const [breakModal,  setBreakModal]  = useState(false);
+  const [breakForm,   setBreakForm]   = useState<BreakForm>(EMPTY_BREAK);
+  const [customModal, setCustomModal] = useState(false);
+  const [customForm,  setCustomForm]  = useState<CustomForm>(EMPTY_CUSTOM);
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+  const { data: tiersData, isLoading: tiersLoading } = useQuery({
+    queryKey: ['director-tiers'],
     queryFn: () => api.director.tiers(),
   });
-  const tiers = tiersQ.data?.data ?? [];
+  const tiers = tiersData?.data ?? [];
 
-  const breaksQ = useQuery({
-    queryKey: ['director', 'qtyBreaks'],
+  const { data: breaksData, isLoading: breaksLoading } = useQuery({
+    queryKey: ['director-qty-breaks'],
     queryFn: () => api.director.qtyBreaks(),
+    enabled: tab === 'breaks',
   });
-  const breaks = breaksQ.data?.data ?? [];
+  const breaks = breaksData?.data ?? [];
 
-  const customQ = useQuery({
-    queryKey: ['director', 'customerPricing'],
+  const { data: customData, isLoading: customLoading } = useQuery({
+    queryKey: ['director-customer-pricing'],
     queryFn: () => api.director.customerPricing(),
+    enabled: tab === 'custom',
   });
-  const customRows = customQ.data?.data ?? [];
+  const customPrices = customData?.data ?? [];
 
-  const productsQ = useQuery({
-    queryKey: ['director', 'products'],
+  const { data: productsData } = useQuery({
+    queryKey: ['director-products'],
     queryFn: () => api.director.products(),
+    staleTime: 60_000,
   });
-  const products = productsQ.data?.data ?? [];
+  const products = (productsData?.data ?? []).filter((p: any) => p.isActive !== false);
 
-  const usersQ = useQuery({
-    queryKey: ['director', 'users'],
+  const { data: usersData } = useQuery({
+    queryKey: ['director-users'],
     queryFn: () => api.director.users(),
+    staleTime: 30_000,
   });
-  const wholesaleUsers = (usersQ.data?.data ?? []).filter((u: any) => u.role === 'wholesale' && u.wholesaleAccount);
+  const wholesaleUsers = (usersData?.data ?? []).filter(
+    (u: any) => u.role === 'wholesale' && u.wholesaleAccount,
+  );
 
-  const productMap = useMemo(() => Object.fromEntries(products.map((p: any) => [p.id, p])), [products]);
-  const tierMap    = useMemo(() => Object.fromEntries(tiers.map((t: any) => [t.id, t])), [tiers]);
-  const userMap    = useMemo(() => Object.fromEntries(wholesaleUsers.map((u: any) => [u.id, u])), [wholesaleUsers]);
+  // ── Mutations ────────────────────────────────────────────────────────────
+  const invalidateTiers  = () => qc.invalidateQueries({ queryKey: ['director-tiers'] });
+  const invalidateBreaks = () => qc.invalidateQueries({ queryKey: ['director-qty-breaks'] });
+  const invalidateCustom = () => qc.invalidateQueries({ queryKey: ['director-customer-pricing'] });
+  const invalidateUsers  = () => qc.invalidateQueries({ queryKey: ['director-users'] });
 
-  // ── Tier modal ───────────────────────────────────────────────────────────
-  const [tierModal, setTierModal] = useState(false);
-  const [tierForm, setTierForm] = useState<TierForm>(EMPTY_TIER);
+  const saveTierMut = useMutation({
+    mutationFn: (f: TierForm) =>
+      f.id
+        ? api.director.updateTier(f.id, { name: f.name, description: f.description, status: f.status })
+        : api.director.createTier({ name: f.name, description: f.description, status: f.status }),
+    onSuccess: () => { invalidateTiers(); setTierModal(false); },
+  });
 
-  const openNewTier = () => { setTierForm(EMPTY_TIER); setTierModal(true); };
+  const deleteTierMut = useMutation({
+    mutationFn: ({ id, force }: { id: string; force: boolean }) =>
+      api.director.deleteTier(id, force),
+    onSuccess: () => invalidateTiers(),
+  });
+
+  const saveBreakMut = useMutation({
+    mutationFn: (f: BreakForm) => {
+      const priceCents = Math.round(parseFloat(f.unitPrice) * 100);
+      const qty        = parseInt(f.minQty, 10);
+      if (!priceCents || priceCents <= 0) throw new Error('Enter a valid price');
+      if (!qty || qty < 1)               throw new Error('Enter a valid minimum quantity');
+      const data = {
+        productId: f.productId,
+        scope: f.scope,
+        tierId:     f.scope === 'tier'     ? f.tierId     : undefined,
+        customerId: f.scope === 'customer' ? f.customerId : undefined,
+        minQty: qty,
+        unitPriceCents: priceCents,
+        isActive: f.isActive,
+      };
+      return f.id ? api.director.updateQtyBreak(f.id, data) : api.director.createQtyBreak(data);
+    },
+    onSuccess: () => { invalidateBreaks(); setBreakModal(false); },
+  });
+
+  const deleteBreakMut = useMutation({
+    mutationFn: (id: string) => api.director.deleteQtyBreak(id),
+    onSuccess: () => invalidateBreaks(),
+  });
+
+  const saveCustomMut = useMutation({
+    mutationFn: (f: CustomForm) => {
+      const priceCents = Math.round(parseFloat(f.unitPrice) * 100);
+      if (!priceCents || priceCents <= 0) throw new Error('Enter a valid price');
+      const data = { customerId: f.customerId, productId: f.productId, unitPriceCents: priceCents, isActive: f.isActive };
+      return f.id
+        ? api.director.updateCustomerPricing(f.id, data)
+        : api.director.createCustomerPricing(data);
+    },
+    onSuccess: () => { invalidateCustom(); setCustomModal(false); },
+  });
+
+  const deleteCustomMut = useMutation({
+    mutationFn: (id: string) => api.director.deleteCustomerPricing(id),
+    onSuccess: () => invalidateCustom(),
+  });
+
+  const assignTierMut = useMutation({
+    mutationFn: ({ accountId, tierId }: { accountId: string; tierId: string | null }) =>
+      api.director.assignTier(accountId, { tierId }),
+    onSuccess: () => invalidateUsers(),
+  });
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const productName = (id: string) => {
+    const p = products.find((p: any) => p.id === id);
+    return p?.name ?? id.slice(0, 12) + '…';
+  };
+  const tierName = (id: string | null) => {
+    if (!id) return 'No tier';
+    return tiers.find((t: any) => t.id === id)?.name ?? 'Unknown';
+  };
+  const userLabel = (userId: string) => {
+    const u = wholesaleUsers.find((u: any) => u.id === userId);
+    return u?.wholesaleAccount?.companyName ?? u?.name ?? userId.slice(0, 10);
+  };
+  const customersOnTier = (tierId: string) =>
+    wholesaleUsers.filter((u: any) => u.wholesaleAccount?.tierId === tierId).length;
+
+  // ── Action handlers ───────────────────────────────────────────────────────
+  const openNewTier  = () => { setTierForm(EMPTY_TIER);  setTierModal(true); };
   const openEditTier = (t: any) => {
-    setTierForm({
-      id: t.id,
-      name: t.name,
-      description: t.description ?? '',
-      status: t.status,
-      defaultDiscountPct: String(t.defaultDiscountPct ?? 0),
-      minOrderCents: String(((t.minOrderCents ?? 0) / 100).toFixed(2)),
-      minOrderQty: String(t.minOrderQty ?? 0),
-      paymentTerms: t.paymentTerms ?? 'net14',
-      cutOffTime: t.cutOffTime ?? '12:00',
-      leadTimeDays: String(t.leadTimeDays ?? 2),
-      freeDeliveryThresholdCents: t.freeDeliveryThresholdCents != null ? String((t.freeDeliveryThresholdCents / 100).toFixed(2)) : '',
-      productAccessRule: t.productAccessRule ?? 'all',
-      deliveryEnabled: t.deliveryEnabled ?? true,
-      pickupEnabled: t.pickupEnabled ?? true,
-      requiresApproval: t.requiresApproval ?? false,
-      notes: t.notes ?? '',
-      internalNotes: t.internalNotes ?? '',
-    });
+    setTierForm({ id: t.id, name: t.name, description: t.description ?? '', status: t.status === 'active' ? 'active' : 'inactive' });
     setTierModal(true);
   };
-
-  const saveTier = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        name: tierForm.name.trim(),
-        description: tierForm.description,
-        status: tierForm.status,
-        defaultDiscountPct: parseInt(tierForm.defaultDiscountPct) || 0,
-        minOrderCents: Math.round((parseFloat(tierForm.minOrderCents) || 0) * 100),
-        minOrderQty: parseInt(tierForm.minOrderQty) || 0,
-        paymentTerms: tierForm.paymentTerms,
-        cutOffTime: tierForm.cutOffTime,
-        leadTimeDays: parseInt(tierForm.leadTimeDays) || 2,
-        freeDeliveryThresholdCents: tierForm.freeDeliveryThresholdCents ? Math.round(parseFloat(tierForm.freeDeliveryThresholdCents) * 100) : null,
-        productAccessRule: tierForm.productAccessRule,
-        deliveryEnabled: tierForm.deliveryEnabled,
-        pickupEnabled: tierForm.pickupEnabled,
-        requiresApproval: tierForm.requiresApproval,
-        notes: tierForm.notes,
-        internalNotes: tierForm.internalNotes,
-      };
-      if (tierForm.id) return api.director.updateTier(tierForm.id, payload);
-      return api.director.createTier(payload);
-    },
-    onSuccess: () => {
-      setTierModal(false);
-      qc.invalidateQueries({ queryKey: ['director', 'tiers'] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-    onError: (e: any) => Alert.alert('Could not save tier', e.message),
-  });
-
-  const archiveTier = useMutation({
-    mutationFn: (id: string) => api.director.archiveTier(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['director', 'tiers'] }),
-  });
-
-  // ── Quantity break modal ─────────────────────────────────────────────────
-  const [breakModal, setBreakModal] = useState(false);
-  const [breakForm, setBreakForm] = useState<any>({
-    productId: '', scope: 'tier', tierId: '', customerId: '',
-    minQty: '10', maxQty: '', unitPriceCents: '', discountPct: '', notes: '',
-  });
-
-  const saveBreak = useMutation({
-    mutationFn: async () => {
-      const b = breakForm;
-      if (!b.productId) throw new Error('Choose a product');
-      if (b.scope === 'tier' && !b.tierId) throw new Error('Choose a tier');
-      if (b.scope === 'customer' && !b.customerId) throw new Error('Choose a customer');
-      const payload: any = {
-        productId: b.productId,
-        scope: b.scope,
-        tierId: b.scope === 'tier' ? b.tierId : null,
-        customerId: b.scope === 'customer' ? b.customerId : null,
-        minQty: parseInt(b.minQty) || 1,
-        maxQty: b.maxQty ? parseInt(b.maxQty) : null,
-        unitPriceCents: b.unitPriceCents ? Math.round(parseFloat(b.unitPriceCents) * 100) : null,
-        discountPct: b.discountPct ? parseInt(b.discountPct) : null,
-        notes: b.notes,
-      };
-      return api.director.createQtyBreak(payload);
-    },
-    onSuccess: () => {
-      setBreakModal(false);
-      qc.invalidateQueries({ queryKey: ['director', 'qtyBreaks'] });
-    },
-    onError: (e: any) => Alert.alert('Could not save price break', e.message),
-  });
-
-  const deleteBreak = useMutation({
-    mutationFn: (id: string) => api.director.deleteQtyBreak(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['director', 'qtyBreaks'] }),
-  });
-
-  // ── Custom customer pricing modal ────────────────────────────────────────
-  const [customModal, setCustomModal] = useState(false);
-  const [customForm, setCustomForm] = useState<any>({
-    customerId: '', productId: '', category: '',
-    unitPriceCents: '', discountPct: '', notes: '',
-  });
-
-  const saveCustom = useMutation({
-    mutationFn: async () => {
-      const f = customForm;
-      if (!f.customerId) throw new Error('Choose a customer');
-      if (!f.productId && !f.category) throw new Error('Choose a product or category');
-      return api.director.createCustomerPricing({
-        customerId: f.customerId,
-        productId: f.productId || null,
-        category: f.category || null,
-        unitPriceCents: f.unitPriceCents ? Math.round(parseFloat(f.unitPriceCents) * 100) : null,
-        discountPct: f.discountPct ? parseInt(f.discountPct) : null,
-        notes: f.notes,
-      });
-    },
-    onSuccess: () => {
-      setCustomModal(false);
-      qc.invalidateQueries({ queryKey: ['director', 'customerPricing'] });
-    },
-    onError: (e: any) => Alert.alert('Could not save custom price', e.message),
-  });
-
-  const deleteCustom = useMutation({
-    mutationFn: (id: string) => api.director.deleteCustomerPricing(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['director', 'customerPricing'] }),
-  });
-
-  // ── Assign tier to customer ──────────────────────────────────────────────
-  const assignTier = useMutation({
-    mutationFn: (data: { accountId: string; tierId: string | null; customPricingEnabled?: boolean }) =>
-      api.director.assignTier(data.accountId, { tierId: data.tierId, customPricingEnabled: data.customPricingEnabled }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['director', 'users'] }),
-    onError: (e: any) => Alert.alert('Could not assign tier', e.message),
-  });
-
-  const suspendCustomer = useMutation({
-    mutationFn: (data: { accountId: string; isSuspended: boolean; reason?: string }) =>
-      api.director.suspendWholesale(data.accountId, { isSuspended: data.isSuspended, suspendedReason: data.reason }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['director', 'users'] }),
-    onError: (e: any) => Alert.alert('Could not update suspension', e.message),
-  });
-
-  const refresh = () => {
-    tiersQ.refetch(); breaksQ.refetch(); customQ.refetch(); usersQ.refetch();
+  const confirmDeleteTier = (t: any) => {
+    const count = customersOnTier(t.id);
+    const msg = count > 0
+      ? `${count} customer${count !== 1 ? 's are' : ' is'} assigned to this tier and will be unassigned.`
+      : 'This cannot be undone.';
+    Alert.alert(`Delete "${t.name}"?`, msg, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteTierMut.mutate({ id: t.id, force: true }) },
+    ]);
   };
+
+  const openNewBreak  = () => { setBreakForm(EMPTY_BREAK);  setBreakModal(true); };
+  const openEditBreak = (b: any) => {
+    setBreakForm({
+      id: b.id, productId: b.productId, scope: b.scope ?? 'tier',
+      tierId: b.tierId ?? '', customerId: b.customerId ?? '',
+      minQty: String(b.minQty),
+      unitPrice: b.unitPriceCents ? (b.unitPriceCents / 100).toFixed(2) : '',
+      isActive: b.isActive !== false,
+    });
+    setBreakModal(true);
+  };
+  const confirmDeleteBreak = (b: any) => {
+    Alert.alert('Delete Qty Break?',
+      `${productName(b.productId)}: ${b.minQty}+ units → $${(b.unitPriceCents / 100).toFixed(2)}/unit`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteBreakMut.mutate(b.id) },
+      ],
+    );
+  };
+
+  const openNewCustom  = () => { setCustomForm(EMPTY_CUSTOM);  setCustomModal(true); };
+  const openEditCustom = (cp: any) => {
+    setCustomForm({
+      id: cp.id, customerId: cp.customerId, productId: cp.productId,
+      unitPrice: cp.unitPriceCents ? (cp.unitPriceCents / 100).toFixed(2) : '',
+      isActive: cp.isActive !== false,
+    });
+    setCustomModal(true);
+  };
+  const confirmDeleteCustom = (cp: any) => {
+    Alert.alert('Delete Custom Price?',
+      `${userLabel(cp.customerId)} · ${productName(cp.productId)} · $${(cp.unitPriceCents / 100).toFixed(2)}/unit`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteCustomMut.mutate(cp.id) },
+      ],
+    );
+  };
+
+  const handleAssignTier = (accountId: string, tierId: string | null) => {
+    Haptics.selectionAsync();
+    assignTierMut.mutate({ accountId, tierId });
+  };
+
+  // ── Tab renderers ─────────────────────────────────────────────────────────
+  function renderTiers() {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Wholesale Tiers</Text>
+          <Pressable onPress={openNewTier} style={styles.newBtn}>
+            <Feather name="plus" size={14} color="#fff" />
+            <Text style={styles.newBtnText}>New Tier</Text>
+          </Pressable>
+        </View>
+        {tiersLoading ? <ActivityIndicator color={BLUE} style={styles.loader} /> :
+         tiers.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Feather name="layers" size={32} color={BORDER} />
+            <Text style={styles.emptyTitle}>No tiers yet</Text>
+            <Text style={styles.emptySub}>Create tiers to group customers, then add pricing rules with Qty Breaks or Custom Pricing.</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.listContent}>
+            {tiers.map((t: any) => (
+              <View key={t.id} style={styles.card}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.cardTitle}>{t.name}</Text>
+                    <StatusBadge status={t.status} />
+                  </View>
+                  {!!t.description && <Text style={styles.cardSub} numberOfLines={2}>{t.description}</Text>}
+                  <Text style={styles.cardMeta}>
+                    {customersOnTier(t.id)} customer{customersOnTier(t.id) !== 1 ? 's' : ''} assigned
+                  </Text>
+                </View>
+                <View style={styles.cardActions}>
+                  <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditTier(t)} />
+                  <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteTier(t)} />
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
+
+  function renderBreaks() {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quantity Breaks</Text>
+          <Pressable onPress={openNewBreak} style={styles.newBtn}>
+            <Feather name="plus" size={14} color="#fff" />
+            <Text style={styles.newBtnText}>New Break</Text>
+          </Pressable>
+        </View>
+        {breaksLoading ? <ActivityIndicator color={BLUE} style={styles.loader} /> :
+         breaks.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Feather name="trending-down" size={32} color={BORDER} />
+            <Text style={styles.emptyTitle}>No qty breaks</Text>
+            <Text style={styles.emptySub}>Set an explicit unit price that kicks in when a customer orders a minimum quantity of a product.</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.listContent}>
+            {breaks.map((b: any) => (
+              <View key={b.id} style={styles.card}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{productName(b.productId)}</Text>
+                  <Text style={styles.cardSub}>
+                    {b.minQty}+ units → ${(b.unitPriceCents / 100).toFixed(2)} each
+                  </Text>
+                  <Text style={styles.cardMeta}>
+                    {b.scope === 'tier' ? `Tier: ${tierName(b.tierId)}` : `Customer: ${userLabel(b.customerId)}`}
+                    {!b.isActive && ' · Inactive'}
+                  </Text>
+                </View>
+                <View style={styles.cardActions}>
+                  <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditBreak(b)} />
+                  <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteBreak(b)} />
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
+
+  function renderCustom() {
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Custom Pricing</Text>
+          <Pressable onPress={openNewCustom} style={styles.newBtn}>
+            <Feather name="plus" size={14} color="#fff" />
+            <Text style={styles.newBtnText}>New Price</Text>
+          </Pressable>
+        </View>
+        {customLoading ? <ActivityIndicator color={BLUE} style={styles.loader} /> :
+         customPrices.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Feather name="user" size={32} color={BORDER} />
+            <Text style={styles.emptyTitle}>No custom prices</Text>
+            <Text style={styles.emptySub}>Set a specific per-unit price for a product for an individual wholesale customer.</Text>
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.listContent}>
+            {customPrices.map((cp: any) => (
+              <View key={cp.id} style={styles.card}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{productName(cp.productId)}</Text>
+                  <Text style={styles.cardSub}>${(cp.unitPriceCents / 100).toFixed(2)} per unit</Text>
+                  <Text style={styles.cardMeta}>
+                    {userLabel(cp.customerId)}{!cp.isActive && ' · Inactive'}
+                  </Text>
+                </View>
+                <View style={styles.cardActions}>
+                  <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditCustom(cp)} />
+                  <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteCustom(cp)} />
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  }
+
+  function renderAssign() {
+    return (
+      <ScrollView contentContainerStyle={styles.listContent}>
+        {wholesaleUsers.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Feather name="users" size={32} color={BORDER} />
+            <Text style={styles.emptyTitle}>No wholesale customers</Text>
+            <Text style={styles.emptySub}>Approved wholesale accounts will appear here for tier assignment.</Text>
+          </View>
+        ) : wholesaleUsers.map((u: any) => {
+          const wa          = u.wholesaleAccount;
+          const currentTier = wa?.tierId ?? null;
+          return (
+            <View key={u.id} style={styles.assignCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cardTitle}>{wa?.companyName ?? u.name}</Text>
+                  <Text style={styles.cardMeta}>{u.email}</Text>
+                </View>
+                <View style={[styles.tierBadge, { backgroundColor: currentTier ? '#EBF8FF' : '#F3F4F6' }]}>
+                  <Text style={[styles.tierBadgeText, { color: currentTier ? BLUE : MUTED }]}>
+                    {tierName(currentTier)}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <Pressable
+                  onPress={() => handleAssignTier(wa.id, null)}
+                  style={[styles.assignChip, {
+                    backgroundColor: !currentTier ? NAVY : '#F3F4F6',
+                    borderColor:     !currentTier ? NAVY : BORDER,
+                  }]}
+                >
+                  <Text style={[styles.assignChipText, { color: !currentTier ? '#fff' : MUTED }]}>No Tier</Text>
+                </Pressable>
+                {tiers.map((t: any) => {
+                  const active = currentTier === t.id;
+                  return (
+                    <Pressable key={t.id}
+                      onPress={() => handleAssignTier(wa.id, t.id)}
+                      style={[styles.assignChip, {
+                        backgroundColor: active ? BLUE : '#F3F4F6',
+                        borderColor:     active ? BLUE : BORDER,
+                      }]}
+                    >
+                      <Text style={[styles.assignChipText, { color: active ? '#fff' : TEXT }]}>{t.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+  }
+
+  const tierSaveErr   = (saveTierMut.error  as any)?.message;
+  const breakSaveErr  = (saveBreakMut.error as any)?.message;
+  const customSaveErr = (saveCustomMut.error as any)?.message;
+  const breakFormValid = !!breakForm.productId && !!breakForm.minQty && !!breakForm.unitPrice &&
+    (breakForm.scope === 'tier' ? !!breakForm.tierId : !!breakForm.customerId);
+  const customFormValid = !!customForm.customerId && !!customForm.productId && !!customForm.unitPrice;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Tab strip */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={[s.tabBar, { flex: 1 }]}>
-          {([
-            { k: 'tiers',  label: 'Tiers',      icon: 'layers' },
-            { k: 'breaks', label: 'Qty Breaks',  icon: 'trending-down' },
-            { k: 'custom', label: 'Custom',      icon: 'user-check' },
-            { k: 'assign', label: 'Assign',      icon: 'briefcase' },
-          ] as { k: Tab; label: string; icon: string }[]).map(t => (
-            <Pressable key={t.k} onPress={() => { Haptics.selectionAsync(); setTab(t.k); }}
-              style={[s.tab, tab === t.k && s.tabActive]}>
-              <Feather name={t.icon as any} size={14} color={tab === t.k ? BLUE : MUTED} />
-              <Text style={[s.tabText, { color: tab === t.k ? BLUE : MUTED, fontWeight: tab === t.k ? '700' : '500' }]}>{t.label}</Text>
+      <LinearGradient colors={[NAVY, '#2A3F6F']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Text style={styles.headerTitle}>Pricing Management</Text>
+        <Text style={styles.headerSub}>Director-only · tiers, quantity breaks, custom pricing</Text>
+      </LinearGradient>
+
+      <View style={[styles.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <Pressable key={t.id} onPress={() => { setTab(t.id); Haptics.selectionAsync(); }} style={styles.tabItem}>
+              <Feather name={t.icon as any} size={15} color={active ? BLUE : MUTED} />
+              <Text style={[styles.tabLabel, { color: active ? BLUE : MUTED, fontWeight: active ? '700' : '400' }]}>
+                {t.label}
+              </Text>
+              {active && <View style={[styles.tabUnderline, { backgroundColor: BLUE }]} />}
             </Pressable>
-          ))}
-        </View>
-      </ScrollView>
+          );
+        })}
+      </View>
 
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
-        refreshControl={<RefreshControl refreshing={tiersQ.isFetching || breaksQ.isFetching || customQ.isFetching} onRefresh={refresh} />}
-      >
-        {/* ─────────────────────────── TIERS ─────────────────────────── */}
-        {tab === 'tiers' && (
-          <>
-            <View style={s.headerRow}>
-              <Text style={s.h1}>Pricing Tiers</Text>
-              <Pressable onPress={openNewTier} style={s.primaryBtn}>
-                <Feather name="plus" size={14} color="#fff" />
-                <Text style={s.primaryBtnText}>New tier</Text>
-              </Pressable>
-            </View>
+      <View style={{ flex: 1 }}>
+        {tab === 'tiers'  && renderTiers()}
+        {tab === 'breaks' && renderBreaks()}
+        {tab === 'custom' && renderCustom()}
+        {tab === 'assign' && renderAssign()}
+      </View>
 
-            {tiersQ.isLoading ? <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} /> :
-             tiers.length === 0 ? (
-              <View style={s.empty}>
-                <Feather name="layers" size={28} color={MUTED} />
-                <Text style={s.emptyText}>No tiers yet. Create Bronze, Silver, Gold…</Text>
-              </View>
-            ) : tiers.map((t: any) => (
-              <View key={t.id} style={s.card}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={s.cardTitle}>{t.name}</Text>
-                      <View style={[s.statusPill, { backgroundColor: (STATUS_COLOR[t.status] ?? MUTED) + '22' }]}>
-                        <Text style={[s.statusPillText, { color: STATUS_COLOR[t.status] ?? MUTED }]}>{t.status?.toUpperCase()}</Text>
-                      </View>
-                    </View>
-                    {!!t.description && <Text style={s.cardSub}>{t.description}</Text>}
-                  </View>
-                  <Text style={s.bigDiscount}>{t.defaultDiscountPct ?? 0}%</Text>
-                </View>
-
-                <View style={s.metaGrid}>
-                  <Meta label="Min order"   value={fmtAUD(t.minOrderCents)} />
-                  <Meta label="Min qty"     value={String(t.minOrderQty || '—')} />
-                  <Meta label="Payment"     value={(PAYMENT_TERMS.find(p => p.v === t.paymentTerms)?.l) ?? t.paymentTerms} />
-                  <Meta label="Lead time"   value={`${t.leadTimeDays}d`} />
-                  <Meta label="Cut-off"     value={t.cutOffTime} />
-                  <Meta label="Free deliv." value={t.freeDeliveryThresholdCents ? fmtAUD(t.freeDeliveryThresholdCents) : '—'} />
-                </View>
-
-                <View style={s.cardActions}>
-                  <Pressable onPress={() => openEditTier(t)} style={s.linkBtn}>
-                    <Feather name="edit-2" size={13} color={BLUE} />
-                    <Text style={s.linkBtnText}>Edit</Text>
-                  </Pressable>
-                  {t.status !== 'archived' && (
-                    <Pressable
-                      onPress={() => Alert.alert('Archive tier?', `${t.name} will be hidden from new assignments.`, [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Archive', style: 'destructive', onPress: () => archiveTier.mutate(t.id) },
-                      ])}
-                      style={s.linkBtn}>
-                      <Feather name="archive" size={13} color={RED} />
-                      <Text style={[s.linkBtnText, { color: RED }]}>Archive</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            ))}
-          </>
-        )}
-
-        {/* ─────────────────────────── QTY BREAKS ───────────────────── */}
-        {tab === 'breaks' && (
-          <>
-            <View style={s.headerRow}>
-              <Text style={s.h1}>Quantity Price Breaks</Text>
-              <Pressable
-                onPress={() => {
-                  setBreakForm({ productId: products[0]?.id ?? '', scope: 'tier', tierId: tiers[0]?.id ?? '', customerId: '',
-                    minQty: '10', maxQty: '', unitPriceCents: '', discountPct: '', notes: '' });
-                  setBreakModal(true);
-                }}
-                style={s.primaryBtn}>
-                <Feather name="plus" size={14} color="#fff" />
-                <Text style={s.primaryBtnText}>New break</Text>
-              </Pressable>
-            </View>
-
-            {breaksQ.isLoading ? <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} /> :
-             breaks.length === 0 ? (
-              <View style={s.empty}>
-                <Feather name="trending-down" size={28} color={MUTED} />
-                <Text style={s.emptyText}>No quantity breaks. Add bulk pricing to specific products.</Text>
-              </View>
-            ) : breaks.map((b: any) => {
-              const prod = productMap[b.productId];
-              const target = b.scope === 'tier' ? tierMap[b.tierId]?.name : userMap[b.customerId]?.name;
-              return (
-                <View key={b.id} style={s.card}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.cardTitle}>{prod?.name ?? '(deleted product)'}</Text>
-                      <Text style={s.cardSub}>
-                        {b.scope === 'tier' ? `Tier: ${target ?? '—'}` : `Customer: ${target ?? '—'}`}
-                        {' · '}
-                        {b.minQty}{b.maxQty ? `–${b.maxQty}` : '+'} units
-                      </Text>
-                    </View>
-                    <Text style={s.bigPrice}>
-                      {b.unitPriceCents ? fmtAUD(b.unitPriceCents) : `${b.discountPct}%`}
-                    </Text>
-                  </View>
-                  <View style={s.cardActions}>
-                    <View style={[s.statusPill, { backgroundColor: (b.isActive ? GREEN : MUTED) + '22' }]}>
-                      <Text style={[s.statusPillText, { color: b.isActive ? GREEN : MUTED }]}>{b.isActive ? 'ACTIVE' : 'INACTIVE'}</Text>
-                    </View>
-                    <Pressable onPress={() => deleteBreak.mutate(b.id)} style={s.linkBtn}>
-                      <Feather name="trash-2" size={13} color={RED} />
-                      <Text style={[s.linkBtnText, { color: RED }]}>Delete</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
-          </>
-        )}
-
-        {/* ─────────────────────────── CUSTOM PRICING ───────────────── */}
-        {tab === 'custom' && (
-          <>
-            <View style={s.headerRow}>
-              <Text style={s.h1}>Customer Custom Pricing</Text>
-              <Pressable
-                onPress={() => {
-                  setCustomForm({ customerId: wholesaleUsers[0]?.id ?? '', productId: '', category: '',
-                    unitPriceCents: '', discountPct: '', notes: '' });
-                  setCustomModal(true);
-                }}
-                style={s.primaryBtn}>
-                <Feather name="plus" size={14} color="#fff" />
-                <Text style={s.primaryBtnText}>New custom price</Text>
-              </Pressable>
-            </View>
-            <Text style={s.helper}>Customers must have <Text style={{ fontWeight: '700' }}>custom pricing enabled</Text> in the Assign tab for these to apply.</Text>
-
-            {customQ.isLoading ? <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} /> :
-             customRows.length === 0 ? (
-              <View style={s.empty}>
-                <Feather name="user-check" size={28} color={MUTED} />
-                <Text style={s.emptyText}>No custom prices yet.</Text>
-              </View>
-            ) : customRows.map((c: any) => (
-              <View key={c.id} style={s.card}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.cardTitle}>{userMap[c.customerId]?.name ?? '(deleted user)'}</Text>
-                    <Text style={s.cardSub}>
-                      {c.productId ? `Product: ${productMap[c.productId]?.name ?? '?'}` : `Category: ${c.category}`}
-                    </Text>
-                  </View>
-                  <Text style={s.bigPrice}>
-                    {c.unitPriceCents ? fmtAUD(c.unitPriceCents) : `${c.discountPct}%`}
-                  </Text>
-                </View>
-                <View style={s.cardActions}>
-                  <Pressable onPress={() => deleteCustom.mutate(c.id)} style={s.linkBtn}>
-                    <Feather name="trash-2" size={13} color={RED} />
-                    <Text style={[s.linkBtnText, { color: RED }]}>Delete</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-          </>
-        )}
-
-        {/* ─────────────────────────── ASSIGN ──────────────────────── */}
-        {tab === 'assign' && (
-          <>
-            <Text style={s.h1}>Assign Tiers to Wholesale Customers</Text>
-            <Text style={s.helper}>Pick a tier for each customer, or enable Custom pricing for fully bespoke.</Text>
-
-            {usersQ.isLoading ? <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} /> :
-             wholesaleUsers.length === 0 ? (
-              <View style={s.empty}>
-                <Feather name="briefcase" size={28} color={MUTED} />
-                <Text style={s.emptyText}>No wholesale customers yet.</Text>
-              </View>
-            ) : wholesaleUsers.map((u: any) => {
-              const acct = u.wholesaleAccount;
-              const currentTier = tiers.find((t: any) => t.id === acct.tierId);
-              return (
-                <View key={u.id} style={s.card}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.cardTitle}>{acct.companyName}</Text>
-                      <Text style={s.cardSub}>{u.name} · {u.email}</Text>
-                    </View>
-                    {acct.isSuspended && (
-                      <View style={[s.statusPill, { backgroundColor: RED + '22' }]}>
-                        <Text style={[s.statusPillText, { color: RED }]}>SUSPENDED</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <Text style={s.fieldLabel}>Tier</Text>
-                  <View style={s.chipRow}>
-                    <Pressable
-                      onPress={() => assignTier.mutate({ accountId: acct.id, tierId: null })}
-                      style={[s.tierChip, !acct.tierId && s.tierChipActive]}
-                    >
-                      <Text style={[s.tierChipText, !acct.tierId && { color: BLUE, fontWeight: '700' }]}>None</Text>
-                    </Pressable>
-                    {tiers.filter((t: any) => t.status !== 'archived').map((t: any) => {
-                      const sel = acct.tierId === t.id;
-                      return (
-                        <Pressable
-                          key={t.id}
-                          onPress={() => assignTier.mutate({ accountId: acct.id, tierId: t.id })}
-                          style={[s.tierChip, sel && s.tierChipActive]}
-                        >
-                          <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{t.name}</Text>
-                          <Text style={s.tierChipPct}>{t.defaultDiscountPct}%</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  <View style={s.toggleRow}>
-                    <Text style={s.toggleLabel}>Custom pricing enabled</Text>
-                    <Switch
-                      value={acct.customPricingEnabled}
-                      onValueChange={(v) => assignTier.mutate({ accountId: acct.id, tierId: null, customPricingEnabled: v })}
-                      trackColor={{ true: BLUE + '99', false: BORDER }}
-                      thumbColor={acct.customPricingEnabled ? BLUE : '#fff'}
-                    />
-                  </View>
-
-                  <View style={s.toggleRow}>
-                    <Text style={s.toggleLabel}>Suspended</Text>
-                    <Switch
-                      value={acct.isSuspended}
-                      onValueChange={(v) => suspendCustomer.mutate({
-                        accountId: acct.id,
-                        isSuspended: v,
-                        reason: v ? 'Suspended by Director' : undefined,
-                      })}
-                      trackColor={{ true: RED + '99', false: BORDER }}
-                      thumbColor={acct.isSuspended ? RED : '#fff'}
-                    />
-                  </View>
-
-                  {currentTier && (
-                    <Text style={s.tierSummary}>
-                      Currently on <Text style={{ fontWeight: '700' }}>{currentTier.name}</Text> — {currentTier.defaultDiscountPct}% off, min order {fmtAUD(currentTier.minOrderCents)}
-                    </Text>
-                  )}
-                </View>
-              );
-            })}
-          </>
-        )}
-      </ScrollView>
-
-      {/* ───────────────── TIER MODAL ──────────────── */}
+      {/* ── Tier Modal ── */}
       <Modal visible={tierModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTierModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
-          <View style={s.modalHeader}>
-            <Pressable onPress={() => setTierModal(false)}><Text style={s.modalCancel}>Cancel</Text></Pressable>
-            <Text style={s.modalTitle}>{tierForm.id ? 'Edit Tier' : 'Create Tier'}</Text>
-            <Pressable onPress={() => saveTier.mutate()} disabled={saveTier.isPending || !tierForm.name.trim()}>
-              <Text style={[s.modalSave, (!tierForm.name.trim() || saveTier.isPending) && { opacity: 0.4 }]}>Save</Text>
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
-            <Field label="Tier name *" value={tierForm.name} onChangeText={(v) => setTierForm({ ...tierForm, name: v })} placeholder="e.g. Gold" />
-            <Field label="Description" value={tierForm.description} onChangeText={(v) => setTierForm({ ...tierForm, description: v })} multiline placeholder="What this tier offers..." />
-
-            <Text style={s.fieldLabel}>Status</Text>
-            <View style={s.chipRow}>
-              {(['active', 'hidden', 'archived'] as const).map(st => (
-                <Pressable key={st} onPress={() => setTierForm({ ...tierForm, status: st })}
-                  style={[s.tierChip, tierForm.status === st && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, tierForm.status === st && { color: BLUE, fontWeight: '700' }]}>{st.toUpperCase()}</Text>
-                </Pressable>
-              ))}
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ModalHeader
+            title={tierForm.id ? 'Edit Tier' : 'New Tier'}
+            onCancel={() => setTierModal(false)}
+            onSave={() => saveTierMut.mutate(tierForm)}
+            saveDisabled={!tierForm.name.trim()}
+            saving={saveTierMut.isPending}
+          />
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {!!tierSaveErr && <ErrBanner msg={tierSaveErr} />}
+            <Field label="Tier Name *">
+              <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                placeholder="e.g. Gold, Silver, Trade" placeholderTextColor={MUTED}
+                value={tierForm.name} onChangeText={(v) => setTierForm((f) => ({ ...f, name: v }))}
+                autoFocus autoCapitalize="words" />
+            </Field>
+            <Field label="Description">
+              <TextInput style={[styles.input, styles.textArea, { color: TEXT, borderColor: BORDER }]}
+                placeholder="Optional description for this tier" placeholderTextColor={MUTED}
+                value={tierForm.description} onChangeText={(v) => setTierForm((f) => ({ ...f, description: v }))}
+                multiline numberOfLines={3} textAlignVertical="top" />
+            </Field>
+            <Field label="Status">
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {(['active', 'inactive'] as const).map((s) => (
+                  <Pressable key={s} onPress={() => setTierForm((f) => ({ ...f, status: s }))}
+                    style={[styles.statusChip, {
+                      flex: 1,
+                      backgroundColor: tierForm.status === s ? (s === 'active' ? '#F0FDF4' : '#FEF9C3') : '#F3F4F6',
+                      borderColor:     tierForm.status === s ? (s === 'active' ? GREEN : AMBER) : BORDER,
+                    }]}>
+                    <Text style={[styles.statusChipText, {
+                      color: tierForm.status === s ? (s === 'active' ? '#166534' : '#854D0E') : MUTED,
+                    }]}>
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Field>
+            <View style={[styles.infoBox, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+              <Feather name="info" size={14} color={BLUE} />
+              <Text style={[styles.infoText, { color: '#1E3A5F' }]}>
+                Tiers are named groupings only. No automatic discounts are applied. Set prices with Qty Breaks or Custom Pricing.
+              </Text>
             </View>
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Default discount %" value={tierForm.defaultDiscountPct} onChangeText={(v) => setTierForm({ ...tierForm, defaultDiscountPct: v })} keyboardType="number-pad" />
-              <Field flex label="Lead time (days)" value={tierForm.leadTimeDays} onChangeText={(v) => setTierForm({ ...tierForm, leadTimeDays: v })} keyboardType="number-pad" />
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Min order ($)" value={tierForm.minOrderCents} onChangeText={(v) => setTierForm({ ...tierForm, minOrderCents: v })} keyboardType="decimal-pad" placeholder="0.00" />
-              <Field flex label="Min order qty" value={tierForm.minOrderQty} onChangeText={(v) => setTierForm({ ...tierForm, minOrderQty: v })} keyboardType="number-pad" />
-            </View>
-
-            <Text style={s.fieldLabel}>Payment terms</Text>
-            <View style={s.chipRow}>
-              {PAYMENT_TERMS.map(p => (
-                <Pressable key={p.v} onPress={() => setTierForm({ ...tierForm, paymentTerms: p.v })}
-                  style={[s.tierChip, tierForm.paymentTerms === p.v && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, tierForm.paymentTerms === p.v && { color: BLUE, fontWeight: '700' }]}>{p.l}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Cut-off time" value={tierForm.cutOffTime} onChangeText={(v) => setTierForm({ ...tierForm, cutOffTime: v })} placeholder="12:00" />
-              <Field flex label="Free delivery threshold ($)" value={tierForm.freeDeliveryThresholdCents} onChangeText={(v) => setTierForm({ ...tierForm, freeDeliveryThresholdCents: v })} keyboardType="decimal-pad" placeholder="0.00" />
-            </View>
-
-            <View style={s.toggleRow}>
-              <Text style={s.toggleLabel}>Delivery enabled</Text>
-              <Switch value={tierForm.deliveryEnabled} onValueChange={(v) => setTierForm({ ...tierForm, deliveryEnabled: v })} trackColor={{ true: BLUE + '99', false: BORDER }} thumbColor={tierForm.deliveryEnabled ? BLUE : '#fff'} />
-            </View>
-            <View style={s.toggleRow}>
-              <Text style={s.toggleLabel}>Pickup enabled</Text>
-              <Switch value={tierForm.pickupEnabled} onValueChange={(v) => setTierForm({ ...tierForm, pickupEnabled: v })} trackColor={{ true: BLUE + '99', false: BORDER }} thumbColor={tierForm.pickupEnabled ? BLUE : '#fff'} />
-            </View>
-            <View style={s.toggleRow}>
-              <Text style={s.toggleLabel}>Requires approval per order</Text>
-              <Switch value={tierForm.requiresApproval} onValueChange={(v) => setTierForm({ ...tierForm, requiresApproval: v })} trackColor={{ true: AMBER + '99', false: BORDER }} thumbColor={tierForm.requiresApproval ? AMBER : '#fff'} />
-            </View>
-
-            <Field label="Customer-facing notes" value={tierForm.notes} onChangeText={(v) => setTierForm({ ...tierForm, notes: v })} multiline />
-            <Field label="Internal Director notes" value={tierForm.internalNotes} onChangeText={(v) => setTierForm({ ...tierForm, internalNotes: v })} multiline />
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ───────────────── BREAK MODAL ─────────────── */}
+      {/* ── Qty Break Modal ── */}
       <Modal visible={breakModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBreakModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
-          <View style={s.modalHeader}>
-            <Pressable onPress={() => setBreakModal(false)}><Text style={s.modalCancel}>Cancel</Text></Pressable>
-            <Text style={s.modalTitle}>New Quantity Break</Text>
-            <Pressable onPress={() => saveBreak.mutate()} disabled={saveBreak.isPending}>
-              <Text style={[s.modalSave, saveBreak.isPending && { opacity: 0.4 }]}>Save</Text>
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
-            <Text style={s.fieldLabel}>Product</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={s.chipRow}>
-                {products.map((p: any) => {
-                  const sel = breakForm.productId === p.id;
-                  return (
-                    <Pressable key={p.id} onPress={() => setBreakForm({ ...breakForm, productId: p.id })}
-                      style={[s.tierChip, sel && s.tierChipActive]}>
-                      <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{p.name}</Text>
-                    </Pressable>
-                  );
-                })}
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ModalHeader
+            title={breakForm.id ? 'Edit Qty Break' : 'New Qty Break'}
+            onCancel={() => setBreakModal(false)}
+            onSave={() => saveBreakMut.mutate(breakForm)}
+            saveDisabled={!breakFormValid}
+            saving={saveBreakMut.isPending}
+          />
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            {!!breakSaveErr && <ErrBanner msg={breakSaveErr} />}
+            <Field label="Product *">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {products.map((p: any) => (
+                  <Pressable key={p.id} onPress={() => setBreakForm((f) => ({ ...f, productId: p.id }))}
+                    style={[styles.pickerChip, {
+                      backgroundColor: breakForm.productId === p.id ? BLUE : '#F3F4F6',
+                      borderColor:     breakForm.productId === p.id ? BLUE : BORDER,
+                    }]}>
+                    <Text style={[styles.pickerChipText, { color: breakForm.productId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>{p.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Field>
+            <Field label="Applies To *">
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {([['tier', 'A Tier', 'layers'], ['customer', 'A Customer', 'user']] as const).map(([s, lbl, ic]) => (
+                  <Pressable key={s} onPress={() => setBreakForm((f) => ({ ...f, scope: s as 'tier' | 'customer' }))}
+                    style={[styles.scopeChip, { flex: 1, backgroundColor: breakForm.scope === s ? BLUE : '#F3F4F6', borderColor: breakForm.scope === s ? BLUE : BORDER }]}>
+                    <Feather name={ic as any} size={14} color={breakForm.scope === s ? '#fff' : MUTED} />
+                    <Text style={[styles.scopeChipText, { color: breakForm.scope === s ? '#fff' : TEXT }]}>{lbl}</Text>
+                  </Pressable>
+                ))}
               </View>
-            </ScrollView>
-
-            <Text style={s.fieldLabel}>Scope</Text>
-            <View style={s.chipRow}>
-              {(['tier', 'customer'] as const).map(sc => (
-                <Pressable key={sc} onPress={() => setBreakForm({ ...breakForm, scope: sc })}
-                  style={[s.tierChip, breakForm.scope === sc && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, breakForm.scope === sc && { color: BLUE, fontWeight: '700' }]}>{sc === 'tier' ? 'Tier-wide' : 'Specific customer'}</Text>
-                </Pressable>
-              ))}
-            </View>
-
+            </Field>
             {breakForm.scope === 'tier' ? (
-              <>
-                <Text style={s.fieldLabel}>Tier</Text>
-                <View style={s.chipRow}>
-                  {tiers.map((t: any) => {
-                    const sel = breakForm.tierId === t.id;
-                    return (
-                      <Pressable key={t.id} onPress={() => setBreakForm({ ...breakForm, tierId: t.id })}
-                        style={[s.tierChip, sel && s.tierChipActive]}>
-                        <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{t.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={s.fieldLabel}>Customer</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                  <View style={s.chipRow}>
-                    {wholesaleUsers.map((u: any) => {
-                      const sel = breakForm.customerId === u.id;
-                      return (
-                        <Pressable key={u.id} onPress={() => setBreakForm({ ...breakForm, customerId: u.id })}
-                          style={[s.tierChip, sel && s.tierChipActive]}>
-                          <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{u.wholesaleAccount?.companyName ?? u.name}</Text>
+              <Field label="Tier *">
+                {tiers.length === 0
+                  ? <Text style={{ color: MUTED, fontSize: 13 }}>No tiers yet — create a tier first.</Text>
+                  : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {tiers.map((t: any) => (
+                        <Pressable key={t.id} onPress={() => setBreakForm((f) => ({ ...f, tierId: t.id }))}
+                          style={[styles.pickerChip, { backgroundColor: breakForm.tierId === t.id ? NAVY : '#F3F4F6', borderColor: breakForm.tierId === t.id ? NAVY : BORDER }]}>
+                          <Text style={[styles.pickerChipText, { color: breakForm.tierId === t.id ? '#fff' : TEXT }]}>{t.name}</Text>
                         </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              </>
+                      ))}
+                    </ScrollView>
+                  )
+                }
+              </Field>
+            ) : (
+              <Field label="Customer *">
+                {wholesaleUsers.length === 0
+                  ? <Text style={{ color: MUTED, fontSize: 13 }}>No approved wholesale customers.</Text>
+                  : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {wholesaleUsers.map((u: any) => (
+                        <Pressable key={u.id} onPress={() => setBreakForm((f) => ({ ...f, customerId: u.id }))}
+                          style={[styles.pickerChip, { backgroundColor: breakForm.customerId === u.id ? NAVY : '#F3F4F6', borderColor: breakForm.customerId === u.id ? NAVY : BORDER }]}>
+                          <Text style={[styles.pickerChipText, { color: breakForm.customerId === u.id ? '#fff' : TEXT }]}>
+                            {u.wholesaleAccount?.companyName ?? u.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  )
+                }
+              </Field>
             )}
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Min qty *" value={breakForm.minQty} onChangeText={(v) => setBreakForm({ ...breakForm, minQty: v })} keyboardType="number-pad" />
-              <Field flex label="Max qty (optional)" value={breakForm.maxQty} onChangeText={(v) => setBreakForm({ ...breakForm, maxQty: v })} keyboardType="number-pad" />
+            <View style={{ flexDirection: 'row', gap: 14 }}>
+              <Field label="Min. Qty *" style={{ flex: 1 }}>
+                <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                  placeholder="e.g. 24" placeholderTextColor={MUTED} value={breakForm.minQty}
+                  onChangeText={(v) => setBreakForm((f) => ({ ...f, minQty: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="number-pad" />
+              </Field>
+              <Field label="Price / Unit (AUD) *" style={{ flex: 1 }}>
+                <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                  placeholder="e.g. 3.50" placeholderTextColor={MUTED} value={breakForm.unitPrice}
+                  onChangeText={(v) => setBreakForm((f) => ({ ...f, unitPrice: v }))}
+                  keyboardType="decimal-pad" />
+              </Field>
             </View>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Unit price (AUD)" value={breakForm.unitPriceCents} onChangeText={(v) => setBreakForm({ ...breakForm, unitPriceCents: v })} keyboardType="decimal-pad" placeholder="3.50" />
-              <Field flex label="…or discount %" value={breakForm.discountPct} onChangeText={(v) => setBreakForm({ ...breakForm, discountPct: v })} keyboardType="number-pad" />
+            <View style={styles.switchRow}>
+              <View>
+                <Text style={styles.switchLabel}>Active</Text>
+                <Text style={styles.switchSub}>Inactive breaks are ignored by the pricing engine</Text>
+              </View>
+              <Switch value={breakForm.isActive} onValueChange={(v) => setBreakForm((f) => ({ ...f, isActive: v }))} trackColor={{ true: BLUE }} />
             </View>
-            <Field label="Note (internal)" value={breakForm.notes} onChangeText={(v) => setBreakForm({ ...breakForm, notes: v })} multiline />
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ───────────────── CUSTOM MODAL ────────────── */}
+      {/* ── Custom Pricing Modal ── */}
       <Modal visible={customModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setCustomModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
-          <View style={s.modalHeader}>
-            <Pressable onPress={() => setCustomModal(false)}><Text style={s.modalCancel}>Cancel</Text></Pressable>
-            <Text style={s.modalTitle}>Custom Customer Price</Text>
-            <Pressable onPress={() => saveCustom.mutate()} disabled={saveCustom.isPending}>
-              <Text style={[s.modalSave, saveCustom.isPending && { opacity: 0.4 }]}>Save</Text>
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
-            <Text style={s.fieldLabel}>Customer</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={s.chipRow}>
-                {wholesaleUsers.map((u: any) => {
-                  const sel = customForm.customerId === u.id;
-                  return (
-                    <Pressable key={u.id} onPress={() => setCustomForm({ ...customForm, customerId: u.id })}
-                      style={[s.tierChip, sel && s.tierChipActive]}>
-                      <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{u.wholesaleAccount?.companyName ?? u.name}</Text>
-                    </Pressable>
-                  );
-                })}
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ModalHeader
+            title={customForm.id ? 'Edit Custom Price' : 'New Custom Price'}
+            onCancel={() => setCustomModal(false)}
+            onSave={() => saveCustomMut.mutate(customForm)}
+            saveDisabled={!customFormValid}
+            saving={saveCustomMut.isPending}
+          />
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+            {!!customSaveErr && <ErrBanner msg={customSaveErr} />}
+            <Field label="Customer *">
+              {wholesaleUsers.length === 0
+                ? <Text style={{ color: MUTED, fontSize: 13 }}>No approved wholesale customers.</Text>
+                : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {wholesaleUsers.map((u: any) => (
+                      <Pressable key={u.id} onPress={() => setCustomForm((f) => ({ ...f, customerId: u.id }))}
+                        style={[styles.pickerChip, { backgroundColor: customForm.customerId === u.id ? NAVY : '#F3F4F6', borderColor: customForm.customerId === u.id ? NAVY : BORDER }]}>
+                        <Text style={[styles.pickerChipText, { color: customForm.customerId === u.id ? '#fff' : TEXT }]}>
+                          {u.wholesaleAccount?.companyName ?? u.name}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )
+              }
+            </Field>
+            <Field label="Product *">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {products.map((p: any) => (
+                  <Pressable key={p.id} onPress={() => setCustomForm((f) => ({ ...f, productId: p.id }))}
+                    style={[styles.pickerChip, { backgroundColor: customForm.productId === p.id ? BLUE : '#F3F4F6', borderColor: customForm.productId === p.id ? BLUE : BORDER }]}>
+                    <Text style={[styles.pickerChipText, { color: customForm.productId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>{p.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Field>
+            <Field label="Price per Unit (AUD) *">
+              <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                placeholder="e.g. 4.20" placeholderTextColor={MUTED} value={customForm.unitPrice}
+                onChangeText={(v) => setCustomForm((f) => ({ ...f, unitPrice: v }))}
+                keyboardType="decimal-pad" />
+            </Field>
+            <View style={styles.switchRow}>
+              <View>
+                <Text style={styles.switchLabel}>Active</Text>
+                <Text style={styles.switchSub}>Inactive prices are not applied at checkout</Text>
               </View>
-            </ScrollView>
-
-            <Text style={s.fieldLabel}>Apply to product (optional)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={s.chipRow}>
-                <Pressable onPress={() => setCustomForm({ ...customForm, productId: '' })}
-                  style={[s.tierChip, !customForm.productId && s.tierChipActive]}>
-                  <Text style={[s.tierChipText, !customForm.productId && { color: BLUE, fontWeight: '700' }]}>None</Text>
-                </Pressable>
-                {products.map((p: any) => {
-                  const sel = customForm.productId === p.id;
-                  return (
-                    <Pressable key={p.id} onPress={() => setCustomForm({ ...customForm, productId: p.id, category: '' })}
-                      style={[s.tierChip, sel && s.tierChipActive]}>
-                      <Text style={[s.tierChipText, sel && { color: BLUE, fontWeight: '700' }]}>{p.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            {!customForm.productId && (
-              <Field label="…or category" value={customForm.category} onChangeText={(v) => setCustomForm({ ...customForm, category: v })} placeholder="e.g. cookies" />
-            )}
-
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Field flex label="Unit price (AUD)" value={customForm.unitPriceCents} onChangeText={(v) => setCustomForm({ ...customForm, unitPriceCents: v })} keyboardType="decimal-pad" placeholder="2.75" />
-              <Field flex label="…or discount %" value={customForm.discountPct} onChangeText={(v) => setCustomForm({ ...customForm, discountPct: v })} keyboardType="number-pad" />
+              <Switch value={customForm.isActive} onValueChange={(v) => setCustomForm((f) => ({ ...f, isActive: v }))} trackColor={{ true: BLUE }} />
             </View>
-            <Field label="Note" value={customForm.notes} onChangeText={(v) => setCustomForm({ ...customForm, notes: v })} multiline />
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
@@ -763,86 +673,100 @@ export default function PricingScreen() {
   );
 }
 
-// ── Reusable subcomponents ─────────────────────────────────────────────────
-
-function Meta({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={{ minWidth: '30%' }}>
-      <Text style={{ fontWeight: '500', color: MUTED, fontSize: 10, letterSpacing: 0.5 }}>{label.toUpperCase()}</Text>
-      <Text style={{ fontWeight: '600', color: TEXT, fontSize: 13, marginTop: 2 }}>{value}</Text>
-    </View>
-  );
-}
-
-function Field({
-  label, value, onChangeText, placeholder, multiline, keyboardType, flex, hint,
-}: {
-  label: string; value: string; onChangeText: (v: string) => void;
-  placeholder?: string; multiline?: boolean; keyboardType?: any; flex?: boolean; hint?: string;
+// ── Helper components ─────────────────────────────────────────────────────────
+function ModalHeader({ title, onCancel, onSave, saveDisabled, saving }: {
+  title: string; onCancel: () => void; onSave: () => void; saveDisabled: boolean; saving: boolean;
 }) {
   return (
-    <View style={{ marginBottom: 12, flex: flex ? 1 : undefined }}>
-      <Text style={s.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={MUTED}
-        multiline={multiline}
-        keyboardType={keyboardType}
-        style={[s.input, multiline && { minHeight: 70, textAlignVertical: 'top' }]}
-      />
-      {hint ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 4 }}>{hint}</Text> : null}
+    <View style={[mhStyle.row, { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }]}>
+      <Pressable onPress={onCancel}>
+        <Text style={{ color: '#EF4444', fontSize: 15, fontWeight: '600' }}>Cancel</Text>
+      </Pressable>
+      <Text style={{ fontSize: 17, fontWeight: '700', color: '#1C1C1E' }}>{title}</Text>
+      <Pressable onPress={onSave} disabled={saveDisabled || saving}>
+        <Text style={{ color: saveDisabled ? '#8E8E93' : '#1493FF', fontSize: 15, fontWeight: '700' }}>
+          {saving ? 'Saving…' : 'Save'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+const mhStyle = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
+});
+
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: any }) {
+  return (
+    <View style={[{ gap: 6 }, style]}>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280' }}>{label}</Text>
+      {children}
+    </View>
+  );
+}
+function StatusBadge({ status }: { status: string }) {
+  const active = status === 'active';
+  return (
+    <View style={{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: active ? '#F0FDF4' : '#FEF9C3' }}>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#166534' : '#854D0E' }}>
+        {active ? 'Active' : 'Inactive'}
+      </Text>
+    </View>
+  );
+}
+function IconBtn({ icon, color, bg, onPress }: { icon: string; color: string; bg: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }}>
+      <Feather name={icon as any} size={15} color={color} />
+    </Pressable>
+  );
+}
+function ErrBanner({ msg }: { msg: string }) {
+  return (
+    <View style={{ backgroundColor: '#FFF5F5', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' }}>
+      <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '500' }}>{msg}</Text>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  tabBar:        { flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
-  tab:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabActive:     { borderBottomColor: BLUE },
-  tabText:       { fontSize: 12 },
-
-  headerRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  h1:            { fontWeight: '700', fontSize: 20, color: TEXT },
-  helper:        { fontWeight: '400', fontSize: 12, color: MUTED, marginBottom: 12, lineHeight: 18 },
-
-  primaryBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BLUE, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  primaryBtnText:{ color: '#fff', fontWeight: '700', fontSize: 12 },
-
-  card:          { backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: BORDER, gap: 10 },
-  cardTitle:     { fontWeight: '700', fontSize: 16, color: TEXT },
-  cardSub:       { fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 },
-  bigDiscount:   { fontWeight: '700', fontSize: 22, color: BLUE },
-  bigPrice:      { fontWeight: '700', fontSize: 18, color: BLUE },
-
-  metaGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
-  cardActions:   { flexDirection: 'row', gap: 14, alignItems: 'center', marginTop: 4 },
-  linkBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  linkBtnText:   { fontWeight: '600', fontSize: 12, color: BLUE },
-
-  statusPill:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  statusPillText:{ fontWeight: '700', fontSize: 9, letterSpacing: 0.6 },
-
-  empty:         { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyText:     { fontWeight: '400', fontSize: 13, color: MUTED, textAlign: 'center' },
-
-  modalHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD },
-  modalTitle:    { fontWeight: '700', fontSize: 16, color: TEXT },
-  modalCancel:   { fontWeight: '500', fontSize: 14, color: MUTED },
-  modalSave:     { fontWeight: '700', fontSize: 14, color: BLUE },
-
-  fieldLabel:    { fontWeight: '600', fontSize: 11, color: MUTED, letterSpacing: 0.5, marginBottom: 6, marginTop: 4, textTransform: 'uppercase' },
-  input:         { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontWeight: '400', fontSize: 14, color: TEXT },
-
-  chipRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  tierChip:      { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: BORDER, backgroundColor: CARD, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tierChipActive:{ borderColor: BLUE, backgroundColor: BLUE + '15' },
-  tierChipText:  { fontWeight: '500', fontSize: 12, color: TEXT },
-  tierChipPct:   { fontWeight: '700', fontSize: 11, color: MUTED },
-
-  toggleRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: BORDER, marginTop: 4 },
-  toggleLabel:   { fontWeight: '500', fontSize: 13, color: TEXT },
-
-  tierSummary:   { fontWeight: '400', fontSize: 11, color: MUTED, fontStyle: 'italic', marginTop: 8 },
+const styles = StyleSheet.create({
+  header:        { paddingHorizontal: 20, paddingBottom: 16, gap: 4 },
+  headerTitle:   { color: '#fff', fontSize: 22, fontWeight: '700' },
+  headerSub:     { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '400' },
+  tabBar:        { flexDirection: 'row', borderBottomWidth: 1 },
+  tabItem:       { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, position: 'relative' },
+  tabLabel:      { fontSize: 11, letterSpacing: 0.3 },
+  tabUnderline:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2.5, borderRadius: 2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  sectionTitle:  { fontSize: 18, fontWeight: '700', color: TEXT },
+  newBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: BLUE },
+  newBtnText:    { color: '#fff', fontSize: 13, fontWeight: '700' },
+  listContent:   { padding: 16, gap: 10, paddingBottom: 32 },
+  loader:        { marginTop: 40 },
+  card:          { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER },
+  assignCard:    { padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER },
+  cardTitle:     { fontSize: 15, fontWeight: '600', color: TEXT },
+  cardSub:       { fontSize: 13, fontWeight: '400', color: MUTED },
+  cardMeta:      { fontSize: 12, fontWeight: '400', color: MUTED },
+  cardActions:   { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  tierBadge:     { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  tierBadgeText: { fontSize: 13, fontWeight: '600' },
+  assignChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  assignChipText:{ fontSize: 13, fontWeight: '600' },
+  emptyWrap:     { alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32, marginTop: 60 },
+  emptyTitle:    { fontSize: 16, fontWeight: '600', color: TEXT, textAlign: 'center' },
+  emptySub:      { fontSize: 13, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 19 },
+  modalContent:  { padding: 20, gap: 18 },
+  input:         { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: CARD },
+  textArea:      { height: 80 },
+  statusChip:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  statusChipText:{ fontSize: 14, fontWeight: '600' },
+  scopeChip:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  scopeChipText: { fontSize: 14, fontWeight: '600' },
+  pickerChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, maxWidth: 180 },
+  pickerChipText:{ fontSize: 13, fontWeight: '500' },
+  switchRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  switchLabel:   { fontSize: 14, fontWeight: '600', color: TEXT },
+  switchSub:     { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
+  infoBox:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
+  infoText:      { flex: 1, fontSize: 13, fontWeight: '400', lineHeight: 19 },
 });

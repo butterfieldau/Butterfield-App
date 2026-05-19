@@ -183,6 +183,7 @@ export const api = {
       request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
     invoices:    () => request<{ data: any[] }>('/wholesale/invoices'),
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
+    pricingContext: () => request<{ data: any }>('/wholesale/pricing-context'),
     // Cards on file
     cards:       () => request<{ data: any[] }>('/wholesale/cards'),
     addCard:     (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault?: boolean }) =>
@@ -321,6 +322,10 @@ export const api = {
     createTier:          (data: any) => request<{ data: any }>('/director/tiers', { method: 'POST', body: JSON.stringify(data) }),
     updateTier:          (id: string, data: any) => request<{ data: any }>(`/director/tiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     archiveTier:         (id: string) => request<{ success: boolean; data: any }>(`/director/tiers/${id}`, { method: 'DELETE' }),
+    deleteTier:          (id: string, force?: boolean) =>
+      request<{ success: boolean; assignedCount?: number; unassignedCount?: number }>(
+        `/director/tiers/${id}`, { method: 'DELETE', body: force ? JSON.stringify({ force: true }) : undefined },
+      ),
 
     // Quantity price breaks
     qtyBreaks:           (params?: { productId?: string; tierId?: string; customerId?: string }) => {
