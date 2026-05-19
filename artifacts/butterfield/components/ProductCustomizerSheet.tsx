@@ -387,7 +387,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                           >
                             <Text style={[s.pillLabel, active && { color: '#fff', fontWeight: '600' }]}>{v.name}</Text>
                             {v.priceCents !== basePriceCents && (
-                              <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}> {fmt(v.priceCents)}</Text>
+                              <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}>{fmt(v.priceCents)}</Text>
                             )}
                           </Pressable>
                         );
@@ -434,7 +434,7 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                               style={[s.pill, active && { backgroundColor: palette.banner, borderColor: palette.banner }]}
                             >
                               <Text style={[s.pillLabel, active && { color: '#fff', fontWeight: '600' }]}>{opt.name}</Text>
-                              {adj !== 0 && <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}>{adj > 0 ? ` +${fmt(adj)}` : ` ${fmt(adj)}`}</Text>}
+                              {adj !== 0 && <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}>{adj > 0 ? `+${fmt(adj)}` : `${fmt(adj)}`}</Text>}
                             </Pressable>
                           );
                         })}
@@ -542,7 +542,7 @@ const s = StyleSheet.create({
   metaText:   { fontSize: 13, color: MUTED, fontWeight: '400', lineHeight: 19, marginTop: 4 },
 
   pillRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff' },
+  pill:      { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 9, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#fff', gap: 2 },
   pillLabel: { fontSize: 13, color: TEXT, fontWeight: '500' },
   pillSub:   { fontSize: 12, color: MUTED, fontWeight: '400' },
 

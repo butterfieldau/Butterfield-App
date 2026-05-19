@@ -235,7 +235,12 @@ export default function ProductDetailScreen() {
     setMissingRequired(prev => prev.filter(id => id !== groupId));
     setSelections(prev => {
       const cur = prev[groupId] ?? [];
-      if (type === 'single') return { ...prev, [groupId]: [optId] };
+      if (type === 'single') {
+        // Optional single-select: tap again to deselect
+        const isRequired = optGroups.find(g => g.id === groupId)?.isRequired ?? true;
+        if (!isRequired && cur.includes(optId)) return { ...prev, [groupId]: [] };
+        return { ...prev, [groupId]: [optId] };
+      }
       return { ...prev, [groupId]: cur.includes(optId) ? cur.filter(x => x !== optId) : [...cur, optId] };
     });
   };
@@ -473,7 +478,7 @@ export default function ProductDetailScreen() {
                           Please make a selection
                         </Text>
                       )}
-                      <View style={s.chipRow}>
+                      <View style={s.optionGrid}>
                         {opts.map((opt: any) => {
                           const active = sel.includes(opt.id);
                           const adj    = opt.priceAdjustmentCents ?? 0;
@@ -481,18 +486,18 @@ export default function ProductDetailScreen() {
                             <Pressable
                               key={opt.id}
                               onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
-                              style={[s.selChip,
+                              style={[s.optionCard,
                                 active
-                                  ? { backgroundColor: palette.banner, borderColor: palette.banner }
-                                  : { backgroundColor: '#fff', borderColor: isMissing ? RED + '66' : BORDER },
+                                  ? { borderColor: BLUE, borderWidth: 2 }
+                                  : { borderColor: isMissing ? RED + '66' : '#D1D5DB', borderWidth: 1.5 },
                               ]}
                             >
-                              <Text style={[s.selChipText, { fontWeight: active ? '600' : '400', color: active ? '#fff' : TEXT }]}>
+                              <Text style={[s.optionCardText, { color: active ? BLUE : TEXT }]}>
                                 {opt.name}
                               </Text>
                               {adj !== 0 && (
-                                <Text style={[s.selChipSub, active && { color: 'rgba(255,255,255,0.8)' }]}>
-                                  {adj > 0 ? ` +$${(adj / 100).toFixed(2)}` : ` -$${(Math.abs(adj) / 100).toFixed(2)}`}
+                                <Text style={[s.optionCardSub, { color: active ? BLUE : MUTED }]}>
+                                  {adj > 0 ? `+$${(adj / 100).toFixed(2)}` : `-$${(Math.abs(adj) / 100).toFixed(2)}`}
                                 </Text>
                               )}
                             </Pressable>
@@ -602,11 +607,16 @@ const s = StyleSheet.create({
   stepBtn:      { width: 40, height: 40, borderRadius: 20, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   stepNum:      { fontSize: 20, color: TEXT, minWidth: 28, textAlign: 'center' },
 
-  // Chips + Option groups
+  // Chips (dietary / allergen tags — unchanged)
   chipRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   selChip:      { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 30, borderWidth: 1.5, flexDirection: 'row', alignItems: 'center' },
   selChipText:  { fontSize: 13 },
   selChipSub:   { fontSize: 12, color: MUTED },
+  // Apple-style option cards
+  optionGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  optionCard:   { width: '47%', minHeight: 64, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, paddingHorizontal: 10, gap: 4 },
+  optionCardText: { fontSize: 15, fontWeight: '500', textAlign: 'center' },
+  optionCardSub:  { fontSize: 12, fontWeight: '400', textAlign: 'center' },
   reqBadge:     { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 8, backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FECACA' },
   reqText:      { fontSize: 11, fontWeight: '600', color: '#DC2626' },
   scroll:       { flex: 1 },
