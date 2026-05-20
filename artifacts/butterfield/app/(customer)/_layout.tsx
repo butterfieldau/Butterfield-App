@@ -3,11 +3,13 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, usePathname } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 
 const PRIMARY_TOP = '#1493FF';
 
@@ -83,74 +85,99 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
 
 function ClassicCustomerTabs() {
   const colors = useColors();
+  const { user } = useAuth();
+  const [loginTarget, setLoginTarget] = useState<string | null>(null);
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
   const pathname = usePathname() ?? '';
   const hideTabs = pathname.includes('/cart');
 
   return (
-    <Tabs
-      tabBar={(props) => (isIOS ? <LiquidCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: hideTabs
-          ? { display: 'none' }
-          : isIOS
-            ? { position: 'absolute', height: 0, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
-            : {
-                position: 'absolute',
-                backgroundColor: colors.background,
-                borderTopWidth: isWeb ? 1 : 0,
-                borderTopColor: colors.border,
-                elevation: 0,
-                ...(isWeb ? { height: 84 } : {}),
-              },
-        tabBarBackground: () =>
-          isWeb ? <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} /> : null,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
+    <>
+      <Tabs
+        tabBar={(props) => (isIOS ? <LiquidCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
+        screenOptions={{
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.mutedForeground,
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarStyle: hideTabs
+            ? { display: 'none' }
+            : isIOS
+              ? { position: 'absolute', height: 0, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
+              : {
+                  position: 'absolute',
+                  backgroundColor: colors.background,
+                  borderTopWidth: isWeb ? 1 : 0,
+                  borderTopColor: colors.border,
+                  elevation: 0,
+                  ...(isWeb ? { height: 84 } : {}),
+                },
+          tabBarBackground: () =>
+            isWeb ? <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} /> : null,
         }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="menu"
+          options={{
+            title: 'Menu',
+            tabBarIcon: ({ color }) => <Feather name="list" size={22} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="loyalty"
+          listeners={{
+            tabPress: (e) => {
+              if (!user) {
+                e.preventDefault();
+                setLoginTarget('/(customer)/loyalty');
+              }
+            },
+          }}
+          options={{
+            title: 'Rewards',
+            tabBarIcon: ({ color }) => <Feather name="star" size={22} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="cart"
+          listeners={{
+            tabPress: (e) => {
+              if (!user) {
+                e.preventDefault();
+                setLoginTarget('/(customer)/cart');
+              }
+            },
+          }}
+          options={{
+            title: 'Order',
+            tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Account',
+            tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
+          }}
+        />
+        <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
+        <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
+        <Tabs.Screen name="stores" options={{ href: null, title: 'Our Stores' }} />
+      </Tabs>
+      <LoginRequiredModal
+        visible={!!loginTarget}
+        redirectTo={loginTarget ?? undefined}
+        onCancel={() => setLoginTarget(null)}
       />
-      <Tabs.Screen
-        name="menu"
-        options={{
-          title: 'Menu',
-          tabBarIcon: ({ color }) => <Feather name="list" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="loyalty"
-        options={{
-          title: 'Rewards',
-          tabBarIcon: ({ color }) => <Feather name="star" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="cart"
-        options={{
-          title: 'Order',
-          tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Account',
-          tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
-        }}
-      />
-      <Tabs.Screen name="favourites" options={{ href: null, title: 'Favourites' }} />
-      <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
-      <Tabs.Screen name="stores" options={{ href: null, title: 'Our Stores' }} />
-    </Tabs>
+    </>
   );
 }
 

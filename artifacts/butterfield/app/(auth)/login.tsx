@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
+import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 import type { UserRole } from '@/types';
 
 // Loaded lazily so a missing native module never crashes the login screen
@@ -47,7 +48,7 @@ type ScreenMode = 'login' | 'register' | 'wholesale-apply';
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login, internalLogin, register, wholesaleApply, socialLogin } = useAuth();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; redirectTo?: string }>();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('customer');
   const [mode, setMode]                 = useState<ScreenMode>(
@@ -68,6 +69,15 @@ export default function LoginScreen() {
   const [showPw, setShowPw]             = useState(false);
   const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
+
+  const routeAfterAuth = (role?: UserRole) => {
+    const redirectTo = Array.isArray(params.redirectTo) ? params.redirectTo[0] : params.redirectTo;
+    if (redirectTo && (!role || role === 'customer')) {
+      router.replace(redirectTo as Href);
+      return;
+    }
+    router.replace('/(tabs)');
+  };
 
   // Check Apple availability without crashing if native module is absent
   React.useEffect(() => {
@@ -115,7 +125,7 @@ export default function LoginScreen() {
         setError(result.error ?? 'Google sign-in failed.');
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace('/(tabs)');
+        routeAfterAuth('customer');
       }
     } catch (e: any) {
       if (e.code !== 'SIGN_IN_CANCELLED') {
@@ -145,7 +155,7 @@ export default function LoginScreen() {
       });
       if (!result.success) { setError(result.error ?? 'Apple sign-in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      routeAfterAuth('customer');
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
         setError('Apple sign-in failed. Please try again.');
@@ -168,7 +178,7 @@ export default function LoginScreen() {
         if (!phone.trim()) { setError('Phone number is required.'); setLoading(false); return; }
         const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() });
         if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
-        router.replace('/(tabs)');
+        routeAfterAuth('customer');
       } else if (isWholesaleApply) {
         if (!name.trim()) { setError('Full name is required.'); setLoading(false); return; }
         if (!phone.trim()) { setError('Phone number is required.'); setLoading(false); return; }
@@ -186,7 +196,7 @@ export default function LoginScreen() {
         const res = await login(email.trim(), password, selectedRole);
         if (!res.success) { setError(res.error ?? 'Login failed.'); return; }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace('/(tabs)');
+        routeAfterAuth(res.role);
       }
     } catch (e: any) {
       setError(e.message ?? 'Something went wrong.');
@@ -230,7 +240,7 @@ export default function LoginScreen() {
       const res = await internalLogin(iEmail.trim(), iPassword, coords);
       if (!res.success) { setIError(res.error ?? 'Sign in failed.'); setGeoStatus('idle'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      routeAfterAuth(res.role);
     } catch (e: any) {
       setIError(e.message ?? 'Something went wrong.');
       setGeoStatus('idle');
@@ -442,12 +452,12 @@ export default function LoginScreen() {
                   By creating an account you agree to our{' '}
                   <Text
                     style={{ color: BLUE, fontWeight: '600' }}
-                    onPress={() => WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/terms-of-service')}
-                  >Terms of Service</Text>
+                    onPress={() => WebBrowser.openBrowserAsync(BUTTERFIELD_TERMS_URL)}
+                  >Terms of Use</Text>
                   {' '}and{' '}
                   <Text
                     style={{ color: BLUE, fontWeight: '600' }}
-                    onPress={() => WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/privacy-policy')}
+                    onPress={() => WebBrowser.openBrowserAsync(BUTTERFIELD_PRIVACY_URL)}
                   >Privacy Policy</Text>.
                 </Text>
               )}

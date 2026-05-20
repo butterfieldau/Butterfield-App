@@ -35,11 +35,13 @@ export function useHomeScreenData() {
   const { data: loyaltyData, refetch: refetchLoyalty, isRefetching: loyaltyRefreshing } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn: () => api.loyalty.profile(),
+    enabled: !!user,
     retry: 1,
   });
   const { data: rewardsData } = useQuery({
     queryKey: ['loyalty-rewards'],
     queryFn: () => api.loyalty.rewards(),
+    enabled: !!user,
     retry: 1,
   });
   const { data: storeStatusData } = useQuery({
@@ -51,6 +53,7 @@ export function useHomeScreenData() {
   const { data: meData } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.auth.me(),
+    enabled: !!user,
     retry: 1,
   });
   const { data: bannerData } = useQuery({
@@ -75,6 +78,7 @@ export function useHomeScreenData() {
   const { data: ordersData } = useQuery({
     queryKey: ['orders'],
     queryFn: () => api.orders.list(),
+    enabled: !!user,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });

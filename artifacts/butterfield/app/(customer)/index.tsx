@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
 import { getPalette } from '@/constants/categoryColors';
@@ -28,6 +29,7 @@ import { CustomerQrModal } from '@/components/CustomerQrModal';
 import { api, type ApiProduct } from '@/lib/api';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
+import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 
@@ -63,9 +65,11 @@ export default function CustomerHome() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { addItemToCart } = useCart();
+  const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState('all');
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [loginTarget, setLoginTarget] = useState<string | null>(null);
   const {
     products,
     isLoading,
@@ -138,6 +142,10 @@ export default function CustomerHome() {
     }
     const routeKey = banner?.buttonRoute?.trim();
     if (!routeKey) { router.push('/(customer)/menu'); return; }
+    if (!user && ['loyalty', 'rewards', 'cart'].includes(routeKey)) {
+      setLoginTarget(routeKey === 'cart' ? '/(customer)/cart' : '/(customer)/loyalty');
+      return;
+    }
     if (routeKey.startsWith('product:')) {
       const productId = routeKey.replace('product:', '').trim();
       if (productId) { router.push({ pathname: '/product', params: { id: productId } } as any); return; }
@@ -155,6 +163,11 @@ export default function CustomerHome() {
         visible={storeSheetVisible}
         store={featuredStore}
         onClose={() => setStoreSheetVisible(false)}
+      />
+      <LoginRequiredModal
+        visible={!!loginTarget}
+        redirectTo={loginTarget ?? undefined}
+        onCancel={() => setLoginTarget(null)}
       />
       <OfflineBanner />
       <CustomerQrModal
@@ -188,7 +201,11 @@ export default function CustomerHome() {
             </LinearGradient>
             <Pressable
               style={s.qrBtn}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(true); }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (!user) { setLoginTarget('/(customer)/loyalty'); return; }
+                setShowQR(true);
+              }}
               hitSlop={6}
             >
               <Feather name="grid" size={16} color={BLUE_TOP} />
@@ -253,7 +270,10 @@ export default function CustomerHome() {
             imageSource={require('@/assets/images/butterfield-app-gems.png')}
             imageStyle={s.rewardsTileImage}
             titleStyle={s.rewardsTileTitle}
-            onPress={() => router.push('/(customer)/loyalty')}
+            onPress={() => {
+              if (!user) { setLoginTarget('/(customer)/loyalty'); return; }
+              router.push('/(customer)/loyalty');
+            }}
           />
           <FeatureShortcutTile
             title="Skip the queue"

@@ -32,6 +32,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { api, type SavedAddress, type ClaimedReward } from '@/lib/api';
 import {
   formatDateChip,
@@ -719,6 +720,12 @@ function ConfettiPieceView({ piece }: { piece: ConfettiPiece }) {
 }
 
 export default function CartScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/(customer)/cart" compact />;
+  return <CartContent />;
+}
+
+function CartContent() {
   const insets   = useSafeAreaInsets();
   const { user } = useAuth();
   const { items, totalPriceCents, totalItems, updateItemQuantity, removeCartItem, clearCart } = useCart();

@@ -10,6 +10,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { api, type ApiProduct } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 function getGradient(p: ApiProduct): [string, string] {
   const g = p.metadata?.gradient?.split(',');
@@ -19,6 +21,12 @@ function getPrice(p: ApiProduct): number {
   return (p.prices?.[0]?.unit_amount ?? 0) / 100;
 }
 export default function FavouritesScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/(customer)/favourites" compact />;
+  return <FavouritesContent />;
+}
+
+function FavouritesContent() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();

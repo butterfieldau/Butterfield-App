@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -19,12 +20,9 @@ const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const RED    = '#EF4444';
 
-const PRIVACY_URL = 'https://butterfieldcookies.com.au/pages/privacy-policy';
-const TERMS_URL   = 'https://butterfieldcookies.com.au/pages/terms-of-service';
-
 export default function HelpSupportScreen() {
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const qc = useQueryClient();
   const [deleting, setDeleting] = useState(false);
 
@@ -57,7 +55,7 @@ export default function HelpSupportScreen() {
                       await api.auth.deleteAccount();
                       await logout();
                       qc.clear();
-                      router.replace('/(auth)/login');
+                      router.replace('/(tabs)');
                     } catch (e: any) {
                       Alert.alert('Error', e.message ?? 'Failed to delete account. Please contact hello@butterfieldcookies.com.au');
                     } finally {
@@ -159,43 +157,44 @@ export default function HelpSupportScreen() {
         <View style={st.section}>
           <Text style={st.sectionLabel}>LEGAL</Text>
           <View style={[st.card, { borderColor: BORDER }]}>
-            <Pressable onPress={() => openUrl(PRIVACY_URL)} style={[st.row, st.rowBorder]}>
+            <Pressable onPress={() => openUrl(BUTTERFIELD_PRIVACY_URL)} style={[st.row, st.rowBorder]}>
               <View style={[st.rowIcon, { backgroundColor: '#F5F6FA' }]}>
                 <Feather name="shield" size={16} color={TEXT} />
               </View>
               <Text style={[st.rowValue, { flex: 1 }]}>Privacy Policy</Text>
               <Feather name="external-link" size={14} color={MUTED} />
             </Pressable>
-            <Pressable onPress={() => openUrl(TERMS_URL)} style={st.row}>
+            <Pressable onPress={() => openUrl(BUTTERFIELD_TERMS_URL)} style={st.row}>
               <View style={[st.rowIcon, { backgroundColor: '#F5F6FA' }]}>
                 <Feather name="file-text" size={16} color={TEXT} />
               </View>
-              <Text style={[st.rowValue, { flex: 1 }]}>Terms of Service</Text>
+              <Text style={[st.rowValue, { flex: 1 }]}>Terms of Use</Text>
               <Feather name="external-link" size={14} color={MUTED} />
             </Pressable>
           </View>
         </View>
 
-        {/* ── Account Deletion ───────────────────────────────────────────────── */}
-        <View style={st.section}>
-          <Text style={st.sectionLabel}>ACCOUNT</Text>
-          <View style={[st.card, { borderColor: '#FECACA' }]}>
-            <Pressable
-              onPress={handleDeleteAccount}
-              disabled={deleting}
-              style={[st.row, { opacity: deleting ? 0.6 : 1 }]}
-            >
-              <View style={[st.rowIcon, { backgroundColor: '#FEF2F2' }]}>
-                <Feather name="trash-2" size={16} color={RED} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[st.rowValue, { color: RED }]}>Delete My Account</Text>
-                <Text style={[st.rowLabel, { marginTop: 2 }]}>Permanently removes all your data</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color={RED} />
-            </Pressable>
+        {user ? (
+          <View style={st.section}>
+            <Text style={st.sectionLabel}>ACCOUNT</Text>
+            <View style={[st.card, { borderColor: '#FECACA' }]}>
+              <Pressable
+                onPress={handleDeleteAccount}
+                disabled={deleting}
+                style={[st.row, { opacity: deleting ? 0.6 : 1 }]}
+              >
+                <View style={[st.rowIcon, { backgroundColor: '#FEF2F2' }]}>
+                  <Feather name="trash-2" size={16} color={RED} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[st.rowValue, { color: RED }]}>Delete My Account</Text>
+                  <Text style={[st.rowLabel, { marginTop: 2 }]}>Permanently removes all your data</Text>
+                </View>
+                <Feather name="chevron-right" size={16} color={RED} />
+              </Pressable>
+            </View>
           </View>
-        </View>
+        ) : null}
 
         <Text style={st.version}>Butterfield Cookies · Version 1.0.0</Text>
       </ScrollView>

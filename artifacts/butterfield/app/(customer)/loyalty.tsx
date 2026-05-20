@@ -20,6 +20,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type LoyaltyReward, type ClaimedReward } from '@/lib/api';
 import { TIERS_ORDERED, getTierConfig, getNextTierBySpend } from '@/constants/tierConfig';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
+import { useAuth } from '@/context/AuthContext';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG        = '#F5F6FA';
 const BLUE_CARD = '#1493FF';
@@ -108,6 +110,12 @@ const HOW_IT_WORKS = [
   { icon: 'gift', title: 'Birthday treat', desc: 'Free cookie every birthday week, on us.' },
 ];
 export default function LoyaltyScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/(customer)/loyalty" compact />;
+  return <LoyaltyContent />;
+}
+
+function LoyaltyContent() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
