@@ -47,10 +47,25 @@ function defaultHours() {
     openTime: '07:00',
     closeTime: '17:00',
     notes: '',
+    breakStart: '',
+    breakEnd: '',
   }));
 }
 
-type HourRow = { dayOfWeek: number; isClosed: boolean; openTime: string; closeTime: string; notes: string };
+type HourRow = { dayOfWeek: number; isClosed: boolean; openTime: string; closeTime: string; notes: string; breakStart: string; breakEnd: string };
+
+function parseBreakFromNotes(notes: string): { breakStart: string; breakEnd: string } {
+  const m = notes?.match(/^Break (\d{2}:\d{2}) [–-] (\d{2}:\d{2})$/);
+  if (m) return { breakStart: m[1], breakEnd: m[2] };
+  return { breakStart: '', breakEnd: '' };
+}
+
+function serializeBreakToNotes(breakStart: string, breakEnd: string): string {
+  const bs = breakStart.trim();
+  const be = breakEnd.trim();
+  if (bs && be) return `Break ${bs} – ${be}`;
+  return '';
+}
 
 // ── Nominatim address search ─────────────────────────────────────────────────
 async function nominatimSearch(q: string): Promise<any[]> {
@@ -165,7 +180,10 @@ function StoreEditorModal({
           const base = defaultHours();
           r.data.forEach((h: any) => {
             const idx = base.findIndex(b => b.dayOfWeek === h.dayOfWeek);
-            if (idx >= 0) base[idx] = { ...base[idx], isClosed: h.isClosed, openTime: h.openTime ?? '07:00', closeTime: h.closeTime ?? '17:00', notes: h.notes ?? '' };
+            if (idx >= 0) {
+              const { breakStart, breakEnd } = parseBreakFromNotes(h.notes ?? '');
+              base[idx] = { ...base[idx], isClosed: h.isClosed, openTime: h.openTime ?? '07:00', closeTime: h.closeTime ?? '17:00', notes: h.notes ?? '', breakStart, breakEnd };
+            }
           });
           setHours(base);
         } else {
@@ -240,8 +258,12 @@ function StoreEditorModal({
         savedId = r.data.id;
       }
 
-      // Save opening hours
-      await api.director.setStoreHours(savedId, hours);
+      // Serialize break times into notes before saving
+      const hoursWithNotes = hours.map(h => ({
+        ...h,
+        notes: serializeBreakToNotes(h.breakStart, h.breakEnd),
+      }));
+      await api.director.setStoreHours(savedId, hoursWithNotes);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSaved();
@@ -432,38 +454,68 @@ function StoreEditorModal({
             <Text style={s.sectionTitle}>OPENING HOURS</Text>
             <View style={s.sectionCard}>
               {hours.map((h, i) => (
-                <View key={h.dayOfWeek} style={[s.hourRow, i > 0 && { borderTopWidth: 1, borderTopColor: BORDER }]}>
-                  <Text style={s.hourDay}>{SHORT_DAYS[h.dayOfWeek]}</Text>
-                  <Switch
-                    value={!h.isClosed}
-                    onValueChange={v => updateHour(h.dayOfWeek, 'isClosed', !v)}
-                    trackColor={{ false: BORDER, true: '#BBF7D0' }}
-                    thumbColor={!h.isClosed ? GREEN : '#9CA3AF'}
-                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-                  />
-                  {h.isClosed ? (
-                    <Text style={{ flex: 1, color: MUTED, fontWeight: '400', fontSize: 13, textAlign: 'center' }}>Closed</Text>
-                  ) : (
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View key={h.dayOfWeek} style={[i > 0 && { borderTopWidth: 1, borderTopColor: BORDER }]}>
+                  {/* Open / close row */}
+                  <View style={s.hourRow}>
+                    <Text style={s.hourDay}>{SHORT_DAYS[h.dayOfWeek]}</Text>
+                    <Switch
+                      value={!h.isClosed}
+                      onValueChange={v => updateHour(h.dayOfWeek, 'isClosed', !v)}
+                      trackColor={{ false: BORDER, true: '#BBF7D0' }}
+                      thumbColor={!h.isClosed ? GREEN : '#9CA3AF'}
+                      style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                    />
+                    {h.isClosed ? (
+                      <Text style={{ flex: 1, color: MUTED, fontWeight: '400', fontSize: 13, textAlign: 'center' }}>Closed</Text>
+                    ) : (
+                      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TextInput
+                          style={s.timeInput}
+                          value={h.openTime}
+                          onChangeText={v => updateHour(h.dayOfWeek, 'openTime', v)}
+                          placeholder="07:00"
+                          placeholderTextColor={MUTED}
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={5}
+                        />
+                        <Text style={{ color: MUTED, fontSize: 12 }}>–</Text>
+                        <TextInput
+                          style={s.timeInput}
+                          value={h.closeTime}
+                          onChangeText={v => updateHour(h.dayOfWeek, 'closeTime', v)}
+                          placeholder="17:00"
+                          placeholderTextColor={MUTED}
+                          keyboardType="numbers-and-punctuation"
+                          maxLength={5}
+                        />
+                      </View>
+                    )}
+                  </View>
+                  {/* Break row — only shown when day is open */}
+                  {!h.isClosed && (
+                    <View style={s.breakRow}>
+                      <Feather name="coffee" size={11} color={MUTED} style={{ marginTop: 1 }} />
+                      <Text style={s.breakLabel}>Break</Text>
                       <TextInput
-                        style={s.timeInput}
-                        value={h.openTime}
-                        onChangeText={v => updateHour(h.dayOfWeek, 'openTime', v)}
-                        placeholder="07:00"
+                        style={s.breakInput}
+                        value={h.breakStart}
+                        onChangeText={v => updateHour(h.dayOfWeek, 'breakStart', v)}
+                        placeholder="––:––"
                         placeholderTextColor={MUTED}
                         keyboardType="numbers-and-punctuation"
                         maxLength={5}
                       />
-                      <Text style={{ color: MUTED, fontSize: 12 }}>–</Text>
+                      <Text style={{ color: MUTED, fontSize: 11 }}>–</Text>
                       <TextInput
-                        style={s.timeInput}
-                        value={h.closeTime}
-                        onChangeText={v => updateHour(h.dayOfWeek, 'closeTime', v)}
-                        placeholder="17:00"
+                        style={s.breakInput}
+                        value={h.breakEnd}
+                        onChangeText={v => updateHour(h.dayOfWeek, 'breakEnd', v)}
+                        placeholder="––:––"
                         placeholderTextColor={MUTED}
                         keyboardType="numbers-and-punctuation"
                         maxLength={5}
                       />
+                      <Text style={s.breakHint}>optional</Text>
                     </View>
                   )}
                 </View>
@@ -636,6 +688,10 @@ const s = StyleSheet.create({
   hourRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
   hourDay:        { fontWeight: '600', fontSize: 13, color: TEXT, width: 36 },
   timeInput:      { fontWeight: '400', fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, flex: 1, textAlign: 'center' },
+  breakRow:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingBottom: 8, paddingTop: 0 },
+  breakLabel:     { fontWeight: '500', fontSize: 11, color: MUTED, width: 36 },
+  breakInput:     { fontWeight: '400', fontSize: 12, color: TEXT, borderWidth: 1, borderColor: BORDER, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 3, width: 52, textAlign: 'center' },
+  breakHint:      { fontWeight: '400', fontSize: 10, color: MUTED, marginLeft: 4, fontStyle: 'italic' },
   searchDropdown: { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER },
   searchResult:   { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'flex-start' },
   searchResultText:{ fontWeight: '400', fontSize: 13, color: TEXT, flex: 1 },

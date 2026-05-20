@@ -98,6 +98,13 @@ function fmt12(t: string): string {
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
+function formatBreakNote(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const m = notes.match(/^Break (\d{2}:\d{2}) [–-] (\d{2}:\d{2})$/);
+  if (m) return `Break ${fmt12(m[1])} – ${fmt12(m[2])}`;
+  return notes;
+}
+
 const STORE_PHOTOS = [
   { label: 'Red Velvet',  uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Red-Velvet-Chunky-Cookie.png?v=1714983850&width=600' },
   { label: 'Choc Chip',   uri: 'https://butterfieldcookies.com.au/cdn/shop/files/Choc-Chip-Chunky-Cookie.png?v=1714983903&width=600' },
@@ -320,8 +327,8 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
               <View style={{ flex: 1 }}>
                 <Text style={[s.infoLabel, { color: colors.mutedForeground }]}>Today's hours</Text>
                 <Text style={[s.infoVal, { color: colors.foreground }]}>{todayDisplay}</Text>
-                {todayHours?.notes ? (
-                  <Text style={[s.infoBreakNote, { color: colors.mutedForeground }]}>{todayHours.notes}</Text>
+                {formatBreakNote(todayHours?.notes) ? (
+                  <Text style={[s.infoBreakNote, { color: colors.mutedForeground }]}>{formatBreakNote(todayHours?.notes)}</Text>
                 ) : null}
               </View>
             </View>
@@ -395,8 +402,8 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
                       <Text style={[s.hoursDay, { color: isToday ? '#1493FF' : colors.foreground, fontWeight: isToday ? '700' : '400' }]}>{dayName}</Text>
                       <Text style={[s.hoursTime, { color: h.isClosed ? colors.mutedForeground : isToday ? '#1493FF' : colors.foreground }]}>{hoursStr}</Text>
                     </View>
-                    {h.notes && !h.isClosed ? (
-                      <Text style={[s.hoursBreakNote, { color: colors.mutedForeground }]}>{h.notes}</Text>
+                    {formatBreakNote(h.notes) && !h.isClosed ? (
+                      <Text style={[s.hoursBreakNote, { color: colors.mutedForeground }]}>{formatBreakNote(h.notes)}</Text>
                     ) : null}
                   </View>
                 );
