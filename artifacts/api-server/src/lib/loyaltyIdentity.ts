@@ -286,6 +286,74 @@ export async function applyCoffeeStamps(params: {
   };
 }
 
+export async function reverseCoffeeStamps(params: {
+  userId: string;
+  stampsToRemove: number;
+  source: 'order_cancel' | 'order_refund';
+  staffId?: string | null;
+  orderId?: string | null;
+  description: string;
+}) {
+  const stampsToRemove = Math.max(0, Math.floor(params.stampsToRemove));
+  if (stampsToRemove <= 0) {
+    return { stampCount: 0, freeCoffeeRewards: 0, removedFreeRewards: 0, loyaltyQrToken: null };
+  }
+
+  const profile = await getOrCreateCustomerLoyaltyProfile(params.userId);
+  const baseStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
+  const baseRewards = Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0);
+  const currentStampValue = baseStampCount + (baseRewards * STAMP_GOAL);
+  const nextStampValue = Math.max(0, currentStampValue - stampsToRemove);
+  const nextRewards = Math.floor(nextStampValue / STAMP_GOAL);
+  const nextStampCount = nextStampValue % STAMP_GOAL;
+  const removedFreeRewards = Math.max(0, baseRewards - nextRewards);
+  const effectiveRemovedStamps = Math.min(stampsToRemove, currentStampValue);
+
+  await db.update(customerProfilesTable)
+    .set({
+      coffeeStampCount: nextStampCount,
+      freeCoffeeRewards: nextRewards,
+      stampCount: nextStampCount,
+      freeCoffeesEarned: nextRewards,
+      updatedAt: new Date(),
+    })
+    .where(eq(customerProfilesTable.userId, params.userId));
+
+  const description = removedFreeRewards > 0
+    ? `${params.description} — ${removedFreeRewards} free coffee reward${removedFreeRewards > 1 ? 's' : ''} reversed`
+    : params.description;
+
+  await logLoyaltyActivity({
+    customerId: params.userId,
+    staffId: params.staffId ?? null,
+    loyaltyQrToken: profile.loyaltyQrToken,
+    orderId: params.orderId ?? null,
+    activityType: params.source,
+    pointsDelta: 0,
+    coffeeStampsDelta: -effectiveRemovedStamps,
+    freeCoffeeRewardsDelta: -removedFreeRewards,
+    description,
+  });
+
+  if (removedFreeRewards > 0) {
+    await db.insert(loyaltyTransactionsTable).values({
+      id: randomUUID(),
+      userId: params.userId,
+      points: 0,
+      type: 'redeem',
+      description: `Free coffee reward reversed (${nextRewards} available)`,
+      referenceId: params.orderId ?? null,
+    });
+  }
+
+  return {
+    stampCount: nextStampCount,
+    freeCoffeeRewards: nextRewards,
+    removedFreeRewards,
+    loyaltyQrToken: profile.loyaltyQrToken,
+  };
+}
+
 export async function recordLoyaltyPoints(params: {
   userId: string;
   pointsDelta: number;

@@ -882,6 +882,7 @@ function CatalogTab() {
 }
 // ─── Option Groups sub-screen ──────────────────────────────────────────────────
 function OptionsTab() {
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: AMBER };
@@ -1068,16 +1069,16 @@ function OptionsTab() {
         <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Group</Text>
       </Pressable>
       {/* ── Group Modal ─────────────────────────────────────────────────────── */}
-      <Modal visible={groupModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGroupModal(false)}>
-        <View style={{ flex: 1, backgroundColor: BG }}>
-          <View style={modal.header}>
+      <Modal visible={groupModal} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setGroupModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[modal.header, { paddingTop: insets.top + 12 }]}>
             <Pressable onPress={() => setGroupModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editGroup ? 'Edit Option Group' : 'New Option Group'}</Text>
             <Pressable onPress={saveGroup} style={[modal.saveBtn, { backgroundColor: gSaving ? MUTED : NAVY }]} disabled={gSaving}>
               <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
             <View style={form.card}>
               <Field label="Group Name" required>
                 <TextInput value={gName} onChangeText={setGName} placeholder="e.g. Milk Type, Size, Extras"
@@ -1119,19 +1120,19 @@ function OptionsTab() {
               </View>
             )}
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
       {/* ── Option Modal ─────────────────────────────────────────────────────── */}
-      <Modal visible={optModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOptModal(false)}>
-        <View style={{ flex: 1, backgroundColor: BG }}>
-          <View style={modal.header}>
+      <Modal visible={optModal} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setOptModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
+          <View style={[modal.header, { paddingTop: insets.top + 12 }]}>
             <Pressable onPress={() => setOptModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editOpt ? 'Edit Option' : 'New Option'}</Text>
             <Pressable onPress={saveOpt} style={[modal.saveBtn, { backgroundColor: oSaving ? MUTED : NAVY }]} disabled={oSaving}>
               <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
             <View style={form.card}>
               <Field label="Option Name" required>
                 <TextInput value={oName} onChangeText={setOName} placeholder="e.g. Oat Milk, Extra Shot, Large"
@@ -1152,7 +1153,7 @@ function OptionsTab() {
               </View>
             </View>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

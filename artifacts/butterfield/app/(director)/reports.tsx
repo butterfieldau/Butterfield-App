@@ -32,7 +32,20 @@ function fmtDate(iso: string) {
 }
 
 function fmtDateShort(iso: string) {
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  const direct = new Date(iso);
+  if (!Number.isNaN(direct.getTime())) {
+    return direct.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  }
+
+  const normalized = typeof iso === 'string'
+    ? iso.replace(' ', 'T').replace(/(\.\d+)?([+-]\d{2}:?\d{2}|Z)?$/, '')
+    : '';
+  const fallback = new Date(normalized);
+  if (!Number.isNaN(fallback.getTime())) {
+    return fallback.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  }
+
+  return '—';
 }
 
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
@@ -148,6 +161,22 @@ function RevenueTab() {
                   <MiniBar value={d.totalCents} max={maxDaily} color={NAVY} />
                 </View>
                 <Text style={styles.breakCount}>{fmtAUD(d.totalCents)}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      {(r?.topSellingItems?.length ?? 0) > 0 && (
+        <>
+          <Text style={styles.section}>TOP SELLING ITEMS</Text>
+          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+            {r!.topSellingItems.map((item, i) => (
+              <View key={`${item.name}-${i}`} style={styles.breakRow}>
+                <Text style={[styles.breakLabel, { flex: 1, width: undefined }]} numberOfLines={1}>
+                  {i + 1}. {item.name}
+                </Text>
+                <Text style={styles.breakCount}>{item.quantity}</Text>
               </View>
             ))}
           </View>

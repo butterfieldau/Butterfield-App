@@ -832,6 +832,7 @@ export interface DirectorReports {
   byType:  { type: string; count: number }[];
   byStatus:{ status: string; count: number }[];
   dailyRevenue: { day: string; totalCents: number; count: number }[];
+  topSellingItems: { name: string; quantity: number }[];
   recentOrders: any[];
   feedback:  DirectorFeedback[];
   unreadFeedback: number;

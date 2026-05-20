@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
-import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints } from '../lib/loyaltyIdentity.js';
+import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
 
@@ -23,6 +23,27 @@ function sendNotificationToInternalTeam(
     body,
     data,
   });
+}
+
+async function countCoffeeItemsFromOrderItems(items: unknown) {
+  const orderItems = Array.isArray(items) ? items as any[] : [];
+  const orderProductIds = Array.from(new Set(
+    orderItems
+      .map((item) => item?.productId)
+      .filter((productId: unknown): productId is string => Boolean(productId && typeof productId === 'string')),
+  ));
+  const products = orderProductIds.length > 0
+    ? await db.select({ id: productsTable.id, category: productsTable.category })
+      .from(productsTable)
+      .where(inArray(productsTable.id, orderProductIds))
+    : [];
+  const coffeeIds = new Set(
+    products.filter((product) => String(product.category ?? '').toLowerCase() === 'coffee').map((product) => product.id),
+  );
+  return orderItems.reduce((sum: number, item: any) => {
+    const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
+    return coffeeIds.has(item?.productId) ? sum + qty : sum;
+  }, 0);
 }
 
 router.use(requireAuth);
@@ -468,6 +489,21 @@ router.patch(
         } catch (err: any) {
           req.log.error({ err, orderId: order.id }, 'Failed to reverse loyalty points on order cancellation');
         }
+      }
+
+      try {
+        const coffeeStampCount = await countCoffeeItemsFromOrderItems(order.items);
+        if (coffeeStampCount > 0) {
+          await reverseCoffeeStamps({
+            userId: order.userId,
+            stampsToRemove: coffeeStampCount,
+            source: 'order_cancel',
+            orderId: order.id,
+            description: 'Order cancelled — coffee stamps reversed',
+          });
+        }
+      } catch (err: any) {
+        req.log.error({ err, orderId: order.id }, 'Failed to reverse coffee stamps on order cancellation');
       }
     }
 

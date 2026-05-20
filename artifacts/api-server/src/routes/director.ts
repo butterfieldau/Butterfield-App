@@ -8,16 +8,37 @@ import {
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
 } from '@workspace/db';
-import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql } from 'drizzle-orm';
+import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
 import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
-import { recordLoyaltyPoints } from '../lib/loyaltyIdentity.js';
+import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
+
+async function countCoffeeItemsFromOrderItems(items: unknown) {
+  const orderItems = Array.isArray(items) ? items as any[] : [];
+  const orderProductIds = Array.from(new Set(
+    orderItems
+      .map((item) => item?.productId)
+      .filter((productId: unknown): productId is string => Boolean(productId && typeof productId === 'string')),
+  ));
+  const products = orderProductIds.length > 0
+    ? await db.select({ id: productsTable.id, category: productsTable.category })
+      .from(productsTable)
+      .where(inArray(productsTable.id, orderProductIds))
+    : [];
+  const coffeeIds = new Set(
+    products.filter((product) => String(product.category ?? '').toLowerCase() === 'coffee').map((product) => product.id),
+  );
+  return orderItems.reduce((sum: number, item: any) => {
+    const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
+    return coffeeIds.has(item?.productId) ? sum + qty : sum;
+  }, 0);
+}
 
 // For managers, enforce per-route permissions based on method + path.
 // Discount code management is director/master only.
@@ -311,6 +332,21 @@ router.patch('/orders/:id/status', async (req, res) => {
         } catch (err: any) {
           req.log.error({ err, orderId: updated.id }, 'Failed to reverse loyalty points on director cancellation');
         }
+      }
+
+      try {
+        const coffeeStampCount = await countCoffeeItemsFromOrderItems(updated.items);
+        if (coffeeStampCount > 0) {
+          await reverseCoffeeStamps({
+            userId: updated.userId,
+            stampsToRemove: coffeeStampCount,
+            source: status === 'refunded' ? 'order_refund' : 'order_cancel',
+            orderId: updated.id,
+            description: `Order ${status} — coffee stamps reversed`,
+          });
+        }
+      } catch (err: any) {
+        req.log.error({ err, orderId: updated.id }, 'Failed to reverse coffee stamps on director cancellation');
       }
 
       // Trigger Stripe refund if order was paid online
@@ -1039,6 +1075,37 @@ router.get('/reports', async (req, res) => {
     .groupBy(sql`DATE_TRUNC('day', ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`)
     .orderBy(sql`DATE_TRUNC('day', ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`);
 
+  const topSellingSourceOrders = await db.select({
+    items: ordersTable.items,
+  }).from(ordersTable)
+    .where(and(gte(ordersTable.createdAt, start30), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`));
+
+  const topSellingMap = new Map<string, { name: string; quantity: number }>();
+  for (const row of topSellingSourceOrders) {
+    const items = Array.isArray(row.items) ? row.items as any[] : [];
+    for (const item of items) {
+      const rawName = typeof item?.name === 'string' && item.name.trim()
+        ? item.name.trim()
+        : typeof item?.productName === 'string' && item.productName.trim()
+          ? item.productName.trim()
+          : typeof item?.title === 'string' && item.title.trim()
+            ? item.title.trim()
+            : 'Unknown Item';
+      const name = rawName.replace(/\s+/g, ' ').trim();
+      const quantity = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
+      const current = topSellingMap.get(name);
+      if (current) {
+        current.quantity += quantity;
+      } else {
+        topSellingMap.set(name, { name, quantity });
+      }
+    }
+  }
+
+  const topSellingItems = Array.from(topSellingMap.values())
+    .sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
+    .slice(0, 10);
+
   return res.json({
     data: {
       revenue: {
@@ -1055,10 +1122,11 @@ router.get('/reports', async (req, res) => {
       byType:   typeRows,
       byStatus: statusRows,
       dailyRevenue: dailyRevRows.map(r => ({
-        day: r.day,
+        day: new Date(r.day as any).toISOString(),
         totalCents: Number(r.total ?? 0),
         count: r.count,
       })),
+      topSellingItems,
       recentOrders,
       feedback: feedbackRows,
       unreadFeedback: unreadFeedback.count,
