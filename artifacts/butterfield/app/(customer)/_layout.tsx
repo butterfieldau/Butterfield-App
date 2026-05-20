@@ -42,7 +42,16 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
         style={[detached ? styles.detachedTabButton : styles.tabButton, focused && styles.tabButtonActive]}
       >
         {focused ? (
-          <View style={styles.activeGlow} />
+          <>
+            <View style={styles.activeGlow} />
+            <LinearGradient
+              colors={['rgba(255,255,255,0.88)', 'rgba(255,255,255,0.28)', 'rgba(255,255,255,0.12)']}
+              start={{ x: 0.18, y: 0.05 }}
+              end={{ x: 0.82, y: 1 }}
+              style={styles.activeLiquid}
+            />
+            <View style={styles.activeSpecular} />
+          </>
         ) : null}
         <View style={styles.tabIconWrap}>
           {options.tabBarIcon ? options.tabBarIcon({ color: iconColor, focused, size: 22 }) : null}
@@ -171,8 +180,8 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.74)',
-    backgroundColor: 'rgba(255,255,255,0.66)',
+    borderColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(255,255,255,0.48)',
   },
   accountPill: {
     width: 78,
@@ -180,8 +189,8 @@ const styles = StyleSheet.create({
     borderRadius: 39,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.74)',
-    backgroundColor: 'rgba(255,255,255,0.66)',
+    borderColor: 'rgba(255,255,255,0.82)',
+    backgroundColor: 'rgba(255,255,255,0.48)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -207,14 +216,27 @@ const styles = StyleSheet.create({
   },
   tabButtonActive: {
     shadowColor: PRIMARY_TOP,
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
   },
   activeGlow: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 32,
-    backgroundColor: 'rgba(20,147,255,0.18)',
+    backgroundColor: 'rgba(20,147,255,0.14)',
+  },
+  activeLiquid: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 32,
+  },
+  activeSpecular: {
+    position: 'absolute',
+    top: 3,
+    left: 8,
+    right: 8,
+    height: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.46)',
   },
   tabIconWrap: {
     width: 28,
