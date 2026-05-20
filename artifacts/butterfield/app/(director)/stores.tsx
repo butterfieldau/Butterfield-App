@@ -6,6 +6,7 @@ import {
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -125,6 +126,7 @@ function StoreEditorModal({
   const [phone,            setPhone]             = useState('');
   const [email,            setEmail]             = useState('');
   const [website,          setWebsite]           = useState('');
+  const [imageUrl,         setImageUrl]          = useState('');
   const [status,           setStatus]            = useState<string>('open');
   const [pickupAvailable,  setPickupAvailable]   = useState(true);
   const [deliveryAvailable,setDeliveryAvailable] = useState(false);
@@ -154,6 +156,7 @@ function StoreEditorModal({
       setPhone(store.phone ?? '');
       setEmail(store.email ?? '');
       setWebsite(store.website ?? '');
+      setImageUrl(store.imageUrl ?? '');
       setStatus(store.status ?? 'open');
       setPickupAvailable(store.pickupAvailable ?? true);
       setDeliveryAvailable(store.deliveryAvailable ?? false);
@@ -162,7 +165,7 @@ function StoreEditorModal({
     } else {
       setName(''); setAddressLine(''); setSuburb(''); setState(''); setPostcode('');
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
-      setPhone(''); setEmail(''); setWebsite(''); setStatus('open'); setPickupAvailable(true);
+      setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
     }
     setSearchQuery(''); setSearchResults([]);
@@ -242,6 +245,7 @@ function StoreEditorModal({
         phone: phone.trim() || null,
         email: email.trim() || null,
         website: website.trim() || null,
+        imageUrl: imageUrl.trim() || null,
         status,
         pickupAvailable,
         deliveryAvailable,
@@ -390,6 +394,12 @@ function StoreEditorModal({
               <Field label="Phone"           value={phone}       onChangeText={setPhone}    placeholder="+61 2 9000 0000" keyboardType="phone-pad" />
               <Field label="Email"           value={email}       onChangeText={setEmail}    placeholder="merrylands@butterfield.com" keyboardType="email-address" />
               <Field label="Website"         value={website}     onChangeText={setWebsite}  placeholder="https://butterfieldcookies.com.au" keyboardType="url" />
+              <Field label="Store Image URL"  value={imageUrl}    onChangeText={setImageUrl} placeholder="https://..." keyboardType="url" />
+              {imageUrl.trim() ? (
+                <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
+                  <Image source={{ uri: imageUrl.trim() }} style={{ width: '100%', height: 150, borderRadius: 14, backgroundColor: '#F3F4F6' }} contentFit="cover" />
+                </View>
+              ) : null}
             </View>
           </View>
 
