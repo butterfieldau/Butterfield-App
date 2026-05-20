@@ -50,7 +50,6 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
               end={{ x: 0.82, y: 1 }}
               style={styles.activeLiquid}
             />
-            <View style={styles.activeSpecular} />
           </>
         ) : null}
         <View style={styles.tabIconWrap}>
@@ -228,15 +227,6 @@ const styles = StyleSheet.create({
   activeLiquid: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 32,
-  },
-  activeSpecular: {
-    position: 'absolute',
-    top: 3,
-    left: 8,
-    right: 8,
-    height: 20,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.46)',
   },
   tabIconWrap: {
     width: 28,

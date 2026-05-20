@@ -3,6 +3,7 @@ import { db, productsTable, productVariantsTable, productOptionGroupsTable, prod
 import { eq, and, asc, ne, sql } from 'drizzle-orm';
 
 const router = Router();
+const SYDNEY_DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function getPublicBaseUrl(): string {
@@ -32,6 +33,79 @@ function parseArr(val: string | null | undefined): string[] {
   try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }
 }
 
+function getSydneyNow(): Date {
+  const now = new Date();
+  try {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    }).formatToParts(now);
+    const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0', 10);
+    const hour = get('hour');
+    return new Date(
+      get('year'),
+      get('month') - 1,
+      get('day'),
+      hour === 24 ? 0 : hour,
+      get('minute'),
+      get('second'),
+    );
+  } catch {
+    return now;
+  }
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = parseInt(match[1], 10);
+  const mins = parseInt(match[2], 10);
+  if (Number.isNaN(hours) || Number.isNaN(mins) || hours < 0 || hours > 23 || mins < 0 || mins > 59) {
+    return null;
+  }
+  return hours * 60 + mins;
+}
+
+function isWithinAvailableTimeWindow(availableTimes: string | null | undefined, now: Date): boolean {
+  if (!availableTimes?.trim()) return true;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const windows = availableTimes
+    .split(',')
+    .map((window) => window.trim())
+    .filter(Boolean);
+
+  if (windows.length === 0) return true;
+
+  return windows.some((window) => {
+    const [startRaw, endRaw] = window.split('-').map((part) => part.trim());
+    const start = parseTimeToMinutes(startRaw ?? '');
+    const end = parseTimeToMinutes(endRaw ?? '');
+    if (start == null || end == null) return true;
+    if (end < start) {
+      return currentMinutes >= start || currentMinutes <= end;
+    }
+    return currentMinutes >= start && currentMinutes <= end;
+  });
+}
+
+function isProductOrderableNow(p: typeof productsTable.$inferSelect, now = getSydneyNow()): boolean {
+  if (!p.isActive || !p.isAvailable || p.isSoldOut || p.isComingSoon) return false;
+
+  const availableDays = parseArr(p.availableDays).map((day) => day.trim()).filter(Boolean);
+  if (availableDays.length > 0) {
+    const today = SYDNEY_DAY_LABELS[now.getDay()];
+    if (!availableDays.includes(today)) return false;
+  }
+
+  return isWithinAvailableTimeWindow(p.availableTimes, now);
+}
+
 function mapProduct(p: typeof productsTable.$inferSelect) {
   let tags: string[]       = [];
   let allergens: string[]  = [];
@@ -42,7 +116,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
   try { dietaryTags = JSON.parse(p.dietaryTags ?? '[]'); } catch {}
   try { galleryUrls = JSON.parse((p as any).galleryUrls ?? '[]'); } catch {}
 
-  const available = p.isAvailable && !p.isSoldOut;
+  const available = isProductOrderableNow(p);
   const images = [
     p.imageUrl,
     ...galleryUrls,
@@ -52,7 +126,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
     id:          p.id,
     name:        p.name,
     description: p.description ?? '',
-    active:      p.isActive && p.isAvailable,
+    active:      available,
     images,
     categoryId:  p.categoryId,
 
@@ -103,6 +177,8 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
     maxOrderQty:         p.maxOrderQty,
     stockCount:          p.stockCount,
     sortOrder:           p.sortOrder,
+    availableDays:       parseArr(p.availableDays),
+    availableTimes:      p.availableTimes,
     shortDescription:    p.shortDescription,
     ingredients:         p.ingredients,
     nutritionInfo:       p.nutritionInfo,
@@ -157,6 +233,7 @@ const TOP_SELLERS_TTL = 15 * 60 * 1000;
 router.get('/top-sellers', async (_req, res) => {
   try {
     const now = Date.now();
+    const sydNow = getSydneyNow();
     if (topSellersCache && now - topSellersCache.fetchedAt < TOP_SELLERS_TTL) {
       return res.json({ data: topSellersCache.data });
     }
@@ -188,7 +265,7 @@ router.get('/top-sellers', async (_req, res) => {
         .where(and(eq(productsTable.isActive, true), eq(productsTable.isFeatured, true), eq(productsTable.isStaffOnly, false)))
         .orderBy(asc(productsTable.sortOrder))
         .limit(10);
-      const data = featured.map(mapProduct);
+      const data = featured.filter((p) => isProductOrderableNow(p, sydNow)).map(mapProduct);
       topSellersCache = { data, fetchedAt: now };
       return res.json({ data });
     }
@@ -202,7 +279,7 @@ router.get('/top-sellers', async (_req, res) => {
     const orderMap = new Map(ranked.map(r => [r.product_id, parseInt(r.order_count, 10)]));
 
     const data = products
-      .filter(p => idSet.has(p.id))
+      .filter(p => idSet.has(p.id) && isProductOrderableNow(p, sydNow))
       .map(p => ({ ...mapProduct(p), orderCount: orderMap.get(p.id) ?? 0 }))
       .sort((a, b) => b.orderCount - a.orderCount)
       .slice(0, 10);
@@ -217,6 +294,7 @@ router.get('/top-sellers', async (_req, res) => {
 // ── GET /products — public list (with variants, no options for perf) ───────
 router.get('/', async (_req, res) => {
   try {
+    const sydNow = getSydneyNow();
     const products = await db
       .select()
       .from(productsTable)
@@ -227,7 +305,7 @@ router.get('/', async (_req, res) => {
       .where(eq(productVariantsTable.isActive, true))
       .orderBy(asc(productVariantsTable.sortOrder));
 
-    const data = products.map(p => ({
+    const data = products.filter((p) => isProductOrderableNow(p, sydNow)).map(p => ({
       ...mapProduct(p),
       variants: variants.filter(v => v.productId === p.id),
       hasVariants: variants.some(v => v.productId === p.id),
@@ -255,12 +333,13 @@ router.get('/categories', async (_req, res) => {
 // ── GET /products/:id — full detail with variants + applicable option groups
 router.get('/:id', async (req, res) => {
   try {
+    const sydNow = getSydneyNow();
     const [product] = await db
       .select()
       .from(productsTable)
       .where(eq(productsTable.id, req.params.id));
 
-    if (!product || !product.isActive) {
+    if (!product || !isProductOrderableNow(product, sydNow)) {
       return res.status(404).json({ error: 'Product not found' });
     }
 

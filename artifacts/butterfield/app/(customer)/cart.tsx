@@ -65,6 +65,7 @@ const TABS = [
 const DELIVERY_FEE_CENTS = 1200;
 const STRIPE_CARD_RATE = 0.017;
 const STRIPE_CARD_FIXED_FEE_CENTS = 30;
+const DELIVERY_ELIGIBLE_CATEGORIES = new Set(['cookies', 'boxes', 'merch']);
 
 function estimateStripeFeeCents(amountCents: number) {
   return amountCents > 0 ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS) : 0;
@@ -810,6 +811,35 @@ export default function CartScreen() {
   }, [confirmation]);
 
   const canExitCart = step === 0;
+  const cartCategoryFlags = useMemo(() => {
+    const categories = items
+      .map((item) => `${item.category ?? ''}`.trim().toLowerCase())
+      .filter(Boolean);
+
+    const hasDeliverableItems = categories.some((category) => DELIVERY_ELIGIBLE_CATEGORIES.has(category));
+    const hasUndeliverableItems = items.some((item) => {
+      const category = `${item.category ?? ''}`.trim().toLowerCase();
+      return !DELIVERY_ELIGIBLE_CATEGORIES.has(category);
+    });
+
+    return {
+      hasDeliverableItems,
+      hasUndeliverableItems,
+      deliveryEnabled: items.length > 0 && !hasUndeliverableItems,
+    };
+  }, [items]);
+  const { hasDeliverableItems, hasUndeliverableItems, deliveryEnabled } = cartCategoryFlags;
+  const showMixedDeliveryMessage = hasDeliverableItems && hasUndeliverableItems;
+
+  useEffect(() => {
+    if (!deliveryEnabled && orderType === 'delivery') {
+      setOrderType('pickup');
+      setSelectedDate(null);
+      setSelectedTimeMins(null);
+      setPickupMode(isStoreOpen(getSydneyNow()) ? 'asap' : 'scheduled');
+    }
+  }, [deliveryEnabled, orderType, setPickupMode]);
+
   const edgeBackPan = useMemo(
     () =>
       PanResponder.create({
@@ -1235,10 +1265,13 @@ export default function CartScreen() {
           { id: 'delivery', label: 'Delivery', sub: 'AUD 12.00 flat',      icon: 'truck' as const },
         ].map((t) => {
           const active = orderType === t.id;
+          const disabled = t.id === 'delivery' && !deliveryEnabled;
           return (
             <Pressable
               key={t.id}
+              disabled={disabled}
               onPress={() => {
+              if (disabled) return;
               setOrderType(t.id as any);
               setSelectedDate(null);
               setSelectedTimeMins(null);
@@ -1249,6 +1282,7 @@ export default function CartScreen() {
                 backgroundColor: active ? LIGHT_BLUE : CARD,
                 borderColor:     active ? BLUE : BORDER,
                 borderWidth:     active ? 2 : 1,
+                opacity: disabled ? 0.45 : 1,
               }]}
             >
               <View style={[styles.orderTypeIcon, { backgroundColor: active ? BLUE : BG }]}>
@@ -1262,6 +1296,14 @@ export default function CartScreen() {
           );
         })}
       </View>
+
+      {!deliveryEnabled && (
+        <Text style={styles.deliveryEligibilityNote}>
+          {showMixedDeliveryMessage
+            ? "Some of the items in your cart are not available for delivery."
+            : 'Delivery is only available for cookies, boxes, and merch.'}
+        </Text>
+      )}
 
       {orderType === 'delivery' && (
         <View style={[styles.deliveryInfoCard, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
@@ -1805,6 +1847,7 @@ const styles = StyleSheet.create({
   orderTypeIcon:{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   orderTypeLabel: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
   orderTypeSub:   { fontSize: 12, fontWeight: '400', marginTop: 2 },
+  deliveryEligibilityNote: { fontSize: 12, fontWeight: '500', color: '#8E8E93', marginTop: -2, paddingHorizontal: 2 },
   // Delivery info card
   deliveryInfoCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
   deliveryInfoIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },

@@ -120,10 +120,87 @@ function getObjectPath(url: string): string | null {
 const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : '';
+const CATEGORY_SORT_RECOMMENDATIONS: Array<{ key: string; label: string; sortOrder: number }> = [
+  { key: 'cookies', label: 'Cookies', sortOrder: 10 },
+  { key: 'coffee', label: 'Coffee', sortOrder: 20 },
+  { key: 'matcha', label: 'Matcha', sortOrder: 30 },
+  { key: 'tea', label: 'Tea', sortOrder: 35 },
+  { key: 'cold-drinks', label: 'Iced Drinks', sortOrder: 40 },
+  { key: 'soft-serve', label: 'Soft Serve', sortOrder: 50 },
+  { key: 'boxes', label: 'Boxes', sortOrder: 60 },
+  { key: 'bundles', label: 'Boxes / Bundles', sortOrder: 60 },
+  { key: 'merch', label: 'Merch', sortOrder: 70 },
+  { key: 'specials', label: 'Specials', sortOrder: 80 },
+  { key: 'seasonal', label: 'Seasonal', sortOrder: 90 },
+];
+const PRODUCT_SORT_RECOMMENDATIONS: Record<string, Record<string, number>> = {
+  cookies: {
+    'Choc Chip Cookie': 10,
+    'M&Ms Cookie': 20,
+    Biscoff: 30,
+    'Red Velvet Cookie': 40,
+    'Pistachio Cookie': 50,
+    'Bueno Cookie': 60,
+    'Almond Croissant Cookie': 70,
+  },
+  coffee: {
+    Latte: 10,
+    Cappuccino: 20,
+    'Flat White': 30,
+    'Long Black': 40,
+    Mocha: 50,
+    'White Choc Mocha': 60,
+    'Chai Latte': 70,
+    'Belgian Choc': 80,
+    Piccolo: 90,
+    Espresso: 100,
+    Macchiato: 110,
+    'Cold Brew': 120,
+  },
+  matcha: {
+    Matcha: 10,
+    'Dirty Matcha': 20,
+  },
+  tea: {
+    Tea: 10,
+  },
+  desserts: {
+    'Cookie & Cream Sandwich': 10,
+    'Free Soft Serve': 20,
+  },
+  'soft-serve': {
+    'Free Soft Serve': 20,
+  },
+  boxes: {
+    'Cookie Party Box': 10,
+  },
+  bundles: {
+    'Cookie Party Box': 10,
+  },
+  merch: {
+    'Retro Shirt': 10,
+    'Bucket Hat': 20,
+  },
+};
 function toDisplayUrl(url: string): string {
   if (!url) return url;
   if (/^https?:\/\//i.test(url)) return url;
   return API_DOMAIN ? `${API_DOMAIN}${url}` : url;
+}
+function normalizeSortKey(value: string | null | undefined): string {
+  return `${value ?? ''}`.trim().toLowerCase();
+}
+function getRecommendedCategorySort(value: string | null | undefined): number | null {
+  const key = normalizeSortKey(value);
+  const match = CATEGORY_SORT_RECOMMENDATIONS.find((item) => item.key === key || normalizeSortKey(item.label) === key);
+  return match?.sortOrder ?? null;
+}
+function getRecommendedProductSort(category: string | null | undefined, name: string | null | undefined): number | null {
+  const categoryMap = PRODUCT_SORT_RECOMMENDATIONS[normalizeSortKey(category)];
+  if (!categoryMap) return null;
+  const cleanName = `${name ?? ''}`.trim();
+  if (!cleanName) return null;
+  return categoryMap[cleanName] ?? null;
 }
 // ─── Default form state ────────────────────────────────────────────────────────
 const BLANK = () => ({
@@ -250,6 +327,10 @@ function ProductModal({
   const [uploading, setUploading] = useState(false);
   const [modalTab, setModalTab] = useState<ModalTab>('core');
   const [f, setF] = useState<FormState>(BLANK());
+  const recommendedProductSort = useMemo(
+    () => getRecommendedProductSort(f.category, f.name),
+    [f.category, f.name],
+  );
   // Reset to first tab whenever modal opens
   React.useEffect(() => {
     if (visible) setModalTab('core');
@@ -717,6 +798,22 @@ function ProductModal({
               </View>
               <Field label="Sort Order">
                 <TextF value={f.sortOrder} onChange={v => upd('sortOrder', v)} placeholder="0 = default" numeric />
+                {recommendedProductSort != null && (
+                  <Pressable
+                    onPress={() => {
+                      upd('sortOrder', String(recommendedProductSort));
+                      Haptics.selectionAsync();
+                    }}
+                    style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '25' }}
+                  >
+                    <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>
+                      Use Butterfield recommended order ({recommendedProductSort})
+                    </Text>
+                  </Pressable>
+                )}
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+                  Best practice: leave gaps of 10 like 10, 20, 30 so you can slot new products in later.
+                </Text>
               </Field>
               <SectionHeader title="Order Rules" icon="sliders" color={AMBER} />
               <View style={form.row2}>
@@ -736,9 +833,15 @@ function ProductModal({
                     <TagChip key={d} label={d} active={f.availableDays.includes(d)} color={BLUE} onPress={() => toggleArr('availableDays', d)} />
                   ))}
                 </View>
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+                  Leave blank for everyday items. Use this only for specials, seasonal drops, or weekend-only products.
+                </Text>
               </Field>
               <Field label="Available Times">
                 <TextF value={f.availableTimes} onChange={v => upd('availableTimes', v)} placeholder="e.g. 07:00-15:00" />
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+                  Example: 06:30-22:00 for all-day availability, or 17:00-22:00 for evening-only specials.
+                </Text>
               </Field>
             </>}
             {editing && initial?.id && <VariantsCard productId={initial.id} />}
@@ -759,6 +862,10 @@ function CatalogTab() {
   const [catShowPublic, setCatShowPublic] = useState(true);
   const [catShowWholesale, setCatShowWholesale] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
+  const recommendedCategorySort = useMemo(
+    () => getRecommendedCategorySort(catSlug || catName),
+    [catName, catSlug],
+  );
   const { data, refetch } = useQuery({
     queryKey: ['director-categories'],
     queryFn: () => api.director.categories(),
@@ -821,6 +928,23 @@ function CatalogTab() {
         keyExtractor={c => c.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+        ListHeaderComponent={
+          <View style={[form.card, { marginBottom: 6 }]}>
+            <SectionHeader title="Butterfield Category Order" icon="list" color={BLUE} />
+            <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: -6 }]}>
+              Recommended order for the customer menu. Use sort values in gaps so it stays flexible.
+            </Text>
+            <View style={[form.tagGrid, { marginTop: 0 }]}>
+              {CATEGORY_SORT_RECOMMENDATIONS.map((item) => (
+                <View key={`${item.key}-${item.sortOrder}`} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: BG, borderWidth: 1, borderColor: BORDER }}>
+                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: '600' }}>
+                    {item.sortOrder} · {item.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        }
         ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No categories yet</Text>}
         renderItem={({ item: c }) => (
           <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -871,6 +995,19 @@ function CatalogTab() {
             </Field>
             <Field label="Sort Order">
               <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+              {recommendedCategorySort != null && (
+                <Pressable
+                  onPress={() => {
+                    setCatSortOrder(String(recommendedCategorySort));
+                    Haptics.selectionAsync();
+                  }}
+                  style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '25' }}
+                >
+                  <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>
+                    Use Butterfield recommended order ({recommendedCategorySort})
+                  </Text>
+                </Pressable>
+              )}
             </Field>
             <Toggle label="Visible to customers" value={catShowPublic} onChange={setCatShowPublic} color={GREEN} desc="Show in the customer ordering portal and menu" />
             <Toggle label="Visible to wholesale" value={catShowWholesale} onChange={setCatShowWholesale} color={BLUE} desc="Show in the wholesale product catalog" />
