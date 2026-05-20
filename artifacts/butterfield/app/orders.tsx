@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -412,6 +414,12 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
 
 // ── Main screen ──────────────────────────────────────────────────────────────
 export default function CustomerOrdersScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/orders" compact />;
+  return <CustomerOrdersContent />;
+}
+
+function CustomerOrdersContent() {
   const insets = useSafeAreaInsets();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const { data, isLoading, refetch } = useQuery({

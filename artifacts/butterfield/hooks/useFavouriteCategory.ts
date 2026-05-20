@@ -1,14 +1,17 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type ApiProduct } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const MIN_DOMINANCE = 0.4;
 const ORDERS_WINDOW = 10;
 
 export function useFavouriteCategory(products: ApiProduct[]): string | null {
+  const { user } = useAuth();
   const { data: ordersData } = useQuery({
     queryKey: ['orders'],
     queryFn: () => api.orders.list(),
+    enabled: !!user,
     retry: 1,
     staleTime: 60_000,
   });

@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -37,6 +39,12 @@ const PREF_CONFIG = [
   { key: 'offersPromos',  icon: 'tag'       as const, title: 'Offers & promotions', desc: 'Occasional deals and discounts.' },
 ];
 export default function NotificationsScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/notifications" compact />;
+  return <NotificationsContent />;
+}
+
+function NotificationsContent() {
   const insets = useSafeAreaInsets();
   const qc     = useQueryClient();
   const [prefs, setPrefs] = useState<Record<string, boolean>>(DEFAULT_PREFS);

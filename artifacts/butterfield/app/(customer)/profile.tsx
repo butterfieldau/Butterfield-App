@@ -11,6 +11,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { AvatarPicker } from '@/components/AvatarPicker';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
+import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -29,16 +31,19 @@ export default function AccountScreen() {
   const { data: meData } = useQuery({
     queryKey: ['me'],
     queryFn:  () => api.auth.me(),
+    enabled: !!user,
     retry: 1,
   });
   const { data: loyaltyData } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn:  () => api.loyalty.profile(),
+    enabled: !!user,
     retry: 1,
   });
   const { data: addressesData } = useQuery({
     queryKey: ['addresses'],
     queryFn:  () => api.addresses.list(),
+    enabled: !!user,
     retry: 1,
   });
 
@@ -58,11 +63,15 @@ export default function AccountScreen() {
         text: 'Sign Out', style: 'destructive', onPress: async () => {
           await logout();
           qc.clear();
-          router.replace('/(auth)/login');
+          router.replace('/(tabs)');
         },
       },
     ]);
   };
+
+  if (!user) {
+    return <LoggedOutAccountPrompt redirectTo="/(customer)/profile" />;
+  }
 
   const menuItems = [
     { icon: 'clipboard'   as const, label: 'My orders',       onPress: () => router.push('/orders') },
@@ -187,11 +196,11 @@ export default function AccountScreen() {
 
         {/* ── Legal links ──────────────────────────────────────────────────── */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
-          <Pressable onPress={() => { const WebBrowser = require('expo-web-browser'); WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/privacy-policy'); }}>
+          <Pressable onPress={() => { const WebBrowser = require('expo-web-browser'); WebBrowser.openBrowserAsync(BUTTERFIELD_PRIVACY_URL); }}>
             <Text style={[styles.legalLink, { color: MUTED }]}>Privacy Policy</Text>
           </Pressable>
-          <Pressable onPress={() => { const WebBrowser = require('expo-web-browser'); WebBrowser.openBrowserAsync('https://butterfieldcookies.com.au/pages/terms-of-service'); }}>
-            <Text style={[styles.legalLink, { color: MUTED }]}>Terms of Service</Text>
+          <Pressable onPress={() => { const WebBrowser = require('expo-web-browser'); WebBrowser.openBrowserAsync(BUTTERFIELD_TERMS_URL); }}>
+            <Text style={[styles.legalLink, { color: MUTED }]}>Terms of Use</Text>
           </Pressable>
         </View>
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version 1.0.0</Text>

@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
+import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { api } from '@/lib/api';
@@ -85,6 +87,7 @@ function StatusPill({ label, color, textColor }: { label: string; color: string;
 export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { addItemToCart } = useCart();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const params = useLocalSearchParams<{ id?: string }>();
   const routeProductId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -93,6 +96,7 @@ export default function ProductDetailScreen() {
   const [missingRequired, setMissingRequired] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
   const [togglingFav, setTogglingFav] = useState(false);
+  const [showLoginRequired, setShowLoginRequired] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const heroListRef = useRef<FlatList<string>>(null);
   const onViewableItemsChanged = useCallback(
@@ -141,7 +145,7 @@ export default function ProductDetailScreen() {
     queryKey: ['favourites'],
     queryFn:  () => api.favourites.list(),
     retry: 1,
-    enabled: !!product,
+    enabled: !!product && !!user,
   });
 
   const isFavourited = product
@@ -150,6 +154,10 @@ export default function ProductDetailScreen() {
 
   const handleFavouriteToggle = async () => {
     if (!product || togglingFav) return;
+    if (!user) {
+      setShowLoginRequired(true);
+      return;
+    }
     setTogglingFav(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -285,6 +293,11 @@ export default function ProductDetailScreen() {
 
   return (
     <View style={s.root}>
+      <LoginRequiredModal
+        visible={showLoginRequired}
+        redirectTo={productId ? `/product?id=${productId}` : '/(customer)'}
+        onCancel={() => setShowLoginRequired(false)}
+      />
 
       {/* ── HERO: swipeable gallery ──────────────────────────────────────── */}
       <View style={[s.hero, { height: HERO_H }]}>

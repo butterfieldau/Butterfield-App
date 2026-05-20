@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -42,6 +43,12 @@ function birthdayToISO(birthday: string): string | null {
 }
 
 export default function EditDetailsScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/edit-details" compact />;
+  return <EditDetailsContent />;
+}
+
+function EditDetailsContent() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -55,11 +62,13 @@ export default function EditDetailsScreen() {
   const { data: meData, isLoading: meLoading } = useQuery({
     queryKey: ['me'],
     queryFn:  () => api.auth.me(),
+    enabled: !!user,
     retry: 1,
   });
   const { data: loyaltyData, isLoading: loyaltyLoading } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn:  () => api.loyalty.profile(),
+    enabled: !!user,
     retry: 1,
   });
 

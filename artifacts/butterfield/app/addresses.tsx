@@ -20,6 +20,8 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type SavedAddress } from '@/lib/api';
 import { SwipeDownSheet } from '@/components/SwipeDownSheet';
+import { useAuth } from '@/context/AuthContext';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG = '#F5F6FA';
 const CARD = '#FFFFFF';
@@ -41,6 +43,12 @@ function formatAddress(a: SavedAddress): string {
 }
 const BLANK = { label: 'Home', street: '', apt: '', suburb: '', postcode: '', state: 'NSW', isDefault: false };
 export default function AddressesScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/addresses" compact />;
+  return <AddressesContent />;
+}
+
+function AddressesContent() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const scrollRef = useRef(null);

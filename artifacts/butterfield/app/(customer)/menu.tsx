@@ -29,6 +29,7 @@ import Reanimated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
@@ -36,6 +37,7 @@ import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
+import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 
 const BLUE   = '#1493FF';
 const CHERRY = '#D0312D';
@@ -147,10 +149,12 @@ function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
   const { addItemToCart } = useCart();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ category?: string; skipQueue?: string }>();
   const [search, setSearch]           = useState('');
   const [activeCategory, setActiveCategory] = useState(params.category ?? 'all');
   const [userChangedCategory, setUserChangedCategory] = useState(false);
+  const [showLoginRequired, setShowLoginRequired] = useState(false);
   const isSkipQueue = params.skipQueue === '1';
   useEffect(() => {
     if (params.category) setActiveCategory(params.category);
@@ -237,6 +241,11 @@ export default function MenuScreen() {
   return (
     <View style={s.root}>
       <OfflineBanner />
+      <LoginRequiredModal
+        visible={showLoginRequired}
+        redirectTo="/(customer)/cart"
+        onCancel={() => setShowLoginRequired(false)}
+      />
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <View style={s.headerTop}>
@@ -313,7 +322,13 @@ export default function MenuScreen() {
                         <Text style={[s.frequentTitle, { fontWeight: '700' }]}>Your usual?</Text>
                         <Text style={[s.frequentSub, { fontWeight: '400' }]}>Frequently ordered</Text>
                       </View>
-                      <Pressable onPress={() => router.push('/(customer)/cart')} style={s.viewCartBtn}>
+                      <Pressable
+                        onPress={() => {
+                          if (!user) { setShowLoginRequired(true); return; }
+                          router.push('/(customer)/cart');
+                        }}
+                        style={s.viewCartBtn}
+                      >
                         <Text style={[s.viewCartText, { fontWeight: '600' }]}>View cart</Text>
                         <Feather name="chevron-right" size={13} color={BLUE} />
                       </Pressable>

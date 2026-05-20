@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -69,6 +70,12 @@ function buildDefaults(items: PrefItem[]): Record<string, boolean> {
 }
 
 export default function NotificationPrefsScreen() {
+  const { user } = useAuth();
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/notification-prefs" compact />;
+  return <NotificationPrefsContent />;
+}
+
+function NotificationPrefsContent() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -83,6 +90,7 @@ export default function NotificationPrefsScreen() {
   const { data: prefsData, isLoading } = useQuery({
     queryKey: ['notification-prefs'],
     queryFn:  () => api.notifications.getPreferences(),
+    enabled: !!user,
     retry: 1,
   });
 
