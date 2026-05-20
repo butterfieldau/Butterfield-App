@@ -23,7 +23,6 @@ import { useHomeScreenData } from '@/hooks/useHomeScreenData';
 import { getPalette } from '@/constants/categoryColors';
 import { HeroBanner } from '@/components/home/HeroBanner';
 import { FeatureShortcutTile } from '@/components/home/FeatureShortcutTile';
-import { MerchTile } from '@/components/home/MerchTile';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
 import { api, type ApiProduct } from '@/lib/api';
@@ -52,12 +51,6 @@ const CAT_ICON_MAP: Record<string, string> = {
   drinks:        'droplet',
   bundles:       'gift',
 };
-const MERCH = [
-  { id: 'merch-retro-shirt',    name: 'Retro Shirt',    price: 50, image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldNEWTEE.jpg?v=1766964759&width=600' },
-  { id: 'merch-bucket-hat',     name: 'Bucket Hat',     price: 20, image: 'https://butterfieldcookies.com.au/cdn/shop/files/butterefieldhat2.jpg?v=1764301783&width=600' },
-  { id: 'merch-chunky-hoodie',  name: 'Chunky Hoodie',  price: 80, image: 'https://butterfieldcookies.com.au/cdn/shop/files/ButterfieldHoodiesBack.png?v=1751264789&width=600' },
-  { id: 'merch-sugar-crew-tee', name: 'Sugar Crew Tee', price: 40, image: 'https://butterfieldcookies.com.au/cdn/shop/files/SugarCrewTeam2.jpg?v=1751264285&width=600' },
-];
 const BANNER_ROUTES: Record<string, string> = {
   menu:    '/(customer)/menu',
   loyalty: '/(customer)/loyalty',
@@ -138,16 +131,6 @@ export default function CustomerHome() {
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [addItemToCart]);
-  const handleMerchPress = useCallback((item: typeof MERCH[number]) => {
-    setSelectedProduct({
-      id: item.id, name: item.name,
-      description: 'Butterfield Cookies branded merchandise. Available in-store only.',
-      images: [item.image],
-      prices: [{ id: `price-${item.id}`, unit_amount: item.price * 100, currency: 'aud' }] as any,
-      metadata: { category: 'merch', available: 'true' },
-    } as any);
-    router.push({ pathname: '/product', params: { id: item.id } } as any);
-  }, []);
   const handleBannerPress = useCallback(() => {
     if (banner?.buttonUrl) {
       Linking.openURL(banner.buttonUrl).catch(() => {});
@@ -496,17 +479,6 @@ export default function CustomerHome() {
             />
           </View>
         )}
-        {/* Merch */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700' }]}>Merch</Text>
-          <FlatList
-            data={MERCH}
-            keyExtractor={(m) => m.id}
-            renderItem={({ item }) => <MerchTile item={item} onPress={() => handleMerchPress(item)} />}
-            horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-          />
-        </View>
       </ScrollView>
     </View>
   );
