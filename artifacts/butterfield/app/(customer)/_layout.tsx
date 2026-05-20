@@ -163,6 +163,14 @@ function ClassicCustomerTabs() {
         />
         <Tabs.Screen
           name="profile"
+          listeners={{
+            tabPress: (e) => {
+              if (!user) {
+                e.preventDefault();
+                setLoginTarget('/(customer)/profile');
+              }
+            },
+          }}
           options={{
             title: 'Account',
             tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
