@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, storeSettingsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
@@ -12,10 +12,6 @@ import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
 
 const router = Router();
-
-const SHOP_LAT_DEFAULT  = -33.8349;
-const SHOP_LNG_DEFAULT  = 150.9942;
-const RADIUS_DEFAULT    = 20;
 
 function haversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -27,19 +23,20 @@ function haversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function getGeoSettings() {
-  await db.insert(storeSettingsTable).values([
-    { key: 'geo_radius_meters', value: String(RADIUS_DEFAULT) },
-    { key: 'shop_lat',          value: String(SHOP_LAT_DEFAULT) },
-    { key: 'shop_lng',          value: String(SHOP_LNG_DEFAULT) },
-  ]).onConflictDoNothing();
-  const rows = await db.select().from(storeSettingsTable);
-  const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
-  return {
-    shopLat:      parseFloat(map['shop_lat']          ?? String(SHOP_LAT_DEFAULT)),
-    shopLng:      parseFloat(map['shop_lng']          ?? String(SHOP_LNG_DEFAULT)),
-    radiusMeters: parseInt(  map['geo_radius_meters'] ?? String(RADIUS_DEFAULT)),
-  };
+async function getAssignedInternalStores(userId: string) {
+  return db.select({
+    storeId: staffStoreAssignmentsTable.storeId,
+    storeName: storesTable.name,
+    latitude: storesTable.latitude,
+    longitude: storesTable.longitude,
+    geofenceRadius: storesTable.geofenceRadius,
+    isPrimary: staffStoreAssignmentsTable.isPrimary,
+  }).from(staffStoreAssignmentsTable)
+    .leftJoin(storesTable, eq(staffStoreAssignmentsTable.storeId, storesTable.id))
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, userId),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
 }
 
 function generateReferralCode(name: string): string {
@@ -190,20 +187,48 @@ router.post('/staff-login', async (req, res) => {
     }
   }
 
-  // Directors bypass geo check — only staff need location verification
+  // Directors and masters bypass geo checks. Staff and managers must be near
+  // one of their assigned stores before internal access is granted.
   const isDemoAccount = DEMO_EMAILS.includes(user.email.toLowerCase());
-  const needsGeoCheck = user.role === 'staff' && !isDemoAccount;
+  const needsGeoCheck = (user.role === 'staff' || user.role === 'manager') && !isDemoAccount;
   if (needsGeoCheck) {
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return res.status(403).json({ error: 'Location verification is required for staff sign-in. Please enable location services.' });
+      return res.status(403).json({ error: 'Location verification is required for staff and manager sign-in. Please enable location services.' });
     }
-    const geo = await getGeoSettings();
-    const distanceMeters = haversineDistanceMeters(latitude, longitude, geo.shopLat, geo.shopLng);
-    if (distanceMeters > geo.radiusMeters) {
+
+    const assignments = await getAssignedInternalStores(user.id);
+    if (assignments.length === 0) {
       return res.status(403).json({
-        error: `You must be within ${geo.radiusMeters}m of Butterfield Merrylands to sign in. You are currently ${Math.round(distanceMeters)}m away.`,
-        distanceMeters: Math.round(distanceMeters),
-        radiusMeters: geo.radiusMeters,
+        error: 'No active store assignment was found for this account. Ask a director or master to assign you to a store before signing in.',
+        code: 'STORE_ASSIGNMENT_REQUIRED',
+      });
+    }
+
+    const measured = assignments
+      .filter((a) => a.latitude != null && a.longitude != null)
+      .map((a) => ({
+        ...a,
+        radiusMeters: a.geofenceRadius ?? 40,
+        distanceMeters: haversineDistanceMeters(latitude, longitude, a.latitude!, a.longitude!),
+      }))
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    if (measured.length === 0) {
+      return res.status(403).json({
+        error: 'Your assigned store is missing location details. Ask a director or master to update the store geofence before signing in.',
+        code: 'STORE_GEOFENCE_MISSING',
+      });
+    }
+
+    const matched = measured.find((a) => a.distanceMeters <= a.radiusMeters);
+    if (!matched) {
+      const nearest = measured[0];
+      return res.status(403).json({
+        error: `You must be within ${nearest.radiusMeters}m of ${nearest.storeName ?? 'your assigned store'} to sign in. You are currently ${Math.round(nearest.distanceMeters)}m away.`,
+        distanceMeters: Math.round(nearest.distanceMeters),
+        radiusMeters: nearest.radiusMeters,
+        storeName: nearest.storeName ?? null,
+        code: 'OUTSIDE_STORE_GEOFENCE',
       });
     }
   }

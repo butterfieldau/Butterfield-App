@@ -222,7 +222,7 @@ export default function LoginScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           setGeoStatus('denied');
-          setIError('Location permission is required for staff sign-in.');
+          setIError('Location permission is required for staff and manager sign-in.');
           setILoading(false); return;
         }
         const timeout = new Promise<never>((_, reject) =>

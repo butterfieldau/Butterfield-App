@@ -114,31 +114,52 @@ router.post('/shifts/clock-in', async (req, res) => {
   let finalStoreId: string | null = bodyStoreId ?? null;
   let distanceMeters: number | null = null;
 
-  if (assignments.length > 0 && !isDemoAccount) {
+  if (!isDemoAccount) {
+    if (assignments.length === 0) {
+      return res.status(403).json({ error: 'No active store assignment was found for this account. Ask a director or master to assign you to a store before clocking in.' });
+    }
     if (latitude == null || longitude == null) {
       return res.status(400).json({ error: 'Location is required. Please enable location access to clock in.' });
     }
 
-    const inRange = assignments
+    const measured = assignments
       .filter(a => a.latitude != null && a.longitude != null)
-      .map(a => ({ ...a, distance: haversineMeters(latitude, longitude, a.latitude!, a.longitude!) }))
-      .filter(a => a.distance <= (a.geofenceRadius ?? 100))
+      .map(a => ({
+        ...a,
+        radiusMeters: a.geofenceRadius ?? 40,
+        distance: haversineMeters(latitude, longitude, a.latitude!, a.longitude!),
+      }))
       .sort((a, b) => a.distance - b.distance);
 
-    if (inRange.length === 0) {
-      const nearest = assignments
-        .filter(a => a.latitude != null && a.longitude != null)
-        .map(a => ({ ...a, distance: haversineMeters(latitude, longitude, a.latitude!, a.longitude!) }))
-        .sort((a, b) => a.distance - b.distance)[0];
-
-      const msg = nearest
-        ? `You are ${Math.round(nearest.distance)}m from ${nearest.storeName}. You must be within ${nearest.geofenceRadius ?? 100}m to clock in.`
-        : 'You are outside your assigned store location. Please move closer to clock in.';
-      return res.status(403).json({ error: msg, distanceMeters: nearest ? Math.round(nearest.distance) : null });
+    if (measured.length === 0) {
+      return res.status(403).json({ error: 'Your assigned store is missing location details. Ask a director or master to update the store geofence before clocking in.' });
     }
 
-    finalStoreId = inRange[0].storeId;
-    distanceMeters = Math.round(inRange[0].distance);
+    if (bodyStoreId) {
+      const selected = measured.find(a => a.storeId === bodyStoreId);
+      if (!selected) {
+        return res.status(403).json({ error: 'That store is not assigned to your account. Please choose one of your assigned stores.' });
+      }
+      if (selected.distance > selected.radiusMeters) {
+        return res.status(403).json({
+          error: `You are ${Math.round(selected.distance)}m from ${selected.storeName}. You must be within ${selected.radiusMeters}m to clock in.`,
+          distanceMeters: Math.round(selected.distance),
+        });
+      }
+      finalStoreId = selected.storeId;
+      distanceMeters = Math.round(selected.distance);
+    } else {
+      const matched = measured.find(a => a.distance <= a.radiusMeters);
+      if (!matched) {
+        const nearest = measured[0];
+        return res.status(403).json({
+          error: `You are ${Math.round(nearest.distance)}m from ${nearest.storeName}. You must be within ${nearest.radiusMeters}m to clock in.`,
+          distanceMeters: Math.round(nearest.distance),
+        });
+      }
+      finalStoreId = matched.storeId;
+      distanceMeters = Math.round(matched.distance);
+    }
   }
 
   const [shift] = await db.insert(staffShiftsTable).values({

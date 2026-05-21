@@ -12,7 +12,6 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import {
-  scheduleClockInReminder,
   cancelClockInReminder,
   scheduleClockOutReminder,
   cancelClockOutReminder,
@@ -75,7 +74,7 @@ export function StaffDashboard() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    scheduleClockInReminder();
+    cancelClockInReminder();
   }, []);
 
   const [tick, setTick] = useState(0);
@@ -212,7 +211,6 @@ export function StaffDashboard() {
           qc.invalidateQueries({ queryKey: ['current-shift'] });
           refetchStats();
           cancelClockOutReminder();
-          scheduleClockInReminder();
           const fmtWorked = formatDecimalHours(res.data.hoursWorked);
           sendClockOutConfirmation(fmtWorked);
           Alert.alert('Shift ended', `Total paid time: ${fmtWorked}`);

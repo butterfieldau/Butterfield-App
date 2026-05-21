@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { ensureLoyaltySchemaReady } from "./lib/loyaltyIdentity.js";
+import { startShiftReminderService } from "./lib/shiftReminderService.js";
 import { db, productCategoriesTable } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -129,6 +130,7 @@ Promise.resolve()
   .then(() => ensureMasterAccount())
   .then(() => ensureDefaultCategories())
   .then(() => initStripe())
+  .then(() => startShiftReminderService())
   .catch((err: any) => {
     logger.warn({ err: err?.message }, 'Background startup task failed');
   });

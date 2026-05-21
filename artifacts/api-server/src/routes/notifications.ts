@@ -114,6 +114,7 @@ router.get('/preferences', requireAuth, async (req, res) => {
     orderUpdates: true,
     promotions: true,
     rewards: true,
+    shiftAlerts: true,
     staffAlerts: true,
     wholesaleAlerts: true,
   };
