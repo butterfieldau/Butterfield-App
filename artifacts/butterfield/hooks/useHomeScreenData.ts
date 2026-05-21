@@ -85,7 +85,7 @@ export function useHomeScreenData() {
 
   const products      = productsData?.data ?? [];
   const loyaltyPoints = loyaltyData?.data?.loyaltyPoints ?? 0;
-  const loyaltyTier   = loyaltyData?.data?.loyaltyTier ?? 'bronze';
+  const loyaltyTier   = loyaltyData?.data?.loyaltyTier ?? 'blue';
   const stampCount    = loyaltyData?.data?.coffeeStampCount ?? loyaltyData?.data?.stampCount ?? 0;
   const rewards       = rewardsData?.data ?? [];
   const banner        = bannerData?.data ?? null;

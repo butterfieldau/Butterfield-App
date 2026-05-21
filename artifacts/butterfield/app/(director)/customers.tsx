@@ -22,10 +22,12 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const TIER_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  bronze:   { label: 'Bronze',   color: '#92400E', bg: '#FEF3C7' },
+  blue:     { label: 'Blue',     color: '#0C4DA2', bg: '#DBECFF' },
+  bronze:   { label: 'Blue',     color: '#0C4DA2', bg: '#DBECFF' },
   silver:   { label: 'Silver',   color: '#374151', bg: '#F3F4F6' },
   gold:     { label: 'Gold',     color: '#92400E', bg: '#FDE68A' },
-  platinum: { label: 'Platinum', color: '#1E3A5F', bg: '#DBEAFE' },
+  black:    { label: 'Black',    color: '#0F172A', bg: '#E2E8F0' },
+  platinum: { label: 'Black',    color: '#0F172A', bg: '#E2E8F0' },
 };
 const BADGE_CFG: Record<string, { label: string; bg: string; text: string }> = {
   vip:               { label: 'VIP',           bg: '#EDE9FE', text: '#5B21B6' },
@@ -329,7 +331,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               <Text style={det.sectionTitle}>Loyalty</Text>
               {[
                 { label: 'Current points',   value: String(customer.profile?.loyaltyPoints ?? 0) },
-                { label: 'Tier',             value: customer.profile?.loyaltyTier ? (customer.profile.loyaltyTier.charAt(0).toUpperCase() + customer.profile.loyaltyTier.slice(1)) : 'Bronze' },
+                { label: 'Tier',             value: TIER_CFG[customer.profile?.loyaltyTier ?? '']?.label ?? 'Blue' },
                 { label: 'Stamps',           value: `${customer.profile?.stampCount ?? 0} / 6` },
                 { label: 'Points earned',    value: String((customer as any).loyaltyStats?.totalEarnedPoints ?? 0) },
                 { label: 'Points redeemed',  value: String((customer as any).loyaltyStats?.totalRedeemedPoints ?? 0) },

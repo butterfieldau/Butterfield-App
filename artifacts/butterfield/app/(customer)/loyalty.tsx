@@ -62,10 +62,10 @@ type DisplayTier = {
 const DISPLAY_TIERS: DisplayTier[] = [
   {
     key: 'blue',
-    serverKey: 'bronze',
+    serverKey: 'blue',
     label: 'Blue',
     shortLabel: 'Blue Member',
-    spendThreshold: 0,
+    spendThreshold: 20000,
     logo: require('@/assets/images/logo-white.png'),
     accent: '#7FD3FF',
     chipBg: 'rgba(20,147,255,0.22)',
@@ -88,7 +88,7 @@ const DISPLAY_TIERS: DisplayTier[] = [
     serverKey: 'silver',
     label: 'Silver',
     shortLabel: 'Silver Member',
-    spendThreshold: 15000,
+    spendThreshold: 50000,
     logo: require('@/assets/images/logo-white.png'),
     accent: '#EFF4FB',
     chipBg: 'rgba(255,255,255,0.22)',
@@ -111,7 +111,7 @@ const DISPLAY_TIERS: DisplayTier[] = [
     serverKey: 'gold',
     label: 'Gold',
     shortLabel: 'Gold Member',
-    spendThreshold: 50000,
+    spendThreshold: 100000,
     logo: require('@/assets/images/logo-white.png'),
     accent: '#FFF2CC',
     chipBg: 'rgba(255,243,205,0.2)',
@@ -131,10 +131,10 @@ const DISPLAY_TIERS: DisplayTier[] = [
   },
   {
     key: 'black',
-    serverKey: 'platinum',
+    serverKey: 'black',
     label: 'Black',
     shortLabel: 'Black Member',
-    spendThreshold: 100000,
+    spendThreshold: 200000,
     logo: require('@/assets/images/logo-blue.png'),
     accent: '#51A9FF',
     logoTint: '#3AA0FF',
@@ -164,13 +164,6 @@ const REWARD_PRESETS: Record<string, { icon: keyof typeof Feather.glyphMap; imag
   merch_reward: { icon: 'shopping-bag', image: require('@/assets/images/butterfield-character.png'), tint: '#4B5563', bg: ['#F4F5F7', '#E5E7EB'] },
   points_voucher: { icon: 'tag', image: require('@/assets/images/butterfield-app-gems.png'), tint: '#1D4ED8', bg: ['#EEF2FF', '#DCE4FF'] },
 };
-
-const HOW_IT_WORKS = [
-  { icon: 'maximize', title: 'Scan your QR', desc: 'Use the same Butterfield QR in-app and in-store for stamps and loyalty.' },
-  { icon: 'coffee', title: 'Collect coffee stamps', desc: 'Every 6 coffee purchases unlocks 1 free coffee through the current Butterfield rules.' },
-  { icon: 'award', title: 'Earn points and perks', desc: 'Every order pushes you toward your next reward, voucher or tier unlock.' },
-  { icon: 'gift', title: 'Use at checkout', desc: 'Apply claimed rewards and available vouchers during checkout without changing the current flow.' },
-];
 
 function getBirthdayInfo(isoDate: string): {
   daysUntil: number;
@@ -447,17 +440,6 @@ function LoyaltyContent() {
     );
   };
 
-  const historyRows = useMemo(() => {
-    return transactions.slice(0, 10).map((txn) => {
-      const positive = txn.points > 0;
-      return {
-        ...txn,
-        icon: positive ? 'arrow-up-right' : txn.points < 0 ? 'arrow-down-left' : 'clock',
-        tone: positive ? '#63C8FF' : txn.points < 0 ? '#FF8A8A' : '#B9C6DA',
-      };
-    });
-  }, [transactions]);
-
   if (isLoading) {
     return (
       <View style={styles.loadingWrap}>
@@ -495,8 +477,7 @@ function LoyaltyContent() {
       >
         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <Text style={styles.pageLabel}>REWARDS</Text>
-          <Text style={styles.pageTitle}>Butterfield membership</Text>
-          <Text style={styles.pageSub}>Your account stays live underneath this redesign. Every point, voucher, reward and scan is still coming from your real Butterfield profile.</Text>
+          <Text style={styles.pageTitle}>Your loyalty card</Text>
         </View>
 
         <Animated.View style={{ opacity: sectionFade, transform: [{ translateY: sectionFade.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}>
@@ -505,7 +486,13 @@ function LoyaltyContent() {
               <View style={styles.cardNoise} />
               <LinearGradient colors={['rgba(255,255,255,0.26)', 'rgba(255,255,255,0.02)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardGloss} />
               <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0.45 }} style={styles.cardEdgeGlow} />
-              <Text style={[styles.watermark, { color: displayTier.key === 'black' ? 'rgba(66,153,255,0.08)' : 'rgba(255,255,255,0.08)' }]}>B</Text>
+              <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardTextureVeil} />
+              <View style={[styles.cardTextureOrb, styles.cardTextureOrbOne, displayTier.key === 'black' ? styles.cardTextureOrbBlue : null]} />
+              <View style={[styles.cardTextureOrb, styles.cardTextureOrbTwo, displayTier.key === 'black' ? styles.cardTextureOrbBlue : null]} />
+              <View style={[styles.cardTextureRing, styles.cardTextureRingOne, displayTier.key === 'black' ? styles.cardTextureRingBlue : null]} />
+              <View style={[styles.cardTextureRing, styles.cardTextureRingTwo, displayTier.key === 'black' ? styles.cardTextureRingBlue : null]} />
+              <LinearGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.12)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.cardTextureBand} />
+              <LinearGradient colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.02)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardTextureSweep} />
 
               <View style={styles.cardTopRow}>
                 <Image
@@ -585,8 +572,8 @@ function LoyaltyContent() {
             </View>
             <View style={styles.progressNodesRow}>
               {DISPLAY_TIERS.map((tier, index) => {
-                const unlocked = spendCents >= tier.spendThreshold;
                 const active = tier.key === displayTier.key;
+                const unlocked = active || spendCents >= tier.spendThreshold;
                 return (
                   <View key={tier.key} style={styles.progressNodeWrap}>
                     <View style={[styles.progressNode, unlocked && styles.progressNodeUnlocked, active && styles.progressNodeActive]}>
@@ -598,49 +585,6 @@ function LoyaltyContent() {
                   </View>
                 );
               })}
-            </View>
-            <View style={styles.progressInsight}>
-              <Text style={styles.progressInsightTitle}>Spend progress</Text>
-              <Text style={styles.progressInsightValue}>{formatCurrency(spendCents)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>Your tier perks</Text>
-              <Text style={styles.sectionMeta}>{previewTier.shortLabel}</Text>
-            </View>
-
-            <View style={styles.perkTierTabs}>
-              {DISPLAY_TIERS.map((tier) => (
-                <Pressable
-                  key={tier.key}
-                  style={[styles.perkTierTab, previewTier.key === tier.key && styles.perkTierTabActive]}
-                  onPress={() => { Haptics.selectionAsync(); setPreviewTierKey(tier.key); }}
-                >
-                  <Text style={[styles.perkTierTabText, previewTier.key === tier.key && styles.perkTierTabTextActive]}>
-                    {tier.label.toUpperCase()}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <LinearGradient colors={previewTier.gradients} style={styles.perkHeroCard}>
-              <Text style={styles.perkHeroLabel}>{previewTier.shortLabel}</Text>
-              <Text style={styles.perkHeroSpend}>Spend {formatCurrency(previewTier.spendThreshold)}/year</Text>
-              <Text style={styles.perkHeroText}>{previewTier.perkIntro}</Text>
-            </LinearGradient>
-
-            <View style={styles.perkGrid}>
-              {previewTier.perks.map((perk) => (
-                <View key={`${previewTier.key}-${perk.title}`} style={styles.perkTile}>
-                  <View style={styles.perkIconWrap}>
-                    <Feather name={perk.icon as any} size={18} color={BRAND} />
-                  </View>
-                  <Text style={styles.perkTitle}>{perk.title}</Text>
-                  <Text style={styles.perkDetail}>{perk.detail}</Text>
-                </View>
-              ))}
             </View>
           </View>
 
@@ -759,7 +703,7 @@ function LoyaltyContent() {
                   <Feather name="coffee" size={20} color={BRAND} />
                 </View>
                 <Text style={styles.emptyTitle}>Your next reward is brewing.</Text>
-                <Text style={styles.emptyBody}>Keep ordering to unlock exclusive Butterfield perks. {nextTier ? `You’re ${formatCurrency(spendRemaining)} away from ${nextTier.label}.` : 'You are already at the top tier.'}</Text>
+                <Text style={styles.emptyBody}>Keep ordering to unlock Butterfield perks. {nextTier ? `You’re ${formatCurrency(spendRemaining)} away from ${nextTier.label}.` : 'You are already at the top tier.'}</Text>
               </View>
             )}
           </View>
@@ -793,8 +737,47 @@ function LoyaltyContent() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeadRow}>
+              <Text style={styles.sectionTitle}>Your tier perks</Text>
+              <Text style={styles.sectionMeta}>{previewTier.shortLabel}</Text>
+            </View>
+
+            <View style={styles.perkTierTabs}>
+              {DISPLAY_TIERS.map((tier) => (
+                <Pressable
+                  key={tier.key}
+                  style={[styles.perkTierTab, previewTier.key === tier.key && styles.perkTierTabActive]}
+                  onPress={() => { Haptics.selectionAsync(); setPreviewTierKey(tier.key); }}
+                >
+                  <Text style={[styles.perkTierTabText, previewTier.key === tier.key && styles.perkTierTabTextActive]}>
+                    {tier.label.toUpperCase()}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <LinearGradient colors={previewTier.gradients} style={styles.perkHeroCard}>
+              <Text style={styles.perkHeroLabel}>{previewTier.shortLabel}</Text>
+              <Text style={styles.perkHeroSpend}>Spend {formatCurrency(previewTier.spendThreshold)}/year</Text>
+              <Text style={styles.perkHeroText}>{previewTier.perkIntro}</Text>
+            </LinearGradient>
+
+            <View style={styles.perkGrid}>
+              {previewTier.perks.map((perk) => (
+                <View key={`${previewTier.key}-${perk.title}`} style={styles.perkTile}>
+                  <View style={styles.perkIconWrap}>
+                    <Feather name={perk.icon as any} size={18} color={BRAND} />
+                  </View>
+                  <Text style={styles.perkTitle}>{perk.title}</Text>
+                  <Text style={styles.perkDetail}>{perk.detail}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeadRow}>
               <Text style={styles.sectionTitle}>Available rewards</Text>
-              <Text style={styles.sectionMeta}>{rewards.filter((r: any) => r.customerRedeemable !== false).length} reward{rewards.filter((r: any) => r.customerRedeemable !== false).length === 1 ? '' : 's'} to explore</Text>
+              <Text style={styles.sectionMeta}>{rewards.filter((r: any) => r.customerRedeemable !== false).length} available</Text>
             </View>
 
             <View style={styles.rewardList}>
@@ -880,48 +863,6 @@ function LoyaltyContent() {
             )}
           </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>Points activity</Text>
-              <Text style={styles.sectionMeta}>{historyRows.length} recent events</Text>
-            </View>
-            <View style={styles.activityList}>
-              {historyRows.map((txn) => (
-                <View key={txn.id} style={styles.activityRow}>
-                  <View style={[styles.activityIconWrap, { backgroundColor: `${txn.tone}22` }]}>
-                    <Feather name={txn.icon as any} size={14} color={txn.tone} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.activityTitle}>{txn.description}</Text>
-                    <Text style={styles.activityDate}>
-                      {new Date(txn.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  </View>
-                  <Text style={[styles.activityPoints, { color: txn.points > 0 ? '#63C8FF' : txn.points < 0 ? '#FF8A8A' : TEXT_MUTED }]}>
-                    {txn.points > 0 ? '+' : ''}{txn.points}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>How it works</Text>
-              <Text style={styles.sectionMeta}>Still tied to your current Butterfield logic</Text>
-            </View>
-            <View style={styles.howGrid}>
-              {HOW_IT_WORKS.map((item) => (
-                <View key={item.title} style={styles.howCard}>
-                  <View style={styles.howIconWrap}>
-                    <Feather name={item.icon as any} size={18} color={BRAND} />
-                  </View>
-                  <Text style={styles.howTitle}>{item.title}</Text>
-                  <Text style={styles.howDesc}>{item.desc}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
         </Animated.View>
       </ScrollView>
     </>
@@ -934,7 +875,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 20, gap: 8 },
   pageLabel: { fontSize: 12, color: '#7AA8FF', letterSpacing: 1.4, fontWeight: '700' },
   pageTitle: { fontSize: 31, lineHeight: 35, color: TEXT, fontWeight: '700' },
-  pageSub: { fontSize: 13, lineHeight: 19, color: TEXT_MUTED, maxWidth: 360 },
   heroSection: { paddingHorizontal: 16 },
   membershipCard: {
     borderRadius: 28,
@@ -957,13 +897,71 @@ const styles = StyleSheet.create({
   },
   cardGloss: { ...StyleSheet.absoluteFillObject },
   cardEdgeGlow: { ...StyleSheet.absoluteFillObject },
-  watermark: {
+  cardTextureVeil: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.55,
+  },
+  cardTextureOrb: {
     position: 'absolute',
-    right: 18,
-    top: 18,
-    fontSize: 188,
-    lineHeight: 200,
-    fontWeight: '700',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  cardTextureOrbOne: {
+    width: 190,
+    height: 190,
+    right: -34,
+    top: 26,
+  },
+  cardTextureOrbTwo: {
+    width: 124,
+    height: 124,
+    right: 104,
+    top: 112,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+  },
+  cardTextureOrbBlue: {
+    backgroundColor: 'rgba(58,160,255,0.06)',
+  },
+  cardTextureRing: {
+    position: 'absolute',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  cardTextureRingOne: {
+    width: 220,
+    height: 220,
+    right: -52,
+    top: 10,
+    transform: [{ rotate: '-14deg' }],
+  },
+  cardTextureRingTwo: {
+    width: 156,
+    height: 156,
+    right: 24,
+    top: 52,
+    transform: [{ rotate: '18deg' }],
+  },
+  cardTextureRingBlue: {
+    borderColor: 'rgba(58,160,255,0.12)',
+  },
+  cardTextureBand: {
+    position: 'absolute',
+    left: -56,
+    right: -36,
+    top: 114,
+    height: 1,
+    transform: [{ rotate: '-12deg' }],
+    opacity: 0.35,
+  },
+  cardTextureSweep: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    right: -12,
+    top: -34,
+    borderRadius: 999,
+    opacity: 0.45,
   },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardLogo: { width: 176, height: 42 },
@@ -1076,17 +1074,6 @@ const styles = StyleSheet.create({
   progressTierLabelActive: { color: '#89CCFF' },
   progressTierSpend: { marginTop: 4, color: TEXT_MUTED, fontSize: 12, fontWeight: '600' },
   progressSpacer: { position: 'absolute', top: 14, left: 34, right: 6, height: 1, backgroundColor: 'transparent' },
-  progressInsight: {
-    marginTop: 18,
-    borderRadius: 18,
-    backgroundColor: '#111A2A',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressInsightTitle: { color: TEXT_MUTED, fontSize: 12, fontWeight: '600' },
-  progressInsightValue: { marginLeft: 'auto', color: TEXT, fontSize: 17, fontWeight: '700' },
   perkTierTabs: {
     flexDirection: 'row',
     gap: 8,
@@ -1290,35 +1277,6 @@ const styles = StyleSheet.create({
   timelineStatusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#11213F' },
   timelineStatusText: { color: '#89CCFF', fontSize: 11, fontWeight: '700' },
   timelineBody: { marginTop: 12, color: TEXT_MUTED, fontSize: 13, lineHeight: 18, fontWeight: '500' },
-  activityList: { gap: 10 },
-  activityRow: {
-    borderRadius: 18,
-    backgroundColor: SURFACE,
-    borderWidth: 1,
-    borderColor: BORDER,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  activityIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  activityTitle: { color: TEXT, fontSize: 14, lineHeight: 18, fontWeight: '700' },
-  activityDate: { marginTop: 4, color: TEXT_MUTED, fontSize: 12, fontWeight: '500' },
-  activityPoints: { fontSize: 18, fontWeight: '700' },
-  howGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  howCard: {
-    width: '48.4%',
-    borderRadius: 18,
-    backgroundColor: SURFACE,
-    borderWidth: 1,
-    borderColor: BORDER,
-    padding: 14,
-    minHeight: 136,
-  },
-  howIconWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#0D2345', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  howTitle: { color: TEXT, fontSize: 14, lineHeight: 18, fontWeight: '700' },
-  howDesc: { marginTop: 6, color: TEXT_MUTED, fontSize: 12, lineHeight: 18, fontWeight: '500' },
   celebrateBackdrop: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 40,

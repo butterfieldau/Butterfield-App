@@ -10,6 +10,15 @@ import {
 
 const STAMP_GOAL = 6;
 
+export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
+
+export function computeLoyaltyTier(totalSpentCents: number): LoyaltyTierKey {
+  if (totalSpentCents >= 200000) return 'black';
+  if (totalSpentCents >= 100000) return 'gold';
+  if (totalSpentCents >= 50000) return 'silver';
+  return 'blue';
+}
+
 type LoyaltyProfileRow = typeof customerProfilesTable.$inferSelect;
 
 type LoyaltyActivityInput = {
@@ -161,7 +170,7 @@ export async function getOrCreateCustomerLoyaltyProfile(userId: string, fallback
     await db.insert(customerProfilesTable).values({
       userId,
       loyaltyPoints: 0,
-      loyaltyTier: 'bronze',
+      loyaltyTier: 'blue',
       referralCode: nameSeed.replace(/\s+/g, '').toUpperCase().slice(0, 4) + token.slice(0, 4),
       loyaltyQrToken: token,
       coffeeStampCount: 0,

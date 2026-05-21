@@ -1,4 +1,4 @@
-export type TierKey = 'bronze' | 'silver' | 'gold' | 'platinum';
+export type TierKey = 'blue' | 'silver' | 'gold' | 'black';
 
 export interface TierConfig {
   key: TierKey;
@@ -11,56 +11,77 @@ export interface TierConfig {
 }
 
 export const TIER_CONFIG: Record<TierKey, TierConfig> = {
-  bronze: {
-    key: 'bronze', label: 'Bronze', spendThreshold: 0,
-    gradient:      ['#D4863A', '#8B4513'],
-    accent:        '#CD7F32',
-    progressColor: '#FFC27A',
+  blue: {
+    key: 'blue', label: 'Blue', spendThreshold: 20000,
+    gradient:      ['#1493FF', '#0C63D8'],
+    accent:        '#1493FF',
+    progressColor: '#7FD3FF',
   },
   silver: {
-    key: 'silver', label: 'Silver', spendThreshold: 15000,  // $150
-    gradient:      ['#8E9BAD', '#5A6473'],
-    accent:        '#A1A9B4',
-    progressColor: '#D0D8E4',
+    key: 'silver', label: 'Silver', spendThreshold: 50000,  // $500
+    gradient:      ['#B7C0CD', '#747F90'],
+    accent:        '#D6DEE8',
+    progressColor: '#EEF3F9',
   },
   gold: {
-    key: 'gold', label: 'Gold', spendThreshold: 50000,      // $500
-    gradient:      ['#F59E0B', '#C47E0A'],
-    accent:        '#F59E0B',
-    progressColor: '#FDE68A',
+    key: 'gold', label: 'Gold', spendThreshold: 100000,      // $1,000
+    gradient:      ['#E3B55F', '#A77516'],
+    accent:        '#F4D48C',
+    progressColor: '#FFF2CC',
   },
-  platinum: {
-    key: 'platinum', label: 'Platinum', spendThreshold: 100000, // $1,000
-    gradient:      ['#818CF8', '#4338CA'],
-    accent:        '#818CF8',
-    progressColor: '#C7D2FE',
+  black: {
+    key: 'black', label: 'Black', spendThreshold: 200000, // $2,000
+    gradient:      ['#1A1E27', '#05070B'],
+    accent:        '#51A9FF',
+    progressColor: '#93C5FD',
   },
 };
 
 export const TIERS_ORDERED: TierConfig[] = [
-  TIER_CONFIG.bronze,
+  TIER_CONFIG.blue,
   TIER_CONFIG.silver,
   TIER_CONFIG.gold,
-  TIER_CONFIG.platinum,
+  TIER_CONFIG.black,
 ];
+
+export function normalizeTierKey(tier: string | null | undefined): TierKey {
+  switch ((tier ?? '').toLowerCase()) {
+    case 'bronze':
+    case 'blue':
+      return 'blue';
+    case 'silver':
+      return 'silver';
+    case 'gold':
+      return 'gold';
+    case 'platinum':
+    case 'black':
+      return 'black';
+    default:
+      return 'blue';
+  }
+}
 
 /** Resolve a tier key (from the server) to its full config. */
 export function getTierConfig(tier: string): TierConfig {
-  return TIER_CONFIG[tier as TierKey] ?? TIER_CONFIG.bronze;
+  return TIER_CONFIG[normalizeTierKey(tier)];
 }
 
-/** Compute the correct tier from total cents spent (mirrors the server calculation). */
+/**
+ * Compute the live loyalty tier from total cents spent.
+ * Blue is the base member tier, while the progress milestones shown in UI are:
+ * Blue $200 -> Silver $500 -> Gold $1,000 -> Black $2,000.
+ */
 export function getTierBySpendCents(spentCents: number): TierConfig {
-  if (spentCents >= 100000) return TIER_CONFIG.platinum;
-  if (spentCents >= 50000)  return TIER_CONFIG.gold;
-  if (spentCents >= 15000)  return TIER_CONFIG.silver;
-  return TIER_CONFIG.bronze;
+  if (spentCents >= 200000) return TIER_CONFIG.black;
+  if (spentCents >= 100000) return TIER_CONFIG.gold;
+  if (spentCents >= 50000)  return TIER_CONFIG.silver;
+  return TIER_CONFIG.blue;
 }
 
-/** Returns the next tier to unlock, or null if already Platinum. */
+/** Returns the next tier to unlock, or null if already Black. */
 export function getNextTierBySpend(spentCents: number): TierConfig | null {
-  if (spentCents >= 100000) return null;
-  if (spentCents >= 50000)  return TIER_CONFIG.platinum;
-  if (spentCents >= 15000)  return TIER_CONFIG.gold;
+  if (spentCents >= 200000) return null;
+  if (spentCents >= 100000) return TIER_CONFIG.black;
+  if (spentCents >= 50000)  return TIER_CONFIG.gold;
   return TIER_CONFIG.silver;
 }

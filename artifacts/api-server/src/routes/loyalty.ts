@@ -6,6 +6,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
   applyCoffeeStamps,
   buildLoyaltyQrPayload,
+  computeLoyaltyTier,
   ensureLoyaltySchemaReady,
   getOrCreateCustomerLoyaltyProfile,
   parseLoyaltyQrPayload,
@@ -24,10 +25,7 @@ router.get('/profile', requireAuth, async (req, res) => {
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
 
   // Always recompute tier from totalSpentCents so it is the single source of truth.
-  const correctTier =
-    profile.totalSpentCents >= 100000 ? 'platinum' :
-    profile.totalSpentCents >= 50000  ? 'gold'     :
-    profile.totalSpentCents >= 15000  ? 'silver'   : 'bronze';
+  const correctTier = computeLoyaltyTier(profile.totalSpentCents);
 
   if (correctTier !== profile.loyaltyTier) {
     await db.update(customerProfilesTable)

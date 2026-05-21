@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
+import { getTierConfig } from '@/constants/tierConfig';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -54,6 +55,7 @@ export default function AccountScreen() {
   const displayPhone = currentUser?.phone ?? '';
   const addressCount = addressesData?.data?.length ?? 0;
   const profile      = loyaltyData?.data;
+  const tierLabel    = getTierConfig(profile?.loyaltyTier ?? 'blue').label;
   const initial      = displayName.charAt(0).toUpperCase();
 
   const handleLogout = () => {
@@ -155,7 +157,7 @@ export default function AccountScreen() {
         <View style={styles.statsRow}>
           {[
             { label: 'Points', value: String(profile?.loyaltyPoints ?? 0) },
-            { label: 'Tier',   value: (profile?.loyaltyTier ?? 'Bronze').charAt(0).toUpperCase() + (profile?.loyaltyTier ?? 'bronze').slice(1) },
+            { label: 'Tier',   value: tierLabel },
             { label: 'Stamps', value: `${profile?.stampCount ?? 0}/6` },
           ].map((stat, i, arr) => (
             <View

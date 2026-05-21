@@ -61,7 +61,7 @@ router.post('/register', async (req, res) => {
   const userId = randomUUID();
   await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'customer', name, phone });
   await db.insert(customerProfilesTable).values({
-    userId, loyaltyPoints: 0, loyaltyTier: 'bronze',
+    userId, loyaltyPoints: 0, loyaltyTier: 'blue',
     referralCode: generateReferralCode(name), birthday: birthday ?? null,
   });
   await getOrCreateCustomerLoyaltyProfile(userId, name);
@@ -601,7 +601,7 @@ router.post('/social', async (req, res) => {
     await db.insert(customerProfilesTable).values({
       userId,
       loyaltyPoints: 100,
-      loyaltyTier: 'bronze',
+      loyaltyTier: 'blue',
       referralCode: generateReferralCode(userName),
     });
     await getOrCreateCustomerLoyaltyProfile(userId, userName);

@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
-import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
 
@@ -357,7 +357,7 @@ router.post('/', async (req, res) => {
       const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
       if (profile) {
         const newSpent = profile.totalSpentCents + authorativeTotalCents;
-        const newTier = newSpent >= 100000 ? 'platinum' : newSpent >= 50000 ? 'gold' : newSpent >= 15000 ? 'silver' : 'bronze';
+        const newTier = computeLoyaltyTier(newSpent);
         await db.update(customerProfilesTable).set({
           totalSpentCents: newSpent,
           loyaltyTier: newTier,
