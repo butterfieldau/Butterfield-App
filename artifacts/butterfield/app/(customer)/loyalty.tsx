@@ -553,7 +553,7 @@ function LoyaltyContent() {
                 <Text style={styles.infoCardLabel}>Free coffee rewards</Text>
                 <Text style={styles.infoCardMiniCount}>{freeCoffeeRewards}</Text>
               </View>
-              <View style={styles.miniStampRow}>
+              <View style={styles.miniStampGrid}>
                 {Array.from({ length: STAMP_COUNT }).map((_, index) => {
                   const filled = index < stampCount;
                   return (
@@ -563,7 +563,10 @@ function LoyaltyContent() {
                   );
                 })}
               </View>
-              <Text style={styles.infoCardSub}>{stampsRemaining > 0 ? `${stampsRemaining} to go` : 'Reward unlocked'}</Text>
+              <Text style={styles.infoCardSub}>
+                {stampsRemaining > 0 ? `${stampsRemaining} to go` : freeCoffeeRewards > 0 ? 'Reward ready to use' : 'Reward unlocked'}
+              </Text>
+              <Text style={styles.infoCardHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
             </LinearGradient>
           </View>
 
@@ -905,8 +908,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.28)',
     borderColor: 'rgba(255,255,255,0.14)',
   },
-  cardTierChipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8, color: '#1347D7' },
-  cardTierChipTextDark: { color: WHITE },
+  cardTierChipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8, color: WHITE },
+  cardTierChipTextDark: { color: '#51A9FF' },
   cardBodyRow: { marginTop: 24, flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
   cardBodyLeft: { flex: 1, paddingRight: 10 },
   memberNameLite: { fontSize: 16, lineHeight: 20, fontWeight: '500', opacity: 0.96 },
@@ -974,17 +977,25 @@ const styles = StyleSheet.create({
   perkTitle: { color: TEXT, fontSize: 14, lineHeight: 18, fontWeight: '700' },
   perkDetail: { marginTop: 6, color: TEXT_MUTED, fontSize: 12, lineHeight: 17, fontWeight: '500' },
   walletRow: { flexDirection: 'row', gap: 10 },
-  infoCard: { borderRadius: 24, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  infoCardLarge: { flex: 1.1 },
-  infoCardSmall: { flex: 0.9 },
+  infoCard: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    justifyContent: 'space-between',
+  },
+  infoCardLarge: { flex: 1 },
+  infoCardSmall: { flex: 1 },
   infoCardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '700' },
   infoCardValue: { marginTop: 8, color: WHITE, fontSize: 32, lineHeight: 36, fontWeight: '700' },
   infoCardSub: { marginTop: 4, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
   infoCardHint: { marginTop: 4, color: 'rgba(255,255,255,0.66)', fontSize: 12, lineHeight: 17, fontWeight: '500' },
-  infoCardMiniTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoCardMiniTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   infoCardMiniCount: { marginLeft: 'auto', color: WHITE, fontSize: 28, lineHeight: 32, fontWeight: '700' },
-  miniStampRow: { marginTop: 14, flexDirection: 'row', gap: 6, flexWrap: 'nowrap' },
-  miniStampBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  miniStampGrid: { marginTop: 14, flexDirection: 'row', flexWrap: 'wrap', gap: 8, rowGap: 10, width: 112 },
+  miniStampBubble: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
   miniStampDot: { width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.7)' },
