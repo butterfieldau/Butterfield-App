@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 import { useColors } from '@/hooks/useColors';
@@ -65,7 +65,7 @@ interface Props {
 export default function StoreInfoSheet({ visible, store, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const { height: screenHeight } = useWindowDimensions();
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -109,24 +109,31 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
       : null;
 
   const storeStatusText = activeStore.openLabel ?? (isOpen ? 'Open Now' : 'Closed');
+  const compactHours = hours.length > 0
+    ? hours
+        .map((h: any) => {
+          const dayName = DAYS_LONG[h.dayOfWeek]?.slice(0, 3) ?? '';
+          const hoursStr = h.isClosed
+            ? 'Closed'
+            : h.openTime && h.closeTime
+              ? `${fmt12(h.openTime)} – ${fmt12(h.closeTime)}`
+              : '—';
+          return `${dayName} ${hoursStr}`;
+        })
+        .join('  •  ')
+    : null;
+  const resolvedSheetHeight = Math.min(Math.max(510, Math.round(screenHeight * 0.58)), 620);
 
   return (
     <SwipeDownSheet
       visible={visible}
       onClose={onClose}
       backdropOpacity={0.42}
-      contentStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
+      sheetHeight={resolvedSheetHeight}
+      contentStyle={{ paddingBottom: Math.max(insets.bottom, 14) + 6 }}
       sheetStyle={styles.sheet}
-      scrollGestureRef={scrollRef}
     >
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 18 }}
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-        bounces
-      >
+      <View style={styles.contentWrap}>
         <Pressable style={styles.hero} onPress={handleDirections}>
           {heroSource && !imageFailed ? (
             <Image source={heroSource} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={220} onError={() => setImageFailed(true)} />
@@ -159,7 +166,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           <Pressable style={styles.infoRow} onPress={handleDirections}>
             <View style={styles.infoIcon}><Feather name="map-pin" size={15} color="#1493FF" /></View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.infoVal, { color: colors.foreground }]}>{address}</Text>
+              <Text style={[styles.infoVal, { color: colors.foreground }]} numberOfLines={2}>{address}</Text>
               <Text style={styles.infoLink}>Tap for directions</Text>
             </View>
             <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
@@ -208,32 +215,15 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           ) : null}
 
           {activeStore.publicNotes ? (
-            <Text style={[styles.notes, { color: colors.mutedForeground }]}>{activeStore.publicNotes}</Text>
+            <Text style={[styles.notes, { color: colors.mutedForeground }]} numberOfLines={2}>{activeStore.publicNotes}</Text>
           ) : null}
 
-          {hours.length > 0 ? (
+          {compactHours ? (
             <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <Text style={[styles.hoursTitle, { color: colors.foreground }]}>Opening Hours</Text>
-              {hours.map((h: any) => {
-                const dayName = DAYS_LONG[h.dayOfWeek] ?? '';
-                const hoursStr = h.isClosed
-                  ? 'Closed'
-                  : h.openTime && h.closeTime
-                    ? `${fmt12(h.openTime)} – ${fmt12(h.closeTime)}`
-                    : '—';
-                const isToday = new Date().getDay() === h.dayOfWeek;
-                return (
-                  <View key={String(h.dayOfWeek)} style={[styles.hoursRowWrap, isToday && { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 8 }]}>
-                    <View style={styles.hoursRow}>
-                      <Text style={[styles.hoursDay, { color: isToday ? '#1493FF' : colors.foreground, fontWeight: isToday ? '700' : '400' }]}>{dayName}</Text>
-                      <Text style={[styles.hoursTime, { color: h.isClosed ? colors.mutedForeground : isToday ? '#1493FF' : colors.foreground }]}>{hoursStr}</Text>
-                    </View>
-                    {formatBreakNote(h.notes) && !h.isClosed ? (
-                      <Text style={[styles.hoursBreakNote, { color: colors.mutedForeground }]}>{formatBreakNote(h.notes)}</Text>
-                    ) : null}
-                  </View>
-                );
-              })}
+              <Text style={[styles.hoursCompactText, { color: colors.mutedForeground }]} numberOfLines={3}>
+                {compactHours}
+              </Text>
             </View>
           ) : null}
 
@@ -259,25 +249,26 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
             <Feather name="chevron-right" size={13} color="#1493FF" />
           </Pressable>
         </View>
-      </ScrollView>
+      </View>
     </SwipeDownSheet>
   );
 }
 
 const styles = StyleSheet.create({
   sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
-  hero: { height: 194, marginHorizontal: 14, marginTop: 2, borderRadius: 16, overflow: 'hidden', justifyContent: 'space-between', padding: 14 },
+  contentWrap: { flex: 1 },
+  hero: { height: 150, marginHorizontal: 14, marginTop: 2, borderRadius: 16, overflow: 'hidden', justifyContent: 'space-between', padding: 14 },
   heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   heroPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 18, paddingHorizontal: 10, paddingVertical: 6 },
   heroPillText: { fontSize: 11, fontWeight: '700', color: '#1493FF' },
   heroBottom: { gap: 2 },
   headerLabel: { fontWeight: '600', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
-  headerName: { fontWeight: '700', fontSize: 18, lineHeight: 22, color: '#fff' },
+  headerName: { fontWeight: '700', fontSize: 17, lineHeight: 21, color: '#fff' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 18, alignSelf: 'flex-start' },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
   statusText: { fontWeight: '700', fontSize: 11, color: '#fff' },
-  body: { paddingHorizontal: 18, paddingTop: 16, gap: 14 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  body: { flex: 1, paddingHorizontal: 18, paddingTop: 12, gap: 10, justifyContent: 'space-between' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 2 },
   infoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   infoLabel: { fontWeight: '400', fontSize: 11, marginBottom: 1 },
   infoVal: { fontWeight: '500', fontSize: 14 },
@@ -286,20 +277,16 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   chipText: { fontWeight: '500', fontSize: 12 },
-  notes: { fontWeight: '400', fontSize: 12, fontStyle: 'italic', lineHeight: 18 },
-  hoursCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 2 },
-  hoursTitle: { fontWeight: '700', fontSize: 13, marginBottom: 8 },
-  hoursRowWrap: { paddingVertical: 4 },
-  hoursRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  hoursDay: { fontSize: 13 },
-  hoursTime: { fontWeight: '500', fontSize: 13 },
-  hoursBreakNote: { fontSize: 11, marginTop: 2 },
-  footer: { flexDirection: 'row', gap: 8, paddingTop: 12, alignItems: 'stretch' },
+  notes: { fontWeight: '400', fontSize: 12, fontStyle: 'italic', lineHeight: 17 },
+  hoursCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  hoursTitle: { fontWeight: '700', fontSize: 12 },
+  hoursCompactText: { fontSize: 11, lineHeight: 16 },
+  footer: { flexDirection: 'row', gap: 8, paddingTop: 2, alignItems: 'stretch' },
   actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1 },
-  secondaryActionBtn: { minWidth: 112 },
+  secondaryActionBtn: { minWidth: 96, flex: 0.8 },
   actionBtnText: { fontWeight: '600', fontSize: 13, color: '#1493FF' },
   orderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#1493FF' },
   orderBtnText: { fontWeight: '700', fontSize: 14, color: '#fff' },
-  allStores: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
+  allStores: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 4, paddingBottom: 2 },
   allStoresText: { fontWeight: '500', fontSize: 13, color: '#1493FF' },
 });
