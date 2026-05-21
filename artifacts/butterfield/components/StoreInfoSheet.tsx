@@ -114,9 +114,9 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     <SwipeDownSheet
       visible={visible}
       onClose={onClose}
-      sheetHeight={Math.min(760, Math.round((typeof window !== 'undefined' ? window.innerHeight : 900) * 0.86))}
       backdropOpacity={0.42}
       contentStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
+      sheetStyle={styles.sheet}
       scrollGestureRef={scrollRef}
     >
       <ScrollView
@@ -124,6 +124,8 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 18 }}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+        bounces
       >
         <Pressable style={styles.hero} onPress={handleDirections}>
           {heroSource && !imageFailed ? (
@@ -237,12 +239,12 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 
           <View style={styles.footer}>
             {address ? (
-              <Pressable style={[styles.actionBtn, { borderColor: colors.border }]} onPress={handleDirections}>
+              <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: colors.border }]} onPress={handleDirections}>
                 <Feather name="map" size={15} color="#1493FF" />
                 <Text style={styles.actionBtnText}>Directions</Text>
               </Pressable>
             ) : null}
-            <Pressable style={[styles.actionBtn, { borderColor: colors.border }]} onPress={handleCall}>
+            <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: colors.border }]} onPress={handleCall}>
               <Feather name="phone" size={15} color="#16A34A" />
               <Text style={[styles.actionBtnText, { color: '#16A34A' }]}>Call</Text>
             </Pressable>
@@ -263,38 +265,40 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  hero: { height: 210, marginHorizontal: 12, marginTop: 4, borderRadius: 18, overflow: 'hidden', justifyContent: 'space-between', padding: 14 },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  hero: { height: 194, marginHorizontal: 14, marginTop: 2, borderRadius: 16, overflow: 'hidden', justifyContent: 'space-between', padding: 14 },
   heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  heroPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6 },
+  heroPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 18, paddingHorizontal: 10, paddingVertical: 6 },
   heroPillText: { fontSize: 11, fontWeight: '700', color: '#1493FF' },
   heroBottom: { gap: 2 },
   headerLabel: { fontWeight: '600', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
   headerName: { fontWeight: '700', fontSize: 18, lineHeight: 22, color: '#fff' },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 18, alignSelf: 'flex-start' },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
   statusText: { fontWeight: '700', fontSize: 11, color: '#fff' },
-  body: { paddingHorizontal: 18, paddingTop: 14, gap: 12 },
+  body: { paddingHorizontal: 18, paddingTop: 16, gap: 14 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-  infoIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  infoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   infoLabel: { fontWeight: '400', fontSize: 11, marginBottom: 1 },
   infoVal: { fontWeight: '500', fontSize: 14 },
   infoLink: { fontWeight: '400', fontSize: 11, color: '#1493FF', marginTop: 2 },
   infoBreakNote: { fontWeight: '400', fontSize: 11, marginTop: 2 },
   chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   chipText: { fontWeight: '500', fontSize: 12 },
   notes: { fontWeight: '400', fontSize: 12, fontStyle: 'italic', lineHeight: 18 },
-  hoursCard: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 2 },
+  hoursCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 2 },
   hoursTitle: { fontWeight: '700', fontSize: 13, marginBottom: 8 },
   hoursRowWrap: { paddingVertical: 4 },
   hoursRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   hoursDay: { fontSize: 13 },
   hoursTime: { fontWeight: '500', fontSize: 13 },
   hoursBreakNote: { fontSize: 11, marginTop: 2 },
-  footer: { flexDirection: 'row', gap: 8, paddingTop: 12 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1 },
+  footer: { flexDirection: 'row', gap: 8, paddingTop: 12, alignItems: 'stretch' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1 },
+  secondaryActionBtn: { minWidth: 112 },
   actionBtnText: { fontWeight: '600', fontSize: 13, color: '#1493FF' },
-  orderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: '#1493FF' },
+  orderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#1493FF' },
   orderBtnText: { fontWeight: '700', fontSize: 14, color: '#fff' },
   allStores: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
   allStoresText: { fontWeight: '500', fontSize: 13, color: '#1493FF' },

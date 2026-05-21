@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
@@ -107,11 +108,46 @@ function StoreCard({ store, onPress }: { store: any; onPress: () => void }) {
   );
 }
 
+function StoreField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  editable = true,
+  autoCapitalize = 'sentences',
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  keyboardType?: 'default' | 'email-address' | 'number-pad' | 'phone-pad' | 'url' | 'decimal-pad' | 'numbers-and-punctuation';
+  editable?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+}) {
+  return (
+    <View style={s.fieldRow}>
+      <Text style={s.fieldLabel}>{label}</Text>
+      <TextInput
+        style={[s.fieldInput, !editable && { color: MUTED, backgroundColor: BG }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder ?? ''}
+        placeholderTextColor={MUTED}
+        keyboardType={keyboardType ?? 'default'}
+        editable={editable}
+        autoCapitalize={autoCapitalize}
+      />
+    </View>
+  );
+}
+
 // ── StoreEditorModal ─────────────────────────────────────────────────────────
 function StoreEditorModal({
   store, visible, onClose, onSaved,
 }: { store: any | null; visible: boolean; onClose: () => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Form fields
   const [name,             setName]             = useState('');
@@ -297,20 +333,37 @@ function StoreEditorModal({
     );
   };
 
-  const Field = ({ label, value, onChangeText, placeholder, keyboardType, editable = true }: any) => (
-    <View style={s.fieldRow}>
-      <Text style={s.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[s.fieldInput, !editable && { color: MUTED, backgroundColor: BG }]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder ?? ''}
-        placeholderTextColor={MUTED}
-        keyboardType={keyboardType ?? 'default'}
-        editable={editable}
-      />
-    </View>
-  );
+  const handleUploadStoreImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow photo library access to upload a store image.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.9,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const filename = asset.fileName ?? `store-${Date.now()}.jpg`;
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+
+      setUploadingImage(true);
+      const upload = await api.storage.uploadFile(asset.uri, filename, mimeType);
+      setImageUrl(upload.servingUrl);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message ?? 'Unable to upload the store image right now.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -384,17 +437,38 @@ function StoreEditorModal({
           <View style={s.section}>
             <Text style={s.sectionTitle}>STORE DETAILS</Text>
             <View style={s.sectionCard}>
-              <Field label="Store Name *"    value={name}        onChangeText={setName}     placeholder="e.g. Butterfield Merrylands" />
-              <Field label="Street Address"  value={addressLine} onChangeText={setAddressLine} placeholder="123 Main St" />
-              <Field label="Suburb"          value={suburb}      onChangeText={setSuburb}   placeholder="Merrylands" />
+              <StoreField label="Store Name *" value={name} onChangeText={setName} placeholder="e.g. Butterfield Merrylands" />
+              <StoreField label="Street Address" value={addressLine} onChangeText={setAddressLine} placeholder="123 Main St" />
+              <StoreField label="Suburb" value={suburb} onChangeText={setSuburb} placeholder="Merrylands" />
               <View style={{ flexDirection: 'row', gap: 0 }}>
-                <View style={{ flex: 1 }}><Field label="State" value={state} onChangeText={setState} placeholder="NSW" /></View>
-                <View style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: BORDER }}><Field label="Postcode" value={postcode} onChangeText={setPostcode} placeholder="2160" keyboardType="number-pad" /></View>
+                <View style={{ flex: 1 }}><StoreField label="State" value={state} onChangeText={setState} placeholder="NSW" /></View>
+                <View style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: BORDER }}><StoreField label="Postcode" value={postcode} onChangeText={setPostcode} placeholder="2160" keyboardType="number-pad" autoCapitalize="none" /></View>
               </View>
-              <Field label="Phone"           value={phone}       onChangeText={setPhone}    placeholder="+61 2 9000 0000" keyboardType="phone-pad" />
-              <Field label="Email"           value={email}       onChangeText={setEmail}    placeholder="merrylands@butterfield.com" keyboardType="email-address" />
-              <Field label="Website"         value={website}     onChangeText={setWebsite}  placeholder="https://butterfieldcookies.com.au" keyboardType="url" />
-              <Field label="Store Image URL"  value={imageUrl}    onChangeText={setImageUrl} placeholder="https://..." keyboardType="url" />
+              <StoreField label="Phone" value={phone} onChangeText={setPhone} placeholder="+61 2 9000 0000" keyboardType="phone-pad" autoCapitalize="none" />
+              <StoreField label="Email" value={email} onChangeText={setEmail} placeholder="merrylands@butterfield.com" keyboardType="email-address" autoCapitalize="none" />
+              <StoreField label="Website" value={website} onChangeText={setWebsite} placeholder="https://butterfieldcookies.com.au" keyboardType="url" autoCapitalize="none" />
+              <StoreField label="Store Image URL" value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." keyboardType="url" autoCapitalize="none" />
+              <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 10 }}>
+                <Pressable
+                  onPress={handleUploadStoreImage}
+                  disabled={uploadingImage}
+                  style={({ pressed }) => [
+                    s.imageUploadBtn,
+                    pressed && !uploadingImage && { opacity: 0.9 },
+                    uploadingImage && { opacity: 0.6 },
+                  ]}
+                >
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color={BLUE} />
+                  ) : (
+                    <Feather name="image" size={15} color={BLUE} />
+                  )}
+                  <Text style={s.imageUploadBtnText}>
+                    {uploadingImage ? 'Uploading store photo...' : 'Upload Store Photo'}
+                  </Text>
+                </Pressable>
+                <Text style={s.imageUploadHint}>You can upload a store photo or paste a direct image URL.</Text>
+              </View>
               {imageUrl.trim() ? (
                 <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
                   <Image source={{ uri: imageUrl.trim() }} style={{ width: '100%', height: 150, borderRadius: 14, backgroundColor: '#F3F4F6' }} contentFit="cover" />
@@ -408,8 +482,8 @@ function StoreEditorModal({
             <Text style={s.sectionTitle}>LOCATION & GEOFENCE</Text>
             <View style={s.sectionCard}>
               <View style={{ flexDirection: 'row', gap: 0 }}>
-                <View style={{ flex: 1 }}><Field label="Latitude"  value={latitude}  onChangeText={setLatitude}  placeholder="-33.8349" keyboardType="decimal-pad" /></View>
-                <View style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: BORDER }}><Field label="Longitude" value={longitude} onChangeText={setLongitude} placeholder="150.9942" keyboardType="decimal-pad" /></View>
+                <View style={{ flex: 1 }}><StoreField label="Latitude" value={latitude} onChangeText={setLatitude} placeholder="-33.8349" keyboardType="decimal-pad" autoCapitalize="none" /></View>
+                <View style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: BORDER }}><StoreField label="Longitude" value={longitude} onChangeText={setLongitude} placeholder="150.9942" keyboardType="decimal-pad" autoCapitalize="none" /></View>
               </View>
               <View style={s.fieldRow}>
                 <Text style={s.fieldLabel}>Geofence Radius</Text>
@@ -709,4 +783,7 @@ const s = StyleSheet.create({
   saveBtnText:    { fontWeight: '600', fontSize: 16, color: '#fff' },
   deactivateBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: AMBER },
   deactivateBtnText:{ fontWeight: '600', fontSize: 14, color: AMBER },
+  imageUploadBtn: { minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 },
+  imageUploadBtnText: { fontWeight: '600', fontSize: 14, color: BLUE },
+  imageUploadHint: { fontWeight: '400', fontSize: 12, color: MUTED, lineHeight: 17 },
 });
