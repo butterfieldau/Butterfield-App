@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
-import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
 
@@ -204,7 +204,26 @@ router.post('/', async (req, res) => {
   }
 
   // ── Server-side price computation (client totals are not trusted) ─────────
-  const totalDiscountCents = claimedLoyaltyPoints + discountCodeAmountCents + claimedRewardDiscountCents;
+  const baseDiscountCents = discountCodeAmountCents + claimedRewardDiscountCents;
+  let previewWithoutPoints: Awaited<ReturnType<typeof computeOrderTotal>>;
+  try {
+    previewWithoutPoints = await computeOrderTotal(
+      items,
+      resolvedOrderType,
+      baseDiscountCents,
+      resolvedPaymentMethod,
+    );
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
+  }
+
+  claimedLoyaltyPoints = Math.min(
+    claimedLoyaltyPoints,
+    Math.floor(previewWithoutPoints.totalCents / LOYALTY_POINT_VALUE_CENTS),
+  );
+
+  const loyaltyDiscountCents = claimedLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS;
+  const totalDiscountCents = loyaltyDiscountCents + baseDiscountCents;
   let computed: Awaited<ReturnType<typeof computeOrderTotal>>;
   try {
     computed = await computeOrderTotal(

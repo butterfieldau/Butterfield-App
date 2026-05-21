@@ -9,6 +9,7 @@ import {
 } from '@workspace/db';
 
 const STAMP_GOAL = 6;
+export const LOYALTY_POINT_VALUE_CENTS = 5;
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
 

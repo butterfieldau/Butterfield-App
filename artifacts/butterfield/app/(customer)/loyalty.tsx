@@ -206,11 +206,12 @@ function getNextDisplayTier(spentCents: number): DisplayTier | null {
 }
 
 function formatCurrency(cents: number) {
-  return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const hasCents = cents % 100 !== 0;
+  return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: hasCents ? 2 : 0 })}`;
 }
 
 function getPointsDollarValue(points: number) {
-  return Math.floor(points / 100) * 500;
+  return points * 5;
 }
 
 function rewardPresetForTitle(title: string, type?: string | null) {
@@ -317,10 +318,6 @@ function LoyaltyContent() {
     : 1;
   const spendRemaining = nextTier ? Math.max(nextTier.spendThreshold - spendCents, 0) : 0;
   const previewTier = DISPLAY_TIERS.find((tier) => tier.key === previewTierKey) ?? displayTier;
-  const voucherClaims = claimedRewards.filter((c) => c.rewardType === 'money_voucher');
-  const availableVoucherCents = voucherClaims.reduce((sum, c) => sum + (c.voucherValueCents ?? 0), 0);
-  const rewardStatusText = freeCoffeeRewards > 0 ? `${freeCoffeeRewards} free coffee reward${freeCoffeeRewards === 1 ? '' : 's'} available` : '0 free coffee reward available';
-
   const serverQrToken = profile?.loyaltyQrToken ?? null;
   const effectiveQrToken = serverQrToken ?? healedQrToken;
   const qrValue = profile?.qrPayload
@@ -495,132 +492,47 @@ function LoyaltyContent() {
               <LinearGradient colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.02)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardTextureSweep} />
 
               <View style={styles.cardTopRow}>
-                <Image
-                  source={displayTier.logo}
-                  style={[styles.cardLogo, displayTier.logoTint ? { tintColor: displayTier.logoTint } : null]}
-                  contentFit="contain"
-                />
-                <Pressable style={styles.qrPill} onPress={() => { Haptics.selectionAsync(); setShowQR(true); }}>
-                  <Feather name="maximize" size={14} color={displayTier.key === 'black' ? BRAND : WHITE} />
-                  <Text style={[styles.qrPillText, { color: displayTier.key === 'black' ? BRAND : WHITE }]}>My QR</Text>
+                <View style={styles.cardLogoBlock}>
+                  <Image
+                    source={displayTier.logo}
+                    style={[styles.cardLogo, displayTier.logoTint ? { tintColor: displayTier.logoTint } : null]}
+                    contentFit="contain"
+                  />
+                </View>
+                <View style={[styles.cardTierChip, displayTier.key === 'black' ? styles.cardTierChipDark : null]}>
+                  <Text style={[styles.cardTierChipText, displayTier.key === 'black' ? styles.cardTierChipTextDark : null]}>
+                    {displayTier.label.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cardBodyRow}>
+                <View style={styles.cardBodyLeft}>
+                  <Text style={[styles.memberNameLite, { color: displayTier.text }]} numberOfLines={1}>
+                    Hi {profile?.customerName?.split(' ')[0] ?? 'there'}
+                  </Text>
+                  <Text style={[styles.pointsHeroValue, { color: displayTier.text }]}>{points.toLocaleString()}</Text>
+                  <Text style={[styles.pointsHeroSub, { color: displayTier.text }]}>points · worth {formatCurrency(pointsDollarValue)}</Text>
+                </View>
+
+                <Pressable
+                  style={styles.qrTile}
+                  onPress={() => { Haptics.selectionAsync(); setShowQR(true); }}
+                >
+                  <Feather name="maximize" size={26} color="#405EFF" />
                 </Pressable>
               </View>
 
-              <View style={styles.cardMidRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.memberName, { color: displayTier.text }]} numberOfLines={1}>{profile?.customerName ?? 'Butterfield Member'}</Text>
-                  <Text style={[styles.memberMeta, { color: displayTier.text }]}>MEMBER · {displayTier.label.toUpperCase()}</Text>
-                </View>
-                <View style={[styles.pointsBadge, { backgroundColor: displayTier.chipBg, borderColor: displayTier.edge }]}>
-                  <Text style={[styles.pointsBadgeValue, { color: displayTier.text }]}>{points.toLocaleString()} pts</Text>
-                  <Text style={[styles.pointsBadgeSub, { color: displayTier.text }]}>worth {formatCurrency(pointsDollarValue)}</Text>
-                </View>
-              </View>
-
-              <View style={styles.cardMetricsRow}>
-                <View style={styles.metricCol}>
-                  <Text style={styles.metricLabel}>Tracked spend</Text>
-                  <Text style={styles.metricValue}>{formatCurrency(spendCents)}</Text>
-                </View>
-                <View style={styles.metricDivider} />
-                <View style={styles.metricCol}>
-                  <Text style={styles.metricLabel}>Next tier</Text>
-                  <Text style={styles.metricValue}>{nextTier ? `${formatCurrency(spendRemaining)} until ${nextTier.label}` : 'Top tier unlocked'}</Text>
-                </View>
-              </View>
-
               <View style={styles.cardProgressWrap}>
-                <View style={styles.cardProgressHeader}>
-                  <Text style={styles.cardProgressLabel}>Tier spend progress</Text>
-                  <Text style={styles.cardProgressLabel}>{nextTier ? `${formatCurrency(nextTier.spendThreshold)} target` : 'Black member'}</Text>
+                <View style={styles.cardSpendMetaRow}>
+                  <Text style={styles.cardSpendMetaText}>{nextTier ? `${formatCurrency(spendRemaining)} until ${nextTier.label}` : 'Top tier unlocked'}</Text>
+                  <Text style={styles.cardSpendMetaText}>
+                    {nextTier ? `${formatCurrency(spendCents)} / ${formatCurrency(nextTier.spendThreshold)} spent` : `${formatCurrency(spendCents)} spent`}
+                  </Text>
                 </View>
                 <View style={styles.cardProgressTrack}>
                   <Animated.View style={[styles.cardProgressFill, { width: animatedWidth }]} />
                 </View>
-              </View>
-
-              <View style={styles.cardTierButtonRow}>
-                {DISPLAY_TIERS.map((tier) => {
-                  const active = tier.key === displayTier.key;
-                  return (
-                    <Pressable
-                      key={tier.key}
-                      onPress={() => setPreviewTierKey(tier.key)}
-                      style={[
-                        styles.tierButton,
-                        active && styles.tierButtonActive,
-                        previewTierKey === tier.key && !active && styles.tierButtonPreviewing,
-                      ]}
-                    >
-                      <Text style={[styles.tierButtonText, active && styles.tierButtonTextActive]}>
-                        {tier.label.toUpperCase()}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </LinearGradient>
-          </View>
-
-          <View style={styles.progressSection}>
-            <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>Tier progress</Text>
-              <Text style={styles.sectionMeta}>{nextTier ? `${formatCurrency(spendRemaining)} until ${nextTier.label}` : 'You have reached Black'}</Text>
-            </View>
-            <View style={styles.progressRail}>
-              <Animated.View style={[styles.progressRailFill, { width: animatedWidth }]} />
-            </View>
-            <View style={styles.progressNodesRow}>
-              {DISPLAY_TIERS.map((tier, index) => {
-                const active = tier.key === displayTier.key;
-                const unlocked = active || spendCents >= tier.spendThreshold;
-                return (
-                  <View key={tier.key} style={styles.progressNodeWrap}>
-                    <View style={[styles.progressNode, unlocked && styles.progressNodeUnlocked, active && styles.progressNodeActive]}>
-                      <Feather name={unlocked ? 'check' : 'star'} size={12} color={unlocked || active ? WHITE : '#7C8AA5'} />
-                    </View>
-                    <Text style={[styles.progressTierLabel, active && styles.progressTierLabelActive]}>{tier.label}</Text>
-                    <Text style={styles.progressTierSpend}>{formatCurrency(tier.spendThreshold)}</Text>
-                    {index < DISPLAY_TIERS.length - 1 ? <View style={styles.progressSpacer} /> : null}
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>Rewards Club</Text>
-              <Text style={styles.sectionMeta}>{rewardStatusText}</Text>
-            </View>
-
-            <LinearGradient colors={['#0C69F5', '#3EAEFF']} style={styles.stampCard}>
-              <Text style={styles.stampLabel}>REWARDS CLUB</Text>
-              <View style={styles.stampTopRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.stampHeading}>{stampsRemaining > 0 ? `${stampsRemaining} to go` : 'Reward unlocked'}</Text>
-                  <Text style={styles.stampSub}>Earn {STAMP_COUNT} stamps to unlock your free coffee.</Text>
-                </View>
-                <Pressable style={styles.stampQrButton} onPress={() => setShowQR(true)}>
-                  <Feather name="maximize" size={13} color={WHITE} />
-                  <Text style={styles.stampQrButtonText}>My QR</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.stampRow}>
-                {Array.from({ length: STAMP_COUNT }).map((_, index) => {
-                  const filled = index < stampCount;
-                  return (
-                    <View key={index} style={[styles.stampBubble, filled ? styles.stampBubbleFilled : styles.stampBubbleEmpty]}>
-                      {filled ? <Feather name="coffee" size={16} color="#0A67EC" /> : <Feather name="circle" size={14} color="rgba(255,255,255,0.74)" />}
-                    </View>
-                  );
-                })}
-              </View>
-
-              <View style={styles.stampFooter}>
-                <Text style={styles.stampFooterTitle}>Free coffee rewards</Text>
-                <Text style={styles.stampFooterValue}>{freeCoffeeRewards}</Text>
               </View>
             </LinearGradient>
           </View>
@@ -630,18 +542,28 @@ function LoyaltyContent() {
               <Text style={styles.infoCardLabel}>Your points</Text>
               <Text style={styles.infoCardValue}>{points.toLocaleString()}</Text>
               <Text style={styles.infoCardSub}>worth {formatCurrency(pointsDollarValue)}</Text>
+              <Text style={styles.infoCardHint}>Use any amount at checkout</Text>
               <Pressable style={styles.infoButton} onPress={() => router.push('/(customer)/cart')}>
                 <Text style={styles.infoButtonText}>Use at checkout</Text>
               </Pressable>
             </LinearGradient>
 
             <LinearGradient colors={['#10213E', '#0D1630']} style={[styles.infoCard, styles.infoCardSmall]}>
-              <Text style={styles.infoCardLabel}>Available vouchers</Text>
-              <Text style={styles.infoCardValue}>{formatCurrency(availableVoucherCents)}</Text>
-              <Text style={styles.infoCardSub}>{voucherClaims.length} voucher{voucherClaims.length === 1 ? '' : 's'} ready</Text>
-              <Pressable style={styles.infoGhostButton} onPress={() => router.push('/(customer)/cart')}>
-                <Text style={styles.infoGhostButtonText}>Use at checkout</Text>
-              </Pressable>
+              <View style={styles.infoCardMiniTop}>
+                <Text style={styles.infoCardLabel}>Free coffee rewards</Text>
+                <Text style={styles.infoCardMiniCount}>{freeCoffeeRewards}</Text>
+              </View>
+              <View style={styles.miniStampRow}>
+                {Array.from({ length: STAMP_COUNT }).map((_, index) => {
+                  const filled = index < stampCount;
+                  return (
+                    <View key={index} style={[styles.miniStampBubble, filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty]}>
+                      {filled ? <Feather name="coffee" size={11} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={styles.infoCardSub}>{stampsRemaining > 0 ? `${stampsRemaining} to go` : 'Reward unlocked'}</Text>
             </LinearGradient>
           </View>
 
@@ -877,9 +799,11 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 31, lineHeight: 35, color: TEXT, fontWeight: '700' },
   heroSection: { paddingHorizontal: 16 },
   membershipCard: {
-    borderRadius: 28,
+    borderRadius: 26,
     overflow: 'hidden',
-    padding: 22,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
     shadowOffset: { width: 0, height: 18 },
@@ -964,50 +888,47 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  cardLogo: { width: 176, height: 42 },
-  qrPill: {
-    flexDirection: 'row',
+  cardLogoBlock: { gap: 4 },
+  cardLogo: { width: 132, height: 32 },
+  cardTierChip: {
+    minWidth: 82,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.24)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
   },
-  qrPillText: { fontSize: 12, fontWeight: '700' },
-  cardMidRow: { marginTop: 22, flexDirection: 'row', gap: 14, alignItems: 'flex-end' },
-  memberName: { fontSize: 24, lineHeight: 28, fontWeight: '700' },
-  memberMeta: { marginTop: 6, fontSize: 12, letterSpacing: 1.2, fontWeight: '600', opacity: 0.86 },
-  pointsBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    minWidth: 118,
+  cardTierChipDark: {
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderColor: 'rgba(255,255,255,0.14)',
   },
-  pointsBadgeValue: { fontSize: 20, fontWeight: '700' },
-  pointsBadgeSub: { marginTop: 2, fontSize: 12, fontWeight: '600', opacity: 0.8 },
-  cardMetricsRow: {
-    marginTop: 18,
-    flexDirection: 'row',
+  cardTierChipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8, color: '#1347D7' },
+  cardTierChipTextDark: { color: WHITE },
+  cardBodyRow: { marginTop: 24, flexDirection: 'row', alignItems: 'flex-end', gap: 16 },
+  cardBodyLeft: { flex: 1, paddingRight: 10 },
+  memberNameLite: { fontSize: 16, lineHeight: 20, fontWeight: '500', opacity: 0.96 },
+  pointsHeroValue: { marginTop: 6, fontSize: 52, lineHeight: 56, fontWeight: '700' },
+  pointsHeroSub: { marginTop: 2, fontSize: 14, lineHeight: 18, fontWeight: '600', opacity: 0.9 },
+  qrTile: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: WHITE,
     alignItems: 'center',
-    gap: 14,
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 8,
   },
-  metricCol: { flex: 1, gap: 4 },
-  metricDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.14)' },
-  metricLabel: { fontSize: 11, letterSpacing: 0.8, color: 'rgba(255,255,255,0.72)', fontWeight: '600' },
-  metricValue: { fontSize: 15, lineHeight: 20, color: WHITE, fontWeight: '700' },
-  cardProgressWrap: { marginTop: 16, gap: 8 },
-  cardProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  cardProgressLabel: { color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
-  cardProgressTrack: { height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden' },
+  cardProgressWrap: { marginTop: 18, gap: 8 },
+  cardSpendMetaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  cardSpendMetaText: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600' },
+  cardProgressTrack: { height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)', overflow: 'hidden' },
   cardProgressFill: {
     height: '100%',
     borderRadius: 999,
@@ -1017,63 +938,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 10,
   },
-  cardTierButtonRow: { marginTop: 18, flexDirection: 'row', gap: 8 },
-  tierButton: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.12)',
-  },
-  tierButtonActive: { backgroundColor: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.34)' },
-  tierButtonPreviewing: { borderColor: 'rgba(255,255,255,0.28)' },
-  tierButtonText: { fontSize: 11, letterSpacing: 0.9, color: 'rgba(255,255,255,0.72)', fontWeight: '700' },
-  tierButtonTextActive: { color: WHITE },
   section: { paddingHorizontal: 16, marginTop: 22 },
   sectionHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   sectionTitle: { fontSize: 22, lineHeight: 26, color: TEXT, fontWeight: '700' },
   sectionMeta: { marginLeft: 'auto', fontSize: 13, color: '#8BA5C8', fontWeight: '600', textAlign: 'right' },
-  progressSection: {
-    marginTop: 22,
-    marginHorizontal: 16,
-    padding: 18,
-    borderRadius: 24,
-    backgroundColor: SURFACE,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  progressRail: {
-    marginTop: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#172132',
-    overflow: 'hidden',
-  },
-  progressRailFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: BRAND,
-  },
-  progressNodesRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'space-between' },
-  progressNodeWrap: { flex: 1, position: 'relative', alignItems: 'flex-start' },
-  progressNode: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#202B40',
-    borderWidth: 1,
-    borderColor: '#344158',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressNodeUnlocked: { backgroundColor: BRAND, borderColor: BRAND },
-  progressNodeActive: { shadowColor: BRAND, shadowOpacity: 0.42, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
-  progressTierLabel: { marginTop: 10, color: TEXT, fontSize: 13, fontWeight: '700' },
-  progressTierLabelActive: { color: '#89CCFF' },
-  progressTierSpend: { marginTop: 4, color: TEXT_MUTED, fontSize: 12, fontWeight: '600' },
-  progressSpacer: { position: 'absolute', top: 14, left: 34, right: 6, height: 1, backgroundColor: 'transparent' },
   perkTierTabs: {
     flexDirection: 'row',
     gap: 8,
@@ -1105,44 +973,6 @@ const styles = StyleSheet.create({
   perkIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#0D2345', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   perkTitle: { color: TEXT, fontSize: 14, lineHeight: 18, fontWeight: '700' },
   perkDetail: { marginTop: 6, color: TEXT_MUTED, fontSize: 12, lineHeight: 17, fontWeight: '500' },
-  stampCard: {
-    borderRadius: 24,
-    padding: 18,
-    overflow: 'hidden',
-    shadowColor: '#0E6AFF',
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 14 },
-  },
-  stampLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, letterSpacing: 1.2, fontWeight: '700' },
-  stampTopRow: { marginTop: 8, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  stampHeading: { color: WHITE, fontSize: 34, lineHeight: 38, fontWeight: '700' },
-  stampSub: { marginTop: 6, color: 'rgba(255,255,255,0.82)', fontSize: 14, lineHeight: 19 },
-  stampQrButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 16,
-  },
-  stampQrButtonText: { color: WHITE, fontSize: 12, fontWeight: '700' },
-  stampRow: { marginTop: 16, flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  stampBubble: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  stampBubbleFilled: { backgroundColor: WHITE, shadowColor: '#FFFFFF', shadowOpacity: 0.24, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  stampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.44)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.07)' },
-  stampFooter: {
-    marginTop: 18,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  stampFooterTitle: { color: 'rgba(255,255,255,0.82)', fontSize: 13, fontWeight: '600' },
-  stampFooterValue: { marginLeft: 'auto', color: WHITE, fontSize: 22, fontWeight: '700' },
   walletRow: { flexDirection: 'row', gap: 10 },
   infoCard: { borderRadius: 24, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   infoCardLarge: { flex: 1.1 },
@@ -1150,6 +980,14 @@ const styles = StyleSheet.create({
   infoCardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '700' },
   infoCardValue: { marginTop: 8, color: WHITE, fontSize: 32, lineHeight: 36, fontWeight: '700' },
   infoCardSub: { marginTop: 4, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  infoCardHint: { marginTop: 4, color: 'rgba(255,255,255,0.66)', fontSize: 12, lineHeight: 17, fontWeight: '500' },
+  infoCardMiniTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoCardMiniCount: { marginLeft: 'auto', color: WHITE, fontSize: 28, lineHeight: 32, fontWeight: '700' },
+  miniStampRow: { marginTop: 14, flexDirection: 'row', gap: 6, flexWrap: 'nowrap' },
+  miniStampBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  miniStampBubbleFilled: { backgroundColor: WHITE },
+  miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
+  miniStampDot: { width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.7)' },
   infoButton: {
     marginTop: 16,
     alignSelf: 'flex-start',
@@ -1159,16 +997,6 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
   },
   infoButtonText: { color: '#0D1730', fontSize: 13, fontWeight: '700' },
-  infoGhostButton: {
-    marginTop: 16,
-    alignSelf: 'flex-start',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  infoGhostButtonText: { color: WHITE, fontSize: 13, fontWeight: '700' },
   walletScroll: { gap: 12, paddingRight: 12 },
   walletCard: {
     width: 232,

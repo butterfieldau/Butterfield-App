@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
-import { db, claimedRewardsTable, loyaltyRewardsTable } from '@workspace/db';
+import { db, claimedRewardsTable, customerProfilesTable, loyaltyRewardsTable } from '@workspace/db';
 import { eq, and, inArray, sql } from 'drizzle-orm';
+import { LOYALTY_POINT_VALUE_CENTS } from '../lib/loyaltyIdentity.js';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get('/config', async (_req, res) => {
 router.use(requireAuth);
 
 router.post('/payment-intent', async (req, res) => {
-  const { items, orderType, discountCode, paymentMethod, claimedRewardId } = req.body;
+  const { items, orderType, discountCode, paymentMethod, claimedRewardId, loyaltyPointsUsed } = req.body;
 
   if (paymentMethod === 'pay_at_pickup') {
     return res.status(400).json({ error: 'Pay at pickup orders do not require a Stripe payment intent.' });
@@ -36,8 +37,16 @@ router.post('/payment-intent', async (req, res) => {
   let totalDiscountCents = 0;
   let validatedDiscountCode: string | null = null;
   let rewardDiscountCents = 0;
+  let claimedLoyaltyPoints = Math.max(0, Math.floor(loyaltyPointsUsed ?? 0));
   // Strip any client-supplied isFreeReward flags — only the server may set this
   let enrichedItems = (items as any[] ?? []).map(({ isFreeReward: _f, ...rest }: any) => rest);
+
+  if (claimedLoyaltyPoints > 0) {
+    const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
+    if (!profile || profile.loyaltyPoints < claimedLoyaltyPoints) {
+      return res.status(400).json({ error: 'Insufficient loyalty points' });
+    }
+  }
 
   // ── Validate claimed reward and apply its effect to pricing ───────────────
   if (claimedRewardId && typeof claimedRewardId === 'string') {
@@ -124,6 +133,24 @@ router.post('/payment-intent', async (req, res) => {
 
   totalDiscountCents += rewardDiscountCents;
 
+  let previewWithoutPoints: Awaited<ReturnType<typeof computeOrderTotal>>;
+  try {
+    previewWithoutPoints = await computeOrderTotal(
+      enrichedItems,
+      orderType ?? 'pickup',
+      totalDiscountCents,
+      'card',
+    );
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
+  }
+
+  claimedLoyaltyPoints = Math.min(
+    claimedLoyaltyPoints,
+    Math.floor(previewWithoutPoints.totalCents / LOYALTY_POINT_VALUE_CENTS),
+  );
+  totalDiscountCents += claimedLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS;
+
   let computed: Awaited<ReturnType<typeof computeOrderTotal>>;
   try {
     computed = await computeOrderTotal(
@@ -163,6 +190,7 @@ router.post('/payment-intent', async (req, res) => {
         computedAmountCents: String(computed.totalCents),
         discountCode: validatedDiscountCode ?? '',
         discountCents: String(totalDiscountCents),
+        loyaltyPointsUsed: String(claimedLoyaltyPoints),
         claimedRewardId: claimedRewardId ?? '',
         rewardDiscountCents: String(rewardDiscountCents),
       },

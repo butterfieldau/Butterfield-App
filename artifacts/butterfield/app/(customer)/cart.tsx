@@ -56,6 +56,7 @@ const TEXT     = '#1C1C1E';
 const MUTED    = '#8E8E93';
 const BORDER   = '#E5E7EB';
 const LIGHT_BLUE = '#E6F0FF';
+const LOYALTY_POINT_VALUE_CENTS = 5;
 
 const TABS = [
   { label: 'CART',     icon: 'shopping-bag' },
@@ -157,6 +158,7 @@ function PaymentStepWithStripe({
     discountCodeId?: string;
     discountAmountCents?: number;
     claimedRewardId?: string;
+    loyaltyPointsUsed?: number;
   }) => Promise<void>;
 }) {
   const { confirmPayment } = useStripe();
@@ -180,7 +182,13 @@ function PaymentStepWithStripe({
     queryKey: ['loyalty-claimed-rewards'],
     queryFn: () => api.loyalty.claimedRewards(),
   });
+  const { data: loyaltyProfileData } = useQuery({
+    queryKey: ['loyalty-profile'],
+    queryFn: () => api.loyalty.profile(),
+  });
   const claimedRewards: ClaimedReward[] = claimedRewardsData?.data ?? [];
+  const availableLoyaltyPoints = loyaltyProfileData?.data?.loyaltyPoints ?? 0;
+  const [pointsToUseInput, setPointsToUseInput] = useState('');
 
   // Keep ref in sync for cleanup on unmount
   useEffect(() => {
@@ -268,8 +276,19 @@ function PaymentStepWithStripe({
   const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
   const baseForFee = subtotalCents + deliveryCents - discountCents;
   const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
-  const totalCents = Math.max(0, baseForFee + stripeFee);
+  const totalBeforePointsCents = Math.max(0, baseForFee + stripeFee);
+  const maxUsablePoints = Math.min(availableLoyaltyPoints, Math.floor(totalBeforePointsCents / LOYALTY_POINT_VALUE_CENTS));
+  const requestedPointsToUse = Math.max(0, Math.floor(Number(pointsToUseInput.replace(/\D/g, '') || '0')));
+  const loyaltyPointsUsed = Math.min(requestedPointsToUse, maxUsablePoints);
+  const loyaltyPointsDiscountCents = loyaltyPointsUsed * LOYALTY_POINT_VALUE_CENTS;
+  const totalCents = Math.max(0, totalBeforePointsCents - loyaltyPointsDiscountCents);
   const totalLabel = `AUD ${(totalCents / 100).toFixed(2)}`;
+
+  useEffect(() => {
+    if (requestedPointsToUse !== loyaltyPointsUsed) {
+      setPointsToUseInput(loyaltyPointsUsed > 0 ? String(loyaltyPointsUsed) : '');
+    }
+  }, [loyaltyPointsUsed, requestedPointsToUse]);
 
   const applyDiscount = async () => {
     const code = discountInput.trim().toUpperCase();
@@ -305,6 +324,7 @@ function PaymentStepWithStripe({
           discountCodeId: discountApplied?.id,
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
         });
       } finally {
         setBusy(false);
@@ -324,6 +344,7 @@ function PaymentStepWithStripe({
         orderType,
         discountCode: discountApplied?.code,
         claimedRewardId: selectedClaimedRewardId ?? undefined,
+        loyaltyPointsUsed: loyaltyPointsUsed || undefined,
       });
 
       // Zero-total orders (e.g. free item reward with empty cart) skip Stripe entirely
@@ -334,6 +355,7 @@ function PaymentStepWithStripe({
           discountCodeId: discountApplied?.id,
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
         });
         return;
       }
@@ -367,6 +389,7 @@ function PaymentStepWithStripe({
           discountCodeId: discountApplied?.id,
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
         });
         return;
       }
@@ -383,6 +406,7 @@ function PaymentStepWithStripe({
         discountCodeId: discountApplied?.id,
         discountAmountCents: discountApplied?.discountAmountCents,
         claimedRewardId: selectedClaimedRewardId ?? undefined,
+        loyaltyPointsUsed: loyaltyPointsUsed || undefined,
       });
     } catch (e: any) {
       Alert.alert('Payment failed', e?.message ?? 'Please try again.');
@@ -571,6 +595,36 @@ function PaymentStepWithStripe({
       )}
       {!!discountError && <Text style={{ fontSize: 12, color: CHERRY, marginTop: 2 }}>{discountError}</Text>}
 
+      <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Use points</Text>
+      <View style={psStyles.pointsCard}>
+        <View style={psStyles.pointsCardTop}>
+          <View>
+            <Text style={psStyles.pointsCardValue}>{availableLoyaltyPoints}</Text>
+            <Text style={psStyles.pointsCardSub}>Available as {`AUD ${(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)}`}</Text>
+          </View>
+          <Pressable
+            onPress={() => setPointsToUseInput(maxUsablePoints > 0 ? String(maxUsablePoints) : '')}
+            disabled={maxUsablePoints < 1}
+            style={[psStyles.pointsQuickBtn, maxUsablePoints < 1 && { opacity: 0.45 }]}
+          >
+            <Text style={psStyles.pointsQuickBtnText}>Use all</Text>
+          </Pressable>
+        </View>
+        <View style={psStyles.pointsInputRow}>
+          <TextInput
+            style={psStyles.pointsInput}
+            placeholder="0"
+            placeholderTextColor={MUTED}
+            value={pointsToUseInput}
+            onChangeText={(text) => setPointsToUseInput(text.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+          />
+          <Text style={psStyles.pointsInputMeta}>
+            {loyaltyPointsUsed > 0 ? `-${(loyaltyPointsDiscountCents / 100).toFixed(2)} at checkout` : `${maxUsablePoints} max now`}
+          </Text>
+        </View>
+      </View>
+
       <View style={[psStyles.totalRow, { marginTop: 4 }]}>
         <View style={{ flex: 1, gap: 2 }}>
           {(discountApplied?.discountAmountCents ?? 0) > 0 && (
@@ -583,6 +637,12 @@ function PaymentStepWithStripe({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 12, color: '#16A34A' }}>Reward voucher</Text>
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(claimedRewardDiscountCents / 100).toFixed(2)}</Text>
+            </View>
+          )}
+          {loyaltyPointsDiscountCents > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>Loyalty points</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(loyaltyPointsDiscountCents / 100).toFixed(2)}</Text>
             </View>
           )}
           {selectedClaimed?.rewardType === 'item_reward' && (
@@ -647,6 +707,15 @@ const psStyles = StyleSheet.create({
   discountInput: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '600', letterSpacing: 1.5, backgroundColor: CARD },
   applyBtn:      { paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   discountApplied:{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, backgroundColor: '#F0FDF4', borderWidth: 1.5, borderColor: '#86EFAC' },
+  pointsCard:    { gap: 10, padding: 14, borderRadius: 14, backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER },
+  pointsCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pointsCardValue:{ fontSize: 22, fontWeight: '700', color: TEXT },
+  pointsCardSub: { marginTop: 2, fontSize: 12, color: MUTED },
+  pointsQuickBtn:{ marginLeft: 'auto', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, backgroundColor: LIGHT_BLUE, borderWidth: 1, borderColor: '#BFDBFE' },
+  pointsQuickBtnText:{ fontSize: 12, fontWeight: '700', color: BLUE },
+  pointsInputRow:{ flexDirection: 'row', alignItems: 'center', gap: 10 },
+  pointsInput:   { width: 92, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '700', color: TEXT, backgroundColor: '#F8FAFC', borderColor: BORDER },
+  pointsInputMeta:{ flex: 1, fontSize: 12, lineHeight: 17, color: MUTED },
   totalRow:      { gap: 4 },
   secureRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingTop: 4 },
   noticeRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
@@ -981,6 +1050,7 @@ function CartContent() {
     discountCodeId?: string;
     discountAmountCents?: number;
     claimedRewardId?: string;
+    loyaltyPointsUsed?: number;
   }) => {
     setLoading(true);
     try {
@@ -1024,6 +1094,7 @@ function CartContent() {
         deliveryState:    orderType === 'delivery' ? 'NSW' : undefined,
         paymentMethod:    opts.paymentMethodType === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
         stripePaymentIntentId: opts.stripePaymentIntentId,
+        loyaltyPointsUsed: opts.loyaltyPointsUsed,
         discountCode:     opts.discountCode,
         discountCodeId:   opts.discountCodeId,
         paymentMethodType: opts.paymentMethodType,

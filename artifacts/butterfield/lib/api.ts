@@ -241,6 +241,7 @@ export const api = {
       discountCode?: string;
       paymentMethod?: 'card' | 'pay_at_pickup';
       claimedRewardId?: string;
+      loyaltyPointsUsed?: number;
     }) =>
       request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; amountCents: number; discountAmountCents?: number; rewardDiscountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
