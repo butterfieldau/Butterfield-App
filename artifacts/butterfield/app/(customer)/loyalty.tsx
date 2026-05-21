@@ -549,11 +549,13 @@ function LoyaltyContent() {
             </LinearGradient>
 
             <LinearGradient colors={['#10213E', '#0D1630']} style={[styles.infoCard, styles.infoCardSmall]}>
-              <View style={styles.infoCardMiniTop}>
-                <Text style={styles.infoCardLabel}>Free coffee rewards</Text>
+              <View style={styles.freeCoffeeHeader}>
+                <View style={styles.freeCoffeeCopy}>
+                  <Text style={styles.infoCardLabel}>Free coffee rewards</Text>
+                  <Text style={styles.freeCoffeeHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
+                </View>
                 <Text style={styles.infoCardMiniCount}>{freeCoffeeRewards}</Text>
               </View>
-              <Text style={[styles.infoCardHint, styles.freeCoffeeHint]}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
               <View style={styles.miniStampGrid}>
                 {Array.from({ length: STAMP_COUNT }).map((_, index) => {
                   const filled = index < stampCount;
@@ -989,21 +991,21 @@ const styles = StyleSheet.create({
   infoCardValue: { marginTop: 8, color: WHITE, fontSize: 32, lineHeight: 36, fontWeight: '700' },
   infoCardSub: { marginTop: 4, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
   infoCardHint: { marginTop: 4, color: 'rgba(255,255,255,0.66)', fontSize: 12, lineHeight: 17, fontWeight: '500' },
-  infoCardMiniTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  freeCoffeeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 18 },
+  freeCoffeeCopy: { flex: 1, paddingRight: 4 },
   infoCardMiniCount: { marginLeft: 'auto', color: WHITE, fontSize: 28, lineHeight: 28, fontWeight: '700' },
   freeCoffeeHint: {
-    marginTop: 4,
-    marginBottom: 16,
+    marginTop: 6,
     color: 'rgba(255,255,255,0.84)',
-    lineHeight: 19,
+    lineHeight: 18,
   },
   miniStampGrid: {
-    alignSelf: 'center',
-    width: 166,
+    width: '100%',
+    paddingHorizontal: 8,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 14,
+    rowGap: 16,
   },
   miniStampBubble: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
