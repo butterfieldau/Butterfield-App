@@ -486,28 +486,51 @@ router.post('/social', async (req, res) => {
   let verifiedName: string | undefined;
 
   if (provider === 'google') {
-    if (!accessToken || typeof accessToken !== 'string') {
-      return res.status(400).json({ error: 'Google sign-in requires an accessToken.' });
+    if (idToken && typeof idToken === 'string') {
+      let googleUser: { sub: string; email: string; name?: string; email_verified?: string };
+      try {
+        const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+        if (!r.ok) {
+          return res.status(401).json({ error: 'Invalid or expired Google token.' });
+        }
+        googleUser = await r.json() as typeof googleUser;
+      } catch {
+        return res.status(502).json({ error: 'Could not reach Google to verify token.' });
+      }
+
+      if (!googleUser.email) {
+        return res.status(401).json({ error: 'No email returned from Google.' });
+      }
+      if (googleUser.email_verified !== 'true') {
+        return res.status(401).json({ error: 'Google account email is not verified.' });
+      }
+
+      verifiedId = googleUser.sub;
+      verifiedEmail = googleUser.email.toLowerCase();
+      verifiedName = googleUser.name;
+    } else if (accessToken && typeof accessToken === 'string') {
+      // Backward-compatible path for older clients still sending a Google access token.
+      let googleUserRes: Response;
+      try {
+        googleUserRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      } catch {
+        return res.status(502).json({ error: 'Could not reach Google to verify token.' });
+      }
+      if (!googleUserRes.ok) {
+        return res.status(401).json({ error: 'Google token verification failed.' });
+      }
+      const gUser = (await googleUserRes.json()) as Record<string, unknown>;
+      if (typeof gUser.id !== 'string' || !gUser.id || typeof gUser.email !== 'string' || !gUser.email) {
+        return res.status(401).json({ error: 'Google token did not return valid identity claims.' });
+      }
+      verifiedId = gUser.id;
+      verifiedEmail = gUser.email.toLowerCase();
+      verifiedName = typeof gUser.name === 'string' ? gUser.name : undefined;
+    } else {
+      return res.status(400).json({ error: 'Google sign-in requires an idToken.' });
     }
-    // Verify the access token server-side — never trust client-supplied claims
-    let googleUserRes: Response;
-    try {
-      googleUserRes = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-    } catch {
-      return res.status(502).json({ error: 'Could not reach Google to verify token.' });
-    }
-    if (!googleUserRes.ok) {
-      return res.status(401).json({ error: 'Google token verification failed.' });
-    }
-    const gUser = (await googleUserRes.json()) as Record<string, unknown>;
-    if (typeof gUser.id !== 'string' || !gUser.id || typeof gUser.email !== 'string' || !gUser.email) {
-      return res.status(401).json({ error: 'Google token did not return valid identity claims.' });
-    }
-    verifiedId    = gUser.id;
-    verifiedEmail = gUser.email.toLowerCase();
-    verifiedName  = typeof gUser.name === 'string' ? gUser.name : undefined;
 
   } else if (provider === 'apple') {
     if (!idToken || typeof idToken !== 'string') {
@@ -797,61 +820,6 @@ router.post('/reset-password', async (req, res) => {
     .where(eq(usersTable.id, payload.sub));
 
   return res.json({ success: true, message: 'Password updated successfully.' });
-});
-
-// ── Social login (Google / Apple) ────────────────────────────────────────────
-router.post('/social', async (req, res) => {
-  const { provider, idToken } = req.body ?? {};
-  if (provider !== 'google' || typeof idToken !== 'string' || !idToken) {
-    return res.status(400).json({ error: 'provider and idToken are required.' });
-  }
-
-  // Verify the ID token with Google's tokeninfo endpoint — never trust client-supplied user data
-  let googleUser: { sub: string; email: string; name?: string; email_verified?: string };
-  try {
-    const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
-    if (!r.ok) return res.status(401).json({ error: 'Invalid or expired Google token.' });
-    googleUser = await r.json() as typeof googleUser;
-  } catch {
-    return res.status(502).json({ error: 'Could not reach Google to verify token.' });
-  }
-
-  if (!googleUser.email) {
-    return res.status(401).json({ error: 'No email returned from Google.' });
-  }
-
-  if (googleUser.email_verified !== 'true') {
-    return res.status(401).json({ error: 'Google account email is not verified.' });
-  }
-
-  const normalEmail = googleUser.email.toLowerCase();
-
-  // Find existing user by email
-  let [user] = await db.select().from(usersTable).where(eq(usersTable.email, normalEmail));
-
-  if (!user) {
-    // Create a new customer account
-    const id = randomUUID();
-    [user] = await db.insert(usersTable).values({
-      id,
-      email: normalEmail,
-      name: googleUser.name ?? normalEmail.split('@')[0],
-      role: 'customer' as const,
-      passwordHash: '',
-      socialProvider: 'google',
-      socialId: googleUser.sub,
-    }).returning();
-    await getOrCreateCustomerLoyaltyProfile(id);
-  } else if (!user.socialId) {
-    // Link Google to an existing email/password account
-    await db.update(usersTable)
-      .set({ socialProvider: 'google', socialId: googleUser.sub, updatedAt: new Date() })
-      .where(eq(usersTable.id, user.id));
-  }
-
-  const token = signToken(user);
-  const { passwordHash: _pw, ...safeUser } = user;
-  return res.json({ token, user: safeUser });
 });
 
 // ── Account deletion (GDPR / App Store requirement) ────────────────────────
