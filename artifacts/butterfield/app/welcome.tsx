@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
+import { getHomeRouteForRole } from '@/lib/roleRoutes';
 
 const GUEST_STARTED_KEY = '@butterfield_guest_started';
 
@@ -21,7 +22,7 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace('/(tabs)');
+      router.replace(getHomeRouteForRole(user.role));
     }
   }, [user, isLoading]);
 
@@ -46,7 +47,7 @@ export default function WelcomeScreen() {
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             AsyncStorage.setItem(GUEST_STARTED_KEY, '1').catch(() => {});
-            router.replace('/(tabs)');
+            router.replace('/(customer)');
           }}
         >
           <Text style={styles.getStartedText}>Get Started</Text>

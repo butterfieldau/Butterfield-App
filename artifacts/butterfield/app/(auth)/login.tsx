@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
+import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import type { UserRole } from '@/types';
 
 // Loaded lazily so a missing native module never crashes the login screen
@@ -72,11 +73,12 @@ export default function LoginScreen() {
 
   const routeAfterAuth = (role?: UserRole) => {
     const redirectTo = Array.isArray(params.redirectTo) ? params.redirectTo[0] : params.redirectTo;
+    router.dismissAll();
     if (redirectTo && (!role || role === 'customer')) {
       router.replace(redirectTo as Href);
       return;
     }
-    router.replace('/(tabs)');
+    router.replace(getHomeRouteForRole(role));
   };
 
   // Check Apple availability without crashing if native module is absent

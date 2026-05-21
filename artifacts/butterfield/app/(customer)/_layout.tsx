@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Tabs, usePathname } from 'expo-router';
+import { Redirect, Tabs, usePathname } from 'expo-router';
 import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
+import { getHomeRouteForRole } from '@/lib/roleRoutes';
 
 const PRIMARY_TOP = '#1493FF';
 
@@ -190,6 +191,10 @@ function ClassicCustomerTabs() {
 }
 
 export default function CustomerTabLayout() {
+  const { user } = useAuth();
+  if (user && user.role !== 'customer') {
+    return <Redirect href={getHomeRouteForRole(user.role)} />;
+  }
   return <ClassicCustomerTabs />;
 }
 

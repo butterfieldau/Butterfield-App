@@ -3,6 +3,7 @@ import { Redirect } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
+import { getHomeRouteForRole } from '@/lib/roleRoutes';
 
 const GUEST_STARTED_KEY = '@butterfield_guest_started';
 
@@ -25,5 +26,5 @@ export default function Index() {
   }
 
   if (!user && !guestStarted) return <Redirect href="/welcome" />;
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href={getHomeRouteForRole(user?.role)} />;
 }
