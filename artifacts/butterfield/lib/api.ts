@@ -846,6 +846,7 @@ export interface CrmCustomer {
   name: string;
   email: string;
   phone?: string | null;
+  profileImage?: string | null;
   role: string;
   status: string;
   createdAt: string;

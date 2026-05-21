@@ -128,7 +128,7 @@ router.get('/customers', async (req, res) => {
     const autoBadges   = computeAutoBadges(orderCount, totalSpentCents, daysSince, !!wa);
     const manualList   = badgeStrMap[c.id] ?? [];
     return {
-      id: c.id, name: c.name, email: c.email, phone: c.phone,
+      id: c.id, name: c.name, email: c.email, phone: c.phone, profileImage: c.profileImage,
       role: c.role, status: c.status, createdAt: c.createdAt, lastLogin: c.lastLogin,
       profile: profileMap[c.id] ?? null,
       emailMarketingOptIn: profileMap[c.id]?.emailMarketingOptIn ?? false,
@@ -220,7 +220,7 @@ router.get('/customers/:id', async (req, res) => {
 
   return res.json({
     data: {
-      id: user.id, name: user.name, email: user.email, phone: user.phone,
+      id: user.id, name: user.name, email: user.email, phone: user.phone, profileImage: user.profileImage,
       role: user.role, status: user.status, createdAt: user.createdAt, lastLogin: user.lastLogin,
       profile: profile[0] ?? null,
       wholesaleAccount: wa,

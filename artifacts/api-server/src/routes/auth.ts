@@ -623,7 +623,7 @@ router.post('/social', async (req, res) => {
     });
     await db.insert(customerProfilesTable).values({
       userId,
-      loyaltyPoints: 100,
+      loyaltyPoints: 0,
       loyaltyTier: 'blue',
       referralCode: generateReferralCode(userName),
     });

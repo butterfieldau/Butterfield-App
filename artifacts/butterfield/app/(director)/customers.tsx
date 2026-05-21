@@ -6,6 +6,7 @@ import {
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -95,6 +96,13 @@ function ShopifyCustomerRow({ item, onPress, isLast }: { item: any; onPress: () 
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
       style={[row.wrap, !isLast && row.border]}
     >
+      {item.profileImage ? (
+        <Image source={{ uri: item.profileImage }} style={row.avatarImage} contentFit="cover" />
+      ) : (
+        <View style={row.avatarFallback}>
+          <Text style={row.avatarText}>{initials(item.name)}</Text>
+        </View>
+      )}
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={row.name}>{item.name}</Text>
         {loc && <Text style={row.location}>{loc}</Text>}
@@ -283,6 +291,15 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
             {/* ── Hero section ── */}
             <View style={[det.heroSection, { borderBottomColor: BORDER }]}>
+              <View style={det.heroAvatarRow}>
+                {customer.profileImage ? (
+                  <Image source={{ uri: customer.profileImage }} style={det.heroAvatarImage} contentFit="cover" />
+                ) : (
+                  <View style={det.heroAvatarFallback}>
+                    <Text style={det.heroAvatarText}>{initials(customer.name)}</Text>
+                  </View>
+                )}
+              </View>
               <Text style={det.heroName}>{customer.name}</Text>
               <Text style={det.heroSub}>
                 Since {fmtDate(customer.createdAt)}
@@ -721,6 +738,9 @@ export default function DirectorCustomersScreen() {
 const row = StyleSheet.create({
   wrap:      { paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD },
   border:    { borderBottomWidth: 1, borderBottomColor: BORDER },
+  avatarImage: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EAF3FF' },
+  avatarFallback: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 15, fontWeight: '700', color: BLUE },
   name:      { fontSize: 15, fontWeight: '700', color: TEXT },
   location:  { fontSize: 13, color: MUTED, fontWeight: '400' },
   meta:      { fontSize: 13, color: MUTED, fontWeight: '400' },
@@ -740,6 +760,10 @@ const det = StyleSheet.create({
   headerBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
   headerTitle:  { fontSize: 16, fontWeight: '700', color: TEXT },
   heroSection:  { backgroundColor: CARD, paddingHorizontal: 20, paddingVertical: 20, borderBottomWidth: 1, gap: 2 },
+  heroAvatarRow:{ marginBottom: 14 },
+  heroAvatarImage:{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#EAF3FF' },
+  heroAvatarFallback:{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
+  heroAvatarText:{ fontSize: 22, fontWeight: '700', color: BLUE },
   heroName:     { fontSize: 24, fontWeight: '700', color: TEXT },
   heroSub:      { fontSize: 13, color: MUTED, fontWeight: '400' },
   tag:          { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
