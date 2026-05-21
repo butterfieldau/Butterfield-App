@@ -94,7 +94,6 @@ export function SwipeDownSheet({
   const panGesture = useMemo(() => {
     const gesture = Gesture.Pan()
       .activeOffsetY([-10, 10])
-      .simultaneousWithExternalGesture(scrollGestureRef as any)
       .onUpdate((e) => {
         if (e.translationY > 0) {
           translateY.value = e.translationY;
@@ -120,7 +119,7 @@ export function SwipeDownSheet({
       });
 
     return gesture;
-  }, [animateOut, backdropOpacity, scrollGestureRef, backdropO, translateY]);
+  }, [animateOut, backdropOpacity, backdropO, translateY]);
 
   const sheetAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
