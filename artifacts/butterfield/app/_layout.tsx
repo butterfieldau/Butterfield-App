@@ -59,12 +59,12 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="welcome" options={{ headerShown: false, animation: "fade" }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen
         name="(auth)"
         options={{ presentation: "modal", headerShown: false, animation: "slide_from_bottom" }}
       />
-      <Stack.Screen name="(customer)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(customer)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="store" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
       <Stack.Screen name="edit-details" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
       <Stack.Screen name="product" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
@@ -73,9 +73,9 @@ function RootLayoutNav() {
       <Stack.Screen name="notification-prefs" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="(staff)" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="(manager)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
+      <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
+      <Stack.Screen name="(manager)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
     </Stack>
   );
 }

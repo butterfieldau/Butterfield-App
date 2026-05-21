@@ -1,17 +1,21 @@
 import { Feather } from '@expo/vector-icons';
-import { router, Tabs } from 'expo-router';
+import { Redirect, router, Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { PortalHeader } from '@/components/PortalHeader';
+import { getHomeRouteForRole, isInternalRole } from '@/lib/roleRoutes';
 
 const BLUE = '#1493FF';
 const NAVY = '#1A2B4A';
 
 export default function DirectorLayout() {
   const { logout, user } = useAuth();
+
+  if (!user) return <Redirect href="/(customer)" />;
+  if (!isInternalRole(user.role)) return <Redirect href={getHomeRouteForRole(user.role)} />;
 
   const isStaff    = user?.role === 'staff';
   const isManager  = user?.role === 'manager';

@@ -2,6 +2,7 @@ import { Redirect } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
+import { getHomeRouteForRole } from '@/lib/roleRoutes';
 
 export default function Index() {
   const { user, isLoading } = useAuth();
@@ -14,13 +15,5 @@ export default function Index() {
     );
   }
 
-  if (!user) return <Redirect href="/(customer)" />;
-  if (user.role === 'customer')  return <Redirect href="/(customer)" />;
-  if (user.role === 'wholesale') return <Redirect href="/(wholesale)" />;
-  if (user.role === 'staff')     return <Redirect href="/(director)" />;
-  if (user.role === 'manager')   return <Redirect href="/(director)" />;
-  if (user.role === 'director')  return <Redirect href="/(director)" />;
-  if (user.role === 'master')    return <Redirect href="/(director)" />;
-
-  return <Redirect href="/(customer)" />;
+  return <Redirect href={getHomeRouteForRole(user?.role)} />;
 }

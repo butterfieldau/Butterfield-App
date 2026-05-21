@@ -1,14 +1,18 @@
 import { Feather } from '@expo/vector-icons';
-import { router, Tabs } from 'expo-router';
+import { Redirect, router, Tabs } from 'expo-router';
 import React from 'react';
 import { View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
+import { getHomeRouteForRole } from '@/lib/roleRoutes';
 
 const NAVY = '#1A2B4A';
 
 export default function WholesaleLayout() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+
+  if (!user) return <Redirect href="/(customer)" />;
+  if (user.role !== 'wholesale') return <Redirect href={getHomeRouteForRole(user.role)} />;
 
   return (
     <View style={{ flex: 1, backgroundColor: NAVY }}>
