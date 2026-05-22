@@ -50,7 +50,7 @@ export default function StaffTasksScreen() {
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchWastage);
   const tasks = tasksData?.data ?? [];
   const wastageList = wastageData?.data ?? [];
-  const [wastageForm, setWastageForm] = useState({ productName: '', quantity: '', unit: 'units', reason: '' });
+  const [wastageForm, setWastageForm] = useState({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
   const [issueForm, setIssueForm] = useState({ title: '', description: '', priority: 'medium' });
   const [leaveForm, setLeaveForm] = useState({ startDate: '', endDate: '', type: 'annual', reason: '' });
   const handleCompleteTask = async (id: string, isCompleted: boolean) => {
@@ -64,9 +64,23 @@ export default function StaffTasksScreen() {
     if (!wastageForm.productName || !wastageForm.quantity || !wastageForm.reason) { Alert.alert('Fill all fields'); return; }
     setSubmitting(true);
     try {
-      await api.staff.submitWastage(wastageForm);
+      const estimatedCost = wastageForm.estimatedCost.trim();
+      const estimatedCostNumber = estimatedCost ? Number(estimatedCost) : null;
+      if (estimatedCost && (estimatedCostNumber === null || !Number.isFinite(estimatedCostNumber) || estimatedCostNumber < 0)) {
+        Alert.alert('Invalid amount', 'Enter a valid loss amount.');
+        setSubmitting(false);
+        return;
+      }
+      await api.staff.submitWastage({
+        productName: wastageForm.productName,
+        quantity: wastageForm.quantity,
+        unit: wastageForm.unit,
+        reason: wastageForm.reason,
+        notes: wastageForm.notes.trim() || null,
+        estimatedCostCents: estimatedCostNumber !== null ? Math.round(estimatedCostNumber * 100) : null,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setWastageForm({ productName: '', quantity: '', unit: 'units', reason: '' });
+      setWastageForm({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
       qc.invalidateQueries({ queryKey: ['staff-wastage'] });
       Alert.alert('Logged', 'Wastage recorded successfully.');
     } catch (e: any) { Alert.alert('Error', e.message); } finally { setSubmitting(false); }
@@ -197,6 +211,8 @@ export default function StaffTasksScreen() {
             { label: 'Product name', key: 'productName', placeholder: 'e.g. Classic Choc Chip' },
             { label: 'Quantity', key: 'quantity', placeholder: 'e.g. 3', keyboardType: 'number-pad' as const },
             { label: 'Reason', key: 'reason', placeholder: 'e.g. Burnt, dropped, overproduced' },
+            { label: 'Loss amount (AUD)', key: 'estimatedCost', placeholder: 'e.g. 18.50', keyboardType: 'decimal-pad' as const },
+            { label: 'Notes', key: 'notes', placeholder: 'Optional details for management' },
           ].map((field) => (
             <View key={field.key}>
               <Text style={s.fieldLabel}>{field.label.toUpperCase()}</Text>
@@ -217,11 +233,14 @@ export default function StaffTasksScreen() {
             <View style={{ gap: 8, marginTop: 8 }}>
               <Text style={s.sectionLabel}>RECENT LOGS</Text>
               <View style={s.taskCard}>
-                {wastageList.slice(0, 5).map((w: any, idx: number) => (
+              {wastageList.slice(0, 5).map((w: any, idx: number) => (
                   <View key={w.id} style={[s.taskRow, idx < Math.min(wastageList.length, 5) - 1 && s.taskDivider]}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.taskTitle}>{w.productName} × {w.quantity}</Text>
                       <Text style={s.taskDesc}>{w.reason}</Text>
+                      {w.estimatedCostCents ? (
+                        <Text style={[s.taskCat, { color: BLUE }]}>Loss recorded: ${(w.estimatedCostCents / 100).toFixed(2)}</Text>
+                      ) : null}
                     </View>
                   </View>
                 ))}

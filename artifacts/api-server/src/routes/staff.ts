@@ -352,10 +352,19 @@ router.post('/wastage', async (req, res) => {
   if (!productName || !quantity || !reason) {
     return res.status(400).json({ error: 'Product, quantity and reason are required' });
   }
+  const parsedEstimatedCostCents =
+    estimatedCostCents == null || estimatedCostCents === ''
+      ? null
+      : Number.isFinite(Number(estimatedCostCents)) && Number(estimatedCostCents) >= 0
+        ? Math.round(Number(estimatedCostCents))
+        : NaN;
+  if (Number.isNaN(parsedEstimatedCostCents)) {
+    return res.status(400).json({ error: 'estimatedCostCents must be a valid positive amount' });
+  }
   const [entry] = await db.insert(staffWastageTable).values({
     id: randomUUID(),
     userId: req.user!.id,
-    productName, quantity, unit: unit ?? 'units', reason, estimatedCostCents, notes,
+    productName, quantity, unit: unit ?? 'units', reason, estimatedCostCents: parsedEstimatedCostCents, notes,
   }).returning();
   return res.status(201).json({ data: entry });
 });
