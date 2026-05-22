@@ -14,7 +14,6 @@ import { api, type DirectorReward, type DirectorProduct, type DirectorAnnounceme
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
 import { useAuth } from '@/context/AuthContext';
-import XeroSettingsTab from '@/components/XeroSettingsTab';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -27,7 +26,7 @@ const GREEN  = '#22C55E';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
 
-type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Xero' | 'Managers' | 'Directors';
+type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Managers' | 'Directors';
 
 const REWARD_CATEGORIES = ['food', 'drink', 'discount', 'experience', 'merchandise'];
 const TARGET_ROLES      = ['customer', 'staff', 'wholesale'];
@@ -1641,7 +1640,6 @@ const ALL_PERMISSIONS = [
   { key: 'settings',      label: 'Settings',      icon: 'settings'    },
   { key: 'pricing',       label: 'Pricing',       icon: 'dollar-sign' },
   { key: 'banners',       label: 'Banner',        icon: 'image'       },
-  { key: 'invoices',      label: 'Invoices',      icon: 'file-text'   },
 ] as const;
 
 const INDIGO = '#3730A3';
@@ -2016,7 +2014,6 @@ export default function DirectorSettingsScreen() {
     // Banner tab: always for director/master; for managers only if granted 'banners' permission
     if (!isManager || managerPerms.includes('banners')) base.push('Banner');
     base.push('Rewards', 'Notify');
-    if (!isManager) base.push('Xero');
     if (!isManager) base.push('Managers');
     if (isMaster) base.push('Directors');
     return base;
@@ -2045,7 +2042,6 @@ export default function DirectorSettingsScreen() {
       {tab === 'Banner'    && <BannerTab />}
       {tab === 'Rewards'   && <RewardsTab />}
       {tab === 'Notify'    && <NotifyTab />}
-      {tab === 'Xero'      && <XeroSettingsTab />}
       {tab === 'Managers'  && <ManagersTab />}
       {tab === 'Directors' && <DirectorsTab />}
     </View>

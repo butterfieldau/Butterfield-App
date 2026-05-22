@@ -15,7 +15,6 @@ import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { claimedRewardsTable } from '@workspace/db';
-import { maybeAutoCreateWholesaleInvoice } from '../lib/xeroService.js';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
@@ -377,11 +376,6 @@ router.patch('/orders/:id/status', async (req, res) => {
     if (msg) {
       notifyUser(wholesaleOrder.userId, 'order_status', 'Butterfield Wholesale', msg,
         { orderId: id, status, screen: '/(wholesale)/orders' }).catch(() => {});
-    }
-    try {
-      await maybeAutoCreateWholesaleInvoice(id, status, { id: req.user!.id, role: req.user!.role });
-    } catch (err: any) {
-      req.log.warn({ err: err?.message, orderId: id }, 'Wholesale Xero auto-create skipped or failed');
     }
     return res.json({ data: { ...updated, orderSource: 'wholesale' } });
   }
@@ -1047,7 +1041,6 @@ router.get('/reports', async (req, res) => {
     typeRows, statusRows, recentOrders,
     feedbackRows, [unreadFeedback],
     [totalCustomers], [newCustomersWeek],
-    [unsyncedWholesale], [syncedWholesale], [sentWholesale], [paidWholesale], [overdueWholesale], [failedWholesale],
   ] = await Promise.all([
     db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable)
       .where(and(gte(ordersTable.createdAt, startOfToday), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
@@ -1070,12 +1063,6 @@ router.get('/reports', async (req, res) => {
     db.select({ count: count() }).from(usersTable).where(eq(usersTable.role, 'customer' as any)),
     db.select({ count: count() }).from(usersTable)
       .where(and(eq(usersTable.role, 'customer' as any), gte(usersTable.createdAt, startOfWeek))),
-    db.select({ count: count() }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.xeroSyncStatus, 'not_synced')),
-    db.select({ count: count() }).from(wholesaleOrdersTable).where(inArray(wholesaleOrdersTable.xeroSyncStatus, ['draft_created', 'authorised', 'sent', 'paid', 'overdue'] as any)),
-    db.select({ count: count() }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.xeroSyncStatus, 'sent')),
-    db.select({ count: count() }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.xeroSyncStatus, 'paid')),
-    db.select({ count: count() }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.xeroSyncStatus, 'overdue')),
-    db.select({ count: count() }).from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.xeroSyncStatus, 'sync_failed')),
   ]);
 
   // Revenue per day for last 30 days
@@ -1143,14 +1130,6 @@ router.get('/reports', async (req, res) => {
       recentOrders,
       feedback: feedbackRows,
       unreadFeedback: unreadFeedback.count,
-      wholesaleInvoices: {
-        unsynced: unsyncedWholesale.count,
-        synced: syncedWholesale.count,
-        sent: sentWholesale.count,
-        paid: paidWholesale.count,
-        overdue: overdueWholesale.count,
-        failed: failedWholesale.count,
-      },
       customers: {
         total:   totalCustomers.count,
         newWeek: newCustomersWeek.count,

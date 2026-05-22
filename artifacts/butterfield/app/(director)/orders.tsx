@@ -40,16 +40,6 @@ const STATUS_LABEL: Record<string, string> = {
   pending: 'Pending', processing: 'Processing',
   dispatched: 'Dispatched', delivered: 'Delivered',
 };
-const XERO_SYNC_META: Record<string, { bg: string; text: string; label: string }> = {
-  not_synced: { bg: '#F3F4F6', text: '#6B7280', label: 'Not Synced' },
-  syncing: { bg: '#DBEAFE', text: '#1E40AF', label: 'Syncing' },
-  draft_created: { bg: '#FEF3C7', text: '#92400E', label: 'Draft Created' },
-  authorised: { bg: '#EDE9FE', text: '#5B21B6', label: 'Authorised' },
-  sent: { bg: '#E0F2FE', text: '#0369A1', label: 'Sent' },
-  paid: { bg: '#DCFCE7', text: '#166534', label: 'Paid' },
-  overdue: { bg: '#FEE2E2', text: '#991B1B', label: 'Overdue' },
-  sync_failed: { bg: '#FEE2E2', text: '#991B1B', label: 'Sync Failed' },
-};
 const CUSTOMER_NEXT: Record<string, string[]> = {
   received:         ['being_prepared', 'cancelled'],
   being_prepared:   ['ready_for_pickup', 'cancelled'],
@@ -115,14 +105,12 @@ function getPastDays(n: number) {
   return days;
 }
 // ── Order Detail Modal ────────────────────────────────────────────────────────
-function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing, canCancelRefund, onXeroAction, xeroBusyAction }: {
+function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing, canCancelRefund }: {
   order: any; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string) => Promise<void>;
   onPrintReceipt: () => Promise<void>;
   printing: boolean;
   canCancelRefund: boolean;
-  onXeroAction: (order: any, action: 'create' | 'authorise' | 'send' | 'sync' | 'retry' | 'open') => Promise<void>;
-  xeroBusyAction: string | null;
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
@@ -154,13 +142,6 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   const discountCents = order.discountCents ?? 0;
   const loyaltyUsed  = order.loyaltyPointsUsed ?? 0;
   const loyaltyEarned = order.loyaltyPointsEarned ?? 0;
-  const xeroMeta = XERO_SYNC_META[order.xeroSyncStatus ?? 'not_synced'] ?? XERO_SYNC_META.not_synced;
-  const xeroInvoiceStatus = order.xeroInvoiceStatus ? String(order.xeroInvoiceStatus).toUpperCase() : null;
-  const canCreateXeroInvoice = !order.xeroInvoiceId;
-  const canAuthoriseXeroInvoice = Boolean(order.xeroInvoiceId && ['DRAFT', 'SUBMITTED'].includes(xeroInvoiceStatus ?? ''));
-  const canSendXeroInvoice = Boolean(order.xeroInvoiceId && ['AUTHORISED', 'PAID'].includes(xeroInvoiceStatus ?? ''));
-  const canSyncXeroInvoice = Boolean(order.xeroInvoiceId);
-  const canRetryXeroInvoice = order.xeroSyncStatus === 'sync_failed';
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
@@ -398,113 +379,6 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               <Text style={[{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
                 {order.notes}
               </Text>
-            </View>
-          ) : null}
-          {isWholesale ? (
-            <View style={styles.section}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionLabel}>Xero Invoice</Text>
-                  <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15, marginTop: 8 }}>
-                    {order.xeroInvoiceNumber || 'Not created yet'}
-                  </Text>
-                  <Text style={{ color: MUTED, fontSize: 12, marginTop: 4, lineHeight: 18 }}>
-                    Xero is used only for wholesale invoicing. Retail customer orders stay on Butterfield receipts.
-                  </Text>
-                </View>
-                <View style={[styles.statusPill, { backgroundColor: xeroMeta.bg, marginTop: 6 }]}>
-                  <Text style={[styles.statusPillText, { color: xeroMeta.text }]}>{xeroMeta.label}</Text>
-                </View>
-              </View>
-              <View style={{ gap: 6, marginTop: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: MUTED, fontSize: 12 }}>Invoice ID</Text>
-                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: '500', flex: 1, textAlign: 'right' }}>{order.xeroInvoiceId || 'Not linked yet'}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: MUTED, fontSize: 12 }}>Invoice status</Text>
-                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: '500' }}>{xeroInvoiceStatus || 'Not created yet'}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: MUTED, fontSize: 12 }}>Last synced</Text>
-                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: '500' }}>
-                    {order.xeroLastSyncedAt ? new Date(order.xeroLastSyncedAt).toLocaleString('en-AU') : 'Never'}
-                  </Text>
-                </View>
-                {order.xeroDueDate ? (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: MUTED, fontSize: 12 }}>Due date</Text>
-                    <Text style={{ color: TEXT, fontSize: 12, fontWeight: '500' }}>{new Date(order.xeroDueDate).toLocaleDateString('en-AU')}</Text>
-                  </View>
-                ) : null}
-                {order.xeroSentAt ? (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: MUTED, fontSize: 12 }}>Sent at</Text>
-                    <Text style={{ color: TEXT, fontSize: 12, fontWeight: '500' }}>{new Date(order.xeroSentAt).toLocaleString('en-AU')}</Text>
-                  </View>
-                ) : null}
-                {order.xeroSyncError ? (
-                  <View style={{ backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 4 }}>
-                    <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>{order.xeroSyncError}</Text>
-                  </View>
-                ) : null}
-              </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-                {canCreateXeroInvoice ? (
-                  <Pressable
-                    onPress={() => onXeroAction(order, 'create')}
-                    disabled={xeroBusyAction !== null}
-                    style={[styles.xeroActionBtn, { backgroundColor: BLUE, opacity: xeroBusyAction ? 0.75 : 1 }]}
-                  >
-                    {xeroBusyAction === 'create' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.xeroActionBtnText}>Create invoice</Text>}
-                  </Pressable>
-                ) : null}
-                {canAuthoriseXeroInvoice ? (
-                  <Pressable
-                    onPress={() => onXeroAction(order, 'authorise')}
-                    disabled={xeroBusyAction !== null}
-                    style={[styles.xeroActionBtn, { backgroundColor: '#7C3AED', opacity: xeroBusyAction ? 0.75 : 1 }]}
-                  >
-                    {xeroBusyAction === 'authorise' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.xeroActionBtnText}>Authorise</Text>}
-                  </Pressable>
-                ) : null}
-                {canSendXeroInvoice ? (
-                  <Pressable
-                    onPress={() => onXeroAction(order, 'send')}
-                    disabled={xeroBusyAction !== null}
-                    style={[styles.xeroActionBtn, { backgroundColor: GREEN, opacity: xeroBusyAction ? 0.75 : 1 }]}
-                  >
-                    {xeroBusyAction === 'send' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.xeroActionBtnText}>Send via Xero</Text>}
-                  </Pressable>
-                ) : null}
-                {canSyncXeroInvoice ? (
-                  <Pressable
-                    onPress={() => onXeroAction(order, 'sync')}
-                    disabled={xeroBusyAction !== null}
-                    style={[styles.xeroActionBtn, { backgroundColor: TEXT, opacity: xeroBusyAction ? 0.75 : 1 }]}
-                  >
-                    {xeroBusyAction === 'sync' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.xeroActionBtnText}>Sync from Xero</Text>}
-                  </Pressable>
-                ) : null}
-                {canRetryXeroInvoice ? (
-                  <Pressable
-                    onPress={() => onXeroAction(order, 'retry')}
-                    disabled={xeroBusyAction !== null}
-                    style={[styles.xeroActionBtn, { backgroundColor: '#F59E0B', opacity: xeroBusyAction ? 0.75 : 1 }]}
-                  >
-                    {xeroBusyAction === 'retry' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.xeroActionBtnText}>Retry sync</Text>}
-                  </Pressable>
-                ) : null}
-                {order.xeroInvoiceId ? (
-                  <Pressable
-                    onPress={() => onXeroAction(order, 'open')}
-                    disabled={xeroBusyAction !== null}
-                    style={[styles.xeroActionBtn, { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', opacity: xeroBusyAction ? 0.75 : 1 }]}
-                  >
-                    {xeroBusyAction === 'open' ? <ActivityIndicator color={BLUE} size="small" /> : <Text style={[styles.xeroActionBtnText, { color: BLUE }]}>Open in Xero</Text>}
-                  </Pressable>
-                ) : null}
-              </View>
             </View>
           ) : null}
         </ScrollView>
@@ -747,7 +621,6 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
-  const [xeroBusyAction, setXeroBusyAction] = useState<string | null>(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-orders'],
     queryFn: () => api.director.orders(),
@@ -824,34 +697,6 @@ export default function DirectorOrdersScreen() {
       }
     } catch (e: any) {
       Alert.alert('Error', e.message);
-    }
-  };
-  const handleXeroAction = async (order: any, action: 'create' | 'authorise' | 'send' | 'sync' | 'retry' | 'open') => {
-    try {
-      setXeroBusyAction(action);
-      if (action === 'open') {
-        const { data } = await api.director.xero.openLink(order.id);
-        await Linking.openURL(data.url);
-        return;
-      }
-      const response =
-        action === 'create' ? await api.director.xero.createInvoice(order.id) :
-        action === 'authorise' ? await api.director.xero.authoriseInvoice(order.id) :
-        action === 'send' ? await api.director.xero.sendInvoice(order.id) :
-        action === 'retry' ? await api.director.xero.retrySync(order.id) :
-        await api.director.xero.syncInvoice(order.id);
-
-      await qc.invalidateQueries({ queryKey: ['director-orders'] });
-      setSelectedOrder(response.data ?? order);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      if (action === 'create') Alert.alert('Xero invoice created', 'A draft wholesale invoice was created in Xero.');
-      if (action === 'authorise') Alert.alert('Invoice authorised', 'The wholesale invoice is now authorised in Xero.');
-      if (action === 'send') Alert.alert('Invoice sent', 'Xero has been asked to email this invoice to the wholesale account.');
-    } catch (e: any) {
-      Alert.alert('Xero action failed', e.message ?? 'The Xero action could not be completed.');
-    } finally {
-      setXeroBusyAction(null);
     }
   };
   const totalToday = statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)).length;
@@ -1002,8 +847,6 @@ export default function DirectorOrdersScreen() {
         onPrintReceipt={() => selectedOrder ? printOrder(selectedOrder) : Promise.resolve()}
         printing={printingOrderId === selectedOrder?.id}
         canCancelRefund={canCancelRefund}
-        onXeroAction={handleXeroAction}
-        xeroBusyAction={xeroBusyAction}
       />
 
       {/* Calendar date picker */}
@@ -1043,8 +886,6 @@ const styles = StyleSheet.create({
   statusPillText: { fontSize: 13, fontWeight: '600' },
   updateStatusBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
   printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, marginHorizontal: 16, marginTop: 2 },
-  xeroActionBtn:  { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', minWidth: 120 },
-  xeroActionBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   detailText:     { color: TEXT, fontWeight: '400', fontSize: 14, lineHeight: 20 },
   itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },

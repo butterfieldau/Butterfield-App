@@ -14,7 +14,6 @@ export const MANAGER_PERMISSIONS = [
   "settings",
   "pricing",
   "banners",
-  "invoices",
 ] as const;
 
 export type ManagerPermission = typeof MANAGER_PERMISSIONS[number];
