@@ -156,11 +156,11 @@ const DISPLAY_TIERS: DisplayTier[] = [
 ];
 
 const REWARD_PRESETS: Record<string, { icon: keyof typeof Feather.glyphMap; image?: any; tint: string; bg: [string, string] }> = {
-  free_coffee: { icon: 'coffee', image: require('@/assets/images/coffee-hero.png'), tint: '#5B7CFA', bg: ['#EEF4FF', '#DCE8FF'] },
-  free_cookie: { icon: 'circle', image: require('@/assets/images/cookie-hero.png'), tint: '#C47B23', bg: ['#FFF3D8', '#FFE1B2'] },
-  free_six_pack: { icon: 'package', image: require('@/assets/images/cafe-hero.png'), tint: '#7A52E8', bg: ['#EEE8FF', '#DCD0FF'] },
-  coffee_upgrade: { icon: 'trending-up', image: require('@/assets/images/coffee-hero.png'), tint: '#0E9F6E', bg: ['#E9FFF6', '#C9F7E4'] },
-  birthday_reward: { icon: 'gift', image: require('@/assets/images/cookie-hero.png'), tint: '#E866A8', bg: ['#FFF0F7', '#FFE0EF'] },
+  free_coffee: { icon: 'coffee', tint: '#5B7CFA', bg: ['#EEF4FF', '#DCE8FF'] },
+  free_cookie: { icon: 'circle', tint: '#C47B23', bg: ['#FFF3D8', '#FFE1B2'] },
+  free_six_pack: { icon: 'package', tint: '#7A52E8', bg: ['#EEE8FF', '#DCD0FF'] },
+  coffee_upgrade: { icon: 'trending-up', tint: '#0E9F6E', bg: ['#E9FFF6', '#C9F7E4'] },
+  birthday_reward: { icon: 'gift', tint: '#E866A8', bg: ['#FFF0F7', '#FFE0EF'] },
   merch_reward: { icon: 'shopping-bag', image: require('@/assets/images/butterfield-character.png'), tint: '#4B5563', bg: ['#F4F5F7', '#E5E7EB'] },
   points_voucher: { icon: 'tag', image: require('@/assets/images/butterfield-app-gems.png'), tint: '#1D4ED8', bg: ['#EEF2FF', '#DCE4FF'] },
 };
