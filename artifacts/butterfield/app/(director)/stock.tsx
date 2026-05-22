@@ -23,6 +23,7 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const BLUE   = '#1493FF';
+const SLATE  = '#64748B';
 
 const CAT_COLORS: Record<string, string> = {
   coffee:         '#7C3AED',
@@ -603,7 +604,7 @@ const em = StyleSheet.create({
 });
 
 // ── Stock item card ──────────────────────────────────────────────────────────
-function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }: {
+function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress, onActionPress, onHistoryPress }: {
   item: StockItem; isDirector: boolean;
   onQtyPress: () => void; onEditPress: () => void; onDeletePress: () => void; onActionPress?: () => void; onHistoryPress?: () => void;
 }) {
@@ -613,7 +614,7 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
   const levelColor = level === 'out' ? RED : level === 'low' ? AMBER : GREEN;
 
   return (
-    <View style={sc.card}>
+    <View style={[sc.card, !item.isActive && { opacity: 0.68, borderStyle: 'dashed' }]}>
       <View style={sc.left}>
         <View style={[sc.catDot, { backgroundColor: color + '22' }]}>
           <Feather name={icon as any} size={14} color={color} />
@@ -621,6 +622,12 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={sc.name} numberOfLines={1}>{item.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {!item.isActive && (
+              <View style={[sc.badge, { backgroundColor: SLATE + '18' }]}>
+                <Feather name="archive" size={10} color={SLATE} />
+                <Text style={[sc.badgeTxt, { color: SLATE }]}>ARCHIVED</Text>
+              </View>
+            )}
             {level !== 'ok' && (
               <View style={[sc.badge, { backgroundColor: levelColor + '20' }]}>
                 <Feather name={level === 'out' ? 'alert-octagon' : 'alert-triangle'} size={10} color={levelColor} />
@@ -697,7 +704,7 @@ export default function StockScreen() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stock-items'],
-    queryFn: () => api.stock.items(),
+    queryFn: () => api.stock.items(true),
   });
 
   const { data: catData, refetch: refetchCats } = useQuery({
@@ -721,7 +728,7 @@ export default function StockScreen() {
 
   // Only show filter tabs for categories that actually have items
   const activeCatIds = useMemo(() => {
-    const set = new Set(items.map((i) => i.category));
+    const set = new Set(items.filter((i) => i.isActive).map((i) => i.category));
     return Array.from(set).sort();
   }, [items]);
 
@@ -805,7 +812,8 @@ export default function StockScreen() {
 
   const handleSupplierList = async () => {
     try {
-      const { data: groups } = await supplierOrderQuery.refetch();
+      const result = await supplierOrderQuery.refetch();
+      const groups = result.data?.data;
       if (!groups) return;
       const message = Object.entries(groups)
         .map(([supplier, rows]) => `${supplier}\n${rows.map((row) => `• ${row.name}: order ${row.suggestedOrderQuantity} ${row.unit} (on hand ${row.currentQuantity})`).join('\n')}`)
@@ -899,7 +907,7 @@ export default function StockScreen() {
             {activeCatIds.map((catId) => {
               const active = catFilter === catId;
               const color  = catColor(catId);
-              const count  = items.filter((i) => i.category === catId).length;
+              const count  = items.filter((i) => i.category === catId && i.isActive).length;
               const label  = catLabel(catId);
               return (
                 <Pressable

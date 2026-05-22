@@ -129,12 +129,18 @@ router.delete('/categories/:id', requireRole('director', 'master'), async (req, 
 // Directors / master see costCents; managers do not.
 router.get('/items', requireRole('director', 'master', 'manager'), async (req, res) => {
   const fullAccess = canEditAll(req.user!.role);
+  const includeInactive = String(req.query.includeInactive ?? 'false').toLowerCase() === 'true';
 
-  const rows = await db
-    .select()
-    .from(stockItemsTable)
-    .where(eq(stockItemsTable.isActive, true))
-    .orderBy(asc(stockItemsTable.category), asc(stockItemsTable.name));
+  const rows = includeInactive
+    ? await db
+        .select()
+        .from(stockItemsTable)
+        .orderBy(desc(stockItemsTable.isActive), asc(stockItemsTable.category), asc(stockItemsTable.name))
+    : await db
+        .select()
+        .from(stockItemsTable)
+        .where(eq(stockItemsTable.isActive, true))
+        .orderBy(asc(stockItemsTable.category), asc(stockItemsTable.name));
 
   const data = rows.map((item) => {
     if (fullAccess) return item;

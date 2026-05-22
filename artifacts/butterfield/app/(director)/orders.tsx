@@ -716,7 +716,7 @@ export default function DirectorOrdersScreen() {
   const { user } = useAuth();
   const canCancelRefund = user?.role === 'director' || user?.role === 'master';
   const [filter, setFilter]         = useState('all');
-  const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
+  const [viewMode, setViewMode]     = useState<'all' | 'today' | 'week' | 'date'>('all');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -829,6 +829,7 @@ export default function DirectorOrdersScreen() {
       {/* Date view selector */}
       <View style={[styles.dateBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {([
+          { key: 'all', label: `All (${statusFiltered.length})` },
           { key: 'today', label: `Today (${totalToday})` },
           { key: 'week',  label: 'This Week' },
           { key: 'date',  label: 'Pick Date' },
@@ -873,6 +874,27 @@ export default function DirectorOrdersScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >
+          {viewMode === 'all' && (
+            <>
+              <SectionHeader title="All Orders" count={statusFiltered.length} />
+              {statusFiltered.length === 0 ? (
+                <View style={styles.emptySection}>
+                  <Feather name="inbox" size={28} color={BORDER} />
+                  <Text style={styles.emptyText}>No orders match this filter</Text>
+                </View>
+              ) : (
+                statusFiltered.map((o: any) => (
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                    onPrint={() => printOrder(o)}
+                    printing={printingOrderId === o.id}
+                  />
+                ))
+              )}
+            </>
+          )}
           {viewMode === 'today' && (
             <>
               <SectionHeader title="Today's Orders" count={todayOrders.length} />

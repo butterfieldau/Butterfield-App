@@ -1321,7 +1321,6 @@ export default function DirectorProductsScreen() {
     if (filter === 'Sold Out')   list = list.filter(p => p.isSoldOut);
     if (filter === 'Low Stock')  list = list.filter(p => p.stockCount != null && p.stockCount <= p.lowStockThreshold);
     if (filter === 'Archived')   list = list.filter(p => !p.isActive);
-    else if (filter === 'All')   list = list.filter(p => p.isActive);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p => p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q));
