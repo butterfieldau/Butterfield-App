@@ -21,6 +21,9 @@ export const productsTable = pgTable("products", {
   // Identifiers
   sku:                  text("sku"),
   barcode:              text("barcode"),
+  xeroItemId:           text("xero_item_id"),
+  xeroItemCode:         text("xero_item_code"),
+  xeroTaxType:          text("xero_tax_type"),
 
   // Images
   imageUrl:             text("image_url"),

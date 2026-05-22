@@ -110,6 +110,18 @@ function RevenueTab() {
         <StatBox label="Total Customers" value={String(r?.customers.total ?? 0)} />
       </View>
 
+      <Text style={styles.section}>WHOLESALE XERO</Text>
+      <View style={styles.statRow}>
+        <StatBox label="Unsynced" value={String(r?.wholesaleInvoices.unsynced ?? 0)} color={AMBER} />
+        <StatBox label="Sent" value={String(r?.wholesaleInvoices.sent ?? 0)} color={BLUE} />
+        <StatBox label="Paid" value={String(r?.wholesaleInvoices.paid ?? 0)} color={GREEN} />
+      </View>
+      <View style={styles.statRow}>
+        <StatBox label="Overdue" value={String(r?.wholesaleInvoices.overdue ?? 0)} color={RED} />
+        <StatBox label="Failed Syncs" value={String(r?.wholesaleInvoices.failed ?? 0)} color={RED} />
+        <StatBox label="Synced" value={String(r?.wholesaleInvoices.synced ?? 0)} color={NAVY} />
+      </View>
+
       {/* Order type breakdown */}
       {(r?.byType?.length ?? 0) > 0 && (
         <>

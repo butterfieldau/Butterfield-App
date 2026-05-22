@@ -2,19 +2,17 @@ import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Print from 'expo-print';
 import { router } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  RefreshControl, ScrollView, StyleSheet, Text, View, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
-import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
+import type { InvoiceLine } from '@/lib/invoicePdf';
 import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
 
@@ -57,25 +55,27 @@ function isOverdue(order: any): boolean {
   if (order.status === 'delivered' || order.status === 'cancelled') return false;
   return new Date(order.scheduledDate) < new Date();
 }
+
+function deriveInvoiceStatus(order: any): Invoice['status'] {
+  if (order?.xeroSyncStatus === 'paid' || order?.isPaid) return 'paid';
+  if (order?.xeroSyncStatus === 'overdue') return 'overdue';
+  return 'pending';
+}
 // ── Invoice helpers ───────────────────────────────────────────────────────────
 function mapOrderToInvoice(order: any): Invoice {
   const createdAt = new Date(order.createdAt);
   const dueAt     = new Date(createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const now       = new Date();
-  let status: Invoice['status'];
-  if (order.status === 'delivered' || order.status === 'cancelled') {
-    status = 'paid';
-  } else if (dueAt < now) {
-    status = 'overdue';
-  } else {
-    status = 'pending';
-  }
+  const status = deriveInvoiceStatus(order);
   return {
     id:      order.id,
-    number:  order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
-    date:    createdAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
-    dueDate: dueAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
-    amount:  (order.totalCents ?? 0) / 100,
+    number:  order.xeroInvoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
+    date:    order.xeroInvoiceDate
+      ? new Date(order.xeroInvoiceDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
+      : createdAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
+    dueDate: order.xeroDueDate
+      ? new Date(order.xeroDueDate).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
+      : dueAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
+    amount:  (((order.xeroAmountPaidCents ?? 0) + (order.xeroAmountDueCents ?? 0)) || (order.totalCents ?? 0)) / 100,
     status,
   };
 }
@@ -89,20 +89,6 @@ function getOrderLines(order: any): InvoiceLine[] {
     }));
   }
   return [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
-}
-function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any): InvoicePdfData {
-  return {
-    number:          invoice.number,
-    date:            invoice.date,
-    dueDate:         invoice.dueDate,
-    status:          invoice.status,
-    companyName:     account?.companyName ?? 'Wholesale Customer',
-    abn:             account?.abn ?? '',
-    contactEmail:    '',
-    deliveryAddress: account?.deliveryAddress ?? '',
-    accountNumber:   account?.id?.slice(0, 8).toUpperCase() ?? '',
-    lines,
-  };
 }
 // ── Order detail modal ────────────────────────────────────────────────────────
 function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; onClose: () => void; onReorder: (o: any) => void }) {
@@ -364,22 +350,30 @@ export default function WholesaleOrdersScreen() {
   const handleDownload = async (invoice: Invoice) => {
     setLoadingId(invoice.id);
     try {
-      const lines = getOrderLines(orderMap[invoice.id]);
-      if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
-        const win = window.open('', '_blank');
-        if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 500); }
+      const linkedOrder = orderMap[invoice.id];
+      if (linkedOrder?.invoiceUrl || linkedOrder?.xeroInvoiceId) {
+        const { data } = await api.wholesale.downloadInvoice(invoice.id);
+        if (Platform.OS === 'web') {
+          window.open(data.invoiceUrl, '_blank');
+        } else {
+          await Linking.openURL(data.invoiceUrl);
+        }
         return;
       }
-      const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
-      const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${invoice.number}`, UTI: 'com.adobe.pdf' });
-      } else {
-        await Print.printAsync({ uri });
+      Alert.alert(
+        'Invoice not ready yet',
+        'This wholesale order has not been synced to Xero yet, so there is no official invoice PDF available to download.',
+      );
+    } catch (e: any) {
+      if (e?.status === 404) {
+        Alert.alert(
+          'Invoice not ready yet',
+          'This wholesale order has not been synced to Xero yet, so there is no official invoice PDF available to download.',
+        );
+        return;
       }
-    } catch (e: any) { Alert.alert('PDF Error', e?.message ?? 'Could not generate PDF.'); }
+      Alert.alert('PDF Error', e?.message ?? 'Could not download invoice PDF.');
+    }
     finally { setLoadingId(null); }
   };
   const handlePay = (invoice: Invoice) => {
@@ -642,6 +636,16 @@ export default function WholesaleOrdersScreen() {
                     <InvoiceStatusBadge status={invoice.status} />
                     <Text style={st.invoiceAmount}>${invoice.amount.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
                   </View>
+                </View>
+                <View style={{ gap: 3, marginTop: 6 }}>
+                  <Text style={st.invoiceMeta}>
+                    Xero status: {orderMap[invoice.id]?.xeroSyncStatus ? String(orderMap[invoice.id].xeroSyncStatus).replace(/_/g, ' ') : 'Not Synced'}
+                  </Text>
+                  {orderMap[invoice.id]?.xeroInvoiceId ? (
+                    <Text style={st.invoiceMeta}>Official invoice linked through Xero</Text>
+                  ) : (
+                    <Text style={st.invoiceMeta}>Official Xero invoice not created yet</Text>
+                  )}
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                   <Pressable

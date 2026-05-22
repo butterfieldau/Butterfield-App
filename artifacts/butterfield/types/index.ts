@@ -115,6 +115,7 @@ export const ALL_MANAGER_PERMISSIONS = [
   'announcements',
   'settings',
   'pricing',
+  'invoices',
 ] as const;
 
 export type ManagerPermission = typeof ALL_MANAGER_PERMISSIONS[number];
@@ -130,4 +131,5 @@ export const MANAGER_PERMISSION_LABELS: Record<ManagerPermission, { label: strin
   announcements: { label: 'Announcements', desc: 'Publish and manage push announcements',      icon: 'bell' },
   settings:      { label: 'Settings',      desc: 'Change store hours and geo settings',        icon: 'settings' },
   pricing:       { label: 'Pricing',       desc: 'Manage wholesale tiers and price breaks',    icon: 'dollar-sign' },
+  invoices:      { label: 'Invoices',      desc: 'Create, send and sync wholesale Xero invoices', icon: 'file-text' },
 };

@@ -38,6 +38,9 @@ export const wholesaleAccountsTable = pgTable("wholesale_accounts", {
   accountManagerEmail: text("account_manager_email"),
   // Accounts team email — for invoice delivery; wholesale customer can set this themselves
   accountsEmail: text("accounts_email"),
+  xeroContactId: text("xero_contact_id"),
+  xeroContactName: text("xero_contact_name"),
+  xeroLastSyncedAt: timestamp("xero_last_synced_at"),
   status: text("status").notNull().default("pending"),
   approvedAt: timestamp("approved_at"),
   // customer-visible notes (e.g. delivery instructions)

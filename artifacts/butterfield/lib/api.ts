@@ -182,6 +182,8 @@ export const api = {
     createOrder: (data: { items: { productId: string; qty: number }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string; deliveryAddress?: string }) =>
       request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
     invoices:    () => request<{ data: any[] }>('/wholesale/invoices'),
+    downloadInvoice: (orderId: string) =>
+      request<{ data: { invoiceUrl: string; invoiceNumber?: string | null } }>(`/wholesale/invoices/${orderId}/download`),
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
     pricingContext: () => request<{ data: any }>('/wholesale/pricing-context'),
     // Cards on file
@@ -309,6 +311,29 @@ export const api = {
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    xero: {
+      connection:        () => request<{ data: any }>('/director/xero/connection'),
+      connectUrl:        () => request<{ data: { url: string } }>('/director/xero/connect-url'),
+      disconnect:        () => request<{ data: any }>('/director/xero/disconnect', { method: 'POST' }),
+      tenants:           () => request<{ data: any[] }>('/director/xero/tenants'),
+      selectTenant:      (data: { tenantId: string; tenantName?: string | null; tenantType?: string | null }) =>
+        request<{ data: any }>('/director/xero/select-tenant', { method: 'POST', body: JSON.stringify(data) }),
+      test:              () => request<{ data: any }>('/director/xero/test', { method: 'POST' }),
+      updateSettings:    (data: any) => request<{ data: any }>('/director/xero/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+      items:             () => request<{ data: any[] }>('/director/xero/items'),
+      productMappings:   () => request<{ data: any[] }>('/director/xero/product-mappings'),
+      updateProductMapping: (productId: string, data: any) =>
+        request<{ data: any }>(`/director/xero/product-mappings/${productId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      createInvoice:     (orderId: string) => request<{ data: any }>(`/director/xero/wholesale-orders/${orderId}/create-invoice`, { method: 'POST' }),
+      authoriseInvoice:  (orderId: string) => request<{ data: any }>(`/director/xero/wholesale-orders/${orderId}/authorise`, { method: 'POST' }),
+      sendInvoice:       (orderId: string) => request<{ data: any }>(`/director/xero/wholesale-orders/${orderId}/send`, { method: 'POST' }),
+      syncInvoice:       (orderId: string) => request<{ data: any }>(`/director/xero/wholesale-orders/${orderId}/sync`, { method: 'POST' }),
+      retrySync:         (orderId: string) => request<{ data: any }>(`/director/xero/wholesale-orders/${orderId}/retry`, { method: 'POST' }),
+      manualLink:        (orderId: string, xeroInvoiceId: string) =>
+        request<{ data: any }>(`/director/xero/wholesale-orders/${orderId}/link`, { method: 'POST', body: JSON.stringify({ xeroInvoiceId }) }),
+      openLink:          (orderId: string) => request<{ data: { url: string } }>(`/director/xero/wholesale-orders/${orderId}/open-link`),
+      syncLogs:          () => request<{ data: any[] }>('/director/xero/sync-logs'),
+    },
     printerBytes:        (job?: any) =>
       request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
@@ -837,6 +862,7 @@ export interface DirectorReports {
   recentOrders: any[];
   feedback:  DirectorFeedback[];
   unreadFeedback: number;
+  wholesaleInvoices: { unsynced: number; synced: number; sent: number; paid: number; overdue: number; failed: number };
   customers: { total: number; newWeek: number };
 }
 
