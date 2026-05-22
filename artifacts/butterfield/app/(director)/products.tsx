@@ -1038,6 +1038,8 @@ function OptionsTab() {
   const [gType, setGType]           = useState<'single' | 'multi' | 'text'>('single');
   const [gRequired, setGRequired]   = useState(false);
   const [gCatIds, setGCatIds]       = useState<string[]>([]);
+  const [gProductIds, setGProductIds] = useState<string[]>([]);
+  const [gProductSearch, setGProductSearch] = useState('');
   const [gSaving, setGSaving]       = useState(false);
   // ── Option CRUD state ───────────────────────────────────────────────────────
   const [optModal, setOptModal]     = useState(false);
@@ -1057,22 +1059,35 @@ function OptionsTab() {
     queryFn: () => api.director.categories(),
   });
   const categories: any[] = (catData as any)?.data ?? [];
+  const { data: prodData } = useQuery({
+    queryKey: ['director-products'],
+    queryFn: () => api.director.products(),
+  });
+  const allProducts: any[] = useMemo(
+    () => ((prodData as any)?.data ?? []).filter((p: any) => p.isActive !== false),
+    [prodData],
+  );
   const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   // ── Group actions ───────────────────────────────────────────────────────────
   const openAddGroup = () => {
-    setEditGroup(null); setGName(''); setGType('single'); setGRequired(false); setGCatIds([]);
+    setEditGroup(null); setGName(''); setGType('single'); setGRequired(false);
+    setGCatIds([]); setGProductIds([]); setGProductSearch('');
     setGroupModal(true);
   };
   const openEditGroup = (g: any) => {
     setEditGroup(g); setGName(g.name); setGType(g.selectionType);
     setGRequired(g.isRequired ?? false); setGCatIds(g.appliesToCategoryIds ?? []);
+    setGProductIds(g.appliesToProductIds ?? []); setGProductSearch('');
     setGroupModal(true);
   };
   const saveGroup = async () => {
     if (!gName.trim()) return Alert.alert('Name required');
     setGSaving(true);
     try {
-      const payload = { name: gName.trim(), selectionType: gType, isRequired: gRequired, appliesToCategoryIds: gCatIds };
+      const payload = {
+        name: gName.trim(), selectionType: gType, isRequired: gRequired,
+        appliesToCategoryIds: gCatIds, appliesToProductIds: gProductIds,
+      };
       if (editGroup) { await api.director.updateOptionGroup(editGroup.id, payload); }
       else           { await api.director.createOptionGroup(payload); }
       await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
@@ -1133,7 +1148,14 @@ function OptionsTab() {
         renderItem={({ item: g }) => {
           const isExp      = expanded[g.id] ?? false;
           const selCol     = SEL_COLORS[g.selectionType] ?? BLUE;
-          const appliedCats = categories.filter(c => (g.appliesToCategoryIds ?? []).includes(c.id)).map(c => c.name).join(', ') || 'All products';
+          const linkedCatNames = categories.filter(c => (g.appliesToCategoryIds ?? []).includes(c.id)).map(c => c.name);
+          const linkedProdNames = allProducts.filter(p => (g.appliesToProductIds ?? []).includes(p.id)).map(p => p.name);
+          const scopeLabel = (() => {
+            const parts: string[] = [];
+            if (linkedCatNames.length) parts.push(linkedCatNames.join(', '));
+            if (linkedProdNames.length) parts.push(`${linkedProdNames.length} product${linkedProdNames.length !== 1 ? 's' : ''}`);
+            return parts.length ? parts.join(' + ') : 'All products';
+          })();
           const activeOpts  = (g.options ?? []).filter((o: any) => o.isActive !== false);
           return (
             <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
@@ -1148,7 +1170,7 @@ function OptionsTab() {
                     </View>
                   </View>
                   <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 3 }}>
-                    {activeOpts.length} option{activeOpts.length !== 1 ? 's' : ''} · {appliedCats}
+                    {activeOpts.length} option{activeOpts.length !== 1 ? 's' : ''} · {scopeLabel}
                   </Text>
                 </Pressable>
                 <Switch value={g.isActive ?? true} onValueChange={() => toggleGroupActive(g)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" ios_backgroundColor={BORDER} />
@@ -1253,7 +1275,7 @@ function OptionsTab() {
               <View style={form.card}>
                 <SectionHeader title="Applies To Categories" icon="grid" color={BLUE} />
                 <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
-                  This option group appears for all products in the selected categories. Leave none selected for per-product linking.
+                  Option appears for every product in these categories.
                 </Text>
                 <View style={form.tagGrid}>
                   {categories.map(c => (
@@ -1261,6 +1283,86 @@ function OptionsTab() {
                       color={CAT_COLORS[c.slug] ?? BLUE}
                       onPress={() => setGCatIds(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} />
                   ))}
+                </View>
+              </View>
+            )}
+            {allProducts.length > 0 && (
+              <View style={form.card}>
+                <SectionHeader title="Applies To Specific Products" icon="package" color={PURPLE} />
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
+                  Option only appears on these individual products, regardless of category. Perfect for add-ons that only make sense for certain items (e.g. Extra Chocolate on Hot Chocolate only).
+                </Text>
+                {/* Selected product pills */}
+                {gProductIds.length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                    {gProductIds.map(pid => {
+                      const prod = allProducts.find(p => p.id === pid);
+                      if (!prod) return null;
+                      const col = CAT_COLORS[prod.category] ?? PURPLE;
+                      return (
+                        <Pressable
+                          key={pid}
+                          onPress={() => setGProductIds(prev => prev.filter(id => id !== pid))}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: col + '18', borderWidth: 1, borderColor: col + '50' }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: col }}>{prod.name}</Text>
+                          <Feather name="x" size={11} color={col} />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+                {/* Search box */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, height: 40, marginBottom: 8 }}>
+                  <Feather name="search" size={14} color={MUTED} />
+                  <TextInput
+                    value={gProductSearch}
+                    onChangeText={setGProductSearch}
+                    placeholder="Search products…"
+                    placeholderTextColor={MUTED}
+                    style={{ flex: 1, fontSize: 13, fontWeight: '400', color: TEXT }}
+                  />
+                  {gProductSearch ? <Pressable onPress={() => setGProductSearch('')}><Feather name="x" size={13} color={MUTED} /></Pressable> : null}
+                </View>
+                {/* Filtered product list */}
+                <View style={{ gap: 4, maxHeight: 260 }}>
+                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                    {allProducts
+                      .filter(p => {
+                        if (gProductSearch.trim()) {
+                          const q = gProductSearch.toLowerCase();
+                          return p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q);
+                        }
+                        return true;
+                      })
+                      .map(p => {
+                        const selected = gProductIds.includes(p.id);
+                        const col = CAT_COLORS[p.category] ?? MUTED;
+                        return (
+                          <Pressable
+                            key={p.id}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              setGProductIds(prev =>
+                                prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                              );
+                            }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: selected ? PURPLE + '0C' : BG, borderWidth: 1, borderColor: selected ? PURPLE : BORDER }}
+                          >
+                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? PURPLE : BORDER, backgroundColor: selected ? PURPLE : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                              {selected && <Feather name="check" size={11} color="#fff" />}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 13, fontWeight: selected ? '600' : '400', color: TEXT }}>{p.name}</Text>
+                            </View>
+                            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: col + '18' }}>
+                              <Text style={{ fontSize: 10, fontWeight: '600', color: col }}>{p.category}</Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })
+                    }
+                  </ScrollView>
                 </View>
               </View>
             )}
