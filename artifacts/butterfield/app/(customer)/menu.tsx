@@ -162,6 +162,7 @@ export default function MenuScreen() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['products'],
     queryFn: () => api.products.list(),
+    staleTime: 0,
     retry: 2,
   });
 

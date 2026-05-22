@@ -44,7 +44,7 @@ const queryClient = new QueryClient({
 
 const persister = createAsyncStoragePersister({
   storage:      AsyncStorage,
-  key:          "BUTTERFIELD_QUERY_CACHE_V2",
+  key:          "BUTTERFIELD_QUERY_CACHE_V3",
   throttleTime: 3000,
 });
 

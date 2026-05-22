@@ -30,6 +30,7 @@ export function useHomeScreenData() {
   const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['products'],
     queryFn: () => api.products.list(),
+    staleTime: 0,
     retry: 2,
   });
   const { data: loyaltyData, refetch: refetchLoyalty, isRefetching: loyaltyRefreshing } = useQuery({
