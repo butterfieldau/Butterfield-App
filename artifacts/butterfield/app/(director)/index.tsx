@@ -365,8 +365,8 @@ function SessionsChart({
 }
 
 // ── KPI Tile ──────────────────────────────────────────────────────────────────
-function KpiTile({ icon, label, value, color, alert, onPress }: {
-  icon: string; label: string; value: string | number; color: string; alert?: boolean; onPress?: () => void;
+function KpiTile({ icon, label, value, color, alert, onPress, helper }: {
+  icon: string; label: string; value: string | number; color: string; alert?: boolean; onPress?: () => void; helper?: string;
 }) {
   return (
     <Pressable onPress={onPress} style={[kpi.tile, { backgroundColor: CARD, borderColor: alert ? color + '60' : BORDER }]}>
@@ -375,6 +375,7 @@ function KpiTile({ icon, label, value, color, alert, onPress }: {
         {alert && <View style={kpi.alertDot} />}
       </View>
       <Text style={[kpi.value, { color: TEXT }]}>{value}</Text>
+      {helper ? <Text style={[kpi.helper, { color }]} numberOfLines={1}>{helper}</Text> : null}
       <Text style={[kpi.label, { color: MUTED }]}>{label}</Text>
     </Pressable>
   );
@@ -587,12 +588,12 @@ function DirectorDashboardInner() {
               <View style={styles.kpiGrid}>
                 <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today      ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
                 <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active     ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
-                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} onPress={() => router.navigate('/(director)/timesheets' as any)} />
+                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} helper={`Week wages ${fmtAUD(s?.staff.weekWagesOwedCents ?? 0)}`} onPress={() => router.navigate('/(director)/timesheets' as any)} />
                 <KpiTile icon="alert-triangle" label="Long shifts"      value={s?.staff.longShifts  ?? 0} color={AMBER}  alert={(s?.staff.longShifts ?? 0) > 0} onPress={() => router.navigate('/(director)/timesheets' as any)} />
                 <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut  ?? 0} color={RED}    alert={(s?.products.soldOut ?? 0) > 0}  onPress={() => router.navigate('/(director)/products' as any)} />
                 <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock ?? 0} color={AMBER}  alert={(s?.products.lowStock ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
                 <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any)} />
-                <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)} />
+                <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} helper={`Week loss ${fmtAUD(s?.wastage.costWeek ?? 0)}`} onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)} />
                 <KpiTile icon="gift"           label="Birthdays today"  value={s?.customers.birthdayToday ?? 0} color={PINK}   onPress={() => router.navigate('/(director)/customers' as any)} />
                 <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave ?? 0} color={AMBER}  onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any)} />
                 <KpiTile icon="message-circle" label="New feedback"     value={s?.customers.unreadFeedback ?? 0} color={BLUE}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'feedback' } } as any)} />
@@ -601,16 +602,16 @@ function DirectorDashboardInner() {
             </View>
 
             {/* ── Wastage cost banner ───────────────────────────── */}
-            {(s?.wastage.costToday ?? 0) > 0 && (
+            {((s?.wastage.costToday ?? 0) > 0 || (s?.wastage.costWeek ?? 0) > 0) && (
               <Pressable
                 onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)}
                 style={[styles.wastageCard, { backgroundColor: '#FDF4FF', borderColor: '#E9D5FF' }]}
               >
                 <Feather name="trash-2" size={16} color={PURPLE} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.wastageTitle, { fontWeight: '600', color: PURPLE }]}>Today's Wastage Cost</Text>
+                  <Text style={[styles.wastageTitle, { fontWeight: '600', color: PURPLE }]}>This Week's Wastage Cost</Text>
                   <Text style={[styles.wastageSub, { fontWeight: '400', color: MUTED }]}>
-                    {s?.wastage.countToday} item{s?.wastage.countToday !== 1 ? 's' : ''} logged — estimated {fmtAUD(s?.wastage.costToday ?? 0)} lost
+                    {s?.wastage.countWeek ?? 0} item{(s?.wastage.countWeek ?? 0) !== 1 ? 's' : ''} logged — estimated {fmtAUD(s?.wastage.costWeek ?? 0)} lost
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={16} color={PURPLE} />
@@ -689,6 +690,7 @@ const kpi = StyleSheet.create({
   iconBox:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   alertDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: RED },
   value:    { fontSize: 26, fontWeight: '700' },
+  helper:   { fontSize: 11, fontWeight: '600' },
   label:    { fontSize: 11, fontWeight: '500' },
 });
 

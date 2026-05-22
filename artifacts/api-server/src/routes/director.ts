@@ -104,6 +104,13 @@ router.get('/stats', async (req, res) => {
   const now = new Date();
   const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
   const startOfToday = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate());
+  const startOfWeekMonday = new Date(startOfToday);
+  const dayOfWeek = startOfWeekMonday.getDay();
+  const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  startOfWeekMonday.setDate(startOfWeekMonday.getDate() + mondayDiff);
+  const endOfWeekSunday = new Date(startOfWeekMonday);
+  endOfWeekSunday.setDate(endOfWeekSunday.getDate() + 6);
+  endOfWeekSunday.setHours(23, 59, 59, 999);
   const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
   const startOfMonth = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1);
   const longShiftCutoff = new Date(now.getTime() - 10 * 60 * 60 * 1000);
@@ -117,7 +124,7 @@ router.get('/stats', async (req, res) => {
     [totalProducts], [soldOutProds], [lowStockProds],
     [clockedIn], [longShifts],
     [openIssues], [highIssues],
-    [wastageToday], [wastageCostToday],
+    [wastageToday], [wastageCostToday], [wastageWeek], [wastageCostWeek],
     [pendingLeave],
     [unreadFeedback],
   ] = await Promise.all([
@@ -142,9 +149,36 @@ router.get('/stats', async (req, res) => {
     db.select({ count: count() }).from(staffIssuesTable).where(and(eq(staffIssuesTable.status, 'open'), sql`${staffIssuesTable.priority} IN ('high','urgent')`)),
     db.select({ count: count() }).from(staffWastageTable).where(gte(staffWastageTable.createdAt, startOfToday)),
     db.select({ total: sum(staffWastageTable.estimatedCostCents) }).from(staffWastageTable).where(gte(staffWastageTable.createdAt, startOfToday)),
+    db.select({ count: count() }).from(staffWastageTable).where(gte(staffWastageTable.createdAt, startOfWeekMonday)),
+    db.select({ total: sum(staffWastageTable.estimatedCostCents) }).from(staffWastageTable).where(gte(staffWastageTable.createdAt, startOfWeekMonday)),
     db.select({ count: count() }).from(staffLeaveRequestsTable).where(eq(staffLeaveRequestsTable.status, 'pending')),
     db.select({ count: count() }).from(feedbackTable).where(eq(feedbackTable.isRead, false)),
   ]);
+
+  const weekShifts = await db.select({
+    clockIn: staffShiftsTable.clockIn,
+    clockOut: staffShiftsTable.clockOut,
+    unpaidBreakMins: staffShiftsTable.unpaidBreakMins,
+    hourlyRateCents: staffProfilesTable.hourlyRateCents,
+  })
+    .from(staffShiftsTable)
+    .leftJoin(staffProfilesTable, eq(staffShiftsTable.userId, staffProfilesTable.userId))
+    .where(and(
+      lte(staffShiftsTable.clockIn, endOfWeekSunday),
+      sql`coalesce(${staffShiftsTable.clockOut}, now()) >= ${startOfWeekMonday}`,
+    ));
+
+  const weekWagesOwedCents = weekShifts.reduce((sum, shift) => {
+    const shiftStart = new Date(shift.clockIn);
+    const rawShiftEnd = shift.clockOut ? new Date(shift.clockOut) : now;
+    const effectiveStart = shiftStart < startOfWeekMonday ? startOfWeekMonday : shiftStart;
+    const effectiveEnd = rawShiftEnd > endOfWeekSunday ? endOfWeekSunday : rawShiftEnd;
+    if (effectiveEnd <= effectiveStart) return sum;
+    const totalMins = Math.floor((effectiveEnd.getTime() - effectiveStart.getTime()) / 60000);
+    const paidMins = Math.max(0, totalMins - (shift.unpaidBreakMins ?? 0));
+    const hourlyRateCents = shift.hourlyRateCents ?? 2200;
+    return sum + Math.round((paidMins / 60) * hourlyRateCents);
+  }, 0);
 
   // Birthday customers (birthday field stored as YYYY-MM-DD text, match MM-DD suffix)
   let birthdayCount = 0;
@@ -172,6 +206,7 @@ router.get('/stats', async (req, res) => {
         clockedIn:  clockedIn.count,
         longShifts: longShifts.count,
         pendingLeave: pendingLeave.count,
+        weekWagesOwedCents,
       },
       users: {
         total:            totalUsers.count,
@@ -191,6 +226,8 @@ router.get('/stats', async (req, res) => {
       wastage: {
         countToday: wastageToday.count,
         costToday:  Number(wastageCostToday.total ?? 0),
+        countWeek: wastageWeek.count,
+        costWeek:  Number(wastageCostWeek.total ?? 0),
       },
       customers: {
         birthdayToday: birthdayCount,

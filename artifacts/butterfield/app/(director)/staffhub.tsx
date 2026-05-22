@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
@@ -45,6 +45,31 @@ function fmtDate(d: string) {
 
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+function toSydneyDate(input: string | Date) {
+  return new Date(new Date(input).toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+}
+
+function startOfSydneyDay(input: string | Date) {
+  const d = toSydneyDate(input);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfSydneyWeek(input: string | Date) {
+  const d = startOfSydneyDay(input);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+function endOfSydneyWeek(start: Date) {
+  const d = new Date(start);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
 }
 
 function priorityColor(p: string) {
@@ -159,6 +184,42 @@ function WastageTab() {
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const wastage: any[] = data?.data ?? [];
+  const currentWeekKey = startOfSydneyWeek(new Date()).toISOString();
+
+  const weekGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; start: Date; end: Date; items: any[]; totalCost: number }>();
+    wastage.forEach((item) => {
+      const start = startOfSydneyWeek(item.createdAt);
+      const key = start.toISOString();
+      const end = endOfSydneyWeek(start);
+      const existing = groups.get(key);
+      if (existing) {
+        existing.items.push(item);
+        existing.totalCost += item.estimatedCostCents ?? 0;
+      } else {
+        groups.set(key, { key, start, end, items: [item], totalCost: item.estimatedCostCents ?? 0 });
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => b.start.getTime() - a.start.getTime());
+  }, [wastage]);
+
+  const [selectedWeekKey, setSelectedWeekKey] = useState<string | null>(null);
+
+  const selectedWeek = useMemo(() => {
+    const fallbackKey = selectedWeekKey ?? currentWeekKey;
+    return weekGroups.find((group) => group.key === fallbackKey) ?? weekGroups[0] ?? null;
+  }, [currentWeekKey, selectedWeekKey, weekGroups]);
+
+  const todayStart = startOfSydneyDay(new Date());
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
+  const todayItems = useMemo(() => wastage.filter((item) => {
+    const createdAt = toSydneyDate(item.createdAt);
+    return createdAt >= todayStart && createdAt <= todayEnd;
+  }), [todayEnd, todayStart, wastage]);
+  const todayCost = todayItems.reduce((sum, item) => sum + (item.estimatedCostCents ?? 0), 0);
+  const thisWeekItems = useMemo(() => weekGroups.find((group) => group.key === currentWeekKey)?.items ?? [], [currentWeekKey, weekGroups]);
+  const thisWeekCost = thisWeekItems.reduce((sum, item) => sum + (item.estimatedCostCents ?? 0), 0);
 
   const handlePress = (item: any) => {
     const cost = item.estimatedCostCents ? fmtAUD(item.estimatedCostCents) : 'Not estimated';
@@ -171,8 +232,6 @@ function WastageTab() {
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
-  const totalCost = wastage.reduce((sum, w) => sum + (w.estimatedCostCents ?? 0), 0);
-
   return (
     <ScrollView
       style={{ flex: 1 }}
@@ -180,18 +239,60 @@ function WastageTab() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       showsVerticalScrollIndicator={false}
     >
-      {totalCost > 0 && (
+      <View style={s.metricsRow}>
+        <View style={[s.metricCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <Text style={s.metricLabel}>TODAY</Text>
+          <Text style={[s.metricValue, { color: PURPLE }]}>{fmtAUD(todayCost)}</Text>
+          <Text style={s.metricSub}>{todayItems.length} entr{todayItems.length === 1 ? 'y' : 'ies'}</Text>
+        </View>
+        <View style={[s.metricCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <Text style={s.metricLabel}>THIS WEEK</Text>
+          <Text style={[s.metricValue, { color: PURPLE }]}>{fmtAUD(thisWeekCost)}</Text>
+          <Text style={s.metricSub}>{thisWeekItems.length} entr{thisWeekItems.length === 1 ? 'y' : 'ies'}</Text>
+        </View>
+      </View>
+
+      {weekGroups.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {weekGroups.map((group, index) => {
+            const active = selectedWeek?.key === group.key;
+            const isCurrentWeek = group.key === currentWeekKey;
+            const label = isCurrentWeek
+              ? 'This week'
+              : `${group.start.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} - ${group.end.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+            return (
+              <Pressable
+                key={group.key}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedWeekKey(group.key);
+                }}
+                style={[s.weekChip, active && { backgroundColor: PURPLE, borderColor: PURPLE }]}
+              >
+                <Text style={[s.weekChipTitle, active && { color: '#fff' }]}>{label}</Text>
+                <Text style={[s.weekChipSub, active && { color: 'rgba(255,255,255,0.82)' }]}>{fmtAUD(group.totalCost)} · {group.items.length} entries</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      {selectedWeek && (
         <View style={[s.summaryCard, { backgroundColor: PURPLE + '12', borderColor: PURPLE + '40' }]}>
           <Feather name="trash-2" size={16} color={PURPLE} />
           <View style={{ flex: 1 }}>
-            <Text style={[s.summaryTitle, { color: PURPLE }]}>Total Wastage Cost</Text>
-            <Text style={[s.summarySub, { color: MUTED }]}>{wastage.length} entries · estimated {fmtAUD(totalCost)} lost</Text>
+            <Text style={[s.summaryTitle, { color: PURPLE }]}>
+              {selectedWeek.key === currentWeekKey ? "This Week's Wastage Cost" : 'Weekly Wastage Cost'}
+            </Text>
+            <Text style={[s.summarySub, { color: MUTED }]}>
+              {selectedWeek.items.length} entr{selectedWeek.items.length === 1 ? 'y' : 'ies'} · estimated {fmtAUD(selectedWeek.totalCost)} lost
+            </Text>
           </View>
         </View>
       )}
-      {wastage.length === 0
+      {selectedWeek == null || selectedWeek.items.length === 0
         ? <EmptyState icon="trash-2" message="No wastage logged" />
-        : wastage.map((item: any) => (
+        : selectedWeek.items.map((item: any) => (
           <Pressable key={item.id} onPress={() => handlePress(item)} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: PURPLE + '18' }]}>
@@ -461,6 +562,14 @@ const s = StyleSheet.create({
   actionBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
   actionBtnText: { fontSize: 13, fontWeight: '600' },
   cost:        { fontSize: 13, fontWeight: '700' },
+  metricsRow:  { flexDirection: 'row', gap: 10 },
+  metricCard:  { flex: 1, borderRadius: 14, borderWidth: 1, padding: 14, gap: 4 },
+  metricLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8 },
+  metricValue: { fontSize: 21, fontWeight: '700' },
+  metricSub:   { fontSize: 12, fontWeight: '400', color: MUTED },
+  weekChip:    { borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 10, minWidth: 128 },
+  weekChipTitle: { fontSize: 12, fontWeight: '700', color: TEXT },
+  weekChipSub:   { fontSize: 11, fontWeight: '400', color: MUTED, marginTop: 2 },
   summaryCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
   summaryTitle:{ fontSize: 13, fontWeight: '600', flex: 1 },
   summarySub:  { fontSize: 12, fontWeight: '400' },
