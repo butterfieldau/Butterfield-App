@@ -162,7 +162,14 @@ const PRODUCT_SORT_RECOMMENDATIONS: Record<string, Record<string, number>> = {
     'Dirty Matcha': 20,
   },
   tea: {
-    Tea: 10,
+    'Earl Grey': 10,
+    'English Breakfast': 20,
+    Peppermint: 30,
+    'Lemongrass & Ginger': 40,
+    'Green Sencha': 50,
+    'Masala Chai': 60,
+    'Green Tea & Jasmine': 70,
+    'Red Silk': 80,
   },
   desserts: {
     'Cookie & Cream Sandwich': 10,

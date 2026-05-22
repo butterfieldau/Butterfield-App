@@ -23,8 +23,25 @@ const CATEGORIES = [
   { id: "cat_wholesale", name: "Wholesale",  slug: "wholesale",   description: "Wholesale-only products",                sortOrder: 10, showPublic: false, showWholesale: true },
 ];
 
-// Coffee products: [name, base price (smallest), isSingleSize]
-const COFFEE_PRODUCTS: { name: string; description: string; base: number; variants: { name: string; priceCents: number }[] }[] = [
+type SeedProduct = {
+  name: string;
+  description: string;
+  base: number;
+  categoryId?: string;
+  category: string;
+  productType: string;
+  sortOrder: number;
+  variants: { name: string; priceCents: number }[];
+};
+
+const TEA_VARIANTS = [
+  { name: "Small", priceCents: 400 },
+  { name: "Medium", priceCents: 500 },
+  { name: "Large", priceCents: 600 },
+];
+
+// Drinks + tea products
+const MENU_PRODUCTS: SeedProduct[] = [
   { name: "Cappuccino",     description: "Espresso with steamed milk and a thick layer of velvety foam",          base: 450, variants: [{ name: "Small", priceCents: 450 }, { name: "Medium", priceCents: 550 }, { name: "Large", priceCents: 700 }] },
   { name: "Latte",          description: "Espresso with steamed milk and a light touch of microfoam",             base: 450, variants: [{ name: "Small", priceCents: 450 }, { name: "Medium", priceCents: 550 }, { name: "Large", priceCents: 700 }] },
   { name: "Flat White",     description: "Ristretto shots with steamed, velvety milk — the Australian classic",   base: 450, variants: [{ name: "Small", priceCents: 450 }, { name: "Medium", priceCents: 550 }, { name: "Large", priceCents: 700 }] },
@@ -39,8 +56,21 @@ const COFFEE_PRODUCTS: { name: string; description: string; base: number; varian
   { name: "Matcha",         description: "Ceremonial grade matcha whisked with steamed milk — earthy and smooth", base: 650, variants: [{ name: "Small", priceCents: 650 }, { name: "Medium", priceCents: 700 }, { name: "Large", priceCents: 750 }] },
   { name: "Dirty Chai",     description: "Spiced chai with an espresso shot for an extra kick",                   base: 650, variants: [{ name: "Small", priceCents: 650 }, { name: "Medium", priceCents: 700 }, { name: "Large", priceCents: 750 }] },
   { name: "Dirty Matcha",   description: "Matcha latte with an espresso shot — the best of both worlds",          base: 600, variants: [{ name: "Small", priceCents: 600 }, { name: "Medium", priceCents: 650 }, { name: "Large", priceCents: 700 }] },
-  { name: "Tea",            description: "Premium loose-leaf tea served in a pot — choose your blend",            base: 400, variants: [{ name: "Small", priceCents: 400 }, { name: "Medium", priceCents: 500 }, { name: "Large", priceCents: 600 }] },
-];
+  { name: "Earl Grey",      description: "Remy & Max premium Earl Grey tea with fragrant bergamot and a clean citrus finish.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 10, variants: TEA_VARIANTS },
+  { name: "English Breakfast", description: "Remy & Max premium English Breakfast tea, full-bodied and smooth for any time of day.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 20, variants: TEA_VARIANTS },
+  { name: "Peppermint",     description: "Remy & Max premium Peppermint tea, cooling and refreshing with a clean herbal finish.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 30, variants: TEA_VARIANTS },
+  { name: "Lemongrass & Ginger", description: "Remy & Max premium Lemongrass & Ginger tea with bright citrus notes and gentle warmth.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 40, variants: TEA_VARIANTS },
+  { name: "Green Sencha",   description: "Remy & Max premium Green Sencha tea, light, grassy and beautifully delicate.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 50, variants: TEA_VARIANTS },
+  { name: "Masala Chai",    description: "Remy & Max premium Masala Chai tea with warming spice and a rich aromatic finish.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 60, variants: TEA_VARIANTS },
+  { name: "Green Tea & Jasmine", description: "Remy & Max premium Green Tea & Jasmine, floral and delicate with a soft fragrant lift.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 70, variants: TEA_VARIANTS },
+  { name: "Red Silk",       description: "Remy & Max premium Red Silk tea, smooth and rounded with a rich comforting body.", base: 400, categoryId: TEA_CAT_ID, category: "tea", productType: "tea", sortOrder: 80, variants: TEA_VARIANTS },
+].map((product, index) => ({
+  categoryId: COFFEE_CAT_ID,
+  category: "coffee",
+  productType: "coffee",
+  sortOrder: index,
+  ...product,
+})) satisfies SeedProduct[];
 
 // Option groups and their options
 const OPTION_GROUPS: {
@@ -147,15 +177,14 @@ const OPTION_GROUPS: {
     ],
   },
   {
-    id: "og_tea_flavour", name: "Tea Flavour", selectionType: "single", isRequired: true, sortOrder: 10,
-    appliesToCategoryIds: [],
-    appliesToProductIds: [], // will be filled with Tea product ID below
+    id: "og_tea_sweetener", name: "Tea Sweetener", description: "Choose sugar or honey", selectionType: "single", isRequired: false, sortOrder: 20,
+    appliesToCategoryIds: [TEA_CAT_ID],
     options: [
-      { name: "English Breakfast",     priceAdjustmentCents: 0, isDefault: true },
-      { name: "Earl Grey",             priceAdjustmentCents: 0 },
-      { name: "Peppermint",            priceAdjustmentCents: 0 },
-      { name: "Lemongrass & Ginger",   priceAdjustmentCents: 0 },
-      { name: "Green Tea",             priceAdjustmentCents: 0 },
+      { name: "No Sweetener", priceAdjustmentCents: 0, isDefault: true },
+      { name: "1 Sugar",      priceAdjustmentCents: 0 },
+      { name: "2 Sugars",     priceAdjustmentCents: 0 },
+      { name: "3 Sugars",     priceAdjustmentCents: 0 },
+      { name: "Honey",        priceAdjustmentCents: 0 },
     ],
   },
   {
@@ -185,33 +214,34 @@ async function main() {
   }
 
   // 2. Seed coffee products + variants
-  console.log("\n☕ Seeding coffee products...");
-  let teaProductId = "";
-  for (const p of COFFEE_PRODUCTS) {
+  console.log("\n☕ Seeding drinks and tea products...");
+  for (const p of MENU_PRODUCTS) {
     const productId = uid("prod", p.name);
     const existing = await db.select().from(productsTable).where(eq(productsTable.id, productId));
 
     if (existing.length === 0) {
       await db.insert(productsTable).values({
-        id: productId, categoryId: COFFEE_CAT_ID, name: p.name, description: p.description,
-        category: "coffee", productType: "coffee", priceCents: p.base,
+        id: productId, categoryId: p.categoryId, name: p.name, description: p.description,
+        category: p.category, productType: p.productType, priceCents: p.base,
         isAvailable: true, isActive: true, isFeatured: false, isNew: false,
         isWholesaleAvailable: false, isStaffOnly: false, isAppOnly: false,
         isLimitedDrop: false, isSoldOut: false, isComingSoon: false, isPickupOnly: true,
-        sortOrder: COFFEE_PRODUCTS.indexOf(p),
+        sortOrder: p.sortOrder,
         minOrderQty: 1, wholesaleAccessMode: "all",
         tags: "[]", allergens: "[]", dietaryTags: "[]",
       });
       console.log(`  ✓ Created product: ${p.name}`);
     } else {
-      // Update categoryId if not set
-      if (!existing[0].categoryId) {
-        await db.update(productsTable).set({ categoryId: COFFEE_CAT_ID }).where(eq(productsTable.id, productId));
-      }
+      await db.update(productsTable).set({
+        categoryId: p.categoryId,
+        category: p.category,
+        productType: p.productType,
+        priceCents: p.base,
+        sortOrder: p.sortOrder,
+        description: p.description,
+      }).where(eq(productsTable.id, productId));
       console.log(`  · Exists, updating: ${p.name}`);
     }
-
-    if (p.name === "Tea") teaProductId = productId;
 
     // Seed variants
     for (let i = 0; i < p.variants.length; i++) {
@@ -226,14 +256,16 @@ async function main() {
     }
   }
 
+  const legacyTeaProductId = uid("prod", "Tea");
+  await db.update(productsTable)
+    .set({ isActive: false, isAvailable: false, isComingSoon: false, isSoldOut: false, updatedAt: new Date() })
+    .where(eq(productsTable.id, legacyTeaProductId));
+  console.log("  · Archived legacy generic Tea product if it existed");
+
   // 3. Seed option groups + options
   console.log("\n⚙️  Seeding option groups...");
   for (const group of OPTION_GROUPS) {
-    // For Tea Flavour, apply to tea product
     let appliesToProductIds = group.appliesToProductIds ?? [];
-    if (group.id === "og_tea_flavour" && teaProductId) {
-      appliesToProductIds = [teaProductId];
-    }
 
     const existingGroup = await db.select().from(productOptionGroupsTable).where(eq(productOptionGroupsTable.id, group.id));
     if (existingGroup.length === 0) {
@@ -247,12 +279,6 @@ async function main() {
       });
       console.log(`  ✓ Created option group: ${group.name}`);
     } else {
-      // Update product IDs for tea flavour
-      if (group.id === "og_tea_flavour" && teaProductId) {
-        await db.update(productOptionGroupsTable)
-          .set({ appliesToProductIds: JSON.stringify([teaProductId]) })
-          .where(eq(productOptionGroupsTable.id, group.id));
-      }
       console.log(`  · Exists: ${group.name}`);
     }
 
@@ -270,6 +296,14 @@ async function main() {
       }
     }
   }
+
+  await db.update(productOptionGroupsTable)
+    .set({
+      isActive: false,
+      appliesToProductIds: JSON.stringify([]),
+      updatedAt: new Date(),
+    })
+    .where(eq(productOptionGroupsTable.id, "og_tea_flavour"));
 
   console.log("\n✅ Coffee menu seed complete!\n");
   process.exit(0);
