@@ -535,7 +535,7 @@ export const api = {
     categories:       () => request<{ data: { id: string; label: string }[] }>('/stock/categories'),
     createCategory:   (name: string) => request<{ data: { id: string; label: string } }>('/stock/categories', { method: 'POST', body: JSON.stringify({ name }) }),
     deleteCategory:   (id: string) => request<{ data: { success: boolean } }>(`/stock/categories/${id}`, { method: 'DELETE' }),
-    items:            () => request<{ data: StockItem[] }>('/stock/items'),
+    items:            (includeInactive = false) => request<{ data: StockItem[] }>(`/stock/items${includeInactive ? '?includeInactive=true' : ''}`),
     create:           (data: {
       name: string; category: string; unit?: string;
       currentQuantity?: number; lowStockThreshold?: number;
@@ -548,6 +548,16 @@ export const api = {
     }) => request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateQuantity: (id: string, currentQuantity: number) =>
       request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify({ currentQuantity }) }),
+    action: (id: string, data: StockActionInput) =>
+      request<{ data: StockItem }>(`/stock/items/${id}/action`, { method: 'POST', body: JSON.stringify(data) }),
+    history: (id: string) =>
+      request<{ data: StockMovement[] }>(`/stock/items/${id}/history`),
+    importCsv: (csvText: string) =>
+      request<{ data: { created: number; updated: number } }>('/stock/import', { method: 'POST', body: JSON.stringify({ csvText }) }),
+    exportReport: () =>
+      request<{ data: { csv: string } }>('/stock/export'),
+    supplierOrderList: () =>
+      request<{ data: Record<string, Array<{ id: string; name: string; unit: string; currentQuantity: number; lowStockThreshold: number; suggestedOrderQuantity: number }>> }>('/stock/supplier-order-list'),
     delete: (id: string) => request<{ data: { success: boolean } }>(`/stock/items/${id}`, { method: 'DELETE' }),
   },
 };
@@ -555,7 +565,7 @@ export const api = {
 export interface StockItem {
   id: string;
   name: string;
-  category: 'coffee' | 'drinks' | 'front_of_house' | 'sauces' | 'chocolate' | 'kitchen';
+  category: string;
   unit: string;
   currentQuantity: number;
   lowStockThreshold: number;
@@ -565,6 +575,33 @@ export interface StockItem {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StockActionInput {
+  action: 'add' | 'remove' | 'adjust' | 'transfer' | 'wasted' | 'expired' | 'stocktake';
+  quantity?: number;
+  targetQuantity?: number;
+  targetStockItemId?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  costImpactCents?: number | null;
+  allowNegativeOverride?: boolean;
+}
+
+export interface StockMovement {
+  id: string;
+  stockItemId: string;
+  actionType: string;
+  quantityBefore: number;
+  quantityAfter: number;
+  quantityDelta: number;
+  reason?: string | null;
+  notes?: string | null;
+  costImpactCents?: number | null;
+  targetStockItemId?: string | null;
+  performedByUserId?: string | null;
+  performedByName?: string | null;
+  createdAt: string;
 }
 
 export interface GeoSettings {

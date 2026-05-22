@@ -25,6 +25,22 @@ export const stockItemsTable = pgTable("stock_items", {
   updatedAt:         timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const stockMovementsTable = pgTable("stock_movements", {
+  id:                text("id").primaryKey(),
+  stockItemId:       text("stock_item_id").notNull(),
+  actionType:        text("action_type").notNull(),
+  quantityBefore:    real("quantity_before").notNull().default(0),
+  quantityAfter:     real("quantity_after").notNull().default(0),
+  quantityDelta:     real("quantity_delta").notNull().default(0),
+  reason:            text("reason"),
+  notes:             text("notes"),
+  costImpactCents:   integer("cost_impact_cents"),
+  targetStockItemId: text("target_stock_item_id"),
+  performedByUserId: text("performed_by_user_id"),
+  performedByName:   text("performed_by_name"),
+  createdAt:         timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertStockItemSchema = createInsertSchema(stockItemsTable).omit({
   createdAt: true,
   updatedAt: true,
@@ -32,3 +48,4 @@ export const insertStockItemSchema = createInsertSchema(stockItemsTable).omit({
 
 export type StockItem = typeof stockItemsTable.$inferSelect;
 export type InsertStockItem = z.infer<typeof insertStockItemSchema>;
+export type StockMovement = typeof stockMovementsTable.$inferSelect;
