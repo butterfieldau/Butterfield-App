@@ -96,7 +96,7 @@ export default function CustomerHome() {
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.products.categories(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   });
   const categories = useMemo(() => {
     const backendCats: any[] = categoriesData?.data ?? [];

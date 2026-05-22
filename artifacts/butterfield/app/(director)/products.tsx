@@ -29,9 +29,10 @@ const ALLERGEN_LIST = ['Gluten','Dairy','Eggs','Nuts','Peanuts','Soy','Sesame','
 const DIETARY_LIST  = ['Vegan','Vegetarian','Gluten-Free','Dairy-Free','Nut-Free','Halal','Kosher','Low-Sugar'];
 const DAYS_LIST     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const CAT_COLORS: Record<string, string> = {
-  cookies:'#F59E0B', coffee:'#8B5CF6', desserts:'#EC4899',
-  bundles:'#1493FF', sandwiches:'#22C55E', merch:'#6B7280',
-  pastries:'#F97316', drinks:'#06B6D4', other:'#8E8E93',
+  cookies:'#F59E0B', coffee:'#8B5CF6', tea:'#22C55E', matcha:'#16A34A',
+  desserts:'#EC4899', bundles:'#1493FF', sandwiches:'#22C55E', merch:'#6B7280',
+  pastries:'#F97316', drinks:'#06B6D4', 'iced-drinks':'#06B6D4',
+  boxes:'#F59E0B', seasonal:'#F97316', specials:'#EF4444', other:'#8E8E93',
 };
 const FILTER_TABS = ['All','Available','Featured','Sold Out','Low Stock','Archived'];
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -1307,6 +1308,7 @@ export default function DirectorProductsScreen() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'options'>('products');
   const [filter, setFilter] = useState('All');
+  const [catFilter, setCatFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any>(null);
@@ -1329,12 +1331,13 @@ export default function DirectorProductsScreen() {
     if (filter === 'Low Stock')  list = list.filter(p => p.stockCount != null && p.stockCount <= p.lowStockThreshold);
     if (filter === 'Archived')   list = list.filter(p => !p.isActive);
     else if (filter === 'All')   list = list.filter(p => p.isActive);
+    if (catFilter !== 'all') list = list.filter(p => (p.category ?? '') === catFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p => p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q));
     }
     return list;
-  }, [all, filter, search]);
+  }, [all, filter, catFilter, search]);
   const toggle = async (product: any, field: string, value: boolean) => {
     Haptics.selectionAsync();
     try {
@@ -1404,7 +1407,7 @@ export default function DirectorProductsScreen() {
           clearButtonMode="while-editing"
         />
       </View>
-      {/* Filter tabs */}
+      {/* Status filter tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContent}>
         {FILTER_TABS.map(t => (
           <Pressable key={t} onPress={() => setFilter(t)} style={[styles.filterTab, filter === t && { backgroundColor: NAVY, borderColor: NAVY }]}>
@@ -1412,6 +1415,30 @@ export default function DirectorProductsScreen() {
           </Pressable>
         ))}
       </ScrollView>
+      {/* Category filter chips */}
+      {dbCategories.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8, flexDirection: 'row', alignItems: 'flex-start' }}>
+          <Pressable
+            onPress={() => { setCatFilter('all'); Haptics.selectionAsync(); }}
+            style={[styles.filterTab, catFilter === 'all' && { backgroundColor: MUTED, borderColor: MUTED }]}
+          >
+            <Text style={[styles.filterText, { fontWeight: '500' }, catFilter === 'all' && { color: '#fff' }]}>All Categories</Text>
+          </Pressable>
+          {dbCategories.map(c => {
+            const col = CAT_COLORS[c.slug] ?? MUTED;
+            const active = catFilter === c.slug;
+            return (
+              <Pressable
+                key={c.slug}
+                onPress={() => { setCatFilter(c.slug); Haptics.selectionAsync(); }}
+                style={[styles.filterTab, active && { backgroundColor: col, borderColor: col }]}
+              >
+                <Text style={[styles.filterText, { fontWeight: '500' }, active && { color: '#fff' }]}>{c.name}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
@@ -1427,6 +1454,7 @@ export default function DirectorProductsScreen() {
             <Text style={[styles.count, { fontWeight: '400', color: MUTED }]}>
               {products.length} product{products.length !== 1 ? 's' : ''}
               {filter !== 'All' ? ` · ${filter}` : ''}
+              {catFilter !== 'all' ? ` · ${dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter}` : ''}
             </Text>
           }
           ListEmptyComponent={
