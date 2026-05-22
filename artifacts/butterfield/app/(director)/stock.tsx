@@ -1,17 +1,17 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
   Modal, Platform, Pressable, RefreshControl, ScrollView,
-  Share, StyleSheet, Text, TextInput, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
-import { api, type StockActionInput, type StockItem, type StockMovement } from '@/lib/api';
+import { api, type StockItem } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -23,7 +23,6 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const BLUE   = '#1493FF';
-const SLATE  = '#64748B';
 
 const CAT_COLORS: Record<string, string> = {
   coffee:         '#7C3AED',
@@ -51,17 +50,7 @@ const CAT_ICONS: Record<string, string> = {
   cleaning:       'wind',
 };
 
-const PALETTE = ['#7C3AED', '#06B6D4', '#F59E0B', '#EF4444', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
-const WASTAGE_REASONS = ['Overbaked', 'Damaged', 'Expired', 'Customer return', 'Staff error', 'Equipment issue', 'Rangehood/temperature issue', 'Other'] as const;
-const ACTIONS: Array<{ id: StockActionInput['action']; label: string; icon: keyof typeof Feather.glyphMap; tone: string }> = [
-  { id: 'add',       label: 'Add stock',       icon: 'plus-circle',  tone: GREEN },
-  { id: 'remove',    label: 'Remove stock',    icon: 'minus-circle', tone: RED },
-  { id: 'adjust',    label: 'Adjust stock',    icon: 'sliders',      tone: BLUE },
-  { id: 'transfer',  label: 'Transfer stock',  icon: 'repeat',       tone: '#7C3AED' },
-  { id: 'wasted',    label: 'Mark as wasted',  icon: 'trash-2',      tone: AMBER },
-  { id: 'expired',   label: 'Mark as expired', icon: 'clock',        tone: '#F97316' },
-  { id: 'stocktake', label: 'Stocktake mode',  icon: 'check-square', tone: NAVY },
-];
+const PALETTE = ['#7C3AED','#06B6D4','#F59E0B','#EF4444','#22C55E','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316'];
 
 function catColor(id: string): string {
   return CAT_COLORS[id] ?? PALETTE[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % PALETTE.length];
@@ -82,8 +71,9 @@ function stockLevel(item: StockItem): 'ok' | 'low' | 'out' {
   return 'ok';
 }
 
-function QuantityModal({ item, onClose, onSave, title = 'Update quantity', saveLabel = 'Save', subtitle }: {
-  item: StockItem; onClose: () => void; onSave: (qty: number) => void; title?: string; saveLabel?: string; subtitle?: string;
+// ── Quantity adjust modal ────────────────────────────────────────────────────
+function QuantityModal({ item, onClose, onSave }: {
+  item: StockItem; onClose: () => void; onSave: (qty: number) => void;
 }) {
   const [val, setVal] = useState(String(item.currentQuantity));
   const handleSave = () => {
@@ -97,14 +87,14 @@ function QuantityModal({ item, onClose, onSave, title = 'Update quantity', saveL
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Pressable style={qm.sheet} onPress={() => {}}>
             <Text style={qm.title}>{item.name}</Text>
-            <Text style={qm.sub}>{subtitle ?? `${title} (${item.unit})`}</Text>
+            <Text style={qm.sub}>Update quantity ({item.unit})</Text>
             <TextInput style={qm.input} value={val} onChangeText={setVal} keyboardType="decimal-pad" selectTextOnFocus autoFocus />
             <View style={qm.row}>
               <Pressable style={[qm.btn, { backgroundColor: BG }]} onPress={onClose}>
                 <Text style={[qm.btnText, { color: TEXT }]}>Cancel</Text>
               </Pressable>
               <Pressable style={[qm.btn, { backgroundColor: NAVY }]} onPress={handleSave}>
-                <Text style={[qm.btnText, { color: '#fff' }]}>{saveLabel}</Text>
+                <Text style={[qm.btnText, { color: '#fff' }]}>Save</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -115,226 +105,17 @@ function QuantityModal({ item, onClose, onSave, title = 'Update quantity', saveL
 }
 
 const qm = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  sheet: { backgroundColor: CARD, borderRadius: 20, padding: 24, width: '100%', gap: 12 },
-  title: { fontSize: 17, fontWeight: '700', color: TEXT },
-  sub: { fontSize: 13, color: MUTED, marginTop: -6 },
-  input: { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '600', color: TEXT, textAlign: 'center' },
-  row: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btn: { flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
-  btnText: { fontSize: 15, fontWeight: '600' },
+  overlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  sheet:    { backgroundColor: CARD, borderRadius: 20, padding: 24, width: '100%', gap: 12 },
+  title:    { fontSize: 17, fontWeight: '700', color: TEXT },
+  sub:      { fontSize: 13, color: MUTED, marginTop: -6 },
+  input:    { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 20, fontWeight: '600', color: TEXT, textAlign: 'center' },
+  row:      { flexDirection: 'row', gap: 10, marginTop: 4 },
+  btn:      { flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
+  btnText:  { fontSize: 15, fontWeight: '600' },
 });
 
-function StockActionModal({
-  item,
-  items,
-  onClose,
-  onSubmit,
-}: {
-  item: StockItem;
-  items: StockItem[];
-  onClose: () => void;
-  onSubmit: (data: StockActionInput) => void;
-}) {
-  const [action, setAction] = useState<StockActionInput['action']>('add');
-  const [quantity, setQuantity] = useState('1');
-  const [targetQuantity, setTargetQuantity] = useState(String(item.currentQuantity));
-  const [targetStockItemId, setTargetStockItemId] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
-  const [notes, setNotes] = useState('');
-  const [costImpact, setCostImpact] = useState('');
-  const [allowNegativeOverride, setAllowNegativeOverride] = useState(false);
-
-  const needsQuantity = !['adjust', 'stocktake'].includes(action);
-  const needsReason = action === 'wasted' || action === 'expired';
-  const actionMeta = ACTIONS.find((entry) => entry.id === action)!;
-  const transferTargets = items.filter((candidate) => candidate.id !== item.id && candidate.isActive);
-
-  return (
-    <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={em.overlay} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
-          <Pressable style={em.sheet} onPress={() => {}}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <View>
-                  <Text style={em.title}>{item.name}</Text>
-                  <Text style={mm.catName}>Stock actions</Text>
-                </View>
-                <Pressable onPress={onClose} style={em.closeBtn}>
-                  <Feather name="x" size={18} color={MUTED} />
-                </Pressable>
-              </View>
-
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                {ACTIONS.map((entry) => {
-                  const active = entry.id === action;
-                  return (
-                    <Pressable key={entry.id} onPress={() => setAction(entry.id)} style={[s2.actionChip, active && { backgroundColor: entry.tone, borderColor: entry.tone }]}>
-                      <Feather name={entry.icon} size={14} color={active ? '#fff' : entry.tone} />
-                      <Text style={[s2.actionChipText, active && { color: '#fff' }]}>{entry.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {needsQuantity && (
-                <>
-                  <Label>Quantity</Label>
-                  <TextInput style={em.input} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
-                </>
-              )}
-
-              {(action === 'adjust' || action === 'stocktake') && (
-                <>
-                  <Label>{action === 'stocktake' ? 'Counted quantity' : 'New quantity'}</Label>
-                  <TextInput style={em.input} value={targetQuantity} onChangeText={setTargetQuantity} keyboardType="decimal-pad" />
-                </>
-              )}
-
-              {action === 'transfer' && (
-                <>
-                  <Label>Transfer to</Label>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                    {transferTargets.map((candidate) => {
-                      const active = targetStockItemId === candidate.id;
-                      return (
-                        <Pressable key={candidate.id} onPress={() => setTargetStockItemId(candidate.id)} style={[em.unitChip, active && { backgroundColor: NAVY, borderColor: NAVY }]}>
-                          <Text style={[em.unitLabel, active && { color: '#fff' }]}>{candidate.name}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-                </>
-              )}
-
-              {needsReason && (
-                <>
-                  <Label>Reason</Label>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                    {WASTAGE_REASONS.map((entry) => {
-                      const active = reason === entry;
-                      return (
-                        <Pressable key={entry} onPress={() => setReason(entry)} style={[em.unitChip, active && { backgroundColor: actionMeta.tone, borderColor: actionMeta.tone }]}>
-                          <Text style={[em.unitLabel, active && { color: '#fff' }]}>{entry}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-
-              <Label>Notes</Label>
-              <TextInput style={[em.input, { height: 70, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} multiline placeholder="Optional notes" placeholderTextColor={MUTED} />
-
-              <Label>Cost impact (AUD)</Label>
-              <TextInput style={em.input} value={costImpact} onChangeText={setCostImpact} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={MUTED} />
-
-              <Pressable onPress={() => setAllowNegativeOverride((prev) => !prev)} style={s2.switchRow}>
-                <View>
-                  <Text style={s2.switchTitle}>Allow negative stock for this action</Text>
-                  <Text style={s2.switchSub}>Only use this if a director needs to override a temporary shortage.</Text>
-                </View>
-                <View style={[s2.switchPill, allowNegativeOverride && { backgroundColor: NAVY }]}>
-                  <View style={[s2.switchKnob, allowNegativeOverride && { transform: [{ translateX: 18 }] }]} />
-                </View>
-              </Pressable>
-
-              <View style={em.btnRow}>
-                <Pressable style={[em.btn, { backgroundColor: BG }]} onPress={onClose}>
-                  <Text style={[em.btnTxt, { color: TEXT }]}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[em.btn, { backgroundColor: actionMeta.tone }]}
-                  onPress={() => onSubmit({
-                    action,
-                    quantity: needsQuantity ? Number(quantity || 0) : undefined,
-                    targetQuantity: action === 'adjust' || action === 'stocktake' ? Number(targetQuantity || 0) : undefined,
-                    targetStockItemId,
-                    reason: reason || null,
-                    notes: notes || null,
-                    costImpactCents: costImpact ? Math.round((Number(costImpact) || 0) * 100) : null,
-                    allowNegativeOverride,
-                  })}
-                >
-                  <Text style={[em.btnTxt, { color: '#fff' }]}>Run action</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function HistoryModal({ item, history, loading, onClose }: { item: StockItem | null; history: StockMovement[]; loading: boolean; onClose: () => void }) {
-  return (
-    <Modal animationType="slide" presentationStyle="pageSheet" visible={Boolean(item)} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={mm.header}>
-          <Text style={mm.title}>{item?.name ?? 'History'}</Text>
-          <Pressable onPress={onClose} style={mm.closeBtn}>
-            <Feather name="x" size={18} color={MUTED} />
-          </Pressable>
-        </View>
-        {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={NAVY} /></View>
-        ) : (
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
-            {history.map((entry) => (
-              <View key={entry.id} style={s2.historyCard}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={s2.historyAction}>{entry.actionType.replace(/_/g, ' ')}</Text>
-                  <Text style={[s2.historyDelta, { color: entry.quantityDelta >= 0 ? GREEN : RED }]}>{entry.quantityDelta >= 0 ? '+' : ''}{entry.quantityDelta}</Text>
-                </View>
-                <Text style={s2.historyMeta}>{entry.quantityBefore} → {entry.quantityAfter}</Text>
-                {!!entry.reason && <Text style={s2.historyMeta}>Reason: {entry.reason}</Text>}
-                {!!entry.notes && <Text style={s2.historyMeta}>{entry.notes}</Text>}
-                <Text style={s2.historyMeta}>{entry.performedByName || 'System'} · {new Date(entry.createdAt).toLocaleString()}</Text>
-              </View>
-            ))}
-            {history.length === 0 && <Text style={{ color: MUTED, textAlign: 'center', marginTop: 24 }}>No stock history yet.</Text>}
-          </ScrollView>
-        )}
-      </View>
-    </Modal>
-  );
-}
-
-function CsvImportModal({ visible, onClose, onImport }: { visible: boolean; onClose: () => void; onImport: (csvText: string) => void }) {
-  const [csvText, setCsvText] = useState('');
-  return (
-    <Modal animationType="slide" presentationStyle="pageSheet" visible={visible} onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={mm.header}>
-          <Text style={mm.title}>Import stock CSV</Text>
-          <Pressable onPress={onClose} style={mm.closeBtn}><Feather name="x" size={18} color={MUTED} /></Pressable>
-        </View>
-        <View style={{ padding: 16 }}>
-          <Text style={{ color: MUTED, marginBottom: 10 }}>Paste CSV with headers: name, category, unit, currentQuantity, lowStockThreshold, costCents, supplier, notes</Text>
-          <TextInput
-            style={[em.input, { height: 260, textAlignVertical: 'top' }]}
-            value={csvText}
-            onChangeText={setCsvText}
-            multiline
-            placeholder="name,category,unit,currentQuantity..."
-            placeholderTextColor={MUTED}
-          />
-          <View style={em.btnRow}>
-            <Pressable style={[em.btn, { backgroundColor: BG }]} onPress={onClose}>
-              <Text style={[em.btnTxt, { color: TEXT }]}>Cancel</Text>
-            </Pressable>
-            <Pressable style={[em.btn, { backgroundColor: NAVY }]} onPress={() => onImport(csvText)}>
-              <Text style={[em.btnTxt, { color: '#fff' }]}>Import</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
+// ── Manage Categories modal ──────────────────────────────────────────────────
 function ManageCategoriesModal({
   onClose, categories, onCreated, onDeleted, itemCategories,
 }: {
@@ -345,20 +126,15 @@ function ManageCategoriesModal({
   itemCategories: string[];
 }) {
   const [newName, setNewName] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving]   = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const handleAdd = async () => {
     const t = newName.trim();
     if (!t) return;
     setSaving(true);
-    try {
-      await onCreated(t);
-      setNewName('');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } finally {
-      setSaving(false);
-    }
+    try { await onCreated(t); setNewName(''); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+    catch { } finally { setSaving(false); }
   };
 
   const handleDelete = (cat: { id: string; label: string }) => {
@@ -371,15 +147,10 @@ function ManageCategoriesModal({
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         setDeleting(cat.id);
-        try {
-          await onDeleted(cat.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (e: any) {
-          Alert.alert('Error', e.message);
-        } finally {
-          setDeleting(null);
-        }
-      } },
+        try { await onDeleted(cat.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
+        catch (e: any) { Alert.alert('Error', e.message); }
+        finally { setDeleting(null); }
+      }},
     ]);
   };
 
@@ -393,6 +164,7 @@ function ManageCategoriesModal({
           </Pressable>
         </View>
 
+        {/* Add new */}
         <View style={mm.addRow}>
           <TextInput
             style={mm.addInput}
@@ -427,8 +199,15 @@ function ManageCategoriesModal({
                     <Text style={mm.inUseTxt}>IN USE</Text>
                   </View>
                 )}
-                <Pressable onPress={() => handleDelete(cat)} disabled={isDeleting} style={[mm.deleteBtn, isDeleting && { opacity: 0.4 }]}>
-                  {isDeleting ? <ActivityIndicator size="small" color={RED} /> : <Feather name="trash-2" size={15} color={RED} />}
+                <Pressable
+                  onPress={() => handleDelete(cat)}
+                  disabled={isDeleting}
+                  style={[mm.deleteBtn, isDeleting && { opacity: 0.4 }]}
+                >
+                  {isDeleting
+                    ? <ActivityIndicator size="small" color={RED} />
+                    : <Feather name="trash-2" size={15} color={RED} />
+                  }
                 </Pressable>
               </View>
             );
@@ -440,20 +219,21 @@ function ManageCategoriesModal({
 }
 
 const mm = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  title: { fontSize: 18, fontWeight: '700', color: TEXT },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  addRow: { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  addInput: { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: TEXT },
-  addBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  dot: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  catName: { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
-  inUseBadge: { backgroundColor: BLUE + '18', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  inUseTxt: { fontSize: 10, fontWeight: '700', color: BLUE },
+  header:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  title:     { fontSize: 18, fontWeight: '700', color: TEXT },
+  closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  addRow:    { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  addInput:  { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: TEXT },
+  addBtn:    { width: 44, height: 44, borderRadius: 10, backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center' },
+  row:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  dot:       { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  catName:   { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
+  inUseBadge:{ backgroundColor: BLUE + '18', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  inUseTxt:  { fontSize: 10, fontWeight: '700', color: BLUE },
   deleteBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: RED + '12', alignItems: 'center', justifyContent: 'center' },
 });
 
+// ── Item edit modal ──────────────────────────────────────────────────────────
 const COMMON_UNITS = ['units', 'kg', 'g', 'L', 'mL', 'bags', 'boxes', 'bottles', 'cans', 'rolls', 'sheets'];
 
 function EditModal({ item, onClose, onSave, categories }: {
@@ -463,15 +243,15 @@ function EditModal({ item, onClose, onSave, categories }: {
   categories: { id: string; label: string }[];
 }) {
   const isNew = !item?.id;
-  const [name, setName] = useState(item?.name ?? '');
-  const [category, setCategory] = useState(item?.category ?? categories[0]?.id ?? '');
+  const [name, setName]           = useState(item?.name ?? '');
+  const [category, setCategory]   = useState(item?.category ?? categories[0]?.id ?? '');
   const [customCat, setCustomCat] = useState('');
-  const [unit, setUnit] = useState(item?.unit ?? 'units');
-  const [qty, setQty] = useState(String(item?.currentQuantity ?? 0));
+  const [unit, setUnit]           = useState(item?.unit ?? 'units');
+  const [qty, setQty]             = useState(String(item?.currentQuantity ?? 0));
   const [threshold, setThreshold] = useState(String(item?.lowStockThreshold ?? 0));
-  const [cost, setCost] = useState(item?.costCents != null ? String(item.costCents / 100) : '');
-  const [supplier, setSupplier] = useState(item?.supplier ?? '');
-  const [notes, setNotes] = useState(item?.notes ?? '');
+  const [cost, setCost]           = useState(item?.costCents != null ? String(item.costCents / 100) : '');
+  const [supplier, setSupplier]   = useState(item?.supplier ?? '');
+  const [notes, setNotes]         = useState(item?.notes ?? '');
 
   const handleSave = () => {
     if (!name.trim()) { Alert.alert('Validation', 'Name is required'); return; }
@@ -510,7 +290,11 @@ function EditModal({ item, onClose, onSave, categories }: {
                   const color = catColor(c.id);
                   const active = category === c.id;
                   return (
-                    <Pressable key={c.id} onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCustomCat(''); }} style={[em.catChip, active && { backgroundColor: color, borderColor: color }]}>
+                    <Pressable
+                      key={c.id}
+                      onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCustomCat(''); }}
+                      style={[em.catChip, active && { backgroundColor: color, borderColor: color }]}
+                    >
                       <Text style={[em.catLabel, active && { color: '#fff' }]}>{c.label}</Text>
                     </Pressable>
                   );
@@ -581,34 +365,35 @@ function Label({ children }: { children: string }) {
 }
 
 const em = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '92%' },
-  title: { fontSize: 20, fontWeight: '700', color: TEXT },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
-  input: { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT },
-  catChip: { borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
-  catLabel: { fontSize: 13, fontWeight: '600', color: MUTED },
-  unitChip: { borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6 },
+  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet:     { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '92%' },
+  title:     { fontSize: 20, fontWeight: '700', color: TEXT },
+  closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  label:     { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
+  input:     { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT },
+  catChip:   { borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
+  catLabel:  { fontSize: 13, fontWeight: '600', color: MUTED },
+  unitChip:  { borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6 },
   unitLabel: { fontSize: 12, fontWeight: '500', color: MUTED },
-  costRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  costPrefix: { fontSize: 18, fontWeight: '600', color: TEXT },
-  btnRow: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 8 },
-  btn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  btnTxt: { fontSize: 15, fontWeight: '700' },
+  costRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  costPrefix:{ fontSize: 18, fontWeight: '600', color: TEXT },
+  btnRow:    { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 8 },
+  btn:       { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  btnTxt:    { fontSize: 15, fontWeight: '700' },
 });
 
-function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress, onActionPress, onHistoryPress }: {
+// ── Stock item card ──────────────────────────────────────────────────────────
+function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }: {
   item: StockItem; isDirector: boolean;
-  onQtyPress: () => void; onEditPress: () => void; onDeletePress: () => void; onActionPress?: () => void; onHistoryPress?: () => void;
+  onQtyPress: () => void; onEditPress: () => void; onDeletePress: () => void;
 }) {
   const level = stockLevel(item);
   const color = catColor(item.category);
-  const icon = catIcon(item.category);
+  const icon  = catIcon(item.category);
   const levelColor = level === 'out' ? RED : level === 'low' ? AMBER : GREEN;
 
   return (
-    <View style={[sc.card, !item.isActive && { opacity: 0.68, borderStyle: 'dashed' }]}>
+    <View style={sc.card}>
       <View style={sc.left}>
         <View style={[sc.catDot, { backgroundColor: color + '22' }]}>
           <Feather name={icon as any} size={14} color={color} />
@@ -616,12 +401,6 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress, o
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={sc.name} numberOfLines={1}>{item.name}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {!item.isActive && (
-              <View style={[sc.badge, { backgroundColor: SLATE + '18' }]}>
-                <Feather name="archive" size={10} color={SLATE} />
-                <Text style={[sc.badgeTxt, { color: SLATE }]}>ARCHIVED</Text>
-              </View>
-            )}
             {level !== 'ok' && (
               <View style={[sc.badge, { backgroundColor: levelColor + '20' }]}>
                 <Feather name={level === 'out' ? 'alert-octagon' : 'alert-triangle'} size={10} color={levelColor} />
@@ -640,45 +419,38 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress, o
           <Text style={[sc.qtyNum, { color: levelColor }]}>{item.currentQuantity}</Text>
           <Text style={sc.qtyUnit}>{item.unit}</Text>
         </Pressable>
-        <View style={{ flexDirection: 'row', gap: 4 }}>
-          <Pressable onPress={() => onHistoryPress?.()} style={sc.iconBtn}>
-            <Feather name="clock" size={14} color={MUTED} />
-          </Pressable>
-          <Pressable onPress={() => onActionPress?.()} style={sc.iconBtn}>
-            <Feather name="sliders" size={14} color={NAVY} />
-          </Pressable>
-          {isDirector && (
-            <>
-              <Pressable onPress={() => { Haptics.selectionAsync(); onEditPress(); }} style={sc.iconBtn}>
-                <Feather name="edit-2" size={14} color={MUTED} />
-              </Pressable>
-              <Pressable onPress={() => { Haptics.impactAsync(); onDeletePress(); }} style={sc.iconBtn}>
-                <Feather name="trash-2" size={14} color={RED} />
-              </Pressable>
-            </>
-          )}
-        </View>
+        {isDirector && (
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <Pressable onPress={() => { Haptics.selectionAsync(); onEditPress(); }} style={sc.iconBtn}>
+              <Feather name="edit-2" size={14} color={MUTED} />
+            </Pressable>
+            <Pressable onPress={() => { Haptics.impactAsync(); onDeletePress(); }} style={sc.iconBtn}>
+              <Feather name="trash-2" size={14} color={RED} />
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
 }
 
 const sc = StyleSheet.create({
-  card: { backgroundColor: CARD, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  left: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 },
-  catDot: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  name: { fontSize: 15, fontWeight: '600', color: TEXT },
-  meta: { fontSize: 12, color: MUTED },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  badgeTxt: { fontSize: 10, fontWeight: '700' },
-  right: { alignItems: 'flex-end', gap: 5 },
-  cost: { fontSize: 12, fontWeight: '500', color: MUTED },
-  qtyBtn: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', minWidth: 64 },
-  qtyNum: { fontSize: 16, fontWeight: '700' },
+  card:    { backgroundColor: CARD, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  left:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 },
+  catDot:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  name:    { fontSize: 15, fontWeight: '600', color: TEXT },
+  meta:    { fontSize: 12, color: MUTED },
+  badge:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  badgeTxt:{ fontSize: 10, fontWeight: '700' },
+  right:   { alignItems: 'flex-end', gap: 5 },
+  cost:    { fontSize: 12, fontWeight: '500', color: MUTED },
+  qtyBtn:  { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', minWidth: 64 },
+  qtyNum:  { fontSize: 16, fontWeight: '700' },
   qtyUnit: { fontSize: 10, color: MUTED, fontWeight: '500', marginTop: -1 },
   iconBtn: { width: 28, height: 28, borderRadius: 8, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
 });
 
+// ── Main screen ──────────────────────────────────────────────────────────────
 export default function StockScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -686,18 +458,14 @@ export default function StockScreen() {
   const isDirector = user?.role === 'director' || user?.role === 'master';
 
   const [catFilter, setCatFilter] = useState<string>('all');
-  const [search, setSearch] = useState('');
-  const [qtyItem, setQtyItem] = useState<StockItem | null>(null);
-  const [editItem, setEditItem] = useState<Partial<StockItem> | null | false>(false);
+  const [search, setSearch]       = useState('');
+  const [qtyItem, setQtyItem]     = useState<StockItem | null>(null);
+  const [editItem, setEditItem]   = useState<Partial<StockItem> | null | false>(false);
   const [manageCats, setManageCats] = useState(false);
-  const [actionItem, setActionItem] = useState<StockItem | null>(null);
-  const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
-  const [showCsvImport, setShowCsvImport] = useState(false);
-  const [stocktakeMode, setStocktakeMode] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stock-items'],
-    queryFn: () => api.stock.items(true),
+    queryFn: () => api.stock.items(),
   });
 
   const { data: catData, refetch: refetchCats } = useQuery({
@@ -705,26 +473,17 @@ export default function StockScreen() {
     queryFn: () => api.stock.categories(),
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchCats);
-  const historyQuery = useQuery({
-    queryKey: ['stock-history', historyItem?.id],
-    queryFn: () => api.stock.history(historyItem!.id),
-    enabled: Boolean(historyItem?.id),
-  });
-  const supplierOrderQuery = useQuery({
-    queryKey: ['stock-supplier-order-list'],
-    queryFn: () => api.stock.supplierOrderList(),
-    enabled: false,
-  });
 
   const items: StockItem[] = data?.data ?? [];
   const categories = catData?.data ?? [];
 
+  // Only show filter tabs for categories that actually have items
   const activeCatIds = useMemo(() => {
-    const set = new Set(items.filter((i) => i.isActive).map((i) => i.category));
+    const set = new Set(items.map((i) => i.category));
     return Array.from(set).sort();
   }, [items]);
 
-  const lowCount = useMemo(() => items.filter((i) => i.isActive && stockLevel(i) !== 'ok').length, [items]);
+  const lowCount = useMemo(() => items.filter((i) => stockLevel(i) !== 'ok').length, [items]);
 
   const filtered = useMemo(() => {
     let list = items;
@@ -735,6 +494,13 @@ export default function StockScreen() {
     }
     return list;
   }, [items, catFilter, search]);
+
+  // ── mutations ──
+  const updateQtyMut = useMutation({
+    mutationFn: ({ id, qty }: { id: string; qty: number }) => api.stock.updateQuantity(id, qty),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-items'] }),
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
 
   const createMut = useMutation({
     mutationFn: (d: any) => api.stock.create(d),
@@ -751,26 +517,6 @@ export default function StockScreen() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.stock.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-items'] }),
-    onError: (e: any) => Alert.alert('Error', e.message),
-  });
-
-  const actionMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: StockActionInput }) => api.stock.action(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['stock-items'] });
-      qc.invalidateQueries({ queryKey: ['stock-history'] });
-      setActionItem(null);
-    },
-    onError: (e: any) => Alert.alert('Error', e.message),
-  });
-
-  const importCsvMut = useMutation({
-    mutationFn: (csvText: string) => api.stock.importCsv(csvText),
-    onSuccess: ({ data: summary }) => {
-      qc.invalidateQueries({ queryKey: ['stock-items'] });
-      setShowCsvImport(false);
-      Alert.alert('Import complete', `${summary.created} created, ${summary.updated} updated.`);
-    },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
 
@@ -792,29 +538,7 @@ export default function StockScreen() {
     if (catFilter === id) setCatFilter('all');
   };
 
-  const handleShareExport = async () => {
-    try {
-      const { data: report } = await api.stock.exportReport();
-      await Share.share({ message: report.csv, title: 'Butterfield stock report' });
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    }
-  };
-
-  const handleSupplierList = async () => {
-    try {
-      const result = await supplierOrderQuery.refetch();
-      const groups = result.data?.data;
-      if (!groups) return;
-      const message = Object.entries(groups)
-        .map(([supplier, rows]) => `${supplier}\n${rows.map((row) => `• ${row.name}: order ${row.suggestedOrderQuantity} ${row.unit} (on hand ${row.currentQuantity})`).join('\n')}`)
-        .join('\n\n');
-      await Share.share({ message: message || 'No supplier order list needed right now.', title: 'Supplier order list' });
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    }
-  };
-
+  // Label for a category id (from managed list or formatted id)
   const catLabel = (id: string) => {
     const found = categories.find((c) => c.id === id);
     if (found) return found.label;
@@ -823,6 +547,7 @@ export default function StockScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* ── Header ── */}
       <View style={[s.header, { paddingTop: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Pressable onPress={() => router.back()} style={s.backBtn}>
@@ -838,13 +563,16 @@ export default function StockScreen() {
           </View>
           {isDirector && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable onPress={() => setStocktakeMode((prev) => !prev)} style={[s.manageBtn, stocktakeMode && { backgroundColor: NAVY }]}>
-                <Feather name="check-square" size={16} color={stocktakeMode ? '#fff' : NAVY} />
-              </Pressable>
-              <Pressable onPress={() => { Haptics.selectionAsync(); setManageCats(true); }} style={s.manageBtn}>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
+                style={s.manageBtn}
+              >
                 <Feather name="tag" size={16} color={NAVY} />
               </Pressable>
-              <Pressable onPress={() => { Haptics.selectionAsync(); setEditItem({}); }} style={s.addBtn}>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
+                style={s.addBtn}
+              >
                 <Feather name="plus" size={18} color="#fff" />
                 <Text style={s.addBtnTxt}>Add</Text>
               </Pressable>
@@ -852,6 +580,7 @@ export default function StockScreen() {
           )}
         </View>
 
+        {/* Search */}
         <View style={s.searchBox}>
           <Feather name="search" size={15} color={MUTED} />
           <TextInput
@@ -868,21 +597,32 @@ export default function StockScreen() {
           )}
         </View>
 
+        {/* Category filter — only categories with items */}
         {(activeCatIds.length > 0 || items.length > 0) && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-            <Pressable key="all" onPress={() => { Haptics.selectionAsync(); setCatFilter('all'); }} style={[s.catTab, catFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}>
+            {/* All tab */}
+            <Pressable
+              key="all"
+              onPress={() => { Haptics.selectionAsync(); setCatFilter('all'); }}
+              style={[s.catTab, catFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}
+            >
               <Text style={[s.catTabTxt, catFilter === 'all' && { color: '#fff' }]}>All</Text>
               <View style={[s.catCount, catFilter === 'all' && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
                 <Text style={[s.catCountTxt, catFilter === 'all' && { color: '#fff' }]}>{items.length}</Text>
               </View>
             </Pressable>
+            {/* One tab per category that has items */}
             {activeCatIds.map((catId) => {
               const active = catFilter === catId;
-              const color = catColor(catId);
-              const count = items.filter((i) => i.category === catId && i.isActive).length;
-              const label = catLabel(catId);
+              const color  = catColor(catId);
+              const count  = items.filter((i) => i.category === catId).length;
+              const label  = catLabel(catId);
               return (
-                <Pressable key={catId} onPress={() => { Haptics.selectionAsync(); setCatFilter(catId); }} style={[s.catTab, active && { backgroundColor: color, borderColor: color }]}>
+                <Pressable
+                  key={catId}
+                  onPress={() => { Haptics.selectionAsync(); setCatFilter(catId); }}
+                  style={[s.catTab, active && { backgroundColor: color, borderColor: color }]}
+                >
                   <Text style={[s.catTabTxt, active && { color: '#fff' }]}>{label}</Text>
                   <View style={[s.catCount, active && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
                     <Text style={[s.catCountTxt, active && { color: '#fff' }]}>{count}</Text>
@@ -894,6 +634,7 @@ export default function StockScreen() {
         )}
       </View>
 
+      {/* ── Stats strip ── */}
       {items.length > 0 && (
         <View style={s.statsRow}>
           <View style={s.statPill}>
@@ -917,25 +658,10 @@ export default function StockScreen() {
               </View>
             );
           })()}
-          {isDirector && (
-            <>
-              <Pressable style={s.statPill} onPress={() => setShowCsvImport(true)}>
-                <Feather name="upload" size={13} color={BLUE} />
-                <Text style={s.statTxt}>Import CSV</Text>
-              </Pressable>
-              <Pressable style={s.statPill} onPress={handleShareExport}>
-                <Feather name="download" size={13} color={BLUE} />
-                <Text style={s.statTxt}>Export report</Text>
-              </Pressable>
-              <Pressable style={s.statPill} onPress={handleSupplierList}>
-                <Feather name="shopping-cart" size={13} color={BLUE} />
-                <Text style={s.statTxt}>Supplier order list</Text>
-              </Pressable>
-            </>
-          )}
         </View>
       )}
 
+      {/* ── List ── */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={NAVY} />
@@ -962,32 +688,21 @@ export default function StockScreen() {
               onQtyPress={() => setQtyItem(item)}
               onEditPress={() => setEditItem(item)}
               onDeletePress={() => handleDelete(item)}
-              onActionPress={() => setActionItem(item)}
-              onHistoryPress={() => setHistoryItem(item)}
             />
           )}
         />
       )}
 
+      {/* ── Quantity modal ── */}
       {qtyItem && (
         <QuantityModal
           item={qtyItem}
           onClose={() => setQtyItem(null)}
-          onSave={(qty) => {
-            actionMut.mutate({
-              id: qtyItem.id,
-              data: stocktakeMode
-                ? { action: 'stocktake', targetQuantity: qty }
-                : { action: 'adjust', targetQuantity: qty },
-            });
-            setQtyItem(null);
-          }}
-          title={stocktakeMode ? 'Stocktake counted quantity' : 'Update quantity'}
-          saveLabel={stocktakeMode ? 'Save stocktake' : 'Save'}
-          subtitle={stocktakeMode ? `Enter counted quantity (${qtyItem.unit})` : `Update quantity (${qtyItem.unit})`}
+          onSave={(qty) => { updateQtyMut.mutate({ id: qtyItem.id, qty }); setQtyItem(null); }}
         />
       )}
 
+      {/* ── Edit/create modal ── */}
       {isDirector && editItem !== false && (
         <EditModal
           item={editItem}
@@ -1003,6 +718,7 @@ export default function StockScreen() {
         />
       )}
 
+      {/* ── Manage categories modal ── */}
       {isDirector && manageCats && (
         <ManageCategoriesModal
           onClose={() => setManageCats(false)}
@@ -1012,81 +728,26 @@ export default function StockScreen() {
           onDeleted={handleDeleteCategory}
         />
       )}
-
-      {actionItem && (
-        <StockActionModal
-          item={actionItem}
-          items={items}
-          onClose={() => setActionItem(null)}
-          onSubmit={(data) => actionMut.mutate({ id: actionItem.id, data })}
-        />
-      )}
-
-      <HistoryModal
-        item={historyItem}
-        history={historyQuery.data?.data ?? []}
-        loading={historyQuery.isLoading}
-        onClose={() => setHistoryItem(null)}
-      />
-
-      <CsvImportModal
-        visible={showCsvImport}
-        onClose={() => setShowCsvImport(false)}
-        onImport={(csvText) => importCsvMut.mutate(csvText)}
-      />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  header: { backgroundColor: BG, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  title: { fontSize: 22, fontWeight: '700', color: TEXT },
-  manageBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  addBtnTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  header:      { backgroundColor: BG, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  title:       { fontSize: 22, fontWeight: '700', color: TEXT },
+  manageBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
+  addBtnTxt:   { fontSize: 14, fontWeight: '700', color: '#fff' },
+  searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput: { flex: 1, fontSize: 15, color: TEXT },
-  catTab: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginRight: 8, backgroundColor: CARD },
-  catTabTxt: { fontSize: 13, fontWeight: '600', color: MUTED },
-  catCount: { backgroundColor: BG, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
+  catTab:      { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginRight: 8, backgroundColor: CARD },
+  catTabTxt:   { fontSize: 13, fontWeight: '600', color: MUTED },
+  catCount:    { backgroundColor: BG, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
   catCountTxt: { fontSize: 11, fontWeight: '700', color: MUTED },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  statPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '12', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  statTxt: { fontSize: 12, fontWeight: '600', color: BLUE },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
-  emptyTxt: { fontSize: 15, color: MUTED, textAlign: 'center', lineHeight: 22 },
-});
-
-const s2 = StyleSheet.create({
-  actionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1.5,
-    borderColor: BORDER,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: CARD,
-  },
-  actionChipText: { fontSize: 12, fontWeight: '700', color: TEXT },
-  switchRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: BG,
-  },
-  switchTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
-  switchSub: { marginTop: 2, fontSize: 12, color: MUTED, maxWidth: 240 },
-  switchPill: { width: 44, height: 26, borderRadius: 999, backgroundColor: BORDER, padding: 3 },
-  switchKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
-  historyCard: { backgroundColor: CARD, borderRadius: 14, padding: 14, gap: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  historyAction: { fontSize: 14, fontWeight: '700', color: TEXT, textTransform: 'capitalize' },
-  historyMeta: { fontSize: 12, color: MUTED, lineHeight: 18 },
-  historyDelta: { fontSize: 15, fontWeight: '700' },
+  statsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  statPill:    { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '12', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  statTxt:     { fontSize: 12, fontWeight: '600', color: BLUE },
+  empty:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
+  emptyTxt:    { fontSize: 15, color: MUTED, textAlign: 'center', lineHeight: 22 },
 });
