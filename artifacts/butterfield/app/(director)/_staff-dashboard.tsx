@@ -93,18 +93,6 @@ export function StaffDashboard() {
   const [storePickerVisible, setStorePickerVisible] = useState(false);
   const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number } | undefined>();
 
-  const getFastLocation = useCallback(async (accuracy: Location.Accuracy = Location.Accuracy.Balanced) => {
-    const lastKnown = await Location.getLastKnownPositionAsync({
-      maxAge: 120000,
-      requiredAccuracy: 500,
-    }).catch(() => null);
-    if (lastKnown?.coords) {
-      return { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
-    }
-    const pos = await Location.getCurrentPositionAsync({ accuracy });
-    return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-  }, []);
-
   const { data: shiftData, refetch: refetchShift } = useQuery({
     queryKey: ['current-shift'], queryFn: () => api.staff.currentShift(), retry: 1,
   });
@@ -173,13 +161,11 @@ export function StaffDashboard() {
   const handleClockIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     let coords: { latitude: number; longitude: number } | undefined;
-    const existingPermission = await Location.getForegroundPermissionsAsync().catch(() => null);
-    const { status } = existingPermission?.status === 'granted'
-      ? existingPermission
-      : await Location.requestForegroundPermissionsAsync();
+    const { status } = await Location.requestForegroundPermissionsAsync();
     if (status === 'granted') {
       try {
-        coords = await getFastLocation(Location.Accuracy.Balanced);
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
       } catch { /* use undefined */ }
     } else {
       if (storeAssignments.length > 0) {
@@ -216,9 +202,10 @@ export function StaffDashboard() {
         try {
           const unpaidMins = Math.floor(currentUnpaidMs / 60000);
           let outCoords: { latitude: number; longitude: number } | undefined;
-        try {
-          outCoords = await getFastLocation(Location.Accuracy.Balanced);
-        } catch { /* ignore */ }
+          try {
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            outCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          } catch { /* ignore */ }
           const res = await api.staff.clockOut(unpaidMins, outCoords);
           setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
           qc.invalidateQueries({ queryKey: ['current-shift'] });

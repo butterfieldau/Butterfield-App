@@ -550,23 +550,23 @@ function LoyaltyContent() {
 
             <LinearGradient colors={['#10213E', '#0D1630']} style={[styles.infoCard, styles.infoCardSmall]}>
               <View style={styles.freeCoffeeHeader}>
-                <Text style={styles.freeCoffeeTitle}>Free coffee rewards</Text>
+                <View style={styles.freeCoffeeCopy}>
+                  <Text style={styles.freeCoffeeTitle}>Free coffee rewards</Text>
+                  <Text style={styles.freeCoffeeHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
+                </View>
                 <Text style={styles.infoCardMiniCount}>{freeCoffeeRewards}</Text>
               </View>
-              <View style={styles.freeCoffeeBody}>
-                <Text style={styles.freeCoffeeHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
-              </View>
               <View style={styles.freeCoffeeStampWrap}>
-                <View style={styles.miniStampGrid}>
-                  {Array.from({ length: STAMP_COUNT }).map((_, index) => {
-                    const filled = index < stampCount;
-                    return (
-                      <View key={index} style={[styles.miniStampBubble, filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty]}>
-                        {filled ? <Feather name="coffee" size={16} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
-                      </View>
-                    );
-                  })}
-                </View>
+              <View style={styles.miniStampGrid}>
+                {Array.from({ length: STAMP_COUNT }).map((_, index) => {
+                  const filled = index < stampCount;
+                  return (
+                    <View key={index} style={[styles.miniStampBubble, filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty]}>
+                      {filled ? <Feather name="coffee" size={16} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                    </View>
+                  );
+                })}
+              </View>
               </View>
             </LinearGradient>
           </View>
@@ -988,37 +988,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   infoCardLarge: { flex: 1 },
-  infoCardSmall: { flex: 1, justifyContent: 'flex-start', overflow: 'hidden' },
+  infoCardSmall: { flex: 1, paddingBottom: 16, justifyContent: 'flex-start' },
   infoCardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '700' },
   infoCardValue: { marginTop: 8, color: WHITE, fontSize: 32, lineHeight: 36, fontWeight: '700' },
   infoCardSub: { marginTop: 4, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
   infoCardHint: { marginTop: 4, color: 'rgba(255,255,255,0.66)', fontSize: 12, lineHeight: 17, fontWeight: '500' },
-  freeCoffeeHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  freeCoffeeTitle: { flex: 1, color: WHITE, fontSize: 18, lineHeight: 22, fontWeight: '700' },
-  infoCardMiniCount: { color: WHITE, fontSize: 30, lineHeight: 30, fontWeight: '700' },
-  freeCoffeeBody: { marginTop: 6, minHeight: 50, paddingRight: 8 },
+  freeCoffeeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12 },
+  freeCoffeeCopy: { flex: 1, paddingRight: 6 },
+  freeCoffeeTitle: { color: 'rgba(255,255,255,0.92)', fontSize: 14, lineHeight: 18, fontWeight: '700' },
+  infoCardMiniCount: { marginLeft: 'auto', color: WHITE, fontSize: 30, lineHeight: 30, fontWeight: '700' },
   freeCoffeeHint: {
-    maxWidth: '100%',
-    color: 'rgba(255,255,255,0.76)',
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: '500',
+    marginTop: 4,
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 11,
+    lineHeight: 15,
   },
-  freeCoffeeStampWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', paddingTop: 4, paddingBottom: 4 },
+  freeCoffeeStampWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
   miniStampGrid: {
-    width: '100%',
-    maxWidth: 150,
+    width: 156,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    columnGap: 12,
+    justifyContent: 'space-between',
     rowGap: 12,
   },
-  miniStampBubble: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  miniStampBubble: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
-  miniStampDot: { width: 11, height: 11, borderRadius: 5.5, borderWidth: 1.6, borderColor: 'rgba(255,255,255,0.72)' },
+  miniStampDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.6, borderColor: 'rgba(255,255,255,0.72)' },
   infoButton: {
     marginTop: 16,
     alignSelf: 'flex-start',

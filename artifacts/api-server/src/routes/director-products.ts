@@ -240,39 +240,13 @@ router.get('/catalog', async (_req, res) => {
     db.select().from(productsTable).orderBy(asc(productsTable.sortOrder), asc(productsTable.name)),
     db.select().from(productVariantsTable).where(eq(productVariantsTable.isActive, true)).orderBy(asc(productVariantsTable.sortOrder)),
   ]);
-  const categorizedProductIds = new Set<string>();
-  const data = categories.map(cat => {
-    const matched = products.filter(p => p.categoryId === cat.id || p.category === cat.slug);
-    matched.forEach((p) => categorizedProductIds.add(p.id));
-    return ({
+  const data = categories.map(cat => ({
     ...cat,
-    products: matched.map(p => ({
+    products: products.filter(p => p.categoryId === cat.id || p.category === cat.slug).map(p => ({
       ...p,
       variants: variants.filter(v => v.productId === p.id),
     })),
-  })});
-  const uncategorized = products.filter((p) => !categorizedProductIds.has(p.id));
-  if (uncategorized.length > 0) {
-    data.push({
-      id: 'uncategorized',
-      name: 'Uncategorized',
-      slug: 'uncategorized',
-      description: 'Products that are not currently matched to a category.',
-      imageUrl: null,
-      sortOrder: 999999,
-      isActive: true,
-      showPublic: false,
-      showWholesale: false,
-      isPickupAvailable: true,
-      isDeliveryAvailable: false,
-      createdAt: new Date(0),
-      updatedAt: new Date(0),
-      products: uncategorized.map((p) => ({
-        ...p,
-        variants: variants.filter((v) => v.productId === p.id),
-      })),
-    } as any);
-  }
+  }));
   return res.json({ data });
 });
 

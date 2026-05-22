@@ -69,7 +69,6 @@ export const productsTable = pgTable("products", {
   // Stock management
   stockCount:           integer("stock_count"),
   lowStockThreshold:    integer("low_stock_threshold").notNull().default(10),
-  allowNegativeStock:   boolean("allow_negative_stock").notNull().default(false),
   sortOrder:            integer("sort_order").notNull().default(0),
 
   // Stripe
