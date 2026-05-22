@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { db, stockItemsTable, stockCategoriesTable } from '@workspace/db';
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { db, stockItemsTable, stockCategoriesTable, stockMovementsTable } from '@workspace/db';
+import { eq, and, asc, desc, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { requireRole } from '../middlewares/auth.js';
-import { sendNotification } from '../lib/notificationService.js';
+import { applyStockItemAction, applyTransferBetweenStockItems, buildSupplierOrderList } from '../lib/stockActions.js';
 
 const router = Router();
 
@@ -11,8 +11,48 @@ function isValidCategory(v: unknown): v is string {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
+const WASTAGE_REASONS = [
+  'Overbaked',
+  'Damaged',
+  'Expired',
+  'Customer return',
+  'Staff error',
+  'Equipment issue',
+  'Rangehood/temperature issue',
+  'Other',
+] as const;
+
 function canEditAll(role?: string) {
   return role === 'director' || role === 'master';
+}
+
+function stringifyCsvValue(value: unknown) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === ',' && !quoted) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim());
+  return values;
 }
 
 // ── GET /api/stock/categories ────────────────────────────────────────────────
@@ -127,6 +167,7 @@ router.post('/items', requireRole('director', 'master'), async (req, res) => {
     unit: typeof unit === 'string' && unit.trim() ? unit.trim() : 'units',
     currentQuantity: typeof currentQuantity === 'number' && currentQuantity >= 0 ? currentQuantity : 0,
     lowStockThreshold: typeof lowStockThreshold === 'number' && lowStockThreshold >= 0 ? lowStockThreshold : 0,
+    allowNegativeStock: Boolean(req.body.allowNegativeStock),
     costCents: typeof costCents === 'number' && costCents >= 0 ? Math.round(costCents) : null,
     supplier: typeof supplier === 'string' ? supplier.trim() || null : null,
     notes: typeof notes === 'string' ? notes.trim() || null : null,
@@ -158,7 +199,7 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
   const updates: Record<string, unknown> = { updatedAt: new Date() };
 
   if (fullAccess) {
-    const { name, category, unit, currentQuantity, lowStockThreshold, costCents, supplier, notes } = req.body;
+    const { name, category, unit, currentQuantity, lowStockThreshold, allowNegativeStock, costCents, supplier, notes } = req.body;
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) { res.status(400).json({ error: 'name must be a non-empty string' }); return; }
       updates.name = name.trim();
@@ -170,6 +211,7 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
     if (unit !== undefined) updates.unit = typeof unit === 'string' && unit.trim() ? unit.trim() : 'units';
     if (currentQuantity !== undefined) updates.currentQuantity = Math.max(0, Number(currentQuantity) || 0);
     if (lowStockThreshold !== undefined) updates.lowStockThreshold = Math.max(0, Number(lowStockThreshold) || 0);
+    if (allowNegativeStock !== undefined) updates.allowNegativeStock = Boolean(allowNegativeStock);
     if (costCents !== undefined) updates.costCents = costCents === null ? null : (typeof costCents === 'number' ? Math.round(Math.max(0, costCents)) : null);
     if (supplier !== undefined) updates.supplier = typeof supplier === 'string' ? supplier.trim() || null : null;
     if (notes !== undefined) updates.notes = typeof notes === 'string' ? notes.trim() || null : null;
@@ -185,32 +227,6 @@ router.patch('/items/:id', requireRole('director', 'master', 'manager'), async (
   await db.update(stockItemsTable).set(updates as any).where(eq(stockItemsTable.id, id));
 
   const [updated] = await db.select().from(stockItemsTable).where(eq(stockItemsTable.id, id));
-
-  // ── Low-stock push notification ───────────────────────────────────────────
-  if (updates.currentQuantity !== undefined && existing.lowStockThreshold > 0) {
-    const oldQty = existing.currentQuantity;
-    const newQty = updated.currentQuantity;
-    const threshold = updated.lowStockThreshold;
-    const itemName = updated.name;
-
-    if (newQty <= 0 && oldQty > 0) {
-      sendNotification({
-        roles: ['director', 'master'],
-        type: 'stock_out',
-        title: '🚨 Out of Stock',
-        body: `${itemName} is now out of stock. Reorder immediately.`,
-        data: { stockItemId: id, name: itemName, quantity: newQty },
-      }).catch(() => {});
-    } else if (newQty > 0 && newQty <= threshold && oldQty > threshold) {
-      sendNotification({
-        roles: ['director', 'master'],
-        type: 'stock_low',
-        title: '⚠️ Low Stock Alert',
-        body: `${itemName} is running low — only ${newQty} ${updated.unit} remaining.`,
-        data: { stockItemId: id, name: itemName, quantity: newQty, threshold },
-      }).catch(() => {});
-    }
-  }
 
   if (fullAccess) {
     res.json({ data: updated });
@@ -236,6 +252,163 @@ router.delete('/items/:id', requireRole('director', 'master'), async (req, res) 
 
   await db.update(stockItemsTable).set({ isActive: false, updatedAt: new Date() }).where(eq(stockItemsTable.id, id));
   res.json({ data: { success: true } });
+});
+
+// ── POST /api/stock/items/:id/actions ───────────────────────────────────────
+router.post('/items/:id/actions', requireRole('director', 'master', 'manager'), async (req, res) => {
+  const id = String(req.params.id);
+  const {
+    action,
+    quantity,
+    targetQuantity,
+    targetStockItemId,
+    reason,
+    notes,
+    photoUrl,
+    costImpactCents,
+    allowNegativeOverride,
+  } = req.body ?? {};
+
+  if (!['add', 'remove', 'adjust', 'transfer', 'wasted', 'expired', 'stocktake'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid stock action.' });
+  }
+  if ((action === 'wasted' || action === 'expired') && reason && !WASTAGE_REASONS.includes(reason)) {
+    return res.status(400).json({ error: 'Invalid wastage reason.' });
+  }
+
+  try {
+    let updated;
+    await db.transaction(async (tx) => {
+      if (action === 'transfer') {
+        if (!canEditAll(req.user!.role)) throw new Error('Only directors and masters can transfer stock.');
+        if (!targetStockItemId) throw new Error('Target stock item is required for transfers.');
+        await applyTransferBetweenStockItems(tx, {
+          stockItemId: id,
+          targetStockItemId: String(targetStockItemId),
+          actionType: 'transfer',
+          quantity: Number(quantity ?? 0),
+          reason: typeof reason === 'string' ? reason : 'Transfer',
+          notes: typeof notes === 'string' ? notes : null,
+          photoUrl: typeof photoUrl === 'string' ? photoUrl : null,
+          costImpactCents: typeof costImpactCents === 'number' ? Math.round(costImpactCents) : null,
+          allowNegativeOverride: Boolean(allowNegativeOverride),
+          actor: { userId: req.user!.id, name: req.user!.name, role: req.user!.role },
+        });
+        const [fresh] = await tx.select().from(stockItemsTable).where(eq(stockItemsTable.id, id));
+        updated = fresh;
+        return;
+      }
+
+      updated = await applyStockItemAction(tx, {
+        stockItemId: id,
+        actionType: action,
+        quantity: Number(quantity ?? 0),
+        targetQuantity: targetQuantity != null ? Number(targetQuantity) : undefined,
+        reason: typeof reason === 'string' ? reason : null,
+        notes: typeof notes === 'string' ? notes : null,
+        photoUrl: typeof photoUrl === 'string' ? photoUrl : null,
+        costImpactCents: typeof costImpactCents === 'number' ? Math.round(costImpactCents) : null,
+        allowNegativeOverride: Boolean(allowNegativeOverride),
+        actor: { userId: req.user!.id, name: req.user!.name, role: req.user!.role },
+      });
+    });
+    return res.json({ data: updated });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message ?? 'Stock action failed.' });
+  }
+});
+
+// ── GET /api/stock/items/:id/history ────────────────────────────────────────
+router.get('/items/:id/history', requireRole('director', 'master', 'manager'), async (req, res) => {
+  const rows = await db.select().from(stockMovementsTable)
+    .where(eq(stockMovementsTable.stockItemId, String(req.params.id)))
+    .orderBy(desc(stockMovementsTable.createdAt));
+  res.json({ data: rows });
+});
+
+// ── POST /api/stock/import ──────────────────────────────────────────────────
+router.post('/import', requireRole('director', 'master'), async (req, res) => {
+  const csvText = String(req.body?.csvText ?? '').trim();
+  if (!csvText) return res.status(400).json({ error: 'csvText is required.' });
+
+  const lines = csvText.split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return res.status(400).json({ error: 'CSV must include a header and at least one row.' });
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+  const required = ['name', 'category', 'unit', 'currentquantity'];
+  if (!required.every((field) => headers.includes(field))) {
+    return res.status(400).json({ error: 'CSV must include name, category, unit, and currentQuantity columns.' });
+  }
+
+  const summary = { created: 0, updated: 0 };
+  await db.transaction(async (tx) => {
+    for (const line of lines.slice(1)) {
+      const values = parseCsvLine(line);
+      const row = Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+      const name = String(row.name ?? '').trim();
+      const category = String(row.category ?? '').trim();
+      if (!name || !category) continue;
+      const [existing] = await tx.select().from(stockItemsTable)
+        .where(and(eq(stockItemsTable.name, name), eq(stockItemsTable.category, category), eq(stockItemsTable.isActive, true)));
+      const payload = {
+        name,
+        category,
+        unit: String(row.unit ?? 'units').trim() || 'units',
+        currentQuantity: Math.max(0, Number(row.currentquantity ?? 0) || 0),
+        lowStockThreshold: Math.max(0, Number(row.lowstockthreshold ?? 0) || 0),
+        allowNegativeStock: ['true', '1', 'yes'].includes(String(row.allownegativestock ?? '').toLowerCase()),
+        costCents: row.costcents ? Math.max(0, Math.round(Number(row.costcents) || 0)) : null,
+        supplier: String(row.supplier ?? '').trim() || null,
+        notes: String(row.notes ?? '').trim() || null,
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        await tx.update(stockItemsTable).set(payload).where(eq(stockItemsTable.id, existing.id));
+        summary.updated += 1;
+      } else {
+        await tx.insert(stockItemsTable).values({
+          id: randomUUID(),
+          ...payload,
+          isActive: true,
+          createdAt: new Date(),
+        });
+        summary.created += 1;
+      }
+    }
+  });
+
+  res.json({ data: summary });
+});
+
+// ── GET /api/stock/reports/export ───────────────────────────────────────────
+router.get('/reports/export', requireRole('director', 'master', 'manager'), async (_req, res) => {
+  const rows = await db.select().from(stockItemsTable)
+    .where(eq(stockItemsTable.isActive, true))
+    .orderBy(asc(stockItemsTable.category), asc(stockItemsTable.name));
+
+  const csvLines = [
+    ['Name', 'Category', 'Unit', 'Current Quantity', 'Low Stock Threshold', 'Allow Negative Stock', 'Cost Cents', 'Supplier', 'Notes']
+      .map(stringifyCsvValue).join(','),
+    ...rows.map((row) => [
+      row.name,
+      row.category,
+      row.unit,
+      row.currentQuantity,
+      row.lowStockThreshold,
+      row.allowNegativeStock,
+      row.costCents ?? '',
+      row.supplier ?? '',
+      row.notes ?? '',
+    ].map(stringifyCsvValue).join(',')),
+  ];
+
+  res.json({ data: { rows, csv: csvLines.join('\n') } });
+});
+
+// ── GET /api/stock/supplier-order-list ──────────────────────────────────────
+router.get('/supplier-order-list', requireRole('director', 'master', 'manager'), async (_req, res) => {
+  const suppliers = await buildSupplierOrderList();
+  res.json({ data: suppliers });
 });
 
 export default router;

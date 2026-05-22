@@ -7,6 +7,7 @@ import {
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
+  loyaltyActivityLogTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -14,6 +15,7 @@ import { requireManagerRoutePermission } from '../middlewares/managerPermission.
 import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { restoreProductStockForOrder } from '../lib/stockActions.js';
 import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
@@ -241,24 +243,166 @@ router.get('/orders', async (req, res) => {
     db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone }).from(usersTable),
     db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName, abn: wholesaleAccountsTable.abn }).from(wholesaleAccountsTable),
   ]);
+  const customerOrderIds = customerOrders.map((o) => o.id);
+  const [claimedRewards, loyaltyActivities] = await Promise.all([
+    customerOrderIds.length
+      ? db.select({
+        orderId: claimedRewardsTable.orderId,
+        rewardId: claimedRewardsTable.rewardId,
+        rewardName: loyaltyRewardsTable.name,
+        pointsSpent: claimedRewardsTable.pointsSpent,
+        voucherValueCents: claimedRewardsTable.voucherValueCents,
+        status: claimedRewardsTable.status,
+        redeemedAt: claimedRewardsTable.redeemedAt,
+      })
+        .from(claimedRewardsTable)
+        .leftJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
+        .where(and(
+          inArray(claimedRewardsTable.orderId, customerOrderIds),
+          eq(claimedRewardsTable.status, 'redeemed'),
+        ))
+      : Promise.resolve([]),
+    customerOrderIds.length
+      ? db.select({
+        orderId: loyaltyActivityLogTable.orderId,
+        activityType: loyaltyActivityLogTable.activityType,
+        description: loyaltyActivityLogTable.description,
+        pointsDelta: loyaltyActivityLogTable.pointsDelta,
+        coffeeStampsDelta: loyaltyActivityLogTable.coffeeStampsDelta,
+        freeCoffeeRewardsDelta: loyaltyActivityLogTable.freeCoffeeRewardsDelta,
+        createdAt: loyaltyActivityLogTable.createdAt,
+      })
+        .from(loyaltyActivityLogTable)
+        .where(inArray(loyaltyActivityLogTable.orderId, customerOrderIds))
+        .orderBy(loyaltyActivityLogTable.createdAt)
+      : Promise.resolve([]),
+  ]);
   const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
   const wsMap   = Object.fromEntries(wsAccounts.map(w => [w.userId, w]));
+  const rewardsByOrderId = claimedRewards.reduce<Record<string, any[]>>((acc, reward) => {
+    if (!reward.orderId) return acc;
+    if (!acc[reward.orderId]) acc[reward.orderId] = [];
+    acc[reward.orderId].push({
+      id: reward.rewardId,
+      name: reward.rewardName ?? 'Reward',
+      pointsSpent: reward.pointsSpent,
+      voucherValueCents: reward.voucherValueCents,
+      redeemedAt: reward.redeemedAt,
+    });
+    return acc;
+  }, {});
+  const loyaltyByOrderId = loyaltyActivities.reduce<Record<string, any[]>>((acc, activity) => {
+    if (!activity.orderId) return acc;
+    if (!acc[activity.orderId]) acc[activity.orderId] = [];
+    acc[activity.orderId].push(activity);
+    return acc;
+  }, {});
+  const paymentStatusLabel = (order: any) => {
+    if (order.orderSource === 'wholesale') return order.isPaid ? 'Paid' : 'Awaiting payment';
+    switch (String(order.stripePaymentStatus ?? '').toLowerCase()) {
+      case 'paid': return 'Paid';
+      case 'pay_at_pickup': return 'Pay at pickup';
+      case 'free': return 'No payment due';
+      case 'refunded': return 'Refunded';
+      default: return 'Pending';
+    }
+  };
+  const paymentMethodLabel = (order: any) => {
+    if (order.orderSource === 'wholesale') return 'Invoice / wholesale terms';
+    if (order.stripePaymentStatus === 'pay_at_pickup') return 'Pay at pickup';
+    if (order.paymentMethodType) return String(order.paymentMethodType).replace(/_/g, ' ');
+    if (order.stripePaymentIntentId) return 'Card';
+    return 'Not recorded';
+  };
+  const buildTimeline = (order: any, rewardsUsed: any[], loyaltyEvents: any[]) => {
+    const timeline = [
+      {
+        key: 'placed',
+        title: 'Order placed',
+        detail: order.customerName ?? 'Customer order',
+        timestamp: order.createdAt,
+      },
+    ] as Array<{ key: string; title: string; detail: string; timestamp: Date | string | null | undefined }>;
+    if (order.scheduledFor || order.scheduledDate) {
+      timeline.push({
+        key: 'scheduled',
+        title: order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery scheduled' : 'Pickup scheduled',
+        detail: order.scheduledFor || order.scheduledDate,
+        timestamp: order.scheduledFor || order.scheduledDate,
+      });
+    }
+    timeline.push({
+      key: 'payment',
+      title: 'Payment',
+      detail: `${paymentMethodLabel(order)} · ${paymentStatusLabel(order)}`,
+      timestamp: order.paidAt ?? order.createdAt,
+    });
+    for (const reward of rewardsUsed) {
+      timeline.push({
+        key: `reward-${reward.id}`,
+        title: 'Reward used',
+        detail: `${reward.name}${reward.pointsSpent ? ` · ${reward.pointsSpent} pts` : ''}`,
+        timestamp: reward.redeemedAt ?? order.createdAt,
+      });
+    }
+    for (const activity of loyaltyEvents) {
+      timeline.push({
+        key: `loyalty-${activity.activityType}-${activity.createdAt}`,
+        title: 'Loyalty update',
+        detail: activity.description,
+        timestamp: activity.createdAt,
+      });
+    }
+    if (order.updatedAt && new Date(order.updatedAt).getTime() !== new Date(order.createdAt).getTime()) {
+      timeline.push({
+        key: 'status',
+        title: 'Latest status update',
+        detail: String(order.status ?? '').replace(/_/g, ' '),
+        timestamp: order.updatedAt,
+      });
+    }
+    if (order.cancelReason) {
+      timeline.push({
+        key: 'cancel-reason',
+        title: order.status === 'refunded' ? 'Refund reason' : 'Cancellation reason',
+        detail: order.cancelReason,
+        timestamp: order.updatedAt ?? order.createdAt,
+      });
+    }
+    return timeline
+      .filter((item) => item.timestamp)
+      .sort((a, b) => new Date(a.timestamp as any).getTime() - new Date(b.timestamp as any).getTime());
+  };
   const all = [
     ...customerOrders.map(o => ({
       ...o,
       orderSource:   'customer' as const,
+      orderNumber:   `BC-${o.id.slice(-6).toUpperCase()}`,
       customerName:  userMap[o.userId]?.name  ?? null,
       customerEmail: userMap[o.userId]?.email ?? null,
       customerPhone: userMap[o.userId]?.phone ?? null,
+      rewardsUsed:   rewardsByOrderId[o.id] ?? [],
+      discountsUsed: o.discountCode ? [{ code: o.discountCode, amountCents: o.discountCents ?? 0 }] : [],
+      paymentStatusLabel: paymentStatusLabel(o),
+      paymentMethodLabel: paymentMethodLabel(o),
+      handledByName: null,
+      timeline: buildTimeline(o, rewardsByOrderId[o.id] ?? [], loyaltyByOrderId[o.id] ?? []),
     })),
     ...wholesaleOrders.map(wo => ({
       ...wo,
       type:          'wholesale',
       orderSource:   'wholesale' as const,
+      orderNumber:   `WS-${(wo.poReference ?? wo.id.slice(0, 8)).toUpperCase()}`,
       customerName:  wsMap[wo.userId]?.companyName ?? userMap[wo.userId]?.name ?? null,
       customerEmail: userMap[wo.userId]?.email ?? null,
       customerPhone: userMap[wo.userId]?.phone ?? null,
       companyAbn:    wsMap[wo.userId]?.abn ?? null,
+      rewardsUsed:   [],
+      discountsUsed: [],
+      paymentStatusLabel: paymentStatusLabel({ ...wo, orderSource: 'wholesale' }),
+      paymentMethodLabel: paymentMethodLabel({ ...wo, orderSource: 'wholesale' }),
+      handledByName: null,
+      timeline: buildTimeline({ ...wo, orderSource: 'wholesale' }, [], []),
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 300);
   return res.json({ data: all });
@@ -266,7 +410,7 @@ router.get('/orders', async (req, res) => {
 
 router.patch('/orders/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, returnStock = true } = req.body;
   const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
   const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
 
@@ -347,6 +491,20 @@ router.patch('/orders/:id/status', async (req, res) => {
         }
       } catch (err: any) {
         req.log.error({ err, orderId: updated.id }, 'Failed to reverse coffee stamps on director cancellation');
+      }
+
+      if (returnStock) {
+        try {
+          await db.transaction(async (tx) => {
+            await restoreProductStockForOrder(tx, updated.items, {
+              userId: req.user!.id,
+              name: req.user!.name,
+              role: req.user!.role,
+            }, updated.id);
+          });
+        } catch (err: any) {
+          req.log.error({ err, orderId: updated.id }, 'Failed to restore product stock on director cancellation');
+        }
       }
 
       // Trigger Stripe refund if order was paid online
@@ -687,7 +845,7 @@ router.post('/products', async (req, res) => {
     tags, allergens, dietaryTags, ingredients, nutritionInfo,
     storageInstructions, servingInstructions,
     minOrderQty, maxOrderQty, leadTimeMins, availableDays, availableTimes,
-    stockCount, lowStockThreshold, sortOrder,
+    stockCount, lowStockThreshold, allowNegativeStock, sortOrder,
   } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Product name is required.' });
   if (typeof priceCents !== 'number') return res.status(400).json({ error: 'Price is required.' });
@@ -732,6 +890,7 @@ router.post('/products', async (req, res) => {
     availableTimes:     availableTimes      ?? null,
     stockCount:         stockCount          ?? null,
     lowStockThreshold:  lowStockThreshold   ?? 10,
+    allowNegativeStock: allowNegativeStock  ?? false,
     sortOrder:          sortOrder           ?? 0,
   }).returning();
   return res.status(201).json({ data: product });
@@ -748,7 +907,7 @@ router.patch('/products/:id', async (req, res) => {
     'tags','allergens','dietaryTags','ingredients','nutritionInfo',
     'storageInstructions','servingInstructions',
     'minOrderQty','maxOrderQty','leadTimeMins','availableDays','availableTimes',
-    'stockCount','lowStockThreshold','sortOrder',
+    'stockCount','lowStockThreshold','allowNegativeStock','sortOrder',
   ];
   const updates: Record<string, any> = {};
   for (const key of allowed) {

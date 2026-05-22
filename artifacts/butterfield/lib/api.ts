@@ -539,15 +539,21 @@ export const api = {
     create:           (data: {
       name: string; category: string; unit?: string;
       currentQuantity?: number; lowStockThreshold?: number;
-      costCents?: number; supplier?: string; notes?: string;
+      allowNegativeStock?: boolean; costCents?: number; supplier?: string; notes?: string;
     }) => request<{ data: StockItem }>('/stock/items', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: {
       name?: string; category?: string; unit?: string;
       currentQuantity?: number; lowStockThreshold?: number;
-      costCents?: number | null; supplier?: string | null; notes?: string | null;
+      allowNegativeStock?: boolean; costCents?: number | null; supplier?: string | null; notes?: string | null;
     }) => request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateQuantity: (id: string, currentQuantity: number) =>
       request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify({ currentQuantity }) }),
+    action: (id: string, data: StockActionInput) =>
+      request<{ data: StockItem }>(`/stock/items/${id}/actions`, { method: 'POST', body: JSON.stringify(data) }),
+    history: (id: string) => request<{ data: StockMovement[] }>(`/stock/items/${id}/history`),
+    importCsv: (csvText: string) => request<{ data: { created: number; updated: number } }>('/stock/import', { method: 'POST', body: JSON.stringify({ csvText }) }),
+    exportReport: () => request<{ data: { rows: StockItem[]; csv: string } }>('/stock/reports/export'),
+    supplierOrderList: () => request<{ data: Record<string, SupplierOrderItem[]> }>('/stock/supplier-order-list'),
     delete: (id: string) => request<{ data: { success: boolean } }>(`/stock/items/${id}`, { method: 'DELETE' }),
   },
 };
@@ -555,16 +561,59 @@ export const api = {
 export interface StockItem {
   id: string;
   name: string;
-  category: 'coffee' | 'drinks' | 'front_of_house' | 'sauces' | 'chocolate' | 'kitchen';
+  category: string;
   unit: string;
   currentQuantity: number;
   lowStockThreshold: number;
+  allowNegativeStock?: boolean;
   costCents?: number | null;
   supplier?: string | null;
   notes?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StockActionInput {
+  action: 'add' | 'remove' | 'adjust' | 'transfer' | 'wasted' | 'expired' | 'stocktake';
+  quantity?: number;
+  targetQuantity?: number;
+  targetStockItemId?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  photoUrl?: string | null;
+  costImpactCents?: number | null;
+  allowNegativeOverride?: boolean;
+}
+
+export interface StockMovement {
+  id: string;
+  stockItemId?: string | null;
+  productId?: string | null;
+  relatedOrderId?: string | null;
+  actionType: string;
+  quantityDelta: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  reason?: string | null;
+  notes?: string | null;
+  photoUrl?: string | null;
+  costImpactCents?: number | null;
+  performedByUserId?: string | null;
+  performedByName?: string | null;
+  performedByRole?: string | null;
+  targetStockItemId?: string | null;
+  createdAt: string;
+}
+
+export interface SupplierOrderItem {
+  id: string;
+  name: string;
+  supplier: string;
+  unit: string;
+  currentQuantity: number;
+  lowStockThreshold: number;
+  suggestedOrderQuantity: number;
 }
 
 export interface GeoSettings {
@@ -603,7 +652,10 @@ export interface ApiOrder {
   userId: string;
   status: string;
   type: string;
+  orderSource?: 'customer' | 'wholesale';
+  orderNumber?: string;
   scheduledFor?: string;
+  scheduledDate?: string;
   notes?: string;
   totalCents: number;
   items: any[];
@@ -611,10 +663,40 @@ export interface ApiOrder {
   updatedAt: string;
   stripePaymentIntentId?: string;
   stripePaymentStatus?: string;
+  paymentMethodType?: string;
   loyaltyPointsEarned?: number;
   loyaltyPointsUsed?: number;
   discountCents?: number;
+  discountCode?: string;
   deliveryAddress?: string;
+  cancelReason?: string;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  companyAbn?: string | null;
+  poReference?: string | null;
+  isPaid?: boolean;
+  paidAt?: string;
+  paymentStatusLabel?: string;
+  paymentMethodLabel?: string;
+  handledByName?: string | null;
+  rewardsUsed?: Array<{
+    id: string;
+    name: string;
+    pointsSpent?: number | null;
+    voucherValueCents?: number | null;
+    redeemedAt?: string | null;
+  }>;
+  discountsUsed?: Array<{
+    code: string;
+    amountCents: number;
+  }>;
+  timeline?: Array<{
+    key: string;
+    title: string;
+    detail: string;
+    timestamp: string;
+  }>;
 }
 
 export interface LiveContext {

@@ -7,6 +7,7 @@ import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { reduceProductStockForOrder, restoreProductStockForOrder } from '../lib/stockActions.js';
 
 const router = Router();
 
@@ -340,6 +341,14 @@ router.post('/', async (req, res) => {
           throw new Error('REWARD_ALREADY_CONSUMED');
         }
       }
+
+      if (isPaid) {
+        await reduceProductStockForOrder(tx, items, {
+          userId: req.user!.id,
+          name: req.user!.name,
+          role: req.user!.role,
+        }, orderId);
+      }
     });
   } catch (err: any) {
     if (err?.code === '23505' && err?.constraint_name?.includes('stripe_payment_intent_id')) {
@@ -448,7 +457,7 @@ router.patch(
   '/:id/status',
   requireRole('staff', 'director', 'manager', 'master'),
   async (req, res) => {
-    const { status } = req.body;
+    const { status, returnStock = true } = req.body;
     const validStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'refunded'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
@@ -523,6 +532,20 @@ router.patch(
         }
       } catch (err: any) {
         req.log.error({ err, orderId: order.id }, 'Failed to reverse coffee stamps on order cancellation');
+      }
+
+      if (returnStock) {
+        try {
+          await db.transaction(async (tx) => {
+            await restoreProductStockForOrder(tx, order.items, {
+              userId: req.user!.id,
+              name: req.user!.name,
+              role: req.user!.role,
+            }, order.id);
+          });
+        } catch (err: any) {
+          req.log.error({ err, orderId: order.id }, 'Failed to restore product stock on order cancellation');
+        }
       }
     }
 

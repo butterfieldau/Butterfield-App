@@ -89,6 +89,14 @@ function isThisWeek(d: Date | string) {
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
 }
+function fmtDateTime(d?: Date | string | null) {
+  if (!d) return '—';
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-AU', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
 function fmtDateChip(d: Date) {
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
@@ -117,6 +125,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   if (!order) return null;
   const isWholesale = order.orderSource === 'wholesale';
   const items = Array.isArray(order.items) ? order.items : [];
+  const orderNumber = order.orderNumber ?? (isWholesale
+    ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
+    : `#BC-${order.id.slice(-6).toUpperCase()}`);
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
   // Filter cancel/refund from action list for non-directors (managers cannot cancel or refund)
@@ -142,6 +153,12 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   const discountCents = order.discountCents ?? 0;
   const loyaltyUsed  = order.loyaltyPointsUsed ?? 0;
   const loyaltyEarned = order.loyaltyPointsEarned ?? 0;
+  const paymentMethodLabel = order.paymentMethodLabel ?? (order.paymentMethodType ? String(order.paymentMethodType).replace(/_/g, ' ') : 'Not recorded');
+  const paymentStatusLabel = order.paymentStatusLabel ?? (isWholesale ? (order.isPaid ? 'Paid' : 'Awaiting payment') : (order.stripePaymentStatus ?? 'Pending'));
+  const fulfilmentTime = order.scheduledFor ?? order.scheduledDate ?? null;
+  const rewardsUsed = Array.isArray(order.rewardsUsed) ? order.rewardsUsed : [];
+  const discountsUsed = Array.isArray(order.discountsUsed) ? order.discountsUsed : [];
+  const timeline = Array.isArray(order.timeline) ? order.timeline : [];
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
@@ -152,9 +169,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
           </Pressable>
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.modalTitle}>
-              {isWholesale
-                ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
-                : `#BC-${order.id.slice(-6).toUpperCase()}`}
+              {orderNumber}
             </Text>
             <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
               {new Date(order.createdAt).toLocaleDateString('en-AU', {
@@ -199,6 +214,39 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               </>
             )}
           </Pressable>
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Order Details</Text>
+            <View style={{ gap: 10, marginTop: 8 }}>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Order number</Text>
+                <Text style={styles.metaValue}>{orderNumber}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Order time</Text>
+                <Text style={styles.metaValue}>{fmtDateTime(order.createdAt)}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>{order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery time' : 'Pickup time'}</Text>
+                <Text style={styles.metaValue}>{fmtDateTime(fulfilmentTime)}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Payment method</Text>
+                <Text style={styles.metaValue}>{paymentMethodLabel}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Payment status</Text>
+                <Text style={styles.metaValue}>{paymentStatusLabel}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Order status</Text>
+                <Text style={styles.metaValue}>{label}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Handled by</Text>
+                <Text style={styles.metaValue}>{order.handledByName ?? 'Not tracked yet'}</Text>
+              </View>
+            </View>
+          </View>
           {/* Customer / Account */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{isWholesale ? 'Account' : 'Customer'}</Text>
@@ -338,6 +386,14 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Summary</Text>
             <View style={{ gap: 6, marginTop: 6 }}>
+              {discountsUsed.map((discount: any, index: number) => (
+                <View key={`${discount.code}-${index}`} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Discount used</Text>
+                  <Text style={[{ color: GREEN, fontWeight: '500', fontSize: 13 }]}>
+                    {discount.code} · −${((discount.amountCents ?? 0) / 100).toFixed(2)}
+                  </Text>
+                </View>
+              ))}
               {discountCents > 0 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Discount</Text>
@@ -350,6 +406,14 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                   <Text style={[{ color: GREEN, fontWeight: '500', fontSize: 13 }]}>−{loyaltyUsed} pts</Text>
                 </View>
               )}
+              {rewardsUsed.map((reward: any, index: number) => (
+                <View key={`${reward.id ?? reward.name}-${index}`} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>Reward used</Text>
+                  <Text style={[{ color: '#F59E0B', fontWeight: '500', fontSize: 13, flexShrink: 1, textAlign: 'right' }]}>
+                    {reward.name}{reward.pointsSpent ? ` · ${reward.pointsSpent} pts` : ''}
+                  </Text>
+                </View>
+              ))}
               <View style={[{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }]}>
                 <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 15 }]}>Total</Text>
                 <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 15 }]}>
@@ -373,14 +437,50 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
           {/* Notes */}
             </View>
           </View>
-          {order.notes ? (
+          {(order.notes || order.cancelReason) ? (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Notes</Text>
-              <Text style={[{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
-                {order.notes}
-              </Text>
+              <Text style={styles.sectionLabel}>Notes, allergies & requests</Text>
+              {order.notes ? (
+                <Text style={[{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }]}>
+                  {order.notes}
+                </Text>
+              ) : (
+                <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 14, marginTop: 6 }]}>No customer notes provided.</Text>
+              )}
+              {order.cancelReason ? (
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER }}>
+                  <Text style={[styles.sectionLabel, { marginBottom: 6 }]}>
+                    {order.status === 'refunded' ? 'Refund reason' : 'Cancellation reason'}
+                  </Text>
+                  <Text style={[{ color: TEXT, fontWeight: '400', fontSize: 14, lineHeight: 20 }]}>
+                    {order.cancelReason}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Timeline</Text>
+            <View style={{ marginTop: 8, gap: 12 }}>
+              {timeline.length === 0 ? (
+                <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 14 }]}>No order history yet.</Text>
+              ) : timeline.map((entry: any, index: number) => (
+                <View key={entry.key ?? `${entry.title}-${index}`} style={styles.timelineRow}>
+                  <View style={styles.timelineRail}>
+                    <View style={styles.timelineDot} />
+                    {index < timeline.length - 1 ? <View style={styles.timelineLine} /> : null}
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                      <Text style={styles.timelineTitle}>{entry.title}</Text>
+                      <Text style={styles.timelineTime}>{fmtDateTime(entry.timestamp)}</Text>
+                    </View>
+                    <Text style={styles.timelineDetail}>{entry.detail}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -888,5 +988,15 @@ const styles = StyleSheet.create({
   printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, marginHorizontal: 16, marginTop: 2 },
   detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   detailText:     { color: TEXT, fontWeight: '400', fontSize: 14, lineHeight: 20 },
+  metaRow:        { flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' },
+  metaLabel:      { color: MUTED, fontWeight: '500', fontSize: 13, flex: 0.95 },
+  metaValue:      { color: TEXT, fontWeight: '600', fontSize: 13, flex: 1.05, textAlign: 'right' },
   itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },
+  timelineRow:    { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  timelineRail:   { alignItems: 'center', width: 14 },
+  timelineDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE, marginTop: 5 },
+  timelineLine:   { width: 1.5, flex: 1, backgroundColor: BORDER, marginTop: 4 },
+  timelineTitle:  { color: TEXT, fontWeight: '700', fontSize: 13, flex: 1 },
+  timelineTime:   { color: MUTED, fontWeight: '500', fontSize: 11 },
+  timelineDetail: { color: MUTED, fontWeight: '400', fontSize: 13, lineHeight: 18 },
 });

@@ -5,13 +5,13 @@ import React, { useState, useMemo } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
   Modal, Platform, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Share, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
-import { api, type StockItem } from '@/lib/api';
+import { api, type StockActionInput, type StockItem, type StockMovement } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -51,6 +51,16 @@ const CAT_ICONS: Record<string, string> = {
 };
 
 const PALETTE = ['#7C3AED','#06B6D4','#F59E0B','#EF4444','#22C55E','#3B82F6','#8B5CF6','#EC4899','#14B8A6','#F97316'];
+const WASTAGE_REASONS = ['Overbaked', 'Damaged', 'Expired', 'Customer return', 'Staff error', 'Equipment issue', 'Rangehood/temperature issue', 'Other'] as const;
+const ACTIONS: Array<{ id: StockActionInput['action']; label: string; icon: keyof typeof Feather.glyphMap; tone: string }> = [
+  { id: 'add',       label: 'Add stock',          icon: 'plus-circle',  tone: GREEN },
+  { id: 'remove',    label: 'Remove stock',       icon: 'minus-circle', tone: RED },
+  { id: 'adjust',    label: 'Adjust stock',       icon: 'sliders',      tone: BLUE },
+  { id: 'transfer',  label: 'Transfer stock',     icon: 'repeat',       tone: '#7C3AED' },
+  { id: 'wasted',    label: 'Mark as wasted',     icon: 'trash-2',      tone: AMBER },
+  { id: 'expired',   label: 'Mark as expired',    icon: 'clock',        tone: '#F97316' },
+  { id: 'stocktake', label: 'Stocktake mode',     icon: 'check-square', tone: NAVY },
+];
 
 function catColor(id: string): string {
   return CAT_COLORS[id] ?? PALETTE[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % PALETTE.length];
@@ -72,8 +82,8 @@ function stockLevel(item: StockItem): 'ok' | 'low' | 'out' {
 }
 
 // ── Quantity adjust modal ────────────────────────────────────────────────────
-function QuantityModal({ item, onClose, onSave }: {
-  item: StockItem; onClose: () => void; onSave: (qty: number) => void;
+function QuantityModal({ item, onClose, onSave, title = 'Update quantity', saveLabel = 'Save', subtitle }: {
+  item: StockItem; onClose: () => void; onSave: (qty: number) => void; title?: string; saveLabel?: string; subtitle?: string;
 }) {
   const [val, setVal] = useState(String(item.currentQuantity));
   const handleSave = () => {
@@ -85,16 +95,16 @@ function QuantityModal({ item, onClose, onSave }: {
     <Modal transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={qm.overlay} onPress={onClose}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Pressable style={qm.sheet} onPress={() => {}}>
+            <Pressable style={qm.sheet} onPress={() => {}}>
             <Text style={qm.title}>{item.name}</Text>
-            <Text style={qm.sub}>Update quantity ({item.unit})</Text>
+            <Text style={qm.sub}>{subtitle ?? `${title} (${item.unit})`}</Text>
             <TextInput style={qm.input} value={val} onChangeText={setVal} keyboardType="decimal-pad" selectTextOnFocus autoFocus />
             <View style={qm.row}>
               <Pressable style={[qm.btn, { backgroundColor: BG }]} onPress={onClose}>
                 <Text style={[qm.btnText, { color: TEXT }]}>Cancel</Text>
               </Pressable>
               <Pressable style={[qm.btn, { backgroundColor: NAVY }]} onPress={handleSave}>
-                <Text style={[qm.btnText, { color: '#fff' }]}>Save</Text>
+                <Text style={[qm.btnText, { color: '#fff' }]}>{saveLabel}</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -114,6 +124,216 @@ const qm = StyleSheet.create({
   btn:      { flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center' },
   btnText:  { fontSize: 15, fontWeight: '600' },
 });
+
+function StockActionModal({
+  item,
+  items,
+  onClose,
+  onSubmit,
+}: {
+  item: StockItem;
+  items: StockItem[];
+  onClose: () => void;
+  onSubmit: (data: StockActionInput) => void;
+}) {
+  const [action, setAction] = useState<StockActionInput['action']>('add');
+  const [quantity, setQuantity] = useState('1');
+  const [targetQuantity, setTargetQuantity] = useState(String(item.currentQuantity));
+  const [targetStockItemId, setTargetStockItemId] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+  const [notes, setNotes] = useState('');
+  const [costImpact, setCostImpact] = useState('');
+  const [allowNegativeOverride, setAllowNegativeOverride] = useState(false);
+
+  const needsQuantity = !['adjust', 'stocktake'].includes(action);
+  const needsReason = action === 'wasted' || action === 'expired';
+  const actionMeta = ACTIONS.find((entry) => entry.id === action)!;
+  const transferTargets = items.filter((candidate) => candidate.id !== item.id);
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={em.overlay} onPress={onClose}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
+          <Pressable style={em.sheet} onPress={() => {}}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <View>
+                  <Text style={em.title}>{item.name}</Text>
+                  <Text style={mm.catName}>Stock actions</Text>
+                </View>
+                <Pressable onPress={onClose} style={em.closeBtn}>
+                  <Feather name="x" size={18} color={MUTED} />
+                </Pressable>
+              </View>
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {ACTIONS.map((entry) => {
+                  const active = entry.id === action;
+                  return (
+                    <Pressable key={entry.id} onPress={() => setAction(entry.id)} style={[s2.actionChip, active && { backgroundColor: entry.tone, borderColor: entry.tone }]}>
+                      <Feather name={entry.icon} size={14} color={active ? '#fff' : entry.tone} />
+                      <Text style={[s2.actionChipText, active && { color: '#fff' }]}>{entry.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {needsQuantity && (
+                <>
+                  <Label>Quantity</Label>
+                  <TextInput style={em.input} value={quantity} onChangeText={setQuantity} keyboardType="decimal-pad" />
+                </>
+              )}
+
+              {(action === 'adjust' || action === 'stocktake') && (
+                <>
+                  <Label>{action === 'stocktake' ? 'Counted quantity' : 'New quantity'}</Label>
+                  <TextInput style={em.input} value={targetQuantity} onChangeText={setTargetQuantity} keyboardType="decimal-pad" />
+                </>
+              )}
+
+              {action === 'transfer' && (
+                <>
+                  <Label>Transfer to</Label>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                    {transferTargets.map((candidate) => {
+                      const active = targetStockItemId === candidate.id;
+                      return (
+                        <Pressable key={candidate.id} onPress={() => setTargetStockItemId(candidate.id)} style={[em.unitChip, active && { backgroundColor: NAVY, borderColor: NAVY }]}>
+                          <Text style={[em.unitLabel, active && { color: '#fff' }]}>{candidate.name}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </>
+              )}
+
+              {needsReason && (
+                <>
+                  <Label>Reason</Label>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {WASTAGE_REASONS.map((entry) => {
+                      const active = reason === entry;
+                      return (
+                        <Pressable key={entry} onPress={() => setReason(entry)} style={[em.unitChip, active && { backgroundColor: actionMeta.tone, borderColor: actionMeta.tone }]}>
+                          <Text style={[em.unitLabel, active && { color: '#fff' }]}>{entry}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              <Label>Notes</Label>
+              <TextInput style={[em.input, { height: 70, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} multiline placeholder="Optional notes" placeholderTextColor={MUTED} />
+
+              <Label>Cost impact (AUD)</Label>
+              <TextInput style={em.input} value={costImpact} onChangeText={setCostImpact} keyboardType="decimal-pad" placeholder="Optional" placeholderTextColor={MUTED} />
+
+              <Pressable onPress={() => setAllowNegativeOverride((prev) => !prev)} style={s2.switchRow}>
+                <View>
+                  <Text style={s2.switchTitle}>Allow negative stock for this action</Text>
+                  <Text style={s2.switchSub}>Only use this if a director needs to override a temporary shortage.</Text>
+                </View>
+                <View style={[s2.switchPill, allowNegativeOverride && { backgroundColor: NAVY }]}>
+                  <View style={[s2.switchKnob, allowNegativeOverride && { transform: [{ translateX: 18 }] }]} />
+                </View>
+              </Pressable>
+
+              <View style={em.btnRow}>
+                <Pressable style={[em.btn, { backgroundColor: BG }]} onPress={onClose}>
+                  <Text style={[em.btnTxt, { color: TEXT }]}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[em.btn, { backgroundColor: actionMeta.tone }]}
+                  onPress={() => onSubmit({
+                    action,
+                    quantity: needsQuantity ? Number(quantity || 0) : undefined,
+                    targetQuantity: action === 'adjust' || action === 'stocktake' ? Number(targetQuantity || 0) : undefined,
+                    targetStockItemId,
+                    reason: reason || null,
+                    notes: notes || null,
+                    costImpactCents: costImpact ? Math.round((Number(costImpact) || 0) * 100) : null,
+                    allowNegativeOverride,
+                  })}
+                >
+                  <Text style={[em.btnTxt, { color: '#fff' }]}>Run action</Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function HistoryModal({ item, history, loading, onClose }: { item: StockItem | null; history: StockMovement[]; loading: boolean; onClose: () => void }) {
+  return (
+    <Modal animationType="slide" presentationStyle="pageSheet" visible={Boolean(item)} onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={mm.header}>
+          <Text style={mm.title}>{item?.name ?? 'History'}</Text>
+          <Pressable onPress={onClose} style={mm.closeBtn}>
+            <Feather name="x" size={18} color={MUTED} />
+          </Pressable>
+        </View>
+        {loading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={NAVY} /></View>
+        ) : (
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }}>
+            {history.map((entry) => (
+              <View key={entry.id} style={s2.historyCard}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={s2.historyAction}>{entry.actionType.replace(/_/g, ' ')}</Text>
+                  <Text style={[s2.historyDelta, { color: entry.quantityDelta >= 0 ? GREEN : RED }]}>{entry.quantityDelta >= 0 ? '+' : ''}{entry.quantityDelta}</Text>
+                </View>
+                <Text style={s2.historyMeta}>{entry.quantityBefore} → {entry.quantityAfter}</Text>
+                {!!entry.reason && <Text style={s2.historyMeta}>Reason: {entry.reason}</Text>}
+                {!!entry.notes && <Text style={s2.historyMeta}>{entry.notes}</Text>}
+                <Text style={s2.historyMeta}>{entry.performedByName || 'System'} · {new Date(entry.createdAt).toLocaleString()}</Text>
+              </View>
+            ))}
+            {history.length === 0 && <Text style={{ color: MUTED, textAlign: 'center', marginTop: 24 }}>No stock history yet.</Text>}
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+function CsvImportModal({ visible, onClose, onImport }: { visible: boolean; onClose: () => void; onImport: (csvText: string) => void }) {
+  const [csvText, setCsvText] = useState('');
+  return (
+    <Modal animationType="slide" presentationStyle="pageSheet" visible={visible} onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={mm.header}>
+          <Text style={mm.title}>Import stock CSV</Text>
+          <Pressable onPress={onClose} style={mm.closeBtn}><Feather name="x" size={18} color={MUTED} /></Pressable>
+        </View>
+        <View style={{ padding: 16 }}>
+          <Text style={{ color: MUTED, marginBottom: 10 }}>Paste CSV with headers: name, category, unit, currentQuantity, lowStockThreshold, allowNegativeStock, costCents, supplier, notes</Text>
+          <TextInput
+            style={[em.input, { height: 260, textAlignVertical: 'top' }]}
+            value={csvText}
+            onChangeText={setCsvText}
+            multiline
+            placeholder="name,category,unit,currentQuantity..."
+            placeholderTextColor={MUTED}
+          />
+          <View style={em.btnRow}>
+            <Pressable style={[em.btn, { backgroundColor: BG }]} onPress={onClose}>
+              <Text style={[em.btnTxt, { color: TEXT }]}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[em.btn, { backgroundColor: NAVY }]} onPress={() => onImport(csvText)}>
+              <Text style={[em.btnTxt, { color: '#fff' }]}>Import</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 // ── Manage Categories modal ──────────────────────────────────────────────────
 function ManageCategoriesModal({
@@ -385,7 +605,7 @@ const em = StyleSheet.create({
 // ── Stock item card ──────────────────────────────────────────────────────────
 function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }: {
   item: StockItem; isDirector: boolean;
-  onQtyPress: () => void; onEditPress: () => void; onDeletePress: () => void;
+  onQtyPress: () => void; onEditPress: () => void; onDeletePress: () => void; onActionPress?: () => void; onHistoryPress?: () => void;
 }) {
   const level = stockLevel(item);
   const color = catColor(item.category);
@@ -419,16 +639,24 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
           <Text style={[sc.qtyNum, { color: levelColor }]}>{item.currentQuantity}</Text>
           <Text style={sc.qtyUnit}>{item.unit}</Text>
         </Pressable>
-        {isDirector && (
-          <View style={{ flexDirection: 'row', gap: 4 }}>
+        <View style={{ flexDirection: 'row', gap: 4 }}>
+          <Pressable onPress={() => onHistoryPress?.()} style={sc.iconBtn}>
+            <Feather name="clock" size={14} color={MUTED} />
+          </Pressable>
+          <Pressable onPress={() => onActionPress?.()} style={sc.iconBtn}>
+            <Feather name="sliders" size={14} color={NAVY} />
+          </Pressable>
+          {isDirector && (
+            <>
             <Pressable onPress={() => { Haptics.selectionAsync(); onEditPress(); }} style={sc.iconBtn}>
               <Feather name="edit-2" size={14} color={MUTED} />
             </Pressable>
             <Pressable onPress={() => { Haptics.impactAsync(); onDeletePress(); }} style={sc.iconBtn}>
               <Feather name="trash-2" size={14} color={RED} />
             </Pressable>
-          </View>
-        )}
+            </>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -462,6 +690,10 @@ export default function StockScreen() {
   const [qtyItem, setQtyItem]     = useState<StockItem | null>(null);
   const [editItem, setEditItem]   = useState<Partial<StockItem> | null | false>(false);
   const [manageCats, setManageCats] = useState(false);
+  const [actionItem, setActionItem] = useState<StockItem | null>(null);
+  const [historyItem, setHistoryItem] = useState<StockItem | null>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [stocktakeMode, setStocktakeMode] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stock-items'],
@@ -473,6 +705,16 @@ export default function StockScreen() {
     queryFn: () => api.stock.categories(),
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchCats);
+  const historyQuery = useQuery({
+    queryKey: ['stock-history', historyItem?.id],
+    queryFn: () => api.stock.history(historyItem!.id),
+    enabled: Boolean(historyItem?.id),
+  });
+  const supplierOrderQuery = useQuery({
+    queryKey: ['stock-supplier-order-list'],
+    queryFn: () => api.stock.supplierOrderList(),
+    enabled: false,
+  });
 
   const items: StockItem[] = data?.data ?? [];
   const categories = catData?.data ?? [];
@@ -496,12 +738,6 @@ export default function StockScreen() {
   }, [items, catFilter, search]);
 
   // ── mutations ──
-  const updateQtyMut = useMutation({
-    mutationFn: ({ id, qty }: { id: string; qty: number }) => api.stock.updateQuantity(id, qty),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-items'] }),
-    onError: (e: any) => Alert.alert('Error', e.message),
-  });
-
   const createMut = useMutation({
     mutationFn: (d: any) => api.stock.create(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['stock-items'] }); setEditItem(false); },
@@ -517,6 +753,26 @@ export default function StockScreen() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.stock.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-items'] }),
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
+  const actionMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: StockActionInput }) => api.stock.action(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stock-items'] });
+      qc.invalidateQueries({ queryKey: ['stock-history'] });
+      setActionItem(null);
+    },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
+  const importCsvMut = useMutation({
+    mutationFn: (csvText: string) => api.stock.importCsv(csvText),
+    onSuccess: ({ data: summary }) => {
+      qc.invalidateQueries({ queryKey: ['stock-items'] });
+      setShowCsvImport(false);
+      Alert.alert('Import complete', `${summary.created} created, ${summary.updated} updated.`);
+    },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
 
@@ -536,6 +792,28 @@ export default function StockScreen() {
     await api.stock.deleteCategory(id);
     qc.invalidateQueries({ queryKey: ['stock-categories'] });
     if (catFilter === id) setCatFilter('all');
+  };
+
+  const handleShareExport = async () => {
+    try {
+      const { data: report } = await api.stock.exportReport();
+      await Share.share({ message: report.csv, title: 'Butterfield stock report' });
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  };
+
+  const handleSupplierList = async () => {
+    try {
+      const { data: groups } = await supplierOrderQuery.refetch();
+      if (!groups) return;
+      const message = Object.entries(groups)
+        .map(([supplier, rows]) => `${supplier}\n${rows.map((row) => `• ${row.name}: order ${row.suggestedOrderQuantity} ${row.unit} (on hand ${row.currentQuantity})`).join('\n')}`)
+        .join('\n\n');
+      await Share.share({ message: message || 'No supplier order list needed right now.', title: 'Supplier order list' });
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
   };
 
   // Label for a category id (from managed list or formatted id)
@@ -563,6 +841,12 @@ export default function StockScreen() {
           </View>
           {isDirector && (
             <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Pressable
+                onPress={() => setStocktakeMode((prev) => !prev)}
+                style={[s.manageBtn, stocktakeMode && { backgroundColor: NAVY }]}
+              >
+                <Feather name="check-square" size={16} color={stocktakeMode ? '#fff' : NAVY} />
+              </Pressable>
               <Pressable
                 onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
                 style={s.manageBtn}
@@ -658,6 +942,22 @@ export default function StockScreen() {
               </View>
             );
           })()}
+          {isDirector && (
+            <>
+              <Pressable style={s.statPill} onPress={() => setShowCsvImport(true)}>
+                <Feather name="upload" size={13} color={BLUE} />
+                <Text style={s.statTxt}>Import CSV</Text>
+              </Pressable>
+              <Pressable style={s.statPill} onPress={handleShareExport}>
+                <Feather name="download" size={13} color={BLUE} />
+                <Text style={s.statTxt}>Export report</Text>
+              </Pressable>
+              <Pressable style={s.statPill} onPress={handleSupplierList}>
+                <Feather name="shopping-cart" size={13} color={BLUE} />
+                <Text style={s.statTxt}>Supplier order list</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       )}
 
@@ -688,6 +988,8 @@ export default function StockScreen() {
               onQtyPress={() => setQtyItem(item)}
               onEditPress={() => setEditItem(item)}
               onDeletePress={() => handleDelete(item)}
+              onActionPress={() => setActionItem(item)}
+              onHistoryPress={() => setHistoryItem(item)}
             />
           )}
         />
@@ -698,7 +1000,18 @@ export default function StockScreen() {
         <QuantityModal
           item={qtyItem}
           onClose={() => setQtyItem(null)}
-          onSave={(qty) => { updateQtyMut.mutate({ id: qtyItem.id, qty }); setQtyItem(null); }}
+          onSave={(qty) => {
+            actionMut.mutate({
+              id: qtyItem.id,
+              data: stocktakeMode
+                ? { action: 'stocktake', targetQuantity: qty }
+                : { action: 'adjust', targetQuantity: qty },
+            });
+            setQtyItem(null);
+          }}
+          title={stocktakeMode ? 'Stocktake counted quantity' : 'Update quantity'}
+          saveLabel={stocktakeMode ? 'Save stocktake' : 'Save'}
+          subtitle={stocktakeMode ? `Enter counted quantity (${qtyItem.unit})` : `Update quantity (${qtyItem.unit})`}
         />
       )}
 
@@ -728,6 +1041,28 @@ export default function StockScreen() {
           onDeleted={handleDeleteCategory}
         />
       )}
+
+      {actionItem && (
+        <StockActionModal
+          item={actionItem}
+          items={items}
+          onClose={() => setActionItem(null)}
+          onSubmit={(data) => actionMut.mutate({ id: actionItem.id, data })}
+        />
+      )}
+
+      <HistoryModal
+        item={historyItem}
+        history={historyQuery.data?.data ?? []}
+        loading={historyQuery.isLoading}
+        onClose={() => setHistoryItem(null)}
+      />
+
+      <CsvImportModal
+        visible={showCsvImport}
+        onClose={() => setShowCsvImport(false)}
+        onImport={(csvText) => importCsvMut.mutate(csvText)}
+      />
     </View>
   );
 }
@@ -750,4 +1085,37 @@ const s = StyleSheet.create({
   statTxt:     { fontSize: 12, fontWeight: '600', color: BLUE },
   empty:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 40 },
   emptyTxt:    { fontSize: 15, color: MUTED, textAlign: 'center', lineHeight: 22 },
+});
+
+const s2 = StyleSheet.create({
+  actionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: CARD,
+  },
+  actionChipText: { fontSize: 12, fontWeight: '700', color: TEXT },
+  switchRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: BG,
+  },
+  switchTitle: { fontSize: 14, fontWeight: '700', color: TEXT },
+  switchSub: { marginTop: 2, fontSize: 12, color: MUTED, maxWidth: 240 },
+  switchPill: { width: 44, height: 26, borderRadius: 999, backgroundColor: BORDER, padding: 3 },
+  switchKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
+  historyCard: { backgroundColor: CARD, borderRadius: 14, padding: 14, gap: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  historyAction: { fontSize: 14, fontWeight: '700', color: TEXT, textTransform: 'capitalize' },
+  historyMeta: { fontSize: 12, color: MUTED, lineHeight: 18 },
+  historyDelta: { fontSize: 15, fontWeight: '700' },
 });
