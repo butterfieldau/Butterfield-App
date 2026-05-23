@@ -230,98 +230,6 @@ const BLANK = () => ({
   productUrl: '',
 });
 type FormState = ReturnType<typeof BLANK>;
-// ─── Variants Card (shown inside edit modal) ───────────────────────────────────
-function VariantsCard({ productId }: { productId: string }) {
-  const qc = useQueryClient();
-  const [addModal, setAddModal] = useState(false);
-  const [editV, setEditV] = useState<any>(null);
-  const [vName, setVName] = useState('');
-  const [vPrice, setVPrice] = useState('');
-  const [vSaving, setVSaving] = useState(false);
-  const { data, refetch } = useQuery({
-    queryKey: ['product-variants', productId],
-    queryFn: () => api.director.productVariants(productId),
-    enabled: !!productId,
-  });
-  const variants: any[] = data?.data ?? [];
-  const openAdd  = () => { setEditV(null); setVName(''); setVPrice(''); setAddModal(true); };
-  const openEdit = (v: any) => { setEditV(v); setVName(v.name); setVPrice(centsToDisplay(v.priceCents)); setAddModal(true); };
-  const save = async () => {
-    if (!vName.trim()) return Alert.alert('Name required');
-    if (!vPrice.trim()) return Alert.alert('Price required');
-    setVSaving(true);
-    try {
-      if (editV) {
-        await api.director.updateVariant(productId, editV.id, { name: vName.trim(), priceCents: displayToCents(vPrice) });
-      } else {
-        await api.director.createVariant(productId, { name: vName.trim(), priceCents: displayToCents(vPrice) });
-      }
-      await qc.invalidateQueries({ queryKey: ['product-variants', productId] });
-      refetch();
-      setAddModal(false);
-    } catch (e: any) { Alert.alert('Error', e.message); }
-    finally { setVSaving(false); }
-  };
-  const deleteV = (v: any) => {
-    Alert.alert('Delete Variant', `Delete "${v.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try { await api.director.deleteVariant(productId, v.id); await qc.invalidateQueries({ queryKey: ['product-variants', productId] }); refetch(); }
-        catch (e: any) { Alert.alert('Error', e.message); }
-      }},
-    ]);
-  };
-  return (
-    <View style={form.card}>
-      <SectionHeader title="Variants / Sizes" icon="layers" color={PURPLE} />
-      <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 4 }]}>
-        Variants set separate prices (e.g. Small / Medium / Large). When present the base price is overridden per variant.
-      </Text>
-      {variants.map(v => (
-        <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, marginTop: 6 }}>
-          <Text style={{ flex: 1, fontWeight: '600', color: TEXT, fontSize: 14 }}>{v.name}</Text>
-          <Text style={{ fontWeight: '700', color: GREEN, fontSize: 14 }}>${(v.priceCents / 100).toFixed(2)}</Text>
-          <Pressable onPress={() => openEdit(v)} style={{ padding: 6 }} hitSlop={4}>
-            <Feather name="edit-2" size={14} color={BLUE} />
-          </Pressable>
-          <Pressable onPress={() => deleteV(v)} style={{ padding: 6 }} hitSlop={4}>
-            <Feather name="trash-2" size={14} color={RED} />
-          </Pressable>
-        </View>
-      ))}
-      <Pressable
-        onPress={openAdd}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: PURPLE, borderStyle: 'dashed', backgroundColor: PURPLE + '08', marginTop: 10 }}
-      >
-        <Feather name="plus" size={14} color={PURPLE} />
-        <Text style={{ fontSize: 13, fontWeight: '600', color: PURPLE }}>Add Variant</Text>
-      </Pressable>
-      <Modal visible={addModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setAddModal(false)}>
-        <View style={{ flex: 1, backgroundColor: BG }}>
-          <View style={[modal.header, { paddingTop: 16 }]}>
-            <Pressable onPress={() => setAddModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
-            <Text style={[modal.title, { fontWeight: '700' }]}>{editV ? 'Edit Variant' : 'New Variant'}</Text>
-            <Pressable onPress={save} style={[modal.saveBtn, { backgroundColor: vSaving ? MUTED : PURPLE }]} disabled={vSaving}>
-              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{vSaving ? 'Saving…' : 'Save'}</Text>
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-            <View style={form.card}>
-              <Field label="Variant Name" required>
-                <TextInput value={vName} onChangeText={setVName} placeholder="e.g. Large" placeholderTextColor={MUTED}
-                  style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-              <Field label="Price (AUD)" required>
-                <TextInput value={vPrice} onChangeText={setVPrice} placeholder="0.00" placeholderTextColor={MUTED}
-                  keyboardType="decimal-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-    </View>
-  );
-}
 type ModalTab = 'core' | 'status' | 'details' | 'inventory';
 const MODAL_TABS: { id: ModalTab; label: string; icon: string }[] = [
   { id: 'core',      label: 'Core',      icon: 'package'        },
@@ -855,7 +763,6 @@ function ProductModal({
                 </Text>
               </Field>
             </>}
-            {editing && initial?.id && <VariantsCard productId={initial.id} />}
           </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
