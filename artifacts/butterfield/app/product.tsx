@@ -365,12 +365,14 @@ export default function ProductDetailScreen() {
         {/* Page dots — only when there's more than one image */}
         {galleryUrls.length > 1 && (
           <View style={s.dotRow} pointerEvents="none">
-            {galleryUrls.map((_, i) => (
-              <View
-                key={i}
-                style={[s.dot, i === photoIndex ? s.dotActive : s.dotInactive]}
-              />
-            ))}
+            <View style={s.dotPill}>
+              {galleryUrls.map((_, i) => (
+                <View
+                  key={i}
+                  style={[s.dot, i === photoIndex ? s.dotActive : s.dotInactive]}
+                />
+              ))}
+            </View>
           </View>
         )}
 
@@ -621,10 +623,11 @@ const s = StyleSheet.create({
   photoFallback:{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   fallbackEmoji:{ fontSize: 96 },
   pillRow:      { position: 'absolute', top: 12, right: 16, flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', zIndex: 5 },
-  dotRow:       { position: 'absolute', bottom: 14, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, zIndex: 6 },
-  dot:          { borderRadius: 4, height: 6 },
-  dotActive:    { width: 18, backgroundColor: 'rgba(255,255,255,0.95)' },
-  dotInactive:  { width: 6,  backgroundColor: 'rgba(255,255,255,0.45)' },
+  dotRow:       { position: 'absolute', bottom: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', zIndex: 6 },
+  dotPill:      { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.32)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+  dot:          { borderRadius: 3, height: 5 },
+  dotActive:    { width: 20, backgroundColor: '#ffffff' },
+  dotInactive:  { width: 5,  backgroundColor: 'rgba(255,255,255,0.50)' },
 
   // Sheet
   sheet:        { flex: 1, backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -20, overflow: 'hidden' },
