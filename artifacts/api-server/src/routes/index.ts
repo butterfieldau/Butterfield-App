@@ -21,6 +21,7 @@ import notificationsRouter from "./notifications.js";
 import shopDisplayRouter from "./shop-display.js";
 import stockRouter from "./stock.js";
 import discountsRouter from "./discounts.js";
+import adminSeedRouter from "./admin-seed.js";
 
 const router: IRouter = Router();
 
@@ -45,6 +46,7 @@ router.use("/shop-display", shopDisplayRouter);
 router.use("/stock", stockRouter);
 router.use("/discounts", discountsRouter);
 router.use(storageRouter);
+router.use(adminSeedRouter);
 router.use(miscRouter);
 
 export default router;
