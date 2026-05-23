@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, staffShiftsTable, staffTasksTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
+import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte } from 'drizzle-orm';
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -344,6 +344,18 @@ router.patch('/tasks/:id/complete', async (req, res) => {
     completedBy: isCompleted ? req.user!.name : null,
     completedAt: isCompleted ? new Date() : null,
   }).where(eq(staffTasksTable.id, req.params.id)).returning();
+  if (task) {
+    await db.insert(staffTaskHistoryTable).values({
+      id: randomUUID(),
+      taskId: task.id,
+      taskTitle: task.title,
+      taskCategory: task.category,
+      completedByUserId: req.user!.id,
+      completedByName: req.user!.name,
+      completedByRole: req.user!.role,
+      completionStatus: (isCompleted ?? true) ? 'completed' : 'reopened',
+    });
+  }
   return res.json({ data: task });
 });
 

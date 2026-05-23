@@ -16,6 +16,7 @@ export default function DirectorLayout() {
 
   if (!user) return <Redirect href="/(customer)" />;
   if (!isInternalRole(user.role)) return <Redirect href={getHomeRouteForRole(user.role)} />;
+  if (user.role === 'shop_display') return <Redirect href="/(shop-display)" />;
 
   const isStaff    = user?.role === 'staff';
   const isManager  = user?.role === 'manager';

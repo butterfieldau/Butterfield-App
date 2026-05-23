@@ -24,12 +24,13 @@ const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
-const TABS = ['Customers', 'Staff', 'Wholesale', 'Deleted'];
+const TABS = ['Customers', 'Staff', 'Shop Displays', 'Wholesale', 'Deleted'];
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
   staff:     { bg: '#EDE9FE', text: '#5B21B6' },
   wholesale: { bg: '#DCFCE7', text: '#166534' },
   director:  { bg: '#FEF9C3', text: '#854D0E' },
+  shop_display: { bg: '#DBEAFE', text: '#1D4ED8' },
 };
 function initials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -617,30 +618,6 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   </View>
                 </View>
               )}
-              {/* ── Recent shifts ─────────────────────────────────────── */}
-              {recentShifts.length > 0 && (
-                <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 16 }}>
-                  <Text style={[sp_s.sectionLabel, { marginBottom: 10 }]}>RECENT SHIFTS</Text>
-                  <View style={sp_s.infoCard}>
-                    {recentShifts.slice(0, 10).map((shift: any, idx: number) => (
-                      <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 10) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={sp_s.shiftDate}>
-                            {new Date(shift.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
-                          </Text>
-                          <Text style={sp_s.shiftTime}>
-                            {new Date(shift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
-                          </Text>
-                        </View>
-                        <Text style={[sp_s.shiftHrs, { color: shift.clockOut ? TEXT : GREEN }]}>
-                          {shift.hoursWorked != null ? `${parseHrs(shift.hoursWorked).toFixed(1)}h` : '•'}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
               {/* ── Promote to Director — master accounts only ───────── */}
               {isMaster && (
                 <Pressable
@@ -1129,7 +1106,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       </Modal>
   );
 }
-type CreateType = 'staff' | 'wholesale';
+type CreateType = 'staff' | 'wholesale' | 'shop_display';
 function CreateUserModal({ visible, type, onClose, onSuccess }: {
   visible: boolean; type: CreateType; onClose: () => void; onSuccess: () => void;
 }) {
@@ -1180,8 +1157,10 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
           taxFileNumber: tfn.trim() || undefined,
           employmentStatus,
         });
-      } else {
+      } else if (type === 'wholesale') {
         await api.director.createWholesale({ name: name.trim(), email: email.trim(), password, companyName: companyName.trim(), abn: abn.trim() || undefined, phone: phone.trim() || undefined });
+      } else {
+        await api.director.createShopDisplay({ name: name.trim(), email: email.trim(), password, phone: phone.trim() || undefined });
       }
       reset();
       onSuccess();
@@ -1191,6 +1170,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
     } finally { setLoading(false); }
   };
   const isStaff = type === 'staff';
+  const isShopDisplay = type === 'shop_display';
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: CARD }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -1198,14 +1178,14 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
           <Pressable onPress={handleClose} style={modal.closeBtn}>
             <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-          <Text style={[modal.title, { color: TEXT }]}>Add {isStaff ? 'Staff Member' : 'Wholesale Customer'}</Text>
+          <Text style={[modal.title, { color: TEXT }]}>Add {isStaff ? 'Staff Member' : isShopDisplay ? 'Shop Display Login' : 'Wholesale Customer'}</Text>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
           {/* Role badge */}
-          <View style={[modal.roleBanner, { backgroundColor: isStaff ? '#EDE9FE' : '#DCFCE7' }]}>
-            <Feather name={isStaff ? 'users' : 'package'} size={15} color={isStaff ? '#5B21B6' : '#166534'} />
-            <Text style={[modal.roleBannerText, { color: isStaff ? '#5B21B6' : '#166534' }]}>
-              {isStaff ? 'New staff account will be pre-approved' : 'Wholesale account will be marked approved'}
+          <View style={[modal.roleBanner, { backgroundColor: isStaff ? '#EDE9FE' : isShopDisplay ? '#DBEAFE' : '#DCFCE7' }]}>
+            <Feather name={isStaff ? 'users' : isShopDisplay ? 'monitor' : 'package'} size={15} color={isStaff ? '#5B21B6' : isShopDisplay ? '#1D4ED8' : '#166534'} />
+            <Text style={[modal.roleBannerText, { color: isStaff ? '#5B21B6' : isShopDisplay ? '#1D4ED8' : '#166534' }]}>
+              {isStaff ? 'New staff account will be pre-approved' : isShopDisplay ? 'Limited counter iPad access only' : 'Wholesale account will be marked approved'}
             </Text>
           </View>
           {/* Common fields */}
@@ -1276,7 +1256,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
             </>
           )}
           {/* Wholesale-specific */}
-          {!isStaff && (
+          {!isStaff && !isShopDisplay && (
             <>
               <Text style={[modal.sectionLabel, { color: MUTED }]}>COMPANY DETAILS</Text>
               <View style={[modal.inputRow, { borderColor: BORDER }]}>
@@ -1296,9 +1276,9 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
               <Text style={[modal.errorText, { color: RED }]}>{error}</Text>
             </View>
           ) : null}
-          <Pressable onPress={handleSubmit} disabled={loading} style={[modal.submitBtn, { backgroundColor: isStaff ? NAVY : GREEN, opacity: loading ? 0.8 : 1 }]}>
+          <Pressable onPress={handleSubmit} disabled={loading} style={[modal.submitBtn, { backgroundColor: isStaff ? NAVY : isShopDisplay ? BLUE : GREEN, opacity: loading ? 0.8 : 1 }]}>
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
-              <Text style={modal.submitBtnText}>Create {isStaff ? 'Staff Account' : 'Wholesale Account'}</Text>
+              <Text style={modal.submitBtnText}>Create {isStaff ? 'Staff Account' : isShopDisplay ? 'Shop Display Login' : 'Wholesale Account'}</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -1306,6 +1286,112 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
     </Modal>
   );
 }
+
+function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
+  user: any | null; visible: boolean; onClose: () => void; onRefresh: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [status, setStatus] = useState<'active' | 'inactive' | 'suspended'>('active');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setName(user?.name ?? '');
+    setEmail(user?.email ?? '');
+    setPhone(user?.phone ?? '');
+    setStatus((user?.status as any) ?? 'active');
+    setPassword('');
+  }, [user]);
+
+  const save = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      await api.director.updateShopDisplay(user.id, {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        status,
+      });
+      if (password.trim()) {
+        await api.director.resetShopDisplayPassword(user.id, password);
+      }
+      await onRefresh();
+      onClose();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const remove = () => {
+    if (!user) return;
+    Alert.alert('Delete shop display', `Delete ${user.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.director.deleteShopDisplay(user.id);
+            await onRefresh();
+            onClose();
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: CARD }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={[modal.header, { borderBottomColor: BORDER }]}>
+          <Pressable onPress={onClose} style={modal.closeBtn}>
+            <Feather name="x" size={18} color={TEXT} />
+          </Pressable>
+          <Text style={[modal.title, { color: TEXT }]}>Manage Shop Display</Text>
+        </View>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14 }}>
+          <View style={[modal.inputRow, { borderColor: BORDER }]}>
+            <Feather name="user" size={15} color={MUTED} />
+            <TextInput style={[modal.input, { color: TEXT }]} value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={MUTED} />
+          </View>
+          <View style={[modal.inputRow, { borderColor: BORDER }]}>
+            <Feather name="mail" size={15} color={MUTED} />
+            <TextInput style={[modal.input, { color: TEXT }]} value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor={MUTED} autoCapitalize="none" />
+          </View>
+          <View style={[modal.inputRow, { borderColor: BORDER }]}>
+            <Feather name="phone" size={15} color={MUTED} />
+            <TextInput style={[modal.input, { color: TEXT }]} value={phone} onChangeText={setPhone} placeholder="Phone (optional)" placeholderTextColor={MUTED} />
+          </View>
+          <View style={[modal.inputRow, { borderColor: BORDER }]}>
+            <Feather name="lock" size={15} color={MUTED} />
+            <TextInput style={[modal.input, { color: TEXT }]} value={password} onChangeText={setPassword} placeholder="New password (optional)" placeholderTextColor={MUTED} />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['active', 'inactive', 'suspended'] as const).map((option) => (
+              <Pressable key={option} onPress={() => { setStatus(option); Haptics.selectionAsync(); }} style={[modal.chip, { backgroundColor: status === option ? BLUE : BG, borderColor: status === option ? BLUE : BORDER }]}>
+                <Text style={[modal.chipText, { color: status === option ? '#fff' : TEXT }]}>{option}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable onPress={save} disabled={loading} style={[modal.submitBtn, { backgroundColor: BLUE }]}>
+            {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={modal.submitBtnText}>Save Changes</Text>}
+          </Pressable>
+          <Pressable onPress={remove} style={[modal.submitBtn, { backgroundColor: RED }]}>
+            <Text style={modal.submitBtnText}>Delete Login</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 export default function DirectorUsersScreen() {
   const qc = useQueryClient();
   const [tab, setTab] = useState('Customers');
@@ -1313,6 +1399,7 @@ export default function DirectorUsersScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<any | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [selectedShopDisplayUser, setSelectedShopDisplayUser] = useState<any | null>(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
@@ -1328,6 +1415,7 @@ export default function DirectorUsersScreen() {
   const filtered = allUsers.filter((u) => {
     if (tab === 'Customers')  return u.role === 'customer';
     if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager';
+    if (tab === 'Shop Displays') return u.role === 'shop_display';
     if (tab === 'Wholesale')  return u.role === 'wholesale';
     return true;
   });
@@ -1385,14 +1473,24 @@ export default function DirectorUsersScreen() {
         {tab !== 'Customers' && tab !== 'Deleted' && (
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
-            <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
-              <Feather name="user-plus" size={13} color="#5B21B6" />
-              <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
-            </Pressable>
-            <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
-              <Feather name="package" size={13} color="#166534" />
-              <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale</Text>
-            </Pressable>
+            {tab === 'Staff' && (
+              <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
+                <Feather name="user-plus" size={13} color="#5B21B6" />
+                <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
+              </Pressable>
+            )}
+            {tab === 'Shop Displays' && (
+              <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
+                <Feather name="monitor" size={13} color="#1D4ED8" />
+                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Shop Display</Text>
+              </Pressable>
+            )}
+            {tab === 'Wholesale' && (
+              <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
+                <Feather name="package" size={13} color="#166534" />
+                <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale</Text>
+              </Pressable>
+            )}
           </View>
         )}
       </View>
@@ -1523,6 +1621,26 @@ export default function DirectorUsersScreen() {
                     />
                   </View>
                 )}
+                {u.role === 'shop_display' && (
+                  <Pressable
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedShopDisplayUser(u); }}
+                    style={[styles.subRow, { borderTopColor: BORDER }]}
+                  >
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={styles.subTitle}>Counter iPad access</Text>
+                      <Text style={[styles.subSub, {
+                        color: u.status === 'active' ? GREEN : u.status === 'suspended' ? RED : AMBER,
+                      }]}>
+                        {u.status === 'active' ? '✓ Active' : u.status === 'suspended' ? 'Suspended' : 'Inactive'}
+                        {u.lastLogin ? ` · Last login ${new Date(u.lastLogin).toLocaleDateString('en-AU')}` : ''}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Manage</Text>
+                      <Feather name="chevron-right" size={13} color={BLUE} />
+                    </View>
+                  </Pressable>
+                )}
                 {/* Wholesale status */}
                 {wa && (
                   <Pressable
@@ -1573,6 +1691,12 @@ export default function DirectorUsersScreen() {
         onClose={() => setSelectedStaffId(null)}
         onRefresh={handleRefreshUsers}
         onDelete={() => { setSelectedStaffId(null); handleRefreshUsers(); }}
+      />
+      <ShopDisplayDetailModal
+        visible={!!selectedShopDisplayUser}
+        user={selectedShopDisplayUser}
+        onClose={() => setSelectedShopDisplayUser(null)}
+        onRefresh={handleRefreshUsers}
       />
     </View>
   );

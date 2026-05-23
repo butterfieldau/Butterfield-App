@@ -7,6 +7,7 @@ import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
+import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
@@ -85,7 +86,7 @@ router.post('/login', async (req, res) => {
   }
 
   // Accounts created for internal roles should use the staff/internal portal
-  if (['staff', 'director', 'manager', 'master'].includes(user.role)) {
+  if (['staff', 'director', 'manager', 'master', 'shop_display'].includes(user.role)) {
     return res.status(403).json({
       error: 'This account uses internal sign-in. Please use the "Staff / Internal Access" option on the login screen.',
       code: 'WRONG_PORTAL',
@@ -128,6 +129,7 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/staff-login', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
   const { email, password, latitude, longitude } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
@@ -151,7 +153,7 @@ router.post('/staff-login', async (req, res) => {
   }
 
   // Only internal roles past this point: staff | director | manager | master
-  if (!['staff', 'director', 'manager', 'master'].includes(user.role)) {
+  if (!['staff', 'director', 'manager', 'master', 'shop_display'].includes(user.role)) {
     return res.status(401).json({ error: 'No internal account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
   }
 
@@ -236,7 +238,10 @@ router.post('/staff-login', async (req, res) => {
   // Update last login timestamp
   db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
 
-  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+  const token = signToken(
+    { id: user.id, email: user.email, role: user.role, name: user.name },
+    user.role === 'shop_display' ? '30d' : '7d',
+  );
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 

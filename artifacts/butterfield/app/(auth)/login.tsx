@@ -213,33 +213,46 @@ export default function LoginScreen() {
     setILoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const isDemoAcc = INTERNAL_EMAILS.includes(iEmail.trim().toLowerCase());
-    let coords: { latitude: number; longitude: number } | undefined;
-
-    if (!isDemoAcc) {
-      setGeoStatus('acquiring');
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setGeoStatus('denied');
-          setIError('Location permission is required for staff and manager sign-in.');
-          setILoading(false); return;
-        }
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Location timed out')), 10000)
-        );
-        const locPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const loc = await Promise.race([locPromise, timeout]);
-        coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-        setGeoStatus('ready');
-      } catch {
-        setIError('Could not get your location. Ensure Location Services are on.');
-        setILoading(false); setGeoStatus('idle'); return;
-      }
-    }
-
     try {
-      const res = await internalLogin(iEmail.trim(), iPassword, coords);
+      let res = await internalLogin(iEmail.trim(), iPassword);
+      const needsLocation =
+        !res.success &&
+        !!res.error &&
+        (
+          res.error.includes('Location verification is required') ||
+          res.error.includes('Location is required') ||
+          res.error.includes('enable location services') ||
+          res.error.includes('within') ||
+          res.error.includes('store assignment')
+        );
+
+      if (needsLocation) {
+        const isDemoAcc = INTERNAL_EMAILS.includes(iEmail.trim().toLowerCase());
+        let coords: { latitude: number; longitude: number } | undefined;
+        if (!isDemoAcc) {
+          setGeoStatus('acquiring');
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') {
+              setGeoStatus('denied');
+              setIError('Location permission is required for staff and manager sign-in.');
+              setILoading(false); return;
+            }
+            const timeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Location timed out')), 10000)
+            );
+            const locPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const loc = await Promise.race([locPromise, timeout]);
+            coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+            setGeoStatus('ready');
+          } catch {
+            setIError('Could not get your location. Ensure Location Services are on.');
+            setILoading(false); setGeoStatus('idle'); return;
+          }
+        }
+        res = await internalLogin(iEmail.trim(), iPassword, coords);
+      }
+
       if (!res.success) { setIError(res.error ?? 'Sign in failed.'); setGeoStatus('idle'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       routeAfterAuth(res.role);

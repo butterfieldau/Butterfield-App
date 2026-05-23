@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         latitude: coords?.latitude, longitude: coords?.longitude,
       });
       const returnedRole = res.user.role as UserRole;
-      if (!['staff', 'director', 'manager', 'master'].includes(returnedRole)) {
+      if (!['staff', 'director', 'manager', 'master', 'shop_display'].includes(returnedRole)) {
         return { success: false, error: 'This account does not have internal access.' };
       }
       await saveToken(res.token);

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import {
   db, usersTable, customerProfilesTable, staffProfilesTable,
   wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
-  staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable,
+  staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable, staffTasksTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
 } from '@workspace/db';
@@ -13,6 +13,8 @@ import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
 import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
+import { recordAuditLog } from '../lib/auditLog.js';
+import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { claimedRewardsTable } from '@workspace/db';
 
@@ -53,6 +55,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
 
   // Manager management — director/master only
   if (path === '/managers' || path.startsWith('/managers/')) return 'director_only';
+  if (path === '/shop-displays' || path.startsWith('/shop-displays/')) return 'director_only';
 
   // Dashboard stats
   if (path === '/stats' || path === '/stats/revenue' || path === '/sessions') return 'dashboard';
@@ -73,6 +76,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/wastage') return 'users';
   if (path === '/issues' || path.startsWith('/issues/')) return 'users';
   if (path === '/leave') return 'users';
+  if (path === '/tasks' || path.startsWith('/tasks/')) return 'users';
 
   // Products
   if (path === '/products' || path.startsWith('/products/')) return 'products';
@@ -422,6 +426,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
 // ── All users ────────────────────────────────────────────────────────────────
 router.get('/users', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
   const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
   const staffProfiles = await db.select().from(staffProfilesTable);
   const wholesaleAccounts = await db.select().from(wholesaleAccountsTable);
@@ -433,6 +438,160 @@ router.get('/users', async (req, res) => {
     wholesaleAccount: waMap[u.id] ?? null,
   }));
   return res.json({ data: result });
+});
+
+router.get('/shop-displays', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const rows = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    email: usersTable.email,
+    role: usersTable.role,
+    status: usersTable.status,
+    phone: usersTable.phone,
+    createdAt: usersTable.createdAt,
+    lastLogin: usersTable.lastLogin,
+  }).from(usersTable)
+    .where(eq(usersTable.role, 'shop_display' as any))
+    .orderBy(desc(usersTable.createdAt));
+  return res.json({ data: rows });
+});
+
+router.post('/shop-displays', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { name, email, password, phone } = req.body ?? {};
+  if (!name?.trim() || !email?.trim() || !password?.trim()) {
+    return res.status(400).json({ error: 'Name, email and password are required.' });
+  }
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const existing = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
+  if (existing.length > 0) {
+    return res.status(409).json({ error: 'An account with this email already exists.' });
+  }
+  const userId = randomUUID();
+  const passwordHash = await bcrypt.hash(String(password), 10);
+  const [created] = await db.insert(usersTable).values({
+    id: userId,
+    email: normalizedEmail,
+    passwordHash,
+    role: 'shop_display' as any,
+    name: String(name).trim(),
+    phone: phone?.trim() ? String(phone).trim() : null,
+    status: 'active',
+    isActive: 'true',
+  }).returning({
+    id: usersTable.id,
+    email: usersTable.email,
+    role: usersTable.role,
+    name: usersTable.name,
+    phone: usersTable.phone,
+    status: usersTable.status,
+    createdAt: usersTable.createdAt,
+  });
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'user',
+    entityId: userId,
+    action: 'shop_display_created',
+    after: created,
+  });
+
+  return res.status(201).json({ data: created });
+});
+
+router.patch('/shop-displays/:id', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { id } = req.params;
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+  if (!existing || existing.role !== 'shop_display') {
+    return res.status(404).json({ error: 'Shop display login not found.' });
+  }
+
+  const updates: Record<string, any> = { updatedAt: new Date() };
+  if (req.body.name !== undefined) updates.name = String(req.body.name).trim();
+  if (req.body.email !== undefined) updates.email = String(req.body.email).trim().toLowerCase();
+  if (req.body.phone !== undefined) updates.phone = String(req.body.phone).trim() || null;
+  if (req.body.status !== undefined) {
+    const nextStatus = String(req.body.status);
+    if (!['active', 'inactive', 'suspended'].includes(nextStatus)) {
+      return res.status(400).json({ error: 'Status must be active, inactive or suspended.' });
+    }
+    updates.status = nextStatus;
+    updates.isActive = nextStatus === 'active' ? 'true' : 'false';
+  }
+
+  const [updated] = await db.update(usersTable)
+    .set(updates)
+    .where(eq(usersTable.id, id))
+    .returning({
+      id: usersTable.id,
+      email: usersTable.email,
+      role: usersTable.role,
+      name: usersTable.name,
+      phone: usersTable.phone,
+      status: usersTable.status,
+      lastLogin: usersTable.lastLogin,
+    });
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'user',
+    entityId: id,
+    action: 'shop_display_updated',
+    before: {
+      name: existing.name,
+      email: existing.email,
+      phone: existing.phone,
+      status: existing.status,
+    },
+    after: updated,
+  });
+
+  return res.json({ data: updated });
+});
+
+router.patch('/shop-displays/:id/password', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { id } = req.params;
+  const { password } = req.body ?? {};
+  if (!password?.trim()) return res.status(400).json({ error: 'Password is required.' });
+  const [existing] = await db.select({ id: usersTable.id, role: usersTable.role }).from(usersTable).where(eq(usersTable.id, id));
+  if (!existing || existing.role !== 'shop_display') {
+    return res.status(404).json({ error: 'Shop display login not found.' });
+  }
+  const passwordHash = await bcrypt.hash(String(password), 10);
+  await db.update(usersTable).set({ passwordHash, updatedAt: new Date() }).where(eq(usersTable.id, id));
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'user',
+    entityId: id,
+    action: 'shop_display_password_reset',
+  });
+  return res.json({ success: true });
+});
+
+router.delete('/shop-displays/:id', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { id } = req.params;
+  const [existing] = await db.select({
+    id: usersTable.id,
+    role: usersTable.role,
+    name: usersTable.name,
+    email: usersTable.email,
+  }).from(usersTable).where(eq(usersTable.id, id));
+  if (!existing || existing.role !== 'shop_display') {
+    return res.status(404).json({ error: 'Shop display login not found.' });
+  }
+  await db.delete(usersTable).where(eq(usersTable.id, id));
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'user',
+    entityId: id,
+    action: 'shop_display_deleted',
+    before: existing,
+  });
+  return res.json({ success: true });
 });
 
 // ── Delete user (director only) ──────────────────────────────────────────────
@@ -1342,6 +1501,110 @@ router.get('/leave', async (req, res) => {
     .orderBy(desc(staffLeaveRequestsTable.createdAt))
     .limit(200);
   return res.json({ data: rows });
+});
+
+router.get('/tasks', async (_req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const rows = await db.select().from(staffTasksTable).orderBy(staffTasksTable.sortOrder, staffTasksTable.title);
+  return res.json({ data: rows });
+});
+
+router.post('/tasks', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { title, description, category, cadence, isRecurring } = req.body ?? {};
+  if (!title || typeof title !== 'string') return res.status(400).json({ error: 'Task title is required.' });
+  const allowedCategories = ['daily', 'prep', 'cleaning', 'opening', 'closing', 'training'];
+  const allowedCadences = ['daily', 'weekly', 'one_off'];
+  if (category && !allowedCategories.includes(category)) return res.status(400).json({ error: 'Invalid task category.' });
+  if (cadence && !allowedCadences.includes(cadence)) return res.status(400).json({ error: 'Invalid task cadence.' });
+
+  const [lastTask] = await db.select({ sortOrder: staffTasksTable.sortOrder }).from(staffTasksTable).orderBy(desc(staffTasksTable.sortOrder)).limit(1);
+  const [created] = await db.insert(staffTasksTable).values({
+    id: randomUUID(),
+    title: title.trim(),
+    description: description?.trim() || null,
+    category: (category ?? 'daily') as any,
+    cadence: cadence ?? 'daily',
+    isRecurring: typeof isRecurring === 'boolean' ? isRecurring : cadence !== 'one_off',
+    sortOrder: (lastTask?.sortOrder ?? -10) + 10,
+  }).returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'task',
+    entityId: created.id,
+    action: 'director_task_created',
+    after: created,
+  });
+
+  return res.status(201).json({ data: created });
+});
+
+router.patch('/tasks/:id', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { id } = req.params;
+  const { title, description, category, cadence, isRecurring } = req.body ?? {};
+  const [existing] = await db.select().from(staffTasksTable).where(eq(staffTasksTable.id, id));
+  if (!existing) return res.status(404).json({ error: 'Task not found.' });
+
+  const allowedCategories = ['daily', 'prep', 'cleaning', 'opening', 'closing', 'training'];
+  const allowedCadences = ['daily', 'weekly', 'one_off'];
+  if (category && !allowedCategories.includes(category)) return res.status(400).json({ error: 'Invalid task category.' });
+  if (cadence && !allowedCadences.includes(cadence)) return res.status(400).json({ error: 'Invalid task cadence.' });
+
+  const updates: any = {};
+  if (typeof title === 'string') updates.title = title.trim();
+  if (description !== undefined) updates.description = description?.trim() || null;
+  if (category) updates.category = category;
+  if (cadence) updates.cadence = cadence;
+  if (typeof isRecurring === 'boolean') updates.isRecurring = isRecurring;
+  else if (cadence) updates.isRecurring = cadence !== 'one_off';
+
+  const [updated] = await db.update(staffTasksTable).set(updates).where(eq(staffTasksTable.id, id)).returning();
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'task',
+    entityId: updated.id,
+    action: 'director_task_updated',
+    before: existing,
+    after: updated,
+  });
+  return res.json({ data: updated });
+});
+
+router.post('/tasks/reorder', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { taskIds } = req.body ?? {};
+  if (!Array.isArray(taskIds) || taskIds.some((id) => typeof id !== 'string')) {
+    return res.status(400).json({ error: 'taskIds must be an array of ids.' });
+  }
+  await Promise.all(taskIds.map((taskId, index) =>
+    db.update(staffTasksTable).set({ sortOrder: index * 10 }).where(eq(staffTasksTable.id, taskId)),
+  ));
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'task',
+    entityId: 'bulk',
+    action: 'director_task_reordered',
+    metadata: { taskIds },
+  });
+  return res.json({ success: true });
+});
+
+router.delete('/tasks/:id', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { id } = req.params;
+  const [existing] = await db.select().from(staffTasksTable).where(eq(staffTasksTable.id, id));
+  if (!existing) return res.status(404).json({ error: 'Task not found.' });
+  await db.delete(staffTasksTable).where(eq(staffTasksTable.id, id));
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'task',
+    entityId: id,
+    action: 'director_task_deleted',
+    before: existing,
+  });
+  return res.json({ success: true });
 });
 
 // ── Feedback management ───────────────────────────────────────────────────────

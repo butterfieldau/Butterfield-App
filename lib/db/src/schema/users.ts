@@ -2,7 +2,7 @@ import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const roleEnum = pgEnum("role", ["customer", "staff", "wholesale", "director", "manager", "master"]);
+export const roleEnum = pgEnum("role", ["customer", "staff", "wholesale", "director", "manager", "master", "shop_display"]);
 
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey(),

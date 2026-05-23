@@ -117,8 +117,8 @@ export const api = {
     rewards: () => request<{ data: LoyaltyReward[] }>('/loyalty/rewards'),
     lookupCustomer: (payload: string) =>
       request<{ data: LoyaltyLookupResult }>('/loyalty/lookup', { method: 'POST', body: JSON.stringify({ qrPayload: payload }) }),
-    addCoffeeStamp: (payload: string, quantity = 1) =>
-      request<{ data: LoyaltyLookupResult }>('/loyalty/scan-stamp', { method: 'POST', body: JSON.stringify({ qrPayload: payload, quantity }) }),
+    addCoffeeStamp: (payload: string, quantity = 1, force = false) =>
+      request<{ data: LoyaltyLookupResult }>('/loyalty/scan-stamp', { method: 'POST', body: JSON.stringify({ qrPayload: payload, quantity, force }) }),
     useFreeCoffee: (payload: string) =>
       request<{ data: LoyaltyLookupResult & { redeemedAt?: string } }>('/loyalty/use-free-coffee', { method: 'POST', body: JSON.stringify({ qrPayload: payload }) }),
     redeem: (rewardId: string) =>
@@ -172,6 +172,23 @@ export const api = {
       get:    () => request<{ data: GeoSettings }>('/staff/settings/geo'),
       update: (radiusMeters: number) =>
         request<{ data: GeoSettings }>('/staff/settings/geo', { method: 'PATCH', body: JSON.stringify({ radiusMeters }) }),
+    },
+  },
+  shopDisplay: {
+    me: () => request<{ data: any }>('/shop-display/me'),
+    orders: () => request<{ data: any[] }>('/shop-display/orders'),
+    updateOrderStatus: (id: string, status: string) =>
+      request<{ data: any }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    tasks: (category?: string) =>
+      request<{ data: any[] }>(`/shop-display/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+    completeTask: (taskId: string, isCompleted: boolean, notes?: string) =>
+      request<{ data: any }>(`/shop-display/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted, notes }) }),
+    taskHistory: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const qs = params.toString();
+      return request<{ data: ShopDisplayTaskHistory[] }>(`/shop-display/tasks/history${qs ? `?${qs}` : ''}`);
     },
   },
   wholesale: {
@@ -318,6 +335,14 @@ export const api = {
       request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     createWholesale:     (data: { name: string; email: string; password: string; companyName: string; abn?: string; phone?: string }) =>
       request<{ data: any }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
+    shopDisplays:        () => request<{ data: ShopDisplayUser[] }>('/director/shop-displays'),
+    createShopDisplay:   (data: { name: string; email: string; password: string; phone?: string }) =>
+      request<{ data: ShopDisplayUser }>('/director/shop-displays', { method: 'POST', body: JSON.stringify(data) }),
+    updateShopDisplay:   (id: string, data: { name?: string; email?: string; phone?: string; status?: 'active' | 'inactive' | 'suspended' }) =>
+      request<{ data: ShopDisplayUser }>(`/director/shop-displays/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    resetShopDisplayPassword: (id: string, password: string) =>
+      request<{ success: boolean }>(`/director/shop-displays/${id}/password`, { method: 'PATCH', body: JSON.stringify({ password }) }),
+    deleteShopDisplay:   (id: string) => request<{ success: boolean }>(`/director/shop-displays/${id}`, { method: 'DELETE' }),
 
     // Pricing tiers
     tiers:               () => request<{ data: any[] }>('/director/tiers'),
@@ -405,6 +430,13 @@ export const api = {
     allWastage:          () => request<{ data: any[] }>('/director/wastage'),
     allIssues:           () => request<{ data: any[] }>('/director/issues'),
     resolveIssue:        (id: string, status: string) => request<{ data: any }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    tasks:               () => request<{ data: any[] }>('/director/tasks'),
+    createTask:          (data: { title: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean }) =>
+      request<{ data: any }>('/director/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    updateTask:          (id: string, data: { title?: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean }) =>
+      request<{ data: any }>(`/director/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    reorderTasks:        (taskIds: string[]) => request<{ success: boolean }>('/director/tasks/reorder', { method: 'POST', body: JSON.stringify({ taskIds }) }),
+    deleteTask:          (id: string) => request<{ success: boolean }>(`/director/tasks/${id}`, { method: 'DELETE' }),
     allLeave:            () => request<{ data: any[] }>('/director/leave'),
 
     // Pricing preview
@@ -688,12 +720,14 @@ export interface LoyaltyActivity {
 }
 
 export interface LoyaltyLookupResult {
+  customerId?: string;
   customerName: string;
   customerEmail: string;
   loyaltyPoints: number;
   coffeeStampCount: number;
   freeCoffeeRewards: number;
   stampCount: number;
+  stampsUntilNextFreeCoffee?: number;
   freeCoffeesEarned: number;
   loyaltyQrToken?: string | null;
   qrPayload?: string | null;
@@ -756,6 +790,30 @@ export interface StaffShift {
   hourlyRateCents?: number | null;
   position?: string | null;
   name?: string | null;
+}
+
+export interface ShopDisplayTaskHistory {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  taskCategory: string;
+  completedByUserId?: string | null;
+  completedByName?: string | null;
+  completedByRole?: string | null;
+  completionStatus: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface ShopDisplayUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'shop_display';
+  phone?: string | null;
+  status: string;
+  createdAt?: string;
+  lastLogin?: string | null;
 }
 
 export interface StaffMember {

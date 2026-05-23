@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, loyaltyTransactionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
-import { eq, desc, and, isNull, sql, inArray } from 'drizzle-orm';
+import { eq, desc, and, isNull, sql, inArray, gte } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
   applyCoffeeStamps,
@@ -19,6 +19,7 @@ type DbTx = typeof db extends { transaction: (cb: (tx: infer T) => unknown, ...a
 
 const router = Router();
 void ensureLoyaltySchemaReady();
+const STAMP_SCAN_DUPLICATE_WINDOW_MS = 30_000;
 
 router.get('/profile', requireAuth, async (req, res) => {
   await ensureLoyaltySchemaReady();
@@ -502,7 +503,7 @@ router.patch('/birthday', requireAuth, async (req, res) => {
 // ── POST /loyalty/scan-stamp — staff scans customer QR to award a coffee stamp
 const STAMP_GOAL = 6;
 
-router.post('/lookup', requireRole('staff', 'director', 'manager'), async (req, res) => {
+router.post('/lookup', requireRole('staff', 'director', 'manager', 'shop_display'), async (req, res) => {
   await ensureLoyaltySchemaReady();
   const { qrPayload, loyaltyQrToken } = req.body ?? {};
   const parsed = parseLoyaltyQrPayload(qrPayload ?? loyaltyQrToken ?? '');
@@ -533,11 +534,13 @@ router.post('/lookup', requireRole('staff', 'director', 'manager'), async (req, 
 
   return res.json({
     data: {
+      customerId: profile.userId,
       customerName: userRow?.name ?? 'Customer',
       customerEmail: userRow?.email ?? '',
       loyaltyPoints: profile.loyaltyPoints ?? 0,
       coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
+      stampsUntilNextFreeCoffee: Math.max(0, STAMP_GOAL - (profile.coffeeStampCount ?? profile.stampCount ?? 0)),
       stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeesEarned: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
       loyaltyQrToken: profile.loyaltyQrToken ?? null,
@@ -547,9 +550,9 @@ router.post('/lookup', requireRole('staff', 'director', 'manager'), async (req, 
   });
 });
 
-router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (req, res) => {
+router.post('/scan-stamp', requireRole('staff', 'director', 'manager', 'shop_display'), async (req, res) => {
   await ensureLoyaltySchemaReady();
-  const { qrPayload, loyaltyQrToken, quantity } = req.body ?? {};
+  const { qrPayload, loyaltyQrToken, quantity, force } = req.body ?? {};
   const parsed = parseLoyaltyQrPayload(qrPayload ?? loyaltyQrToken ?? '');
   if (!parsed) return res.status(400).json({ error: 'QR payload required' });
 
@@ -566,6 +569,25 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
       ));
   }
   if (!profile) return res.status(404).json({ error: 'Customer not found or QR code mismatch' });
+
+  const duplicateCutoff = new Date(Date.now() - STAMP_SCAN_DUPLICATE_WINDOW_MS);
+  const [recentDuplicate] = await db.select().from(loyaltyActivityLogTable)
+    .where(and(
+      eq(loyaltyActivityLogTable.customerId, profile.userId),
+      eq(loyaltyActivityLogTable.staffId, req.user!.id),
+      eq(loyaltyActivityLogTable.activityType, 'coffee_stamp'),
+      gte(loyaltyActivityLogTable.createdAt, duplicateCutoff),
+    ))
+    .orderBy(desc(loyaltyActivityLogTable.createdAt))
+    .limit(1);
+
+  if (recentDuplicate && force !== true) {
+    return res.status(409).json({
+      error: 'A coffee stamp was already added for this customer in the last 30 seconds. Confirm if you need to add another one.',
+      code: 'DUPLICATE_STAMP_WINDOW',
+      lastActionAt: recentDuplicate.createdAt,
+    });
+  }
 
   const [scanUserRow] = await db
     .select({ name: usersTable.name, email: usersTable.email })
@@ -585,10 +607,12 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager'), async (r
 
   return res.json({
     data: {
+      customerId: profile.userId,
       ...stampResult,
       customerEmail: scanUserRow?.email ?? '',
       loyaltyPoints: profile.loyaltyPoints ?? 0,
       qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
+      stampsUntilNextFreeCoffee: Math.max(0, STAMP_GOAL - (stampResult.stampCount ?? 0)),
     },
   });
 });
@@ -606,7 +630,7 @@ router.get('/ensure-qr', requireAuth, async (req, res) => {
 });
 
 // ── POST /loyalty/use-free-coffee — staff redeems one free coffee reward ─────
-router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), async (req, res) => {
+router.post('/use-free-coffee', requireRole('staff', 'director', 'manager', 'shop_display'), async (req, res) => {
   await ensureLoyaltySchemaReady();
   const { qrPayload } = req.body ?? {};
   const parsed = parseLoyaltyQrPayload(qrPayload ?? '');
@@ -662,6 +686,7 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), asy
 
   return res.json({
     data: {
+      customerId: profile.userId,
       customerName:       userRow?.name ?? 'Customer',
       customerEmail:      userRow?.email ?? '',
       loyaltyPoints:      updated.loyaltyPoints ?? 0,
@@ -669,6 +694,7 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager'), asy
       freeCoffeeRewards:  updated.freeCoffeeRewards ?? 0,
       qrPayload:          buildLoyaltyQrPayload(profile.loyaltyQrToken),
       redeemedAt:         new Date().toISOString(),
+      stampsUntilNextFreeCoffee: Math.max(0, STAMP_GOAL - (updated.coffeeStampCount ?? updated.stampCount ?? 0)),
     },
   });
 });

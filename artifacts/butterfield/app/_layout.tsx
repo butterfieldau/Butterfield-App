@@ -73,6 +73,7 @@ function RootLayoutNav() {
       <Stack.Screen name="notification-prefs" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="(staff)" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="(shop-display)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(manager)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />

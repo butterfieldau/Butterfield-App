@@ -19,11 +19,14 @@ const STAMP_GOAL = 6;
 const SCAN_COOLDOWN_MS = 2500;
 
 type ScanResult = {
+  customerId?: string;
   customerName: string;
   customerEmail: string;
   loyaltyPoints: number;
   stampCount: number;
   freeCoffeeRewards: number;
+  stampsUntilNextFreeCoffee?: number;
+  recentActivity?: Array<{ id: string; description: string; createdAt: string }>;
   qrPayload?: string | null;
   earnedFree?: boolean;
   justRedeemed?: boolean;
@@ -56,9 +59,29 @@ export function StampScanScreen() {
 
     try {
       const res = await api.loyalty.lookupCustomer(data);
-      const { stampCount, freeCoffeeRewards, customerName, customerEmail, loyaltyPoints, qrPayload } = res.data;
+      const {
+        customerId,
+        stampCount,
+        freeCoffeeRewards,
+        customerName,
+        customerEmail,
+        loyaltyPoints,
+        qrPayload,
+        stampsUntilNextFreeCoffee,
+        recentActivity,
+      } = res.data;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setResult({ customerName, customerEmail, loyaltyPoints, stampCount, freeCoffeeRewards, qrPayload });
+      setResult({
+        customerId,
+        customerName,
+        customerEmail,
+        loyaltyPoints,
+        stampCount,
+        freeCoffeeRewards,
+        qrPayload,
+        stampsUntilNextFreeCoffee,
+        recentActivity,
+      });
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e?.message ?? 'Could not look up customer. Try again.');
@@ -73,26 +96,40 @@ export function StampScanScreen() {
     lastScanAt.current = 0;
   };
 
-  const addStamp = useCallback(async () => {
+  const addStamp = useCallback(async (force = false) => {
     if (!result) return;
     const payload = result.qrPayload ?? '';
     if (!payload) { setError('This QR code is missing a loyalty token.'); return; }
     setScanning(true);
     setError(null);
     try {
-      const res = await api.loyalty.addCoffeeStamp(payload, 1);
+      const res = await api.loyalty.addCoffeeStamp(payload, 1, force);
       const updated = res.data;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult({
+        customerId:         updated.customerId,
         customerName:       updated.customerName,
         customerEmail:      updated.customerEmail,
         loyaltyPoints:      updated.loyaltyPoints,
         stampCount:         updated.stampCount,
         freeCoffeeRewards:  updated.freeCoffeeRewards,
         qrPayload:          updated.qrPayload ?? payload,
+        stampsUntilNextFreeCoffee: updated.stampsUntilNextFreeCoffee,
+        recentActivity:     updated.recentActivity,
         earnedFree:         updated.earnedFree,
       });
     } catch (e: any) {
+      if (e?.body?.code === 'DUPLICATE_STAMP_WINDOW' && !force) {
+        Alert.alert(
+          'Add another stamp?',
+          'A stamp was already added for this customer in the last 30 seconds. Only continue if you have confirmed another eligible coffee purchase.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Add Anyway', onPress: () => void addStamp(true) },
+          ],
+        );
+        return;
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e?.message ?? 'Could not record stamp. Try again.');
     } finally {
@@ -127,12 +164,15 @@ export function StampScanScreen() {
       const updated = res.data;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult({
+        customerId:         updated.customerId,
         customerName:       updated.customerName,
         customerEmail:      updated.customerEmail,
         loyaltyPoints:      updated.loyaltyPoints ?? 0,
         stampCount:         updated.stampCount,
         freeCoffeeRewards:  updated.freeCoffeeRewards,
         qrPayload:          updated.qrPayload ?? payload,
+        stampsUntilNextFreeCoffee: updated.stampsUntilNextFreeCoffee,
+        recentActivity:     updated.recentActivity,
         justRedeemed:       true,
       });
     } catch (e: any) {
@@ -183,6 +223,7 @@ export function StampScanScreen() {
 
           <Text style={s.resultHeadline}>{result.customerName}</Text>
           <Text style={s.resultSub}>{result.customerEmail}</Text>
+          {!!result.customerId && <Text style={s.resultMeta}>Customer ID: {result.customerId.slice(0, 8).toUpperCase()}</Text>}
 
           {/* Stats row */}
           <View style={s.statsRow}>
@@ -199,6 +240,10 @@ export function StampScanScreen() {
               <Text style={[s.statValue, result.freeCoffeeRewards > 0 && { color: AMBER }]}>
                 {result.freeCoffeeRewards}
               </Text>
+            </View>
+            <View style={s.statChip}>
+              <Text style={s.statLabel}>To next free</Text>
+              <Text style={s.statValue}>{result.stampsUntilNextFreeCoffee ?? Math.max(0, STAMP_GOAL - result.stampCount)}</Text>
             </View>
           </View>
 
@@ -247,7 +292,7 @@ export function StampScanScreen() {
 
           {!result.earnedFree && !result.justRedeemed && (
             <Text style={s.dotLabel}>
-              {result.stampCount} of {STAMP_GOAL} stamps · {STAMP_GOAL - result.stampCount} to go
+              {result.stampCount} of {STAMP_GOAL} stamps · {result.stampsUntilNextFreeCoffee ?? Math.max(0, STAMP_GOAL - result.stampCount)} to go
             </Text>
           )}
 
@@ -256,7 +301,7 @@ export function StampScanScreen() {
             {/* Add stamp */}
             <Pressable
               style={[s.actionBtn, { backgroundColor: '#1493FF' }, busy && s.btnDisabled]}
-              onPress={addStamp}
+              onPress={() => { void addStamp(); }}
               disabled={busy}
             >
               {scanning
@@ -293,6 +338,20 @@ export function StampScanScreen() {
               <Text style={s.actionBtnTx}>Scan next customer</Text>
             </Pressable>
           </View>
+
+          {result.recentActivity?.length ? (
+            <View style={s.activityCard}>
+              <Text style={s.activityTitle}>Recent loyalty activity</Text>
+              {result.recentActivity.slice(0, 4).map((activity) => (
+                <View key={activity.id} style={s.activityRow}>
+                  <Text style={s.activityText} numberOfLines={1}>{activity.description}</Text>
+                  <Text style={s.activityTime}>
+                    {new Date(activity.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           {error && (
             <View style={s.errorBox}>
@@ -388,6 +447,7 @@ const s = StyleSheet.create({
   resultIcon:    { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   resultHeadline:{ color: WHITE, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   resultSub:     { color: MUTED, fontSize: 14, fontWeight: '400', textAlign: 'center', lineHeight: 20 },
+  resultMeta:    { color: 'rgba(255,255,255,0.58)', fontSize: 12, fontWeight: '600', textAlign: 'center' },
 
   statsRow:  { flexDirection: 'row', gap: 8, alignSelf: 'stretch', marginTop: 4 },
   statChip:  { flex: 1, backgroundColor: '#2B2B2E', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center', gap: 2, borderColor: 'transparent', borderWidth: 1 },
@@ -405,4 +465,9 @@ const s = StyleSheet.create({
   actionBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 14 },
   actionBtnTx:  { color: WHITE, fontWeight: '700', fontSize: 15 },
   btnDisabled:  { opacity: 0.55 },
+  activityCard: { width: '100%', gap: 8, marginTop: 6, backgroundColor: '#2B2B2E', borderRadius: 14, padding: 14 },
+  activityTitle:{ color: WHITE, fontSize: 14, fontWeight: '700' },
+  activityRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  activityText: { flex: 1, color: '#D4D4D8', fontSize: 12 },
+  activityTime: { color: MUTED, fontSize: 11, fontWeight: '600' },
 });

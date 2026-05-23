@@ -4,6 +4,7 @@ import type { UserRole } from '@/types';
 export function getHomeRouteForRole(role?: UserRole | null): Href {
   if (role === 'customer') return '/(customer)';
   if (role === 'wholesale') return '/(wholesale)';
+  if (role === 'shop_display') return '/(shop-display)';
   if (role === 'staff' || role === 'manager' || role === 'director' || role === 'master') {
     return '/(director)';
   }
@@ -11,5 +12,5 @@ export function getHomeRouteForRole(role?: UserRole | null): Href {
 }
 
 export function isInternalRole(role?: UserRole | null): boolean {
-  return role === 'staff' || role === 'manager' || role === 'director' || role === 'master';
+  return role === 'staff' || role === 'manager' || role === 'director' || role === 'master' || role === 'shop_display';
 }

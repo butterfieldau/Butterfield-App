@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions } from 'jsonwebtoken';
 
 export interface AuthUser {
   id: string;
@@ -24,8 +24,8 @@ if (!JWT_SECRET) {
 }
 const SECRET = JWT_SECRET ?? 'butterfield-dev-only-not-for-production';
 
-export function signToken(payload: AuthUser): string {
-  return jwt.sign(payload, SECRET, { expiresIn: '7d' });
+export function signToken(payload: AuthUser, expiresIn: SignOptions['expiresIn'] = '7d'): string {
+  return jwt.sign(payload, SECRET, { expiresIn });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

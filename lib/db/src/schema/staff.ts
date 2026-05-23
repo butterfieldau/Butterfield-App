@@ -41,12 +41,26 @@ export const staffTasksTable = pgTable("staff_tasks", {
   title: text("title").notNull(),
   description: text("description"),
   category: taskCategoryEnum("category").notNull().default("daily"),
+  cadence: text("cadence").notNull().default("daily"),
   isCompleted: boolean("is_completed").notNull().default(false),
   completedBy: text("completed_by"),
   completedAt: timestamp("completed_at"),
   dueDate: text("due_date"),
   sortOrder: integer("sort_order").notNull().default(0),
   isRecurring: boolean("is_recurring").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const staffTaskHistoryTable = pgTable("staff_task_history", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull(),
+  taskTitle: text("task_title").notNull(),
+  taskCategory: text("task_category").notNull(),
+  completedByUserId: text("completed_by_user_id"),
+  completedByName: text("completed_by_name"),
+  completedByRole: text("completed_by_role"),
+  completionStatus: text("completion_status").notNull().default("completed"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -98,6 +112,7 @@ export const insertStaffLeaveSchema = createInsertSchema(staffLeaveRequestsTable
 
 export type StaffShift = typeof staffShiftsTable.$inferSelect;
 export type StaffTask = typeof staffTasksTable.$inferSelect;
+export type StaffTaskHistory = typeof staffTaskHistoryTable.$inferSelect;
 export type StaffWastage = typeof staffWastageTable.$inferSelect;
 export type StaffIssue = typeof staffIssuesTable.$inferSelect;
 export type StaffLeaveRequest = typeof staffLeaveRequestsTable.$inferSelect;

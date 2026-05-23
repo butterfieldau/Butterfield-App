@@ -3,8 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -22,14 +22,30 @@ const GREEN  = '#22C55E';
 const PURPLE = '#8B5CF6';
 const PINK   = '#EC4899';
 
-type Tab = 'issues' | 'wastage' | 'leave' | 'feedback';
+type Tab = 'issues' | 'tasks' | 'wastage' | 'leave' | 'feedback';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'issues',   label: 'Issues',   icon: 'alert-triangle' },
+  { key: 'tasks',    label: 'Tasks',    icon: 'check-square'   },
   { key: 'wastage',  label: 'Wastage',  icon: 'trash-2'        },
   { key: 'leave',    label: 'Leave',    icon: 'calendar'       },
   { key: 'feedback', label: 'Feedback', icon: 'message-circle' },
 ];
+
+const TASK_CATEGORY_LABELS: Record<string, string> = {
+  opening: 'Opening',
+  closing: 'Closing',
+  prep: 'Coffee Bar',
+  cleaning: 'Cleaning',
+  daily: 'General Shift',
+  training: 'Stock Check / One-Off',
+};
+
+const TASK_CADENCE_LABELS: Record<string, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  one_off: 'One-Off',
+};
 
 function timeAgo(d: string) {
   const s = (Date.now() - new Date(d).getTime()) / 1000;
@@ -99,6 +115,216 @@ function EmptyState({ icon, message }: { icon: string; message: string }) {
       <Feather name={icon as any} size={32} color={BORDER} />
       <Text style={s.emptyText}>{message}</Text>
     </View>
+  );
+}
+
+function TaskEditorModal({
+  visible,
+  task,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean;
+  task: any | null;
+  onClose: () => void;
+  onSubmit: (payload: { title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off' }) => Promise<void>;
+}) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('daily');
+  const [cadence, setCadence] = useState<'daily' | 'weekly' | 'one_off'>('daily');
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    setTitle(task?.title ?? '');
+    setDescription(task?.description ?? '');
+    setCategory(task?.category ?? 'daily');
+    setCadence((task?.cadence as any) ?? 'daily');
+    setSaving(false);
+  }, [task, visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={[s.modalHeader, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+          <Pressable onPress={onClose} style={s.modalCloseBtn}>
+            <Feather name="x" size={18} color={TEXT} />
+          </Pressable>
+          <Text style={s.modalTitle}>{task ? 'Edit Task' : 'Add Task'}</Text>
+          <View style={{ width: 36 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+          <View style={s.modalInputWrap}>
+            <Text style={s.modalInputLabel}>Task name</Text>
+            <TextInput style={s.modalInput} value={title} onChangeText={setTitle} placeholder="e.g. Turn on coffee machine" placeholderTextColor={MUTED} />
+          </View>
+          <View style={s.modalInputWrap}>
+            <Text style={s.modalInputLabel}>Description</Text>
+            <TextInput style={[s.modalInput, { height: 90, textAlignVertical: 'top' }]} value={description} onChangeText={setDescription} multiline placeholder="Optional detail for staff" placeholderTextColor={MUTED} />
+          </View>
+
+          <Text style={s.modalInputLabel}>Task type</Text>
+          <View style={s.modalChipRow}>
+            {Object.entries(TASK_CATEGORY_LABELS).map(([key, label]) => (
+              <Pressable key={key} onPress={() => setCategory(key)} style={[s.modalChip, category === key && s.modalChipActive]}>
+                <Text style={[s.modalChipText, category === key && s.modalChipTextActive]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={s.modalInputLabel}>Cadence</Text>
+          <View style={s.modalChipRow}>
+            {(Object.keys(TASK_CADENCE_LABELS) as Array<'daily' | 'weekly' | 'one_off'>).map((key) => (
+              <Pressable key={key} onPress={() => setCadence(key)} style={[s.modalChip, cadence === key && s.modalChipActive]}>
+                <Text style={[s.modalChipText, cadence === key && s.modalChipTextActive]}>{TASK_CADENCE_LABELS[key]}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable
+            style={[s.primaryActionBtn, saving && { opacity: 0.7 }]}
+            disabled={saving}
+            onPress={async () => {
+              if (!title.trim()) {
+                Alert.alert('Missing task name', 'Please give the task a name.');
+                return;
+              }
+              setSaving(true);
+              try {
+                await onSubmit({ title: title.trim(), description: description.trim() || undefined, category, cadence });
+                onClose();
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryActionText}>{task ? 'Save Changes' : 'Create Task'}</Text>}
+          </Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+function TasksTab() {
+  const qc = useQueryClient();
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [showEditor, setShowEditor] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['director-tasks'],
+    queryFn: () => api.director.tasks(),
+    staleTime: 0,
+  });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const tasks: any[] = data?.data ?? [];
+
+  const saveTask = useMutation({
+    mutationFn: async (payload: { id?: string; title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off' }) => {
+      const body = { ...payload, isRecurring: payload.cadence !== 'one_off' };
+      if (payload.id) return api.director.updateTask(payload.id, body);
+      return api.director.createTask(body);
+    },
+    onSuccess: async () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await qc.invalidateQueries({ queryKey: ['director-tasks'] });
+      await qc.invalidateQueries({ queryKey: ['shop-display-tasks'] });
+    },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => api.director.deleteTask(id),
+    onSuccess: async () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await qc.invalidateQueries({ queryKey: ['director-tasks'] });
+      await qc.invalidateQueries({ queryKey: ['shop-display-tasks'] });
+    },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
+  const reorder = async (taskId: string, direction: -1 | 1) => {
+    const index = tasks.findIndex((task) => task.id === taskId);
+    const swapIndex = index + direction;
+    if (index < 0 || swapIndex < 0 || swapIndex >= tasks.length) return;
+    const reordered = [...tasks];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(swapIndex, 0, moved);
+    await api.director.reorderTasks(reordered.map((task) => task.id));
+    await qc.invalidateQueries({ queryKey: ['director-tasks'] });
+    await qc.invalidateQueries({ queryKey: ['shop-display-tasks'] });
+  };
+
+  if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
+
+  return (
+    <>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable onPress={() => { setEditingTask(null); setShowEditor(true); }} style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
+          <Feather name="plus-circle" size={16} color={BLUE} />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.summaryTitle, { color: BLUE }]}>Add shop task</Text>
+            <Text style={[s.summarySub, { color: MUTED }]}>Create opening, closing, coffee bar, cleaning, stock check or one-off tasks.</Text>
+          </View>
+        </Pressable>
+
+        {tasks.length === 0 ? (
+          <EmptyState icon="check-square" message="No tasks configured yet" />
+        ) : tasks.map((task: any, index: number) => (
+          <View key={task.id} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={s.cardHeader}>
+              <View style={[s.iconBox, { backgroundColor: BLUE + '18' }]}>
+                <Feather name="check-square" size={15} color={BLUE} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[s.cardTitle, { color: TEXT }]}>{task.title}</Text>
+                <Text style={[s.cardSub, { color: MUTED }]}>
+                  {TASK_CATEGORY_LABELS[task.category] ?? task.category} · {TASK_CADENCE_LABELS[task.cadence ?? 'daily'] ?? 'Daily'}
+                </Text>
+              </View>
+            </View>
+            {task.description ? <Text style={[s.cardDesc, { color: MUTED }]}>{task.description}</Text> : null}
+            <View style={s.actionRow}>
+              <Pressable style={[s.actionBtn, { borderColor: BORDER, backgroundColor: CARD }]} onPress={() => void reorder(task.id, -1)} disabled={index === 0}>
+                <Feather name="arrow-up" size={14} color={index === 0 ? BORDER : BLUE} />
+                <Text style={[s.actionBtnText, { color: index === 0 ? MUTED : BLUE }]}>Up</Text>
+              </Pressable>
+              <Pressable style={[s.actionBtn, { borderColor: BORDER, backgroundColor: CARD }]} onPress={() => void reorder(task.id, 1)} disabled={index === tasks.length - 1}>
+                <Feather name="arrow-down" size={14} color={index === tasks.length - 1 ? BORDER : BLUE} />
+                <Text style={[s.actionBtnText, { color: index === tasks.length - 1 ? MUTED : BLUE }]}>Down</Text>
+              </Pressable>
+              <Pressable style={[s.actionBtn, { borderColor: BLUE + '40', backgroundColor: BLUE + '10' }]} onPress={() => { setEditingTask(task); setShowEditor(true); }}>
+                <Feather name="edit-2" size={14} color={BLUE} />
+                <Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text>
+              </Pressable>
+              <Pressable
+                style={[s.actionBtn, { borderColor: RED + '40', backgroundColor: RED + '10' }]}
+                onPress={() => Alert.alert('Delete Task', `Delete "${task.title}"?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => deleteTask.mutate(task.id) },
+                ])}
+              >
+                <Feather name="trash-2" size={14} color={RED} />
+                <Text style={[s.actionBtnText, { color: RED }]}>Delete</Text>
+              </Pressable>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+      <TaskEditorModal
+        visible={showEditor}
+        task={editingTask}
+        onClose={() => setShowEditor(false)}
+        onSubmit={async (payload) => {
+          await saveTask.mutateAsync(editingTask ? { ...payload, id: editingTask.id } : payload);
+        }}
+      />
+    </>
   );
 }
 
@@ -512,7 +738,7 @@ export default function StaffHubScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[s.header, { backgroundColor: BG, borderBottomColor: BORDER }]}>
         <Text style={s.headerTitle}>Staff Hub</Text>
-        <Text style={s.headerSub}>Issues · Wastage · Leave · Feedback</Text>
+        <Text style={s.headerSub}>Issues · Tasks · Wastage · Leave · Feedback</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
@@ -534,6 +760,7 @@ export default function StaffHubScreen() {
       </ScrollView>
 
       {activeTab === 'issues'   && <IssuesTab />}
+      {activeTab === 'tasks'    && <TasksTab />}
       {activeTab === 'wastage'  && <WastageTab />}
       {activeTab === 'leave'    && <LeaveTab />}
       {activeTab === 'feedback' && <FeedbackTab />}
@@ -573,6 +800,19 @@ const s = StyleSheet.create({
   summaryCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
   summaryTitle:{ fontSize: 13, fontWeight: '600', flex: 1 },
   summarySub:  { fontSize: 12, fontWeight: '400' },
+  primaryActionBtn: { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  primaryActionText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { color: TEXT, fontSize: 17, fontWeight: '700' },
+  modalInputWrap: { gap: 6 },
+  modalInputLabel: { fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.5 },
+  modalInput: { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: TEXT, fontSize: 15 },
+  modalChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  modalChip: { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
+  modalChipActive: { backgroundColor: BLUE, borderColor: BLUE },
+  modalChipText: { color: TEXT, fontSize: 13, fontWeight: '700' },
+  modalChipTextActive: { color: '#fff' },
   empty:       { alignItems: 'center', gap: 12, paddingVertical: 60 },
   emptyText:   { fontSize: 14, fontWeight: '400', color: MUTED },
   unreadDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE, marginRight: 4 },

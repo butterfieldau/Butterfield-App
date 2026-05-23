@@ -18,6 +18,7 @@ import storesRouter from "./stores.js";
 import managerRouter from "./manager.js";
 import storageRouter from "./storage.js";
 import notificationsRouter from "./notifications.js";
+import shopDisplayRouter from "./shop-display.js";
 import stockRouter from "./stock.js";
 import discountsRouter from "./discounts.js";
 
@@ -40,6 +41,7 @@ router.use("/director", directorRouter);
 router.use(storesRouter);
 router.use("/manager", managerRouter);
 router.use("/notifications", notificationsRouter);
+router.use("/shop-display", shopDisplayRouter);
 router.use("/stock", stockRouter);
 router.use("/discounts", discountsRouter);
 router.use(storageRouter);

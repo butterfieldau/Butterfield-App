@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { ensureLoyaltySchemaReady } from "./lib/loyaltyIdentity.js";
+import { ensureShopDisplaySchemaReady } from "./lib/ensureShopDisplaySchemaReady.js";
 import { startShiftReminderService } from "./lib/shiftReminderService.js";
 import { db, productCategoriesTable } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
@@ -127,6 +128,7 @@ app.listen(port, (err) => {
 // Background init — errors are fully contained; the server is already up above
 Promise.resolve()
   .then(() => ensureLoyaltySchemaReady())
+  .then(() => ensureShopDisplaySchemaReady())
   .then(() => ensureMasterAccount())
   .then(() => ensureDefaultCategories())
   .then(() => initStripe())
