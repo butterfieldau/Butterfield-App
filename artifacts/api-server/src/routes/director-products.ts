@@ -61,7 +61,7 @@ router.get('/categories', async (_req, res) => {
 });
 
 router.post('/categories', async (req, res) => {
-  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable } = req.body;
+  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = `cat_${randomUUID().slice(0, 12)}`;
   const [cat] = await db.insert(productCategoriesTable).values({
@@ -70,12 +70,13 @@ router.post('/categories', async (req, res) => {
     sortOrder: sortOrder ?? 0, isActive: isActive ?? true,
     showPublic: showPublic ?? true, showWholesale: showWholesale ?? false,
     isPickupAvailable: isPickupAvailable ?? true, isDeliveryAvailable: isDeliveryAvailable ?? false,
+    showOnHome: showOnHome ?? false, homeOrder: homeOrder ?? 0,
   }).returning();
   return res.json({ data: cat });
 });
 
 router.patch('/categories/:id', async (req, res) => {
-  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable } = req.body;
+  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
   if (slug !== undefined) updates.slug = slug.trim();
@@ -87,6 +88,8 @@ router.patch('/categories/:id', async (req, res) => {
   if (showWholesale !== undefined) updates.showWholesale = Boolean(showWholesale);
   if (isPickupAvailable !== undefined) updates.isPickupAvailable = Boolean(isPickupAvailable);
   if (isDeliveryAvailable !== undefined) updates.isDeliveryAvailable = Boolean(isDeliveryAvailable);
+  if (showOnHome !== undefined) updates.showOnHome = Boolean(showOnHome);
+  if (homeOrder !== undefined) updates.homeOrder = Number(homeOrder);
   updates.updatedAt = new Date();
   const [cat] = await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, req.params.id)).returning();
   if (!cat) return res.status(404).json({ error: 'Category not found' });

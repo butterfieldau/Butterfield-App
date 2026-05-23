@@ -110,6 +110,29 @@ export default function CustomerHome() {
     }));
     return [{ id: 'all', label: 'All', icon: 'grid' }, ...items];
   }, [categoriesData]);
+
+  // Categories to show as product rows on home — only showOnHome=true ones,
+  // sorted by homeOrder. Falls back to all if director hasn't configured any.
+  const homeCats = useMemo(() => {
+    const backendCats: any[] = categoriesData?.data ?? [];
+    const onHome = backendCats.filter(c => c.showOnHome);
+    const source = onHome.length > 0 ? onHome : backendCats;
+    return source
+      .slice()
+      .sort((a, b) => (a.homeOrder ?? a.sortOrder ?? 0) - (b.homeOrder ?? b.sortOrder ?? 0))
+      .map(c => ({ id: c.slug as string, label: c.name as string }));
+  }, [categoriesData]);
+
+  // All public categories for the bottom browse strip
+  const browseCats = useMemo(() => {
+    const backendCats: any[] = categoriesData?.data ?? [];
+    return backendCats.map(c => ({
+      id: c.id as string,
+      slug: c.slug as string,
+      label: c.name as string,
+      imageUrl: c.imageUrl as string | null,
+    }));
+  }, [categoriesData]);
   const featured = useMemo(
     () => products.filter((p) =>
       activeCategory === 'all' ? true : p.metadata?.category === activeCategory,
@@ -435,11 +458,11 @@ export default function CustomerHome() {
             );
           })}
         </ScrollView>
-        {/* Category product rows */}
+        {/* Category product rows — only categories marked Show on Home */}
         {isLoading ? (
           <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
         ) : activeCategory === 'all' ? (
-          categories.filter((cat) => cat.id !== 'all').map((cat) => {
+          homeCats.map((cat) => {
             const catItems = products
               .filter((p) => (p as any).metadata?.category === cat.id)
               .slice(0, 8);
@@ -503,6 +526,51 @@ export default function CustomerHome() {
             />
           </View>
         )}
+        {/* Browse Categories strip */}
+        {browseCats.length > 0 && (
+          <View style={s.section}>
+            <View style={s.catRowHeader}>
+              <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', paddingHorizontal: 0, marginBottom: 0 }]}>
+                Browse Categories
+              </Text>
+              <Pressable hitSlop={8} onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/menu'); }}>
+                <Text style={[s.viewMoreLink, { color: BLUE_TOP }]}>See all</Text>
+              </Pressable>
+            </View>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={browseCats}
+              keyExtractor={(c) => c.id}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+              renderItem={({ item: c }) => {
+                const pal = getPalette(c.slug);
+                const imgUrl = c.imageUrl
+                  ? (c.imageUrl.startsWith('http') ? c.imageUrl : `${process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : ''}${c.imageUrl}`)
+                  : null;
+                return (
+                  <Pressable
+                    key={c.id}
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(customer)/menu', params: { category: c.slug } } as any); }}
+                    style={[s.browseCard, { backgroundColor: imgUrl ? '#1a1a2e' : pal.bg }]}
+                  >
+                    {imgUrl ? (
+                      <Image
+                        source={{ uri: imgUrl }}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16 }}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ) : null}
+                    <View style={s.browseOverlay}>
+                      <Text style={[s.browseLabel, { fontWeight: '700' }]} numberOfLines={2}>{c.label}</Text>
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -561,4 +629,8 @@ const s = StyleSheet.create({
   viewMoreLink:  { fontSize: 14, fontWeight: '600' },
   empty:         { textAlign: 'center', marginTop: 40, fontSize: 14 },
   grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  // ── Browse Categories strip ────────────────────────────────────────────────
+  browseCard:    { width: 140, height: 100, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
+  browseOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'rgba(0,0,0,0.38)' },
+  browseLabel:   { color: '#fff', fontSize: 14, lineHeight: 18 },
 });

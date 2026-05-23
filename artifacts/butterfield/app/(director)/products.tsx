@@ -779,6 +779,10 @@ function CatalogTab() {
   const [catSortOrder, setCatSortOrder] = useState('0');
   const [catShowPublic, setCatShowPublic] = useState(true);
   const [catShowWholesale, setCatShowWholesale] = useState(false);
+  const [catShowOnHome, setCatShowOnHome] = useState(false);
+  const [catHomeOrder, setCatHomeOrder] = useState('0');
+  const [catImageUrl, setCatImageUrl] = useState('');
+  const [catUploading, setCatUploading] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const recommendedCategorySort = useMemo(
     () => getRecommendedCategorySort(catSlug || catName),
@@ -793,11 +797,14 @@ function CatalogTab() {
   const openAddCat = () => {
     setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc('');
     setCatSortOrder('0'); setCatShowPublic(true); setCatShowWholesale(false);
+    setCatShowOnHome(false); setCatHomeOrder('0'); setCatImageUrl('');
     setCatModal(true);
   };
   const openEditCat = (c: any) => {
     setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? '');
     setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true); setCatShowWholesale(c.showWholesale ?? false);
+    setCatShowOnHome(c.showOnHome ?? false); setCatHomeOrder(String(c.homeOrder ?? 0));
+    setCatImageUrl(c.imageUrl ?? '');
     setCatModal(true);
   };
   const saveCat = async () => {
@@ -811,6 +818,9 @@ function CatalogTab() {
         sortOrder: parseInt(catSortOrder) || 0,
         showPublic: catShowPublic,
         showWholesale: catShowWholesale,
+        showOnHome: catShowOnHome,
+        homeOrder: parseInt(catHomeOrder) || 0,
+        imageUrl: catImageUrl.trim() || null,
       };
       if (editCat) {
         await api.director.updateCategory(editCat.id, payload);
@@ -821,6 +831,29 @@ function CatalogTab() {
       await qc.invalidateQueries({ queryKey: ['categories'] });
       setCatModal(false);
     } finally { setCatSaving(false); }
+  };
+  const handlePickCategoryImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.88,
+        selectionLimit: 1,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) { Alert.alert('File too large', 'Please choose an image under 8 MB.'); return; }
+      const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'category.jpg';
+      const contentType = asset.mimeType ?? 'image/jpeg';
+      setCatUploading(true);
+      const { objectPath } = await api.storage.uploadProductImage(asset.uri, filename, contentType, 'categories', catName.trim() || 'category');
+      setCatImageUrl(`/api/storage${objectPath}`);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message ?? 'Could not upload image. Please try again.');
+    } finally { setCatUploading(false); }
   };
   const toggleCatActive = async (c: any) => {
     try {
@@ -864,27 +897,41 @@ function CatalogTab() {
           </View>
         }
         ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No categories yet</Text>}
-        renderItem={({ item: c }) => (
-          <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
-                <View style={{ backgroundColor: BLUE + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: BLUE }}>{c.productCount ?? 0}</Text>
-                </View>
+        renderItem={({ item: c }) => {
+          const thumbUrl = c.imageUrl ? toDisplayUrl(c.imageUrl) : null;
+          return (
+            <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              {/* Thumbnail */}
+              <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: BG, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {thumbUrl
+                  ? <Image source={{ uri: thumbUrl }} style={{ width: 44, height: 44 }} resizeMode="cover" />
+                  : <Feather name="image" size={18} color={MUTED} />}
               </View>
-              <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>/{c.slug}{c.showPublic ? ' · public' : ''}{c.showWholesale ? ' · wholesale' : ''}</Text>
-              {c.description ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
+                  <View style={{ backgroundColor: BLUE + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: BLUE }}>{c.productCount ?? 0}</Text>
+                  </View>
+                  {c.showOnHome && (
+                    <View style={{ backgroundColor: AMBER + '22', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: AMBER + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: AMBER }}>HOME</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>/{c.slug}{c.showPublic ? ' · public' : ''}{c.showWholesale ? ' · wholesale' : ''}</Text>
+                {c.description ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
+              </View>
+              <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
+              <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }} hitSlop={4}>
+                <Feather name="edit-2" size={16} color={BLUE} />
+              </Pressable>
+              <Pressable onPress={() => deleteCat(c)} style={{ padding: 8 }} hitSlop={4}>
+                <Feather name="trash-2" size={16} color={RED} />
+              </Pressable>
             </View>
-            <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
-            <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }} hitSlop={4}>
-              <Feather name="edit-2" size={16} color={BLUE} />
-            </Pressable>
-            <Pressable onPress={() => deleteCat(c)} style={{ padding: 8 }} hitSlop={4}>
-              <Feather name="trash-2" size={16} color={RED} />
-            </Pressable>
-          </View>
-        )}
+          );
+        }}
       />
       {/* FAB */}
       <Pressable onPress={openAddCat} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
@@ -911,6 +958,49 @@ function CatalogTab() {
             <Field label="Description">
               <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
             </Field>
+            {/* Category Photo */}
+            <SectionHeader title="Category Photo" icon="image" color={PINK} />
+            <View style={{ gap: 10 }}>
+              {catImageUrl ? (
+                <View style={{ borderRadius: 14, overflow: 'hidden', height: 140, backgroundColor: BG }}>
+                  <Image source={{ uri: toDisplayUrl(catImageUrl) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <View style={{ position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6 }}>
+                    <Pressable onPress={handlePickCategoryImage} style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 }}>
+                      <Feather name="camera" size={14} color="#fff" />
+                    </Pressable>
+                    <Pressable onPress={() => setCatImageUrl('')} style={{ backgroundColor: 'rgba(220,0,0,0.7)', borderRadius: 20, padding: 8 }}>
+                      <Feather name="trash-2" size={14} color="#fff" />
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={handlePickCategoryImage}
+                  disabled={catUploading}
+                  style={{ height: 110, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BG }}
+                >
+                  {catUploading
+                    ? <ActivityIndicator color={BLUE} />
+                    : <>
+                        <Feather name="upload" size={22} color={MUTED} />
+                        <Text style={{ color: MUTED, fontSize: 13, fontWeight: '500' }}>Upload category photo</Text>
+                        <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400' }}>Shows in the home screen category strip</Text>
+                      </>
+                  }
+                </Pressable>
+              )}
+            </View>
+            {/* Home Screen */}
+            <SectionHeader title="Home Screen" icon="home" color={AMBER} />
+            <Toggle label="Show on Home Screen" value={catShowOnHome} onChange={setCatShowOnHome} color={AMBER} desc="Feature this category in the home screen category strip" />
+            {catShowOnHome && (
+              <Field label="Home Display Order">
+                <TextInput value={catHomeOrder} onChangeText={setCatHomeOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+                <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 4 }}>Lower numbers appear first. Also controls the order of product rows on the home screen.</Text>
+              </Field>
+            )}
+            {/* Visibility */}
+            <SectionHeader title="Visibility" icon="eye" color={GREEN} />
             <Field label="Sort Order">
               <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               {recommendedCategorySort != null && (
