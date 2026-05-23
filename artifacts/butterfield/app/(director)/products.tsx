@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState, useMemo } from 'react';
 import {
-  ActionSheetIOS, ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
+  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
@@ -1450,59 +1450,15 @@ export default function DirectorProductsScreen() {
     return list;
   }, [all, statusFilter, catFilter, sortBy, search]);
 
-  const showCategorySheet = () => {
-    const catOptions = ['All Categories', ...dbCategories.map((c: any) => c.name), 'Cancel'];
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options: catOptions, cancelButtonIndex: catOptions.length - 1, title: 'Filter by Category' },
-        (idx) => {
-          if (idx === catOptions.length - 1) return;
-          if (idx === 0) { setCatFilter('all'); }
-          else { setCatFilter(dbCategories[idx - 1]?.slug ?? 'all'); }
-          Haptics.selectionAsync();
-        },
-      );
-    } else {
-      Alert.alert('Filter by Category', undefined, [
-        { text: 'All Categories', onPress: () => setCatFilter('all') },
-        ...dbCategories.map((c: any) => ({ text: c.name, onPress: () => setCatFilter(c.slug) })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
-    }
-  };
-
-  const showSortSheet = () => {
-    const statusLabels = STATUS_OPTIONS.filter(s => s !== 'All').map(s => `Show: ${s}`);
-    const sheetOptions = [...SORT_OPTIONS, ...statusLabels, 'Show: All', 'Cancel'];
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options: sheetOptions, cancelButtonIndex: sheetOptions.length - 1, title: 'Sort & Filter' },
-        (idx) => {
-          if (idx === sheetOptions.length - 1) return;
-          Haptics.selectionAsync();
-          const picked = sheetOptions[idx];
-          if (SORT_OPTIONS.includes(picked as SortOption)) {
-            setSortBy(picked as SortOption);
-          } else if (picked === 'Show: All') {
-            setStatusFilter('All');
-          } else {
-            const s = picked.replace('Show: ', '') as StatusOption;
-            setStatusFilter(s);
-          }
-        },
-      );
-    } else {
-      Alert.alert('Sort & Filter', undefined, [
-        ...SORT_OPTIONS.map(s => ({ text: s, onPress: () => setSortBy(s) })),
-        ...STATUS_OPTIONS.filter(s => s !== 'All').map(s => ({ text: `Show: ${s}`, onPress: () => setStatusFilter(s) })),
-        { text: 'Show: All', onPress: () => setStatusFilter('All') },
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
-    }
+  const [openDropdown, setOpenDropdown] = useState<'category' | 'sort' | null>(null);
+  const toggleDropdown = (which: 'category' | 'sort') => {
+    Haptics.selectionAsync();
+    setOpenDropdown(prev => (prev === which ? null : which));
   };
 
   const activeCatLabel = catFilter === 'all' ? 'Category' : (dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter);
-  const activeSortLabel = statusFilter !== 'All' ? `${statusFilter}` : sortBy === 'Name A → Z' ? 'Sort' : sortBy;
+  const activeSortLabel = statusFilter !== 'All' ? statusFilter : sortBy === 'Name A → Z' ? 'Sort' : sortBy;
+  const sortActive = statusFilter !== 'All' || sortBy !== 'Name A → Z';
   const toggle = async (product: any, field: string, value: boolean) => {
     Haptics.selectionAsync();
     try {
@@ -1572,18 +1528,105 @@ export default function DirectorProductsScreen() {
           clearButtonMode="while-editing"
         />
       </View>
-      {/* Two-button filter row */}
-      <View style={styles.filterRow}>
-        <Pressable onPress={showCategorySheet} style={[styles.dropBtn, catFilter !== 'all' && { borderColor: BLUE, backgroundColor: BLUE + '0A' }]}>
-          <Feather name="grid" size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
-          <Text style={[styles.dropBtnText, { fontWeight: catFilter !== 'all' ? '600' : '500', color: catFilter !== 'all' ? BLUE : TEXT }]} numberOfLines={1}>{activeCatLabel}</Text>
-          <Feather name="chevron-down" size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
-        </Pressable>
-        <Pressable onPress={showSortSheet} style={[styles.dropBtn, (statusFilter !== 'All' || sortBy !== 'Name A → Z') && { borderColor: NAVY, backgroundColor: NAVY + '0A' }]}>
-          <Feather name="sliders" size={13} color={(statusFilter !== 'All' || sortBy !== 'Name A → Z') ? NAVY : MUTED} />
-          <Text style={[styles.dropBtnText, { fontWeight: (statusFilter !== 'All' || sortBy !== 'Name A → Z') ? '600' : '500', color: (statusFilter !== 'All' || sortBy !== 'Name A → Z') ? NAVY : TEXT }]} numberOfLines={1}>{activeSortLabel}</Text>
-          <Feather name="chevron-down" size={13} color={(statusFilter !== 'All' || sortBy !== 'Name A → Z') ? NAVY : MUTED} />
-        </Pressable>
+      {/* Filter row + inline dropdowns */}
+      <View style={{ zIndex: 20 }}>
+        {/* Backdrop — catches taps outside the open dropdown */}
+        {openDropdown !== null && (
+          <Pressable
+            onPress={() => setOpenDropdown(null)}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: -4000, zIndex: 19 }}
+          />
+        )}
+        <View style={styles.filterRow}>
+          {/* Category button */}
+          <Pressable
+            onPress={() => toggleDropdown('category')}
+            style={[styles.dropBtn, catFilter !== 'all' && { borderColor: BLUE, backgroundColor: BLUE + '0A' },
+              openDropdown === 'category' && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomColor: 'transparent' }]}
+          >
+            <Feather name="grid" size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
+            <Text style={[styles.dropBtnText, { fontWeight: catFilter !== 'all' ? '600' : '500', color: catFilter !== 'all' ? BLUE : TEXT }]} numberOfLines={1}>{activeCatLabel}</Text>
+            <Feather name={openDropdown === 'category' ? 'chevron-up' : 'chevron-down'} size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
+          </Pressable>
+          {/* Sort button */}
+          <Pressable
+            onPress={() => toggleDropdown('sort')}
+            style={[styles.dropBtn, sortActive && { borderColor: NAVY, backgroundColor: NAVY + '0A' },
+              openDropdown === 'sort' && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomColor: 'transparent' }]}
+          >
+            <Feather name="sliders" size={13} color={sortActive ? NAVY : MUTED} />
+            <Text style={[styles.dropBtnText, { fontWeight: sortActive ? '600' : '500', color: sortActive ? NAVY : TEXT }]} numberOfLines={1}>{activeSortLabel}</Text>
+            <Feather name={openDropdown === 'sort' ? 'chevron-up' : 'chevron-down'} size={13} color={sortActive ? NAVY : MUTED} />
+          </Pressable>
+        </View>
+
+        {/* Category dropdown panel */}
+        {openDropdown === 'category' && (
+          <View style={[styles.dropPanel, { zIndex: 21 }]}>
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
+              {/* All Categories option */}
+              <Pressable
+                onPress={() => { setCatFilter('all'); setOpenDropdown(null); Haptics.selectionAsync(); }}
+                style={[styles.dropOption, catFilter === 'all' && styles.dropOptionActive]}
+              >
+                <Text style={[styles.dropOptionText, catFilter === 'all' && { color: BLUE, fontWeight: '600' }]}>All Categories</Text>
+                {catFilter === 'all' && <Feather name="check" size={14} color={BLUE} />}
+              </Pressable>
+              {dbCategories.map((c: any) => {
+                const col = CAT_COLORS[c.slug] ?? MUTED;
+                const active = catFilter === c.slug;
+                return (
+                  <Pressable
+                    key={c.slug}
+                    onPress={() => { setCatFilter(c.slug); setOpenDropdown(null); Haptics.selectionAsync(); }}
+                    style={[styles.dropOption, active && { backgroundColor: col + '0A' }]}
+                  >
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: col, marginRight: 4 }} />
+                    <Text style={[styles.dropOptionText, active && { color: col, fontWeight: '600' }]}>{c.name}</Text>
+                    {active && <Feather name="check" size={14} color={col} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Sort & Status dropdown panel */}
+        {openDropdown === 'sort' && (
+          <View style={[styles.dropPanel, { zIndex: 21 }]}>
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
+              <Text style={styles.dropSectionLabel}>SORT ORDER</Text>
+              {SORT_OPTIONS.map(opt => {
+                const active = sortBy === opt && statusFilter === 'All';
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => { setSortBy(opt); setStatusFilter('All'); setOpenDropdown(null); Haptics.selectionAsync(); }}
+                    style={[styles.dropOption, active && styles.dropOptionActive]}
+                  >
+                    <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
+                    {active && <Feather name="check" size={14} color={NAVY} />}
+                  </Pressable>
+                );
+              })}
+              <View style={styles.dropDivider} />
+              <Text style={styles.dropSectionLabel}>SHOW ONLY</Text>
+              {STATUS_OPTIONS.map(opt => {
+                const active = statusFilter === opt;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => { setStatusFilter(opt); setOpenDropdown(null); Haptics.selectionAsync(); }}
+                    style={[styles.dropOption, active && styles.dropOptionActive]}
+                  >
+                    <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
+                    {active && <Feather name="check" size={14} color={NAVY} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -1724,9 +1767,15 @@ export default function DirectorProductsScreen() {
 const styles = StyleSheet.create({
   searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, height: 44 },
   searchInput:   { flex: 1, fontSize: 14, height: 44 },
-  filterRow:     { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  dropBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  dropBtnText:   { flex: 1, fontSize: 13, color: TEXT },
+  filterRow:       { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  dropBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  dropBtnText:     { flex: 1, fontSize: 13, color: TEXT },
+  dropPanel:       { marginHorizontal: 16, backgroundColor: CARD, borderRadius: 12, borderTopLeftRadius: 0, borderWidth: 1, borderColor: BORDER, borderTopColor: 'transparent', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, marginBottom: 4 },
+  dropOption:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  dropOptionActive:{ backgroundColor: BG },
+  dropOptionText:  { flex: 1, fontSize: 14, color: TEXT },
+  dropSectionLabel:{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  dropDivider:     { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginTop: 4 },
   count:         { fontSize: 13, marginBottom: 4 },
   productCard:   { borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: CARD },
   badgeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, paddingBottom: 0 },
