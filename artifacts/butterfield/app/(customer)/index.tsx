@@ -1,4 +1,4 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,32 +34,11 @@ import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { setPreselectedOptions } from '@/lib/preselectedOptions';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { CategorySvgIcon } from '@/components/CategoryIcons';
 
 const BLUE_TOP = '#1493FF';
 const BLUE_BTM = '#3CBBEE';
 const CHERRY   = '#D0312D';
-const CAT_ICON_MAP: Record<string, string> = {
-  coffee:           'coffee',
-  matcha:           'mc:leaf',
-  tea:              'mc:cup-water',
-  cookies:          'mc:cookie-outline',
-  'cold-drinks':    'mc:snowflake',
-  'soft-serve':     'mc:ice-cream',
-  specials:         'zap',
-  seasonal:         'sun',
-  merch:            'tag',
-  boxes:            'svg:box',
-  desserts:         'mc:cake-variant-outline',
-  sandwiches:       'layers',
-  pastries:         'mc:croissant',
-  drinks:           'droplet',
-  bundles:          'gift',
-  milkshakes:       'svg:milkshake',
-  fusions:          'svg:fusion',
-  'iced-drinks':    'svg:iced-drink',
-  'cookie-frappes': 'svg:frappe',
-};
+
 const BANNER_ROUTES: Record<string, string> = {
   menu:    '/(customer)/menu',
   loyalty: '/(customer)/loyalty',
@@ -75,7 +54,6 @@ export default function CustomerHome() {
   useScrollToTop(scrollRef);
   const { addItemToCart } = useCart();
   const { user } = useAuth();
-  const [activeCategory, setActiveCategory] = useState('all');
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [loginTarget, setLoginTarget] = useState<string | null>(null);
@@ -107,15 +85,6 @@ export default function CustomerHome() {
     queryFn: () => api.products.categories(),
     staleTime: 0,
   });
-  const categories = useMemo(() => {
-    const backendCats: any[] = categoriesData?.data ?? [];
-    const items = backendCats.map(c => ({
-      id: c.slug as string,
-      label: c.name as string,
-      icon: CAT_ICON_MAP[c.slug] ?? 'tag',
-    }));
-    return [{ id: 'all', label: 'All', icon: 'grid' }, ...items];
-  }, [categoriesData]);
 
   // Categories to show as product rows on home — only showOnHome=true ones,
   // sorted by homeOrder. Falls back to all if director hasn't configured any.
@@ -139,12 +108,6 @@ export default function CustomerHome() {
       imageUrl: c.imageUrl as string | null,
     }));
   }, [categoriesData]);
-  const featured = useMemo(
-    () => products.filter((p) =>
-      activeCategory === 'all' ? true : p.metadata?.category === activeCategory,
-    ),
-    [products, activeCategory],
-  );
   const handleTilePress = useCallback((p: ApiProduct) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedProduct(p);
@@ -445,41 +408,10 @@ export default function CustomerHome() {
             />
           </View>
         )}
-        {/* Category carousel */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.catScroll}
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
-        >
-          {categories.map((cat) => {
-            const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
-            const active = activeCategory === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => { setActiveCategory(cat.id); Haptics.selectionAsync(); }}
-                style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
-              >
-                <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {cat.icon.startsWith('svg:')
-                    ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
-                    : cat.icon.startsWith('mc:')
-                    ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
-                    : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
-                  }
-                </View>
-                <Text style={[s.catTileLabel, { color: active ? pal.banner : '#3C3C43', fontWeight: active ? '700' : '500' }]}>
-                  {cat.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
         {/* Category product rows — only categories marked Show on Home */}
         {isLoading ? (
           <ActivityIndicator color={BLUE_TOP} style={{ marginTop: 40 }} />
-        ) : activeCategory === 'all' ? (
+        ) : (
           homeCats.map((cat) => {
             const catItems = products
               .filter((p) => (p as any).metadata?.category === cat.id)
@@ -513,36 +445,6 @@ export default function CustomerHome() {
               </View>
             );
           })
-        ) : featured.length === 0 ? (
-          <Text style={[s.empty, { color: colors.mutedForeground, fontWeight: '400' }]}>
-            No products in this category yet.
-          </Text>
-        ) : (
-          <View style={s.section}>
-            <View style={s.catRowHeader}>
-              <Text style={[s.sectionTitle, { color: colors.foreground, fontWeight: '700', paddingHorizontal: 0, marginBottom: 0 }]}>
-                {categories.find((c) => c.id === activeCategory)?.label ?? activeCategory}
-              </Text>
-              <Pressable
-                hitSlop={8}
-                onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(customer)/menu', params: { category: activeCategory } } as any); }}
-              >
-                <Text style={[s.viewMoreLink, { color: BLUE_TOP }]}>View more</Text>
-              </Pressable>
-            </View>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={featured.slice(0, 8)}
-              keyExtractor={(p) => p.id}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-              renderItem={({ item: p }) => (
-                <View style={{ width: 160 }}>
-                  <ProductTile product={p} onPress={() => handleTilePress(p)} onAddToCart={() => handleAddToCart(p)} />
-                </View>
-              )}
-            />
-          </View>
         )}
         {/* Browse Categories strip */}
         {browseCats.length > 0 && (
@@ -635,11 +537,6 @@ const s = StyleSheet.create({
   favName:       { fontSize: 12 },
   favBannerStrip:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
   favBannerText: { fontSize: 9, color: '#fff', letterSpacing: 0.2 },
-  // ── Category carousel ──────────────────────────────────────────────────────
-  catScroll:    { marginTop: 28 },
-  catTile:      { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
-  catIconWrap:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  catTileLabel: { fontSize: 12, textAlign: 'center' },
   // ── Category rows & shared ─────────────────────────────────────────────────
   section:       { marginTop: 30 },
   sectionTitle:  { fontSize: 22, paddingHorizontal: 16, marginBottom: 14 },
