@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -318,6 +319,8 @@ function LoyaltyContent() {
     : 1;
   const spendRemaining = nextTier ? Math.max(nextTier.spendThreshold - spendCents, 0) : 0;
   const previewTier = DISPLAY_TIERS.find((tier) => tier.key === previewTierKey) ?? displayTier;
+  const scrollRef = useRef(null);
+  useScrollToTop(scrollRef);
   const serverQrToken = profile?.loyaltyQrToken ?? null;
   const effectiveQrToken = serverQrToken ?? healedQrToken;
   const qrValue = profile?.qrPayload
@@ -467,6 +470,7 @@ function LoyaltyContent() {
       />
 
       <ScrollView
+        ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}

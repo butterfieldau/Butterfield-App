@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
 import {
   ActivityIndicator, Alert, Animated, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
@@ -436,10 +437,13 @@ function DirectorDashboardInner() {
   const sess     = sessionsData?.data;
   const hasAlerts = (s?.users.pendingStaff ?? 0) > 0 || (s?.users.pendingWholesale ?? 0) > 0 || (s?.issues.high ?? 0) > 0;
 
+  const scrollRef = useRef(null);
+  useScrollToTop(scrollRef);
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchActivity, refetchSessions);
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}

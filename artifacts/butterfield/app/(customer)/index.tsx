@@ -3,7 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import {
   ActivityIndicator,
@@ -64,6 +65,8 @@ const BANNER_ROUTES: Record<string, string> = {
 export default function CustomerHome() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef(null);
+  useScrollToTop(scrollRef);
   const { addItemToCart } = useCart();
   const { user } = useAuth();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -219,6 +222,7 @@ export default function CustomerHome() {
       </LinearGradient>
       {/* ── SCROLLABLE CONTENT ──────────────────────────────────────────── */}
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}

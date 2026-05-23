@@ -2,7 +2,8 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
 import {
   FlatList,
   Pressable,
@@ -182,6 +183,8 @@ export default function MenuScreen() {
     }));
     return [{ id: 'all', label: 'All', icon: 'grid' as string }, ...items];
   }, [categoriesData]);
+  const listRef = useRef(null);
+  useScrollToTop(listRef);
   // Shimmer animation — runs while products are loading
   const shimmerProgress = useSharedValue(0);
   const contentOpacity  = useSharedValue(isLoading ? 0 : 1);
@@ -303,6 +306,7 @@ export default function MenuScreen() {
       ) : (
         <Reanimated.View style={[{ flex: 1 }, contentAnimStyle]}>
           <FlatList
+            ref={listRef}
             data={filtered}
             keyExtractor={p => p.id}
             numColumns={2}

@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useScrollToTop } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
@@ -67,6 +68,8 @@ function playNewOrderAlert(name: string, label: string, soundEnabled: boolean) {
 export default function ShopDisplayOrdersScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const listRef = useRef(null);
+  useScrollToTop(listRef);
 
   const qc = useQueryClient();
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
@@ -212,6 +215,7 @@ export default function ShopDisplayOrdersScreen() {
 
       {/* Orders list */}
       <FlatList
+        ref={listRef}
         key={numCols}
         data={rows}
         keyExtractor={item => item.id}

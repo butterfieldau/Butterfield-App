@@ -2,7 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useRef } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -37,6 +38,8 @@ function FavouritesContent() {
     retry: 1,
   });
 
+  const listRef = useRef(null);
+  useScrollToTop(listRef);
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
   const { data: productsData } = useQuery({
@@ -91,6 +94,7 @@ function FavouritesContent() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={products}
           keyExtractor={(p) => p.id}
           numColumns={2}

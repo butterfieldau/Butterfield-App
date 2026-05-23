@@ -2,7 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useRef } from 'react';
+import { useScrollToTop } from '@react-navigation/native';
 import {
   Alert, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -26,6 +27,8 @@ const RED    = '#EF4444';
 
 export default function AccountScreen() {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef(null);
+  useScrollToTop(scrollRef);
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
@@ -120,6 +123,7 @@ export default function AccountScreen() {
 
       {/* ── Scrollable content ─────────────────────────────────────────────── */}
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1, backgroundColor: BG }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
