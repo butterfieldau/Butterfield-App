@@ -47,24 +47,45 @@ const TASK_CADENCE_LABELS: Record<string, string> = {
   one_off: 'One-Off',
 };
 
-function timeAgo(d: string) {
-  const s = (Date.now() - new Date(d).getTime()) / 1000;
+function timeAgo(d: string | null | undefined) {
+  if (!d) return '';
+  const ms = Date.now() - new Date(d).getTime();
+  if (isNaN(ms)) return '';
+  const s = ms / 1000;
   if (s < 60)    return 'Just now';
   if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+function fmtDate(d: string | null | undefined) {
+  if (!d) return '—';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-function toSydneyDate(input: string | Date) {
-  return new Date(new Date(input).toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+function toSydneyDate(input: string | Date | null | undefined): Date {
+  if (!input) return new Date();
+  const d = typeof input === 'string' ? new Date(input) : input;
+  if (isNaN(d.getTime())) return new Date();
+  try {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric',
+      hour12: false,
+    }).formatToParts(d);
+    const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? '0');
+    const h = get('hour');
+    return new Date(get('year'), get('month') - 1, get('day'), h === 24 ? 0 : h, get('minute'), get('second'));
+  } catch {
+    return d;
+  }
 }
 
 function startOfSydneyDay(input: string | Date) {
