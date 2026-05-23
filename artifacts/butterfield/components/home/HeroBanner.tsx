@@ -40,7 +40,7 @@ export function HeroBanner({ banner, onPress }: { banner: HomeBannerConfig | nul
 
 const s = StyleSheet.create({
   banner:    { borderRadius: 24, overflow: 'hidden', backgroundColor: '#fff', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 4 },
-  imageWrap: { width: '100%', aspectRatio: 4 / 5, backgroundColor: '#EDF5FB' },
+  imageWrap: { width: '100%', aspectRatio: 1.06, backgroundColor: '#EDF5FB' },
   footer:    { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 18, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
   copy:      { flex: 1, gap: 3 },
   label:     { color: 'rgba(255,255,255,0.94)', fontSize: 16, letterSpacing: 0.2 },
