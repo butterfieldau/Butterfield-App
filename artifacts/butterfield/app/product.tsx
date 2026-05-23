@@ -623,7 +623,7 @@ const s = StyleSheet.create({
   photoFallback:{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   fallbackEmoji:{ fontSize: 96 },
   pillRow:      { position: 'absolute', top: 12, right: 16, flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', zIndex: 5 },
-  dotRow:       { position: 'absolute', bottom: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', zIndex: 6 },
+  dotRow:       { position: 'absolute', bottom: 36, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', zIndex: 6 },
   dotPill:      { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.32)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
   dot:          { borderRadius: 3, height: 5 },
   dotActive:    { width: 20, backgroundColor: '#ffffff' },
