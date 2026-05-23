@@ -427,11 +427,12 @@ export default function ProductCustomizerSheet({ product, visible, onClose }: Pr
                         {opts.map((opt: any) => {
                           const active = sel.includes(opt.id);
                           const adj    = opt.priceAdjustmentCents ?? 0;
+                          const isSize = g.name.toLowerCase() === 'size';
                           return (
                             <Pressable
                               key={opt.id}
                               onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
-                              style={[s.pill, active && { backgroundColor: palette.banner, borderColor: palette.banner }]}
+                              style={[s.pill, isSize && { flexBasis: '30%', flexGrow: 1 }, active && { backgroundColor: palette.banner, borderColor: palette.banner }]}
                             >
                               <Text style={[s.pillLabel, active && { color: '#fff', fontWeight: '600' }]}>{opt.name}</Text>
                               {adj !== 0 && <Text style={[s.pillSub, active && { color: 'rgba(255,255,255,0.75)' }]}>{adj > 0 ? `+${fmt(adj)}` : `${fmt(adj)}`}</Text>}

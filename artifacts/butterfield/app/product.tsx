@@ -495,11 +495,13 @@ export default function ProductDetailScreen() {
                         {opts.map((opt: any) => {
                           const active = sel.includes(opt.id);
                           const adj    = opt.priceAdjustmentCents ?? 0;
+                          const isSize = g.name.toLowerCase() === 'size';
                           return (
                             <Pressable
                               key={opt.id}
                               onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
                               style={[s.optionCard,
+                                isSize && { flexBasis: '30%' },
                                 active
                                   ? { borderColor: BLUE, borderWidth: 2 }
                                   : { borderColor: isMissing ? RED + '66' : '#D1D5DB', borderWidth: 1.5 },
