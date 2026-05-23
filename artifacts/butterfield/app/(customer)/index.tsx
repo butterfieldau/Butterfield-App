@@ -33,26 +33,31 @@ import OfflineBanner from '@/components/OfflineBanner';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { CategorySvgIcon } from '@/components/CategoryIcons';
 
 const BLUE_TOP = '#1493FF';
 const BLUE_BTM = '#3CBBEE';
 const CHERRY   = '#D0312D';
 const CAT_ICON_MAP: Record<string, string> = {
-  coffee:        'coffee',
-  matcha:        'mc:leaf',
-  tea:           'mc:cup-water',
-  cookies:       'mc:cookie-outline',
-  'cold-drinks': 'mc:snowflake',
-  'soft-serve':  'mc:ice-cream',
-  specials:      'zap',
-  seasonal:      'sun',
-  merch:         'tag',
-  boxes:         'box',
-  desserts:      'mc:cake-variant-outline',
-  sandwiches:    'layers',
-  pastries:      'mc:croissant',
-  drinks:        'droplet',
-  bundles:       'gift',
+  coffee:           'coffee',
+  matcha:           'mc:leaf',
+  tea:              'mc:cup-water',
+  cookies:          'mc:cookie-outline',
+  'cold-drinks':    'mc:snowflake',
+  'soft-serve':     'mc:ice-cream',
+  specials:         'zap',
+  seasonal:         'sun',
+  merch:            'tag',
+  boxes:            'svg:box',
+  desserts:         'mc:cake-variant-outline',
+  sandwiches:       'layers',
+  pastries:         'mc:croissant',
+  drinks:           'droplet',
+  bundles:          'gift',
+  milkshakes:       'svg:milkshake',
+  fusions:          'svg:fusion',
+  'iced-drinks':    'svg:iced-drink',
+  'cookie-frappes': 'svg:frappe',
 };
 const BANNER_ROUTES: Record<string, string> = {
   menu:    '/(customer)/menu',
@@ -446,7 +451,9 @@ export default function CustomerHome() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {cat.icon.startsWith('mc:')
+                  {cat.icon.startsWith('svg:')
+                    ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
+                    : cat.icon.startsWith('mc:')
                     ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
                     : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
                   }

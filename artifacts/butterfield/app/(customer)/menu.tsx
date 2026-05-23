@@ -1,4 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { CategorySvgIcon } from '@/components/CategoryIcons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -94,21 +95,25 @@ const shimmerCard = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
 });
 const CAT_ICON_MAP: Record<string, string> = {
-  coffee:        'coffee',
-  matcha:        'mc:leaf',
-  tea:           'mc:cup-water',
-  cookies:       'mc:cookie-outline',
-  'cold-drinks': 'mc:snowflake',
-  'soft-serve':  'mc:ice-cream',
-  specials:      'zap',
-  seasonal:      'sun',
-  merch:         'tag',
-  boxes:         'box',
-  desserts:      'mc:cake-variant-outline',
-  sandwiches:    'layers',
-  pastries:      'sun',
-  drinks:        'droplet',
-  bundles:       'gift',
+  coffee:           'coffee',
+  matcha:           'mc:leaf',
+  tea:              'mc:cup-water',
+  cookies:          'mc:cookie-outline',
+  'cold-drinks':    'mc:snowflake',
+  'soft-serve':     'mc:ice-cream',
+  specials:         'zap',
+  seasonal:         'sun',
+  merch:            'tag',
+  boxes:            'svg:box',
+  desserts:         'mc:cake-variant-outline',
+  sandwiches:       'layers',
+  pastries:         'mc:croissant',
+  drinks:           'droplet',
+  bundles:          'gift',
+  milkshakes:       'svg:milkshake',
+  fusions:          'svg:fusion',
+  'iced-drinks':    'svg:iced-drink',
+  'cookie-frappes': 'svg:frappe',
 };
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
@@ -285,7 +290,9 @@ export default function MenuScreen() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {cat.icon.startsWith('mc:')
+                  {cat.icon.startsWith('svg:')
+                    ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
+                    : cat.icon.startsWith('mc:')
                     ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
                     : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
                   }
