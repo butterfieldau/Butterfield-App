@@ -16,6 +16,7 @@ import { useAuth } from '@/context/AuthContext';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
+import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedOptions';
 import { api } from '@/lib/api';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -125,20 +126,47 @@ export default function ProductDetailScreen() {
   // Option groups returned by GET /products/:id
   const optGroups: any[] = (routeProductData?.data as any)?.optionGroups ?? [];
 
-  // Auto-select defaults when optGroups first load
+  // Apply pre-selected options (from "Your Usual") or fall back to group defaults
   React.useEffect(() => {
     if (!optGroups.length) return;
-    const defs: Record<string, string[]> = {};
-    for (const g of optGroups) {
-      if (g.selectionType === 'text') continue;
-      const def = (g.options ?? []).find((o: any) => o.isDefault);
-      if (def) defs[g.id] = [def.id];
+    const preselect = getPreselectedOptions();
+    if (preselect && preselect.selectedOptions.length > 0) {
+      // Build selections map from saved order options
+      const sel: Record<string, string[]> = {};
+      for (const opt of preselect.selectedOptions) {
+        if (!opt.groupId || !opt.optionId) continue;
+        // Only apply if the group + option still exists and is active
+        const group = optGroups.find((g: any) => g.id === opt.groupId);
+        if (!group) continue;
+        const option = (group.options ?? []).find((o: any) => o.id === opt.optionId && o.isActive !== false);
+        if (!option) continue;
+        sel[opt.groupId] = [...(sel[opt.groupId] ?? []), opt.optionId];
+      }
+      // Fill in any required groups that weren't in the saved options with their defaults
+      for (const g of optGroups) {
+        if (g.selectionType === 'text' || sel[g.id]?.length) continue;
+        const def = (g.options ?? []).find((o: any) => o.isDefault && o.isActive !== false);
+        if (def) sel[g.id] = [def.id];
+      }
+      if (Object.keys(sel).length) setSelections(sel);
+      if (preselect.quantity > 1) setQty(preselect.quantity);
+    } else {
+      // No pre-selections — apply group defaults as normal
+      const defs: Record<string, string[]> = {};
+      for (const g of optGroups) {
+        if (g.selectionType === 'text') continue;
+        const def = (g.options ?? []).find((o: any) => o.isDefault && o.isActive !== false);
+        if (def) defs[g.id] = [def.id];
+      }
+      if (Object.keys(defs).length) setSelections(defs);
     }
-    if (Object.keys(defs).length) setSelections(defs);
   }, [optGroups.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
-    return () => setSelectedProduct(null);
+    return () => {
+      setSelectedProduct(null);
+      setPreselectedOptions(null);
+    };
   }, []);
 
   const { data: favsData } = useQuery({

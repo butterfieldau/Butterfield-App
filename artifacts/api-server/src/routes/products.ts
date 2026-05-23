@@ -227,7 +227,7 @@ async function getProductOptionGroups(productId: string, categoryId: string | nu
 
 // ── Top-sellers cache (15-minute TTL) ─────────────────────────────────────
 let topSellersCache: { data: ReturnType<typeof mapProduct>[]; fetchedAt: number } | null = null;
-const TOP_SELLERS_TTL = 15 * 60 * 1000;
+const TOP_SELLERS_TTL = 5 * 60 * 1000;
 
 // ── GET /products/top-sellers — ranked by real order frequency ────────────
 router.get('/top-sellers', async (_req, res) => {

@@ -73,7 +73,7 @@ export function useHomeScreenData() {
   const { data: topSellersData } = useQuery({
     queryKey: ['top-sellers'],
     queryFn: () => api.products.topSellers(),
-    staleTime: 15 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
   const { data: ordersData } = useQuery({

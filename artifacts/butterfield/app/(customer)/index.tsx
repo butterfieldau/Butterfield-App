@@ -32,6 +32,7 @@ import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { setSelectedProduct } from '@/lib/selectedProduct';
+import { setPreselectedOptions } from '@/lib/preselectedOptions';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { CategorySvgIcon } from '@/components/CategoryIcons';
 
@@ -149,6 +150,16 @@ export default function CustomerHome() {
     setSelectedProduct(p);
     router.push({ pathname: '/product', params: { id: p.id } } as any);
   }, []);
+
+  const handleUsualPress = useCallback((u: typeof usualItems[number]) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedProduct(u.product);
+    setPreselectedOptions({
+      selectedOptions: u.selectedOptions ?? [],
+      quantity: u.quantity ?? 1,
+    });
+    router.push({ pathname: '/product', params: { id: u.product.id } } as any);
+  }, [usualItems]);
 
   const handleAddToCart = useCallback((p: ApiProduct) => {
     const raw = p as any;
@@ -344,7 +355,7 @@ export default function CustomerHome() {
                 return (
                   <Pressable
                     style={[s.usualCard, { backgroundColor: colors.card }]}
-                    onPress={() => handleTilePress(p)}
+                    onPress={() => handleUsualPress(u)}
                     android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
                   >
                     <View style={[s.usualImgWrap, { backgroundColor: img ? '#F0EDE8' : pal.bg }]}>
