@@ -178,7 +178,7 @@ router.post("/storage/uploads", requireAuth, upload.single("file"), async (req: 
  */
 router.post(
   "/storage/products/upload",
-  requireRole("director", "manager"),
+  requireRole("director", "manager", "master"),
   upload.single("file"),
   async (req: Request, res: Response) => {
     if (!req.file) {
@@ -233,7 +233,7 @@ router.post(
  */
 router.delete(
   "/storage/product-image",
-  requireRole("director", "manager"),
+  requireRole("director", "manager", "master"),
   async (req: Request, res: Response) => {
     const { objectPath } = (req.body ?? {}) as { objectPath?: string };
     if (!objectPath || typeof objectPath !== "string") {
