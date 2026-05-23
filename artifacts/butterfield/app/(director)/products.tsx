@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState, useMemo } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
+  ActionSheetIOS, ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
@@ -34,7 +34,10 @@ const CAT_COLORS: Record<string, string> = {
   pastries:'#F97316', drinks:'#06B6D4', 'iced-drinks':'#06B6D4',
   boxes:'#F59E0B', seasonal:'#F97316', specials:'#EF4444', other:'#8E8E93',
 };
-const FILTER_TABS = ['All','Available','Featured','Sold Out','Low Stock','Archived'];
+const STATUS_OPTIONS = ['All','Available','Featured','Sold Out','Low Stock','Archived'] as const;
+type StatusOption = typeof STATUS_OPTIONS[number];
+const SORT_OPTIONS = ['Name A → Z','Name Z → A','Price: Low → High','Price: High → Low','Newest First'] as const;
+type SortOption = typeof SORT_OPTIONS[number];
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function centsToDisplay(c?: number | null) { return c != null ? ((c) / 100).toFixed(2) : ''; }
 function displayToCents(s: string) { return Math.round(parseFloat(s.replace(/[^0-9.]/g,'')) * 100) || 0; }
@@ -1409,8 +1412,9 @@ function OptionsTab() {
 export default function DirectorProductsScreen() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'options'>('products');
-  const [filter, setFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState<StatusOption>('All');
   const [catFilter, setCatFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<SortOption>('Name A → Z');
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any>(null);
@@ -1427,19 +1431,78 @@ export default function DirectorProductsScreen() {
   const all: any[] = data?.data ?? [];
   const products = useMemo(() => {
     let list = [...all];
-    if (filter === 'Available')  list = list.filter(p => p.isAvailable && p.isActive);
-    if (filter === 'Featured')   list = list.filter(p => p.isFeatured);
-    if (filter === 'Sold Out')   list = list.filter(p => p.isSoldOut);
-    if (filter === 'Low Stock')  list = list.filter(p => p.stockCount != null && p.stockCount <= p.lowStockThreshold);
-    if (filter === 'Archived')   list = list.filter(p => !p.isActive);
-    else if (filter === 'All')   list = list.filter(p => p.isActive);
+    if (statusFilter === 'Available')  list = list.filter(p => p.isAvailable && p.isActive);
+    else if (statusFilter === 'Featured')   list = list.filter(p => p.isFeatured);
+    else if (statusFilter === 'Sold Out')   list = list.filter(p => p.isSoldOut);
+    else if (statusFilter === 'Low Stock')  list = list.filter(p => p.stockCount != null && p.stockCount <= p.lowStockThreshold);
+    else if (statusFilter === 'Archived')   list = list.filter(p => !p.isActive);
+    else list = list.filter(p => p.isActive);
     if (catFilter !== 'all') list = list.filter(p => (p.category ?? '') === catFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p => p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q));
     }
+    if (sortBy === 'Name A → Z')         list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'Name Z → A')    list.sort((a, b) => b.name.localeCompare(a.name));
+    else if (sortBy === 'Price: Low → High') list.sort((a, b) => (a.priceCents ?? 0) - (b.priceCents ?? 0));
+    else if (sortBy === 'Price: High → Low') list.sort((a, b) => (b.priceCents ?? 0) - (a.priceCents ?? 0));
+    else if (sortBy === 'Newest First')  list.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
     return list;
-  }, [all, filter, catFilter, search]);
+  }, [all, statusFilter, catFilter, sortBy, search]);
+
+  const showCategorySheet = () => {
+    const catOptions = ['All Categories', ...dbCategories.map((c: any) => c.name), 'Cancel'];
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: catOptions, cancelButtonIndex: catOptions.length - 1, title: 'Filter by Category' },
+        (idx) => {
+          if (idx === catOptions.length - 1) return;
+          if (idx === 0) { setCatFilter('all'); }
+          else { setCatFilter(dbCategories[idx - 1]?.slug ?? 'all'); }
+          Haptics.selectionAsync();
+        },
+      );
+    } else {
+      Alert.alert('Filter by Category', undefined, [
+        { text: 'All Categories', onPress: () => setCatFilter('all') },
+        ...dbCategories.map((c: any) => ({ text: c.name, onPress: () => setCatFilter(c.slug) })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
+  };
+
+  const showSortSheet = () => {
+    const statusLabels = STATUS_OPTIONS.filter(s => s !== 'All').map(s => `Show: ${s}`);
+    const sheetOptions = [...SORT_OPTIONS, ...statusLabels, 'Show: All', 'Cancel'];
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: sheetOptions, cancelButtonIndex: sheetOptions.length - 1, title: 'Sort & Filter' },
+        (idx) => {
+          if (idx === sheetOptions.length - 1) return;
+          Haptics.selectionAsync();
+          const picked = sheetOptions[idx];
+          if (SORT_OPTIONS.includes(picked as SortOption)) {
+            setSortBy(picked as SortOption);
+          } else if (picked === 'Show: All') {
+            setStatusFilter('All');
+          } else {
+            const s = picked.replace('Show: ', '') as StatusOption;
+            setStatusFilter(s);
+          }
+        },
+      );
+    } else {
+      Alert.alert('Sort & Filter', undefined, [
+        ...SORT_OPTIONS.map(s => ({ text: s, onPress: () => setSortBy(s) })),
+        ...STATUS_OPTIONS.filter(s => s !== 'All').map(s => ({ text: `Show: ${s}`, onPress: () => setStatusFilter(s) })),
+        { text: 'Show: All', onPress: () => setStatusFilter('All') },
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
+  };
+
+  const activeCatLabel = catFilter === 'all' ? 'Category' : (dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter);
+  const activeSortLabel = statusFilter !== 'All' ? `${statusFilter}` : sortBy === 'Name A → Z' ? 'Sort' : sortBy;
   const toggle = async (product: any, field: string, value: boolean) => {
     Haptics.selectionAsync();
     try {
@@ -1509,38 +1572,19 @@ export default function DirectorProductsScreen() {
           clearButtonMode="while-editing"
         />
       </View>
-      {/* Status filter tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContent}>
-        {FILTER_TABS.map(t => (
-          <Pressable key={t} onPress={() => setFilter(t)} style={[styles.filterTab, filter === t && { backgroundColor: NAVY, borderColor: NAVY }]}>
-            <Text style={[styles.filterText, { fontWeight: '500' }, filter === t && { color: '#fff' }]}>{t}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      {/* Category filter chips */}
-      {dbCategories.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8, flexDirection: 'row', alignItems: 'flex-start' }}>
-          <Pressable
-            onPress={() => { setCatFilter('all'); Haptics.selectionAsync(); }}
-            style={[styles.filterTab, catFilter === 'all' && { backgroundColor: MUTED, borderColor: MUTED }]}
-          >
-            <Text style={[styles.filterText, { fontWeight: '500' }, catFilter === 'all' && { color: '#fff' }]}>All Categories</Text>
-          </Pressable>
-          {dbCategories.map(c => {
-            const col = CAT_COLORS[c.slug] ?? MUTED;
-            const active = catFilter === c.slug;
-            return (
-              <Pressable
-                key={c.slug}
-                onPress={() => { setCatFilter(c.slug); Haptics.selectionAsync(); }}
-                style={[styles.filterTab, active && { backgroundColor: col, borderColor: col }]}
-              >
-                <Text style={[styles.filterText, { fontWeight: '500' }, active && { color: '#fff' }]}>{c.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
+      {/* Two-button filter row */}
+      <View style={styles.filterRow}>
+        <Pressable onPress={showCategorySheet} style={[styles.dropBtn, catFilter !== 'all' && { borderColor: BLUE, backgroundColor: BLUE + '0A' }]}>
+          <Feather name="grid" size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
+          <Text style={[styles.dropBtnText, { fontWeight: catFilter !== 'all' ? '600' : '500', color: catFilter !== 'all' ? BLUE : TEXT }]} numberOfLines={1}>{activeCatLabel}</Text>
+          <Feather name="chevron-down" size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
+        </Pressable>
+        <Pressable onPress={showSortSheet} style={[styles.dropBtn, (statusFilter !== 'All' || sortBy !== 'Name A → Z') && { borderColor: NAVY, backgroundColor: NAVY + '0A' }]}>
+          <Feather name="sliders" size={13} color={(statusFilter !== 'All' || sortBy !== 'Name A → Z') ? NAVY : MUTED} />
+          <Text style={[styles.dropBtnText, { fontWeight: (statusFilter !== 'All' || sortBy !== 'Name A → Z') ? '600' : '500', color: (statusFilter !== 'All' || sortBy !== 'Name A → Z') ? NAVY : TEXT }]} numberOfLines={1}>{activeSortLabel}</Text>
+          <Feather name="chevron-down" size={13} color={(statusFilter !== 'All' || sortBy !== 'Name A → Z') ? NAVY : MUTED} />
+        </Pressable>
+      </View>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
@@ -1555,8 +1599,8 @@ export default function DirectorProductsScreen() {
           ListHeaderComponent={
             <Text style={[styles.count, { fontWeight: '400', color: MUTED }]}>
               {products.length} product{products.length !== 1 ? 's' : ''}
-              {filter !== 'All' ? ` · ${filter}` : ''}
               {catFilter !== 'all' ? ` · ${dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter}` : ''}
+              {statusFilter !== 'All' ? ` · ${statusFilter}` : ''}
             </Text>
           }
           ListEmptyComponent={
@@ -1564,7 +1608,7 @@ export default function DirectorProductsScreen() {
               <View style={{ backgroundColor: BORDER, width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
                 <Feather name="package" size={28} color={MUTED} />
               </View>
-              <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>No products {filter !== 'All' ? `in "${filter}"` : ''}</Text>
+              <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>No products {statusFilter !== 'All' ? `in "${statusFilter}"` : catFilter !== 'all' ? `in "${activeCatLabel}"` : ''}</Text>
               <Pressable onPress={openAdd} style={[styles.emptyAddBtn, { backgroundColor: BLUE }]}>
                 <Feather name="plus" size={16} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Add first product</Text>
@@ -1680,10 +1724,9 @@ export default function DirectorProductsScreen() {
 const styles = StyleSheet.create({
   searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, height: 44 },
   searchInput:   { flex: 1, fontSize: 14, height: 44 },
-  filterScroll:  { flexShrink: 0 },
-  filterContent: { paddingHorizontal: 16, paddingVertical: 12, gap: 8, flexDirection: 'row', alignItems: 'flex-start' },
-  filterTab:     { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  filterText:    { fontSize: 13, color: MUTED },
+  filterRow:     { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  dropBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  dropBtnText:   { flex: 1, fontSize: 13, color: TEXT },
   count:         { fontSize: 13, marginBottom: 4 },
   productCard:   { borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: CARD },
   badgeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, paddingBottom: 0 },
