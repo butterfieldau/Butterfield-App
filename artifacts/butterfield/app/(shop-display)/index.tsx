@@ -191,22 +191,6 @@ export default function ShopDisplayOrdersScreen() {
     rows.filter(o => o.status === 'completed').length,
   [rows]);
 
-  const updateStatus = async (id: string, status: string) => {
-    Haptics.selectionAsync();
-    await api.shopDisplay.updateOrderStatus(id, status);
-    setAlertOrderId(cur => cur === id ? null : cur);
-    qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
-  };
-
-  if (isLoading) {
-    return (
-      <View style={s.center}>
-        <ActivityIndicator color={BLUE} size="large" />
-      </View>
-    );
-  }
-
-  const numCols = isWide ? 2 : 1;
   const calendarCells = useMemo(() => monthMatrix(pickerMonth), [pickerMonth]);
   const visibleMonth = pickerMonth;
   const selectedModeLabel = filterMode === 'today'
@@ -224,6 +208,23 @@ export default function ShopDisplayOrdersScreen() {
     : filterMode === 'week'
       ? 'Completed this week'
       : 'Completed on date';
+
+  const updateStatus = async (id: string, status: string) => {
+    Haptics.selectionAsync();
+    await api.shopDisplay.updateOrderStatus(id, status);
+    setAlertOrderId(cur => cur === id ? null : cur);
+    qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
+  };
+
+  if (isLoading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator color={BLUE} size="large" />
+      </View>
+    );
+  }
+
+  const numCols = isWide ? 2 : 1;
 
   const renderCard = ({ item }: { item: any }) => {
     const total   = `$${((item.totalCents ?? 0) / 100).toFixed(2)}`;
