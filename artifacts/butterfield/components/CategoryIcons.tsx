@@ -1,21 +1,15 @@
 import React from 'react';
-import Svg, { Path, Line, Circle, Rect, G } from 'react-native-svg';
+import Svg, { Path, Polygon } from 'react-native-svg';
 
 type P = { size?: number; color?: string };
 
-// ── Iced Drink ─────────────────────────────────────────────────────────────────
-// Tall trapezoid cup, angled straw, two ice cube outlines
+// ── Iced Drinks ────────────────────────────────────────────────────────────────
 export function IcedDrinkIcon({ size = 24, color = '#636366' }: P) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M5 8L7 21H17L19 8Z"
-        stroke={color} strokeWidth="1.5" strokeLinejoin="round"
-      />
-      <Line x1="4" y1="8" x2="20" y2="8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <Line x1="16" y1="2" x2="14.8" y2="8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <Rect x="7.5" y="11" width="4" height="3" rx="0.6" stroke={color} strokeWidth="1.2" />
-      <Rect x="12.5" y="14.5" width="3.8" height="3" rx="0.6" stroke={color} strokeWidth="1.2" />
+    <Svg width={size} height={size} viewBox="0 0 384 384" fill="none">
+      <Path fill={color} d="M235.95,359.94l-87.43.05c-17.22.01-31.52-12.97-32.77-30.26l-16.46-227.67c-.5-6.93,5-13.21,11.87-13.23l45.02-.12-.04-15.24c-.02-7.98-4.53-14.98-11.66-18.47l-39.74-19.45c-3.08-1.51-4.22-4.73-3.07-7.8,1.05-2.79,4.72-4.79,8.03-3.17l40.27,19.73c10.82,5.3,18.03,16.34,18.11,28.36l.11,16.05,104.57.07c7.02,0,12.43,6.39,11.94,13.26l-16.46,227.68c-1.22,16.83-15.01,30.19-32.3,30.2ZM156.17,196.1v-95.36s-44.97.03-44.97.03l6.28,86.67,15.39,5.23c7.41,2.52,15.22,3.26,22.66,3.8l.64-.37ZM156.18,196.97v113.4c0,3.95,2.86,6.4,6.22,6.29,3.13-.1,5.78-2.48,5.78-6.23v-114.11c9.28-.69,18.01-2.56,26.74-5.91,12.56-5.04,25.48-7.36,39.09-7.18,11.09-.17,21.57,1.31,32.53,4.61l6.28-87.09h-104.61s-.03,95.53-.03,95.53l-11.77.27-.22.42ZM232.41,268.79l21.54-21.57c4.87-4.87,4.91-12.58.04-17.44l-22.18-22.13c-4.24-4.23-11.9-4.79-16.33-.39l-22.58,22.44c-4.67,4.65-5.11,12.41-.3,17.23l22.07,22.12c4.93,4.95,12.66,4.81,17.72-.26ZM226.85,341.01c6.4-.01,11.57-5.69,11.57-11.7v-32.38c-.02-5.69-5.29-11.28-11.08-11.28h-33.18c-5.78,0-11.15,5.53-11.16,11.28l-.03,32.39c0,6.47,5.6,11.76,12.01,11.74l31.88-.06Z"/>
+      <Polygon fill={color} points="223.46 260.68 201.17 238.47 223.39 216.26 245.62 238.5 223.46 260.68"/>
+      <Polygon fill={color} points="226.48 329.05 194.95 329.08 194.94 297.57 226.4 297.54 226.48 329.05"/>
     </Svg>
   );
 }
@@ -41,106 +35,38 @@ export function FrappeIcon({ size = 24, color = '#636366' }: P) {
         d="M9.5 7Q12 6 14.5 7"
         stroke={color} strokeWidth="1" strokeLinecap="round"
       />
-      <Line x1="16" y1="2" x2="15.5" y2="12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <Path d="M16 2L15.5 12" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
     </Svg>
   );
 }
 
 // ── Fusion ─────────────────────────────────────────────────────────────────────
-// Two liquid drops converging into one with a spark at the merge point
 export function FusionIcon({ size = 24, color = '#636366' }: P) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M8 3C5 6.5 6 11 9.5 12.5"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round"
-      />
-      <Path
-        d="M8 3C8 3 10 8 9.5 12.5"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round"
-      />
-      <Path
-        d="M16 3C19 6.5 18 11 14.5 12.5"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round"
-      />
-      <Path
-        d="M16 3C16 3 14 8 14.5 12.5"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round"
-      />
-      <Path
-        d="M9.5 12.5Q12 14 14.5 12.5"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round"
-      />
-      <Path
-        d="M12 14V20"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round"
-      />
-      <Path
-        d="M10 17Q12 19 14 17"
-        stroke={color} strokeWidth="1.2" strokeLinecap="round"
-      />
-      <Circle cx="12" cy="14" r="1" stroke={color} strokeWidth="1.2" />
+    <Svg width={size} height={size} viewBox="0 0 384 384" fill="none">
+      <Path fill={color} d="M256.46,356.48h-102.49c-17.11-2.84-29.68-15.88-31.07-33.44l-12.55-159.29c17.22-.06,33.61.53,50.2,2.87,14.97,2.11,28.85,5.8,43.33,9.99,15.07,4.31,29.58,7.97,45.16,10.04,16.24,2.16,32.16,2.79,48.92,2.85l-10.8,135.31c-1.34,16.82-14.81,28.93-30.71,31.67Z"/>
+      <Path fill={color} d="M279.12,169.83c-23.6-.49-45.79-4.67-68.14-11.24-14.94-4.39-29.25-8.19-44.65-10.59-19.18-2.99-38.02-3.6-57.51-3.55l-3.21-41.08c-.45-5.72,3.93-10.22,9.69-10.32l180.37.02c5.46,0,9.46,5.16,9.06,10.28l-5.25,66.9-20.37-.43Z"/>
+      <Path fill={color} d="M114.86,73.79c-17.03.53-29.41,14.26-28.49,30.92l5.35,68.05c-32.82-11.16-53.03-42.88-50.14-76.49,2.85-33.15,28.05-60.55,60.63-66.31,33.76-5.97,67.03,11.75,81,43.81l-68.35.04Z"/>
+      <Path fill={color} d="M264.03,46.78l-5.13,26.98-19.58.04,7.29-38.91c.81-4.33,4.99-7.37,9.36-7.37h77.7c5.5,0,9.48,4.44,9.63,9.32.17,5.34-3.95,9.79-9.62,9.97l-69.65-.02Z"/>
     </Svg>
   );
 }
 
 // ── Milkshake ──────────────────────────────────────────────────────────────────
-// Straight-sided glass, large round cream dome, cherry with stem, straw
 export function MilkshakeIcon({ size = 24, color = '#636366' }: P) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M7 13V21H17V13"
-        stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-      />
-      <Line x1="7" y1="21" x2="17" y2="21" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-      <Path
-        d="M6 13C6 7.5 18 7.5 18 13H6Z"
-        stroke={color} strokeWidth="1.5" strokeLinejoin="round"
-      />
-      <Circle cx="10" cy="8" r="1.8" stroke={color} strokeWidth="1.2" />
-      <Path
-        d="M10 6.2C10 4.5 12.5 3.5 12.5 3.5"
-        stroke={color} strokeWidth="1.2" strokeLinecap="round"
-      />
-      <Line x1="15.5" y1="3" x2="14.8" y2="13" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    <Svg width={size} height={size} viewBox="0 0 384 384" fill="none">
+      <Path fill={color} d="M249.42,357.01h-115.48c-16.01-2.83-28.19-15.6-28.18-32.37l.05-131.66c0-15.99,1.69-31.46,7.61-46.08l11.14-27.52c6.42-15.85,10.54-31.96,12.21-49.01-11.59-.73-20.2-10.11-20.22-21.22s8.28-20.41,19.95-21.58h110.36c11.67,1.17,19.98,10.37,19.95,21.57-.03,11.12-8.58,20.47-20.28,21.25,1.55,13.1,3.87,25.78,8.24,38.23,3.19,9.09,6.74,17.36,10.45,26.27,8.39,18.41,12.35,37.64,12.35,58.08l.03,131.66c0,16.77-12.18,29.54-28.18,32.37ZM233.2,164.67c6.26-2.87,11.46-5.99,16.93-9.29-3.23-10.16-7.17-19.08-11.66-28.55-7.47-17.92-11.44-36.55-13.45-56.26h-66.68c-2.07,20.01-6.09,39.02-13.85,57.12-3.34,7.04-6.27,13.53-9.11,21.14,18.56-2.16,35.6,2.47,50.67,12.38s31.34,10.71,47.15,3.47Z"/>
     </Svg>
   );
 }
 
-// ── Gift Box with B ────────────────────────────────────────────────────────────
-// Square gift box, vertical ribbon, bow at top, bold "B" on the front
+// ── Box ────────────────────────────────────────────────────────────────────────
 export function BoxIcon({ size = 24, color = '#636366' }: P) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Rect x="3" y="10" width="18" height="12" rx="1.5" stroke={color} strokeWidth="1.5" />
-      <Path
-        d="M2 7H22V10H2Z"
-        stroke={color} strokeWidth="1.5" strokeLinejoin="round"
-      />
-      <Line x1="12" y1="7" x2="12" y2="22" stroke={color} strokeWidth="1.5" />
-      <Path
-        d="M12 7C11 4.5 8 4 8 6.5C8 9 12 8 12 7Z"
-        stroke={color} strokeWidth="1.2" strokeLinejoin="round"
-      />
-      <Path
-        d="M12 7C13 4.5 16 4 16 6.5C16 9 12 8 12 7Z"
-        stroke={color} strokeWidth="1.2" strokeLinejoin="round"
-      />
-      <G>
-        <Path
-          d="M5.5 13V19"
-          stroke={color} strokeWidth="1.4" strokeLinecap="round"
-        />
-        <Path
-          d="M5.5 13Q9.5 13 9.5 15Q9.5 17 5.5 17"
-          stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
-        />
-        <Path
-          d="M5.5 17Q10 17 10 19Q10 21 5.5 21"
-          stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
-        />
-      </G>
+    <Svg width={size} height={size} viewBox="0 0 384 384" fill="none">
+      <Path fill={color} d="M327.87,304.89c-.02,30.76-25.53,55.08-55.67,55.08H111.75c-29.27,0-55.36-23.51-55.44-53.3l-.37-147.47c3,.4,5.04.79,8.01.79h255.34s8.69-.79,8.69-.79l-.11,145.69ZM204.1,304.96l40.62-40.69c14.91-14.75,14.87-38.43.45-53.07s-38.16-15.08-53.19-.17c-14.71-14.64-37.93-14.47-52.43-.57s-15.56,36.63-2.12,51.92l43.84,43.78c6.56,6.55,16.46,5.2,22.83-1.18Z"/>
+      <Path fill={color} d="M343.9,103.15l.09,16.9c.07,12.95-10.4,23.93-23.84,23.93H63.85c-13.39,0-23.81-11.01-23.83-23.92l-.03-15.82c-.02-13.8,10.85-24.26,24.51-24.26h45.39c-7.51-12.41-7.91-26.2-.81-38.35,6.12-10.47,17.89-17.69,31.19-17.63,24.31.11,40.92,15.18,51.74,36.68,10.86-21.72,27.97-36.97,52.49-36.66,13.05.17,24.48,7.43,30.43,17.64,7.09,12.18,6.71,25.98-.85,38.32h45.45c12.96.02,24.31,9.57,24.38,23.17ZM181.86,79.92c-2.98-11.12-7.28-19.29-13.62-26.85-7.24-8.25-16.87-13.09-27.99-13.04-11.18-.12-20.02,8.81-20.23,19.64s8.33,20.3,19.55,20.29l42.29-.04ZM202.14,80l42.29-.05c10.95-.01,19.35-9.28,19.55-19.57s-7.99-19.76-18.88-20.31-21.42,4.3-28.89,12.66c-6.7,7.78-11.1,16.6-14.06,27.26Z"/>
     </Svg>
   );
 }
