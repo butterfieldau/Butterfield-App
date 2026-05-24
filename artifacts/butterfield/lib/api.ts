@@ -211,13 +211,6 @@ export const api = {
     updateAccountsEmail: (accountsEmail: string | null) =>
       request<{ data: any }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
   },
-  favourites: {
-    list: () => request<{ data: { productStripeId: string }[] }>('/favourites'),
-    add: (productStripeId: string) =>
-      request<{ success: boolean }>('/favourites', { method: 'POST', body: JSON.stringify({ productStripeId }) }),
-    remove: (productStripeId: string) =>
-      request<{ success: boolean }>(`/favourites/${productStripeId}`, { method: 'DELETE' }),
-  },
   addresses: {
     list: () => request<{ data: SavedAddress[] }>('/addresses'),
     create: (data: { label?: string; street: string; apt?: string; suburb: string; postcode: string; state?: string; isDefault?: boolean }) =>

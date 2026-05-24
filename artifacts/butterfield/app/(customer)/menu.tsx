@@ -35,7 +35,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct } from '@/lib/api';
-import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
@@ -211,12 +210,6 @@ export default function MenuScreen() {
     opacity: contentOpacity.value,
   }));
   const products = data?.data ?? [];
-  const favouriteCategory = useFavouriteCategory(products);
-  useEffect(() => {
-    if (!userChangedCategory && !params.category && favouriteCategory) {
-      setActiveCategory(favouriteCategory);
-    }
-  }, [favouriteCategory, params.category, userChangedCategory]);
   const coffeeProducts = useMemo(
     () => products.filter(p => p.metadata?.category === 'coffee').slice(0, 4),
     [products],

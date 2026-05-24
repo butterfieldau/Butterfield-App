@@ -96,7 +96,6 @@ export default function ProductDetailScreen() {
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [missingRequired, setMissingRequired] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
-  const [togglingFav, setTogglingFav] = useState(false);
   const [showLoginRequired, setShowLoginRequired] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const heroListRef = useRef<FlatList<string>>(null);
@@ -169,34 +168,6 @@ export default function ProductDetailScreen() {
     };
   }, []);
 
-  const { data: favsData } = useQuery({
-    queryKey: ['favourites'],
-    queryFn:  () => api.favourites.list(),
-    retry: 1,
-    enabled: !!product && !!user,
-  });
-
-  const isFavourited = product
-    ? (favsData?.data ?? []).some((f: any) => f.productStripeId === product.id)
-    : false;
-
-  const handleFavouriteToggle = async () => {
-    if (!product || togglingFav) return;
-    if (!user) {
-      setShowLoginRequired(true);
-      return;
-    }
-    setTogglingFav(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      if (isFavourited) await api.favourites.remove(product.id);
-      else              await api.favourites.add(product.id);
-      qc.invalidateQueries({ queryKey: ['favourites'] });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
-      qc.invalidateQueries({ queryKey: ['favourites'] });
-    } finally { setTogglingFav(false); }
-  };
 
   const category     = (product as any)?.category ?? product?.metadata?.category ?? 'cookies';
   const palette      = getPalette(category);
@@ -385,20 +356,6 @@ export default function ProductDetailScreen() {
           <Feather name="arrow-left" size={20} color={TEXT} />
         </Pressable>
 
-        {/* Favourite button */}
-        <Pressable
-          onPress={handleFavouriteToggle}
-          disabled={togglingFav}
-          style={[s.navBtn, { top: insets.top + 10, right: 16 }]}
-          hitSlop={12}
-        >
-          <Feather
-            name="heart"
-            size={18}
-            color={isFavourited ? RED : TEXT}
-            style={{ opacity: togglingFav ? 0.5 : 1 }}
-          />
-        </Pressable>
 
         {/* Status pills */}
         {(isNew || isLimited || isComingSoon || isSoldOut) && (

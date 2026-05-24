@@ -80,7 +80,6 @@ export default function AccountScreen() {
 
   const menuItems = [
     { icon: 'clipboard'   as const, label: 'My orders',       onPress: () => router.push('/orders') },
-    { icon: 'heart'       as const, label: 'Favourites',      onPress: () => router.push('/(customer)/favourites' as any) },
     { icon: 'bell'        as const, label: 'Notifications',   onPress: () => router.push('/notifications') },
     { icon: 'map-pin'     as const, label: 'Saved addresses', onPress: () => router.push('/addresses') },
     { icon: 'navigation'  as const, label: 'Find a store',    onPress: () => router.push('/(customer)/stores' as any) },
