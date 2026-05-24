@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,21 +35,12 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.content}>
-        <Image
-          source={require('@/assets/images/logo-white.png')}
-          style={styles.logo}
-          contentFit="contain"
-          accessibilityLabel="Butterfield"
-        />
-
-        <View style={styles.copyBlock}>
-          <Text style={styles.headline}>Warm Cookies.{'\n'}Real Coffee.</Text>
-          <Text style={styles.subhead}>
-            Skip the queue, earn rewards and{'\n'}order your favourites faster.
-          </Text>
-        </View>
-      </View>
+      <Image
+        source={require('@/assets/images/splash-screen.png')}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        accessibilityLabel="Butterfield splash screen"
+      />
 
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 24 }]}>
         <Pressable
@@ -77,50 +67,20 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: '#31A8F0',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 48,
-    paddingTop: 56,
-  },
-  logo: {
-    width: '100%',
-    height: 92,
-    marginBottom: 64,
-    alignSelf: 'center',
-  },
-  copyBlock: {
-    gap: 16,
-  },
-  headline: {
-    color: '#FFFFFF',
-    fontSize: 42,
-    lineHeight: 46,
-    fontWeight: '700',
-    letterSpacing: 0,
-  },
-  subhead: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    lineHeight: 26,
-    fontWeight: '400',
-    letterSpacing: 0,
-    maxWidth: 360,
+    backgroundColor: '#2A98E8',
   },
   bottomPanel: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 36,
-    paddingTop: 20,
+    paddingHorizontal: 24,
+    paddingTop: 24,
     backgroundColor: 'transparent',
   },
   getStartedBtn: {
-    height: 58,
-    borderRadius: 16,
+    height: 56,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -132,7 +92,7 @@ const styles = StyleSheet.create({
   },
   getStartedText: {
     color: '#1493FF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
   },
 });
