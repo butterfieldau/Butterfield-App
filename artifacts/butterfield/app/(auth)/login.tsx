@@ -492,15 +492,6 @@ export default function LoginScreen() {
                   Staff / Internal Access  →
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); router.push('/(auth)/counter-login'); }}
-                style={{ alignItems: 'center', paddingVertical: 8, flexDirection: 'row', justifyContent: 'center', gap: 6 }}
-              >
-                <Feather name="monitor" size={13} color={MUTED} />
-                <Text style={[s.internalLink, { fontWeight: '400', color: MUTED }]}>
-                  Counter / Shop Display  →
-                </Text>
-              </Pressable>
             </>
           ) : (
             <>
