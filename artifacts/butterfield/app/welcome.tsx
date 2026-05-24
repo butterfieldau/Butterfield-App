@@ -36,11 +36,22 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.root}>
-      <Image
-        source={require('@/assets/images/splash-screen.png')}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-      />
+      <View style={styles.content}>
+        <Image
+          source={require('@/assets/images/logo-white.png')}
+          style={styles.logo}
+          contentFit="contain"
+          accessibilityLabel="Butterfield"
+        />
+
+        <View style={styles.copyBlock}>
+          <Text style={styles.headline}>Warm Cookies.{'\n'}Real Coffee.</Text>
+          <Text style={styles.subhead}>
+            Skip the queue, earn rewards and{'\n'}order your favourites faster.
+          </Text>
+        </View>
+      </View>
+
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 24 }]}>
         <Pressable
           style={({ pressed }) => [styles.getStartedBtn, { opacity: pressed ? 0.88 : 1 }]}
@@ -66,20 +77,49 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
-    backgroundColor: '#29A9ED',
+    backgroundColor: '#31A8F0',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 56,
+    paddingTop: 80,
+  },
+  logo: {
+    width: '100%',
+    height: 120,
+    marginBottom: 120,
+    alignSelf: 'center',
+  },
+  copyBlock: {
+    gap: 22,
+  },
+  headline: {
+    color: '#FFFFFF',
+    fontSize: 60,
+    lineHeight: 66,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  subhead: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: '400',
+    letterSpacing: 0,
   },
   bottomPanel: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingHorizontal: 40,
+    paddingTop: 28,
     backgroundColor: 'transparent',
   },
   getStartedBtn: {
     height: 56,
-    borderRadius: 18,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -92,6 +132,6 @@ const styles = StyleSheet.create({
   getStartedText: {
     color: '#1493FF',
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });
