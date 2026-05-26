@@ -37,10 +37,10 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.root}>
       <Image
-        source={require('@/assets/images/splash-screen.png')}
+        source={require('@/assets/images/welcome-screen.png')}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
-        accessibilityLabel="Butterfield splash screen"
+        accessibilityLabel="Butterfield welcome screen"
       />
 
       <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 24 }]}>

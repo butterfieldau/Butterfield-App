@@ -9,6 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, AppState, Image, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -100,11 +101,20 @@ function JsSplashOverlay({ onDone }: { onDone: () => void }) {
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
-      <Image
-        source={require('../assets/images/splash-screen.png')}
+      <LinearGradient
+        colors={['#1481ff', '#3cbbee']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
-        resizeMode="cover"
-      />
+      >
+        <View style={styles.splashContent}>
+          <Image
+            source={require('../assets/images/logo-white.png')}
+            style={styles.splashLogo}
+            resizeMode="contain"
+          />
+        </View>
+      </LinearGradient>
     </Animated.View>
   );
 }
@@ -171,3 +181,17 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  splashContent: {
+    flex: 1,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splashLogo: {
+    width: '100%',
+    maxWidth: 340,
+    height: 92,
+  },
+});
