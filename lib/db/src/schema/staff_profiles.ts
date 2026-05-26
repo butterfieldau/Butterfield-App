@@ -22,6 +22,7 @@ export const staffProfilesTable = pgTable("staff_profiles", {
   canViewOrders:    boolean("can_view_orders").notNull().default(false),
   address:          text("address"),
   taxFileNumber:    text("tax_file_number"),
+  dateOfBirth:      text("date_of_birth"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

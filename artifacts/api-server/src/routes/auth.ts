@@ -841,10 +841,13 @@ router.get('/validate-staff-invite', async (req, res) => {
 
 // ── Staff register with invite token (public) ───────────────────────────────
 router.post('/staff-register', async (req, res) => {
-  const { token, name, email, password, phone, position, department } = req.body;
+  const { token, name, email, password, phone, position, department, address, dateOfBirth, taxFileNumber, emergencyContact } = req.body;
   if (!token || !name?.trim() || !email?.trim() || !password?.trim()) {
     return res.status(400).json({ error: 'Invite code, name, email and password are required.' });
   }
+  if (!phone?.trim()) return res.status(400).json({ error: 'Phone number is required.' });
+  if (!address?.trim()) return res.status(400).json({ error: 'Address is required.' });
+  if (!dateOfBirth?.trim()) return res.status(400).json({ error: 'Date of birth is required.' });
   // Validate token
   const [invite] = await db.select().from(staffInviteTokensTable)
     .where(eq(staffInviteTokensTable.token, String(token).trim().toUpperCase()));
@@ -876,6 +879,10 @@ router.post('/staff-register', async (req, res) => {
     isManager: false,
     approvedByAdmin: false,
     hourlyRateCents: 0,
+    address: address?.trim() ?? null,
+    dateOfBirth: dateOfBirth?.trim() ?? null,
+    taxFileNumber: taxFileNumber?.trim() ?? null,
+    emergencyContact: emergencyContact ? JSON.stringify(emergencyContact) : null,
   });
 
   // Mark invite as used

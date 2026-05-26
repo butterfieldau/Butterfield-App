@@ -79,8 +79,19 @@ export const api = {
     me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
     validateStaffInvite: (token: string) =>
       request<{ valid: boolean; note: string | null }>(`/auth/validate-staff-invite?token=${encodeURIComponent(token)}`),
-    staffRegister: (data: { token: string; name: string; email: string; password: string; phone?: string; position?: string; department?: string }) =>
-      request<{ success: boolean; message: string; employeeId: string }>('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
+    staffRegister: (data: {
+      token: string;
+      name: string;
+      email: string;
+      password: string;
+      phone: string;
+      address: string;
+      dateOfBirth: string;
+      position?: string;
+      department?: string;
+      taxFileNumber?: string;
+      emergencyContact?: { name: string; phone: string; relationship: string };
+    }) => request<{ success: boolean; message: string; employeeId: string }>('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
     updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
       request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAccount: () =>
