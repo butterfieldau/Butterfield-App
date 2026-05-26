@@ -7,6 +7,7 @@ import {
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable, staffTasksTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
+  staffInviteTokensTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -180,7 +181,7 @@ router.get('/stats', async (req, res) => {
     if (effectiveEnd <= effectiveStart) return sum;
     const totalMins = Math.floor((effectiveEnd.getTime() - effectiveStart.getTime()) / 60000);
     const paidMins = Math.max(0, totalMins - (shift.unpaidBreakMins ?? 0));
-    const hourlyRateCents = shift.hourlyRateCents ?? 2200;
+    const hourlyRateCents = shift.hourlyRateCents ?? 0;
     return sum + Math.round((paidMins / 60) * hourlyRateCents);
   }, 0);
 
@@ -789,7 +790,7 @@ router.patch('/customers/:id/promote', requireRole('director', 'master'), async 
         department:      'floor',
         isManager:       role === 'manager',
         approvedByAdmin: true,
-        hourlyRateCents: 2200,
+        hourlyRateCents: 0,
         address:         null,
         taxFileNumber:   null,
       });
@@ -1044,7 +1045,7 @@ router.post('/create-staff', async (req, res) => {
     department:       department?.trim()       ?? 'floor',
     isManager:        isManager === true,
     approvedByAdmin:  true,
-    hourlyRateCents:  typeof hourlyRateCents === 'number' ? hourlyRateCents : 2200,
+    hourlyRateCents:  typeof hourlyRateCents === 'number' ? hourlyRateCents : 0,
     address:          address?.trim()          ?? null,
     taxFileNumber:    taxFileNumber?.trim()    ?? null,
     employmentStatus: employmentStatus?.trim() ?? 'casual',
@@ -1939,6 +1940,43 @@ router.delete('/discount-codes/:id', async (req, res) => {
   const [existing] = await db.select({ id: discountCodesTable.id }).from(discountCodesTable).where(eq(discountCodesTable.id, id));
   if (!existing) return res.status(404).json({ error: 'Discount code not found.' });
   await db.delete(discountCodesTable).where(eq(discountCodesTable.id, id));
+  return res.json({ success: true });
+});
+
+// ── Staff invite tokens ───────────────────────────────────────────────────────
+function generateInviteToken(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < 12; i++) {
+    if (i === 4 || i === 8) result += '-';
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
+router.post('/staff-invites', async (req, res) => {
+  const callerId = (req as any).user.id;
+  const { note, expiryDays = 7 } = req.body;
+  const token = generateInviteToken();
+  const expiresAt = new Date(Date.now() + Number(expiryDays) * 86400000);
+  const id = randomUUID();
+  const [row] = await db.insert(staffInviteTokensTable)
+    .values({ id, token, createdByUserId: callerId, expiresAt, note: note?.trim() ?? null })
+    .returning();
+  return res.status(201).json({ data: row });
+});
+
+router.get('/staff-invites', async (_req, res) => {
+  const rows = await db.select().from(staffInviteTokensTable)
+    .orderBy(desc(staffInviteTokensTable.createdAt));
+  return res.json({ data: rows });
+});
+
+router.delete('/staff-invites/:id', async (req, res) => {
+  const { id } = req.params;
+  const [row] = await db.select().from(staffInviteTokensTable).where(eq(staffInviteTokensTable.id, id));
+  if (!row) return res.status(404).json({ error: 'Invite not found.' });
+  await db.delete(staffInviteTokensTable).where(eq(staffInviteTokensTable.id, id));
   return res.json({ success: true });
 });
 

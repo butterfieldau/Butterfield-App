@@ -77,6 +77,10 @@ export const api = {
     resetPassword: (data: { resetToken: string; newPassword: string }) =>
       request<{ success: boolean; message: string }>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
     me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
+    validateStaffInvite: (token: string) =>
+      request<{ valid: boolean; note: string | null }>(`/auth/validate-staff-invite?token=${encodeURIComponent(token)}`),
+    staffRegister: (data: { token: string; name: string; email: string; password: string; phone?: string; position?: string; department?: string }) =>
+      request<{ success: boolean; message: string; employeeId: string }>('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
     updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
       request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAccount: () =>
@@ -326,6 +330,10 @@ export const api = {
     wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
       request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
+    generateStaffInvite: (data: { note?: string; expiryDays?: number }) =>
+      request<{ data: any }>('/director/staff-invites', { method: 'POST', body: JSON.stringify(data) }),
+    listStaffInvites:    () => request<{ data: any[] }>('/director/staff-invites'),
+    revokeStaffInvite:   (id: string) => request<{ success: boolean }>(`/director/staff-invites/${id}`, { method: 'DELETE' }),
     createWholesale:     (data: { name: string; email: string; password: string; companyName: string; abn?: string; phone?: string }) =>
       request<{ data: any }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
     shopDisplays:        () => request<{ data: ShopDisplayUser[] }>('/director/shop-displays'),

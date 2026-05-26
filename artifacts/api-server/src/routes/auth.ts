@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
@@ -825,6 +825,69 @@ router.post('/reset-password', async (req, res) => {
     .where(eq(usersTable.id, payload.sub));
 
   return res.json({ success: true, message: 'Password updated successfully.' });
+});
+
+// ── Staff invite: validate token (public) ──────────────────────────────────
+router.get('/validate-staff-invite', async (req, res) => {
+  const { token } = req.query as { token?: string };
+  if (!token) return res.status(400).json({ error: 'Token is required.' });
+  const [row] = await db.select().from(staffInviteTokensTable)
+    .where(eq(staffInviteTokensTable.token, token.trim().toUpperCase()));
+  if (!row) return res.status(404).json({ error: 'Invalid invite code.' });
+  if (row.usedAt) return res.status(410).json({ error: 'This invite has already been used.' });
+  if (new Date() > row.expiresAt) return res.status(410).json({ error: 'This invite has expired.' });
+  return res.json({ valid: true, note: row.note ?? null });
+});
+
+// ── Staff register with invite token (public) ───────────────────────────────
+router.post('/staff-register', async (req, res) => {
+  const { token, name, email, password, phone, position, department } = req.body;
+  if (!token || !name?.trim() || !email?.trim() || !password?.trim()) {
+    return res.status(400).json({ error: 'Invite code, name, email and password are required.' });
+  }
+  // Validate token
+  const [invite] = await db.select().from(staffInviteTokensTable)
+    .where(eq(staffInviteTokensTable.token, String(token).trim().toUpperCase()));
+  if (!invite) return res.status(404).json({ error: 'Invalid invite code.' });
+  if (invite.usedAt) return res.status(410).json({ error: 'This invite has already been used.' });
+  if (new Date() > invite.expiresAt) return res.status(410).json({ error: 'This invite has expired.' });
+
+  // Check email uniqueness
+  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim()));
+  if (existing.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
+
+  // Create user + staff profile
+  const hash = await bcrypt.hash(password, 12);
+  const userId = randomUUID();
+  await db.insert(usersTable).values({
+    id: userId,
+    email: email.toLowerCase().trim(),
+    passwordHash: hash,
+    role: 'staff' as any,
+    name: name.trim(),
+    phone: phone?.trim() ?? null,
+  });
+  const empId = `EMP-${Date.now().toString(36).toUpperCase()}`;
+  await db.insert(staffProfilesTable).values({
+    userId,
+    employeeId: empId,
+    position: position?.trim() ?? 'Crew',
+    department: department?.trim() ?? 'floor',
+    isManager: false,
+    approvedByAdmin: false,
+    hourlyRateCents: 0,
+  });
+
+  // Mark invite as used
+  await db.update(staffInviteTokensTable)
+    .set({ usedAt: new Date(), usedByUserId: userId })
+    .where(eq(staffInviteTokensTable.id, invite.id));
+
+  return res.status(201).json({
+    success: true,
+    message: 'Application submitted. You will be able to log in once a director approves your account.',
+    employeeId: empId,
+  });
 });
 
 // ── Account deletion (GDPR / App Store requirement) ────────────────────────

@@ -564,6 +564,16 @@ export default function LoginScreen() {
                   Staff must be within range of Butterfield Merrylands to sign in.
                 </Text>
               </View>
+
+              <Pressable
+                onPress={() => router.push('/(auth)/staff-register')}
+                style={{ alignItems: 'center', paddingVertical: 6 }}
+              >
+                <Text style={[s.internalLink, { fontWeight: '400', color: '#9CA3AF' }]}>
+                  New staff?{' '}
+                  <Text style={{ color: BLUE, fontWeight: '600' }}>Register with invite code →</Text>
+                </Text>
+              </Pressable>
             </>
           )}
           </View>

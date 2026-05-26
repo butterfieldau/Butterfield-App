@@ -11,7 +11,7 @@ export const staffProfilesTable = pgTable("staff_profiles", {
   employmentStatus: text("employment_status").notNull().default("casual"),
   isManager: boolean("is_manager").notNull().default(false),
   approvedByAdmin: boolean("approved_by_admin").notNull().default(false),
-  hourlyRateCents: integer("hourly_rate_cents").notNull().default(2200),
+  hourlyRateCents: integer("hourly_rate_cents").notNull().default(0),
   startDate: text("start_date"),
   // JSON array of task-level permission strings e.g. ["manage_tasks","view_reports"]
   permissions: text("permissions"),

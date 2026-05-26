@@ -24,3 +24,4 @@ export * from "./stock";
 export * from "./deleted_accounts";
 export * from "./discount_codes";
 export * from "./audit_logs";
+export * from "./staff_invite_tokens";

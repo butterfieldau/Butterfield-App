@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import DirectorCustomersScreen from './customers';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal,
-  Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
+  Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1419,6 +1419,50 @@ export default function DirectorUsersScreen() {
     if (tab === 'Wholesale')  return u.role === 'wholesale';
     return true;
   });
+  // ── Staff invite state ─────────────────────────────────────────────────────
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteGenerating, setInviteGenerating] = useState(false);
+  const [generatedInvite, setGeneratedInvite] = useState<{ token: string; expiresAt: string; note?: string } | null>(null);
+  const [inviteNote, setInviteNote] = useState('');
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const { data: invitesData, refetch: refetchInvites } = useQuery({
+    queryKey: ['director-staff-invites'],
+    queryFn: () => api.director.listStaffInvites(),
+    enabled: showInviteModal,
+    staleTime: 0,
+  });
+  const activeInvites = (invitesData?.data ?? []).filter((i: any) => !i.usedAt && new Date(i.expiresAt) > new Date());
+
+  async function handleGenerateInvite() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setInviteGenerating(true);
+    try {
+      const res = await api.director.generateStaffInvite({ note: inviteNote.trim() || undefined, expiryDays: 7 });
+      setGeneratedInvite(res.data);
+      await refetchInvites();
+      setInviteNote('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Failed to generate invite.');
+    } finally {
+      setInviteGenerating(false);
+    }
+  }
+
+  async function handleRevokeInvite(id: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.director.revokeStaffInvite(id);
+      if (generatedInvite) {
+        const inv = (invitesData?.data ?? []).find((i: any) => i.id === id);
+        if (inv && inv.token === generatedInvite.token) setGeneratedInvite(null);
+      }
+      await refetchInvites();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Failed to revoke invite.');
+    }
+  }
+
   const openCreate = (type: CreateType) => {
     setCreateType(type); setShowCreate(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
@@ -1474,10 +1518,19 @@ export default function DirectorUsersScreen() {
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
             {tab === 'Staff' && (
-              <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
-                <Feather name="user-plus" size={13} color="#5B21B6" />
-                <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
-              </Pressable>
+              <>
+                <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
+                  <Feather name="user-plus" size={13} color="#5B21B6" />
+                  <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setShowInviteModal(true); setGeneratedInvite(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}
+                >
+                  <Feather name="link" size={13} color="#1D4ED8" />
+                  <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
+                </Pressable>
+              </>
             )}
             {tab === 'Shop Displays' && (
               <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
@@ -1698,6 +1751,134 @@ export default function DirectorUsersScreen() {
         onClose={() => setSelectedShopDisplayUser(null)}
         onRefresh={handleRefreshUsers}
       />
+
+      {/* ── Staff Invite Modal ──────────────────────────────────────────── */}
+      <Modal
+        visible={showInviteModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowInviteModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          {/* Header */}
+          <View style={{ backgroundColor: NAVY, paddingTop: 20, paddingBottom: 18, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>Staff Invite Link</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 2 }}>
+                Generate a single-use code for new staff to register
+              </Text>
+            </View>
+            <Pressable onPress={() => setShowInviteModal(false)} hitSlop={12}>
+              <Feather name="x" size={22} color="#fff" />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} showsVerticalScrollIndicator={false}>
+            {/* Generate section */}
+            <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY }}>Generate new code</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 }}>Note (optional)</Text>
+              <TextInput
+                style={{ backgroundColor: BG, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER }}
+                value={inviteNote}
+                onChangeText={setInviteNote}
+                placeholder="e.g. For Sam — weekend barista"
+                placeholderTextColor={MUTED}
+              />
+              <Pressable
+                onPress={handleGenerateInvite}
+                disabled={inviteGenerating}
+                style={{ backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14, alignItems: 'center', opacity: inviteGenerating ? 0.6 : 1 }}
+              >
+                {inviteGenerating
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Generate Code</Text>
+                }
+              </Pressable>
+            </View>
+
+            {/* Generated code display */}
+            {generatedInvite && (
+              <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 12, borderWidth: 2, borderColor: GREEN, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Feather name="check-circle" size={18} color={GREEN} />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: GREEN }}>Code generated!</Text>
+                </View>
+                <View style={{ backgroundColor: '#F0FDF4', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 26, fontWeight: '800', color: NAVY, letterSpacing: 3, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                    {generatedInvite.token}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: MUTED, marginTop: 6 }}>
+                    Expires {new Date(generatedInvite.expiresAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </Text>
+                </View>
+                {generatedInvite.note ? (
+                  <Text style={{ fontSize: 13, color: MUTED, textAlign: 'center' }}>Note: {generatedInvite.note}</Text>
+                ) : null}
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable
+                    onPress={async () => {
+                      await Share.share({ message: `You've been invited to join Butterfield Cookies staff!\n\nYour registration code is:\n\n${generatedInvite.token}\n\nOpen the Butterfield app → Staff Login → "Register with invite code" and enter this code. It expires in 7 days.` });
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={{ flex: 1, backgroundColor: BLUE, borderRadius: 12, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <Feather name="share-2" size={15} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Share</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {/* Active invites list */}
+            {activeInvites.length > 0 && (
+              <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY }}>Active codes ({activeInvites.length})</Text>
+                {activeInvites.map((inv: any) => (
+                  <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: BG, borderRadius: 12, padding: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 }}>{inv.token}</Text>
+                      {inv.note ? <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{inv.note}</Text> : null}
+                      <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+                        Expires {new Date(inv.expiresAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => Alert.alert('Revoke code?', `Revoke invite code ${inv.token}? Staff will not be able to register with it.`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Revoke', style: 'destructive', onPress: () => handleRevokeInvite(inv.id) },
+                      ])}
+                      style={{ padding: 8 }}
+                      hitSlop={8}
+                    >
+                      <Feather name="trash-2" size={16} color={RED} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Instructions */}
+            <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 16, gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="info" size={15} color={BLUE} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: BLUE }}>How it works</Text>
+              </View>
+              {[
+                'Generate a code and share it with your new staff member',
+                'They open the app → Staff Login → "Register with invite code"',
+                'They enter the code and fill in their details',
+                'Their account is created pending your approval in the Staff tab',
+              ].map((step, i) => (
+                <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
+                  <Text style={{ fontSize: 13, color: '#1D4ED8', fontWeight: '700', width: 18 }}>{i + 1}.</Text>
+                  <Text style={{ fontSize: 13, color: '#1D4ED8', flex: 1, lineHeight: 19 }}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
