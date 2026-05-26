@@ -1,10 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -61,6 +63,22 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
+
+  // Fetch manager permissions so we can gate items correctly
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.auth.me(),
+    enabled: isManager,
+    staleTime: 60_000,
+  });
+  const managerPerms: string[] = useMemo(
+    () => (meData?.user as any)?.managerPermissions ?? [],
+    [meData],
+  );
+
+  // Helper: show row if director, or if manager has the given permission
+  const canSee = (perm: string) => !isManager || managerPerms.includes(perm);
+
   const operations: Row[] = [
     ...(isManager ? [{
       icon: 'package',
@@ -69,27 +87,27 @@ export default function MoreScreen() {
       color: BLUE,
       onPress: () => router.push('/(director)/products' as any),
     }] : []),
-    {
+    ...(canSee('stock') ? [{
       icon: 'archive',
       label: 'Stock & Inventory',
       sub: 'Track quantities, costs & low-stock alerts',
       color: GREEN,
       onPress: () => router.push('/(director)/stock' as any),
-    },
-    {
+    }] : []),
+    ...(canSee('reports') ? [{
       icon: 'bar-chart-2',
       label: 'Reports',
       sub: 'Revenue, feedback & analytics',
       color: NAVY,
       onPress: () => router.push('/(director)/reports' as any),
-    },
-    {
+    }] : []),
+    ...(canSee('timesheets') ? [{
       icon: 'clock',
       label: 'Timesheets',
       sub: 'Staff shifts & payroll export',
       color: PURPLE,
       onPress: () => router.push('/(director)/timesheets' as any),
-    },
+    }] : []),
     ...(!isManager ? [{
       icon: 'tag',
       label: 'Pricing & Tiers',
@@ -151,6 +169,9 @@ export default function MoreScreen() {
     }] : []),
   ];
 
+  // Only show sections that have rows
+  const showOperations = operations.length > 0;
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
@@ -163,8 +184,8 @@ export default function MoreScreen() {
       </View>
 
       <View style={{ paddingHorizontal: 16, gap: 0 }}>
-        <Section title="OPERATIONS" rows={operations} />
-        <Section title="STORE"      rows={store} />
+        {showOperations && <Section title="OPERATIONS" rows={operations} />}
+        <Section title="STORE" rows={store} />
       </View>
 
       <Text style={s.footer}>Butterfield Director Portal</Text>

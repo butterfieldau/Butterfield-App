@@ -1640,6 +1640,7 @@ const ALL_PERMISSIONS = [
   { key: 'settings',      label: 'Settings',      icon: 'settings'    },
   { key: 'pricing',       label: 'Pricing',       icon: 'dollar-sign' },
   { key: 'banners',       label: 'Banner',        icon: 'image'       },
+  { key: 'stock',         label: 'Stock',         icon: 'archive'     },
 ] as const;
 
 const INDIGO = '#3730A3';
