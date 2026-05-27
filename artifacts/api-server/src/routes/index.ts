@@ -22,6 +22,7 @@ import shopDisplayRouter from "./shop-display.js";
 import stockRouter from "./stock.js";
 import discountsRouter from "./discounts.js";
 import adminSeedRouter from "./admin-seed.js";
+import directorReportsExportRouter from "./director-reports-export.js";
 
 const router: IRouter = Router();
 
@@ -38,6 +39,7 @@ router.use("/director", directorPricingRouter);
 router.use("/director", directorCustomersRouter);
 router.use("/director", directorStoresRouter);
 router.use("/director", directorProductsRouter);
+router.use("/director", directorReportsExportRouter);
 router.use("/director", directorRouter);
 router.use(storesRouter);
 router.use("/manager", managerRouter);

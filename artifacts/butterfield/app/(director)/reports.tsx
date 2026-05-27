@@ -1,13 +1,16 @@
 import { Feather } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
+import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
+  Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text,
+  TextInput, View,
 } from 'react-native';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { api, type DirectorFeedback } from '@/lib/api';
+import { api, getToken, type DirectorFeedback } from '@/lib/api';
 
 const BG     = '#F5F6FA';
 const CARD   = '#FFFFFF';
@@ -23,6 +26,10 @@ const RED    = '#EF4444';
 const TABS = ['Revenue', 'Feedback'] as const;
 type TabKey = typeof TABS[number];
 
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : 'http://localhost:80/api';
+
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -36,7 +43,6 @@ function fmtDateShort(iso: string) {
   if (!Number.isNaN(direct.getTime())) {
     return direct.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   }
-
   const normalized = typeof iso === 'string'
     ? iso.replace(' ', 'T').replace(/(\.\d+)?([+-]\d{2}:?\d{2}|Z)?$/, '')
     : '';
@@ -44,8 +50,30 @@ function fmtDateShort(iso: string) {
   if (!Number.isNaN(fallback.getTime())) {
     return fallback.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   }
-
   return '—';
+}
+
+function fmtDisplayDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function toYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 8192;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
@@ -66,6 +94,237 @@ function StatBox({ label, value, sub, color }: { label: string; value: string; s
     </View>
   );
 }
+
+// ── Download Report Modal ─────────────────────────────────────────────────────
+
+interface DownloadModalProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+function DownloadReportModal({ visible, onClose }: DownloadModalProps) {
+  const today = new Date();
+  const [fromStr, setFromStr] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 30); return toYMD(d);
+  });
+  const [toStr, setToStr] = useState(() => toYMD(today));
+  const [loading, setLoading] = useState(false);
+  const [fromFocused, setFromFocused] = useState(false);
+  const [toFocused, setToFocused] = useState(false);
+
+  const PRESETS = [
+    { label: 'Last 7 days',  from: () => { const d = new Date(); d.setDate(d.getDate() - 7);  return toYMD(d); }, to: () => toYMD(today) },
+    { label: 'Last 30 days', from: () => { const d = new Date(); d.setDate(d.getDate() - 30); return toYMD(d); }, to: () => toYMD(today) },
+    { label: 'This month',   from: () => { const d = new Date(today.getFullYear(), today.getMonth(), 1); return toYMD(d); }, to: () => toYMD(today) },
+    { label: 'This year',    from: () => `${today.getFullYear()}-01-01`, to: () => toYMD(today) },
+  ];
+
+  const applyPreset = (p: typeof PRESETS[0]) => {
+    setFromStr(p.from());
+    setToStr(p.to());
+    Haptics.selectionAsync();
+  };
+
+  const validate = (): string | null => {
+    const ymdRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (!ymdRe.test(fromStr)) return 'From date must be YYYY-MM-DD';
+    if (!ymdRe.test(toStr))   return 'To date must be YYYY-MM-DD';
+    const f = new Date(fromStr); const t = new Date(toStr);
+    if (isNaN(f.getTime())) return 'From date is invalid';
+    if (isNaN(t.getTime())) return 'To date is invalid';
+    if (f > t) return '"From" date must be before "To" date';
+    return null;
+  };
+
+  const handleDownload = async () => {
+    const err = validate();
+    if (err) { Alert.alert('Invalid Date', err); return; }
+    setLoading(true);
+    try {
+      const token    = await getToken();
+      const url      = `${API_BASE}/director/reports/export?from=${fromStr}&to=${toStr}`;
+      const filename = `butterfield-report-${fromStr}-to-${toStr}.xlsx`;
+
+      if (Platform.OS === 'web') {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token ?? ''}` } });
+        if (!res.ok) throw new Error(await res.text());
+        const blob   = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const a      = document.createElement('a');
+        a.href     = objUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objUrl);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onClose();
+      } else {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token ?? ''}` } });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `Server error ${res.status}`);
+        }
+        const ab     = await res.arrayBuffer();
+        const base64 = arrayBufferToBase64(ab);
+        const fileUri = (FileSystem.cacheDirectory ?? '') + filename;
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            dialogTitle: 'Save Butterfield Report',
+            UTI: 'com.microsoft.excel.xlsx',
+          });
+        } else {
+          Alert.alert('File Saved', `Saved to: ${fileUri}`);
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onClose();
+      }
+    } catch (e: any) {
+      Alert.alert('Download Failed', e?.message ?? 'Unknown error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fromDisplay = fromStr ? fmtDisplayDate(fromStr) : 'Select date';
+  const toDisplay   = toStr   ? fmtDisplayDate(toStr)   : 'Select date';
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={dl.container}>
+          {/* Header */}
+          <View style={dl.header}>
+            <View style={dl.headerLeft}>
+              <View style={dl.iconBox}>
+                <Feather name="download" size={18} color={BLUE} />
+              </View>
+              <View>
+                <Text style={dl.title}>Download Report</Text>
+                <Text style={dl.subtitle}>Export to Excel (.xlsx)</Text>
+              </View>
+            </View>
+            <Pressable onPress={onClose} style={dl.closeBtn} disabled={loading}>
+              <Feather name="x" size={20} color={MUTED} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }} showsVerticalScrollIndicator={false}>
+            {/* Quick presets */}
+            <View style={{ gap: 8 }}>
+              <Text style={dl.sectionLabel}>QUICK RANGE</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {PRESETS.map(p => (
+                  <Pressable
+                    key={p.label}
+                    onPress={() => applyPreset(p)}
+                    style={[dl.preset, fromStr === p.from() && toStr === p.to() && dl.presetActive]}
+                  >
+                    <Text style={[dl.presetText, fromStr === p.from() && toStr === p.to() && { color: '#fff' }]}>
+                      {p.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Date inputs */}
+            <View style={{ gap: 12 }}>
+              <Text style={dl.sectionLabel}>CUSTOM DATE RANGE</Text>
+
+              <View style={dl.dateRow}>
+                <Text style={dl.dateLabel}>From</Text>
+                <View style={[dl.dateInputWrap, fromFocused && { borderColor: BLUE }]}>
+                  <Feather name="calendar" size={15} color={MUTED} />
+                  <TextInput
+                    style={dl.dateInput}
+                    value={fromStr}
+                    onChangeText={setFromStr}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={MUTED}
+                    keyboardType="numbers-and-punctuation"
+                    autoCorrect={false}
+                    onFocus={() => setFromFocused(true)}
+                    onBlur={() => setFromFocused(false)}
+                    editable={!loading}
+                  />
+                  {fromStr ? (
+                    <Text style={dl.dateParsed} numberOfLines={1}>{fromDisplay}</Text>
+                  ) : null}
+                </View>
+              </View>
+
+              <View style={dl.dateRow}>
+                <Text style={dl.dateLabel}>To</Text>
+                <View style={[dl.dateInputWrap, toFocused && { borderColor: BLUE }]}>
+                  <Feather name="calendar" size={15} color={MUTED} />
+                  <TextInput
+                    style={dl.dateInput}
+                    value={toStr}
+                    onChangeText={setToStr}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={MUTED}
+                    keyboardType="numbers-and-punctuation"
+                    autoCorrect={false}
+                    onFocus={() => setToFocused(true)}
+                    onBlur={() => setToFocused(false)}
+                    editable={!loading}
+                  />
+                  {toStr ? (
+                    <Text style={dl.dateParsed} numberOfLines={1}>{toDisplay}</Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            {/* What's included */}
+            <View style={dl.includesCard}>
+              <Text style={[dl.sectionLabel, { marginBottom: 10 }]}>REPORT INCLUDES</Text>
+              {[
+                ['bar-chart-2', 'Summary — revenue, orders, averages'],
+                ['shopping-bag', 'Item Sales — per cookie/item with revenue'],
+                ['truck', 'Order Types — delivery vs pickup breakdown'],
+                ['check-circle', 'Order Status — completed, cancelled, refunds'],
+                ['users', 'New Customers — registrations in range'],
+                ['list', 'Detailed Orders — every order with full detail'],
+              ].map(([icon, label]) => (
+                <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 7 }}>
+                  <Feather name={icon as any} size={14} color={BLUE} />
+                  <Text style={dl.includeText}>{label}</Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Action buttons */}
+          <View style={[dl.footer, { borderTopColor: BORDER }]}>
+            <Pressable onPress={onClose} style={dl.cancelBtn} disabled={loading}>
+              <Text style={dl.cancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleDownload}
+              style={[dl.downloadBtn, loading && { opacity: 0.7 }]}
+              disabled={loading}
+            >
+              {loading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Feather name="download" size={16} color="#fff" />
+              }
+              <Text style={dl.downloadText}>
+                {loading ? 'Generating…' : 'Download Excel'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── Revenue Tab ───────────────────────────────────────────────────────────────
 
 function RevenueTab() {
   const { data, isLoading, refetch } = useQuery({
@@ -88,29 +347,25 @@ function RevenueTab() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
-      {/* Revenue stats */}
       <Text style={styles.section}>REVENUE</Text>
       <View style={styles.statRow}>
-        <StatBox label="Today"     value={fmtAUD(r?.revenue.today ?? 0)} color={BLUE} />
-        <StatBox label="This Week" value={fmtAUD(r?.revenue.week  ?? 0)} />
-        <StatBox label="This Month"value={fmtAUD(r?.revenue.month ?? 0)} />
+        <StatBox label="Today"      value={fmtAUD(r?.revenue.today ?? 0)} color={BLUE} />
+        <StatBox label="This Week"  value={fmtAUD(r?.revenue.week  ?? 0)} />
+        <StatBox label="This Month" value={fmtAUD(r?.revenue.month ?? 0)} />
       </View>
 
-      {/* Order stats */}
       <Text style={styles.section}>ORDERS</Text>
       <View style={styles.statRow}>
-        <StatBox label="Today"     value={String(r?.orders.today ?? 0)} />
-        <StatBox label="This Week" value={String(r?.orders.week  ?? 0)} />
-        <StatBox label="This Month"value={String(r?.orders.month ?? 0)} />
+        <StatBox label="Today"      value={String(r?.orders.today ?? 0)} />
+        <StatBox label="This Week"  value={String(r?.orders.week  ?? 0)} />
+        <StatBox label="This Month" value={String(r?.orders.month ?? 0)} />
       </View>
-
       <View style={styles.statRow}>
         <StatBox label="Avg Order Value" value={fmtAUD(r?.orders.avgValueCents ?? 0)} sub="(7 days)" />
         <StatBox label="New Customers"   value={String(r?.customers.newWeek ?? 0)} sub="this week" color={GREEN} />
         <StatBox label="Total Customers" value={String(r?.customers.total ?? 0)} />
       </View>
 
-      {/* Order type breakdown */}
       {(r?.byType?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>BY ORDER TYPE (THIS MONTH)</Text>
@@ -128,7 +383,6 @@ function RevenueTab() {
         </>
       )}
 
-      {/* Order status breakdown */}
       {(r?.byStatus?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>BY STATUS (THIS MONTH)</Text>
@@ -149,7 +403,6 @@ function RevenueTab() {
         </>
       )}
 
-      {/* 30-day daily revenue */}
       {(r?.dailyRevenue?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>DAILY REVENUE — LAST 30 DAYS</Text>
@@ -185,6 +438,8 @@ function RevenueTab() {
     </ScrollView>
   );
 }
+
+// ── Feedback Tab ──────────────────────────────────────────────────────────────
 
 function FeedbackTab() {
   const qc = useQueryClient();
@@ -231,10 +486,7 @@ function FeedbackTab() {
           <Pressable
             style={[styles.card, { backgroundColor: f.isRead ? CARD : '#F0F9FF', borderColor: f.isRead ? BORDER : BLUE + '40' }]}
             onPress={() => {
-              if (!f.isRead) {
-                Haptics.selectionAsync();
-                markRead.mutate(f.id);
-              }
+              if (!f.isRead) { Haptics.selectionAsync(); markRead.mutate(f.id); }
             }}
           >
             <View style={styles.fbHeader}>
@@ -259,8 +511,11 @@ function FeedbackTab() {
   );
 }
 
+// ── Main Screen ───────────────────────────────────────────────────────────────
+
 export default function DirectorReportsScreen() {
   const [tab, setTab] = useState<TabKey>('Revenue');
+  const [showDownload, setShowDownload] = useState(false);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -279,31 +534,108 @@ export default function DirectorReportsScreen() {
 
       {tab === 'Revenue'  && <RevenueTab />}
       {tab === 'Feedback' && <FeedbackTab />}
+
+      {/* Fixed Download Button */}
+      <Pressable
+        style={styles.downloadFab}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowDownload(true); }}
+      >
+        <Feather name="download" size={16} color="#fff" />
+        <Text style={styles.downloadFabText}>Download Report</Text>
+      </Pressable>
+
+      <DownloadReportModal visible={showDownload} onClose={() => setShowDownload(false)} />
     </View>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   center:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingTop: 60 },
-  emptyText:   { fontSize: 14, fontWeight: '400', color: '#8E8E93' },
+  emptyText:   { fontSize: 14, fontWeight: '400', color: MUTED },
   tabBar:      { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1 },
   tabBtn:      { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText:     { fontSize: 13, fontWeight: '600' },
-  section:     { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 1.5 },
+  section:     { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 1.5 },
   card:        { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
   statRow:     { flexDirection: 'row', gap: 8 },
   statBox:     { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12, alignItems: 'center', gap: 4 },
-  statVal:     { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
-  statLabel:   { fontSize: 10, fontWeight: '500', color: '#8E8E93', textAlign: 'center' },
-  statSub:     { fontSize: 9, fontWeight: '400', color: '#8E8E93', textAlign: 'center' },
+  statVal:     { fontSize: 16, fontWeight: '700', color: TEXT },
+  statLabel:   { fontSize: 10, fontWeight: '500', color: MUTED, textAlign: 'center' },
+  statSub:     { fontSize: 9,  fontWeight: '400', color: MUTED, textAlign: 'center' },
   breakRow:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  breakLabel:  { fontSize: 11, fontWeight: '500', color: '#8E8E93', width: 80 },
-  breakCount:  { fontSize: 12, fontWeight: '700', color: '#1C1C1E', textAlign: 'right', width: 60 },
+  breakLabel:  { fontSize: 11, fontWeight: '500', color: MUTED, width: 80 },
+  breakCount:  { fontSize: 12, fontWeight: '700', color: TEXT, textAlign: 'right', width: 60 },
   pill:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   pillText:    { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   dot:         { width: 6, height: 6, borderRadius: 3 },
   fbHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  fbDate:      { fontSize: 11, fontWeight: '400', color: '#8E8E93', marginLeft: 'auto' },
-  fbMessage:   { fontSize: 14, fontWeight: '400', color: '#1C1C1E', lineHeight: 20 },
+  fbDate:      { fontSize: 11, fontWeight: '400', color: MUTED, marginLeft: 'auto' },
+  fbMessage:   { fontSize: 14, fontWeight: '400', color: TEXT, lineHeight: 20 },
   ratingRow:   { flexDirection: 'row', gap: 2 },
+  downloadFab: {
+    position: 'absolute', bottom: 20, left: 20, right: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: NAVY, borderRadius: 14, paddingVertical: 15,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 10, elevation: 6,
+  },
+  downloadFabText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+});
+
+const dl = StyleSheet.create({
+  container:    { flex: 1, backgroundColor: BG },
+  header:       {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 18,
+    backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER,
+  },
+  headerLeft:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconBox:      {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center',
+  },
+  title:        { fontSize: 17, fontWeight: '700', color: TEXT },
+  subtitle:     { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 1 },
+  closeBtn:     {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: BG, alignItems: 'center', justifyContent: 'center',
+  },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 1 },
+  preset:       {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
+  },
+  presetActive: { backgroundColor: BLUE, borderColor: BLUE },
+  presetText:   { fontSize: 12, fontWeight: '600', color: TEXT, lineHeight: 16 },
+  dateRow:      { gap: 6 },
+  dateLabel:    { fontSize: 13, fontWeight: '600', color: TEXT },
+  dateInputWrap:{
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+  },
+  dateInput:    { flex: 1, fontSize: 14, fontWeight: '500', color: TEXT },
+  dateParsed:   { fontSize: 12, color: MUTED, fontWeight: '400', flexShrink: 1 },
+  includesCard: {
+    backgroundColor: CARD, borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: BORDER,
+  },
+  includeText:  { fontSize: 13, fontWeight: '400', color: TEXT },
+  footer:       {
+    flexDirection: 'row', gap: 10, padding: 20,
+    borderTopWidth: 1, backgroundColor: CARD,
+  },
+  cancelBtn:    {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    borderWidth: 1.5, borderColor: BORDER,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cancelText:   { fontSize: 15, fontWeight: '600', color: TEXT },
+  downloadBtn:  {
+    flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: NAVY,
+  },
+  downloadText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
