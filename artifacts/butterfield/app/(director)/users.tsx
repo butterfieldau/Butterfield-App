@@ -1511,7 +1511,7 @@ export default function DirectorUsersScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Tab bar + Add buttons */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2, gap: 8, alignItems: 'flex-start' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}>
           {TABS.map((t) => {
             const active = tab === t;
             return (
@@ -1896,7 +1896,7 @@ export default function DirectorUsersScreen() {
 }
 const styles = StyleSheet.create({
   tabChip:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  tabChipText:   { fontSize: 13, fontWeight: '600' },
+  tabChipText:   { fontSize: 12, fontWeight: '600', lineHeight: 16 },
   addStrip:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1 },
   addStripLabel: { fontSize: 12, fontWeight: '500' },
   addBtn:        { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
