@@ -326,7 +326,19 @@ function DownloadReportModal({ visible, onClose }: DownloadModalProps) {
 
 // ── Revenue Tab ───────────────────────────────────────────────────────────────
 
-function RevenueTab() {
+function DownloadInlineButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.downloadInline}
+    >
+      <Feather name="download" size={16} color="#fff" />
+      <Text style={styles.downloadInlineText}>Download Report</Text>
+    </Pressable>
+  );
+}
+
+function RevenueTab({ onDownloadPress }: { onDownloadPress: () => void }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-reports'],
     queryFn: () => api.director.reports(),
@@ -343,7 +355,7 @@ function RevenueTab() {
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
+      contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
@@ -435,6 +447,8 @@ function RevenueTab() {
           </View>
         </>
       )}
+
+      <DownloadInlineButton onPress={onDownloadPress} />
     </ScrollView>
   );
 }
@@ -532,17 +546,8 @@ export default function DirectorReportsScreen() {
         ))}
       </View>
 
-      {tab === 'Revenue'  && <RevenueTab />}
+      {tab === 'Revenue'  && <RevenueTab onDownloadPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowDownload(true); }} />}
       {tab === 'Feedback' && <FeedbackTab />}
-
-      {/* Fixed Download Button */}
-      <Pressable
-        style={styles.downloadFab}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowDownload(true); }}
-      >
-        <Feather name="download" size={16} color="#fff" />
-        <Text style={styles.downloadFabText}>Download Report</Text>
-      </Pressable>
 
       <DownloadReportModal visible={showDownload} onClose={() => setShowDownload(false)} />
     </View>
@@ -573,15 +578,13 @@ const styles = StyleSheet.create({
   fbHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   fbDate:      { fontSize: 11, fontWeight: '400', color: MUTED, marginLeft: 'auto' },
   fbMessage:   { fontSize: 14, fontWeight: '400', color: TEXT, lineHeight: 20 },
-  ratingRow:   { flexDirection: 'row', gap: 2 },
-  downloadFab: {
-    position: 'absolute', bottom: 20, left: 20, right: 20,
+  ratingRow:         { flexDirection: 'row', gap: 2 },
+  downloadInline:    {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: NAVY, borderRadius: 14, paddingVertical: 15,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18, shadowRadius: 10, elevation: 6,
+    marginTop: 4,
   },
-  downloadFabText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  downloadInlineText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
 
 const dl = StyleSheet.create({
