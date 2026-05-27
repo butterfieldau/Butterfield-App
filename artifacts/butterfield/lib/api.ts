@@ -286,7 +286,7 @@ export const api = {
     staffClockIn:        (userId: string) => request<{ data: any }>(`/director/staff/${userId}/clock-in`, { method: 'POST' }),
     staffClockOut:       (userId: string) => request<{ data: any }>(`/director/staff/${userId}/clock-out`, { method: 'POST' }),
     staffLeave:          (userId: string) => request<{ data: any[] }>(`/director/staff/${userId}/leave`),
-    approveLeave:        (leaveId: string, approved: boolean) => request<{ data: any }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
+    approveLeave:        (leaveId: string, approved: boolean, note?: string) => request<{ data: any }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved, note }) }),
     approveStaff:        (userId: string, approved: boolean) => request<{ data: any }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     promoteToDirector:   (userId: string) => request<{ data: any }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
     setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
@@ -440,6 +440,7 @@ export const api = {
 
     // Staff hub
     allWastage:          () => request<{ data: any[] }>('/director/wastage'),
+    deleteWastage:       (id: string) => request<{ data: any }>(`/director/wastage/${id}`, { method: 'DELETE' }),
     allIssues:           () => request<{ data: any[] }>('/director/issues'),
     resolveIssue:        (id: string, status: string) => request<{ data: any }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     tasks:               () => request<{ data: any[] }>('/director/tasks'),
@@ -450,6 +451,7 @@ export const api = {
     reorderTasks:        (taskIds: string[]) => request<{ success: boolean }>('/director/tasks/reorder', { method: 'POST', body: JSON.stringify({ taskIds }) }),
     deleteTask:          (id: string) => request<{ success: boolean }>(`/director/tasks/${id}`, { method: 'DELETE' }),
     allLeave:            () => request<{ data: any[] }>('/director/leave'),
+    deleteLeave:         (id: string) => request<{ data: any }>(`/director/leave/${id}`, { method: 'DELETE' }),
 
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>

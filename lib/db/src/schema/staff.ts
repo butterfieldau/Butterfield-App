@@ -101,6 +101,7 @@ export const staffLeaveRequestsTable = pgTable("staff_leave_requests", {
   status: text("status").notNull().default("pending"),
   reviewedBy: text("reviewed_by"),
   reviewedAt: timestamp("reviewed_at"),
+  reviewNote: text("review_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

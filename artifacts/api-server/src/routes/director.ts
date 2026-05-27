@@ -742,10 +742,10 @@ router.get('/staff/:userId/leave', async (req, res) => {
 });
 
 router.patch('/staff/leave/:leaveId/review', async (req, res) => {
-  const { approved } = req.body;
+  const { approved, note } = req.body;
   const newStatus = approved ? 'approved' : 'rejected';
   const [updated] = await db.update(staffLeaveRequestsTable)
-    .set({ status: newStatus, reviewedBy: req.user!.id, reviewedAt: new Date() })
+    .set({ status: newStatus, reviewedBy: req.user!.id, reviewedAt: new Date(), reviewNote: note ?? null })
     .where(eq(staffLeaveRequestsTable.id, req.params.leaveId)).returning();
   if (!updated) return res.status(404).json({ error: 'Leave request not found.' });
   return res.json({ data: updated });
@@ -1442,6 +1442,13 @@ router.get('/wastage', async (req, res) => {
   return res.json({ data: rows });
 });
 
+router.delete('/wastage/:id', async (req, res) => {
+  const [deleted] = await db.delete(staffWastageTable)
+    .where(eq(staffWastageTable.id, req.params.id)).returning({ id: staffWastageTable.id });
+  if (!deleted) return res.status(404).json({ error: 'Wastage entry not found.' });
+  return res.json({ data: { success: true } });
+});
+
 router.get('/issues', async (req, res) => {
   const rows = await db
     .select({
@@ -1492,16 +1499,26 @@ router.get('/leave', async (req, res) => {
       type: staffLeaveRequestsTable.type,
       reason: staffLeaveRequestsTable.reason,
       status: staffLeaveRequestsTable.status,
+      reviewedBy: staffLeaveRequestsTable.reviewedBy,
       reviewedAt: staffLeaveRequestsTable.reviewedAt,
+      reviewNote: staffLeaveRequestsTable.reviewNote,
       createdAt: staffLeaveRequestsTable.createdAt,
       staffName: usersTable.name,
       staffEmail: usersTable.email,
+      reviewedByName: sql<string | null>`(SELECT name FROM users WHERE id = ${staffLeaveRequestsTable.reviewedBy})`,
     })
     .from(staffLeaveRequestsTable)
     .leftJoin(usersTable, eq(staffLeaveRequestsTable.userId, usersTable.id))
     .orderBy(desc(staffLeaveRequestsTable.createdAt))
     .limit(200);
   return res.json({ data: rows });
+});
+
+router.delete('/leave/:leaveId', async (req, res) => {
+  const [deleted] = await db.delete(staffLeaveRequestsTable)
+    .where(eq(staffLeaveRequestsTable.id, req.params.leaveId)).returning({ id: staffLeaveRequestsTable.id });
+  if (!deleted) return res.status(404).json({ error: 'Leave request not found.' });
+  return res.json({ data: { success: true } });
 });
 
 router.get('/tasks', async (_req, res) => {

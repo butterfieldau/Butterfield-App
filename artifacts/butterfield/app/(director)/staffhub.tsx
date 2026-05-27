@@ -3,8 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
+  Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -468,12 +468,35 @@ function WastageTab() {
   const thisWeekItems = useMemo(() => weekGroups.find((group) => group.key === currentWeekKey)?.items ?? [], [currentWeekKey, weekGroups]);
   const thisWeekCost = thisWeekItems.reduce((sum, item) => sum + (item.estimatedCostCents ?? 0), 0);
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => api.director.deleteWastage(id),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refetch();
+    },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
   const handlePress = (item: any) => {
     const cost = item.estimatedCostCents ? fmtAUD(item.estimatedCostCents) : 'Not estimated';
     Alert.alert(
       `Wastage: ${item.productName}`,
       `Staff: ${item.staffName ?? 'Unknown'}\nQuantity: ${item.quantity} ${item.unit}\nReason: ${item.reason}\nEst. cost: ${cost}${item.notes ? `\nNotes: ${item.notes}` : ''}`,
-      [{ text: 'OK' }],
+      [
+        { text: 'Delete', style: 'destructive', onPress: () => handleDelete(item) },
+        { text: 'OK' },
+      ],
+    );
+  };
+
+  const handleDelete = (item: any) => {
+    Alert.alert(
+      'Delete Wastage Entry',
+      `Remove wastage entry for ${item.productName} (${item.quantity} ${item.unit}) by ${item.staffName ?? 'Unknown'}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteMut.mutate(item.id) },
+      ],
     );
   };
 
@@ -501,7 +524,7 @@ function WastageTab() {
 
       {weekGroups.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          {weekGroups.map((group, index) => {
+          {weekGroups.map((group) => {
             const active = selectedWeek?.key === group.key;
             const isCurrentWeek = group.key === currentWeekKey;
             const label = isCurrentWeek
@@ -553,7 +576,9 @@ function WastageTab() {
                 {item.estimatedCostCents ? (
                   <Text style={[s.cost, { color: PURPLE }]}>{fmtAUD(item.estimatedCostCents)}</Text>
                 ) : null}
-                <Feather name="chevron-right" size={16} color={MUTED} />
+                <Pressable onPress={() => handleDelete(item)} hitSlop={8} style={{ padding: 4 }}>
+                  <Feather name="trash-2" size={15} color={RED} />
+                </Pressable>
               </View>
             </View>
             <View style={s.cardFooter}>
@@ -569,6 +594,61 @@ function WastageTab() {
   );
 }
 
+// ── Leave review modal ────────────────────────────────────────────────────────
+type ReviewTarget = { id: string; staffName: string; action: 'approve' | 'reject' };
+
+function LeaveReviewModal({
+  target, onClose, onSubmit, loading,
+}: {
+  target: ReviewTarget;
+  onClose: () => void;
+  onSubmit: (note: string) => void;
+  loading: boolean;
+}) {
+  const [note, setNote] = useState('');
+  const isApprove = target.action === 'approve';
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }} onPress={onClose}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable onPress={() => {}} style={{ backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
+                {isApprove ? 'Approve' : 'Reject'} Leave
+              </Text>
+              <Pressable onPress={onClose} hitSlop={8}>
+                <Feather name="x" size={20} color={MUTED} />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 14, color: MUTED }}>
+              {isApprove ? 'Approving' : 'Rejecting'} leave for <Text style={{ fontWeight: '600', color: TEXT }}>{target.staffName}</Text>.
+            </Text>
+            <View style={{ gap: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.5 }}>NOTE (optional)</Text>
+              <TextInput
+                style={[s.modalInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                placeholder={isApprove ? 'e.g. Enjoy your break!' : 'e.g. Insufficient notice period'}
+                placeholderTextColor={MUTED}
+                value={note}
+                onChangeText={setNote}
+                multiline
+                autoFocus
+              />
+            </View>
+            <Pressable
+              style={[s.primaryActionBtn, { backgroundColor: isApprove ? GREEN : RED, opacity: loading ? 0.6 : 1 }]}
+              onPress={() => onSubmit(note)}
+              disabled={loading}
+            >
+              <Text style={s.primaryActionText}>{loading ? 'Saving…' : isApprove ? 'Approve' : 'Reject'}</Text>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ── Leave tab ─────────────────────────────────────────────────────────────────
 function LeaveTab() {
   const qc = useQueryClient();
@@ -580,11 +660,14 @@ function LeaveTab() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const leave: any[] = data?.data ?? [];
 
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
+
   const reviewMut = useMutation({
-    mutationFn: ({ id, approved }: { id: string; approved: boolean }) =>
-      api.director.approveLeave(id, approved),
+    mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note: string }) =>
+      api.director.approveLeave(id, approved, note || undefined),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setReviewTarget(null);
       qc.invalidateQueries({ queryKey: ['director-all-leave'] });
       qc.invalidateQueries({ queryKey: ['director-stats'] });
     },
@@ -606,67 +689,74 @@ function LeaveTab() {
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-      showsVerticalScrollIndicator={false}
-    >
-      {leave.length === 0
-        ? <EmptyState icon="calendar" message="No leave requests" />
-        : leave.map((item: any) => (
-          <View key={item.id} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-            <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
-                <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
+    <>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {leave.length === 0
+          ? <EmptyState icon="calendar" message="No leave requests" />
+          : leave.map((item: any) => (
+            <View key={item.id} style={[s.card, { backgroundColor: CARD, borderColor: item.status === 'pending' ? AMBER + '60' : BORDER }]}>
+              <View style={s.cardHeader}>
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
+                  <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[s.cardTitle, { color: TEXT }]} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
+                  <Text style={[s.cardSub,   { color: MUTED }]} numberOfLines={1}>
+                    {fmtDate(item.startDate)} → {fmtDate(item.endDate)}
+                  </Text>
+                </View>
+                <Badge label={item.status} color={leaveStatusColor(item.status)} />
               </View>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[s.cardTitle, { color: TEXT }]} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
-                <Text style={[s.cardSub,   { color: MUTED }]} numberOfLines={1}>
-                  {fmtDate(item.startDate)} → {fmtDate(item.endDate)}
-                </Text>
+              <Text style={[s.cardDesc, { color: MUTED }]} numberOfLines={2}>{item.reason}</Text>
+              {/* Reviewer info */}
+              {item.reviewedByName && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: leaveStatusColor(item.status) + '10', borderRadius: 8, padding: 8 }}>
+                  <Feather name={item.status === 'approved' ? 'check-circle' : 'x-circle'} size={13} color={leaveStatusColor(item.status)} />
+                  <Text style={{ fontSize: 12, color: leaveStatusColor(item.status), fontWeight: '600', flex: 1 }} numberOfLines={2}>
+                    {item.status === 'approved' ? 'Approved' : 'Rejected'} by {item.reviewedByName}
+                    {item.reviewNote ? ` · "${item.reviewNote}"` : ''}
+                  </Text>
+                </View>
+              )}
+              <View style={s.cardFooter}>
+                <Badge label={item.type} color={leaveTypeColor(item.type)} />
+                <Text style={[s.cardTime, { color: MUTED }]}>{timeAgo(item.createdAt)}</Text>
               </View>
-              <Badge label={item.status} color={leaveStatusColor(item.status)} />
-            </View>
-            <Text style={[s.cardDesc, { color: MUTED }]} numberOfLines={2}>{item.reason}</Text>
-            <View style={s.cardFooter}>
-              <Badge label={item.type} color={leaveTypeColor(item.type)} />
-              <Text style={[s.cardTime, { color: MUTED }]}>{timeAgo(item.createdAt)}</Text>
-            </View>
-            {item.status === 'pending' && (
               <View style={s.actionRow}>
                 <Pressable
                   style={[s.actionBtn, { backgroundColor: RED + '12', borderColor: RED + '40' }]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    Alert.alert('Reject Leave', `Reject leave for ${item.staffName}?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Reject', style: 'destructive', onPress: () => reviewMut.mutate({ id: item.id, approved: false }) },
-                    ]);
-                  }}
+                  onPress={() => { Haptics.selectionAsync(); setReviewTarget({ id: item.id, staffName: item.staffName ?? 'staff', action: 'reject' }); }}
                 >
                   <Feather name="x" size={14} color={RED} />
                   <Text style={[s.actionBtnText, { color: RED }]}>Reject</Text>
                 </Pressable>
                 <Pressable
                   style={[s.actionBtn, { backgroundColor: GREEN + '12', borderColor: GREEN + '40' }]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    Alert.alert('Approve Leave', `Approve leave for ${item.staffName}?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Approve', onPress: () => reviewMut.mutate({ id: item.id, approved: true }) },
-                    ]);
-                  }}
+                  onPress={() => { Haptics.selectionAsync(); setReviewTarget({ id: item.id, staffName: item.staffName ?? 'staff', action: 'approve' }); }}
                 >
                   <Feather name="check" size={14} color={GREEN} />
                   <Text style={[s.actionBtnText, { color: GREEN }]}>Approve</Text>
                 </Pressable>
               </View>
-            )}
-          </View>
-        ))
-      }
-    </ScrollView>
+            </View>
+          ))
+        }
+      </ScrollView>
+
+      {reviewTarget && (
+        <LeaveReviewModal
+          target={reviewTarget}
+          onClose={() => setReviewTarget(null)}
+          loading={reviewMut.isPending}
+          onSubmit={(note) => reviewMut.mutate({ id: reviewTarget.id, approved: reviewTarget.action === 'approve', note })}
+        />
+      )}
+    </>
   );
 }
 

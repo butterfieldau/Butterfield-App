@@ -29,7 +29,7 @@ const BORDER= '#E5E7EB';
 const NAVY  = '#1A2B4A';
 const RED   = '#D20001';
 const GREEN = '#16A34A';
-const BLUE  = '#3B82F6';
+const BLUE  = '#1493FF';
 const GOLD  = '#B45309';
 
 // ── Date helpers (Australian format DD/MM/YYYY ↔ ISO) ──────────────────────
@@ -100,9 +100,9 @@ function fmtDate(d: string | null) {
 
 function StatusPill({ active }: { active: boolean }) {
   return (
-    <View style={[s.pill, { backgroundColor: active ? '#14532D' : '#3B0000', borderColor: active ? '#22C55E' : '#7F1D1D' }]}>
+    <View style={[s.pill, { backgroundColor: active ? '#DCFCE7' : '#FEE2E2', borderColor: active ? '#86EFAC' : '#FECACA' }]}>
       <View style={[s.pillDot, { backgroundColor: active ? GREEN : RED }]} />
-      <Text style={[s.pillText, { color: active ? '#86EFAC' : '#FCA5A5' }]}>{active ? 'Active' : 'Inactive'}</Text>
+      <Text style={[s.pillText, { color: active ? '#15803D' : '#DC2626' }]}>{active ? 'Active' : 'Inactive'}</Text>
     </View>
   );
 }
@@ -282,7 +282,7 @@ export default function DirectorDiscountsScreen() {
         : '';
 
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    <View style={s.root}>
       <View style={s.header}>
         <View style={s.headerRow}>
           <View>
@@ -584,7 +584,7 @@ const s = StyleSheet.create({
   cardTop:      { flexDirection: 'row', padding: 14, gap: 10 },
   codeRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
   codeText:     { fontSize: 18, fontWeight: '800', color: TEXT, letterSpacing: 1 },
-  discountLabel:{ fontSize: 14, fontWeight: '600', color: GOLD },
+  discountLabel:{ fontSize: 14, fontWeight: '600', color: BLUE },
   descText:     { fontSize: 12, color: MUTED, lineHeight: 17 },
   cardActions:  { gap: 8 },
   iconBtn:      { padding: 6 },

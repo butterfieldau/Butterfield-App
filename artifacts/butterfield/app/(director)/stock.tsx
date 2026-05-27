@@ -492,6 +492,9 @@ export default function StockScreen() {
       const q = search.toLowerCase();
       list = list.filter((i) => i.name.toLowerCase().includes(q) || (i.supplier ?? '').toLowerCase().includes(q));
     }
+    // Out of stock first, then low stock, then OK
+    const levelOrder = { out: 0, low: 1, ok: 2 };
+    list = [...list].sort((a, b) => levelOrder[stockLevel(a)] - levelOrder[stockLevel(b)]);
     return list;
   }, [items, catFilter, search]);
 
