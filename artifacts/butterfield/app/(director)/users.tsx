@@ -35,6 +35,14 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
 function initials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
+function fmtDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '—';
+  const date = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' });
+  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
+  return `${date} at ${time}`;
+}
 // ── Staff Profile Modal ────────────────────────────────────────────────────
 function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   userId: string | null; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
@@ -255,6 +263,9 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   </Text>
                   {sp?.employeeId ? (
                     <Text style={sp_s.empId}>Employee ID: {sp.employeeId}</Text>
+                  ) : null}
+                  {u?.createdAt ? (
+                    <Text style={sp_s.empId}>Registered: {fmtDateTime(u.createdAt)}</Text>
                   ) : null}
                 </View>
               </View>
@@ -843,6 +854,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
               { label: 'Contact',  value: user.name },
               { label: 'Email',    value: user.email },
               { label: 'Tier',     value: wa.tier?.name ?? wa.pricingTier ?? 'Standard' },
+              { label: 'Registered', value: fmtDateTime(user.createdAt) },
               { label: 'Credit Used', value: wa.creditUsedCents ? `$${(wa.creditUsedCents / 100).toFixed(2)}` : '$0.00' },
             ].map((row) => (
               <View key={row.label} style={wdl.infoRow}>
@@ -1653,7 +1665,7 @@ export default function DirectorUsersScreen() {
                       {sp && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
                     </View>
                     <Text style={styles.userEmail}>{u.email}</Text>
-                    <Text style={styles.userDate}>Joined {new Date(u.createdAt).toLocaleDateString('en-AU')}</Text>
+                    <Text style={styles.userDate}>Joined {fmtDateTime(u.createdAt)}</Text>
                   </View>
                 </Pressable>
                 {/* Staff approval toggle */}
@@ -1685,7 +1697,7 @@ export default function DirectorUsersScreen() {
                         color: u.status === 'active' ? GREEN : u.status === 'suspended' ? RED : AMBER,
                       }]}>
                         {u.status === 'active' ? '✓ Active' : u.status === 'suspended' ? 'Suspended' : 'Inactive'}
-                        {u.lastLogin ? ` · Last login ${new Date(u.lastLogin).toLocaleDateString('en-AU')}` : ''}
+                        {u.lastLogin ? ` · Last login ${fmtDateTime(u.lastLogin)}` : ''}
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
