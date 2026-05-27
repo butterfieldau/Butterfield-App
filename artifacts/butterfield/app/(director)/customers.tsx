@@ -745,10 +745,10 @@ const row = StyleSheet.create({
   location:  { fontSize: 13, color: MUTED, fontWeight: '400' },
   meta:      { fontSize: 13, color: MUTED, fontWeight: '400' },
   metaDot:   { color: MUTED },
-  badge:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, flexShrink: 0 },
+  badge:     { paddingHorizontal: 10, paddingTop: 5, paddingBottom: 6, borderRadius: 20, borderWidth: 1, flexShrink: 0 },
   badgeGreen:{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
   badgeGrey: { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB' },
-  badgeTx:   { fontSize: 12, fontWeight: '600' },
+  badgeTx:   { fontSize: 12, fontWeight: '600', lineHeight: 16 },
 });
 const scr = StyleSheet.create({
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1 },
