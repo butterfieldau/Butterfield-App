@@ -6,6 +6,7 @@ import {
   Alert, Pressable,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -101,8 +102,11 @@ export default function StaffProfileScreen() {
               { label: 'Address',      value: profile.address ?? '—' },
               { label: 'TFN',          value: profile.taxFileNumber ? '••• ••• •••' : 'Not set' },
               { label: 'Access Level', value: profile.isManager ? 'Manager' : 'Staff' },
-            ] as { label: string; value: string }[]).map((row) => (
-              <View key={row.label} style={styles.detailRow}>
+            ] as { label: string; value: string }[]).map((row, i, arr) => (
+              <View key={row.label} style={[
+                styles.detailRow,
+                i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(0,0,0,0.07)' },
+              ]}>
                 <Text style={[styles.detailLabel, { color: MUTED }]}>{row.label}</Text>
                 <Text style={[styles.detailValue, { color: TEXT }]} numberOfLines={2}>{row.value}</Text>
               </View>

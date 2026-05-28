@@ -392,6 +392,13 @@ function ManagerTasksTab() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const tasks: any[] = data?.data ?? [];
 
+  const { data: staffData } = useQuery({
+    queryKey: ['director-staff-list'],
+    queryFn: () => api.director.staffList(),
+    staleTime: 60_000,
+  });
+  const staffMembers: { id: string; name: string; role: string }[] = staffData?.data ?? [];
+
   const saveTask = useMutation({
     mutationFn: async (payload: any) => {
       const body = { ...payload, isRecurring: payload.cadence !== 'one_off' };
@@ -443,6 +450,48 @@ function ManagerTasksTab() {
             <Text style={[s.summarySub, { color: MUTED }]}>Opening, closing, coffee bar, cleaning, one-off…</Text>
           </View>
         </Pressable>
+
+        {/* ── By Employee ── */}
+        {staffMembers.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <Text style={[s.metaLabel, { paddingHorizontal: 2, letterSpacing: 1, marginTop: 4 }]}>BY EMPLOYEE</Text>
+            <View style={s.glassCard}>
+              {staffMembers.map((member, i) => {
+                const assigned = tasks.filter((t: any) => t.assignedToUserId === member.id);
+                const done     = assigned.filter((t: any) => t.isCompleted).length;
+                const isLast   = i === staffMembers.length - 1;
+                return (
+                  <View key={member.id}
+                    style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 2 },
+                      !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}>
+                    <View style={[s.iconBox, { backgroundColor: BLUE + '15' }]}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>
+                        {member.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.cardTitle}>{member.name}</Text>
+                      <Text style={s.cardSub}>
+                        {assigned.length === 0 ? 'No assigned tasks' : `${done}/${assigned.length} tasks complete`}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setEditingTask({ assignedToUserId: member.id, assignedToName: member.name });
+                        setShowEditor(true);
+                      }}
+                      style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center' }}>
+                      <Feather name="plus" size={16} color={BLUE} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        <Text style={[s.metaLabel, { paddingHorizontal: 2, letterSpacing: 1, marginTop: 4 }]}>ALL TASKS</Text>
 
         {tasks.length === 0 ? (
           <EmptyState icon="check-square" message="No tasks configured yet" />
