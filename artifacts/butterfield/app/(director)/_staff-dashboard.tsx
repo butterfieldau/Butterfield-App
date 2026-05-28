@@ -514,19 +514,27 @@ export function StaffDashboard() {
           <View>
             <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
             <View style={styles.actionsGrid}>
-              {[
-                { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any) },
-                { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'wastage' } } as any) },
-                { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
-                { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
-              ].map((action) => (
-                <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
-                  style={styles.actionCard}>
-                  <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
-                    <Feather name={action.icon as any} size={20} color={BLUE} />
-                  </View>
-                  <Text style={styles.actionLabel}>{action.label}</Text>
-                </Pressable>
+              {([
+                [
+                  { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any) },
+                  { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'wastage' } } as any) },
+                ],
+                [
+                  { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
+                  { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
+                ],
+              ] as const).map((row, ri) => (
+                <View key={ri} style={styles.actionsRow}>
+                  {row.map((action) => (
+                    <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
+                      style={styles.actionCard}>
+                      <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
+                        <Feather name={action.icon as any} size={20} color={BLUE} />
+                      </View>
+                      <Text style={styles.actionLabel}>{action.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               ))}
             </View>
           </View>
@@ -679,8 +687,9 @@ const styles = StyleSheet.create({
   viewAllLink:     { fontSize: 13, fontWeight: '600', color: BLUE },
 
   // Quick actions
-  actionsGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  actionCard:      { width: '47%', backgroundColor: 'rgba(255,255,255,0.6)', padding: 16, gap: 10, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  actionsGrid:     { gap: 12 },
+  actionsRow:      { flexDirection: 'row', gap: 12 },
+  actionCard:      { flex: 1, backgroundColor: 'rgba(255,255,255,0.6)', padding: 16, gap: 10, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   actionIcon:      { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   actionLabel:     { fontSize: 13, fontWeight: '500', color: TEXT },
 

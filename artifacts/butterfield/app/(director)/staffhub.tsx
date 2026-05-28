@@ -1095,13 +1095,8 @@ export default function StaffHubScreen() {
         <Text style={s.subtitle}>{isManager ? 'Manage your team' : 'Your shift tools'}</Text>
       </View>
 
-      {/* ── Tab bar (pill style) ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={s.tabScroll}
-      >
+      {/* ── Tab bar (pill style, full-width) ── */}
+      <View style={s.tabRow}>
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
           return (
@@ -1111,11 +1106,11 @@ export default function StaffHubScreen() {
               style={[s.tabPill, active && s.tabPillActive]}
             >
               <Feather name={tab.icon as any} size={13} color={active ? '#fff' : MUTED} />
-              <Text style={[s.tabPillText, active && { color: '#fff' }]}>{tab.label}</Text>
+              <Text style={[s.tabPillText, active && { color: '#fff' }]} numberOfLines={1}>{tab.label}</Text>
             </Pressable>
           );
         })}
-      </ScrollView>
+      </View>
 
       {/* ── Content (role-aware) ── */}
       {activeTab === 'tasks'    && (isManager ? <ManagerTasksTab />            : <StaffTasksTab userId={user?.id} />)}
@@ -1137,10 +1132,10 @@ const s = StyleSheet.create({
   subtitle:   { fontSize: 13, color: MUTED, marginTop: 2, fontWeight: '400' },
 
   // Tab pills
-  tabScroll:  { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  tabPill:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: GLASS_BG },
+  tabRow:     { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  tabPill:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: GLASS_BG },
   tabPillActive: { backgroundColor: BLUE, borderColor: BLUE },
-  tabPillText:   { fontSize: 13, fontWeight: '600', color: MUTED },
+  tabPillText:   { fontSize: 12, fontWeight: '600', color: MUTED },
 
   // Glass card
   glassCard:  { backgroundColor: GLASS_BG, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
