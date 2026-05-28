@@ -23,7 +23,8 @@ const PILL_H  = 46;   // pill height
 // Calculates expanded width — tight fit around icon (20) + gap (6) + label text
 function expandedWidth(title: string): number {
   // icon(20) + gap(6) + paddingH(12+12) = 50px overhead; min 90 so short words (Home, Menu) always fit
-  return Math.min(Math.max(90, Math.round(title.length * 6.5 + 48)), 132);
+  // 8.5px per char handles bold 13px labels like "Dashboard" without truncation
+  return Math.min(Math.max(90, Math.round(title.length * 8.5 + 50)), 160);
 }
 
 // ── Animated tab item ──────────────────────────────────────────────────────────
