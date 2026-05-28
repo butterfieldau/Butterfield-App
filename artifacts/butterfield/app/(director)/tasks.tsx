@@ -41,6 +41,13 @@ export default function StaffTasksScreen() {
     queryFn: () => api.staff.tasks(activeCat),
     retry: 1,
   });
+  const { data: assignedData } = useQuery({
+    queryKey: ['staff-tasks-assigned'],
+    queryFn: () => api.staff.tasks(),
+    retry: 1,
+    enabled: tab === 'tasks',
+  });
+  const assignedToMe = (assignedData?.data ?? []).filter((t: any) => t.assignedToUserId === user?.id && !t.isCompleted);
   const { data: wastageData, refetch: refetchWastage } = useQuery({
     queryKey: ['staff-wastage'],
     queryFn: () => api.staff.wastage(),
@@ -164,12 +171,40 @@ export default function StaffTasksScreen() {
               </View>
             </View>
           )}
+          {/* Assigned-to-me section */}
+          {assignedToMe.length > 0 && (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: -4 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#F59E0B' }} />
+                <Text style={[s.sectionLabel, { color: '#B45309' }]}>ASSIGNED TO YOU</Text>
+              </View>
+              <View style={[s.taskCard, { borderColor: '#FDE68A', borderWidth: 1.5 }]}>
+                {assignedToMe.map((task: any) => (
+                  <Pressable
+                    key={task.id}
+                    onPress={() => handleCompleteTask(task.id, task.isCompleted)}
+                    style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <View style={[s.checkbox, { borderColor: '#F59E0B', backgroundColor: 'transparent' }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.taskTitle}>{task.title}</Text>
+                      {task.description && <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>}
+                      <Text style={[s.taskCat, { color: '#F59E0B' }]}>
+                        {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)} · Assigned to you
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+
           {/* Task list card */}
           {tasks.length === 0 ? (
             <Text style={s.empty}>No tasks in this category.</Text>
           ) : (
             <View style={s.taskCard}>
-              {tasks.map((task: any, idx: number) => (
+              {tasks.map((task: any) => (
                 <Pressable
                   key={task.id}
                   onPress={() => handleCompleteTask(task.id, task.isCompleted)}

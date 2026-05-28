@@ -444,9 +444,10 @@ export const api = {
     allIssues:           () => request<{ data: any[] }>('/director/issues'),
     resolveIssue:        (id: string, status: string) => request<{ data: any }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     tasks:               () => request<{ data: any[] }>('/director/tasks'),
-    createTask:          (data: { title: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean }) =>
+    staffList:           () => request<{ data: { id: string; name: string; role: string }[] }>('/director/staff-list'),
+    createTask:          (data: { title: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
       request<{ data: any }>('/director/tasks', { method: 'POST', body: JSON.stringify(data) }),
-    updateTask:          (id: string, data: { title?: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean }) =>
+    updateTask:          (id: string, data: { title?: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
       request<{ data: any }>(`/director/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     reorderTasks:        (taskIds: string[]) => request<{ success: boolean }>('/director/tasks/reorder', { method: 'POST', body: JSON.stringify({ taskIds }) }),
     deleteTask:          (id: string) => request<{ success: boolean }>(`/director/tasks/${id}`, { method: 'DELETE' }),

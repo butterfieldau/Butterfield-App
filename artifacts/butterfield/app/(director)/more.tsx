@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -60,7 +60,7 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isManager = user?.role === 'manager';
 
   // Fetch manager permissions so we can gate items correctly
@@ -185,9 +185,22 @@ export default function MoreScreen() {
       <View style={{ paddingHorizontal: 16, gap: 0 }}>
         {showOperations && <Section title="OPERATIONS" rows={operations} />}
         <Section title="STORE" rows={store} />
+        <Section title="ACCOUNT" rows={[{
+          icon: 'log-out',
+          label: 'Sign Out',
+          sub: user?.email ?? '',
+          color: RED,
+          danger: true,
+          onPress: () => {
+            Alert.alert('Sign Out', 'Sign out of your account?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+            ]);
+          },
+        }]} />
       </View>
 
-      <Text style={s.footer}>Butterfield Director Portal</Text>
+      <Text style={s.footer}>Butterfield {isManager ? 'Manager' : 'Director'} Portal</Text>
     </ScrollView>
   );
 }

@@ -329,11 +329,15 @@ router.get('/timesheet', async (req, res) => {
 
 router.get('/tasks', async (req, res) => {
   const { category } = req.query;
+  const userId = req.user!.id;
+  const visibilityFilter = sql`(${staffTasksTable.assignedToUserId} IS NULL OR ${staffTasksTable.assignedToUserId} = ${userId})`;
   if (category) {
-    const tasks = await db.select().from(staffTasksTable).where(eq(staffTasksTable.category, category as any));
+    const tasks = await db.select().from(staffTasksTable).where(
+      and(eq(staffTasksTable.category, category as any), visibilityFilter)
+    );
     return res.json({ data: tasks });
   }
-  const tasks = await db.select().from(staffTasksTable).orderBy(staffTasksTable.sortOrder);
+  const tasks = await db.select().from(staffTasksTable).where(visibilityFilter).orderBy(staffTasksTable.sortOrder);
   return res.json({ data: tasks });
 });
 

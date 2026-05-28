@@ -48,6 +48,8 @@ export const staffTasksTable = pgTable("staff_tasks", {
   dueDate: text("due_date"),
   sortOrder: integer("sort_order").notNull().default(0),
   isRecurring: boolean("is_recurring").notNull().default(true),
+  assignedToUserId: text("assigned_to_user_id"),
+  assignedToName: text("assigned_to_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

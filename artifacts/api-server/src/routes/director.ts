@@ -1529,7 +1529,7 @@ router.get('/tasks', async (_req, res) => {
 
 router.post('/tasks', async (req, res) => {
   await ensureShopDisplaySchemaReady();
-  const { title, description, category, cadence, isRecurring } = req.body ?? {};
+  const { title, description, category, cadence, isRecurring, assignedToUserId, assignedToName } = req.body ?? {};
   if (!title || typeof title !== 'string') return res.status(400).json({ error: 'Task title is required.' });
   const allowedCategories = ['daily', 'prep', 'cleaning', 'opening', 'closing', 'training'];
   const allowedCadences = ['daily', 'weekly', 'one_off'];
@@ -1545,6 +1545,8 @@ router.post('/tasks', async (req, res) => {
     cadence: cadence ?? 'daily',
     isRecurring: typeof isRecurring === 'boolean' ? isRecurring : cadence !== 'one_off',
     sortOrder: (lastTask?.sortOrder ?? -10) + 10,
+    assignedToUserId: assignedToUserId ?? null,
+    assignedToName: assignedToName ?? null,
   }).returning();
 
   await recordAuditLog({
@@ -1558,10 +1560,17 @@ router.post('/tasks', async (req, res) => {
   return res.status(201).json({ data: created });
 });
 
+router.get('/staff-list', async (req, res) => {
+  const staff = await db
+    .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+    .from(usersTable)
+    .where(sql`${usersTable.role} IN ('staff', 'manager')`);
+  return res.json({ data: staff });
+});
+
 router.patch('/tasks/:id', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const { id } = req.params;
-  const { title, description, category, cadence, isRecurring } = req.body ?? {};
   const [existing] = await db.select().from(staffTasksTable).where(eq(staffTasksTable.id, id));
   if (!existing) return res.status(404).json({ error: 'Task not found.' });
 
@@ -1570,6 +1579,7 @@ router.patch('/tasks/:id', async (req, res) => {
   if (category && !allowedCategories.includes(category)) return res.status(400).json({ error: 'Invalid task category.' });
   if (cadence && !allowedCadences.includes(cadence)) return res.status(400).json({ error: 'Invalid task cadence.' });
 
+  const { title, description, category, cadence, isRecurring, assignedToUserId, assignedToName } = req.body ?? {};
   const updates: any = {};
   if (typeof title === 'string') updates.title = title.trim();
   if (description !== undefined) updates.description = description?.trim() || null;
@@ -1577,6 +1587,8 @@ router.patch('/tasks/:id', async (req, res) => {
   if (cadence) updates.cadence = cadence;
   if (typeof isRecurring === 'boolean') updates.isRecurring = isRecurring;
   else if (cadence) updates.isRecurring = cadence !== 'one_off';
+  if (assignedToUserId !== undefined) updates.assignedToUserId = assignedToUserId ?? null;
+  if (assignedToName !== undefined) updates.assignedToName = assignedToName ?? null;
 
   const [updated] = await db.update(staffTasksTable).set(updates).where(eq(staffTasksTable.id, id)).returning();
   await recordAuditLog({

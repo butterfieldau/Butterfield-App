@@ -421,6 +421,7 @@ export function StaffDashboard() {
 
             {/* Task progress bar */}
             <View style={{ gap: 6 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10, fontWeight: '600', letterSpacing: 1.1 }}>TODAY'S TASKS</Text>
               <View style={styles.gradProgressTrack}>
                 <View style={[styles.gradProgressFill, { width: `${Math.round(taskProgress * 100)}%` }]} />
               </View>

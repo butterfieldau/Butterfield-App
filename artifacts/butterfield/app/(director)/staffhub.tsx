@@ -148,19 +148,30 @@ function TaskEditorModal({
   visible: boolean;
   task: any | null;
   onClose: () => void;
-  onSubmit: (payload: { title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off' }) => Promise<void>;
+  onSubmit: (payload: { title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off'; assignedToUserId?: string | null; assignedToName?: string | null }) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('daily');
   const [cadence, setCadence] = useState<'daily' | 'weekly' | 'one_off'>('daily');
   const [saving, setSaving] = useState(false);
+  const [assignedToUserId, setAssignedToUserId] = useState<string | null>(null);
+  const [assignedToName, setAssignedToName] = useState<string | null>(null);
+
+  const { data: staffData } = useQuery({
+    queryKey: ['director-staff-list'],
+    queryFn: () => api.director.staffList(),
+    staleTime: 60_000,
+  });
+  const staffMembers: { id: string; name: string; role: string }[] = staffData?.data ?? [];
 
   React.useEffect(() => {
     setTitle(task?.title ?? '');
     setDescription(task?.description ?? '');
     setCategory(task?.category ?? 'daily');
     setCadence((task?.cadence as any) ?? 'daily');
+    setAssignedToUserId(task?.assignedToUserId ?? null);
+    setAssignedToName(task?.assignedToName ?? null);
     setSaving(false);
   }, [task, visible]);
 
@@ -202,6 +213,26 @@ function TaskEditorModal({
             ))}
           </View>
 
+          <Text style={s.modalInputLabel}>Assign to staff member</Text>
+          <Text style={{ fontSize: 12, color: MUTED, marginTop: -8, marginBottom: 4 }}>Leave unassigned for all staff to see</Text>
+          <View style={s.modalChipRow}>
+            <Pressable
+              onPress={() => { setAssignedToUserId(null); setAssignedToName(null); }}
+              style={[s.modalChip, !assignedToUserId && s.modalChipActive]}
+            >
+              <Text style={[s.modalChipText, !assignedToUserId && s.modalChipTextActive]}>All staff</Text>
+            </Pressable>
+            {staffMembers.map((member) => (
+              <Pressable
+                key={member.id}
+                onPress={() => { setAssignedToUserId(member.id); setAssignedToName(member.name); }}
+                style={[s.modalChip, assignedToUserId === member.id && s.modalChipActive]}
+              >
+                <Text style={[s.modalChipText, assignedToUserId === member.id && s.modalChipTextActive]}>{member.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <Pressable
             style={[s.primaryActionBtn, saving && { opacity: 0.7 }]}
             disabled={saving}
@@ -212,7 +243,7 @@ function TaskEditorModal({
               }
               setSaving(true);
               try {
-                await onSubmit({ title: title.trim(), description: description.trim() || undefined, category, cadence });
+                await onSubmit({ title: title.trim(), description: description.trim() || undefined, category, cadence, assignedToUserId, assignedToName });
                 onClose();
               } finally {
                 setSaving(false);
@@ -241,7 +272,7 @@ function TasksTab() {
   const tasks: any[] = data?.data ?? [];
 
   const saveTask = useMutation({
-    mutationFn: async (payload: { id?: string; title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off' }) => {
+    mutationFn: async (payload: { id?: string; title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off'; assignedToUserId?: string | null; assignedToName?: string | null }) => {
       const body = { ...payload, isRecurring: payload.cadence !== 'one_off' };
       if (payload.id) return api.director.updateTask(payload.id, body);
       return api.director.createTask(body);
@@ -306,6 +337,7 @@ function TasksTab() {
                 <Text style={[s.cardTitle, { color: TEXT }]}>{task.title}</Text>
                 <Text style={[s.cardSub, { color: MUTED }]}>
                   {TASK_CATEGORY_LABELS[task.category] ?? task.category} · {TASK_CADENCE_LABELS[task.cadence ?? 'daily'] ?? 'Daily'}
+                  {task.assignedToName ? ` · ${task.assignedToName}` : ' · All staff'}
                 </Text>
               </View>
             </View>
@@ -342,7 +374,7 @@ function TasksTab() {
         task={editingTask}
         onClose={() => setShowEditor(false)}
         onSubmit={async (payload) => {
-          await saveTask.mutateAsync(editingTask ? { ...payload, id: editingTask.id } : payload);
+          await saveTask.mutateAsync(editingTask ? { ...payload, id: editingTask.id } : payload as any);
         }}
       />
     </>
