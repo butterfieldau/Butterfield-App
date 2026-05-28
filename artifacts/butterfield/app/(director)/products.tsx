@@ -99,7 +99,7 @@ function Toggle({ label, value, onChange, color, desc }: { label: string; value:
         {desc ? <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>{desc}</Text> : null}
       </View>
       <Switch value={value} onValueChange={onChange}
-        trackColor={{ false: BORDER, true: color ?? BLUE }} thumbColor="#fff" ios_backgroundColor={BORDER} />
+        trackColor={{ false: BORDER, true: color ?? BLUE }} thumbColor="#fff" ios_backgroundColor="transparent" />
     </View>
   );
 }
@@ -1723,7 +1723,7 @@ export default function DirectorProductsScreen() {
                       <Text style={[styles.toggleLabel, { fontWeight: '600', color: TEXT, fontSize: 13 }]}>{t.label}</Text>
                       <Switch value={t.value} onValueChange={v => toggle(p, t.field, v)}
                         trackColor={{ false: '#D1D5DB', true: t.color }}
-                        thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
+                        thumbColor="#fff" ios_backgroundColor="transparent" />
                     </View>
                   ))}
                 </View>
