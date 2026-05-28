@@ -132,6 +132,7 @@ router.get('/stats', async (req, res) => {
     [wastageToday], [wastageCostToday], [wastageWeek], [wastageCostWeek],
     [pendingLeave],
     [unreadFeedback],
+    [openTasks],
   ] = await Promise.all([
     db.select({ count: count() }).from(ordersTable),
     db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfToday)),
@@ -158,6 +159,7 @@ router.get('/stats', async (req, res) => {
     db.select({ total: sum(staffWastageTable.estimatedCostCents) }).from(staffWastageTable).where(gte(staffWastageTable.createdAt, startOfWeekMonday)),
     db.select({ count: count() }).from(staffLeaveRequestsTable).where(eq(staffLeaveRequestsTable.status, 'pending')),
     db.select({ count: count() }).from(feedbackTable).where(eq(feedbackTable.isRead, false)),
+    db.select({ count: count() }).from(staffTasksTable).where(eq(staffTasksTable.isCompleted, false)),
   ]);
 
   const weekShifts = await db.select({
@@ -237,6 +239,9 @@ router.get('/stats', async (req, res) => {
       customers: {
         birthdayToday: birthdayCount,
         unreadFeedback: unreadFeedback.count,
+      },
+      tasks: {
+        open: openTasks.count,
       },
     },
   });
