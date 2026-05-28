@@ -21,7 +21,9 @@ const BLUE   = '#1493FF';
 const BLUE_DARK = '#3CBBEE';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
@@ -139,7 +141,7 @@ function BannerTab() {
       </View>
 
       <Text style={styles.section}>VISIBILITY</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+      <View style={styles.card}>
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Show banner</Text>
@@ -151,7 +153,7 @@ function BannerTab() {
       </View>
 
       <Text style={styles.section}>BACKGROUND IMAGE</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+      <View style={styles.card}>
         {/* Upload button */}
         <Pressable
           onPress={pickAndUploadBannerImage}
@@ -191,7 +193,7 @@ function BannerTab() {
       </View>
 
       <Text style={styles.section}>HEADLINE TEXT</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+      <View style={styles.card}>
         <View style={{ gap: 6 }}>
           <Text style={styles.fieldLabel}>Main headline</Text>
           <TextInput
@@ -227,7 +229,7 @@ function BannerTab() {
       </View>
 
       <Text style={styles.section}>CALL TO ACTION BUTTON</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+      <View style={styles.card}>
         <View style={{ gap: 6 }}>
           <Text style={styles.fieldLabel}>Button label</Text>
           <TextInput
@@ -434,7 +436,7 @@ function StoreTab() {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
       <Text style={styles.section}>STORE</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+      <View style={styles.card}>
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Store open</Text>
@@ -481,7 +483,7 @@ function StoreTab() {
       </View>
 
       <Text style={styles.section}>WELCOME SCREEN</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 10 }]}>
+      <View style={styles.card}>
         <View style={[styles.infoBanner, { backgroundColor: '#F0F4FF', borderColor: BLUE + '30' }]}>
           <Feather name="smartphone" size={13} color={BLUE} />
           <Text style={[styles.infoBannerText, { color: BLUE }]}>
@@ -530,7 +532,7 @@ function StoreTab() {
       {canEditGeo && (
         <>
           <Text style={styles.section}>STAFF GEO-FENCE</Text>
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={styles.card}>
             <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
               <Feather name="map-pin" size={13} color={BLUE} />
               <Text style={[styles.infoBannerText, { color: BLUE }]}>
@@ -561,7 +563,7 @@ function StoreTab() {
       )}
 
       <Text style={styles.section}>RECEIPT PRINTER</Text>
-      <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 12 }]}>
+      <View style={[styles.card, { gap: 12 }]}>
         <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
           <Feather name="printer" size={13} color={BLUE} />
           <Text style={[styles.infoBannerText, { color: BLUE }]}>
@@ -823,7 +825,7 @@ function StoreHoursSection() {
       {loadingHours ? (
         <View style={styles.center}><ActivityIndicator color={BLUE} /></View>
       ) : (
-        <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER, gap: 0 }]}>
+        <View style={[styles.card, { gap: 0 }]}>
           {WEEK_ORDER.map((dayIndex, i) => {
             const row = hours.find(r => r.dayOfWeek === dayIndex) ?? {
               dayOfWeek: dayIndex, openTime: '08:00', closeTime: '17:00', isClosed: false, notes: '',
@@ -1582,7 +1584,7 @@ function NotifyTab() {
           </View>
         }
         renderItem={({ item: a }: { item: DirectorAnnouncement }) => (
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: a.isActive ? BORDER : '#FEE2E2' }]}>
+          <View style={[styles.card, { borderColor: a.isActive ? GLASS_BORDER : '#FEE2E2' }]}>
             <View style={styles.annHeader}>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -1730,7 +1732,7 @@ function ManagersTab() {
           </View>
         ) : (
           managers.map((m: any) => (
-            <View key={m.id} style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View key={m.id} style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{m.name}</Text>
@@ -1930,7 +1932,7 @@ function DirectorsTab() {
           </View>
         ) : (
           directors.map((d: any) => (
-            <View key={d.id} style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View key={d.id} style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{d.name}</Text>
@@ -2056,7 +2058,7 @@ const styles = StyleSheet.create({
   tabBtn:        { flex: 1, paddingHorizontal: 4, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText:       { fontSize: 11, fontWeight: '600' },
   section:       { fontSize: 11, fontWeight: '700', color: '#8E8E93', letterSpacing: 1.5, marginTop: 4 },
-  card:          { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
+  card:          { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   row:           { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowTitle:      { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
   rowSub:        { fontSize: 12, fontWeight: '400', color: '#8E8E93', marginTop: 2, lineHeight: 17 },

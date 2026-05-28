@@ -25,7 +25,9 @@ const CARD  = '#FFFFFF';
 const CARD2 = '#F3F4F6';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
-const BORDER= '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const NAVY  = '#1A2B4A';
 const RED   = '#D20001';
 const GREEN = '#16A34A';
@@ -580,7 +582,7 @@ const s = StyleSheet.create({
   emptyWrap:    { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 60 },
   emptyText:    { fontSize: 18, fontWeight: '600', color: TEXT },
   emptySub:     { fontSize: 13, color: MUTED, textAlign: 'center' },
-  card:         { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  card:         { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   cardTop:      { flexDirection: 'row', padding: 14, gap: 10 },
   codeRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
   codeText:     { fontSize: 18, fontWeight: '800', color: TEXT, letterSpacing: 1 },

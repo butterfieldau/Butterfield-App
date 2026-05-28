@@ -21,7 +21,9 @@ const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -222,7 +224,7 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[sm.header, { paddingTop: insets.top + 8, backgroundColor: CARD, borderBottomColor: BORDER }]}>
+        <View style={[sm.header, { paddingTop: insets.top + 8 }]}>
           <Pressable onPress={onClose} style={sm.closeBtn}>
             <Feather name="x" size={20} color={TEXT} />
           </Pressable>
@@ -232,7 +234,7 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
           </View>
           <View style={{ width: 36 }} />
         </View>
-        <View style={[sm.subTabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+        <View style={sm.subTabBar}>
           {(['details', 'edit'] as const).map(t => (
             <Pressable key={t} onPress={() => setTab(t)} style={[sm.subTab, tab === t && { borderBottomColor: BLUE }]}>
               <Text style={[sm.subTabText, { color: tab === t ? BLUE : MUTED }]}>
@@ -333,7 +335,7 @@ function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySumma
   const totalHours = summaries.reduce((a, s) => a + s.totalHours, 0);
   const pending    = summaries.reduce((a, s) => a + s.pendingShifts, 0);
   return (
-    <View style={[pay.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+    <View style={pay.card}>
       <View style={pay.cardHeader}>
         <View style={{ flex: 1 }}>
           <Text style={pay.title}>Payroll — {weekLabel}</Text>
@@ -482,7 +484,7 @@ export default function DirectorTimesheetsScreen() {
             </Pressable>
           </View>
           {/* Week navigator */}
-          <View style={[styles.weekNav, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={styles.weekNav}>
             <Pressable onPress={() => { setWeekOffset(o => o - 1); setPersonFilter('all'); }} style={styles.weekNavBtn}>
               <Feather name="chevron-left" size={20} color={TEXT} />
             </Pressable>
@@ -502,17 +504,17 @@ export default function DirectorTimesheetsScreen() {
         <View style={{ paddingHorizontal: 16, gap: 14 }}>
           {/* ── 3 Summary cards ─────────────────────────────────────────────── */}
           <View style={styles.summaryRow}>
-            <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={styles.summaryCard}>
               <Text style={[styles.summaryLabel, { color: MUTED }]}>HOURS WORKED</Text>
               <Text style={[styles.summaryValue, { color: TEXT }]}>{formatHours(stats.totalHrs)}</Text>
             </View>
             {!isManager && (
-              <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <View style={styles.summaryCard}>
                 <Text style={[styles.summaryLabel, { color: MUTED }]}>OWING</Text>
                 <Text style={[styles.summaryValue, { color: BLUE }]}>{fmtAUD(stats.totalOwingCents)}</Text>
               </View>
             )}
-            <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={styles.summaryCard}>
               <Text style={[styles.summaryLabel, { color: MUTED }]}>SHIFTS</Text>
               <Text style={[styles.summaryValue, { color: TEXT }]}>{stats.completed}</Text>
             </View>
@@ -550,7 +552,7 @@ export default function DirectorTimesheetsScreen() {
               <ActivityIndicator color={BLUE} />
             </View>
           ) : sections.length === 0 ? (
-            <View style={[styles.emptyState, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={styles.emptyState}>
               <Feather name="clock" size={32} color={BORDER} />
               <Text style={[styles.emptyTitle, { color: TEXT }]}>No shifts this week</Text>
               <Text style={[styles.emptySub, { color: MUTED }]}>No shifts were recorded for this period.</Text>
@@ -587,8 +589,8 @@ export default function DirectorTimesheetsScreen() {
                         style={({ pressed }) => [
                           styles.shiftCard,
                           {
-                            backgroundColor: CARD,
-                            borderColor: isActive ? '#86EFAC' : BORDER,
+                            backgroundColor: GLASS_BG,
+                            borderColor: isActive ? '#86EFAC' : GLASS_BORDER,
                             borderLeftColor: isActive ? '#22C55E' : BLUE,
                             borderLeftWidth: 3,
                             opacity: pressed ? 0.75 : 1,
@@ -683,18 +685,18 @@ const styles = StyleSheet.create({
   title:           { fontSize: 28, fontWeight: '700', color: TEXT },
   exportBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   exportBtnText:   { color: '#fff', fontSize: 13, fontWeight: '600' },
-  weekNav:         { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  weekNav:         { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, overflow: 'hidden', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   weekNavBtn:      { padding: 14 },
   weekLabel:       { fontSize: 15, fontWeight: '600' },
   weekSub:         { fontSize: 12, fontWeight: '400', marginTop: 1 },
   summaryRow:      { flexDirection: 'row', gap: 10 },
-  summaryCard:     { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4 },
+  summaryCard:     { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   summaryLabel:    { fontSize: 9, fontWeight: '600', letterSpacing: 0.8 },
   summaryValue:    { fontSize: 18, fontWeight: '700' },
   sectionTitle:    { fontSize: 10, fontWeight: '600', letterSpacing: 1.2 },
   staffPill:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   staffPillText:   { fontSize: 13, fontWeight: '600' },
-  emptyState:      { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1 },
+  emptyState:      { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   emptyTitle:      { fontSize: 16, fontWeight: '600' },
   emptySub:        { fontSize: 13, fontWeight: '400', textAlign: 'center', lineHeight: 19 },
   dayHeader:       { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 2, marginTop: 6 },
@@ -702,7 +704,7 @@ const styles = StyleSheet.create({
   dayDate:         { fontSize: 13, fontWeight: '400' },
   todayBadge:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   todayBadgeText:  { color: '#fff', fontSize: 10, fontWeight: '600' },
-  shiftCard:       { borderRadius: 14, padding: 14, borderWidth: 1, gap: 8 },
+  shiftCard:       { borderRadius: 14, padding: 14, borderWidth: 1, gap: 8, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   shiftStaffRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
   shiftAvatar:     { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   shiftAvatarText: { fontSize: 13, fontWeight: '700' },
@@ -736,7 +738,7 @@ const sm = StyleSheet.create({
   subTabText:       { fontSize: 14, fontWeight: '600' },
   statusBanner:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
   statusBannerText: { fontSize: 14, fontWeight: '600' },
-  card:             { backgroundColor: CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER },
+  card:             { backgroundColor: GLASS_BG, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   sectionLabel:     { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, color: MUTED, marginBottom: 10 },
   infoRow:          { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: BORDER },
   infoLabel:        { color: MUTED, fontWeight: '400', fontSize: 13 },
@@ -751,7 +753,7 @@ const sm = StyleSheet.create({
   saveBtnText:      { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
 const pay = StyleSheet.create({
-  card:        { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, padding: 16, gap: 0 },
+  card:        { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, padding: 16, gap: 0, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   cardHeader:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   title:       { fontSize: 15, fontWeight: '700', color: TEXT },
   sub:         { fontSize: 12, fontWeight: '400', marginTop: 2 },

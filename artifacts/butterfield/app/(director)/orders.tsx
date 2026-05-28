@@ -17,7 +17,9 @@ const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -870,8 +872,8 @@ const styles = StyleSheet.create({
   dateTab:        { flex: 1, alignItems: 'center', paddingVertical: 12 },
   dayChip:        { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, minWidth: 80 },
   orderCard:      { marginBottom: 10 },
-  orderCardAccent:{ borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  orderCardAccent:{ borderRadius: 16, padding: 14, borderWidth: 1, borderColor: GLASS_BORDER, backgroundColor: GLASS_BG,
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   orderCardTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   orderId:        { fontSize: 14, fontWeight: '700', color: TEXT },
   printMiniBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
@@ -884,7 +886,7 @@ const styles = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
   modalTitle:     { fontSize: 17, fontWeight: '700', color: TEXT },
   closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  section:        { backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
+  section:        { backgroundColor: GLASS_BG, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   sectionLabel:   { fontSize: 11, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
   statusPill:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' },
   statusPillText: { fontSize: 13, fontWeight: '600' },

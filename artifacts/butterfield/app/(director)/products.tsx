@@ -19,7 +19,9 @@ const NAVY   = '#1A2B4A';
 const RED    = '#F40009';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const PURPLE = '#8B5CF6';
@@ -900,7 +902,7 @@ function CatalogTab() {
         renderItem={({ item: c }) => {
           const thumbUrl = c.imageUrl ? toDisplayUrl(c.imageUrl) : null;
           return (
-            <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ backgroundColor: GLASS_BG, borderRadius: 14, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }}>
               {/* Thumbnail */}
               <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: BG, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {thumbUrl
@@ -1158,7 +1160,7 @@ function OptionsTab() {
           })();
           const activeOpts  = (g.options ?? []).filter((o: any) => o.isActive !== false);
           return (
-            <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
+            <View style={{ backgroundColor: GLASS_BG, borderRadius: 14, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }}>
               {/* Group header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 14 }}>
                 <Pressable style={{ flex: 1 }} onPress={() => toggleExpand(g.id)}>
@@ -1663,7 +1665,7 @@ export default function DirectorProductsScreen() {
               ? Math.round(((p.priceCents - p.costPriceCents) / p.priceCents) * 100)
               : null;
             return (
-              <Pressable onPress={() => openEdit(p)} style={[styles.productCard, { backgroundColor: CARD, borderColor: p.isSoldOut ? '#FCA5A5' : (p.stockCount != null && p.stockCount <= p.lowStockThreshold ? '#FDE68A' : BORDER) }]}>
+              <Pressable onPress={() => openEdit(p)} style={[styles.productCard, { backgroundColor: p.isSoldOut ? 'rgba(255,220,220,0.7)' : GLASS_BG, borderColor: p.isSoldOut ? '#FCA5A5' : (p.stockCount != null && p.stockCount <= p.lowStockThreshold ? '#FDE68A' : GLASS_BORDER) }]}>
                 {/* Status badges */}
                 <View style={styles.badgeRow}>
                   {p.isFeatured    && <View style={[styles.badge, { backgroundColor: BLUE + '18'   }]}><Text style={[styles.badgeText, { color: BLUE   }]}>Featured</Text></View>}
@@ -1774,7 +1776,7 @@ const styles = StyleSheet.create({
   dropSectionLabel:{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   dropDivider:     { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginTop: 4 },
   count:         { fontSize: 13, marginBottom: 4 },
-  productCard:   { borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: CARD },
+  productCard:   { borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   badgeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, paddingBottom: 0 },
   badge:         { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   badgeText:     { fontSize: 11, fontWeight: '600' },
@@ -1808,7 +1810,7 @@ const modal = StyleSheet.create({
   saveBtnText: { color: '#fff', fontSize: 14 },
 });
 const form = StyleSheet.create({
-  card:          { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, gap: 14 },
+  card:          { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, padding: 16, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionIcon:   { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   sectionTitle:  { fontSize: 15 },

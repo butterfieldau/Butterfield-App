@@ -18,7 +18,9 @@ const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
@@ -87,7 +89,7 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
 
 function StatBox({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <View style={[styles.statBox, { backgroundColor: CARD, borderColor: BORDER }]}>
+    <View style={styles.statBox}>
       <Text style={[styles.statVal, { color: color ?? TEXT }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
       {sub ? <Text style={styles.statSub}>{sub}</Text> : null}
@@ -381,7 +383,7 @@ function RevenueTab({ onDownloadPress }: { onDownloadPress: () => void }) {
       {(r?.byType?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>BY ORDER TYPE (THIS MONTH)</Text>
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={styles.card}>
             {r!.byType.map(t => (
               <View key={t.type} style={styles.breakRow}>
                 <Text style={styles.breakLabel}>{t.type.replace('_', ' ').toUpperCase()}</Text>
@@ -398,7 +400,7 @@ function RevenueTab({ onDownloadPress }: { onDownloadPress: () => void }) {
       {(r?.byStatus?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>BY STATUS (THIS MONTH)</Text>
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={styles.card}>
             {r!.byStatus.map(s => {
               const c = s.status === 'completed' ? GREEN : s.status === 'cancelled' ? RED : AMBER;
               return (
@@ -418,7 +420,7 @@ function RevenueTab({ onDownloadPress }: { onDownloadPress: () => void }) {
       {(r?.dailyRevenue?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>DAILY REVENUE — LAST 30 DAYS</Text>
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={styles.card}>
             {r!.dailyRevenue.slice(-14).map((d, i) => (
               <View key={i} style={styles.breakRow}>
                 <Text style={[styles.breakLabel, { width: 64 }]}>{fmtDateShort(d.day)}</Text>
@@ -435,7 +437,7 @@ function RevenueTab({ onDownloadPress }: { onDownloadPress: () => void }) {
       {(r?.topSellingItems?.length ?? 0) > 0 && (
         <>
           <Text style={styles.section}>TOP SELLING ITEMS</Text>
-          <View style={[styles.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={styles.card}>
             {r!.topSellingItems.map((item, i) => (
               <View key={`${item.name}-${i}`} style={styles.breakRow}>
                 <Text style={[styles.breakLabel, { flex: 1, width: undefined }]} numberOfLines={1}>
@@ -498,7 +500,7 @@ function FeedbackTab() {
         const cat = CATS[f.category] ?? { color: MUTED, bg: BG };
         return (
           <Pressable
-            style={[styles.card, { backgroundColor: f.isRead ? CARD : '#F0F9FF', borderColor: f.isRead ? BORDER : BLUE + '40' }]}
+            style={[styles.card, { backgroundColor: f.isRead ? GLASS_BG : '#F0F9FF', borderColor: f.isRead ? GLASS_BORDER : BLUE + '40' }]}
             onPress={() => {
               if (!f.isRead) { Haptics.selectionAsync(); markRead.mutate(f.id); }
             }}
@@ -563,9 +565,9 @@ const styles = StyleSheet.create({
   tabBtn:      { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabText:     { fontSize: 13, fontWeight: '600' },
   section:     { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 1.5 },
-  card:        { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
+  card:        { borderRadius: 16, borderWidth: 1, padding: 14, gap: 8, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   statRow:     { flexDirection: 'row', gap: 8 },
-  statBox:     { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12, alignItems: 'center', gap: 4 },
+  statBox:     { flex: 1, borderRadius: 14, borderWidth: 1, padding: 12, alignItems: 'center', gap: 4, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   statVal:     { fontSize: 16, fontWeight: '700', color: TEXT },
   statLabel:   { fontSize: 10, fontWeight: '500', color: MUTED, textAlign: 'center' },
   statSub:     { fontSize: 9,  fontWeight: '400', color: MUTED, textAlign: 'center' },
@@ -622,8 +624,9 @@ const dl = StyleSheet.create({
   dateInput:    { flex: 1, fontSize: 14, fontWeight: '500', color: TEXT },
   dateParsed:   { fontSize: 12, color: MUTED, fontWeight: '400', flexShrink: 1 },
   includesCard: {
-    backgroundColor: CARD, borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: BORDER,
+    backgroundColor: GLASS_BG, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: GLASS_BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
   },
   includeText:  { fontSize: 13, fontWeight: '400', color: TEXT },
   footer:       {

@@ -20,7 +20,9 @@ const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
@@ -701,14 +703,14 @@ const sp_s = StyleSheet.create({
   startShiftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: NAVY },
   startShiftText:{ color: NAVY, fontSize: 15, fontWeight: '600' },
   actionRow:     { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 20 },
-  actionBtn:     { flex: 1, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, paddingVertical: 16, alignItems: 'center', gap: 8 },
+  actionBtn:     { flex: 1, backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, paddingVertical: 16, alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   actionLabel:   { color: TEXT, fontSize: 12, fontWeight: '500' },
   sectionLabel:  { color: MUTED, fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginBottom: 8 },
-  infoCard:      { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  infoCard:      { backgroundColor: GLASS_BG, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   infoRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER },
   infoLabel:     { color: MUTED, fontSize: 13, fontWeight: '400', flex: 1 },
   infoValue:     { color: TEXT, fontSize: 13, fontWeight: '500', flex: 2, textAlign: 'right' },
-  menuSection:   { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  menuSection:   { backgroundColor: GLASS_BG, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   menuRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
   menuLabel:     { color: TEXT, fontSize: 15, fontWeight: '500' },
   menuSub:       { color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 1 },
@@ -1582,7 +1584,7 @@ export default function DirectorUsersScreen() {
             const daysLeft = Math.max(0, Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / 86400000));
             const roleColors = ROLE_COLORS[item.role] ?? { bg: BG, text: MUTED };
             return (
-              <View style={[styles.userCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
                 <View style={styles.userTop}>
                   <View style={[styles.avatar, { backgroundColor: roleColors.bg, alignItems: 'center', justifyContent: 'center' }]}>
                     <Feather name="user" size={20} color={roleColors.text} />
@@ -1640,7 +1642,7 @@ export default function DirectorUsersScreen() {
             const sp = u.staffProfile;
             const wa = u.wholesaleAccount;
             return (
-              <View style={[styles.userCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+              <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
                 <Pressable
                   style={styles.userTop}
                   onPress={sp ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); } : undefined}
@@ -1940,7 +1942,7 @@ const wdl = StyleSheet.create({
   title:           { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
   statusBadge:     { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, borderWidth: 1, marginTop: 4 },
   statusBadgeText: { fontSize: 11, fontWeight: '600' },
-  card:            { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E5E7EB', gap: 0 },
+  card:            { backgroundColor: GLASS_BG, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: GLASS_BORDER, gap: 0, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   sectionLabel:    { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, color: '#8E8E93', marginBottom: 8 },
   infoRow:         { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   infoLabel:       { color: '#8E8E93', fontWeight: '400', fontSize: 13 },

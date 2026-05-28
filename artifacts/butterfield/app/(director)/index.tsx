@@ -23,7 +23,13 @@ const NAVY   = '#1A2B4A';
 const RED    = '#F40009';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
+const GLASS_SHADOW = {
+  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
+} as const;
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const PURPLE = '#8B5CF6';
@@ -289,7 +295,7 @@ function SessionsChart({
   const up = pctChange !== null && pctChange >= 0;
 
   return (
-    <View style={[ch.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+    <View style={ch.card}>
       {/* Header stats */}
       <View style={ch.statsRow}>
         <View style={ch.statBlock}>
@@ -370,7 +376,7 @@ function KpiTile({ icon, label, value, color, alert, onPress, helper }: {
   icon: string; label: string; value: string | number; color: string; alert?: boolean; onPress?: () => void; helper?: string;
 }) {
   return (
-    <Pressable onPress={onPress} style={[kpi.tile, { backgroundColor: CARD, borderColor: alert ? color + '60' : BORDER }]}>
+    <Pressable onPress={onPress} style={[kpi.tile, alert ? { borderColor: color + '60' } : undefined]}>
       <View style={[kpi.iconBox, { backgroundColor: color + '18' }]}>
         <Feather name={icon as any} size={16} color={color} />
         {alert && <View style={kpi.alertDot} />}
@@ -385,7 +391,7 @@ function KpiTile({ icon, label, value, color, alert, onPress, helper }: {
 // ── Quick action button ───────────────────────────────────────────────────────
 function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string; color: string; onPress: () => void }) {
   return (
-    <Pressable onPress={() => { Haptics.selectionAsync(); onPress(); }} style={[qa.btn, { backgroundColor: CARD, borderColor: BORDER }]}>
+    <Pressable onPress={() => { Haptics.selectionAsync(); onPress(); }} style={qa.btn}>
       <View style={[qa.icon, { backgroundColor: color + '18' }]}>
         <Feather name={icon as any} size={18} color={color} />
       </View>
@@ -524,7 +530,7 @@ function DirectorDashboardInner() {
                   liveCount={sess.liveCount}
                 />
               ) : (
-                <View style={[styles.emptyCard, { backgroundColor: CARD, borderColor: BORDER, paddingVertical: 28 }]}>
+                <View style={[styles.emptyCard, { paddingVertical: 28 }]}>
                   <ActivityIndicator color={BLUE} />
                 </View>
               )}
@@ -626,12 +632,12 @@ function DirectorDashboardInner() {
             <View>
               <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>RECENT ACTIVITY</Text>
               {activity.length === 0 ? (
-                <View style={[styles.emptyCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.emptyCard}>
                   <Feather name="activity" size={28} color={BORDER} />
                   <Text style={[styles.emptyText, { fontWeight: '400', color: MUTED }]}>No recent activity</Text>
                 </View>
               ) : (
-                <View style={[styles.activityList, { backgroundColor: CARD, borderColor: BORDER }]}>
+                <View style={styles.activityList}>
                   {activity.slice(0, 12).map((ev: any, i: number) => (
                     <View key={ev.id + i} style={[styles.activityRow, i > 0 && { borderTopWidth: 1, borderTopColor: BORDER }]}>
                       <View style={[styles.activityIcon, { backgroundColor: ev.color + '18' }]}>
@@ -679,18 +685,18 @@ const styles = StyleSheet.create({
   wastageCard:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
   wastageTitle:  { fontSize: 13 },
   wastageSub:    { fontSize: 12, marginTop: 2 },
-  activityList:  { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  activityList:  { borderRadius: 20, borderWidth: 1, overflow: 'hidden', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   activityRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   activityIcon:  { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   activityTitle: { fontSize: 13 },
   activitySub:   { fontSize: 11 },
   activityTime:  { fontSize: 11 },
-  emptyCard:     { alignItems: 'center', gap: 10, padding: 32, borderRadius: 14, borderWidth: 1 },
+  emptyCard:     { alignItems: 'center', gap: 10, padding: 32, borderRadius: 20, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   emptyText:     { fontSize: 14 },
 });
 
 const kpi = StyleSheet.create({
-  tile:     { width: '47.5%', backgroundColor: CARD, borderRadius: 14, borderWidth: 1, padding: 14, gap: 6 },
+  tile:     { width: '47.5%', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 14, gap: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   iconBox:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   alertDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: RED },
   value:    { fontSize: 26, fontWeight: '700' },
@@ -699,13 +705,13 @@ const kpi = StyleSheet.create({
 });
 
 const qa = StyleSheet.create({
-  btn:   { width: '23%', borderRadius: 14, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center' },
+  btn:   { width: '23%', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
 });
 
 const ch = StyleSheet.create({
-  card:       { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, padding: 16, overflow: 'hidden' },
+  card:       { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 20, borderWidth: 1, padding: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   statsRow:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   statBlock:  { flex: 1, gap: 3 },
   statLabel:  { fontSize: 11, fontWeight: '400', color: MUTED },

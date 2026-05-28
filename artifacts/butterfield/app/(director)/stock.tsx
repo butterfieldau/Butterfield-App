@@ -18,7 +18,9 @@ const CARD   = '#FFFFFF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
@@ -435,7 +437,7 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
 }
 
 const sc = StyleSheet.create({
-  card:    { backgroundColor: CARD, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  card:    { backgroundColor: GLASS_BG, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   left:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 },
   catDot:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   name:    { fontSize: 15, fontWeight: '600', color: TEXT },

@@ -29,7 +29,9 @@ const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 
 type Tab = 'tiers' | 'breaks' | 'custom' | 'assign';
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -742,8 +744,8 @@ const styles = StyleSheet.create({
   newBtnText:    { color: '#fff', fontSize: 13, fontWeight: '700' },
   listContent:   { padding: 16, gap: 10, paddingBottom: 32 },
   loader:        { marginTop: 40 },
-  card:          { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER },
-  assignCard:    { padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER },
+  card:          { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  assignCard:    { padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   cardTitle:     { fontSize: 15, fontWeight: '600', color: TEXT },
   cardSub:       { fontSize: 13, fontWeight: '400', color: MUTED },
   cardMeta:      { fontSize: 12, fontWeight: '400', color: MUTED },

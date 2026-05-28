@@ -19,7 +19,9 @@ const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+const BORDER      = '#E5E7EB';
+const GLASS_BG    = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#16A34A';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
@@ -748,7 +750,7 @@ const s = StyleSheet.create({
   headerSub:      { fontWeight: '400', fontSize: 13, color: MUTED, marginTop: 2 },
   addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   addBtnText:     { fontWeight: '600', fontSize: 13, color: '#fff' },
-  card:           { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  card:           { backgroundColor: GLASS_BG, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   storeIcon:      { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   storeName:      { fontWeight: '600', fontSize: 15, color: TEXT },
   storeSub:       { fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 },
@@ -761,7 +763,7 @@ const s = StyleSheet.create({
   modalTitle:     { fontWeight: '700', fontSize: 18, color: TEXT },
   section:        { paddingHorizontal: 16, paddingTop: 20 },
   sectionTitle:   { fontWeight: '600', fontSize: 11, color: MUTED, letterSpacing: 1.2, marginBottom: 8, paddingHorizontal: 4 },
-  sectionCard:    { backgroundColor: CARD, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden' },
+  sectionCard:    { backgroundColor: GLASS_BG, borderRadius: 14, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   fieldRow:       { paddingHorizontal: 14, paddingVertical: 12 },
   fieldLabel:     { fontWeight: '500', fontSize: 11, color: MUTED, marginBottom: 4 },
   fieldInput:     { fontWeight: '400', fontSize: 15, color: TEXT },
