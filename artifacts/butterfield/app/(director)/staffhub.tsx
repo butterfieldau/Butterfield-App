@@ -1077,8 +1077,13 @@ export default function StaffHubScreen() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
   const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
-  const tabs = isManager ? MANAGER_TABS : STAFF_TABS;
-  const [activeTab, setActiveTab] = useState<Tab>(tabs[0].key);
+
+  // Managers can toggle between their own staff tools and the management view
+  const [manageMode, setManageMode] = useState(false);
+
+  // In staff-tools mode managers see the same 4 tabs as regular staff
+  const tabs = (isManager && manageMode) ? MANAGER_TABS : STAFF_TABS;
+  const [activeTab, setActiveTab] = useState<Tab>('tasks');
 
   useEffect(() => {
     const requested = params.tab ?? params.initialTab;
@@ -1087,12 +1092,39 @@ export default function StaffHubScreen() {
     }
   }, [params.tab, params.initialTab]);
 
+  // When mode flips, stay on the same tab if it exists, else go to tasks
+  useEffect(() => {
+    if (!tabs.some(t => t.key === activeTab)) setActiveTab('tasks');
+  }, [manageMode]);
+
+  const showManagerContent = isManager && manageMode;
+
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* ── Header ── */}
       <View style={s.header}>
-        <Text style={s.title}>Staff Hub</Text>
-        <Text style={s.subtitle}>{isManager ? 'Manage your team' : 'Your shift tools'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={s.title}>Staff Hub</Text>
+            <Text style={s.subtitle}>{showManagerContent ? 'Manage your team' : 'Your shift tools'}</Text>
+          </View>
+          {isManager && (
+            <View style={s.modeToggle}>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); setManageMode(false); }}
+                style={[s.modeBtn, !manageMode && s.modeBtnActive]}
+              >
+                <Text style={[s.modeBtnText, !manageMode && { color: '#fff' }]}>My Shift</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); setManageMode(true); }}
+                style={[s.modeBtn, manageMode && s.modeBtnActive]}
+              >
+                <Text style={[s.modeBtnText, manageMode && { color: '#fff' }]}>Manage</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* ── Tab bar (pill style, full-width) ── */}
@@ -1112,12 +1144,12 @@ export default function StaffHubScreen() {
         })}
       </View>
 
-      {/* ── Content (role-aware) ── */}
-      {activeTab === 'tasks'    && (isManager ? <ManagerTasksTab />            : <StaffTasksTab userId={user?.id} />)}
-      {activeTab === 'issues'   && (isManager ? <ManagerIssuesTab />           : <StaffIssuesTab />)}
-      {activeTab === 'wastage'  && (isManager ? <ManagerWastageTab />          : <StaffWastageTab />)}
-      {activeTab === 'leave'    && (isManager ? <ManagerLeaveTab />            : <StaffLeaveTab />)}
-      {activeTab === 'feedback' && isManager  && <FeedbackTab />}
+      {/* ── Content ── */}
+      {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab />   : <StaffTasksTab userId={user?.id} />)}
+      {activeTab === 'issues'   && (showManagerContent ? <ManagerIssuesTab />  : <StaffIssuesTab />)}
+      {activeTab === 'wastage'  && (showManagerContent ? <ManagerWastageTab /> : <StaffWastageTab />)}
+      {activeTab === 'leave'    && (showManagerContent ? <ManagerLeaveTab />   : <StaffLeaveTab />)}
+      {activeTab === 'feedback' && showManagerContent  && <FeedbackTab />}
     </KeyboardAvoidingView>
   );
 }
@@ -1127,9 +1159,15 @@ export default function StaffHubScreen() {
 // ══════════════════════════════════════════════════════════════════════════════
 const s = StyleSheet.create({
   // Page chrome
-  header:     { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  header:     { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   title:      { fontSize: 28, fontWeight: '700', color: TEXT },
   subtitle:   { fontSize: 13, color: MUTED, marginTop: 2, fontWeight: '400' },
+
+  // Manager mode toggle
+  modeToggle:   { flexDirection: 'row', backgroundColor: BORDER, borderRadius: 20, padding: 3, gap: 2 },
+  modeBtn:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 17 },
+  modeBtnActive:{ backgroundColor: BLUE },
+  modeBtnText:  { fontSize: 12, fontWeight: '700', color: MUTED },
 
   // Tab pills
   tabRow:     { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },

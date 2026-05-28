@@ -592,7 +592,7 @@ export function StaffDashboard() {
             <View onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <Text style={styles.sectionTitle}>PENDING TASKS</Text>
-                <Pressable onPress={scrollToPendingTasks} hitSlop={8}>
+                <Pressable onPress={() => { Haptics.selectionAsync(); router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any); }} hitSlop={8}>
                   <Text style={styles.viewAllLink}>View all</Text>
                 </Pressable>
               </View>
