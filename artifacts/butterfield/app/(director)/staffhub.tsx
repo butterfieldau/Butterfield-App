@@ -912,12 +912,12 @@ export default function StaffHubScreen() {
 
 const s = StyleSheet.create({
   header:      { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: TEXT },
+  headerTitle: { fontSize: 28, fontWeight: '700', color: TEXT },
   headerSub:   { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
   tabBar:      { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   tabBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabLabel:    { fontSize: 12, fontWeight: '600' },
-  card:        { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 14, gap: 8, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
+  card:        { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 14, gap: 8, backgroundColor: 'rgba(255,255,255,0.6)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
   cardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   cardTitle:   { fontSize: 14, fontWeight: '600' },

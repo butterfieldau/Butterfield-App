@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   greetingTitle:   { fontSize: 22, fontWeight: '700', color: TEXT, lineHeight: 28, marginBottom: 3 },
   greetingSubtitle:{ fontSize: 14, fontWeight: '500', color: '#4B5563', lineHeight: 20 },
   greetingDate:    { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
-  menuBtn:         { width: 40, height: 40, borderRadius: 999, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, marginLeft: 12, marginTop: 2 },
+  menuBtn:         { width: 40, height: 40, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, marginLeft: 12, marginTop: 2 },
 
   // Gradient clock card
   gradCard:        { borderRadius: 24, padding: 20, gap: 16 },
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
 
   // Stats
   statsRow:        { flexDirection: 'row', gap: 12 },
-  statCard:        { flex: 1, borderRadius: 20, padding: 16, gap: 2, backgroundColor: CARD, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: BORDER },
+  statCard:        { flex: 1, borderRadius: 20, padding: 16, gap: 2, backgroundColor: 'rgba(255,255,255,0.6)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' },
   statLabel:       { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, color: MUTED, marginBottom: 4 },
   statDuration:    { fontSize: 24, fontWeight: '700', color: TEXT },
   statEarnings:    { fontSize: 13, fontWeight: '400', color: MUTED, marginTop: 1 },
@@ -680,17 +680,17 @@ const styles = StyleSheet.create({
 
   // Quick actions
   actionsGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  actionCard:      { width: '47%', backgroundColor: CARD, padding: 16, gap: 10, borderRadius: 20, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  actionCard:      { width: '47%', backgroundColor: 'rgba(255,255,255,0.6)', padding: 16, gap: 10, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
   actionIcon:      { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   actionLabel:     { fontSize: 13, fontWeight: '500', color: TEXT },
 
   // Schedule
-  emptySchedule:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER },
+  emptySchedule:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)' },
   emptyScheduleIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
   emptyScheduleText: { fontSize: 14, fontWeight: '400', color: MUTED },
   timeRow:         { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
   timeLabel:       { fontSize: 13, fontWeight: '700', color: BLUE },
-  scheduleCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3 },
+  scheduleCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', borderLeftWidth: 3 },
   scheduleOrderId: { fontSize: 13, fontWeight: '700', color: TEXT },
   scheduleStatusPill: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   scheduleStatusText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },

@@ -17,17 +17,17 @@ export type TabCfg = { icon: string; title: string };
 const WHITE   = '#FFFFFF';
 const MUTED   = '#9CA3AF';
 const ICON_SZ = 20;
-const BASE_W  = 50;   // collapsed width  — centres a 20px icon  (50-20)/2 = 15px each side
-const PILL_H  = 52;   // inner pill height
+const BASE_W  = 44;   // collapsed width for inactive tab (just icon + tight padding)
+const PILL_H  = 46;   // pill height
 
-// Calculates expanded width from label length so "Home" feels tight and "Dashboard" has room
+// Calculates expanded width from label length
 function expandedWidth(title: string): number {
-  return Math.min(Math.max(90, Math.round(title.length * 8.2 + 66)), 148);
+  return Math.min(Math.max(88, Math.round(title.length * 7.8 + 58)), 144);
 }
 
 // ── Animated tab item ──────────────────────────────────────────────────────────
-// Renders a pill that springs open (showing icon + label) when focused,
-// and shrinks back to a tight icon-only capsule when unfocused.
+// The outer Animated.View drives the layout width so siblings reposition.
+// The pill inside matches that same width — no overflow is possible.
 export function AnimatedTabItem({
   focused,
   onPress,
@@ -46,51 +46,44 @@ export function AnimatedTabItem({
 
   useEffect(() => {
     Animated.spring(anim, {
-      toValue:          focused ? 1 : 0,
-      tension:          75,
-      friction:         12,
-      useNativeDriver:  false,
+      toValue:         focused ? 1 : 0,
+      tension:         80,
+      friction:        13,
+      useNativeDriver: false,
     }).start();
   }, [focused]);
 
-  const animWidth   = anim.interpolate({ inputRange: [0, 1], outputRange: [BASE_W, EXP_W] });
-  const animBg      = anim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,0,0,0)', activeColor] });
-  const labelOpacity = anim.interpolate({ inputRange: [0, 0.52, 1], outputRange: [0, 0, 1] });
+  const animWidth    = anim.interpolate({ inputRange: [0, 1], outputRange: [BASE_W, EXP_W] });
+  const animBg       = anim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,0,0,0)', activeColor] });
+  const labelOpacity = anim.interpolate({ inputRange: [0, 0.55, 1], outputRange: [0, 0, 1] });
 
   return (
-    <Pressable onPress={onPress} style={ts.touch}>
-      <Animated.View
-        style={[
-          ts.pill,
-          { width: animWidth, backgroundColor: animBg },
-        ]}
+    // Outer wrapper: drives layout — siblings shift as this grows/shrinks
+    <Animated.View style={{ width: animWidth, height: PILL_H, alignItems: 'center', justifyContent: 'center' }}>
+      <Pressable
+        onPress={onPress}
+        style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}
       >
-        {/* Icon — always centered at BASE_W due to paddingHorizontal: 15 */}
-        <View style={ts.iconWrap}>
-          <Feather name={cfg.icon as any} size={ICON_SZ} color={focused ? WHITE : MUTED} />
-          {/* Cart / notification badge */}
-          {badgeCount != null && badgeCount > 0 && (
-            <View style={ts.badge}>
-              <Text style={ts.badgeText}>{badgeCount > 99 ? '99+' : String(badgeCount)}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Label — fades in as pill expands, clipped by overflow:hidden */}
-        <Animated.Text
-          style={[ts.label, { opacity: labelOpacity }]}
-          numberOfLines={1}
-        >
-          {cfg.title}
-        </Animated.Text>
-      </Animated.View>
-    </Pressable>
+        {/* Pill: same width as outer — can never overflow */}
+        <Animated.View style={[ts.pill, { width: animWidth, backgroundColor: animBg }]}>
+          <View style={ts.iconWrap}>
+            <Feather name={cfg.icon as any} size={ICON_SZ} color={focused ? WHITE : MUTED} />
+            {badgeCount != null && badgeCount > 0 && (
+              <View style={ts.badge}>
+                <Text style={ts.badgeText}>{badgeCount > 99 ? '99+' : String(badgeCount)}</Text>
+              </View>
+            )}
+          </View>
+          <Animated.Text style={[ts.label, { opacity: labelOpacity }]} numberOfLines={1}>
+            {cfg.title}
+          </Animated.Text>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 // ── Glass pill wrapper ─────────────────────────────────────────────────────────
-// On iOS: BlurView + white overlay = frosted glass capsule with shadow.
-// On Android / web: solid white capsule.
 export function GlassPill({
   children,
   style,
@@ -115,13 +108,14 @@ export function GlassPill({
             { backgroundColor: useBlur ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.97)' },
           ]}
         />
+        {/* Row: no flex-stretch, gap so icons sit snugly */}
         <View style={gp.row}>{children}</View>
       </View>
     </View>
   );
 }
 
-// ── Glass circle (account / profile button) ────────────────────────────────────
+// ── Glass circle (profile button) ──────────────────────────────────────────────
 export function GlassCircle({
   children,
   size = 64,
@@ -153,7 +147,6 @@ export function GlassCircle({
 }
 
 // ── Floating tab bar (staff / manager) ────────────────────────────────────────
-// Drop-in replacement for the default Expo Router tab bar in staff / manager portals.
 export function FloatingInternalTabBar({
   state,
   navigation,
@@ -214,26 +207,20 @@ export function FloatingInternalTabBar({
 const SHADOW = {
   shadowColor:   '#000',
   shadowOffset:  { width: 0, height: 6 },
-  shadowOpacity: 0.13,
-  shadowRadius:  22,
-  elevation:     12,
+  shadowOpacity: 0.12,
+  shadowRadius:  20,
+  elevation:     10,
 } as const;
 
 const ts = StyleSheet.create({
-  touch: {
-    flex:              1,
-    alignItems:        'center',
-    justifyContent:    'center',
-  },
   pill: {
     height:            PILL_H,
     borderRadius:      999,
     overflow:          'hidden',
     flexDirection:     'row',
     alignItems:        'center',
-    // paddingHorizontal: 15 centres the 20px icon exactly in BASE_W=50
-    paddingHorizontal: 15,
-    gap:               7,
+    paddingHorizontal: 12,
+    gap:               6,
   },
   iconWrap: {
     position:       'relative',
@@ -243,21 +230,22 @@ const ts = StyleSheet.create({
     height:         ICON_SZ,
   },
   label: {
-    color:        WHITE,
-    fontSize:     13,
-    fontWeight:   '700',
-    letterSpacing: -0.3,
+    color:         WHITE,
+    fontSize:      13,
+    fontWeight:    '700',
+    letterSpacing: -0.2,
+    flexShrink:    1,
   },
   badge: {
-    position:         'absolute',
-    top:              -5,
-    right:            -8,
-    minWidth:         16,
-    height:           16,
-    borderRadius:     8,
-    backgroundColor:  '#FF3B30',
-    alignItems:       'center',
-    justifyContent:   'center',
+    position:          'absolute',
+    top:               -5,
+    right:             -8,
+    minWidth:          16,
+    height:            16,
+    borderRadius:      8,
+    backgroundColor:   '#FF3B30',
+    alignItems:        'center',
+    justifyContent:    'center',
     paddingHorizontal: 3,
   },
   badgeText: {
@@ -272,26 +260,24 @@ const gp = StyleSheet.create({
   shadow: {
     ...SHADOW,
     borderRadius: 999,
+    alignSelf:    'center',
   },
   clip: {
     borderRadius: 999,
     overflow:     'hidden',
   },
   row: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    paddingVertical:   10,
-    paddingHorizontal: 10,
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingVertical:   8,
+    paddingHorizontal: 8,
+    gap:               4,
   },
 });
 
 const gc = StyleSheet.create({
-  shadow: {
-    ...SHADOW,
-  },
-  clip: {
-    overflow: 'hidden',
-  },
+  shadow: { ...SHADOW },
+  clip:   { overflow: 'hidden' },
   content: {
     alignItems:     'center',
     justifyContent: 'center',
@@ -300,10 +286,11 @@ const gc = StyleSheet.create({
 
 const ft = StyleSheet.create({
   wrap: {
-    position:        'absolute',
-    left:            0,
-    right:           0,
-    bottom:          0,
-    paddingHorizontal: 20,
+    position:          'absolute',
+    left:              0,
+    right:             0,
+    bottom:            0,
+    paddingHorizontal: 24,
+    alignItems:        'center',
   },
 });

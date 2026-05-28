@@ -376,8 +376,8 @@ export default function StaffTasksScreen() {
   );
 }
 const s = StyleSheet.create({
-  header:        { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, gap: 12 },
-  title:         { fontSize: 26, fontWeight: '700', color: TEXT },
+  header:        { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, backgroundColor: BG, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, gap: 12 },
+  title:         { fontSize: 28, fontWeight: '700', color: TEXT },
   tabPill:       { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
   tabPillText:   { fontSize: 13, fontWeight: '600', color: MUTED },
   catPill:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
