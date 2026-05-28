@@ -19,7 +19,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
-const BG = 'transparent';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';

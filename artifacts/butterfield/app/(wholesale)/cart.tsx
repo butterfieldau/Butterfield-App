@@ -18,7 +18,7 @@ export const WS_CART_KEY          = '@ws_cart_v2';
 export const WS_OPEN_CHECKOUT_KEY = '@ws_open_checkout';
 
 // ── Colors ───────────────────────────────────────────────────────────────────
-const BG = 'transparent';
+const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
 const BLUE  = '#1493FF';
 const TEXT  = '#1C1C1E';

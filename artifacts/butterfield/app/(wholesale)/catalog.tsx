@@ -36,7 +36,7 @@ import {
   isSameDay,
 } from '@/lib/dateUtils';
 
-const BG = 'transparent';
+const BG         = '#EFF6FF';
 const CARD       = '#FFFFFF';
 const BLUE       = '#1493FF';
 const LIGHT_BLUE = '#EBF8FF';

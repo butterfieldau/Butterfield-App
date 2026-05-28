@@ -5,7 +5,7 @@ import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG = 'transparent';
+const BG = '#EFF6FF';
 const CARD = '#FFFFFF';
 const TEXT = '#1C1C1E';
 const MUTED = '#8E8E93';

@@ -86,7 +86,6 @@ function ClassicCustomerTabs() {
           tabBarInactiveTintColor: colors.mutedForeground,
           headerShown:     false,
           tabBarShowLabel: false,
-          sceneContainerStyle: { backgroundColor: 'transparent' },
           tabBarStyle: hideTabs
             ? { display: 'none' }
             : isIOS

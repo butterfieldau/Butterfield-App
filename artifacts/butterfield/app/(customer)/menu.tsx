@@ -368,7 +368,7 @@ export default function MenuScreen() {
   );
 }
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: 'transparent' },
+  root:        { flex: 1, backgroundColor: '#fff' },
   // Header
   header:      {
     paddingHorizontal: 16, paddingBottom: 16, gap: 14, backgroundColor: '#fff',

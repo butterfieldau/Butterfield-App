@@ -15,7 +15,7 @@ export default function WholesaleLayout() {
   if (user.role !== 'wholesale') return <Redirect href={getHomeRouteForRole(user.role)} />;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: NAVY }}>
       <PortalHeader
         badge="WHOLESALE"
         badgeColor="#1493FF"
@@ -25,7 +25,6 @@ export default function WholesaleLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          sceneContainerStyle: { backgroundColor: 'transparent' },
           tabBarActiveTintColor: '#1493FF',
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {

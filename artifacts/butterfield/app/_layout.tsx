@@ -57,7 +57,6 @@ function RootLayoutNav() {
         animation: "slide_from_right",
         gestureEnabled: true,
         fullScreenGestureEnabled: true,
-        contentStyle: { backgroundColor: 'transparent' },
       }}
     >
       <Stack.Screen name="welcome" options={{ headerShown: false, animation: "fade" }} />
@@ -165,22 +164,7 @@ export default function RootLayout() {
         >
           <AuthProvider>
             <CartProvider>
-              <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#EDF2FF' }}>
-                {/* Mesh gradient — always sits behind all navigators and screens */}
-                <LinearGradient
-                  colors={['rgba(255,175,145,0.42)', 'transparent']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0.72 }}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
-                <LinearGradient
-                  colors={['rgba(155,185,252,0.48)', 'transparent']}
-                  start={{ x: 1, y: 0 }}
-                  end={{ x: 0, y: 0.72 }}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
+              <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
                   <RootLayoutNav />
                 </KeyboardProvider>

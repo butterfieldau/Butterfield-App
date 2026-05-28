@@ -18,7 +18,7 @@ export default function ShopDisplayLayout() {
   if (user.role !== 'shop_display') return <Redirect href={getHomeRouteForRole(user.role)} />;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: NAVY }}>
       <PortalHeader
         badge="SHOP DISPLAY"
         badgeColor="#1493FF"
@@ -29,7 +29,6 @@ export default function ShopDisplayLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          sceneContainerStyle: { backgroundColor: 'transparent' },
           tabBarActiveTintColor: BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {

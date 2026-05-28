@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG = 'transparent';
+const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
 const CARD2 = '#F3F4F6';
 const TEXT  = '#1C1C1E';

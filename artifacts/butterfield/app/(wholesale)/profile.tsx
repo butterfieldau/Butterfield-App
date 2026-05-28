@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
 import { WS_DELIVERY_SCHEDULE, WS_LEAD_TIME_LABEL } from '@/constants/wholesaleConfig';
 
-const BG = 'transparent';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';

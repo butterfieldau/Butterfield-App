@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
 
-const BG = 'transparent';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
