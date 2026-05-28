@@ -1,5 +1,4 @@
 import { Feather } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -162,28 +161,30 @@ export default function WholesaleAccount() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <LinearGradient colors={['#1A2B4A', '#253B5E']} style={[s.hero, { paddingTop: 16 }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+      {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <AvatarPicker
           initial={initial}
-          size={68}
-          bgColor="rgba(255,255,255,0.22)"
-          textColor="#fff"
-          borderColor="rgba(255,255,255,0.4)"
+          size={58}
+          bgColor={BLUE + '20'}
+          textColor={BLUE}
+          borderColor={BLUE + '30'}
         />
-        <Text style={s.heroName} numberOfLines={1}>{account?.companyName ?? user?.name}</Text>
-        <Text style={s.heroSub} numberOfLines={1}>{user?.email}</Text>
-        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-          <View style={s.heroPill}>
-            <Feather name="award" size={10} color="#fff" />
-            <Text style={s.heroPillText}>{tierName.toUpperCase()}</Text>
-          </View>
-          <View style={[s.heroPill, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: account?.status === 'approved' ? '#86efac' : '#fde68a' }} />
-            <Text style={s.heroPillText}>{statusLabel.toUpperCase()}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT }} numberOfLines={1}>{account?.companyName ?? user?.name}</Text>
+          <Text style={{ color: MUTED, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{user?.email}</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 7 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 8, borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 8, paddingVertical: 3 }}>
+              <Feather name="award" size={10} color={BLUE} />
+              <Text style={{ color: BLUE, fontWeight: '700', fontSize: 10, letterSpacing: 0.5 }}>{tierName.toUpperCase()}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: account?.status === 'approved' ? '#F0FDF4' : '#FEF3C7', borderRadius: 8, borderWidth: 1, borderColor: account?.status === 'approved' ? '#BBF7D0' : '#FDE68A', paddingHorizontal: 8, paddingVertical: 3 }}>
+              <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: statusColor }} />
+              <Text style={{ color: statusColor, fontWeight: '700', fontSize: 10, letterSpacing: 0.5 }}>{statusLabel.toUpperCase()}</Text>
+            </View>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 16, gap: 18, paddingTop: 14 }}>

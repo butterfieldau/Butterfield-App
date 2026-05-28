@@ -742,17 +742,17 @@ export default function WholesaleCatalog() {
   // ── Catalog list ─────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient colors={['#1A2B4A', '#253B5E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.catalogHeader, { paddingTop: 16 }]}>
+      <View style={[styles.catalogHeader, { paddingTop: 14, backgroundColor: BG }]}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: '#fff', fontSize: 26, fontWeight: '700' }}>Wholesale Catalog</Text>
+          <Text style={{ color: TEXT, fontSize: 28, fontWeight: '700' }}>Catalog</Text>
           {cart.length > 0 && (
-            <Pressable onPress={handleOpenCheckout} style={[styles.cartBtn, { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 12 }]}>
+            <Pressable onPress={handleOpenCheckout} style={[styles.cartBtn, { backgroundColor: BLUE, borderRadius: 12 }]}>
               <Feather name="shopping-cart" size={16} color="#fff" />
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{totalQty}</Text>
             </Pressable>
           )}
         </View>
-        <View style={[styles.searchBar, { backgroundColor: '#fff', borderRadius: 12 }]}>
+        <View style={[styles.searchBar, { backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }]}>
           <Feather name="search" size={14} color={MUTED} />
           <TextInput style={{ flex: 1, color: TEXT, fontWeight: '400', fontSize: 14 }} placeholder="Search products..." placeholderTextColor={MUTED} value={search} onChangeText={setSearch} />
           {search.length > 0 && (
@@ -770,17 +770,17 @@ export default function WholesaleCatalog() {
                 key={cat}
                 onPress={() => { setCategory(cat); Haptics.selectionAsync(); }}
                 style={[styles.tierTag, {
-                  backgroundColor: active ? '#fff' : 'rgba(255,255,255,0.18)',
+                  backgroundColor: active ? BLUE : 'rgba(255,255,255,0.8)',
                   borderRadius: 20, borderWidth: 1,
-                  borderColor: active ? '#fff' : 'rgba(255,255,255,0.3)',
+                  borderColor: active ? BLUE : '#E5E7EB',
                 }]}
               >
-                <Text style={{ color: active ? BLUE : '#fff', fontWeight: '600', fontSize: 11 }}>{label}</Text>
+                <Text style={{ color: active ? '#fff' : '#8E8E93', fontWeight: '600', fontSize: 11 }}>{label}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
-      </LinearGradient>
+      </View>
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={BLUE} /></View>
       ) : (

@@ -2,7 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
@@ -127,18 +126,13 @@ export default function WholesaleCartScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <LinearGradient
-        colors={['#1A2B4A', '#253B5E']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[s.header, { paddingTop: 16 }]}
-      >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <Text style={s.title}>Cart</Text>
-          {totalQty > 0 && (
-            <Text style={s.sub}>{totalQty} item{totalQty !== 1 ? 's' : ''}</Text>
-          )}
-        </View>
-      </LinearGradient>
+      {/* ── PAGE HEADER ────────────────────────────────────────────────────── */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Cart</Text>
+        {totalQty > 0 && (
+          <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>{totalQty} item{totalQty !== 1 ? 's' : ''}</Text>
+        )}
+      </View>
 
       {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

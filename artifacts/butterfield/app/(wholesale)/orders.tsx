@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -414,11 +413,16 @@ export default function WholesaleOrdersScreen() {
         pdfLoading={loadingId === selectedInvoice?.id}
       />
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-      <LinearGradient
-        colors={['#1A2B4A', '#253B5E']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[st.header, { paddingTop: 16 }]}
-      >
+      <View style={{ backgroundColor: BG, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 10 }}>
+        {/* Page title row */}
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
+            {subtab === 'orders' ? 'Orders' : 'Invoices'}
+          </Text>
+          {subtab === 'orders' && (
+            <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>{allOrders.length} total</Text>
+          )}
+        </View>
         {/* Sub-tab switcher */}
         <View style={st.segmentRow}>
           {(['orders', 'invoices'] as const).map(tab => (
@@ -430,7 +434,7 @@ export default function WholesaleOrdersScreen() {
               <Feather
                 name={tab === 'orders' ? 'file-text' : 'dollar-sign'}
                 size={13}
-                color={subtab === tab ? BLUE : 'rgba(255,255,255,0.75)'}
+                color={subtab === tab ? '#fff' : MUTED}
               />
               <Text style={[st.segmentLabel, subtab === tab && st.segmentLabelActive]}>
                 {tab === 'orders' ? 'Orders' : 'Invoices'}
@@ -440,52 +444,45 @@ export default function WholesaleOrdersScreen() {
         </View>
         {/* Context row below segment */}
         {subtab === 'orders' ? (
-          <>
-              <Text style={st.headerTitle}>My Orders</Text>
-              <Text style={st.headerSub}>{allOrders.length} total</Text>
-            <FlatList
-              data={FILTERS}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={f => f}
-              contentContainerStyle={{ gap: 8 }}
-              renderItem={({ item: f }) => {
-                const active = filter === f;
-                const isOvdFilter = f === 'Overdue';
-                return (
-                  <Pressable
-                    onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
-                    style={[st.filterPill, {
-                      backgroundColor: active ? (isOvdFilter ? '#FEE2E2' : 'rgba(255,255,255,0.92)') : 'rgba(255,255,255,0.18)',
-                      borderColor:     active ? (isOvdFilter ? '#FCA5A5' : 'rgba(255,255,255,0.9)') : 'rgba(255,255,255,0.3)',
-                    }]}
-                  >
-                    <Text style={{ color: active ? (isOvdFilter ? RED : BLUE) : 'rgba(255,255,255,0.85)', fontWeight: '600', fontSize: 12 }}>
-                      {FILTER_LABELS[f] ?? f}{isOvdFilter && overdueCount > 0 ? ` (${overdueCount})` : ''}
-                    </Text>
-                  </Pressable>
-                );
-              }}
-            />
-          </>
+          <FlatList
+            data={FILTERS}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={f => f}
+            contentContainerStyle={{ gap: 8 }}
+            renderItem={({ item: f }) => {
+              const active = filter === f;
+              const isOvdFilter = f === 'Overdue';
+              return (
+                <Pressable
+                  onPress={() => { setFilter(f); Haptics.selectionAsync(); }}
+                  style={[st.filterPill, {
+                    backgroundColor: active ? (isOvdFilter ? '#FEE2E2' : BLUE) : 'rgba(255,255,255,0.7)',
+                    borderColor:     active ? (isOvdFilter ? '#FCA5A5' : BLUE) : BORDER,
+                  }]}
+                >
+                  <Text style={{ color: active ? (isOvdFilter ? '#991B1B' : '#fff') : MUTED, fontWeight: '600', fontSize: 12 }}>
+                    {FILTER_LABELS[f] ?? f}{isOvdFilter && overdueCount > 0 ? ` (${overdueCount})` : ''}
+                  </Text>
+                </Pressable>
+              );
+            }}
+          />
         ) : (
-          <>
-            <Text style={st.headerTitle}>Invoices</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={[st.statCard, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' }]}>
-                <Text style={[st.statLabel, { color: 'rgba(255,255,255,0.8)' }]}>OUTSTANDING</Text>
-                <Text style={[st.statValue, { color: '#fff' }]}>${totalPending.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
-              </View>
-              {invOverdueCount > 0 && (
-                <View style={[st.statCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
-                  <Text style={[st.statLabel, { color: '#991B1B' }]}>OVERDUE</Text>
-                  <Text style={[st.statValue, { color: '#991B1B' }]}>{invOverdueCount} invoice{invOverdueCount !== 1 ? 's' : ''}</Text>
-                </View>
-              )}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={[st.statCard, { backgroundColor: 'rgba(255,255,255,0.72)', borderColor: 'rgba(255,255,255,0.9)' }]}>
+              <Text style={[st.statLabel, { color: MUTED }]}>OUTSTANDING</Text>
+              <Text style={[st.statValue, { color: BLUE }]}>${totalPending.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</Text>
             </View>
-          </>
+            {invOverdueCount > 0 && (
+              <View style={[st.statCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
+                <Text style={[st.statLabel, { color: '#991B1B' }]}>OVERDUE</Text>
+                <Text style={[st.statValue, { color: '#991B1B' }]}>{invOverdueCount} invoice{invOverdueCount !== 1 ? 's' : ''}</Text>
+              </View>
+            )}
+          </View>
         )}
-      </LinearGradient>
+      </View>
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subtab === 'orders' ? (
         isLoading ? (
@@ -673,10 +670,10 @@ const st = StyleSheet.create({
   headerTitle: { color: '#fff', fontSize: 26, fontWeight: '700' },
   headerSub:   { color: 'rgba(255,255,255,0.75)', fontWeight: '400', fontSize: 13 },
   segmentRow:        { flexDirection: 'row', gap: 8, marginBottom: 2 },
-  segmentBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(255,255,255,0.12)' },
-  segmentBtnActive:  { backgroundColor: '#fff', borderColor: '#fff' },
-  segmentLabel:      { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
-  segmentLabelActive:{ color: BLUE },
+  segmentBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: BORDER, backgroundColor: 'rgba(255,255,255,0.7)' },
+  segmentBtnActive:  { backgroundColor: BLUE, borderColor: BLUE },
+  segmentLabel:      { fontSize: 13, fontWeight: '600', color: MUTED },
+  segmentLabelActive:{ color: '#fff' },
   filterPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   statCard:  { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, gap: 3 },
   statLabel: { fontSize: 11, letterSpacing: 0.5, fontWeight: '600' },

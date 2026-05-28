@@ -1,46 +1,58 @@
-import { Feather } from '@expo/vector-icons';
-import { Redirect, router, Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
+import { StatusBar, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
-import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
+import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
 
-const NAVY = '#1A2B4A';
+const BG   = '#EFF6FF';
+const BLUE = '#1493FF';
+
+const WHOLESALE_TAB_CONFIG = {
+  index:   { icon: 'home',          title: 'Dashboard' },
+  catalog: { icon: 'shopping-bag',  title: 'Catalog'   },
+  cart:    { icon: 'shopping-cart', title: 'Cart'      },
+  orders:  { icon: 'file-text',     title: 'Orders'    },
+  profile: { icon: 'user',          title: 'Account'   },
+} as const;
+
+const VISIBLE: string[] = ['index', 'catalog', 'cart', 'orders', 'profile'];
 
 export default function WholesaleLayout() {
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (!user) return <Redirect href="/(customer)" />;
   if (user.role !== 'wholesale') return <Redirect href={getHomeRouteForRole(user.role)} />;
 
   return (
-    <View style={{ flex: 1, backgroundColor: NAVY }}>
-      <PortalHeader
-        badge="WHOLESALE"
-        badgeColor="#1493FF"
-        backgroundColor={NAVY}
-        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
-      />
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} translucent={false} />
+      <View style={{ height: insets.top, backgroundColor: BG }} />
       <Tabs
+        tabBar={(props) => (
+          <FloatingInternalTabBar
+            {...props}
+            visibleRouteNames={VISIBLE}
+            tabConfig={WHOLESALE_TAB_CONFIG}
+            activeColor={BLUE}
+          />
+        )}
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#1493FF',
-          tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {
-            backgroundColor: '#fff',
-            borderTopColor: '#EFEFEF',
-            borderTopWidth: 1,
+            position: 'absolute', height: 0,
+            backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0,
           },
-          tabBarLabelStyle: { fontWeight: '500', fontSize: 11 },
         }}
       >
-        <Tabs.Screen name="index"    options={{ title: 'Dashboard', tabBarIcon: ({ color }) => <Feather name="grid"          size={22} color={color} /> }} />
-        <Tabs.Screen name="catalog"  options={{ title: 'Catalog',   tabBarIcon: ({ color }) => <Feather name="package"       size={22} color={color} /> }} />
-        <Tabs.Screen name="cart"     options={{ title: 'Cart',      tabBarIcon: ({ color }) => <Feather name="shopping-cart" size={22} color={color} /> }} />
-        <Tabs.Screen name="orders"   options={{ title: 'Orders',    tabBarIcon: ({ color }) => <Feather name="file-text"     size={22} color={color} /> }} />
-        <Tabs.Screen name="profile"  options={{ title: 'Account',   tabBarIcon: ({ color }) => <Feather name="user"          size={22} color={color} /> }} />
-        <Tabs.Screen name="invoices" options={{ href: null }} />
+        <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
+        <Tabs.Screen name="catalog"  options={{ title: 'Catalog'   }} />
+        <Tabs.Screen name="cart"     options={{ title: 'Cart'      }} />
+        <Tabs.Screen name="orders"   options={{ title: 'Orders'    }} />
+        <Tabs.Screen name="profile"  options={{ title: 'Account'   }} />
+        <Tabs.Screen name="invoices"  options={{ href: null }} />
         <Tabs.Screen name="addresses" options={{ href: null }} />
       </Tabs>
     </View>
