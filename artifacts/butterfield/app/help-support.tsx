@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';

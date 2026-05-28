@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';

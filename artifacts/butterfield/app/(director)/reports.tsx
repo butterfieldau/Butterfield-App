@@ -12,7 +12,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { api, getToken, type DirectorFeedback } from '@/lib/api';
 
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';

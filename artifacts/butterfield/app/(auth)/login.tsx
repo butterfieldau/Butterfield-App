@@ -19,7 +19,7 @@ import type { UserRole } from '@/types';
 let AppleAuthentication: typeof import('expo-apple-authentication') | null = null;
 try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 
-const BG      = '#EFF6FF';
+const BG = 'transparent';
 const CARD    = '#FFFFFF';
 const BLUE    = '#1493FF';
 const BLUE_DARK = '#3CBBEE';

@@ -12,7 +12,6 @@ import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
 
 const BLUE = '#1493FF';
 const NAVY = '#1A2B4A';
-const BG_STAFF = '#EFF6FF';
 
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',         title: 'Dashboard' },
@@ -63,8 +62,8 @@ export default function DirectorLayout() {
   // ── Staff / Manager: light bg + animated glass floating tab bar ──────────────
   if (isInternal) {
     return (
-      <View style={{ flex: 1, backgroundColor: BG_STAFF }}>
-        <View style={{ height: insets.top, backgroundColor: BG_STAFF }} />
+      <View style={{ flex: 1 }}>
+        <View style={{ height: insets.top }} />
         <Tabs
           tabBar={(props) => (
             <FloatingInternalTabBar
@@ -76,6 +75,7 @@ export default function DirectorLayout() {
           )}
           screenOptions={{
             headerShown: false,
+            sceneContainerStyle: { backgroundColor: 'transparent' },
             tabBarStyle: {
               position: 'absolute', height: 0,
               backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0,
@@ -108,7 +108,7 @@ export default function DirectorLayout() {
 
   // ── Director / Master: navy header + standard tab bar ────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: NAVY }}>
+    <View style={{ flex: 1 }}>
       <PortalHeader
         badge={badgeLabel}
         badgeColor={badgeColor}
@@ -118,6 +118,7 @@ export default function DirectorLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
+          sceneContainerStyle: { backgroundColor: 'transparent' },
           tabBarActiveTintColor:   BLUE,
           tabBarInactiveTintColor: '#8E8E93',
           tabBarStyle: {

@@ -15,7 +15,7 @@ import { api, type DirectorShift } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';

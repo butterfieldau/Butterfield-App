@@ -16,7 +16,7 @@ import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 import { getTierConfig } from '@/constants/tierConfig';
 
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const CHERRY = '#D0312D';

@@ -16,7 +16,7 @@ import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/li
 import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
 
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';

@@ -47,7 +47,7 @@ import {
 } from '@/lib/dateUtils';
 import { getPalette } from '@/constants/categoryColors';
 
-const BG       = '#EFF6FF';
+const BG = 'transparent';
 const CARD     = '#FFFFFF';
 const BLUE     = '#1493FF';
 const GREEN    = '#22C55E';

@@ -21,7 +21,7 @@ import {
   sendClockOutConfirmation,
 } from '@/lib/staffNotifications';
 
-const BG     = '#EFF6FF';
+const BG = 'transparent';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const RED    = '#F40009';
