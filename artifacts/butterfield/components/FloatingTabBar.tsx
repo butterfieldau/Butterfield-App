@@ -20,9 +20,10 @@ const ICON_SZ = 20;
 const BASE_W  = 44;   // collapsed width for inactive tab (just icon + tight padding)
 const PILL_H  = 46;   // pill height
 
-// Calculates expanded width from label length
+// Calculates expanded width — tight fit around icon (20) + gap (6) + label text
 function expandedWidth(title: string): number {
-  return Math.min(Math.max(88, Math.round(title.length * 7.8 + 58)), 144);
+  // ~6.6px per char at 13px/700, plus icon + gap + left/right padding (10+10)
+  return Math.min(Math.max(78, Math.round(title.length * 6.8 + 56)), 132);
 }
 
 // ── Animated tab item ──────────────────────────────────────────────────────────
