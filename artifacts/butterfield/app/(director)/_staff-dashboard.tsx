@@ -1,12 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -69,8 +71,28 @@ function formatTime12(iso: string): string {
   return `${h}:${m} ${ampm}`;
 }
 
+function getTaskStatus(task: any): { label: string; bg: string; text: string } {
+  if (task.isCompleted) return { label: 'Done', bg: '#DCFCE7', text: '#15803D' };
+  const cat = task.category?.toLowerCase() ?? '';
+  if (cat === 'closing') return { label: 'Upcoming', bg: '#FEF3C7', text: '#B45309' };
+  if (cat === 'opening') return { label: 'Upcoming', bg: '#EFF6FF', text: '#1D4ED8' };
+  return { label: 'Pending', bg: '#F3F4F6', text: '#6B7280' };
+}
+
+function getCategoryColor(cat: string): string {
+  const c = cat?.toLowerCase() ?? '';
+  if (c === 'opening')  return '#3B82F6';
+  if (c === 'closing')  return '#F59E0B';
+  if (c === 'prep')     return '#8B5CF6';
+  if (c === 'cleaning') return '#10B981';
+  if (c === 'daily')    return '#06B6D4';
+  if (c === 'training') return '#EC4899';
+  return '#9CA3AF';
+}
+
 export function StaffDashboard() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -284,311 +306,404 @@ export function StaffDashboard() {
 
   const { refreshing, onRefresh } = useRefreshControl(refetchShift, refetchStats, refetchTasks, refetchOrders);
 
+  // Greeting
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const greetEmoji = hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙';
+  const firstName = user?.name?.split(' ')[0] ?? 'there';
+  const pendingCount = tasks.filter((t) => !t.isCompleted).length;
+  const dateLabel = now.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  const taskProgress = tasks.length > 0 ? completedTasks / tasks.length : 0;
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
 
-    <Modal visible={storePickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setStorePickerVisible(false)}>
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-          <Pressable onPress={() => setStorePickerVisible(false)} style={{ padding: 4 }} hitSlop={8}>
-            <Feather name="x" size={20} color={TEXT} />
-          </Pressable>
-          <Text style={{ flex: 1, textAlign: 'center', fontWeight: '700', fontSize: 17, color: TEXT }}>Which store?</Text>
-          <View style={{ width: 28 }} />
-        </View>
-        <View style={{ padding: 20, gap: 10 }}>
-          <Text style={{ fontWeight: '400', fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 4 }}>
-            You're assigned to multiple stores. Select the one you're clocking in at.
-          </Text>
-          {storeAssignments.map(a => (
-            <Pressable
-              key={a.id}
-              onPress={async () => { setStorePickerVisible(false); await doClockIn(pendingCoords, a.storeId); }}
-              style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
-                <Feather name="map-pin" size={18} color={BLUE} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '700', fontSize: 15, color: TEXT }}>{a.name ?? 'Store'}</Text>
-                {a.suburb ? <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 }}>{a.suburb}</Text> : null}
-                {a.address ? <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED }}>{a.address}</Text> : null}
-              </View>
-              {a.isPrimary && (
-                <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: BLUE }}>Primary</Text>
-                </View>
-              )}
-              <Feather name="chevron-right" size={16} color={MUTED} />
+      {/* Store Picker Modal */}
+      <Modal visible={storePickerVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setStorePickerVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+            <Pressable onPress={() => setStorePickerVisible(false)} style={{ padding: 4 }} hitSlop={8}>
+              <Feather name="x" size={20} color={TEXT} />
             </Pressable>
-          ))}
+            <Text style={{ flex: 1, textAlign: 'center', fontWeight: '700', fontSize: 17, color: TEXT }}>Which store?</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <View style={{ padding: 20, gap: 10 }}>
+            <Text style={{ fontWeight: '400', fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 4 }}>
+              You're assigned to multiple stores. Select the one you're clocking in at.
+            </Text>
+            {storeAssignments.map(a => (
+              <Pressable
+                key={a.id}
+                onPress={async () => { setStorePickerVisible(false); await doClockIn(pendingCoords, a.storeId); }}
+                style={{ backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="map-pin" size={18} color={BLUE} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 15, color: TEXT }}>{a.name ?? 'Store'}</Text>
+                  {a.suburb ? <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 }}>{a.suburb}</Text> : null}
+                  {a.address ? <Text style={{ fontWeight: '400', fontSize: 12, color: MUTED }}>{a.address}</Text> : null}
+                </View>
+                {a.isPrimary && (
+                  <View style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: BLUE }}>Primary</Text>
+                  </View>
+                )}
+                <Feather name="chevron-right" size={16} color={MUTED} />
+              </Pressable>
+            ))}
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
 
-    <ScrollView
-      ref={scrollRef}
-      style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={BLUE}
-        />
-      }
-    >
-      <View style={{ paddingHorizontal: 20, gap: 14, paddingTop: 16 }}>
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1, backgroundColor: BG }}
+        contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+      >
+        <View style={{ paddingHorizontal: 20, gap: 18 }}>
 
-        {/* ── Full Clock Card ── */}
-        <View style={[styles.shiftCard, { backgroundColor: CARD }]}>
-          <View style={styles.shiftCardHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Feather name="clock" size={13} color={MUTED} />
-              <Text style={[styles.shiftCardLabel, { color: MUTED }]}>CURRENT SHIFT</Text>
+          {/* ── Greeting Header ── */}
+          <View style={styles.greetingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.greetingTitle} numberOfLines={1}>
+                {greeting}, {firstName} {greetEmoji}
+              </Text>
+              <Text style={styles.greetingSubtitle}>
+                You've got {pendingCount} task{pendingCount !== 1 ? 's' : ''} today
+              </Text>
+              <Text style={styles.greetingDate}>{dateLabel}</Text>
             </View>
-            {isClocked && (
-              <View style={styles.liveBadge}>
-                <View style={styles.liveDot} />
-                <Text style={[styles.liveText, { color: GREEN }]}>LIVE</Text>
-              </View>
-            )}
+            <Pressable
+              style={styles.menuBtn}
+              onPress={() => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any)}
+            >
+              <Feather name="menu" size={20} color={TEXT} />
+            </Pressable>
           </View>
 
-          {!isClocked ? (
-            <>
-              <Text style={[styles.bigStatus, { color: TEXT }]}>Off duty</Text>
-              <Text style={[styles.shiftSub, { color: MUTED }]}>
-                Tap below to start your shift. We'll record your location.
-              </Text>
-              <Pressable onPress={handleClockIn} style={[styles.mainBtn, { backgroundColor: BLUE }]}>
-                <Text style={styles.mainBtnText}>Clock in</Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.bigElapsed, { color: TEXT }]} key={tick}>
+          {/* ── Gradient Clock Card ── */}
+          <LinearGradient
+            colors={['#5AB8FF', '#1672D8']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1.1 }}
+            style={styles.gradCard}
+          >
+            {/* Header row */}
+            <View style={styles.gradCardHeader}>
+              <View>
+                <Text style={styles.gradCardName}>{user?.name ?? firstName}</Text>
+                <Text style={styles.gradCardSub}>
+                  {isClocked
+                    ? `On shift · Started ${shift ? formatTime12(shift.clockIn) : '—'}${activeStoreName ? ` · ${activeStoreName}` : ''}`
+                    : 'Not on shift'}
+                </Text>
+              </View>
+              {isClocked && (
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>LIVE</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Elapsed time (when clocked in) */}
+            {isClocked && (
+              <Text style={styles.gradElapsed} key={tick}>
                 {formatDuration(liveElapsedMins)}
               </Text>
-              <Text style={[styles.shiftSub, { color: MUTED }]}>
-                Started {shift ? formatTime12(shift.clockIn) : '—'} · Earned ${liveEarned}
-                {activeStoreName ? `\n📍 ${activeStoreName}` : ''}
-              </Text>
+            )}
+
+            {/* Task progress bar */}
+            <View style={{ gap: 6 }}>
+              <View style={styles.gradProgressTrack}>
+                <View style={[styles.gradProgressFill, { width: `${Math.round(taskProgress * 100)}%` }]} />
+              </View>
+              <View style={styles.gradStatusRow}>
+                <View style={styles.gradStatusItem}>
+                  <Text style={styles.gradStatusVal}>{completedTasks}</Text>
+                  <Text style={styles.gradStatusLabel}>Done</Text>
+                </View>
+                <View style={styles.gradStatusDivider} />
+                <View style={styles.gradStatusItem}>
+                  <Text style={styles.gradStatusVal}>{tasks.length - completedTasks}</Text>
+                  <Text style={styles.gradStatusLabel}>Pending</Text>
+                </View>
+                {isClocked && (
+                  <>
+                    <View style={styles.gradStatusDivider} />
+                    <View style={styles.gradStatusItem}>
+                      <Text style={styles.gradStatusVal}>${liveEarned}</Text>
+                      <Text style={styles.gradStatusLabel}>Earned</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+
+            {/* Break buttons (when clocked in) */}
+            {isClocked && (
               <View style={styles.breakRow}>
                 <Pressable
                   onPress={() => handleBreakToggle('paid')}
-                  style={[styles.breakBtn, breakActiveType === 'paid' && { backgroundColor: '#FFF8E7', borderColor: '#D97706' }]}
+                  style={[styles.breakBtn, breakActiveType === 'paid' && styles.breakBtnActive]}
                 >
-                  <Feather name="coffee" size={13} color={breakActiveType === 'paid' ? '#D97706' : TEXT} />
-                  <Text style={[styles.breakBtnText, { color: breakActiveType === 'paid' ? '#D97706' : TEXT }]}>
+                  <Feather name="coffee" size={13} color={breakActiveType === 'paid' ? '#D97706' : 'rgba(255,255,255,0.9)'} />
+                  <Text style={[styles.breakBtnText, breakActiveType === 'paid' && { color: '#D97706' }]}>
                     {breakActiveType === 'paid' ? 'End break' : 'Paid break'}
                   </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => handleBreakToggle('unpaid')}
                   disabled={breakActiveType === 'paid'}
-                  style={[styles.breakBtn, breakActiveType === 'unpaid' && { backgroundColor: '#FFF1F0', borderColor: '#F87171' }, breakActiveType === 'paid' && { opacity: 0.4 }]}
+                  style={[styles.breakBtn, breakActiveType === 'unpaid' && styles.breakBtnUnpaid, breakActiveType === 'paid' && { opacity: 0.4 }]}
                 >
-                  <Feather name="pause" size={13} color={breakActiveType === 'unpaid' ? '#EF4444' : TEXT} />
-                  <Text style={[styles.breakBtnText, { color: breakActiveType === 'unpaid' ? '#EF4444' : TEXT }]}>
+                  <Feather name="pause" size={13} color={breakActiveType === 'unpaid' ? '#EF4444' : 'rgba(255,255,255,0.9)'} />
+                  <Text style={[styles.breakBtnText, breakActiveType === 'unpaid' && { color: '#EF4444' }]}>
                     {breakActiveType === 'unpaid' ? 'End break' : 'Unpaid break'}
                   </Text>
                 </Pressable>
               </View>
-              <Pressable onPress={handleClockOut} style={[styles.mainBtn, { backgroundColor: RED }]}>
-                <Text style={styles.mainBtnText}>Clock out</Text>
+            )}
+
+            {/* Clock In / Clock Out button */}
+            {!isClocked ? (
+              <Pressable onPress={handleClockIn} style={styles.clockInBtn}>
+                <Feather name="log-in" size={18} color={BLUE} />
+                <Text style={[styles.clockBtnText, { color: BLUE }]}>Clock In</Text>
               </Pressable>
-            </>
-          )}
+            ) : (
+              <Pressable onPress={handleClockOut} style={styles.clockOutBtn}>
+                <Feather name="log-out" size={18} color="rgba(255,255,255,0.95)" />
+                <Text style={[styles.clockBtnText, { color: 'rgba(255,255,255,0.95)' }]}>Clock Out</Text>
+              </Pressable>
+            )}
 
-          <View style={styles.locationRow}>
-            <Feather name="map-pin" size={11} color={MUTED} />
-            <Text style={[styles.locationText, { color: MUTED }]}>
-              {storeAssignments.length > 0
-                ? `Geofence clock-in · ${storeAssignments.length} store${storeAssignments.length > 1 ? 's' : ''} assigned`
-                : 'Must be within range of your assigned store'}
-            </Text>
-          </View>
-        </View>
+            {/* Location note */}
+            <View style={styles.locationRow}>
+              <Feather name="map-pin" size={11} color="rgba(255,255,255,0.55)" />
+              <Text style={styles.locationText}>
+                {storeAssignments.length > 0
+                  ? `Geofence · ${storeAssignments.length} store${storeAssignments.length > 1 ? 's' : ''} assigned`
+                  : 'Must be within range of your assigned store'}
+              </Text>
+            </View>
+          </LinearGradient>
 
-        {/* Stats mini cards */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: CARD }]}>
-            <Text style={[styles.statLabel, { color: MUTED }]}>TODAY (PAID)</Text>
-            <Text style={[styles.statDuration, { color: TEXT }]}>{formatDuration(todayMins)}</Text>
-            <Text style={[styles.statEarnings, { color: MUTED }]}>${todayEarnings}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: CARD }]}>
-            <Text style={[styles.statLabel, { color: MUTED }]}>THIS WEEK</Text>
-            <Text style={[styles.statDuration, { color: TEXT }]}>{formatDuration(weekMins)}</Text>
-            <Text style={[styles.statEarnings, { color: MUTED }]}>${weekEarnings}</Text>
-          </View>
-        </View>
-
-        {/* Task progress */}
-        <Pressable
-          onPress={urgentTasks.length > 0 ? scrollToPendingTasks : undefined}
-          style={({ pressed }) => [styles.taskProgress, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.75 : 1 }]}
-        >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 15 }]}>Today's Tasks</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 14 }]}>{completedTasks}/{tasks.length}</Text>
-              {urgentTasks.length > 0 && <Feather name="chevron-down" size={14} color={BLUE} />}
+          {/* ── Stats mini cards ── */}
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>TODAY (PAID)</Text>
+              <Text style={styles.statDuration}>{formatDuration(todayMins)}</Text>
+              <Text style={styles.statEarnings}>${todayEarnings}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>THIS WEEK</Text>
+              <Text style={styles.statDuration}>{formatDuration(weekMins)}</Text>
+              <Text style={styles.statEarnings}>${weekEarnings}</Text>
             </View>
           </View>
-          <View style={[styles.progressTrack, { backgroundColor: '#F0F0F0' }]}>
-            <View style={[styles.progressFill, { width: tasks.length ? `${Math.round(completedTasks / tasks.length * 100)}%` : '0%', backgroundColor: BLUE }]} />
-          </View>
-        </Pressable>
 
-        {/* Quick actions */}
-        <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>QUICK ACTIONS</Text>
-        <View style={styles.actionsGrid}>
-          {[
-            { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any) },
-            { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'wastage' } } as any) },
-            { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
-            { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
-          ].map((action) => (
-            <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
-              style={[styles.actionCard, { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER }]}>
-              <View style={[styles.actionIcon, { backgroundColor: action.bg, borderRadius: 12 }]}>
-                <Feather name={action.icon as any} size={20} color={BLUE} />
-              </View>
-              <Text style={[styles.actionLabel, { color: TEXT, fontWeight: '500' }]}>{action.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Today's schedule — only if canViewOrders */}
-        {canViewOrders && (
-          <>
-            <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600' }]}>TODAY'S SCHEDULE</Text>
-            {scheduleGroups.length === 0 ? (
-              <View style={[styles.emptySchedule, { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }]}>
-                <Feather name="calendar" size={22} color={BORDER} />
-                <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 13 }]}>No scheduled pickups today</Text>
-              </View>
-            ) : scheduleGroups.map((group) => (
-              <View key={group.time} style={{ gap: 8 }}>
-                <View style={styles.timeRow}>
-                  <Feather name="clock" size={12} color={BLUE} />
-                  <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 13 }]}>{group.time}</Text>
-                </View>
-                {group.orders.map((order: any) => {
-                  const items = Array.isArray(order.items) ? order.items : [];
-                  const statusColors: Record<string, string> = {
-                    received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: '#22C55E',
-                    completed: '#6B7280', cancelled: '#EF4444',
-                  };
-                  const sc = statusColors[order.status] ?? '#3B82F6';
-                  return (
-                    <Pressable key={order.id} onPress={() => router.push('/(director)/orders' as any)}
-                      style={[styles.scheduleCard, { backgroundColor: CARD, borderRadius: 12, borderWidth: 1, borderColor: BORDER, borderLeftColor: sc, borderLeftWidth: 3 }]}>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <Text style={[{ color: TEXT, fontWeight: '700', fontSize: 13 }]}>#{order.id.slice(0, 6).toUpperCase()}</Text>
-                          <View style={[{ backgroundColor: `${sc}18`, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }]}>
-                            <Text style={[{ color: sc, fontWeight: '600', fontSize: 10, textTransform: 'capitalize' }]}>{order.status.replace(/_/g, ' ')}</Text>
-                          </View>
-                        </View>
-                        <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]} numberOfLines={1}>
-                          {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
-                          {items.length > 3 ? ` +${items.length - 3} more` : ''}
-                        </Text>
-                      </View>
-                      <Text style={[{ color: BLUE, fontWeight: '700', fontSize: 13 }]}>${(order.totalCents / 100).toFixed(2)}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ))}
-          </>
-        )}
-
-        {/* Pending tasks */}
-        {urgentTasks.length > 0 && (
-          <View onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}>
-            <Text style={[styles.sectionTitle, { color: MUTED, fontWeight: '600', marginBottom: 8 }]}>PENDING TASKS</Text>
-            <View style={[styles.taskListCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-              {urgentTasks.map((task, idx) => (
-                <Pressable
-                  key={task.id}
-                  onPress={() => handleCompleteTask(task.id, task.isCompleted)}
-                  style={({ pressed }) => [
-                    styles.taskRow,
-                    idx < urgentTasks.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <View style={[styles.taskCheck, {
-                    borderColor: task.isCompleted ? '#22C55E' : BLUE,
-                    backgroundColor: task.isCompleted ? '#22C55E' : 'transparent',
-                    borderWidth: 1.5,
-                    borderRadius: 6,
-                  }]}>
-                    {task.isCompleted && <Feather name="check" size={11} color="#fff" />}
+          {/* ── Quick actions ── */}
+          <View>
+            <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
+            <View style={styles.actionsGrid}>
+              {[
+                { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any) },
+                { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'wastage' } } as any) },
+                { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
+                { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
+              ].map((action) => (
+                <Pressable key={action.label} onPress={() => { Haptics.selectionAsync(); action.onPress(); }}
+                  style={styles.actionCard}>
+                  <View style={[styles.actionIcon, { backgroundColor: action.bg }]}>
+                    <Feather name={action.icon as any} size={20} color={BLUE} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{
-                      color: task.isCompleted ? MUTED : TEXT,
-                      fontWeight: '500',
-                      fontSize: 14,
-                      textDecorationLine: task.isCompleted ? 'line-through' : 'none',
-                    }}>
-                      {task.title}
-                    </Text>
-                    <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11, marginTop: 2, textTransform: 'capitalize' }}>
-                      {task.category}
-                    </Text>
-                  </View>
+                  <Text style={styles.actionLabel}>{action.label}</Text>
                 </Pressable>
               ))}
             </View>
           </View>
-        )}
-      </View>
-    </ScrollView>
+
+          {/* ── Today's Schedule (if canViewOrders) ── */}
+          {canViewOrders && (
+            <View>
+              <Text style={styles.sectionTitle}>TODAY'S SCHEDULE</Text>
+              {scheduleGroups.length === 0 ? (
+                <View style={styles.emptySchedule}>
+                  <View style={styles.emptyScheduleIcon}>
+                    <Feather name="calendar" size={20} color={MUTED} />
+                  </View>
+                  <Text style={styles.emptyScheduleText}>No scheduled pickups today</Text>
+                </View>
+              ) : scheduleGroups.map((group) => (
+                <View key={group.time} style={{ gap: 8, marginBottom: 8 }}>
+                  <View style={styles.timeRow}>
+                    <Feather name="clock" size={12} color={BLUE} />
+                    <Text style={styles.timeLabel}>{group.time}</Text>
+                  </View>
+                  {group.orders.map((order: any) => {
+                    const items = Array.isArray(order.items) ? order.items : [];
+                    const statusColors: Record<string, string> = {
+                      received: '#3B82F6', being_prepared: '#F59E0B', ready_for_pickup: '#22C55E',
+                      completed: '#6B7280', cancelled: '#EF4444',
+                    };
+                    const sc = statusColors[order.status] ?? '#3B82F6';
+                    return (
+                      <Pressable key={order.id} onPress={() => router.push('/(director)/orders' as any)}
+                        style={[styles.scheduleCard, { borderLeftColor: sc }]}>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <Text style={styles.scheduleOrderId}>#{order.id.slice(0, 6).toUpperCase()}</Text>
+                            <View style={[styles.scheduleStatusPill, { backgroundColor: `${sc}18` }]}>
+                              <Text style={[styles.scheduleStatusText, { color: sc }]}>{order.status.replace(/_/g, ' ')}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.scheduleItemList} numberOfLines={1}>
+                            {items.slice(0, 3).map((i: any) => `${i.quantity}× ${i.productName}`).join(', ')}
+                            {items.length > 3 ? ` +${items.length - 3} more` : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.schedulePrice}>${(order.totalCents / 100).toFixed(2)}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* ── Pending tasks ── */}
+          {urgentTasks.length > 0 && (
+            <View onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={styles.sectionTitle}>PENDING TASKS</Text>
+                <Pressable onPress={scrollToPendingTasks} hitSlop={8}>
+                  <Text style={styles.viewAllLink}>View all</Text>
+                </Pressable>
+              </View>
+              <View style={{ gap: 10 }}>
+                {urgentTasks.map((task) => {
+                  const status = getTaskStatus(task);
+                  const catColor = getCategoryColor(task.category);
+                  return (
+                    <Pressable
+                      key={task.id}
+                      onPress={() => handleCompleteTask(task.id, task.isCompleted)}
+                      style={({ pressed }) => [styles.taskCard, { opacity: pressed ? 0.75 : 1 }]}
+                    >
+                      <View style={styles.taskCardHeader}>
+                        <Text style={styles.taskTitle} numberOfLines={2}>{task.title}</Text>
+                        <View style={[styles.taskStatusPill, { backgroundColor: status.bg }]}>
+                          <Text style={[styles.taskStatusText, { color: status.text }]}>{status.label}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.taskCardFooter}>
+                        <View style={styles.taskCategoryRow}>
+                          <View style={[styles.taskCategoryDot, { backgroundColor: catColor }]} />
+                          <Text style={styles.taskCategory}>{task.category}</Text>
+                        </View>
+                        <Feather
+                          name={task.isCompleted ? 'check-circle' : 'circle'}
+                          size={20}
+                          color={task.isCompleted ? GREEN : BORDER}
+                        />
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shiftCard:       { borderRadius: 18, padding: 18, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: BORDER },
-  shiftCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  shiftCardLabel:  { fontSize: 11, fontWeight: '600', letterSpacing: 0.8 },
-  liveBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  liveDot:         { width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN },
-  liveText:        { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  bigStatus:       { fontSize: 38, fontWeight: '700', marginTop: 2 },
-  bigElapsed:      { fontSize: 38, fontWeight: '700', marginTop: 2 },
-  shiftSub:        { fontSize: 13, fontWeight: '400', lineHeight: 19 },
-  mainBtn:         { borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 2 },
-  mainBtnText:     { color: '#fff', fontSize: 16, fontWeight: '600' },
+  // Greeting
+  greetingRow:     { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 4 },
+  greetingTitle:   { fontSize: 22, fontWeight: '700', color: TEXT, lineHeight: 28, marginBottom: 3 },
+  greetingSubtitle:{ fontSize: 14, fontWeight: '500', color: '#4B5563', lineHeight: 20 },
+  greetingDate:    { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
+  menuBtn:         { width: 40, height: 40, borderRadius: 999, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2, marginLeft: 12, marginTop: 2 },
+
+  // Gradient clock card
+  gradCard:        { borderRadius: 24, padding: 20, gap: 16 },
+  gradCardHeader:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  gradCardName:    { color: '#fff', fontWeight: '700', fontSize: 18, lineHeight: 22, marginBottom: 4 },
+  gradCardSub:     { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '400', lineHeight: 18 },
+  liveBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(22,197,94,0.2)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  liveDot:         { width: 7, height: 7, borderRadius: 4, backgroundColor: '#4ADE80' },
+  liveText:        { color: '#4ADE80', fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  gradElapsed:     { color: '#fff', fontSize: 42, fontWeight: '700', lineHeight: 48, marginVertical: -4 },
+  gradProgressTrack: { height: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
+  gradProgressFill:  { height: '100%', borderRadius: 999, backgroundColor: '#fff' },
+  gradStatusRow:   { flexDirection: 'row', alignItems: 'center' },
+  gradStatusItem:  { flex: 1, alignItems: 'center' },
+  gradStatusVal:   { color: '#fff', fontSize: 16, fontWeight: '700' },
+  gradStatusLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '500', marginTop: 2 },
+  gradStatusDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.2)' },
+
+  // Break buttons
   breakRow:        { flexDirection: 'row', gap: 10 },
-  breakBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 30, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  breakBtnText:    { fontSize: 13, fontWeight: '500' },
-  locationRow:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  locationText:    { fontSize: 11, fontWeight: '400' },
+  breakBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.12)' },
+  breakBtnText:    { fontSize: 13, fontWeight: '500', color: 'rgba(255,255,255,0.9)' },
+  breakBtnActive:  { backgroundColor: '#FFF8E7', borderColor: '#D97706' },
+  breakBtnUnpaid:  { backgroundColor: '#FFF1F0', borderColor: '#F87171' },
+
+  // Clock buttons
+  clockInBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 999, paddingVertical: 15, marginTop: 2 },
+  clockOutBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingVertical: 15, marginTop: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
+  clockBtnText:    { fontSize: 16, fontWeight: '700' },
+  locationRow:     { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  locationText:    { fontSize: 11, fontWeight: '400', color: 'rgba(255,255,255,0.55)' },
+
+  // Stats
   statsRow:        { flexDirection: 'row', gap: 12 },
-  statCard:        { flex: 1, borderRadius: 14, padding: 14, gap: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1, borderWidth: 1, borderColor: BORDER },
-  statLabel:       { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, marginBottom: 2 },
-  statDuration:    { fontSize: 22, fontWeight: '700' },
-  statEarnings:    { fontSize: 13, fontWeight: '400', marginTop: 1 },
-  taskProgress:    { padding: 16, gap: 10 },
-  progressTrack:   { height: 8, borderRadius: 4, overflow: 'hidden' },
-  progressFill:    { height: '100%', borderRadius: 4 },
-  sectionTitle:    { fontSize: 11, letterSpacing: 1.5, marginTop: 4 },
+  statCard:        { flex: 1, borderRadius: 20, padding: 16, gap: 2, backgroundColor: CARD, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: BORDER },
+  statLabel:       { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, color: MUTED, marginBottom: 4 },
+  statDuration:    { fontSize: 24, fontWeight: '700', color: TEXT },
+  statEarnings:    { fontSize: 13, fontWeight: '400', color: MUTED, marginTop: 1 },
+
+  // Section
+  sectionTitle:    { fontSize: 11, letterSpacing: 1.5, color: MUTED, fontWeight: '600', marginBottom: 10 },
+  viewAllLink:     { fontSize: 13, fontWeight: '600', color: BLUE },
+
+  // Quick actions
   actionsGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  actionCard:      { width: '47%', padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  actionIcon:      { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  actionLabel:     { fontSize: 13 },
-  taskListCard:    { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  taskRow:         { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
-  taskCheck:       { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  emptySchedule:   { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
+  actionCard:      { width: '47%', backgroundColor: CARD, padding: 16, gap: 10, borderRadius: 20, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
+  actionIcon:      { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  actionLabel:     { fontSize: 13, fontWeight: '500', color: TEXT },
+
+  // Schedule
+  emptySchedule:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER },
+  emptyScheduleIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
+  emptyScheduleText: { fontSize: 14, fontWeight: '400', color: MUTED },
   timeRow:         { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
-  scheduleCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  timeLabel:       { fontSize: 13, fontWeight: '700', color: BLUE },
+  scheduleCard:    { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3 },
+  scheduleOrderId: { fontSize: 13, fontWeight: '700', color: TEXT },
+  scheduleStatusPill: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
+  scheduleStatusText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
+  scheduleItemList:{ fontSize: 12, fontWeight: '400', color: MUTED },
+  schedulePrice:   { fontSize: 13, fontWeight: '700', color: BLUE },
+
+  // Task cards
+  taskCard:        { backgroundColor: CARD, borderRadius: 20, padding: 16, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: BORDER },
+  taskCardHeader:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  taskTitle:       { flex: 1, fontSize: 15, fontWeight: '600', color: TEXT, lineHeight: 21 },
+  taskStatusPill:  { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 },
+  taskStatusText:  { fontSize: 11, fontWeight: '700' },
+  taskCardFooter:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  taskCategoryRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  taskCategoryDot: { width: 8, height: 8, borderRadius: 4 },
+  taskCategory:    { fontSize: 13, fontWeight: '500', color: MUTED, textTransform: 'capitalize' },
 });

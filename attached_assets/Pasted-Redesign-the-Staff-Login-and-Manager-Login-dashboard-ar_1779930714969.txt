@@ -1,0 +1,181 @@
+Redesign the Staff Login and Manager Login dashboard areas of the Butterfield app to match the attached reference image style as closely as possible.
+
+This is a complete UI/design refresh only.
+
+Do not rebuild any logic.
+Do not change the database.
+Do not change authentication.
+Do not change permissions.
+Do not change role access.
+Do not rename fields.
+Do not create duplicate pages.
+Do not hardcode fake data.
+Do not break any working code.
+
+The goal is to make the Staff and Manager dashboards look extremely neat, clean, soft, premium, modern and app-like, similar to the attached reference image.
+
+Use the reference image as the main design direction:
+
+* Soft off-white / very light pink background
+* Clean iPhone-style layout
+* Rounded cards
+* Soft shadows
+* Subtle borders
+* Smooth spacing
+* Minimal icons
+* Premium typography
+* Floating rounded bottom navigation
+* Neat task-style boxes
+* Calm, organised and professional interface
+
+The purple gradient card in the reference image must be changed to a light blue gradient and used as the Clock In / Clock Out section.
+
+The top header must show the logged-in staff member’s name, exactly like the reference image style.
+
+Example for staff:
+
+Good Morning, [Staff Name]
+You’ve got [number] tasks today
+
+Example for manager:
+
+Good Morning, [Manager Name]
+You’ve got [number] tasks today
+
+The staff/manager name must come from the actual logged-in user account data.
+
+The task count must be dynamic and based on the actual number of tasks assigned to that logged-in staff or manager.
+
+Do not hardcode the name.
+Do not hardcode the task number.
+Do not use fake placeholder data.
+
+The top section should include:
+
+* Small menu icon
+* Greeting
+* Logged-in user name
+* Dynamic task count
+* Today’s date
+* Clean spacing similar to the reference
+
+The light blue gradient Clock In / Clock Out card should include:
+
+* Staff or manager name
+* Current shift status
+* Clock In / Clock Out button
+* Time worked today
+* Current time or shift time if already available
+* Optional progress/status bar style similar to the reference
+* Small status labels where suitable
+* Clean rounded layout
+
+Keep this card soft, premium and easy to tap.
+
+Below the Clock In / Clock Out card, redesign the existing dashboard sections into neat rounded cards like the reference image.
+
+For the Staff dashboard, keep all existing features but restyle them only:
+
+* Clock In / Clock Out
+* Today’s tasks
+* Assigned tasks
+* Order/task reminders
+* QR scan or customer reward scan section if already existing
+* Shift notes or manager messages if already existing
+* Any current staff features already in the app
+
+For the Manager dashboard, keep all existing features but restyle them only:
+
+* Clock In / Clock Out
+* Staff overview
+* Tasks
+* Orders overview
+* Timesheets
+* Roster
+* Reports shortcut
+* Manager notes/messages
+* Any current manager features already in the app
+
+Do not remove existing features. Only restyle and reorganise them into the new layout.
+
+Task cards should look like the reference image:
+
+* Rounded white/soft transparent cards
+* Task title
+* Task category
+* Time or due time
+* Status pill such as Done, In Progress, Upcoming or Pending
+* Small options icon if already used
+* Clean spacing
+* Soft borders
+* No harsh admin-table styling
+
+Status labels should be small rounded pills:
+
+* Done
+* In Progress
+* Upcoming
+* Pending
+* Overdue if already supported
+
+Use colours softly and professionally. Nothing too loud.
+
+Design requirements:
+
+* Mobile-first
+* Clean iOS-style layout
+* Large rounded cards, around 24px to 32px radius
+* Soft glass/blur effect where suitable
+* Subtle shadows
+* Subtle borders
+* Plenty of padding
+* Clear hierarchy
+* Neat typography
+* Easy-to-read text
+* Modern rounded buttons
+* No heavy dark colours
+* No clutter
+* No old admin dashboard look
+
+Bottom navigation:
+
+Keep the existing navigation logic, but redesign the bottom navigation to look like the floating rounded navigation bar in the reference image.
+
+The bottom nav should:
+
+* Float above the bottom safe area
+* Have rounded corners
+* Use soft shadow
+* Show active tab clearly
+* Not cover page content
+* Respect iPhone safe area padding
+
+Safe area requirements:
+
+* Make sure nothing sits under the notch
+* Make sure nothing sits under the dynamic island
+* Make sure nothing is hidden behind the bottom nav
+* Add proper top and bottom padding
+* Test on iPhone screen sizes
+
+Very important technical requirements:
+
+* This is a design/UI change only
+* Keep all existing data connected
+* Keep all existing buttons working
+* Keep staff login working
+* Keep manager login working
+* Keep role-based access working
+* Keep clock in/out logic working
+* Keep tasks connected to the logged-in user
+* Keep reports, rosters, orders, timesheets and all manager features connected
+* Do not create a separate fake design page
+* Apply the redesign to the real existing Staff and Manager dashboards
+* Do not break customer, wholesale, director or master portals
+* Test the full staff and manager login flow after completing the redesign
+
+The final result should feel like a premium productivity app, not a basic backend portal.
+
+Use the attached reference image closely for spacing, cards, layout style, rounded corners, shadows, soft background and floating navigation.
+
+Only change the purple gradient section to a light blue gradient and make it the Clock In / Clock Out section.
