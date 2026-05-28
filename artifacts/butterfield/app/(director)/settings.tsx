@@ -2033,6 +2033,9 @@ export default function DirectorSettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Settings</Text>
+      </View>
       <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
         {(TABS as readonly string[]).map(t => (
           <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}

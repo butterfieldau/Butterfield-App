@@ -732,7 +732,7 @@ function ErrBanner({ msg }: { msg: string }) {
 
 const styles = StyleSheet.create({
   header:        { paddingHorizontal: 20, paddingBottom: 16, gap: 4 },
-  headerTitle:   { color: '#fff', fontSize: 22, fontWeight: '700' },
+  headerTitle:   { color: '#fff', fontSize: 28, fontWeight: '700' },
   headerSub:     { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '400' },
   tabBar:        { flexDirection: 'row', borderBottomWidth: 1 },
   tabItem:       { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, position: 'relative' },

@@ -936,9 +936,8 @@ function CatalogTab() {
         }}
       />
       {/* FAB */}
-      <Pressable onPress={openAddCat} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
-        <Feather name="plus" size={20} color="#fff" />
-        <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Category</Text>
+      <Pressable onPress={openAddCat} style={[styles.fab, { backgroundColor: NAVY, bottom: 100 }]}>
+        <Feather name="plus" size={24} color="#fff" />
       </Pressable>
       {/* Category modal */}
       <Modal visible={catModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setCatModal(false)}>
@@ -1233,9 +1232,8 @@ function OptionsTab() {
         }}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
       />
-      <Pressable onPress={openAddGroup} style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
-        <Feather name="plus" size={20} color="#fff" />
-        <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Group</Text>
+      <Pressable onPress={openAddGroup} style={[styles.fab, { backgroundColor: NAVY, bottom: 100 }]}>
+        <Feather name="plus" size={24} color="#fff" />
       </Pressable>
       {/* ── Group Modal ─────────────────────────────────────────────────────── */}
       <Modal visible={groupModal} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setGroupModal(false)}>
@@ -1497,6 +1495,10 @@ export default function DirectorProductsScreen() {
   ] as const;
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Page title */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Products</Text>
+      </View>
       {/* Top tab bar */}
       <View style={{ flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         {TAB_ITEMS.map(t => {
@@ -1746,9 +1748,8 @@ export default function DirectorProductsScreen() {
         />
       )}
       <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
-        style={[styles.fab, { backgroundColor: NAVY, bottom: 20 }]}>
-        <Feather name="plus" size={22} color="#fff" />
-        <Text style={[styles.fabText, { fontWeight: '700' }]}>Add Product</Text>
+        style={[styles.fab, { backgroundColor: NAVY, bottom: 100 }]}>
+        <Feather name="plus" size={24} color="#fff" />
       </Pressable>
       <ProductModal
         visible={modalOpen}
@@ -1799,8 +1800,7 @@ const styles = StyleSheet.create({
   actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10 },
   actionText:    { fontSize: 12 },
   emptyAddBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
-  fab:           { position: 'absolute', right: 20, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 22, paddingVertical: 14, borderRadius: 28, elevation: 6, shadowColor: NAVY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-  fabText:       { color: '#fff', fontSize: 15 },
+  fab:           { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: NAVY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
 });
 const modal = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },

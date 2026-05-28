@@ -456,6 +456,7 @@ function DirectorDashboardInner() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Dashboard</Text>
 
         {isLoading ? (
           <View style={{ alignItems: 'center', marginTop: 80 }}>

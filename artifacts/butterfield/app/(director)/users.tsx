@@ -1511,6 +1511,10 @@ export default function DirectorUsersScreen() {
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Page title */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Users</Text>
+      </View>
       {/* Tab bar + Add buttons */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}>

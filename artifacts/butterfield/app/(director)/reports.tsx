@@ -535,6 +535,10 @@ export default function DirectorReportsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Page title */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Reports</Text>
+      </View>
       {/* Sub-tab bar */}
       <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
         {TABS.map(t => (

@@ -746,7 +746,7 @@ export default function DirectorStoresScreen() {
 
 const s = StyleSheet.create({
   header:         { paddingHorizontal: 20, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: BG },
-  headerTitle:    { fontWeight: '700', fontSize: 26, color: TEXT },
+  headerTitle:    { fontWeight: '700', fontSize: 28, color: TEXT },
   headerSub:      { fontWeight: '400', fontSize: 13, color: MUTED, marginTop: 2 },
   addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   addBtnText:     { fontWeight: '600', fontSize: 13, color: '#fff' },

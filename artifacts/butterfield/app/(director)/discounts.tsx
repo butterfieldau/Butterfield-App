@@ -571,7 +571,7 @@ const s = StyleSheet.create({
   root:         { flex: 1, backgroundColor: BG },
   header:       { paddingHorizontal: 16, paddingBottom: 0, backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER },
   headerRow:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 14, gap: 12 },
-  headerTitle:  { fontSize: 20, fontWeight: '700', color: TEXT },
+  headerTitle:  { fontSize: 28, fontWeight: '700', color: TEXT },
   headerSub:    { fontSize: 13, color: MUTED, marginTop: 2 },
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: RED, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   addBtnText:   { fontSize: 13, fontWeight: '600', color: '#fff' },

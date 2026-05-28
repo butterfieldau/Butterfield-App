@@ -673,6 +673,10 @@ export default function DirectorCustomersScreen() {
   const onRefresh = async () => { setRefreshing(true); await refetch(); setRefreshing(false); };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Page title */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Customers</Text>
+      </View>
       {/* Search bar */}
       <View style={[scr.searchBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         <View style={[scr.searchInput, { borderColor: BORDER }]}>
