@@ -98,15 +98,15 @@ export function GlassPill({
       <View style={gp.clip}>
         {useBlur && (
           <BlurView
-            intensity={90}
-            tint="systemChromeMaterial"
+            intensity={80}
+            tint="light"
             style={StyleSheet.absoluteFill}
           />
         )}
         <View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: useBlur ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.97)' },
+            { backgroundColor: useBlur ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.97)' },
           ]}
         />
         {/* Row: no flex-stretch, gap so icons sit snugly */}

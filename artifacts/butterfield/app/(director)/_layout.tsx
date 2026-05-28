@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -64,6 +64,7 @@ export default function DirectorLayout() {
   if (isInternal) {
     return (
       <View style={{ flex: 1, backgroundColor: BG_STAFF }}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG_STAFF} translucent={false} />
         <View style={{ height: insets.top, backgroundColor: BG_STAFF }} />
         <Tabs
           tabBar={(props) => (
@@ -109,6 +110,7 @@ export default function DirectorLayout() {
   // ── Director / Master: navy header + standard tab bar ────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: NAVY }}>
+      <StatusBar barStyle="light-content" backgroundColor={NAVY} translucent={false} />
       <PortalHeader
         badge={badgeLabel}
         badgeColor={badgeColor}
