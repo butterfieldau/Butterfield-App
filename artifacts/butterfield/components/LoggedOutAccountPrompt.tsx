@@ -51,7 +51,7 @@ export function LoggedOutAccountPrompt({ redirectTo = '/(customer)/profile', com
 }
 
 const styles = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#F5F6FA', paddingHorizontal: 20, justifyContent: 'space-between' },
+  root:          { flex: 1, backgroundColor: '#EFF6FF', paddingHorizontal: 20, justifyContent: 'space-between' },
   card:          { backgroundColor: '#fff', borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 8 },
   iconWrap:      { width: 62, height: 62, borderRadius: 31, backgroundColor: '#E6F4FF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   heading:       { color: '#1C1C1E', fontSize: 24, lineHeight: 30, fontWeight: '800', textAlign: 'center' },

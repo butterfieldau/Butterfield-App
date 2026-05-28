@@ -14,7 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
-const BG     = '#F5F6FA';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
@@ -1594,7 +1594,7 @@ export default function DirectorUsersScreen() {
                       <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: roleColors.bg }}>
                         <Text style={{ fontSize: 11, fontWeight: '600', color: roleColors.text }}>{item.role}</Text>
                       </View>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: daysLeft <= 5 ? '#FEF2F2' : '#F5F6FA' }}>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: daysLeft <= 5 ? '#FEF2F2' : '#EFF6FF' }}>
                         <Text style={{ fontSize: 11, fontWeight: '600', color: daysLeft <= 5 ? RED : MUTED }}>
                           {daysLeft}d left
                         </Text>
@@ -1949,7 +1949,7 @@ const wdl = StyleSheet.create({
   statusBtnText:   { fontSize: 13, fontWeight: '600' },
   fieldNote:       { fontSize: 12, fontWeight: '400', color: '#8E8E93', marginBottom: 10, lineHeight: 17 },
   fieldLabel:      { fontSize: 12, fontWeight: '600', color: '#8E8E93', marginBottom: 6 },
-  inputRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: '#F5F6FA' },
+  inputRow:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 52, borderWidth: 1, borderRadius: 12, backgroundColor: '#EFF6FF' },
   input:           { flex: 1, fontSize: 15, fontWeight: '400' },
   saveBtn:         { height: 54, borderRadius: 14, backgroundColor: '#1493FF', alignItems: 'center', justifyContent: 'center' },
   saveBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },

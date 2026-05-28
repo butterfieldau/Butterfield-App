@@ -23,7 +23,7 @@ import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
-const BG = '#F5F6FA';
+const BG = '#EFF6FF';
 const CARD = '#FFFFFF';
 const BLUE = '#1493FF';
 const TEXT = '#1C1C1E';
@@ -202,7 +202,7 @@ const s = StyleSheet.create({
   modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: '#1C1C1E' },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center' },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   fieldGroup: { gap: 6 },
   fieldRow: { flexDirection: 'row', gap: 12 },
   fieldLabel: { fontSize: 14, fontWeight: '500', color: '#1C1C1E' },

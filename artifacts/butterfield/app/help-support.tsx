@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 
-const BG     = '#F5F6FA';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
@@ -158,14 +158,14 @@ export default function HelpSupportScreen() {
           <Text style={st.sectionLabel}>LEGAL</Text>
           <View style={[st.card, { borderColor: BORDER }]}>
             <Pressable onPress={() => openUrl(BUTTERFIELD_PRIVACY_URL)} style={[st.row, st.rowBorder]}>
-              <View style={[st.rowIcon, { backgroundColor: '#F5F6FA' }]}>
+              <View style={[st.rowIcon, { backgroundColor: '#EFF6FF' }]}>
                 <Feather name="shield" size={16} color={TEXT} />
               </View>
               <Text style={[st.rowValue, { flex: 1 }]}>Privacy Policy</Text>
               <Feather name="external-link" size={14} color={MUTED} />
             </Pressable>
             <Pressable onPress={() => openUrl(BUTTERFIELD_TERMS_URL)} style={st.row}>
-              <View style={[st.rowIcon, { backgroundColor: '#F5F6FA' }]}>
+              <View style={[st.rowIcon, { backgroundColor: '#EFF6FF' }]}>
                 <Feather name="file-text" size={16} color={TEXT} />
               </View>
               <Text style={[st.rowValue, { flex: 1 }]}>Terms of Use</Text>

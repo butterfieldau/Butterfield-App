@@ -571,7 +571,7 @@ export default function ProductDetailScreen() {
 }
 
 const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: '#F5F6FA' },
+  root:         { flex: 1, backgroundColor: '#EFF6FF' },
 
   // Hero
   hero:         { position: 'relative', width: W, overflow: 'hidden' },

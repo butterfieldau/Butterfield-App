@@ -12,7 +12,7 @@ import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
 
 const BLUE = '#1493FF';
 const NAVY = '#1A2B4A';
-const BG_STAFF = '#F5F6FA';
+const BG_STAFF = '#EFF6FF';
 
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',         title: 'Dashboard' },

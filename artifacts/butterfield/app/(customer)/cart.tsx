@@ -47,7 +47,7 @@ import {
 } from '@/lib/dateUtils';
 import { getPalette } from '@/constants/categoryColors';
 
-const BG       = '#F5F6FA';
+const BG       = '#EFF6FF';
 const CARD     = '#FFFFFF';
 const BLUE     = '#1493FF';
 const GREEN    = '#22C55E';
@@ -1901,13 +1901,13 @@ const styles = StyleSheet.create({
   // Item cards
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
   itemThumb:  { width: 90, alignSelf: 'stretch' },
-  removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#F5F6FA', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
+  removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
   itemBody:   { flex: 1, padding: 12, gap: 4 },
   itemName:   { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
   itemOpts:   { fontSize: 12, color: '#8E8E93', lineHeight: 16 },
   itemPrice:  { fontSize: 14, fontWeight: '500', color: '#1C1C1E' },
   qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
-  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' },
+  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF' },
   qtyBtnText: { fontSize: 16, color: '#1C1C1E', fontWeight: '600', lineHeight: 20 },
   qtyLabel:   { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
   // Summary card
@@ -1956,7 +1956,7 @@ const styles = StyleSheet.create({
   formCard:       { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   formFieldWrap:  { gap: 4 },
   formFieldLabel: { fontSize: 13, fontWeight: '500', color: '#8E8E93' },
-  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: '#F5F6FA' },
+  formInput:      { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: '#EFF6FF' },
   formRow:        { flexDirection: 'row', gap: 10 },
   formNote:       { fontSize: 12, fontWeight: '400', marginTop: 2 },
   notesInput:     { height: 80, textAlignVertical: 'top', paddingTop: 12 },

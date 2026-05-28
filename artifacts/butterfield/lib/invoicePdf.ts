@@ -90,7 +90,7 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
   .addr-line    { font-size:11px; color:#6B7280; line-height:1.6; }
 
   /* ── Meta grid ── */
-  .meta { display:flex; gap:0; background:#F5F6FA; border-radius:10px; padding:12px 16px; margin-bottom:16px; }
+  .meta { display:flex; gap:0; background:#EFF6FF; border-radius:10px; padding:12px 16px; margin-bottom:16px; }
   .meta-item { flex:1; }
   .meta-item + .meta-item { border-left:1px solid #E5E7EB; padding-left:16px; }
   .meta-label { font-size:9px; color:#8E8E93; font-weight:600; letter-spacing:1px; text-transform:uppercase; }

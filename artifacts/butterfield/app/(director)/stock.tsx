@@ -13,7 +13,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
 import { api, type StockItem } from '@/lib/api';
 
-const BG     = '#F5F6FA';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const NAVY   = '#1A2B4A';
 const TEXT   = '#1C1C1E';

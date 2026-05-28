@@ -13,7 +13,7 @@ import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
 import { WS_DELIVERY_SCHEDULE, WS_LEAD_TIME_LABEL } from '@/constants/wholesaleConfig';
 
-const BG     = '#F5F6FA';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
@@ -476,7 +476,7 @@ const s = StyleSheet.create({
 
   acctEmailEdit:   { padding: 14 },
   acctEmailHint:   { color: MUTED, fontWeight: '400', fontSize: 12, marginBottom: 10 },
-  acctEmailInput:  { backgroundColor: '#F5F6FA', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER },
+  acctEmailInput:  { backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER },
   acctEmailBtn:    { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   acctEmailBtnText:{ fontWeight: '600', fontSize: 14 },
 

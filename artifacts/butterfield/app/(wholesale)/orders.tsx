@@ -20,7 +20,7 @@ import type { Invoice } from '@/types';
 
 export const WS_REORDER_KEY = '@ws_pending_reorder';
 // ── Colors ───────────────────────────────────────────────────────────────────
-const BG    = '#F5F6FA';
+const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
 const BLUE  = '#1493FF';
 const GREEN = '#22C55E';

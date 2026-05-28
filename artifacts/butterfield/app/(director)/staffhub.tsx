@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 
-const BG     = '#F5F6FA';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';

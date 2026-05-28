@@ -19,7 +19,7 @@ import type { UserRole } from '@/types';
 let AppleAuthentication: typeof import('expo-apple-authentication') | null = null;
 try { AppleAuthentication = require('expo-apple-authentication'); } catch {}
 
-const BG      = '#F5F6FA';
+const BG      = '#EFF6FF';
 const CARD    = '#FFFFFF';
 const BLUE    = '#1493FF';
 const BLUE_DARK = '#3CBBEE';
@@ -296,7 +296,7 @@ export default function LoginScreen() {
                       onPress={() => { setSelectedRole(r.role); setMode('login'); clearPublic(); Haptics.selectionAsync(); }}
                       style={[s.roleCard, { backgroundColor: CARD, borderColor: active ? BLUE : BORDER, borderWidth: active ? 2 : 1 }]}
                     >
-                      <View style={[s.roleIconBox, { backgroundColor: active ? '#E6F0FF' : '#F5F6FA' }]}>
+                      <View style={[s.roleIconBox, { backgroundColor: active ? '#E6F0FF' : '#EFF6FF' }]}>
                         <Feather name={r.icon as any} size={22} color={active ? BLUE : MUTED} />
                       </View>
                       <Text style={[s.roleLabel, { fontWeight: active ? '700' : '500', color: active ? TEXT : MUTED }]}>

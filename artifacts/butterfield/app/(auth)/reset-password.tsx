@@ -10,7 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
 
-const BG    = '#F5F6FA';
+const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
 const BLUE  = '#1493FF';
 const TEXT  = '#1C1C1E';
@@ -118,7 +118,7 @@ export default function ResetPasswordScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={[s.label, { fontWeight: '600', color: TEXT }]}>New password</Text>
-              <View style={[s.inputRow, { backgroundColor: '#F5F6FA', borderColor: BORDER }]}>
+              <View style={[s.inputRow, { backgroundColor: '#EFF6FF', borderColor: BORDER }]}>
                 <Feather name="lock" size={16} color={MUTED} />
                 <TextInput
                   style={[s.input, { color: TEXT, fontWeight: '400' }]}
@@ -155,7 +155,7 @@ export default function ResetPasswordScreen() {
 
             <View style={{ gap: 6 }}>
               <Text style={[s.label, { fontWeight: '600', color: TEXT }]}>Confirm password</Text>
-              <View style={[s.inputRow, { backgroundColor: '#F5F6FA', borderColor: BORDER }]}>
+              <View style={[s.inputRow, { backgroundColor: '#EFF6FF', borderColor: BORDER }]}>
                 <Feather name="lock" size={16} color={MUTED} />
                 <TextInput
                   style={[s.input, { color: TEXT, fontWeight: '400' }]}

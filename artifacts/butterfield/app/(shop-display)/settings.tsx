@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { getShopDisplaySoundEnabled, setShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 
-const BG = '#F5F6FA';
+const BG = '#EFF6FF';
 const CARD = '#FFFFFF';
 const TEXT = '#1C1C1E';
 const MUTED = '#8E8E93';

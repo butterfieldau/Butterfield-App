@@ -19,7 +19,7 @@ export default function Index() {
 
   if (isLoading || guestStarted === null) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F6FA' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF' }}>
         <ActivityIndicator color="#1493FF" size="large" />
       </View>
     );

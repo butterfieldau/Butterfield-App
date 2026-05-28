@@ -26,7 +26,7 @@ import { getPalette } from '@/constants/categoryColors';
 const TEXT    = '#1C1C1E';
 const MUTED   = '#8E8E93';
 const BORDER  = '#E8E8ED';
-const BG      = '#F5F6FA';
+const BG      = '#EFF6FF';
 const BTN_CLR = '#D0312D';
 const IMAGE_H = 240;
 const BACKDROP_OPACITY = 0.55;

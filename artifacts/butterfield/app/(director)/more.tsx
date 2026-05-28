@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG     = '#F5F6FA';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
@@ -41,7 +41,7 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
             style={({ pressed }) => [
               s.row,
               i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
-              pressed && { backgroundColor: '#F5F6FA' },
+              pressed && { backgroundColor: '#EFF6FF' },
             ]}
           >
             <View style={[s.iconBox, { backgroundColor: (row.danger ? RED : row.color) + '18' }]}>
