@@ -352,7 +352,7 @@ const s = StyleSheet.create({
   progressTrack: { height: 4, backgroundColor: BORDER, borderRadius: 2, overflow: 'hidden' },
   progressFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
   taskCard:      { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 8, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
-  taskRow:       { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#fff', borderRadius: 16 },
+  taskRow:       { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
   checkbox:      { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   taskTitle:     { fontSize: 14, fontWeight: '500', color: TEXT },
   taskDone:      { color: MUTED, textDecorationLine: 'line-through' },

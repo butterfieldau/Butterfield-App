@@ -702,8 +702,12 @@ export default function DirectorOrdersScreen() {
   const totalToday = statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)).length;
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Page heading */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Orders</Text>
+      </View>
       {/* Status filter chips */}
-      <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+      <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
           horizontal
           data={FILTER_TABS}
@@ -727,7 +731,7 @@ export default function DirectorOrdersScreen() {
         />
       </View>
       {/* Date view selector */}
-      <View style={[styles.dateBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+      <View style={[styles.dateBar, { backgroundColor: BG, borderBottomColor: BORDER }]}>
         {([
           { key: 'today', label: `Today (${totalToday})` },
           { key: 'week',  label: 'This Week' },

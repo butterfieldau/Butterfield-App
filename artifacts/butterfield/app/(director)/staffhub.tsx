@@ -848,12 +848,11 @@ export default function StaffHubScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={[s.header, { backgroundColor: BG, borderBottomColor: BORDER }]}>
-        <Text style={s.headerTitle}>Staff Hub</Text>
-        <Text style={s.headerSub}>Issues · Tasks · Wastage · Leave · Feedback</Text>
+        <Text style={s.headerTitle}>Staff Tools</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={[s.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER, flex: 1 }]}>
+        <View style={[s.tabBar, { backgroundColor: BG, borderBottomColor: BORDER, flex: 1 }]}>
           {TABS.map(tab => {
             const active = activeTab === tab.key;
             return (

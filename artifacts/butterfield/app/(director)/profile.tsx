@@ -67,7 +67,7 @@ export default function StaffProfileScreen() {
       <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 8 }}>
 
         {/* Identity card */}
-        <View style={[styles.idCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+        <View style={[styles.idCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
           <AvatarPicker
             initial={user?.name?.charAt(0).toUpperCase() ?? 'S'}
             size={60}
@@ -92,7 +92,7 @@ export default function StaffProfileScreen() {
 
         {/* Details card */}
         {profile && (
-          <View style={[styles.detailsCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View style={[styles.detailsCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
             {([
               { label: 'Employee ID',  value: profile.employeeId },
               { label: 'Department',   value: capitalize(profile.department ?? '') },
@@ -112,7 +112,7 @@ export default function StaffProfileScreen() {
         )}
 
         {/* Menu items */}
-        <View style={[styles.menuCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+        <View style={[styles.menuCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
           {menuItems.map((item, i, arr) => (
             <Pressable
               key={item.label}
@@ -131,7 +131,7 @@ export default function StaffProfileScreen() {
           ))}
         </View>
 
-        <Pressable onPress={handleLogout} style={[styles.signOutBtn, { backgroundColor: CARD, borderColor: '#FECACA' }]}>
+        <Pressable onPress={handleLogout} style={[styles.signOutBtn, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: '#FECACA' }]}>
           <Feather name="log-out" size={16} color="#EF4444" />
           <Text style={[styles.signOutText, { color: '#EF4444' }]}>Sign Out</Text>
         </Pressable>

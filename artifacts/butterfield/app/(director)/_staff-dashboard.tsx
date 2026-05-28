@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
 
   // Task cards
   taskGroupContainer: { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 8, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
-  taskCard:        { backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 12 },
+  taskCard:        { borderRadius: 16, padding: 16, gap: 12 },
   taskCardHeader:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   taskTitle:       { flex: 1, fontSize: 15, fontWeight: '600', color: TEXT, lineHeight: 21 },
   taskStatusPill:  { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 },
