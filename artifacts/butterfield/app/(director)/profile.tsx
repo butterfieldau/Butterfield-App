@@ -17,7 +17,6 @@ const BLUE   = '#1493FF';
 const RED    = '#F40009';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
 
 function capitalize(s: string): string {
   if (!s) return 'Staff';
@@ -102,8 +101,8 @@ export default function StaffProfileScreen() {
               { label: 'Address',      value: profile.address ?? '—' },
               { label: 'TFN',          value: profile.taxFileNumber ? '••• ••• •••' : 'Not set' },
               { label: 'Access Level', value: profile.isManager ? 'Manager' : 'Staff' },
-            ] as { label: string; value: string }[]).map((row, i, arr) => (
-              <View key={row.label} style={[styles.detailRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+            ] as { label: string; value: string }[]).map((row) => (
+              <View key={row.label} style={styles.detailRow}>
                 <Text style={[styles.detailLabel, { color: MUTED }]}>{row.label}</Text>
                 <Text style={[styles.detailValue, { color: TEXT }]} numberOfLines={2}>{row.value}</Text>
               </View>
@@ -113,11 +112,11 @@ export default function StaffProfileScreen() {
 
         {/* Menu items */}
         <View style={[styles.menuCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
-          {menuItems.map((item, i, arr) => (
+          {menuItems.map((item) => (
             <Pressable
               key={item.label}
               onPress={item.onPress}
-              style={[styles.menuRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
+              style={styles.menuRow}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: '#E0F5FE' }]}>
                 <Feather name={item.icon as any} size={16} color={BLUE} />

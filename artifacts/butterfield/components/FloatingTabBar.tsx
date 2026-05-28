@@ -22,8 +22,8 @@ const PILL_H  = 46;   // pill height
 
 // Calculates expanded width — tight fit around icon (20) + gap (6) + label text
 function expandedWidth(title: string): number {
-  // ~6.6px per char at 13px/700, plus icon + gap + left/right padding (10+10)
-  return Math.min(Math.max(78, Math.round(title.length * 6.8 + 56)), 132);
+  // icon(20) + gap(6) + text + paddingH(12+12) = 50 + text; ~6px/char at 13px/700
+  return Math.min(Math.max(78, Math.round(title.length * 6.2 + 50)), 132);
 }
 
 // ── Animated tab item ──────────────────────────────────────────────────────────
