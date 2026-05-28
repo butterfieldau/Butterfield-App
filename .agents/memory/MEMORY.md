@@ -1,0 +1,3 @@
+- [Wholesale checkout flow](wholesale-checkout.md) — checkout moved from catalog.tsx to cart.tsx as a full-screen Modal; reorder flow navigates to cart tab via WS_OPEN_CHECKOUT_KEY.
+- [Wholesale design system](wholesale-design.md) — glass card tokens (GLASS_BG, GLASS_BORDER, GLASS_SHADOW) applied across all 5 screens; BG=#EFF6FF, BLUE=#1493FF.
+- [Web bundler Stripe error](web-stripe-error.md) — pre-existing web-only error from @stripe/stripe-react-native; does not affect iOS/Android; ignore in web preview.

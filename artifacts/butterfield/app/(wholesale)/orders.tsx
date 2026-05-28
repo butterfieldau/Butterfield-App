@@ -18,6 +18,12 @@ import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
 
 export const WS_REORDER_KEY = '@ws_pending_reorder';
+const GLASS_BG     = 'rgba(255,255,255,0.72)';
+const GLASS_BORDER = 'rgba(255,255,255,0.9)';
+const GLASS_SHADOW = {
+  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
+} as const;
 // ── Colors ───────────────────────────────────────────────────────────────────
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -679,15 +685,16 @@ const st = StyleSheet.create({
   statLabel: { fontSize: 11, letterSpacing: 0.5, fontWeight: '600' },
   statValue: { fontSize: 18, fontWeight: '700' },
   orderCard: {
-    padding: 16, borderRadius: 14, borderLeftWidth: 3, borderWidth: 1, borderColor: BORDER,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    padding: 16, borderRadius: 16, borderLeftWidth: 3, borderWidth: 1, borderColor: GLASS_BORDER,
+    backgroundColor: GLASS_BG,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
     gap: 0,
   },
-  payMethod: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
+  payMethod: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: GLASS_BG, borderWidth: 1, borderColor: GLASS_BORDER, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12, ...GLASS_SHADOW },
   payIcon:   { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   payLabel:  { color: MUTED, fontWeight: '500', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   payValue:  { color: TEXT, fontWeight: '600', fontSize: 13, marginTop: 2 },
-  invoiceCard:    { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3 },
+  invoiceCard:    { backgroundColor: GLASS_BG, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: GLASS_BORDER, borderLeftWidth: 3, ...GLASS_SHADOW },
   invoiceNum:     { fontSize: 14, fontWeight: '700', color: TEXT, marginBottom: 3 },
   invoiceMeta:    { fontSize: 12, fontWeight: '400', color: MUTED, marginBottom: 1 },
   invoiceDue:     { fontSize: 12, fontWeight: '400', color: MUTED },

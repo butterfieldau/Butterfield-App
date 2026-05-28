@@ -20,6 +20,12 @@ const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const GREEN  = '#22C55E';
 const RED    = '#DC2626';
+const GLASS_BG     = 'rgba(255,255,255,0.72)';
+const GLASS_BORDER = 'rgba(255,255,255,0.9)';
+const GLASS_SHADOW = {
+  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
+} as const;
 
 const PAY_TO = {
   name:    'Butterfield Cookies PTY LTD',
@@ -452,11 +458,11 @@ const s = StyleSheet.create({
   heroPill:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   heroPillText:    { color: '#fff', fontWeight: '700', fontSize: 9, letterSpacing: 0.5 },
 
-  stat:            { flex: 1, backgroundColor: CARD, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: BORDER, gap: 2 },
+  stat:            { flex: 1, backgroundColor: GLASS_BG, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: GLASS_BORDER, gap: 2, ...GLASS_SHADOW },
   statValue:       { color: TEXT, fontWeight: '700', fontSize: 18 },
   statLabel:       { color: MUTED, fontWeight: '500', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  creditCard:      { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 10 },
+  creditCard:      { backgroundColor: GLASS_BG, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GLASS_BORDER, gap: 10, ...GLASS_SHADOW },
   creditLabel:     { color: MUTED, fontWeight: '500', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   creditAvail:     { color: BLUE, fontWeight: '700', fontSize: 22, marginTop: 2 },
   creditUsed:      { color: TEXT, fontWeight: '600', fontSize: 13, marginTop: 2 },
@@ -482,7 +488,7 @@ const s = StyleSheet.create({
   acctEmailBtnText:{ fontWeight: '600', fontSize: 14 },
 
   sectionLabel:    { color: MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 0.7, marginLeft: 4 },
-  group:           { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  group:           { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', ...GLASS_SHADOW },
 
   row:             { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: 50 },
   rowBorder:       { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
