@@ -15,13 +15,12 @@ const NAVY = '#1A2B4A';
 const BG_STAFF = '#EFF6FF';
 
 const STAFF_TAB_CONFIG = {
-  index:    { icon: 'home',         title: 'Dashboard'    },
-  orders:   { icon: 'shopping-bag', title: 'Orders'       },
-  scan:     { icon: 'maximize',     title: 'Scan'         },
-  tasks:    { icon: 'clipboard',    title: 'Staff Tools'  },
-  profile:  { icon: 'user',         title: 'Profile'      },
-  staffhub: { icon: 'users',        title: 'Staff Tools'  },
-  more:     { icon: 'grid',         title: 'More'         },
+  index:    { icon: 'home',         title: 'Dashboard' },
+  orders:   { icon: 'shopping-bag', title: 'Orders'    },
+  scan:     { icon: 'maximize',     title: 'Scan'      },
+  staffhub: { icon: 'users',        title: 'Staff Hub' },
+  profile:  { icon: 'user',         title: 'Profile'   },
+  more:     { icon: 'grid',         title: 'More'      },
 } as const;
 
 export default function DirectorLayout() {
@@ -49,8 +48,8 @@ export default function DirectorLayout() {
   const visibleRouteNames: string[] = isManager
     ? ['index', 'orders', 'staffhub', 'more']
     : canViewOrders
-      ? ['index', 'orders', 'scan', 'tasks', 'profile']
-      : ['index', 'scan', 'tasks', 'profile'];
+      ? ['index', 'orders', 'scan', 'staffhub', 'profile']
+      : ['index', 'scan', 'staffhub', 'profile'];
 
   const badgeLabel = isStaff   ? 'STAFF'
                    : isManager ? 'STORE MANAGER'
@@ -85,10 +84,10 @@ export default function DirectorLayout() {
         >
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
-          <Tabs.Screen name="scan"     options={{ title: 'Scan',     href: isStaff    ? undefined : null }} />
-          <Tabs.Screen name="tasks"    options={{ title: 'Staff Tools', href: isStaff ? undefined : null }} />
-          <Tabs.Screen name="staffhub" options={{ title: 'Staff Tools', href: isManager ? undefined : null }} />
-          <Tabs.Screen name="profile"  options={{ title: 'Profile',  href: isStaff    ? undefined : null }} />
+          <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff               ? undefined : null }} />
+          <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
+          <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub', href: (isStaff || isManager) ? undefined : null }} />
+          <Tabs.Screen name="profile"  options={{ title: 'Profile',   href: isStaff               ? undefined : null }} />
           <Tabs.Screen name="more"     options={{ title: 'More',     href: isManager  ? undefined : null }} />
           {/* Hidden for staff/manager */}
           <Tabs.Screen name="users"            options={{ href: null }} />

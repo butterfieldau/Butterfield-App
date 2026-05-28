@@ -1,12 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
   Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 
@@ -22,31 +23,41 @@ const GREEN  = '#22C55E';
 const PURPLE = '#8B5CF6';
 const PINK   = '#EC4899';
 
-type Tab = 'issues' | 'tasks' | 'wastage' | 'leave' | 'feedback';
+// Glass card standard
+const GLASS_BG     = 'rgba(255,255,255,0.6)';
+const GLASS_BORDER = 'rgba(255,255,255,0.85)';
 
-const TABS: { key: Tab; label: string; icon: string }[] = [
+type Tab = 'tasks' | 'issues' | 'wastage' | 'leave' | 'feedback';
+
+const STAFF_TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'tasks',   label: 'Tasks',   icon: 'clipboard'      },
+  { key: 'issues',  label: 'Issues',  icon: 'alert-triangle' },
+  { key: 'wastage', label: 'Wastage', icon: 'trash-2'        },
+  { key: 'leave',   label: 'Leave',   icon: 'calendar'       },
+];
+
+const MANAGER_TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'tasks',    label: 'Tasks',    icon: 'clipboard'      },
   { key: 'issues',   label: 'Issues',   icon: 'alert-triangle' },
-  { key: 'tasks',    label: 'Tasks',    icon: 'check-square'   },
   { key: 'wastage',  label: 'Wastage',  icon: 'trash-2'        },
   { key: 'leave',    label: 'Leave',    icon: 'calendar'       },
   { key: 'feedback', label: 'Feedback', icon: 'message-circle' },
 ];
 
+const CATEGORIES = ['daily', 'opening', 'closing', 'prep', 'cleaning', 'training'];
+const CAT_COLORS: Record<string, string> = {
+  daily: '#3B82F6', opening: '#22C55E', closing: '#F59E0B',
+  prep: '#F97316', cleaning: '#8B5CF6', training: '#06B6D4',
+};
 const TASK_CATEGORY_LABELS: Record<string, string> = {
-  opening: 'Opening',
-  closing: 'Closing',
-  prep: 'Coffee Bar',
-  cleaning: 'Cleaning',
-  daily: 'General Shift',
-  training: 'Stock Check / One-Off',
+  opening: 'Opening', closing: 'Closing', prep: 'Coffee Bar',
+  cleaning: 'Cleaning', daily: 'General Shift', training: 'Stock Check / One-Off',
 };
-
 const TASK_CADENCE_LABELS: Record<string, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  one_off: 'One-Off',
+  daily: 'Daily', weekly: 'Weekly', one_off: 'One-Off',
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(d: string | null | undefined) {
   if (!d) return '';
   const ms = Date.now() - new Date(d).getTime();
@@ -64,10 +75,7 @@ function fmtDate(d: string | null | undefined) {
   if (isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
-
-function fmtAUD(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
+function fmtAUD(cents: number) { return `$${(cents / 100).toFixed(2)}`; }
 
 function toSydneyDate(input: string | Date | null | undefined): Date {
   if (!input) return new Date();
@@ -77,36 +85,24 @@ function toSydneyDate(input: string | Date | null | undefined): Date {
     const parts = new Intl.DateTimeFormat('en-AU', {
       timeZone: 'Australia/Sydney',
       year: 'numeric', month: 'numeric', day: 'numeric',
-      hour: 'numeric', minute: 'numeric', second: 'numeric',
-      hour12: false,
+      hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false,
     }).formatToParts(d);
     const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? '0');
     const h = get('hour');
     return new Date(get('year'), get('month') - 1, get('day'), h === 24 ? 0 : h, get('minute'), get('second'));
-  } catch {
-    return d;
-  }
+  } catch { return d; }
 }
-
 function startOfSydneyDay(input: string | Date) {
-  const d = toSydneyDate(input);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const d = toSydneyDate(input); d.setHours(0, 0, 0, 0); return d;
 }
-
 function startOfSydneyWeek(input: string | Date) {
   const d = startOfSydneyDay(input);
   const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
   return d;
 }
-
 function endOfSydneyWeek(start: Date) {
-  const d = new Date(start);
-  d.setDate(d.getDate() + 6);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  const d = new Date(start); d.setDate(d.getDate() + 6); d.setHours(23, 59, 59, 999); return d;
 }
 
 function priorityColor(p: string) {
@@ -114,7 +110,6 @@ function priorityColor(p: string) {
   if (p === 'medium') return AMBER;
   return MUTED;
 }
-
 function statusColor(s: string) {
   if (s === 'open')        return RED;
   if (s === 'in_progress') return AMBER;
@@ -122,6 +117,7 @@ function statusColor(s: string) {
   return MUTED;
 }
 
+// ── Shared UI atoms ───────────────────────────────────────────────────────────
 function Badge({ label, color }: { label: string; color: string }) {
   return (
     <View style={[s.badge, { backgroundColor: color + '20', borderColor: color + '50' }]}>
@@ -129,25 +125,20 @@ function Badge({ label, color }: { label: string; color: string }) {
     </View>
   );
 }
-
 function EmptyState({ icon, message }: { icon: string; message: string }) {
   return (
-    <View style={s.empty}>
-      <Feather name={icon as any} size={32} color={BORDER} />
+    <View style={s.emptyState}>
+      <Feather name={icon as any} size={36} color={BORDER} />
       <Text style={s.emptyText}>{message}</Text>
     </View>
   );
 }
 
+// ── Task editor modal (manager/director) ──────────────────────────────────────
 function TaskEditorModal({
-  visible,
-  task,
-  onClose,
-  onSubmit,
+  visible, task, onClose, onSubmit,
 }: {
-  visible: boolean;
-  task: any | null;
-  onClose: () => void;
+  visible: boolean; task: any | null; onClose: () => void;
   onSubmit: (payload: { title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off'; assignedToUserId?: string | null; assignedToName?: string | null }) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
@@ -165,7 +156,7 @@ function TaskEditorModal({
   });
   const staffMembers: { id: string; name: string; role: string }[] = staffData?.data ?? [];
 
-  React.useEffect(() => {
+  useEffect(() => {
     setTitle(task?.title ?? '');
     setDescription(task?.description ?? '');
     setCategory(task?.category ?? 'daily');
@@ -178,79 +169,61 @@ function TaskEditorModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={[s.modalHeader, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
+        <View style={s.modalHeader}>
           <Pressable onPress={onClose} style={s.modalCloseBtn}>
             <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-          <Text style={s.modalTitle}>{task ? 'Edit Task' : 'Add Task'}</Text>
+          <Text style={s.modalTitle}>{task ? 'Edit Task' : 'New Task'}</Text>
           <View style={{ width: 36 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-          <View style={s.modalInputWrap}>
-            <Text style={s.modalInputLabel}>Task name</Text>
-            <TextInput style={s.modalInput} value={title} onChangeText={setTitle} placeholder="e.g. Turn on coffee machine" placeholderTextColor={MUTED} />
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>TASK NAME</Text>
+            <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder="e.g. Turn on coffee machine" placeholderTextColor={MUTED} />
           </View>
-          <View style={s.modalInputWrap}>
-            <Text style={s.modalInputLabel}>Description</Text>
-            <TextInput style={[s.modalInput, { height: 90, textAlignVertical: 'top' }]} value={description} onChangeText={setDescription} multiline placeholder="Optional detail for staff" placeholderTextColor={MUTED} />
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>DESCRIPTION</Text>
+            <TextInput style={[s.input, { height: 80, textAlignVertical: 'top' }]} value={description} onChangeText={setDescription} multiline placeholder="Optional details for staff" placeholderTextColor={MUTED} />
           </View>
 
-          <Text style={s.modalInputLabel}>Task type</Text>
-          <View style={s.modalChipRow}>
+          <Text style={s.fieldLabel}>TASK TYPE</Text>
+          <View style={s.chipRow}>
             {Object.entries(TASK_CATEGORY_LABELS).map(([key, label]) => (
-              <Pressable key={key} onPress={() => setCategory(key)} style={[s.modalChip, category === key && s.modalChipActive]}>
-                <Text style={[s.modalChipText, category === key && s.modalChipTextActive]}>{label}</Text>
+              <Pressable key={key} onPress={() => setCategory(key)} style={[s.chip, category === key && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                <Text style={[s.chipText, category === key && { color: '#fff' }]}>{label}</Text>
               </Pressable>
             ))}
           </View>
 
-          <Text style={s.modalInputLabel}>Cadence</Text>
-          <View style={s.modalChipRow}>
+          <Text style={s.fieldLabel}>CADENCE</Text>
+          <View style={s.chipRow}>
             {(Object.keys(TASK_CADENCE_LABELS) as Array<'daily' | 'weekly' | 'one_off'>).map((key) => (
-              <Pressable key={key} onPress={() => setCadence(key)} style={[s.modalChip, cadence === key && s.modalChipActive]}>
-                <Text style={[s.modalChipText, cadence === key && s.modalChipTextActive]}>{TASK_CADENCE_LABELS[key]}</Text>
+              <Pressable key={key} onPress={() => setCadence(key)} style={[s.chip, cadence === key && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                <Text style={[s.chipText, cadence === key && { color: '#fff' }]}>{TASK_CADENCE_LABELS[key]}</Text>
               </Pressable>
             ))}
           </View>
 
-          <Text style={s.modalInputLabel}>Assign to staff member</Text>
-          <Text style={{ fontSize: 12, color: MUTED, marginTop: -8, marginBottom: 4 }}>Leave unassigned for all staff to see</Text>
-          <View style={s.modalChipRow}>
-            <Pressable
-              onPress={() => { setAssignedToUserId(null); setAssignedToName(null); }}
-              style={[s.modalChip, !assignedToUserId && s.modalChipActive]}
-            >
-              <Text style={[s.modalChipText, !assignedToUserId && s.modalChipTextActive]}>All staff</Text>
+          <Text style={s.fieldLabel}>ASSIGN TO</Text>
+          <Text style={{ fontSize: 12, color: MUTED, marginTop: -8, marginBottom: 4 }}>Leave as "All staff" so everyone can see it</Text>
+          <View style={s.chipRow}>
+            <Pressable onPress={() => { setAssignedToUserId(null); setAssignedToName(null); }} style={[s.chip, !assignedToUserId && { backgroundColor: BLUE, borderColor: BLUE }]}>
+              <Text style={[s.chipText, !assignedToUserId && { color: '#fff' }]}>All staff</Text>
             </Pressable>
-            {staffMembers.map((member) => (
-              <Pressable
-                key={member.id}
-                onPress={() => { setAssignedToUserId(member.id); setAssignedToName(member.name); }}
-                style={[s.modalChip, assignedToUserId === member.id && s.modalChipActive]}
-              >
-                <Text style={[s.modalChipText, assignedToUserId === member.id && s.modalChipTextActive]}>{member.name}</Text>
+            {staffMembers.map((m) => (
+              <Pressable key={m.id} onPress={() => { setAssignedToUserId(m.id); setAssignedToName(m.name); }} style={[s.chip, assignedToUserId === m.id && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                <Text style={[s.chipText, assignedToUserId === m.id && { color: '#fff' }]}>{m.name}</Text>
               </Pressable>
             ))}
           </View>
 
-          <Pressable
-            style={[s.primaryActionBtn, saving && { opacity: 0.7 }]}
-            disabled={saving}
-            onPress={async () => {
-              if (!title.trim()) {
-                Alert.alert('Missing task name', 'Please give the task a name.');
-                return;
-              }
-              setSaving(true);
-              try {
-                await onSubmit({ title: title.trim(), description: description.trim() || undefined, category, cadence, assignedToUserId, assignedToName });
-                onClose();
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryActionText}>{task ? 'Save Changes' : 'Create Task'}</Text>}
+          <Pressable style={[s.primaryBtn, saving && { opacity: 0.7 }]} disabled={saving} onPress={async () => {
+            if (!title.trim()) { Alert.alert('Missing task name', 'Please give the task a name.'); return; }
+            setSaving(true);
+            try { await onSubmit({ title: title.trim(), description: description.trim() || undefined, category, cadence, assignedToUserId, assignedToName }); onClose(); }
+            finally { setSaving(false); }
+          }}>
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryBtnText}>{task ? 'Save Changes' : 'Create Task'}</Text>}
           </Pressable>
         </ScrollView>
       </View>
@@ -258,7 +231,133 @@ function TaskEditorModal({
   );
 }
 
-function TasksTab() {
+// ══════════════════════════════════════════════════════════════════════════════
+// TASKS TAB — staff view: checklist
+// ══════════════════════════════════════════════════════════════════════════════
+function StaffTasksTab({ userId }: { userId?: string }) {
+  const qc = useQueryClient();
+  const [activeCat, setActiveCat] = useState('daily');
+
+  const { data: tasksData, refetch } = useQuery({
+    queryKey: ['staff-tasks', activeCat],
+    queryFn: () => api.staff.tasks(activeCat),
+    retry: 1,
+  });
+  const { data: assignedData } = useQuery({
+    queryKey: ['staff-tasks-assigned'],
+    queryFn: () => api.staff.tasks(),
+    retry: 1,
+  });
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const tasks = tasksData?.data ?? [];
+  const assignedToMe = (assignedData?.data ?? []).filter((t: any) => t.assignedToUserId === userId && !t.isCompleted);
+
+  const completedCount = tasks.filter((t: any) => t.isCompleted).length;
+  const totalCount = tasks.length;
+
+  const handleComplete = async (id: string, isCompleted: boolean) => {
+    Haptics.selectionAsync();
+    try {
+      await api.staff.completeTask(id, !isCompleted);
+      qc.invalidateQueries({ queryKey: ['staff-tasks', activeCat] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, gap: 14 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+    >
+      {/* Category chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }}
+        contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2 }}>
+        {CATEGORIES.map((c) => {
+          const active = activeCat === c;
+          return (
+            <Pressable key={c} onPress={() => { setActiveCat(c); Haptics.selectionAsync(); }}
+              style={[s.chip, active && { backgroundColor: CAT_COLORS[c], borderColor: CAT_COLORS[c] }]}>
+              <Text style={[s.chipText, active && { color: '#fff' }]}>
+                {c.charAt(0).toUpperCase() + c.slice(1)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {/* Progress */}
+      {totalCount > 0 && (
+        <View style={{ gap: 6 }}>
+          <Text style={s.metaLabel}>{completedCount}/{totalCount} complete</Text>
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${(completedCount / totalCount) * 100}%` as any }]} />
+          </View>
+        </View>
+      )}
+
+      {/* Assigned to me */}
+      {assignedToMe.length > 0 && (
+        <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AMBER }} />
+            <Text style={[s.metaLabel, { color: '#B45309', letterSpacing: 0.8 }]}>ASSIGNED TO YOU</Text>
+          </View>
+          <View style={[s.glassCard, { borderColor: '#FDE68A', borderWidth: 1.5 }]}>
+            {assignedToMe.map((task: any) => (
+              <Pressable key={task.id} onPress={() => handleComplete(task.id, task.isCompleted)}
+                style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}>
+                <View style={[s.checkbox, { borderColor: AMBER }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.taskTitle}>{task.title}</Text>
+                  {task.description && <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>}
+                  <Text style={[s.taskCat, { color: AMBER }]}>
+                    {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)} · Assigned to you
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* Task list */}
+      {tasks.length === 0 ? (
+        <EmptyState icon="clipboard" message="No tasks in this category." />
+      ) : (
+        <View style={s.glassCard}>
+          {tasks.map((task: any) => (
+            <Pressable key={task.id} onPress={() => handleComplete(task.id, task.isCompleted)}
+              style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}>
+              <View style={[s.checkbox, {
+                borderColor: task.isCompleted ? GREEN : BLUE,
+                backgroundColor: task.isCompleted ? GREEN : 'transparent',
+              }]}>
+                {task.isCompleted && <Feather name="check" size={11} color="#fff" />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.taskTitle, task.isCompleted && { color: MUTED, textDecorationLine: 'line-through' }]}>
+                  {task.title}
+                </Text>
+                {task.description && !task.isCompleted && (
+                  <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>
+                )}
+                <Text style={[s.taskCat, { color: CAT_COLORS[task.category] ?? BLUE }]}>
+                  {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)}
+                  {task.completedBy ? ` · ✓ ${task.completedBy}` : ''}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TASKS TAB — manager view: configure tasks
+// ══════════════════════════════════════════════════════════════════════════════
+function ManagerTasksTab() {
   const qc = useQueryClient();
   const [editingTask, setEditingTask] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -272,15 +371,13 @@ function TasksTab() {
   const tasks: any[] = data?.data ?? [];
 
   const saveTask = useMutation({
-    mutationFn: async (payload: { id?: string; title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off'; assignedToUserId?: string | null; assignedToName?: string | null }) => {
+    mutationFn: async (payload: any) => {
       const body = { ...payload, isRecurring: payload.cadence !== 'one_off' };
-      if (payload.id) return api.director.updateTask(payload.id, body);
-      return api.director.createTask(body);
+      return payload.id ? api.director.updateTask(payload.id, body) : api.director.createTask(body);
     },
     onSuccess: async () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await qc.invalidateQueries({ queryKey: ['director-tasks'] });
-      await qc.invalidateQueries({ queryKey: ['shop-display-tasks'] });
     },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
@@ -290,79 +387,77 @@ function TasksTab() {
     onSuccess: async () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await qc.invalidateQueries({ queryKey: ['director-tasks'] });
-      await qc.invalidateQueries({ queryKey: ['shop-display-tasks'] });
     },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
 
   const reorder = async (taskId: string, direction: -1 | 1) => {
-    const index = tasks.findIndex((task) => task.id === taskId);
+    const index = tasks.findIndex((t) => t.id === taskId);
     const swapIndex = index + direction;
     if (index < 0 || swapIndex < 0 || swapIndex >= tasks.length) return;
     const reordered = [...tasks];
     const [moved] = reordered.splice(index, 1);
     reordered.splice(swapIndex, 0, moved);
-    await api.director.reorderTasks(reordered.map((task) => task.id));
+    await api.director.reorderTasks(reordered.map((t) => t.id));
     await qc.invalidateQueries({ queryKey: ['director-tasks'] });
-    await qc.invalidateQueries({ queryKey: ['shop-display-tasks'] });
   };
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   return (
     <>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <Pressable onPress={() => { setEditingTask(null); setShowEditor(true); }} style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
-          <Feather name="plus-circle" size={16} color={BLUE} />
+        showsVerticalScrollIndicator={false}>
+
+        {/* Add task prompt */}
+        <Pressable onPress={() => { setEditingTask(null); setShowEditor(true); }}
+          style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
+          <View style={[s.summaryIcon, { backgroundColor: BLUE + '20' }]}>
+            <Feather name="plus" size={16} color={BLUE} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={[s.summaryTitle, { color: BLUE }]}>Add shop task</Text>
-            <Text style={[s.summarySub, { color: MUTED }]}>Create opening, closing, coffee bar, cleaning, stock check or one-off tasks.</Text>
+            <Text style={[s.summarySub, { color: MUTED }]}>Opening, closing, coffee bar, cleaning, one-off…</Text>
           </View>
         </Pressable>
 
         {tasks.length === 0 ? (
           <EmptyState icon="check-square" message="No tasks configured yet" />
         ) : tasks.map((task: any, index: number) => (
-          <View key={task.id} style={s.card}>
+          <View key={task.id} style={s.glassCard}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: BLUE + '18' }]}>
                 <Feather name="check-square" size={15} color={BLUE} />
               </View>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={[s.cardTitle, { color: TEXT }]}>{task.title}</Text>
-                <Text style={[s.cardSub, { color: MUTED }]}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={s.cardTitle}>{task.title}</Text>
+                <Text style={s.cardSub}>
                   {TASK_CATEGORY_LABELS[task.category] ?? task.category} · {TASK_CADENCE_LABELS[task.cadence ?? 'daily'] ?? 'Daily'}
                   {task.assignedToName ? ` · ${task.assignedToName}` : ' · All staff'}
                 </Text>
               </View>
             </View>
-            {task.description ? <Text style={[s.cardDesc, { color: MUTED }]}>{task.description}</Text> : null}
+            {task.description ? <Text style={s.cardDesc}>{task.description}</Text> : null}
             <View style={s.actionRow}>
-              <Pressable style={[s.actionBtn, { borderColor: BORDER, backgroundColor: CARD }]} onPress={() => void reorder(task.id, -1)} disabled={index === 0}>
-                <Feather name="arrow-up" size={14} color={index === 0 ? BORDER : BLUE} />
+              <Pressable style={[s.actionBtn, { borderColor: BORDER }]} onPress={() => void reorder(task.id, -1)} disabled={index === 0}>
+                <Feather name="arrow-up" size={13} color={index === 0 ? BORDER : BLUE} />
                 <Text style={[s.actionBtnText, { color: index === 0 ? MUTED : BLUE }]}>Up</Text>
               </Pressable>
-              <Pressable style={[s.actionBtn, { borderColor: BORDER, backgroundColor: CARD }]} onPress={() => void reorder(task.id, 1)} disabled={index === tasks.length - 1}>
-                <Feather name="arrow-down" size={14} color={index === tasks.length - 1 ? BORDER : BLUE} />
+              <Pressable style={[s.actionBtn, { borderColor: BORDER }]} onPress={() => void reorder(task.id, 1)} disabled={index === tasks.length - 1}>
+                <Feather name="arrow-down" size={13} color={index === tasks.length - 1 ? BORDER : BLUE} />
                 <Text style={[s.actionBtnText, { color: index === tasks.length - 1 ? MUTED : BLUE }]}>Down</Text>
               </Pressable>
               <Pressable style={[s.actionBtn, { borderColor: BLUE + '40', backgroundColor: BLUE + '10' }]} onPress={() => { setEditingTask(task); setShowEditor(true); }}>
-                <Feather name="edit-2" size={14} color={BLUE} />
+                <Feather name="edit-2" size={13} color={BLUE} />
                 <Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text>
               </Pressable>
-              <Pressable
-                style={[s.actionBtn, { borderColor: RED + '40', backgroundColor: RED + '10' }]}
+              <Pressable style={[s.actionBtn, { borderColor: RED + '40', backgroundColor: RED + '10' }]}
                 onPress={() => Alert.alert('Delete Task', `Delete "${task.title}"?`, [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Delete', style: 'destructive', onPress: () => deleteTask.mutate(task.id) },
-                ])}
-              >
-                <Feather name="trash-2" size={14} color={RED} />
+                ])}>
+                <Feather name="trash-2" size={13} color={RED} />
                 <Text style={[s.actionBtnText, { color: RED }]}>Delete</Text>
               </Pressable>
             </View>
@@ -381,8 +476,76 @@ function TasksTab() {
   );
 }
 
-// ── Issues tab ────────────────────────────────────────────────────────────────
-function IssuesTab() {
+// ══════════════════════════════════════════════════════════════════════════════
+// ISSUES TAB — staff view: submit form
+// ══════════════════════════════════════════════════════════════════════════════
+function StaffIssuesTab() {
+  const [form, setForm] = useState({ title: '', description: '', priority: 'medium' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const handle = async () => {
+    if (!form.title || !form.description) { Alert.alert('Fill all fields'); return; }
+    setSubmitting(true);
+    try {
+      await api.staff.submitIssue(form);
+      setForm({ title: '', description: '', priority: 'medium' });
+      Alert.alert('Reported', 'Issue submitted to management.');
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}>
+      <View style={s.glassCard}>
+        <View style={{ padding: 8, gap: 14 }}>
+          <Text style={s.formHeading}>Report an Issue</Text>
+          {[
+            { label: 'TITLE', key: 'title', placeholder: 'Brief description', multiline: false },
+            { label: 'DETAILS', key: 'description', placeholder: 'What happened? Where? When?', multiline: true },
+          ].map((field) => (
+            <View key={field.key} style={s.fieldWrap}>
+              <Text style={s.fieldLabel}>{field.label}</Text>
+              <TextInput
+                style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
+                value={(form as any)[field.key]}
+                onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
+                multiline={field.multiline}
+                numberOfLines={field.multiline ? 4 : 1}
+                placeholder={field.placeholder}
+                placeholderTextColor={MUTED}
+              />
+            </View>
+          ))}
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>PRIORITY</Text>
+            <View style={s.chipRow}>
+              {(['low', 'medium', 'high', 'urgent'] as const).map((p) => {
+                const c = { low: GREEN, medium: BLUE, high: AMBER, urgent: RED }[p];
+                const active = form.priority === p;
+                return (
+                  <Pressable key={p} onPress={() => setForm((f) => ({ ...f, priority: p }))}
+                    style={[s.chip, active && { backgroundColor: c, borderColor: c }]}>
+                    <Text style={[s.chipText, active && { color: '#fff' }]}>
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <Pressable onPress={handle} disabled={submitting} style={[s.primaryBtn, { backgroundColor: RED }]}>
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>Report Issue</Text>}
+          </Pressable>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ISSUES TAB — manager view: review all issues
+// ══════════════════════════════════════════════════════════════════════════════
+function ManagerIssuesTab() {
   const qc = useQueryClient();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-all-issues'],
@@ -393,8 +556,7 @@ function IssuesTab() {
   const issues: any[] = data?.data ?? [];
 
   const resolve = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.director.resolveIssue(id, status),
+    mutationFn: ({ id, status }: { id: string; status: string }) => api.director.resolveIssue(id, status),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['director-all-issues'] });
@@ -415,37 +577,33 @@ function IssuesTab() {
       opts.push({ text: 'Close Issue',      onPress: () => resolve.mutate({ id: issue.id, status: 'closed' }) });
     }
     opts.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert(issue.title, `${issue.description}\n\nReported by: ${issue.staffName ?? 'Unknown'}\nCategory: ${issue.category}\nPriority: ${issue.priority}`, opts);
+    Alert.alert(issue.title, `${issue.description}\n\nReported by: ${issue.staffName ?? 'Unknown'}\nPriority: ${issue.priority}`, opts);
   };
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-      showsVerticalScrollIndicator={false}
-    >
-      {issues.length === 0
-        ? <EmptyState icon="check-circle" message="No issues reported" />
-        : issues.map((item: any) => (
-          <Pressable key={item.id} onPress={() => handleAction(item)} style={s.card}>
+      showsVerticalScrollIndicator={false}>
+      {issues.length === 0 ? <EmptyState icon="check-circle" message="No issues reported" /> :
+        issues.map((item: any) => (
+          <Pressable key={item.id} onPress={() => handleAction(item)} style={s.glassCard}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority) + '18' }]}>
                 <Feather name="alert-triangle" size={15} color={priorityColor(item.priority)} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[s.cardTitle, { color: TEXT }]} numberOfLines={1}>{item.title}</Text>
-                <Text style={[s.cardSub,   { color: MUTED }]} numberOfLines={1}>{item.staffName ?? 'Unknown staff'} · {item.category}</Text>
+                <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={s.cardSub} numberOfLines={1}>{item.staffName ?? 'Unknown'} · {item.category}</Text>
               </View>
               <Feather name="chevron-right" size={16} color={MUTED} />
             </View>
-            <Text style={[s.cardDesc, { color: MUTED }]} numberOfLines={2}>{item.description}</Text>
+            <Text style={s.cardDesc} numberOfLines={2}>{item.description}</Text>
             <View style={s.cardFooter}>
               <Badge label={item.priority} color={priorityColor(item.priority)} />
               <Badge label={item.status}   color={statusColor(item.status)} />
-              <Text style={[s.cardTime, { color: MUTED }]}>{timeAgo(item.createdAt)}</Text>
+              <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
             </View>
           </Pressable>
         ))
@@ -454,12 +612,93 @@ function IssuesTab() {
   );
 }
 
-// ── Wastage tab ───────────────────────────────────────────────────────────────
-function WastageTab() {
+// ══════════════════════════════════════════════════════════════════════════════
+// WASTAGE TAB — staff view: log form
+// ══════════════════════════════════════════════════════════════════════════════
+function StaffWastageTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const { data: wastageData } = useQuery({ queryKey: ['staff-wastage'], queryFn: () => api.staff.wastage() });
+  const wastageList = wastageData?.data ?? [];
+
+  const handle = async () => {
+    if (!form.productName || !form.quantity || !form.reason) { Alert.alert('Fill all required fields'); return; }
+    setSubmitting(true);
+    try {
+      const cost = form.estimatedCost.trim();
+      const costNum = cost ? Number(cost) : null;
+      if (cost && (costNum === null || !Number.isFinite(costNum!) || costNum! < 0)) {
+        Alert.alert('Invalid amount', 'Enter a valid loss amount.'); setSubmitting(false); return;
+      }
+      await api.staff.submitWastage({
+        productName: form.productName, quantity: form.quantity, unit: form.unit, reason: form.reason,
+        notes: form.notes.trim() || null,
+        estimatedCostCents: costNum !== null ? Math.round(costNum! * 100) : null,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setForm({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
+      qc.invalidateQueries({ queryKey: ['staff-wastage'] });
+      Alert.alert('Logged', 'Wastage recorded successfully.');
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}>
+      <View style={s.glassCard}>
+        <View style={{ padding: 8, gap: 14 }}>
+          <Text style={s.formHeading}>Log Wastage</Text>
+          {[
+            { label: 'PRODUCT NAME', key: 'productName', placeholder: 'e.g. Classic Choc Chip', keyboard: undefined },
+            { label: 'QUANTITY', key: 'quantity', placeholder: 'e.g. 3', keyboard: 'number-pad' as const },
+            { label: 'REASON', key: 'reason', placeholder: 'Burnt, dropped, overproduced…', keyboard: undefined },
+            { label: 'LOSS AMOUNT (AUD)', key: 'estimatedCost', placeholder: 'e.g. 18.50', keyboard: 'decimal-pad' as const },
+            { label: 'NOTES', key: 'notes', placeholder: 'Optional notes for management', keyboard: undefined },
+          ].map((field) => (
+            <View key={field.key} style={s.fieldWrap}>
+              <Text style={s.fieldLabel}>{field.label}</Text>
+              <TextInput
+                style={s.input} placeholder={field.placeholder} placeholderTextColor={MUTED}
+                keyboardType={field.keyboard} value={(form as any)[field.key]}
+                onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
+              />
+            </View>
+          ))}
+          <Pressable onPress={handle} disabled={submitting} style={s.primaryBtn}>
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>Log Wastage</Text>}
+          </Pressable>
+        </View>
+      </View>
+
+      {wastageList.length > 0 && (
+        <View style={{ gap: 8 }}>
+          <Text style={[s.metaLabel, { letterSpacing: 0.8 }]}>RECENT LOGS</Text>
+          <View style={s.glassCard}>
+            {(wastageList as any[]).slice(0, 5).map((w: any) => (
+              <View key={w.id} style={s.taskRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.taskTitle}>{w.productName} × {w.quantity} {w.unit}</Text>
+                  <Text style={s.taskDesc}>{w.reason}</Text>
+                  {w.estimatedCostCents ? (
+                    <Text style={[s.taskCat, { color: PURPLE }]}>Loss: {fmtAUD(w.estimatedCostCents)}</Text>
+                  ) : null}
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WASTAGE TAB — manager view: analytics
+// ══════════════════════════════════════════════════════════════════════════════
+function ManagerWastageTab() {
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['director-all-wastage'],
-    queryFn: () => api.director.allWastage(),
-    staleTime: 0,
+    queryKey: ['director-all-wastage'], queryFn: () => api.director.allWastage(), staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const wastage: any[] = data?.data ?? [];
@@ -471,153 +710,102 @@ function WastageTab() {
       const start = startOfSydneyWeek(item.createdAt);
       const key = start.toISOString();
       const end = endOfSydneyWeek(start);
-      const existing = groups.get(key);
-      if (existing) {
-        existing.items.push(item);
-        existing.totalCost += item.estimatedCostCents ?? 0;
-      } else {
-        groups.set(key, { key, start, end, items: [item], totalCost: item.estimatedCostCents ?? 0 });
-      }
+      const ex = groups.get(key);
+      if (ex) { ex.items.push(item); ex.totalCost += item.estimatedCostCents ?? 0; }
+      else groups.set(key, { key, start, end, items: [item], totalCost: item.estimatedCostCents ?? 0 });
     });
     return Array.from(groups.values()).sort((a, b) => b.start.getTime() - a.start.getTime());
   }, [wastage]);
 
   const [selectedWeekKey, setSelectedWeekKey] = useState<string | null>(null);
-
   const selectedWeek = useMemo(() => {
-    const fallbackKey = selectedWeekKey ?? currentWeekKey;
-    return weekGroups.find((group) => group.key === fallbackKey) ?? weekGroups[0] ?? null;
+    const fb = selectedWeekKey ?? currentWeekKey;
+    return weekGroups.find((g) => g.key === fb) ?? weekGroups[0] ?? null;
   }, [currentWeekKey, selectedWeekKey, weekGroups]);
 
   const todayStart = startOfSydneyDay(new Date());
-  const todayEnd = new Date(todayStart);
-  todayEnd.setHours(23, 59, 59, 999);
+  const todayEnd = new Date(todayStart); todayEnd.setHours(23, 59, 59, 999);
   const todayItems = useMemo(() => wastage.filter((item) => {
-    const createdAt = toSydneyDate(item.createdAt);
-    return createdAt >= todayStart && createdAt <= todayEnd;
-  }), [todayEnd, todayStart, wastage]);
-  const todayCost = todayItems.reduce((sum, item) => sum + (item.estimatedCostCents ?? 0), 0);
-  const thisWeekItems = useMemo(() => weekGroups.find((group) => group.key === currentWeekKey)?.items ?? [], [currentWeekKey, weekGroups]);
-  const thisWeekCost = thisWeekItems.reduce((sum, item) => sum + (item.estimatedCostCents ?? 0), 0);
+    const c = toSydneyDate(item.createdAt); return c >= todayStart && c <= todayEnd;
+  }), [wastage]);
+  const todayCost  = todayItems.reduce((s, i) => s + (i.estimatedCostCents ?? 0), 0);
+  const thisWeekItems = weekGroups.find((g) => g.key === currentWeekKey)?.items ?? [];
+  const thisWeekCost  = thisWeekItems.reduce((s, i) => s + (i.estimatedCostCents ?? 0), 0);
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.director.deleteWastage(id),
-    onSuccess: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      refetch();
-    },
+    onSuccess: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); refetch(); },
     onError: (e: any) => Alert.alert('Error', e.message),
   });
-
-  const handlePress = (item: any) => {
-    const cost = item.estimatedCostCents ? fmtAUD(item.estimatedCostCents) : 'Not estimated';
-    Alert.alert(
-      `Wastage: ${item.productName}`,
-      `Staff: ${item.staffName ?? 'Unknown'}\nQuantity: ${item.quantity} ${item.unit}\nReason: ${item.reason}\nEst. cost: ${cost}${item.notes ? `\nNotes: ${item.notes}` : ''}`,
-      [
-        { text: 'Delete', style: 'destructive', onPress: () => handleDelete(item) },
-        { text: 'OK' },
-      ],
-    );
-  };
-
-  const handleDelete = (item: any) => {
-    Alert.alert(
-      'Delete Wastage Entry',
-      `Remove wastage entry for ${item.productName} (${item.quantity} ${item.unit}) by ${item.staffName ?? 'Unknown'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteMut.mutate(item.id) },
-      ],
-    );
-  };
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-      showsVerticalScrollIndicator={false}
-    >
+      showsVerticalScrollIndicator={false}>
+      {/* Metrics */}
       <View style={s.metricsRow}>
-        <View style={[s.metricCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <Text style={s.metricLabel}>TODAY</Text>
-          <Text style={[s.metricValue, { color: PURPLE }]}>{fmtAUD(todayCost)}</Text>
-          <Text style={s.metricSub}>{todayItems.length} entr{todayItems.length === 1 ? 'y' : 'ies'}</Text>
-        </View>
-        <View style={[s.metricCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-          <Text style={s.metricLabel}>THIS WEEK</Text>
-          <Text style={[s.metricValue, { color: PURPLE }]}>{fmtAUD(thisWeekCost)}</Text>
-          <Text style={s.metricSub}>{thisWeekItems.length} entr{thisWeekItems.length === 1 ? 'y' : 'ies'}</Text>
-        </View>
+        {[
+          { label: 'TODAY', value: fmtAUD(todayCost), sub: `${todayItems.length} entries` },
+          { label: 'THIS WEEK', value: fmtAUD(thisWeekCost), sub: `${thisWeekItems.length} entries` },
+        ].map((m) => (
+          <View key={m.label} style={[s.metricCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER }]}>
+            <Text style={s.metricLabel}>{m.label}</Text>
+            <Text style={[s.metricValue, { color: PURPLE }]}>{m.value}</Text>
+            <Text style={s.metricSub}>{m.sub}</Text>
+          </View>
+        ))}
       </View>
 
+      {/* Week selector */}
       {weekGroups.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {weekGroups.map((group) => {
             const active = selectedWeek?.key === group.key;
-            const isCurrentWeek = group.key === currentWeekKey;
-            const label = isCurrentWeek
+            const label = group.key === currentWeekKey
               ? 'This week'
-              : `${group.start.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} - ${group.end.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+              : `${group.start.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${group.end.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
             return (
-              <Pressable
-                key={group.key}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setSelectedWeekKey(group.key);
-                }}
-                style={[s.weekChip, active && { backgroundColor: PURPLE, borderColor: PURPLE }]}
-              >
-                <Text style={[s.weekChipTitle, active && { color: '#fff' }]}>{label}</Text>
-                <Text style={[s.weekChipSub, active && { color: 'rgba(255,255,255,0.82)' }]}>{fmtAUD(group.totalCost)} · {group.items.length} entries</Text>
+              <Pressable key={group.key} onPress={() => { Haptics.selectionAsync(); setSelectedWeekKey(group.key); }}
+                style={[s.chip, active && { backgroundColor: PURPLE, borderColor: PURPLE }]}>
+                <Text style={[s.chipText, active && { color: '#fff' }]}>{label}</Text>
+                <Text style={[{ fontSize: 11, color: active ? 'rgba(255,255,255,0.75)' : MUTED }]}>
+                  {fmtAUD(group.totalCost)} · {group.items.length}
+                </Text>
               </Pressable>
             );
           })}
         </ScrollView>
       )}
 
-      {selectedWeek && (
-        <View style={[s.summaryCard, { backgroundColor: PURPLE + '12', borderColor: PURPLE + '40' }]}>
-          <Feather name="trash-2" size={16} color={PURPLE} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.summaryTitle, { color: PURPLE }]}>
-              {selectedWeek.key === currentWeekKey ? "This Week's Wastage Cost" : 'Weekly Wastage Cost'}
-            </Text>
-            <Text style={[s.summarySub, { color: MUTED }]}>
-              {selectedWeek.items.length} entr{selectedWeek.items.length === 1 ? 'y' : 'ies'} · estimated {fmtAUD(selectedWeek.totalCost)} lost
-            </Text>
-          </View>
-        </View>
-      )}
       {selectedWeek == null || selectedWeek.items.length === 0
         ? <EmptyState icon="trash-2" message="No wastage logged" />
         : selectedWeek.items.map((item: any) => (
-          <Pressable key={item.id} onPress={() => handlePress(item)} style={s.card}>
+          <Pressable key={item.id} style={s.glassCard} onPress={() => {
+            const cost = item.estimatedCostCents ? fmtAUD(item.estimatedCostCents) : 'Not estimated';
+            Alert.alert(`Wastage: ${item.productName}`,
+              `Staff: ${item.staffName ?? 'Unknown'}\nQty: ${item.quantity} ${item.unit}\nReason: ${item.reason}\nEst. cost: ${cost}${item.notes ? `\nNotes: ${item.notes}` : ''}`,
+              [
+                { text: 'Delete', style: 'destructive', onPress: () => deleteMut.mutate(item.id) },
+                { text: 'OK' },
+              ]);
+          }}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: PURPLE + '18' }]}>
                 <Feather name="trash-2" size={15} color={PURPLE} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={[s.cardTitle, { color: TEXT }]} numberOfLines={1}>{item.productName}</Text>
-                <Text style={[s.cardSub,   { color: MUTED }]} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
+                <Text style={s.cardTitle} numberOfLines={1}>{item.productName}</Text>
+                <Text style={s.cardSub} numberOfLines={1}>{item.staffName ?? 'Unknown staff'} · {item.quantity} {item.unit}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                {item.estimatedCostCents ? (
-                  <Text style={[s.cost, { color: PURPLE }]}>{fmtAUD(item.estimatedCostCents)}</Text>
-                ) : null}
-                <Pressable onPress={() => handleDelete(item)} hitSlop={8} style={{ padding: 4 }}>
-                  <Feather name="trash-2" size={15} color={RED} />
-                </Pressable>
-              </View>
+              {item.estimatedCostCents ? (
+                <Text style={[s.metricValue, { color: PURPLE, fontSize: 14 }]}>{fmtAUD(item.estimatedCostCents)}</Text>
+              ) : null}
             </View>
             <View style={s.cardFooter}>
-              <Text style={[s.badgeText, { color: MUTED, fontSize: 11 }]}>{item.quantity} {item.unit}</Text>
-              <Text style={[s.badgeText, { color: MUTED, fontSize: 11 }]}>·</Text>
-              <Text style={[s.badgeText, { color: MUTED, fontSize: 11 }]} numberOfLines={1}>{item.reason}</Text>
-              <Text style={[s.cardTime, { color: MUTED, marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
+              <Text style={[s.cardTime]}>{item.reason}</Text>
+              <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
             </View>
           </Pressable>
         ))
@@ -626,80 +814,91 @@ function WastageTab() {
   );
 }
 
-// ── Leave review modal ────────────────────────────────────────────────────────
-type ReviewTarget = { id: string; staffName: string; action: 'approve' | 'reject' };
+// ══════════════════════════════════════════════════════════════════════════════
+// LEAVE TAB — staff view: request form
+// ══════════════════════════════════════════════════════════════════════════════
+function StaffLeaveTab() {
+  const [form, setForm] = useState({ startDate: '', endDate: '', type: 'annual', reason: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-function LeaveReviewModal({
-  target, onClose, onSubmit, loading,
-}: {
-  target: ReviewTarget;
-  onClose: () => void;
-  onSubmit: (note: string) => void;
-  loading: boolean;
-}) {
-  const [note, setNote] = useState('');
-  const isApprove = target.action === 'approve';
+  const handle = async () => {
+    if (!form.startDate || !form.endDate || !form.reason) { Alert.alert('Fill all fields'); return; }
+    setSubmitting(true);
+    try {
+      await api.staff.submitLeave(form);
+      setForm({ startDate: '', endDate: '', type: 'annual', reason: '' });
+      Alert.alert('Submitted', 'Leave request sent to management.');
+    } catch (e: any) { Alert.alert('Error', e.message); }
+    finally { setSubmitting(false); }
+  };
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Pressable onPress={() => {}} style={{ backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 14 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
-                {isApprove ? 'Approve' : 'Reject'} Leave
-              </Text>
-              <Pressable onPress={onClose} hitSlop={8}>
-                <Feather name="x" size={20} color={MUTED} />
-              </Pressable>
-            </View>
-            <Text style={{ fontSize: 14, color: MUTED }}>
-              {isApprove ? 'Approving' : 'Rejecting'} leave for <Text style={{ fontWeight: '600', color: TEXT }}>{target.staffName}</Text>.
-            </Text>
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.5 }}>NOTE (optional)</Text>
+    <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}>
+      <View style={s.glassCard}>
+        <View style={{ padding: 8, gap: 14 }}>
+          <Text style={s.formHeading}>Leave Request</Text>
+          {[
+            { label: 'START DATE', key: 'startDate', placeholder: 'DD/MM/YYYY' },
+            { label: 'END DATE',   key: 'endDate',   placeholder: 'DD/MM/YYYY' },
+            { label: 'REASON',     key: 'reason',    placeholder: 'Reason for leave', multiline: true },
+          ].map((field) => (
+            <View key={field.key} style={s.fieldWrap}>
+              <Text style={s.fieldLabel}>{field.label}</Text>
               <TextInput
-                style={[s.modalInput, { minHeight: 80, textAlignVertical: 'top' }]}
-                placeholder={isApprove ? 'e.g. Enjoy your break!' : 'e.g. Insufficient notice period'}
-                placeholderTextColor={MUTED}
-                value={note}
-                onChangeText={setNote}
-                multiline
-                autoFocus
+                style={[s.input, (field as any).multiline && { minHeight: 80, textAlignVertical: 'top' }]}
+                value={(form as any)[field.key]}
+                onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
+                placeholder={field.placeholder} placeholderTextColor={MUTED}
+                multiline={(field as any).multiline} numberOfLines={(field as any).multiline ? 4 : 1}
               />
             </View>
-            <Pressable
-              style={[s.primaryActionBtn, { backgroundColor: isApprove ? GREEN : RED, opacity: loading ? 0.6 : 1 }]}
-              onPress={() => onSubmit(note)}
-              disabled={loading}
-            >
-              <Text style={s.primaryActionText}>{loading ? 'Saving…' : isApprove ? 'Approve' : 'Reject'}</Text>
-            </Pressable>
+          ))}
+          <View style={s.fieldWrap}>
+            <Text style={s.fieldLabel}>LEAVE TYPE</Text>
+            <View style={s.chipRow}>
+              {(['annual', 'sick', 'personal', 'other'] as const).map((lt) => {
+                const active = form.type === lt;
+                return (
+                  <Pressable key={lt} onPress={() => setForm((f) => ({ ...f, type: lt }))}
+                    style={[s.chip, active && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                    <Text style={[s.chipText, active && { color: '#fff' }]}>
+                      {lt.charAt(0).toUpperCase() + lt.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <Pressable onPress={handle} disabled={submitting} style={s.primaryBtn}>
+            {submitting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.primaryBtnText}>Submit Request</Text>}
           </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
-    </Modal>
+        </View>
+      </View>
+    </ScrollView>
   );
 }
 
-// ── Leave tab ─────────────────────────────────────────────────────────────────
-function LeaveTab() {
+// ══════════════════════════════════════════════════════════════════════════════
+// LEAVE TAB — manager view: approve / reject
+// ══════════════════════════════════════════════════════════════════════════════
+type ReviewTarget = { id: string; staffName: string; action: 'approve' | 'reject' };
+
+function ManagerLeaveTab() {
   const qc = useQueryClient();
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['director-all-leave'],
-    queryFn: () => api.director.allLeave(),
-    staleTime: 0,
+    queryKey: ['director-all-leave'], queryFn: () => api.director.allLeave(), staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const leave: any[] = data?.data ?? [];
-
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
 
   const reviewMut = useMutation({
     mutationFn: ({ id, approved, note }: { id: string; approved: boolean; note: string }) =>
       api.director.approveLeave(id, approved, note || undefined),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setReviewTarget(null);
+      setReviewTarget(null); setReviewNote('');
       qc.invalidateQueries({ queryKey: ['director-all-leave'] });
       qc.invalidateQueries({ queryKey: ['director-stats'] });
     },
@@ -707,47 +906,35 @@ function LeaveTab() {
   });
 
   const leaveTypeColor = (t: string) => {
-    if (t === 'annual')   return BLUE;
-    if (t === 'sick')     return AMBER;
-    if (t === 'personal') return PINK;
-    return MUTED;
+    if (t === 'annual') return BLUE; if (t === 'sick') return AMBER; if (t === 'personal') return PINK; return MUTED;
   };
   const leaveStatusColor = (s: string) => {
-    if (s === 'approved') return GREEN;
-    if (s === 'rejected') return RED;
-    return AMBER;
+    if (s === 'approved') return GREEN; if (s === 'rejected') return RED; return AMBER;
   };
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   return (
     <>
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-        showsVerticalScrollIndicator={false}
-      >
-        {leave.length === 0
-          ? <EmptyState icon="calendar" message="No leave requests" />
-          : leave.map((item: any) => (
-            <View key={item.id} style={[s.card, { borderColor: item.status === 'pending' ? AMBER + '60' : 'rgba(255,255,255,0.85)' }]}>
+        showsVerticalScrollIndicator={false}>
+        {leave.length === 0 ? <EmptyState icon="calendar" message="No leave requests" /> :
+          leave.map((item: any) => (
+            <View key={item.id} style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '70' }]}>
               <View style={s.cardHeader}>
                 <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
                   <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[s.cardTitle, { color: TEXT }]} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
-                  <Text style={[s.cardSub,   { color: MUTED }]} numberOfLines={1}>
-                    {fmtDate(item.startDate)} → {fmtDate(item.endDate)}
-                  </Text>
+                  <Text style={s.cardTitle} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
+                  <Text style={s.cardSub}>{fmtDate(item.startDate)} → {fmtDate(item.endDate)}</Text>
                 </View>
                 <Badge label={item.status} color={leaveStatusColor(item.status)} />
               </View>
-              <Text style={[s.cardDesc, { color: MUTED }]} numberOfLines={2}>{item.reason}</Text>
-              {/* Reviewer info */}
+              <Text style={s.cardDesc} numberOfLines={2}>{item.reason}</Text>
               {item.reviewedByName && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: leaveStatusColor(item.status) + '10', borderRadius: 8, padding: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: leaveStatusColor(item.status) + '12', borderRadius: 8, padding: 8 }}>
                   <Feather name={item.status === 'approved' ? 'check-circle' : 'x-circle'} size={13} color={leaveStatusColor(item.status)} />
                   <Text style={{ fontSize: 12, color: leaveStatusColor(item.status), fontWeight: '600', flex: 1 }} numberOfLines={2}>
                     {item.status === 'approved' ? 'Approved' : 'Rejected'} by {item.reviewedByName}
@@ -757,21 +944,17 @@ function LeaveTab() {
               )}
               <View style={s.cardFooter}>
                 <Badge label={item.type} color={leaveTypeColor(item.type)} />
-                <Text style={[s.cardTime, { color: MUTED }]}>{timeAgo(item.createdAt)}</Text>
+                <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
               </View>
               <View style={s.actionRow}>
-                <Pressable
-                  style={[s.actionBtn, { backgroundColor: RED + '12', borderColor: RED + '40' }]}
-                  onPress={() => { Haptics.selectionAsync(); setReviewTarget({ id: item.id, staffName: item.staffName ?? 'staff', action: 'reject' }); }}
-                >
-                  <Feather name="x" size={14} color={RED} />
+                <Pressable style={[s.actionBtn, { backgroundColor: RED + '12', borderColor: RED + '40' }]}
+                  onPress={() => { Haptics.selectionAsync(); setReviewTarget({ id: item.id, staffName: item.staffName ?? 'staff', action: 'reject' }); }}>
+                  <Feather name="x" size={13} color={RED} />
                   <Text style={[s.actionBtnText, { color: RED }]}>Reject</Text>
                 </Pressable>
-                <Pressable
-                  style={[s.actionBtn, { backgroundColor: GREEN + '12', borderColor: GREEN + '40' }]}
-                  onPress={() => { Haptics.selectionAsync(); setReviewTarget({ id: item.id, staffName: item.staffName ?? 'staff', action: 'approve' }); }}
-                >
-                  <Feather name="check" size={14} color={GREEN} />
+                <Pressable style={[s.actionBtn, { backgroundColor: GREEN + '12', borderColor: GREEN + '40' }]}
+                  onPress={() => { Haptics.selectionAsync(); setReviewTarget({ id: item.id, staffName: item.staffName ?? 'staff', action: 'approve' }); }}>
+                  <Feather name="check" size={13} color={GREEN} />
                   <Text style={[s.actionBtnText, { color: GREEN }]}>Approve</Text>
                 </Pressable>
               </View>
@@ -780,25 +963,49 @@ function LeaveTab() {
         }
       </ScrollView>
 
-      {reviewTarget && (
-        <LeaveReviewModal
-          target={reviewTarget}
-          onClose={() => setReviewTarget(null)}
-          loading={reviewMut.isPending}
-          onSubmit={(note) => reviewMut.mutate({ id: reviewTarget.id, approved: reviewTarget.action === 'approve', note })}
-        />
-      )}
+      {/* Review bottom sheet */}
+      <Modal visible={!!reviewTarget} transparent animationType="fade" onRequestClose={() => setReviewTarget(null)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }} onPress={() => setReviewTarget(null)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Pressable onPress={() => {}} style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
+                  {reviewTarget?.action === 'approve' ? 'Approve' : 'Reject'} Leave
+                </Text>
+                <Pressable onPress={() => setReviewTarget(null)} hitSlop={8}>
+                  <Feather name="x" size={20} color={MUTED} />
+                </Pressable>
+              </View>
+              <Text style={{ fontSize: 14, color: MUTED }}>
+                For <Text style={{ fontWeight: '600', color: TEXT }}>{reviewTarget?.staffName}</Text>
+              </Text>
+              <View style={s.fieldWrap}>
+                <Text style={s.fieldLabel}>NOTE (OPTIONAL)</Text>
+                <TextInput style={[s.input, { minHeight: 72, textAlignVertical: 'top' }]}
+                  placeholder={reviewTarget?.action === 'approve' ? 'e.g. Enjoy your break!' : 'e.g. Insufficient notice period'}
+                  placeholderTextColor={MUTED} value={reviewNote} onChangeText={setReviewNote} multiline autoFocus />
+              </View>
+              <Pressable
+                style={[s.primaryBtn, { backgroundColor: reviewTarget?.action === 'approve' ? GREEN : RED, opacity: reviewMut.isPending ? 0.7 : 1 }]}
+                onPress={() => reviewMut.mutate({ id: reviewTarget!.id, approved: reviewTarget!.action === 'approve', note: reviewNote })}
+                disabled={reviewMut.isPending}>
+                <Text style={s.primaryBtnText}>{reviewMut.isPending ? 'Saving…' : reviewTarget?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </>
   );
 }
 
-// ── Feedback tab ──────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// FEEDBACK TAB — managers only
+// ══════════════════════════════════════════════════════════════════════════════
 function FeedbackTab() {
   const qc = useQueryClient();
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['director-all-feedback'],
-    queryFn: () => api.director.allFeedback(),
-    staleTime: 0,
+    queryKey: ['director-all-feedback'], queryFn: () => api.director.allFeedback(), staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const feedback: any[] = data?.data ?? [];
@@ -811,58 +1018,49 @@ function FeedbackTab() {
     },
   });
 
-  const ratingColor = (r: number) => {
-    if (r >= 4) return GREEN;
-    if (r >= 3) return AMBER;
-    return RED;
-  };
-
-  const handlePress = (item: any) => {
-    if (!item.isRead) markRead.mutate(item.id);
-    Alert.alert(
-      `Feedback${item.rating ? ` · ${item.rating}/5 ⭐` : ''}`,
-      `${item.message}\n\nCategory: ${item.category ?? 'General'}\nSubmitted: ${fmtDate(item.createdAt)}`,
-      [{ text: 'OK' }],
-    );
-  };
+  const ratingColor = (r: number) => { if (r >= 4) return GREEN; if (r >= 3) return AMBER; return RED; };
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   const unread = feedback.filter(f => !f.isRead).length;
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-      showsVerticalScrollIndicator={false}
-    >
+      showsVerticalScrollIndicator={false}>
       {unread > 0 && (
         <View style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
-          <Feather name="message-circle" size={16} color={BLUE} />
-          <Text style={[s.summaryTitle, { color: BLUE }]}>{unread} unread feedback item{unread !== 1 ? 's' : ''} — tap to mark read</Text>
+          <View style={[s.summaryIcon, { backgroundColor: BLUE + '20' }]}>
+            <Feather name="message-circle" size={16} color={BLUE} />
+          </View>
+          <Text style={[s.summaryTitle, { color: BLUE }]}>{unread} unread — tap to mark read</Text>
         </View>
       )}
-      {feedback.length === 0
-        ? <EmptyState icon="message-circle" message="No feedback submitted yet" />
-        : feedback.map((item: any) => (
-          <Pressable key={item.id} onPress={() => handlePress(item)}
-            style={[s.card, { borderColor: item.isRead ? 'rgba(255,255,255,0.85)' : BLUE + '50', opacity: item.isRead ? 0.85 : 1 }]}
-          >
+      {feedback.length === 0 ? <EmptyState icon="message-circle" message="No feedback submitted yet" /> :
+        feedback.map((item: any) => (
+          <Pressable key={item.id} style={[s.glassCard, !item.isRead && { borderColor: BLUE + '50' }]}
+            onPress={() => {
+              if (!item.isRead) markRead.mutate(item.id);
+              Alert.alert(
+                `Feedback${item.rating ? ` · ${item.rating}/5 ⭐` : ''}`,
+                `${item.message}\n\nCategory: ${item.category ?? 'General'}\nSubmitted: ${fmtDate(item.createdAt)}`,
+                [{ text: 'OK' }],
+              );
+            }}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: item.rating ? ratingColor(item.rating) + '18' : MUTED + '18' }]}>
                 <Feather name="message-circle" size={15} color={item.rating ? ratingColor(item.rating) : MUTED} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 {item.rating ? (
-                  <Text style={[s.cardTitle, { color: TEXT }]}>{'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)}</Text>
+                  <Text style={s.cardTitle}>{'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)}</Text>
                 ) : (
-                  <Text style={[s.cardTitle, { color: TEXT }]}>Feedback</Text>
+                  <Text style={s.cardTitle}>Feedback</Text>
                 )}
-                <Text style={[s.cardSub, { color: MUTED }]} numberOfLines={1}>{item.category ?? 'General'}</Text>
+                <Text style={s.cardSub} numberOfLines={1}>{item.category ?? 'General'}</Text>
               </View>
               {!item.isRead && <View style={s.unreadDot} />}
-              <Text style={[s.cardTime, { color: MUTED }]}>{timeAgo(item.createdAt)}</Text>
+              <Text style={s.cardTime}>{timeAgo(item.createdAt)}</Text>
             </View>
             <Text style={[s.cardDesc, { color: TEXT }]} numberOfLines={3}>{item.message}</Text>
           </Pressable>
@@ -872,90 +1070,142 @@ function FeedbackTab() {
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN SCREEN
+// ══════════════════════════════════════════════════════════════════════════════
 export default function StaffHubScreen() {
-  const params = useLocalSearchParams<{ tab?: Tab }>();
-  const [activeTab, setActiveTab] = useState<Tab>(params.tab ?? 'issues');
+  const { user } = useAuth();
+  const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
+  const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
+  const tabs = isManager ? MANAGER_TABS : STAFF_TABS;
+  const [activeTab, setActiveTab] = useState<Tab>(tabs[0].key);
+
+  useEffect(() => {
+    const requested = params.tab ?? params.initialTab;
+    if (requested && tabs.some(t => t.key === requested)) {
+      setActiveTab(requested);
+    }
+  }, [params.tab, params.initialTab]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[s.header, { backgroundColor: BG, borderBottomColor: BORDER }]}>
-        <Text style={s.headerTitle}>Staff Tools</Text>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* ── Header ── */}
+      <View style={s.header}>
+        <Text style={s.title}>Staff Hub</Text>
+        <Text style={s.subtitle}>{isManager ? 'Manage your team' : 'Your shift tools'}</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 1 }}>
-        <View style={[s.tabBar, { backgroundColor: BG, borderBottomColor: BORDER, flex: 1 }]}>
-          {TABS.map(tab => {
-            const active = activeTab === tab.key;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
-                style={[s.tabBtn, active && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
-              >
-                <Feather name={tab.icon as any} size={14} color={active ? BLUE : MUTED} />
-                <Text style={[s.tabLabel, { color: active ? BLUE : MUTED }]}>{tab.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+      {/* ── Tab bar (pill style) ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={s.tabScroll}
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
+              style={[s.tabPill, active && s.tabPillActive]}
+            >
+              <Feather name={tab.icon as any} size={13} color={active ? '#fff' : MUTED} />
+              <Text style={[s.tabPillText, active && { color: '#fff' }]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
-      {activeTab === 'issues'   && <IssuesTab />}
-      {activeTab === 'tasks'    && <TasksTab />}
-      {activeTab === 'wastage'  && <WastageTab />}
-      {activeTab === 'leave'    && <LeaveTab />}
-      {activeTab === 'feedback' && <FeedbackTab />}
-    </View>
+      {/* ── Content (role-aware) ── */}
+      {activeTab === 'tasks'    && (isManager ? <ManagerTasksTab />            : <StaffTasksTab userId={user?.id} />)}
+      {activeTab === 'issues'   && (isManager ? <ManagerIssuesTab />           : <StaffIssuesTab />)}
+      {activeTab === 'wastage'  && (isManager ? <ManagerWastageTab />          : <StaffWastageTab />)}
+      {activeTab === 'leave'    && (isManager ? <ManagerLeaveTab />            : <StaffLeaveTab />)}
+      {activeTab === 'feedback' && isManager  && <FeedbackTab />}
+    </KeyboardAvoidingView>
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// STYLES
+// ══════════════════════════════════════════════════════════════════════════════
 const s = StyleSheet.create({
-  header:      { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  headerTitle: { fontSize: 28, fontWeight: '700', color: TEXT },
-  headerSub:   { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
-  tabBar:      { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
-  tabBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabLabel:    { fontSize: 12, fontWeight: '600' },
-  card:        { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 14, gap: 8, backgroundColor: 'rgba(255,255,255,0.6)', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
-  cardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  cardTitle:   { fontSize: 14, fontWeight: '600' },
-  cardSub:     { fontSize: 12, fontWeight: '400' },
-  cardDesc:    { fontSize: 13, fontWeight: '400', lineHeight: 19 },
-  cardFooter:  { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  cardTime:    { fontSize: 11, fontWeight: '400' },
+  // Page chrome
+  header:     { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  title:      { fontSize: 28, fontWeight: '700', color: TEXT },
+  subtitle:   { fontSize: 13, color: MUTED, marginTop: 2, fontWeight: '400' },
+
+  // Tab pills
+  tabScroll:  { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  tabPill:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: GLASS_BG },
+  tabPillActive: { backgroundColor: BLUE, borderColor: BLUE },
+  tabPillText:   { fontSize: 13, fontWeight: '600', color: MUTED },
+
+  // Glass card
+  glassCard:  { backgroundColor: GLASS_BG, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
+
+  // Task row (inside glass card)
+  taskRow:    { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4, paddingVertical: 10 },
+  checkbox:   { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  taskTitle:  { fontSize: 14, fontWeight: '500', color: TEXT },
+  taskDesc:   { fontSize: 12, color: MUTED, marginTop: 2 },
+  taskCat:    { fontSize: 11, fontWeight: '500', marginTop: 3 },
+
+  // Card anatomy
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  cardTitle:  { fontSize: 14, fontWeight: '600', color: TEXT },
+  cardSub:    { fontSize: 12, color: MUTED },
+  cardDesc:   { fontSize: 13, color: MUTED, lineHeight: 19 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  cardTime:   { fontSize: 11, color: MUTED },
+  actionRow:  { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  actionBtn:  { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
+  actionBtnText: { fontSize: 12, fontWeight: '600' },
+
+  // Chips
+  chipRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  chipText:   { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'capitalize' },
+
+  // Form
+  formHeading: { fontSize: 16, fontWeight: '700', color: TEXT },
+  fieldWrap:  { gap: 6 },
+  fieldLabel: { fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 0.5 },
+  input:      { backgroundColor: CARD, color: TEXT, borderRadius: 12, borderColor: BORDER, borderWidth: 1, padding: 14, fontSize: 14 },
+  primaryBtn: { backgroundColor: BLUE, paddingVertical: 15, alignItems: 'center', borderRadius: 14, marginTop: 4 },
+  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  // Summary cards
+  summaryCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1 },
+  summaryIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  summaryTitle: { fontSize: 14, fontWeight: '600', flex: 1 },
+  summarySub:   { fontSize: 12, color: MUTED, marginTop: 2 },
+
+  // Metrics
+  metricsRow:   { flexDirection: 'row', gap: 12 },
+  metricCard:   { flex: 1, borderRadius: 16, padding: 14, gap: 2, borderWidth: 1 },
+  metricLabel:  { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, color: MUTED, marginBottom: 4 },
+  metricValue:  { fontSize: 22, fontWeight: '700', color: TEXT },
+  metricSub:    { fontSize: 12, color: MUTED },
+
+  // Progress
+  metaLabel:    { fontSize: 12, fontWeight: '600', color: MUTED },
+  progressTrack: { height: 4, backgroundColor: BORDER, borderRadius: 2, overflow: 'hidden' },
+  progressFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
+
+  // Empty state
+  emptyState:  { alignItems: 'center', gap: 12, paddingVertical: 48 },
+  emptyText:   { fontSize: 14, color: MUTED, textAlign: 'center' },
+
+  // Badges
   badge:       { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
   badgeText:   { fontSize: 10, fontWeight: '600' },
-  actionRow:   { flexDirection: 'row', gap: 8, marginTop: 4 },
-  actionBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
-  actionBtnText: { fontSize: 13, fontWeight: '600' },
-  cost:        { fontSize: 13, fontWeight: '700' },
-  metricsRow:  { flexDirection: 'row', gap: 10 },
-  metricCard:  { flex: 1, borderRadius: 14, borderWidth: 1, padding: 14, gap: 4 },
-  metricLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8 },
-  metricValue: { fontSize: 21, fontWeight: '700' },
-  metricSub:   { fontSize: 12, fontWeight: '400', color: MUTED },
-  weekChip:    { borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 10, minWidth: 128 },
-  weekChipTitle: { fontSize: 12, fontWeight: '700', color: TEXT },
-  weekChipSub:   { fontSize: 11, fontWeight: '400', color: MUTED, marginTop: 2 },
-  summaryCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1 },
-  summaryTitle:{ fontSize: 13, fontWeight: '600', flex: 1 },
-  summarySub:  { fontSize: 12, fontWeight: '400' },
-  primaryActionBtn: { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
-  primaryActionText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
-  modalCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  modalTitle: { color: TEXT, fontSize: 17, fontWeight: '700' },
-  modalInputWrap: { gap: 6 },
-  modalInputLabel: { fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.5 },
-  modalInput: { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: TEXT, fontSize: 15 },
-  modalChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  modalChip: { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9 },
-  modalChipActive: { backgroundColor: BLUE, borderColor: BLUE },
-  modalChipText: { color: TEXT, fontSize: 13, fontWeight: '700' },
-  modalChipTextActive: { color: '#fff' },
-  empty:       { alignItems: 'center', gap: 12, paddingVertical: 60 },
-  emptyText:   { fontSize: 14, fontWeight: '400', color: MUTED },
-  unreadDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE, marginRight: 4 },
+  unreadDot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE },
+
+  // Modal
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  modalTitle:  { fontSize: 16, fontWeight: '700', color: TEXT },
+  modalCloseBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: '#F3F4F6' },
 });
