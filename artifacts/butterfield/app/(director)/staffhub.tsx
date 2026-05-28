@@ -304,15 +304,13 @@ function StaffTasksTab({ userId }: { userId?: string }) {
     if (tasks.length === 0) return null;
     const done = tasks.filter((t: any) => t.isCompleted).length;
     return (
-      <View key={cat} style={{ gap: 6 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-          <Text style={[s.metaLabel, { color, letterSpacing: 0.8 }]}>{label.toUpperCase()}</Text>
-          <Text style={[s.metaLabel, { marginLeft: 'auto' as any }]}>{done}/{tasks.length}</Text>
+      <View key={cat} style={s.glassCard}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, flexShrink: 0 }} />
+          <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, flex: 1 }}>{label}</Text>
+          <Text style={s.metaLabel}>{done}/{tasks.length}</Text>
         </View>
-        <View style={[s.glassCard, { borderLeftWidth: 3, borderLeftColor: color }]}>
-          {tasks.map(renderTaskRow)}
-        </View>
+        {tasks.map(renderTaskRow)}
       </View>
     );
   };
@@ -338,17 +336,15 @@ function StaffTasksTab({ userId }: { userId?: string }) {
 
       {/* ── My Tasks ── */}
       {myTasks.length > 0 && (
-        <View style={{ gap: 6 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AMBER }} />
-            <Text style={[s.metaLabel, { color: '#B45309', letterSpacing: 0.8 }]}>MY TASKS</Text>
-            <Text style={[s.metaLabel, { marginLeft: 'auto' as any }]}>
+        <View style={s.glassCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AMBER, flexShrink: 0 }} />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, flex: 1 }}>My Tasks</Text>
+            <Text style={s.metaLabel}>
               {myTasks.filter((t: any) => t.isCompleted).length}/{myTasks.length}
             </Text>
           </View>
-          <View style={[s.glassCard, { borderLeftWidth: 3, borderLeftColor: AMBER }]}>
-            {myTasks.map(renderTaskRow)}
-          </View>
+          {myTasks.map(renderTaskRow)}
         </View>
       )}
 
