@@ -15,25 +15,26 @@ import { calculateWholesalePrice, loadPriceContextForAccount } from '../lib/whol
 const router = Router();
 
 // Wholesale pricing management: director and master only.
-// Managers and staff have no access to pricing controls.
-router.use(requireRole('director', 'master'));
+// Apply role check per-route (not globally) so that requests destined for
+// other /director routers can pass through without being blocked here.
+const directorOnly = requireRole('director', 'master');
 
 // ── Pricing tiers CRUD ───────────────────────────────────────────────────────
 
-router.get('/tiers', async (_req, res) => {
+router.get('/tiers', directorOnly, async (_req, res) => {
   const tiers = await db.select().from(pricingTiersTable)
     .where(ne(pricingTiersTable.status, 'archived'))
     .orderBy(pricingTiersTable.sortOrder, pricingTiersTable.name);
   return res.json({ data: tiers });
 });
 
-router.get('/tiers/:id', async (req, res) => {
+router.get('/tiers/:id', directorOnly, async (req, res) => {
   const [tier] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, req.params.id));
   if (!tier) return res.status(404).json({ error: 'Tier not found' });
   return res.json({ data: tier });
 });
 
-router.post('/tiers', async (req, res) => {
+router.post('/tiers', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   if (!b.name?.trim()) return res.status(400).json({ error: 'Tier name is required.' });
   const [tier] = await db.insert(pricingTiersTable).values({
@@ -57,7 +58,7 @@ router.post('/tiers', async (req, res) => {
   return res.status(201).json({ data: tier });
 });
 
-router.patch('/tiers/:id', async (req, res) => {
+router.patch('/tiers/:id', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
   if (b.name !== undefined) updates.name = b.name.trim();
@@ -75,7 +76,7 @@ router.patch('/tiers/:id', async (req, res) => {
 });
 
 // Delete a tier — automatically unassigns all customers from that tier first
-router.delete('/tiers/:id', async (req, res) => {
+router.delete('/tiers/:id', directorOnly, async (req, res) => {
   const { force } = req.body ?? {};
 
   // Count how many wholesale accounts are on this tier
@@ -109,7 +110,7 @@ router.delete('/tiers/:id', async (req, res) => {
 
 // ── Quantity price breaks CRUD ───────────────────────────────────────────────
 
-router.get('/quantity-breaks', async (req, res) => {
+router.get('/quantity-breaks', directorOnly, async (req, res) => {
   const { productId, tierId, customerId } = req.query;
   const conds: any[] = [eq(quantityPriceBreaksTable.isActive, true)];
   if (productId)  conds.push(eq(quantityPriceBreaksTable.productId, productId as string));
@@ -121,7 +122,7 @@ router.get('/quantity-breaks', async (req, res) => {
   return res.json({ data: breaks });
 });
 
-router.post('/quantity-breaks', async (req, res) => {
+router.post('/quantity-breaks', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   if (!b.productId) return res.status(400).json({ error: 'productId is required.' });
   if (typeof b.minQty !== 'number' || b.minQty < 1) return res.status(400).json({ error: 'minQty must be a positive number.' });
@@ -146,7 +147,7 @@ router.post('/quantity-breaks', async (req, res) => {
   return res.status(201).json({ data: created });
 });
 
-router.patch('/quantity-breaks/:id', async (req, res) => {
+router.patch('/quantity-breaks/:id', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
   if (b.minQty !== undefined)       updates.minQty = b.minQty;
@@ -161,7 +162,7 @@ router.patch('/quantity-breaks/:id', async (req, res) => {
 });
 
 // Hard delete — immediately removes from pricing; order history retains the priceSource label
-router.delete('/quantity-breaks/:id', async (req, res) => {
+router.delete('/quantity-breaks/:id', directorOnly, async (req, res) => {
   const [deleted] = await db.delete(quantityPriceBreaksTable)
     .where(eq(quantityPriceBreaksTable.id, req.params.id))
     .returning();
@@ -171,7 +172,7 @@ router.delete('/quantity-breaks/:id', async (req, res) => {
 
 // ── Customer custom pricing CRUD ─────────────────────────────────────────────
 
-router.get('/customer-pricing', async (req, res) => {
+router.get('/customer-pricing', directorOnly, async (req, res) => {
   const { customerId } = req.query;
   const conds: any[] = [eq(customerPricingTable.isActive, true)];
   if (customerId) conds.push(eq(customerPricingTable.customerId, customerId as string));
@@ -181,7 +182,7 @@ router.get('/customer-pricing', async (req, res) => {
   return res.json({ data: rows });
 });
 
-router.post('/customer-pricing', async (req, res) => {
+router.post('/customer-pricing', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   if (!b.customerId) return res.status(400).json({ error: 'customerId is required.' });
   if (!b.productId)  return res.status(400).json({ error: 'productId is required.' });
@@ -200,7 +201,7 @@ router.post('/customer-pricing', async (req, res) => {
   return res.status(201).json({ data: created });
 });
 
-router.patch('/customer-pricing/:id', async (req, res) => {
+router.patch('/customer-pricing/:id', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
   if (b.unitPriceCents !== undefined) updates.unitPriceCents = b.unitPriceCents;
@@ -214,7 +215,7 @@ router.patch('/customer-pricing/:id', async (req, res) => {
 });
 
 // Hard delete — immediately removes from pricing; order history retains priceSource label
-router.delete('/customer-pricing/:id', async (req, res) => {
+router.delete('/customer-pricing/:id', directorOnly, async (req, res) => {
   const [deleted] = await db.delete(customerPricingTable)
     .where(eq(customerPricingTable.id, req.params.id))
     .returning();
@@ -224,7 +225,7 @@ router.delete('/customer-pricing/:id', async (req, res) => {
 
 // ── Assign / unassign tier on a wholesale account ────────────────────────────
 
-router.patch('/wholesale/:accountId/tier', async (req, res) => {
+router.patch('/wholesale/:accountId/tier', directorOnly, async (req, res) => {
   const { tierId } = req.body ?? {};
   const updates: Record<string, any> = { updatedAt: new Date() };
   updates.tierId = tierId || null;
@@ -234,7 +235,7 @@ router.patch('/wholesale/:accountId/tier', async (req, res) => {
   return res.json({ data: updated });
 });
 
-router.patch('/wholesale/:accountId/suspend', async (req, res) => {
+router.patch('/wholesale/:accountId/suspend', directorOnly, async (req, res) => {
   const { isSuspended, suspendedReason } = req.body ?? {};
   const [updated] = await db.update(wholesaleAccountsTable)
     .set({ isSuspended: !!isSuspended, suspendedReason: suspendedReason ?? null, updatedAt: new Date() })
@@ -245,7 +246,7 @@ router.patch('/wholesale/:accountId/suspend', async (req, res) => {
 
 // ── Product wholesale access controls ────────────────────────────────────────
 
-router.patch('/products/:id/wholesale-access', async (req, res) => {
+router.patch('/products/:id/wholesale-access', directorOnly, async (req, res) => {
   const b = req.body ?? {};
   const updates: Record<string, any> = { updatedAt: new Date() };
   if (b.wholesaleAccessMode !== undefined) {
@@ -268,7 +269,7 @@ router.patch('/products/:id/wholesale-access', async (req, res) => {
 
 // ── Pricing preview ───────────────────────────────────────────────────────────
 
-router.post('/pricing-preview', async (req, res) => {
+router.post('/pricing-preview', directorOnly, async (req, res) => {
   const { customerId, productId, qty } = req.body ?? {};
   if (!customerId || !productId || !qty) return res.status(400).json({ error: 'customerId, productId, qty required.' });
   try {

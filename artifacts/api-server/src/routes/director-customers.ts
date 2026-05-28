@@ -10,9 +10,11 @@ import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 
 const router = Router();
-router.use(requireRole('director', 'manager', 'master'));
-// Managers must hold the 'users' permission to access any customer CRM route
-router.use(requireManagerPermission('users'));
+
+// Apply role/permission checks per-route (not globally) so that requests
+// destined for other /director routers can pass through without being blocked.
+const allowedRoles = requireRole('director', 'manager', 'master');
+const requireUsers = requireManagerPermission('users');
 
 // ── Badge computation ────────────────────────────────────────────────────────
 function computeAutoBadges(
@@ -34,7 +36,7 @@ function computeAutoBadges(
 }
 
 // ── GET /director/customers/insights ─────────────────────────────────────────
-router.get('/customers/insights', async (req, res) => {
+router.get('/customers/insights', allowedRoles, requireUsers, async (req, res) => {
   const weekAgo = new Date(Date.now() - 7 * 86400000);
 
   const [[totalCustomers], [newThisWeek], [totalWholesale], spenderData] = await Promise.all([
@@ -72,7 +74,7 @@ router.get('/customers/insights', async (req, res) => {
 });
 
 // ── GET /director/customers ───────────────────────────────────────────────────
-router.get('/customers', async (req, res) => {
+router.get('/customers', allowedRoles, requireUsers, async (req, res) => {
   const { search = '', filter = 'all' } = req.query as Record<string, string>;
 
   const customers = await db
@@ -166,7 +168,7 @@ router.get('/customers', async (req, res) => {
 });
 
 // ── GET /director/customers/:id ───────────────────────────────────────────────
-router.get('/customers/:id', async (req, res) => {
+router.get('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
   const { id } = req.params;
 
   const [[user], profile, orders, waList, addresses, notes, badges, loyaltyTxns, loyaltyAgg] = await Promise.all([
@@ -237,7 +239,7 @@ router.get('/customers/:id', async (req, res) => {
 });
 
 // ── PATCH /director/customers/:id ─────────────────────────────────────────────
-router.patch('/customers/:id', async (req, res) => {
+router.patch('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
   const id = req.params.id;
   const userAllowed = ['name', 'phone', 'email', 'status'] as const;
   const userUpdates: Record<string, any> = { updatedAt: new Date() };
@@ -265,7 +267,7 @@ router.patch('/customers/:id', async (req, res) => {
 });
 
 // ── POST /director/customers/:id/notes ────────────────────────────────────────
-router.post('/customers/:id/notes', async (req, res) => {
+router.post('/customers/:id/notes', allowedRoles, requireUsers, async (req, res) => {
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Note content required.' });
   const [note] = await db.insert(customerNotesTable).values({
@@ -277,13 +279,13 @@ router.post('/customers/:id/notes', async (req, res) => {
 });
 
 // ── DELETE /director/customers/:id/notes/:noteId ──────────────────────────────
-router.delete('/customers/:id/notes/:noteId', async (req, res) => {
+router.delete('/customers/:id/notes/:noteId', allowedRoles, requireUsers, async (req, res) => {
   await db.delete(customerNotesTable).where(eq(customerNotesTable.id, req.params.noteId));
   return res.json({ ok: true });
 });
 
 // ── POST /director/customers/:id/badges ───────────────────────────────────────
-router.post('/customers/:id/badges', async (req, res) => {
+router.post('/customers/:id/badges', allowedRoles, requireUsers, async (req, res) => {
   const { badge, note } = req.body;
   const VALID = ['vip', 'high_spend', 'needs_follow_up', 'flagged', 'loyal', 'frequent_buyer', 'inactive', 'at_risk', 'wholesale_partner'];
   if (!VALID.includes(badge)) return res.status(400).json({ error: 'Invalid badge.' });
@@ -295,7 +297,7 @@ router.post('/customers/:id/badges', async (req, res) => {
 });
 
 // ── DELETE /director/customers/:id/badges/:badgeId ────────────────────────────
-router.delete('/customers/:id/badges/:badgeId', async (req, res) => {
+router.delete('/customers/:id/badges/:badgeId', allowedRoles, requireUsers, async (req, res) => {
   await db.delete(customerBadgesTable).where(eq(customerBadgesTable.id, req.params.badgeId));
   return res.json({ ok: true });
 });

@@ -6,9 +6,11 @@ import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { randomUUID } from 'crypto';
 
 const router = Router();
-router.use(requireRole('director', 'manager', 'master'));
-// Managers must hold the 'products' permission to access any product/category/option route
-router.use(requireManagerPermission('products'));
+
+// Apply role/permission checks per-route (not globally) so that requests
+// destined for other /director routers can pass through without being blocked.
+const allowedRoles = requireRole('director', 'manager', 'master');
+const requireProducts = requireManagerPermission('products');
 
 // ── Helper ─────────────────────────────────────────────────────────────────
 function getPublicBaseUrl(): string {
@@ -40,7 +42,7 @@ function parseJsonArr(val: string | null | undefined): string[] {
 // CATEGORIES
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get('/categories', async (_req, res) => {
+router.get('/categories', allowedRoles, requireProducts, async (_req, res) => {
   const [cats, productMeta] = await Promise.all([
     db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder)),
     db.select({ categoryId: productsTable.categoryId, category: productsTable.category })
@@ -60,7 +62,7 @@ router.get('/categories', async (_req, res) => {
   return res.json({ data });
 });
 
-router.post('/categories', async (req, res) => {
+router.post('/categories', allowedRoles, requireProducts, async (req, res) => {
   const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = `cat_${randomUUID().slice(0, 12)}`;
@@ -75,7 +77,7 @@ router.post('/categories', async (req, res) => {
   return res.json({ data: cat });
 });
 
-router.patch('/categories/:id', async (req, res) => {
+router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
   const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
@@ -96,7 +98,7 @@ router.patch('/categories/:id', async (req, res) => {
   return res.json({ data: cat });
 });
 
-router.delete('/categories/:id', async (req, res) => {
+router.delete('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
   await db.delete(productCategoriesTable).where(eq(productCategoriesTable.id, req.params.id));
   return res.json({ success: true });
 });
@@ -105,14 +107,14 @@ router.delete('/categories/:id', async (req, res) => {
 // PRODUCT VARIANTS
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get('/products/:productId/variants', async (req, res) => {
+router.get('/products/:productId/variants', allowedRoles, requireProducts, async (req, res) => {
   const variants = await db.select().from(productVariantsTable)
     .where(eq(productVariantsTable.productId, req.params.productId))
     .orderBy(asc(productVariantsTable.sortOrder));
   return res.json({ data: variants });
 });
 
-router.post('/products/:productId/variants', async (req, res) => {
+router.post('/products/:productId/variants', allowedRoles, requireProducts, async (req, res) => {
   const { name, priceCents, sortOrder } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   if (priceCents == null || isNaN(Number(priceCents))) return res.status(400).json({ error: 'priceCents is required' });
@@ -124,7 +126,7 @@ router.post('/products/:productId/variants', async (req, res) => {
   return res.json({ data: v });
 });
 
-router.patch('/products/:productId/variants/:id', async (req, res) => {
+router.patch('/products/:productId/variants/:id', allowedRoles, requireProducts, async (req, res) => {
   const { name, priceCents, sortOrder, isActive } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
@@ -136,7 +138,7 @@ router.patch('/products/:productId/variants/:id', async (req, res) => {
   return res.json({ data: v });
 });
 
-router.delete('/products/:productId/variants/:id', async (req, res) => {
+router.delete('/products/:productId/variants/:id', allowedRoles, requireProducts, async (req, res) => {
   await db.delete(productVariantsTable).where(eq(productVariantsTable.id, req.params.id));
   return res.json({ success: true });
 });
@@ -145,7 +147,7 @@ router.delete('/products/:productId/variants/:id', async (req, res) => {
 // OPTION GROUPS
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get('/option-groups', async (_req, res) => {
+router.get('/option-groups', allowedRoles, requireProducts, async (_req, res) => {
   const groups = await db.select().from(productOptionGroupsTable).orderBy(asc(productOptionGroupsTable.sortOrder));
   const options = await db.select().from(productOptionsTable).orderBy(asc(productOptionsTable.sortOrder));
   const data = groups.map(g => ({
@@ -158,7 +160,7 @@ router.get('/option-groups', async (_req, res) => {
   return res.json({ data });
 });
 
-router.post('/option-groups', async (req, res) => {
+router.post('/option-groups', allowedRoles, requireProducts, async (req, res) => {
   const { name, description, selectionType, isRequired, minSelections, maxSelections, sortOrder,
     appliesToCategoryIds, appliesToProductIds, excludeProductIds } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
@@ -175,7 +177,7 @@ router.post('/option-groups', async (req, res) => {
   return res.json({ data: { ...g, options: [] } });
 });
 
-router.patch('/option-groups/:id', async (req, res) => {
+router.patch('/option-groups/:id', allowedRoles, requireProducts, async (req, res) => {
   const { name, description, selectionType, isRequired, minSelections, maxSelections, sortOrder, isActive,
     appliesToCategoryIds, appliesToProductIds, excludeProductIds } = req.body;
   const updates: any = {};
@@ -196,14 +198,14 @@ router.patch('/option-groups/:id', async (req, res) => {
   return res.json({ data: g });
 });
 
-router.delete('/option-groups/:id', async (req, res) => {
+router.delete('/option-groups/:id', allowedRoles, requireProducts, async (req, res) => {
   await db.delete(productOptionGroupsTable).where(eq(productOptionGroupsTable.id, req.params.id));
   return res.json({ success: true });
 });
 
 // ── Options within a group ─────────────────────────────────────────────────
 
-router.post('/option-groups/:groupId/options', async (req, res) => {
+router.post('/option-groups/:groupId/options', allowedRoles, requireProducts, async (req, res) => {
   const { name, priceAdjustmentCents, sortOrder, isDefault } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = `opt_${randomUUID().slice(0, 12)}`;
@@ -215,7 +217,7 @@ router.post('/option-groups/:groupId/options', async (req, res) => {
   return res.json({ data: opt });
 });
 
-router.patch('/option-groups/:groupId/options/:id', async (req, res) => {
+router.patch('/option-groups/:groupId/options/:id', allowedRoles, requireProducts, async (req, res) => {
   const { name, priceAdjustmentCents, sortOrder, isActive, isDefault } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
@@ -228,7 +230,7 @@ router.patch('/option-groups/:groupId/options/:id', async (req, res) => {
   return res.json({ data: opt });
 });
 
-router.delete('/option-groups/:groupId/options/:id', async (req, res) => {
+router.delete('/option-groups/:groupId/options/:id', allowedRoles, requireProducts, async (req, res) => {
   await db.delete(productOptionsTable).where(eq(productOptionsTable.id, req.params.id));
   return res.json({ success: true });
 });
@@ -237,7 +239,7 @@ router.delete('/option-groups/:groupId/options/:id', async (req, res) => {
 // FULL CATALOG (categories + products + variants summary)
 // ══════════════════════════════════════════════════════════════════════════════
 
-router.get('/catalog', async (_req, res) => {
+router.get('/catalog', allowedRoles, requireProducts, async (_req, res) => {
   const [categories, products, variants] = await Promise.all([
     db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder)),
     db.select().from(productsTable).orderBy(asc(productsTable.sortOrder), asc(productsTable.name)),
