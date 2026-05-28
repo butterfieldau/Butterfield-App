@@ -1,5 +1,7 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 export default function TasksRedirect() {
-  return <Redirect href={{ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any} />;
+  const { initialTab, tab } = useLocalSearchParams<{ initialTab?: string; tab?: string }>();
+  const dest = initialTab ?? tab ?? 'tasks';
+  return <Redirect href={{ pathname: '/(director)/staffhub', params: { tab: dest } } as any} />;
 }

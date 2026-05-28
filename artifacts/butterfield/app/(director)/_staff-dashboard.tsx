@@ -518,12 +518,12 @@ export function StaffDashboard() {
             <View style={styles.actionsGrid}>
               {([
                 [
-                  { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any) },
-                  { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'wastage' } } as any) },
+                  { icon: 'clipboard',      label: 'Tasks',         bg: '#E0F5FE', onPress: () => router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any) },
+                  { icon: 'alert-triangle', label: 'Log Wastage',   bg: '#FEF3C7', onPress: () => router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any) },
                 ],
                 [
-                  { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'issues' } } as any) },
-                  { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'leave' } } as any) },
+                  { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any) },
+                  { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any) },
                 ],
               ] as const).map((row, ri) => (
                 <View key={ri} style={styles.actionsRow}>
