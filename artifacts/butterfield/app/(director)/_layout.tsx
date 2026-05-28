@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs } from 'expo-router';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -41,12 +41,35 @@ export default function DirectorLayout() {
     queryFn:  () => api.staff.profile(),
     enabled:  isStaff,
   });
+
+  const { data: managerProfileData } = useQuery({
+    queryKey: ['manager-profile'],
+    queryFn:  () => api.manager.profile(),
+    enabled:  isManager,
+    staleTime: 60_000,
+  });
+  const managerPerms: string[] = useMemo(
+    () => managerProfileData?.data?.permissions ?? [],
+    [managerProfileData],
+  );
+
   const canViewOrders = isStaff
     ? (staffProfileData?.data as any)?.canViewOrders === true
     : true;
 
+  // Returns true if: not a manager, OR manager has the given permission
+  const hasPerm = (p: string) => !isManager || managerPerms.includes(p);
+
+  // href helper: staff always blocked, managers gated by permission
+  const mgrHref = (perm: string) => isStaff ? null : (hasPerm(perm) ? undefined : null);
+
   const visibleRouteNames: string[] = isManager
-    ? ['index', 'orders', 'staffhub', 'more']
+    ? [
+        'index',
+        ...(hasPerm('orders')    ? ['orders']   : []),
+        'staffhub',
+        'more',
+      ]
     : canViewOrders
       ? ['index', 'orders', 'scan', 'staffhub', 'profile']
       : ['index', 'scan', 'staffhub', 'profile'];
@@ -85,23 +108,26 @@ export default function DirectorLayout() {
         >
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
-          <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff               ? undefined : null }} />
+          <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff ? undefined : null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
-          <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub', href: (isStaff || isManager) ? undefined : null }} />
-          <Tabs.Screen name="profile"  options={{ title: 'Profile',   href: isStaff               ? undefined : null }} />
-          <Tabs.Screen name="more"     options={{ title: 'More',     href: isManager  ? undefined : null }} />
-          {/* Hidden for staff/manager */}
-          <Tabs.Screen name="users"            options={{ href: null }} />
-          <Tabs.Screen name="products"         options={{ href: null }} />
-          <Tabs.Screen name="stock"            options={{ href: null }} />
+          <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub' }} />
+          <Tabs.Screen name="profile"  options={{ title: 'Profile',   href: isStaff ? undefined : null }} />
+          <Tabs.Screen name="more"     options={{ title: 'More',      href: isManager ? undefined : null }} />
+
+          {/* Permission-gated screens: accessible for managers with the right perm, always blocked for staff */}
+          <Tabs.Screen name="products"         options={{ href: mgrHref('products')  }} />
+          <Tabs.Screen name="users"            options={{ href: mgrHref('users')     }} />
+          <Tabs.Screen name="customers"        options={{ href: mgrHref('users')     }} />
+          <Tabs.Screen name="reports"          options={{ href: mgrHref('reports')   }} />
+          <Tabs.Screen name="timesheets"       options={{ href: mgrHref('reports')   }} />
+          <Tabs.Screen name="stock"            options={{ href: mgrHref('products')  }} />
+          <Tabs.Screen name="pricing"          options={{ href: mgrHref('pricing')   }} />
+          <Tabs.Screen name="discounts"        options={{ href: mgrHref('pricing')   }} />
+          <Tabs.Screen name="stores"           options={{ href: mgrHref('settings')  }} />
+          <Tabs.Screen name="settings"         options={{ href: (isStaff ? null : (hasPerm('settings') || hasPerm('announcements') || hasPerm('rewards') ? undefined : null)) }} />
+
+          {/* Always hidden for staff/manager */}
           <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
-          <Tabs.Screen name="customers"        options={{ href: null }} />
-          <Tabs.Screen name="pricing"          options={{ href: null }} />
-          <Tabs.Screen name="discounts"        options={{ href: null }} />
-          <Tabs.Screen name="reports"          options={{ href: null }} />
-          <Tabs.Screen name="timesheets"       options={{ href: null }} />
-          <Tabs.Screen name="settings"         options={{ href: null }} />
-          <Tabs.Screen name="stores"           options={{ href: null }} />
         </Tabs>
       </View>
     );

@@ -63,30 +63,30 @@ export default function MoreScreen() {
   const { user, logout } = useAuth();
   const isManager = user?.role === 'manager';
 
-  // Fetch manager permissions so we can gate items correctly
-  const { data: meData } = useQuery({
-    queryKey: ['me'],
-    queryFn: () => api.auth.me(),
+  // Fetch manager permissions
+  const { data: managerProfileData } = useQuery({
+    queryKey: ['manager-profile'],
+    queryFn: () => api.manager.profile(),
     enabled: isManager,
     staleTime: 60_000,
   });
   const managerPerms: string[] = useMemo(
-    () => (meData?.user as any)?.managerPermissions ?? [],
-    [meData],
+    () => managerProfileData?.data?.permissions ?? [],
+    [managerProfileData],
   );
 
-  // Helper: show row if director, or if manager has the given permission
+  // Show item if: not a manager (director/master sees all), or manager has the given permission
   const canSee = (perm: string) => !isManager || managerPerms.includes(perm);
 
   const operations: Row[] = [
-    ...(isManager ? [{
+    ...(canSee('products') ? [{
       icon: 'package',
       label: 'Products',
       sub: 'Manage product availability & listings',
       color: BLUE,
       onPress: () => router.push('/(director)/products' as any),
     }] : []),
-    ...(canSee('stock') ? [{
+    ...(canSee('products') ? [{
       icon: 'archive',
       label: 'Stock & Inventory',
       sub: 'Track quantities, costs & low-stock alerts',
@@ -100,58 +100,72 @@ export default function MoreScreen() {
       color: NAVY,
       onPress: () => router.push('/(director)/reports' as any),
     }] : []),
-    ...(canSee('timesheets') ? [{
+    ...(canSee('reports') ? [{
       icon: 'clock',
       label: 'Timesheets',
       sub: 'Staff shifts & payroll export',
       color: PURPLE,
       onPress: () => router.push('/(director)/timesheets' as any),
     }] : []),
-    ...(!isManager ? [{
+    ...(canSee('pricing') ? [{
       icon: 'tag',
       label: 'Pricing & Tiers',
       sub: 'Wholesale pricing rules',
       color: AMBER,
       onPress: () => router.push('/(director)/pricing' as any),
     }] : []),
-    ...(!isManager ? [{
+    ...(canSee('pricing') ? [{
       icon: 'percent',
       label: 'Discount Codes',
       sub: 'Create & manage promotional codes',
       color: RED,
       onPress: () => router.push('/(director)/discounts' as any),
     }] : []),
+    ...(canSee('users') ? [{
+      icon: 'users',
+      label: 'People & Accounts',
+      sub: 'Staff, wholesale & customer accounts',
+      color: PURPLE,
+      onPress: () => router.push('/(director)/users' as any),
+    }] : []),
+    ...(canSee('users') ? [{
+      icon: 'user-check',
+      label: 'Customers',
+      sub: 'CRM, loyalty & customer profiles',
+      color: BLUE,
+      onPress: () => router.push('/(director)/customers' as any),
+    }] : []),
   ];
 
   const store: Row[] = [
-    {
+    ...(canSee('settings') ? [{
       icon: 'map-pin',
       label: 'Store Locations',
       sub: 'Manage locations, hours & geofence',
       color: BLUE,
       onPress: () => router.push('/(director)/stores' as any),
-    },
-    {
+    }] : []),
+    ...(canSee('settings') ? [{
       icon: 'settings',
       label: 'Store Settings',
       sub: 'Open/close, geo-fence, daily special',
       color: BLUE,
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Store' } } as any),
-    },
-    {
+    }] : []),
+    ...(canSee('rewards') ? [{
       icon: 'gift',
       label: 'Rewards & Loyalty',
       sub: 'Reward catalog & tiers',
       color: GREEN,
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Rewards' } } as any),
-    },
-    {
+    }] : []),
+    ...(canSee('announcements') ? [{
       icon: 'bell',
       label: 'Announcements',
       sub: 'Push notifications & banners',
       color: '#06B6D4',
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Notify' } } as any),
-    },
+    }] : []),
     {
       icon: 'bell-off',
       label: 'My Notification Settings',
@@ -168,8 +182,8 @@ export default function MoreScreen() {
     }] : []),
   ];
 
-  // Only show sections that have rows
   const showOperations = operations.length > 0;
+  const showStore = store.length > 0;
 
   return (
     <ScrollView
@@ -184,7 +198,7 @@ export default function MoreScreen() {
 
       <View style={{ paddingHorizontal: 16, gap: 0 }}>
         {showOperations && <Section title="OPERATIONS" rows={operations} />}
-        <Section title="STORE" rows={store} />
+        {showStore && <Section title="STORE" rows={store} />}
         <Section title="ACCOUNT" rows={[{
           icon: 'log-out',
           label: 'Sign Out',
