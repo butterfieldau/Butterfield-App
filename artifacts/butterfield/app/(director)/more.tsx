@@ -175,7 +175,7 @@ export default function MoreScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
       showsVerticalScrollIndicator={false}
     >
       <View style={[s.header, { paddingTop: 20 }]}>

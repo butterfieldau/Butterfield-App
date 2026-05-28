@@ -128,7 +128,7 @@ export default function StaffTasksScreen() {
       {tab === 'tasks' && (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, gap: 14 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, gap: 14 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >
           {/* Category filter */}

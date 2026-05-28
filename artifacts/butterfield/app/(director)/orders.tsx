@@ -769,7 +769,7 @@ export default function DirectorOrdersScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 0, paddingBottom: 100 }}
+          contentContainerStyle={{ padding: 16, gap: 0, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >

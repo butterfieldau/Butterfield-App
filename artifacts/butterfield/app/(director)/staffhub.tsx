@@ -282,7 +282,7 @@ function TasksTab() {
     <>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         showsVerticalScrollIndicator={false}
       >
@@ -692,7 +692,7 @@ function LeaveTab() {
     <>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         showsVerticalScrollIndicator={false}
       >

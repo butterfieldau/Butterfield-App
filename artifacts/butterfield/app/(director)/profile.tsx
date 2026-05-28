@@ -59,7 +59,7 @@ export default function StaffProfileScreen() {
   ];
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
       <View style={[styles.topSection, { paddingTop: 16 }]}>
         <Text style={[styles.screenTitle, { color: TEXT }]}>Profile</Text>
       </View>
