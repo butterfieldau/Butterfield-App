@@ -33,15 +33,14 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
   return (
     <View style={s.section}>
       <Text style={s.sectionTitle}>{title}</Text>
-      <View style={[s.card, { borderColor: BORDER }]}>
+      <View style={s.card}>
         {rows.map((row, i) => (
           <Pressable
             key={row.label}
             onPress={() => { Haptics.selectionAsync(); row.onPress(); }}
             style={({ pressed }) => [
               s.row,
-              i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
-              pressed && { backgroundColor: '#EFF6FF' },
+              pressed && { opacity: 0.75 },
             ]}
           >
             <View style={[s.iconBox, { backgroundColor: (row.danger ? RED : row.color) + '18' }]}>
@@ -199,8 +198,8 @@ const s = StyleSheet.create({
   headerSub:   { fontSize: 14, fontWeight: '400', color: MUTED },
   section:     { marginBottom: 28 },
   sectionTitle:{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1.4, marginBottom: 8, paddingHorizontal: 4 },
-  card:        { backgroundColor: CARD, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  row:         { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
+  card:        { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 8, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
+  row:         { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: '#fff', borderRadius: 16 },
   iconBox:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rowLabel:    { fontSize: 15, fontWeight: '500', color: TEXT },
   rowSub:      { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 1 },

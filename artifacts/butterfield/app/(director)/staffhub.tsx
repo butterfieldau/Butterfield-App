@@ -297,7 +297,7 @@ function TasksTab() {
         {tasks.length === 0 ? (
           <EmptyState icon="check-square" message="No tasks configured yet" />
         ) : tasks.map((task: any, index: number) => (
-          <View key={task.id} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <View key={task.id} style={s.card}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: BLUE + '18' }]}>
                 <Feather name="check-square" size={15} color={BLUE} />
@@ -398,7 +398,7 @@ function IssuesTab() {
       {issues.length === 0
         ? <EmptyState icon="check-circle" message="No issues reported" />
         : issues.map((item: any) => (
-          <Pressable key={item.id} onPress={() => handleAction(item)} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <Pressable key={item.id} onPress={() => handleAction(item)} style={s.card}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority) + '18' }]}>
                 <Feather name="alert-triangle" size={15} color={priorityColor(item.priority)} />
@@ -563,7 +563,7 @@ function WastageTab() {
       {selectedWeek == null || selectedWeek.items.length === 0
         ? <EmptyState icon="trash-2" message="No wastage logged" />
         : selectedWeek.items.map((item: any) => (
-          <Pressable key={item.id} onPress={() => handlePress(item)} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+          <Pressable key={item.id} onPress={() => handlePress(item)} style={s.card}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: PURPLE + '18' }]}>
                 <Feather name="trash-2" size={15} color={PURPLE} />
@@ -699,7 +699,7 @@ function LeaveTab() {
         {leave.length === 0
           ? <EmptyState icon="calendar" message="No leave requests" />
           : leave.map((item: any) => (
-            <View key={item.id} style={[s.card, { backgroundColor: CARD, borderColor: item.status === 'pending' ? AMBER + '60' : BORDER }]}>
+            <View key={item.id} style={[s.card, { borderColor: item.status === 'pending' ? AMBER + '60' : 'rgba(255,255,255,0.85)' }]}>
               <View style={s.cardHeader}>
                 <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
                   <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
@@ -815,7 +815,7 @@ function FeedbackTab() {
         ? <EmptyState icon="message-circle" message="No feedback submitted yet" />
         : feedback.map((item: any) => (
           <Pressable key={item.id} onPress={() => handlePress(item)}
-            style={[s.card, { backgroundColor: CARD, borderColor: item.isRead ? BORDER : BLUE + '50', opacity: item.isRead ? 0.85 : 1 }]}
+            style={[s.card, { borderColor: item.isRead ? 'rgba(255,255,255,0.85)' : BLUE + '50', opacity: item.isRead ? 0.85 : 1 }]}
           >
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: item.rating ? ratingColor(item.rating) + '18' : MUTED + '18' }]}>
@@ -886,7 +886,7 @@ const s = StyleSheet.create({
   tabBar:      { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   tabBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabLabel:    { fontSize: 12, fontWeight: '600' },
-  card:        { borderRadius: 14, borderWidth: 1, padding: 14, gap: 8 },
+  card:        { borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 14, gap: 8, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
   cardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   cardTitle:   { fontSize: 14, fontWeight: '600' },

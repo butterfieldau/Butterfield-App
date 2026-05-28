@@ -175,7 +175,6 @@ export default function StaffTasksScreen() {
                   onPress={() => handleCompleteTask(task.id, task.isCompleted)}
                   style={({ pressed }) => [
                     s.taskRow,
-                    idx < tasks.length - 1 && s.taskDivider,
                     { opacity: pressed ? 0.6 : 1 },
                   ]}
                 >
@@ -233,8 +232,8 @@ export default function StaffTasksScreen() {
             <View style={{ gap: 8, marginTop: 8 }}>
               <Text style={s.sectionLabel}>RECENT LOGS</Text>
               <View style={s.taskCard}>
-              {wastageList.slice(0, 5).map((w: any, idx: number) => (
-                  <View key={w.id} style={[s.taskRow, idx < Math.min(wastageList.length, 5) - 1 && s.taskDivider]}>
+              {wastageList.slice(0, 5).map((w: any) => (
+                  <View key={w.id} style={s.taskRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.taskTitle}>{w.productName} × {w.quantity}</Text>
                       <Text style={s.taskDesc}>{w.reason}</Text>
@@ -352,9 +351,8 @@ const s = StyleSheet.create({
   progressLabel: { fontSize: 12, fontWeight: '600', color: MUTED },
   progressTrack: { height: 4, backgroundColor: BORDER, borderRadius: 2, overflow: 'hidden' },
   progressFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
-  taskCard:      { backgroundColor: CARD, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden' },
-  taskRow:       { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14 },
-  taskDivider:   { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  taskCard:      { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 8, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
+  taskRow:       { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#fff', borderRadius: 16 },
   checkbox:      { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   taskTitle:     { fontSize: 14, fontWeight: '500', color: TEXT },
   taskDone:      { color: MUTED, textDecorationLine: 'line-through' },

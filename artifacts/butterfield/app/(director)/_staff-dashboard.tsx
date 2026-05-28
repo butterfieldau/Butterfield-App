@@ -587,7 +587,7 @@ export function StaffDashboard() {
                   <Text style={styles.viewAllLink}>View all</Text>
                 </Pressable>
               </View>
-              <View style={{ gap: 10 }}>
+              <View style={styles.taskGroupContainer}>
                 {urgentTasks.map((task) => {
                   const status = getTaskStatus(task);
                   const catColor = getCategoryColor(task.category);
@@ -595,7 +595,7 @@ export function StaffDashboard() {
                     <Pressable
                       key={task.id}
                       onPress={() => handleCompleteTask(task.id, task.isCompleted)}
-                      style={({ pressed }) => [styles.taskCard, { opacity: pressed ? 0.75 : 1 }]}
+                      style={({ pressed }) => [styles.taskCard, { opacity: pressed ? 0.7 : 1 }]}
                     >
                       <View style={styles.taskCardHeader}>
                         <Text style={styles.taskTitle} numberOfLines={2}>{task.title}</Text>
@@ -697,7 +697,8 @@ const styles = StyleSheet.create({
   schedulePrice:   { fontSize: 13, fontWeight: '700', color: BLUE },
 
   // Task cards
-  taskCard:        { backgroundColor: CARD, borderRadius: 20, padding: 16, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: BORDER },
+  taskGroupContainer: { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 8, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
+  taskCard:        { backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 12 },
   taskCardHeader:  { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   taskTitle:       { flex: 1, fontSize: 15, fontWeight: '600', color: TEXT, lineHeight: 21 },
   taskStatusPill:  { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 },
