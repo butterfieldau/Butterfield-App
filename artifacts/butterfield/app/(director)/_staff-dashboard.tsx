@@ -267,7 +267,9 @@ export function StaffDashboard() {
 
   const tasks = tasksData?.data ?? [];
   const completedTasks = tasks.filter((t) => t.isCompleted).length;
-  const urgentTasks = tasks.filter((t) => !t.isCompleted).slice(0, 5);
+  // Dashboard shows only tasks personally assigned to this user
+  const myAssignedTasks = tasks.filter((t) => t.assignedToUserId === user?.id);
+  const urgentTasks = myAssignedTasks.filter((t) => !t.isCompleted).slice(0, 5);
 
   const todayMins = stats?.todayMins ?? 0;
   const todayEarnings = stats ? ((stats.todayEarningsCents ?? 0) / 100).toFixed(2) : '0.00';
@@ -591,7 +593,7 @@ export function StaffDashboard() {
           {urgentTasks.length > 0 && (
             <View onLayout={(e) => { pendingTasksY.current = e.nativeEvent.layout.y; }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <Text style={styles.sectionTitle}>PENDING TASKS</Text>
+                <Text style={styles.sectionTitle}>MY TASKS</Text>
                 <Pressable onPress={() => { Haptics.selectionAsync(); router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any); }} hitSlop={8}>
                   <Text style={styles.viewAllLink}>View all</Text>
                 </Pressable>

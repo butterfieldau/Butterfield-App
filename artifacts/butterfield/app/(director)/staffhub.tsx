@@ -232,35 +232,89 @@ function TaskEditorModal({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TASKS TAB — staff view: checklist
+// TASKS TAB — staff view: categorised checklist (no filter chips)
 // ══════════════════════════════════════════════════════════════════════════════
+const CAT_SECTIONS = [
+  { cat: 'daily',    label: 'General Shift', color: CAT_COLORS.daily    },
+  { cat: 'opening',  label: 'Opening',        color: CAT_COLORS.opening  },
+  { cat: 'closing',  label: 'Closing',        color: CAT_COLORS.closing  },
+  { cat: 'prep',     label: 'Coffee Bar',     color: CAT_COLORS.prep     },
+  { cat: 'cleaning', label: 'Cleaning',       color: CAT_COLORS.cleaning },
+  { cat: 'training', label: 'Stock Check',    color: CAT_COLORS.training },
+];
+
+const CADENCE_GROUPS = [
+  { cadence: 'daily',   label: 'DAILY TASKS'   },
+  { cadence: 'weekly',  label: 'WEEKLY TASKS'  },
+  { cadence: 'one_off', label: 'ONE-OFF TASKS' },
+];
+
 function StaffTasksTab({ userId }: { userId?: string }) {
   const qc = useQueryClient();
-  const [activeCat, setActiveCat] = useState('daily');
 
   const { data: tasksData, refetch } = useQuery({
-    queryKey: ['staff-tasks', activeCat],
-    queryFn: () => api.staff.tasks(activeCat),
-    retry: 1,
-  });
-  const { data: assignedData } = useQuery({
-    queryKey: ['staff-tasks-assigned'],
+    queryKey: ['staff-tasks-all'],
     queryFn: () => api.staff.tasks(),
     retry: 1,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const tasks = tasksData?.data ?? [];
-  const assignedToMe = (assignedData?.data ?? []).filter((t: any) => t.assignedToUserId === userId && !t.isCompleted);
+  const allTasks: any[] = tasksData?.data ?? [];
 
-  const completedCount = tasks.filter((t: any) => t.isCompleted).length;
-  const totalCount = tasks.length;
+  // My Tasks: personally assigned to this user
+  const myTasks = allTasks.filter((t: any) => t.assignedToUserId === userId);
+  // General tasks: unassigned (visible to everyone on shift)
+  const generalTasks = allTasks.filter((t: any) => !t.assignedToUserId);
+
+  const totalCount = allTasks.length;
+  const completedCount = allTasks.filter((t: any) => t.isCompleted).length;
 
   const handleComplete = async (id: string, isCompleted: boolean) => {
     Haptics.selectionAsync();
     try {
       await api.staff.completeTask(id, !isCompleted);
-      qc.invalidateQueries({ queryKey: ['staff-tasks', activeCat] });
+      qc.invalidateQueries({ queryKey: ['staff-tasks-all'] });
+      qc.invalidateQueries({ queryKey: ['staff-tasks'] });
     } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  const renderTaskRow = (task: any) => (
+    <Pressable key={task.id} onPress={() => handleComplete(task.id, task.isCompleted)}
+      style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}>
+      <View style={[s.checkbox, {
+        borderColor: task.isCompleted ? GREEN : BLUE,
+        backgroundColor: task.isCompleted ? GREEN : 'transparent',
+      }]}>
+        {task.isCompleted && <Feather name="check" size={11} color="#fff" />}
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[s.taskTitle, task.isCompleted && { color: MUTED, textDecorationLine: 'line-through' }]}>
+          {task.title}
+        </Text>
+        {task.description && !task.isCompleted && (
+          <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>
+        )}
+        {task.isCompleted && task.completedBy ? (
+          <Text style={[s.taskCat, { color: GREEN }]}>✓ {task.completedBy}</Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+
+  const renderCategoryBox = (tasks: any[], cat: string, label: string, color: string) => {
+    if (tasks.length === 0) return null;
+    const done = tasks.filter((t: any) => t.isCompleted).length;
+    return (
+      <View key={cat} style={{ gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+          <Text style={[s.metaLabel, { color, letterSpacing: 0.8 }]}>{label.toUpperCase()}</Text>
+          <Text style={[s.metaLabel, { marginLeft: 'auto' as any }]}>{done}/{tasks.length}</Text>
+        </View>
+        <View style={[s.glassCard, { borderLeftWidth: 3, borderLeftColor: color }]}>
+          {tasks.map(renderTaskRow)}
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -269,86 +323,58 @@ function StaffTasksTab({ userId }: { userId?: string }) {
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120, gap: 14 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
-      {/* Category chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }}
-        contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2 }}>
-        {CATEGORIES.map((c) => {
-          const active = activeCat === c;
-          return (
-            <Pressable key={c} onPress={() => { setActiveCat(c); Haptics.selectionAsync(); }}
-              style={[s.chip, active && { backgroundColor: CAT_COLORS[c], borderColor: CAT_COLORS[c] }]}>
-              <Text style={[s.chipText, active && { color: '#fff' }]}>
-                {c.charAt(0).toUpperCase() + c.slice(1)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      {/* Progress */}
+      {/* Overall progress bar */}
       {totalCount > 0 && (
-        <View style={{ gap: 6 }}>
-          <Text style={s.metaLabel}>{completedCount}/{totalCount} complete</Text>
+        <View style={{ gap: 6, paddingTop: 14 }}>
+          <Text style={s.metaLabel}>{completedCount}/{totalCount} tasks complete</Text>
           <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${(completedCount / totalCount) * 100}%` as any }]} />
+            <View style={[s.progressFill, {
+              width: `${(completedCount / totalCount) * 100}%` as any,
+              backgroundColor: completedCount === totalCount ? GREEN : BLUE,
+            }]} />
           </View>
         </View>
       )}
 
-      {/* Assigned to me */}
-      {assignedToMe.length > 0 && (
-        <>
+      {/* ── My Tasks ── */}
+      {myTasks.length > 0 && (
+        <View style={{ gap: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AMBER }} />
-            <Text style={[s.metaLabel, { color: '#B45309', letterSpacing: 0.8 }]}>ASSIGNED TO YOU</Text>
+            <Text style={[s.metaLabel, { color: '#B45309', letterSpacing: 0.8 }]}>MY TASKS</Text>
+            <Text style={[s.metaLabel, { marginLeft: 'auto' as any }]}>
+              {myTasks.filter((t: any) => t.isCompleted).length}/{myTasks.length}
+            </Text>
           </View>
-          <View style={[s.glassCard, { borderColor: '#FDE68A', borderWidth: 1.5 }]}>
-            {assignedToMe.map((task: any) => (
-              <Pressable key={task.id} onPress={() => handleComplete(task.id, task.isCompleted)}
-                style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}>
-                <View style={[s.checkbox, { borderColor: AMBER }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.taskTitle}>{task.title}</Text>
-                  {task.description && <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>}
-                  <Text style={[s.taskCat, { color: AMBER }]}>
-                    {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)} · Assigned to you
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
+          <View style={[s.glassCard, { borderLeftWidth: 3, borderLeftColor: AMBER }]}>
+            {myTasks.map(renderTaskRow)}
           </View>
-        </>
+        </View>
       )}
 
-      {/* Task list */}
-      {tasks.length === 0 ? (
-        <EmptyState icon="clipboard" message="No tasks in this category." />
-      ) : (
-        <View style={s.glassCard}>
-          {tasks.map((task: any) => (
-            <Pressable key={task.id} onPress={() => handleComplete(task.id, task.isCompleted)}
-              style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}>
-              <View style={[s.checkbox, {
-                borderColor: task.isCompleted ? GREEN : BLUE,
-                backgroundColor: task.isCompleted ? GREEN : 'transparent',
-              }]}>
-                {task.isCompleted && <Feather name="check" size={11} color="#fff" />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.taskTitle, task.isCompleted && { color: MUTED, textDecorationLine: 'line-through' }]}>
-                  {task.title}
-                </Text>
-                {task.description && !task.isCompleted && (
-                  <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>
-                )}
-                <Text style={[s.taskCat, { color: CAT_COLORS[task.category] ?? BLUE }]}>
-                  {task.category?.charAt(0).toUpperCase() + task.category?.slice(1)}
-                  {task.completedBy ? ` · ✓ ${task.completedBy}` : ''}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
+      {/* ── Cadence groups: Daily → Weekly → One-Off ── */}
+      {CADENCE_GROUPS.map(({ cadence, label }) => {
+        const cadenceTasks = generalTasks.filter((t: any) => t.cadence === cadence);
+        if (cadenceTasks.length === 0) return null;
+        return (
+          <View key={cadence} style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 4 }}>
+              <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: BORDER }} />
+              <Text style={[s.metaLabel, { letterSpacing: 1.2, color: MUTED }]}>{label}</Text>
+              <View style={{ flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: BORDER }} />
+            </View>
+            {CAT_SECTIONS.map(({ cat, label: catLabel, color }) =>
+              renderCategoryBox(
+                cadenceTasks.filter((t: any) => t.category === cat),
+                cat, catLabel, color,
+              )
+            )}
+          </View>
+        );
+      })}
+
+      {allTasks.length === 0 && (
+        <EmptyState icon="clipboard" message="No tasks available yet. Check back soon." />
       )}
     </ScrollView>
   );

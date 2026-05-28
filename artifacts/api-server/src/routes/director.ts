@@ -1576,6 +1576,8 @@ router.get('/staff-list', async (req, res) => {
 router.patch('/tasks/:id', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const { id } = req.params;
+  const { title, description, category, cadence, isRecurring, assignedToUserId, assignedToName } = req.body ?? {};
+
   const [existing] = await db.select().from(staffTasksTable).where(eq(staffTasksTable.id, id));
   if (!existing) return res.status(404).json({ error: 'Task not found.' });
 
@@ -1584,7 +1586,6 @@ router.patch('/tasks/:id', async (req, res) => {
   if (category && !allowedCategories.includes(category)) return res.status(400).json({ error: 'Invalid task category.' });
   if (cadence && !allowedCadences.includes(cadence)) return res.status(400).json({ error: 'Invalid task cadence.' });
 
-  const { title, description, category, cadence, isRecurring, assignedToUserId, assignedToName } = req.body ?? {};
   const updates: any = {};
   if (typeof title === 'string') updates.title = title.trim();
   if (description !== undefined) updates.description = description?.trim() || null;
