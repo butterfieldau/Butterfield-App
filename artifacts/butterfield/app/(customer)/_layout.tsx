@@ -1,7 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -12,15 +10,20 @@ import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 
-const PRIMARY_TOP = '#1493FF';
+const BLUE   = '#1493FF';
+const WHITE  = '#FFFFFF';
+const MUTED  = '#9CA3AF';
+const PILL_BG = '#FFFFFF';
 
-function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any) {
+function FloatingCustomerTabBar({ state, descriptors, navigation, hideTabs }: any) {
   const insets = useSafeAreaInsets();
   const { totalItems } = useCart();
 
   if (hideTabs) return null;
 
-  const mainRoutes = state.routes.filter((route: any) => ['index', 'menu', 'loyalty', 'cart'].includes(route.name));
+  const mainRoutes = state.routes.filter((route: any) =>
+    ['index', 'menu', 'loyalty', 'cart'].includes(route.name),
+  );
   const accountRoute = state.routes.find((route: any) => route.name === 'profile');
 
   const renderTab = (route: any, detached = false) => {
@@ -28,7 +31,6 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
     const focused = state.index === routeIndex;
     const options = descriptors[route.key]?.options ?? {};
     const label = options.title ?? route.name;
-    const iconColor = focused ? '#0C5A87' : '#2D2F33';
 
     const onPress = () => {
       const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -38,47 +40,55 @@ function LiquidCustomerTabBar({ state, descriptors, navigation, hideTabs }: any)
       }
     };
 
+    if (detached) {
+      return (
+        <Pressable key={route.key} onPress={onPress} style={styles.accountCircle}>
+          <View style={[styles.accountInner, focused && styles.accountInnerActive]}>
+            {options.tabBarIcon
+              ? options.tabBarIcon({ color: focused ? WHITE : MUTED, focused, size: 22 })
+              : null}
+          </View>
+        </Pressable>
+      );
+    }
+
     return (
-      <Pressable
-        key={route.key}
-        onPress={onPress}
-        style={[detached ? styles.detachedTabButton : styles.tabButton, focused && styles.tabButtonActive]}
-      >
+      <Pressable key={route.key} onPress={onPress} style={styles.tabTouchArea}>
         {focused ? (
-          <>
-            <View style={styles.activeGlow} />
-            <LinearGradient
-              colors={['rgba(255,255,255,0.88)', 'rgba(255,255,255,0.28)', 'rgba(255,255,255,0.12)']}
-              start={{ x: 0.18, y: 0.05 }}
-              end={{ x: 0.82, y: 1 }}
-              style={styles.activeLiquid}
-            />
-          </>
-        ) : null}
-        <View style={styles.tabIconWrap}>
-          {options.tabBarIcon ? options.tabBarIcon({ color: iconColor, focused, size: 22 }) : null}
-          {route.name === 'cart' && totalItems > 0 ? (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{String(totalItems > 99 ? '99+' : totalItems)}</Text>
+          <View style={styles.activePill}>
+            <View style={styles.activeIconWrap}>
+              {options.tabBarIcon ? options.tabBarIcon({ color: WHITE, focused, size: 19 }) : null}
+              {route.name === 'cart' && totalItems > 0 ? (
+                <View style={[styles.cartBadge, { top: -5, right: -8 }]}>
+                  <Text style={styles.cartBadgeText}>{String(totalItems > 99 ? '99+' : totalItems)}</Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-        </View>
-        <Text style={[styles.tabLabel, { color: iconColor, fontWeight: focused ? '700' : '500' }]} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+            <Text style={styles.activeLabel} numberOfLines={1}>{label}</Text>
+          </View>
+        ) : (
+          <View style={styles.inactivePill}>
+            <View style={styles.inactiveIconWrap}>
+              {options.tabBarIcon ? options.tabBarIcon({ color: MUTED, focused, size: 22 }) : null}
+              {route.name === 'cart' && totalItems > 0 ? (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{String(totalItems > 99 ? '99+' : totalItems)}</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )}
       </Pressable>
     );
   };
 
   return (
-    <View pointerEvents="box-none" style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+    <View pointerEvents="box-none" style={[styles.tabBarWrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.tabBarRow}>
-        <BlurView intensity={72} tint="light" style={styles.mainPill}>
+        <View style={styles.mainPill}>
           {mainRoutes.map((route: any) => renderTab(route))}
-        </BlurView>
-        {accountRoute ? (
-          <BlurView intensity={72} tint="light" style={styles.accountPill}>
-            {renderTab(accountRoute, true)}
-          </BlurView>
-        ) : null}
+        </View>
+        {accountRoute ? renderTab(accountRoute, true) : null}
       </View>
     </View>
   );
@@ -96,7 +106,7 @@ function ClassicCustomerTabs() {
   return (
     <>
       <Tabs
-        tabBar={(props) => (isIOS ? <LiquidCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
+        tabBar={(props) => (isIOS ? <FloatingCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
         screenOptions={{
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.mutedForeground,
@@ -207,71 +217,83 @@ const styles = StyleSheet.create({
   },
   tabBarRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 12,
   },
   mainPill: {
     flex: 1,
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: PILL_BG,
+    borderRadius: 999,
     paddingHorizontal: 6,
-    paddingVertical: 8,
-    borderRadius: 34,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.82)',
-    backgroundColor: 'rgba(255,255,255,0.48)',
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  accountPill: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.82)',
-    backgroundColor: 'rgba(255,255,255,0.48)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabButton: {
+  tabTouchArea: {
     flex: 1,
-    minHeight: 62,
-    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 8,
-    overflow: 'hidden',
-    gap: 4,
+    minHeight: 50,
   },
-  detachedTabButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  activePill: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    gap: 4,
+    backgroundColor: BLUE,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    gap: 7,
   },
-  tabButtonActive: {
-    shadowColor: PRIMARY_TOP,
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  activeGlow: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 32,
-    backgroundColor: 'rgba(20,147,255,0.14)',
-  },
-  activeLiquid: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 32,
-  },
-  tabIconWrap: {
-    width: 28,
-    height: 28,
+  activeIconWrap: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  activeLabel: {
+    color: WHITE,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  inactivePill: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+  },
+  inactiveIconWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 999,
+    backgroundColor: PILL_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.10,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  accountInner: {
+    width: 50,
+    height: 50,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  accountInnerActive: {
+    backgroundColor: BLUE,
   },
   cartBadge: {
     position: 'absolute',
@@ -280,7 +302,7 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: PRIMARY_TOP,
+    backgroundColor: BLUE,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
@@ -290,10 +312,5 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     lineHeight: 12,
-  },
-  tabLabel: {
-    fontSize: 10,
-    letterSpacing: -0.2,
-    textAlign: 'center',
   },
 });

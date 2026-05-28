@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   menuIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   menuLabel:    { flex: 1, fontSize: 15, fontWeight: '500' },
 
-  signOutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 16, borderWidth: 1 },
+  signOutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 999, borderWidth: 1 },
   signOutText: { fontSize: 15, fontWeight: '600' },
   legalLink:   { fontSize: 12, fontWeight: '400', textDecorationLine: 'underline' },
   version:     { textAlign: 'center', fontSize: 12, fontWeight: '400' },

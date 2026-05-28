@@ -609,7 +609,7 @@ const s = StyleSheet.create({
   errorText:       { flex: 1, color: '#EF4444', fontSize: 13 },
   successBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#F0FDF4', borderRadius: 10 },
   successText:     { flex: 1, color: GREEN, fontSize: 13 },
-  submitBtn:       { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  submitBtn:       { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   submitBtnText:   { color: '#fff', fontSize: 16 },
   toggleText:      { fontSize: 14, textAlign: 'center' },
   forgotText:      { fontSize: 13 },

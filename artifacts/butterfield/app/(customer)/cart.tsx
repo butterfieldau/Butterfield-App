@@ -1976,7 +1976,7 @@ const styles = StyleSheet.create({
   bottomTotal:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bottomTotalLabel:{ fontSize: 13, fontWeight: '700', color: '#1C1C1E', letterSpacing: 1 },
   bottomTotalAmount:{ fontSize: 20, fontWeight: '700', color: '#1C1C1E' },
-  continueBtn:     { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  continueBtn:     { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   // Success
   successWrap:    { flex: 1, overflow: 'visible', backgroundColor: '#FFFFFF' },
@@ -2035,7 +2035,7 @@ const styles = StyleSheet.create({
   successPointsInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, marginBottom: 8 },
   successPointsInlineText: { fontSize: 14, fontWeight: '500', color: '#5B3A00', textAlign: 'center' },
   successPointsInlineStrong: { fontWeight: '800', color: '#8A4D00' },
-  returnHomeBtn: { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 18, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  returnHomeBtn: { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 999, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   returnHomeBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   // Empty
   emptyWrap:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
