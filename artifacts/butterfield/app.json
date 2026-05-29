@@ -2,7 +2,7 @@
   "expo": {
     "name": "Butterfield",
     "slug": "butterfield",
-    "version": "1.2",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "butterfield",
