@@ -58,8 +58,9 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/managers' || path.startsWith('/managers/')) return 'director_only';
   if (path === '/shop-displays' || path.startsWith('/shop-displays/')) return 'director_only';
 
-  // Dashboard stats
+  // Dashboard stats + activity feed
   if (path === '/stats' || path === '/stats/revenue' || path === '/sessions') return 'dashboard';
+  if (path === '/activity') return 'dashboard';
   // Deleted accounts — director/master only
   if (path.startsWith('/deleted-accounts')) return 'director_only';
   if (path.startsWith('/discount-codes')) return 'pricing';
@@ -73,10 +74,11 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/wholesale' || path.startsWith('/wholesale/')) return 'users';
   if (path.startsWith('/wholesale-cards/')) return 'users';
   if (path === '/create-staff' || path === '/create-wholesale') return 'users';
+  if (path === '/staff-list') return 'users';
   if (path === '/timesheets' || path.startsWith('/timesheets/')) return 'self_only';
-  if (path === '/wastage') return 'users';
+  if (path === '/wastage' || path.startsWith('/wastage/')) return 'users';
   if (path === '/issues' || path.startsWith('/issues/')) return 'users';
-  if (path === '/leave') return 'users';
+  if (path === '/leave' || path.startsWith('/leave/')) return 'users';
   if (path === '/tasks' || path.startsWith('/tasks/')) return 'users';
 
   // Products
