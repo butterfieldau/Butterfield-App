@@ -1,10 +1,11 @@
 import { Router } from "express";
+import { requireAuth } from "../middlewares/auth.js";
 
 const router = Router();
 
 const PLACES_KEY = process.env.GOOGLE_PLACES_API_KEY ?? '';
 
-router.get("/autocomplete", async (req, res) => {
+router.get("/autocomplete", requireAuth, async (req, res) => {
   const input = String(req.query.input ?? '').trim();
   if (!PLACES_KEY) {
     res.json({ predictions: [] });
@@ -31,7 +32,7 @@ router.get("/autocomplete", async (req, res) => {
   }
 });
 
-router.get("/details", async (req, res) => {
+router.get("/details", requireAuth, async (req, res) => {
   const placeId = String(req.query.place_id ?? '').trim();
   if (!PLACES_KEY || !placeId) {
     res.status(400).json({ error: 'missing place_id' });
