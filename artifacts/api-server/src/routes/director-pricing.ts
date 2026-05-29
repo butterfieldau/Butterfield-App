@@ -10,14 +10,15 @@ import {
 } from '@workspace/db';
 import { eq, desc, and, ne, isNull, or } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { calculateWholesalePrice, loadPriceContextForAccount } from '../lib/wholesalePricing.js';
 
 const router = Router();
 
-// Wholesale pricing management: director and master only.
+// Wholesale pricing management: directors, masters, and managers with 'pricing' permission.
 // Apply role check per-route (not globally) so that requests destined for
 // other /director routers can pass through without being blocked here.
-const directorOnly = requireRole('director', 'master');
+const directorOnly = [requireRole('director', 'manager', 'master'), requireManagerPermission('pricing')];
 
 // ── Pricing tiers CRUD ───────────────────────────────────────────────────────
 

@@ -86,7 +86,7 @@ export default function MoreScreen() {
       color: BLUE,
       onPress: () => router.push('/(director)/products' as any),
     }] : []),
-    ...(canSee('products') ? [{
+    ...(canSee('stock') ? [{
       icon: 'archive',
       label: 'Stock & Inventory',
       sub: 'Track quantities, costs & low-stock alerts',
@@ -100,7 +100,7 @@ export default function MoreScreen() {
       color: NAVY,
       onPress: () => router.push('/(director)/reports' as any),
     }] : []),
-    ...(canSee('reports') ? [{
+    ...(canSee('timesheets') ? [{
       icon: 'clock',
       label: 'Timesheets',
       sub: 'Staff shifts & payroll export',
@@ -151,6 +151,13 @@ export default function MoreScreen() {
       sub: 'Open/close, geo-fence, daily special',
       color: BLUE,
       onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Store' } } as any),
+    }] : []),
+    ...(canSee('banners') ? [{
+      icon: 'image',
+      label: 'Banners',
+      sub: 'Promotional banners & featured content',
+      color: AMBER,
+      onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Banner' } } as any),
     }] : []),
     ...(canSee('rewards') ? [{
       icon: 'gift',

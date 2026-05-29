@@ -62,7 +62,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/stats' || path === '/stats/revenue' || path === '/sessions') return 'dashboard';
   // Deleted accounts — director/master only
   if (path.startsWith('/deleted-accounts')) return 'director_only';
-  if (path.startsWith('/discount-codes')) return 'director_only';
+  if (path.startsWith('/discount-codes')) return 'pricing';
 
   // Orders
   if (path === '/orders' || path.startsWith('/orders/')) return 'orders';

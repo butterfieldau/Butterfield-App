@@ -457,7 +457,7 @@ export default function StockScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const isDirector = user?.role === 'director' || user?.role === 'master';
+  const isDirector = user?.role === 'director' || user?.role === 'master' || user?.role === 'manager';
 
   const [catFilter, setCatFilter] = useState<string>('all');
   const [search, setSearch]       = useState('');

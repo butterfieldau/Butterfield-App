@@ -119,12 +119,12 @@ export default function DirectorLayout() {
           <Tabs.Screen name="users"            options={{ href: mgrHref('users')     }} />
           <Tabs.Screen name="customers"        options={{ href: mgrHref('users')     }} />
           <Tabs.Screen name="reports"          options={{ href: mgrHref('reports')   }} />
-          <Tabs.Screen name="timesheets"       options={{ href: mgrHref('reports')   }} />
-          <Tabs.Screen name="stock"            options={{ href: mgrHref('products')  }} />
+          <Tabs.Screen name="timesheets"       options={{ href: mgrHref('timesheets') }} />
+          <Tabs.Screen name="stock"            options={{ href: mgrHref('stock')     }} />
           <Tabs.Screen name="pricing"          options={{ href: mgrHref('pricing')   }} />
           <Tabs.Screen name="discounts"        options={{ href: mgrHref('pricing')   }} />
           <Tabs.Screen name="stores"           options={{ href: mgrHref('settings')  }} />
-          <Tabs.Screen name="settings"         options={{ href: (isStaff ? null : (hasPerm('settings') || hasPerm('announcements') || hasPerm('rewards') ? undefined : null)) }} />
+          <Tabs.Screen name="settings"         options={{ href: (isStaff ? null : (hasPerm('settings') || hasPerm('announcements') || hasPerm('rewards') || hasPerm('banners') ? undefined : null)) }} />
 
           {/* Always hidden for staff/manager */}
           <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
