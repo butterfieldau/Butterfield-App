@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { useScrollToTop } from '@react-navigation/native';
+import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
   ActivityIndicator, Alert, Animated, Modal, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,

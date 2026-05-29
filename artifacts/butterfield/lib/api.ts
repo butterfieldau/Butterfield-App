@@ -21,9 +21,9 @@ function normalizeServingUrl(url: string): string {
 
 export class ApiError extends Error {
   status: number;
-  body: any;
+  body: unknown;
 
-  constructor(message: string, status: number, body: any = null) {
+  constructor(message: string, status: number, body: unknown = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -76,7 +76,7 @@ export const api = {
       request<{ resetToken: string }>('/auth/verify-reset-otp', { method: 'POST', body: JSON.stringify(data) }),
     resetPassword: (data: { resetToken: string; newPassword: string }) =>
       request<{ success: boolean; message: string }>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
-    me: () => request<{ user: ApiUser; profile: any }>('/auth/me'),
+    me: () => request<{ user: ApiUser; profile: AuthProfile | null }>('/auth/me'),
     validateStaffInvite: (token: string) =>
       request<{ valid: boolean; note: string | null }>(`/auth/validate-staff-invite?token=${encodeURIComponent(token)}`),
     staffRegister: (data: {
@@ -93,21 +93,21 @@ export const api = {
       emergencyContact?: { name: string; phone: string; relationship: string };
     }) => request<{ success: boolean; message: string; employeeId: string }>('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
     updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
-      request<{ user: ApiUser; profile: any }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
+      request<{ user: ApiUser; profile: AuthProfile | null }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAccount: () =>
       request<{ success: boolean; message: string }>('/auth/account', { method: 'DELETE' }),
   },
   products: {
     list:       ()         => request<{ data: ApiProduct[] }>('/products'),
-    get:        (id: string) => request<{ data: any }>(`/products/${id}`),
-    categories: ()         => request<{ data: any[] }>('/products/categories'),
+    get:        (id: string) => request<{ data: ApiProduct }>(`/products/${id}`),
+    categories: ()         => request<{ data: ProductCategory[] }>('/products/categories'),
     topSellers: ()         => request<{ data: ApiProduct[] }>('/products/top-sellers'),
   },
   orders: {
     list: () => request<{ data: ApiOrder[] }>('/orders'),
     get: (id: string) => request<{ data: ApiOrder }>(`/orders/${id}`),
     create: (data: {
-      items: any[]; type: string; scheduledFor?: string; notes?: string;
+      items: ApiOrderItem[]; type: string; scheduledFor?: string; notes?: string;
       totalCents: number; stripePaymentIntentId?: string;
       loyaltyPointsUsed?: number; discountCents?: number; deliveryAddress?: string;
       deliveryPostcode?: string; deliveryState?: string;
@@ -119,7 +119,7 @@ export const api = {
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   },
   discounts: {
-    validate: (data: { code: string; items: any[]; orderType?: string }) =>
+    validate: (data: { code: string; items: ApiOrderItem[]; orderType?: string }) =>
       request<{ valid: boolean; id: string; code: string; discountAmountCents: number; discountType: string; description: string | null }>(
         '/discounts/validate',
         { method: 'POST', body: JSON.stringify(data) },
@@ -149,29 +149,29 @@ export const api = {
     claimedRewardsHistory: () =>
       request<{ data: ClaimedReward[] }>('/loyalty/claimed-rewards/history'),
     updateBirthday: (birthday: string) =>
-      request<{ data: any }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
+      request<{ data: LoyaltyProfile }>('/loyalty/birthday', { method: 'PATCH', body: JSON.stringify({ birthday }) }),
   },
   staff: {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
-    currentShift: () => request<{ data: any }>('/staff/shifts/current'),
-    shiftStats:   () => request<{ data: any }>('/staff/shifts/stats'),
+    currentShift: () => request<{ data: StaffShift | null }>('/staff/shifts/current'),
+    shiftStats:   () => request<{ data: StaffShiftStats }>('/staff/shifts/stats'),
     clockIn:      (data?: { storeId?: string; latitude?: number; longitude?: number }) =>
-      request<{ data: any }>('/staff/shifts/clock-in', { method: 'POST', body: JSON.stringify(data ?? {}) }),
+      request<{ data: StaffShift }>('/staff/shifts/clock-in', { method: 'POST', body: JSON.stringify(data ?? {}) }),
     clockOut:     (unpaidBreakMins = 0, coords?: { latitude: number; longitude: number }) =>
-      request<{ data: any }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins, ...coords }) }),
-    myStoreAssignments: () => request<{ data: any[] }>('/staff/my-store-assignments'),
+      request<{ data: StaffShift }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins, ...coords }) }),
+    myStoreAssignments: () => request<{ data: StaffStoreAssignment[] }>('/staff/my-store-assignments'),
     tasks:        (category?: string) =>
-      request<{ data: any[] }>(`/staff/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+      request<{ data: StaffTask[] }>(`/staff/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
     completeTask: (taskId: string, isCompleted: boolean) =>
-      request<{ data: any }>(`/staff/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
-    allOrders:    () => request<{ data: any[] }>('/staff/orders'),
-    wastage:      () => request<{ data: any[] }>('/staff/wastage'),
-    submitWastage:(data: any) =>
-      request<{ data: any }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
-    submitIssue:  (data: any) =>
-      request<{ data: any }>('/staff/issues', { method: 'POST', body: JSON.stringify(data) }),
-    submitLeave:  (data: any) =>
-      request<{ data: any }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: StaffTask }>(`/staff/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
+    allOrders:    () => request<{ data: ApiOrder[] }>('/staff/orders'),
+    wastage:      () => request<{ data: StaffWastageEntry[] }>('/staff/wastage'),
+    submitWastage:(data: StaffWastageInput) =>
+      request<{ data: StaffWastageEntry }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
+    submitIssue:  (data: StaffIssueInput) =>
+      request<{ data: StaffIssue }>('/staff/issues', { method: 'POST', body: JSON.stringify(data) }),
+    submitLeave:  (data: StaffLeaveInput) =>
+      request<{ data: StaffLeaveRequest }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
     members:      () => request<{ data: StaffMember[] }>('/staff/members'),
     timesheet:    (from?: string, to?: string, userId?: string) => {
       const params = new URLSearchParams();
@@ -179,7 +179,7 @@ export const api = {
       if (to)     params.set('to', to);
       if (userId) params.set('userId', userId);
       const qs = params.toString();
-      return request<{ data: StaffShift[]; staff?: StaffMember[]; isManager: boolean; profile?: any }>(
+      return request<{ data: StaffShift[]; staff?: StaffMember[]; isManager: boolean; profile?: StaffProfile | null }>(
         `/staff/timesheet${qs ? `?${qs}` : ''}`,
       );
     },
@@ -190,14 +190,14 @@ export const api = {
     },
   },
   shopDisplay: {
-    me: () => request<{ data: any }>('/shop-display/me'),
-    orders: () => request<{ data: any[] }>('/shop-display/orders'),
+    me: () => request<{ data: ShopDisplayMe }>('/shop-display/me'),
+    orders: () => request<{ data: ShopDisplayOrder[] }>('/shop-display/orders'),
     updateOrderStatus: (id: string, status: string) =>
-      request<{ data: any }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+      request<{ data: ShopDisplayOrder }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     tasks: (category?: string) =>
-      request<{ data: any[] }>(`/shop-display/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
+      request<{ data: StaffTask[] }>(`/shop-display/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
     completeTask: (taskId: string, isCompleted: boolean, notes?: string) =>
-      request<{ data: any }>(`/shop-display/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted, notes }) }),
+      request<{ data: StaffTask }>(`/shop-display/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted, notes }) }),
     taskHistory: (from?: string, to?: string) => {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
@@ -207,24 +207,24 @@ export const api = {
     },
   },
   wholesale: {
-    profile:     () => request<{ data: any }>('/wholesale/profile'),
-    account:     () => request<{ data: any }>('/wholesale/account'),
-    orders:      () => request<{ data: any[] }>('/wholesale/orders'),
-    order:       (id: string) => request<{ data: any }>(`/wholesale/orders/${id}`),
+    profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
+    account:     () => request<{ data: WholesaleAccount }>('/wholesale/account'),
+    orders:      () => request<{ data: WholesaleOrderRecord[] }>('/wholesale/orders'),
+    order:       (id: string) => request<{ data: WholesaleOrderRecord }>(`/wholesale/orders/${id}`),
     createOrder: (data: { items: { productId: string; qty: number }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string; deliveryAddress?: string }) =>
-      request<{ data: any }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
-    invoices:    () => request<{ data: any[] }>('/wholesale/invoices'),
+      request<{ data: WholesaleOrderRecord }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
+    invoices:    () => request<{ data: WholesaleInvoice[] }>('/wholesale/invoices'),
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
-    pricingContext: () => request<{ data: any }>('/wholesale/pricing-context'),
+    pricingContext: () => request<{ data: WholesalePricingContext }>('/wholesale/pricing-context'),
     // Cards on file
-    cards:       () => request<{ data: any[] }>('/wholesale/cards'),
+    cards:       () => request<{ data: WholesaleCard[] }>('/wholesale/cards'),
     addCard:     (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault?: boolean }) =>
-      request<{ data: any }>('/wholesale/cards', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: WholesaleCard }>('/wholesale/cards', { method: 'POST', body: JSON.stringify(data) }),
     updateCard:  (id: string, data: { nameOnCard?: string; cardBrand?: string; last4?: string; expiry?: string; isDefault?: boolean }) =>
-      request<{ data: any }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      request<{ data: WholesaleCard }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCard:  (id: string) => request<{ success: boolean }>(`/wholesale/cards/${id}`, { method: 'DELETE' }),
     updateAccountsEmail: (accountsEmail: string | null) =>
-      request<{ data: any }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
+      request<{ data: WholesaleAccount }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
   },
   addresses: {
     list: () => request<{ data: SavedAddress[] }>('/addresses'),
@@ -236,14 +236,14 @@ export const api = {
       request<{ success: boolean }>(`/addresses/${id}`, { method: 'DELETE' }),
   },
   stores: {
-    list: () => request<{ data: any[] }>('/stores'),
-    get:  (id: string) => request<{ data: any }>(`/stores/${id}`),
+    list: () => request<{ data: StoreSummary[] }>('/stores'),
+    get:  (id: string) => request<{ data: StoreDetail }>(`/stores/${id}`),
   },
   misc: {
     storeStatus: () => request<{ data: { isOpen: boolean; openUntil: string | null; opensAt: string | null; manualOverride: boolean } }>('/store-status'),
-    announcements: () => request<{ data: any[] }>('/announcements'),
+    announcements: () => request<{ data: DirectorAnnouncement[] }>('/announcements'),
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
-      request<{ data: any }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: DirectorFeedback }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
     homeBanner: () => request<{ data: HomeBannerConfig | null }>('/home-banner'),
     context: () => request<{ data: LiveContext }>('/context'),
   },
@@ -271,82 +271,82 @@ export const api = {
       request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; amountCents: number; discountAmountCents?: number; rewardDiscountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
-    stats:               () => request<{ data: any }>('/director/stats'),
-    activity:            () => request<{ data: any[] }>('/director/activity'),
+    stats:               () => request<{ data: DirectorStats }>('/director/stats'),
+    activity:            () => request<{ data: DirectorActivityItem[] }>('/director/activity'),
     sessions:            () => request<{ data: { today: {hour:number;count:number}[]; lastWeek: {hour:number;count:number}[]; totalToday: number; totalLastWeek: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),
     revenue:             (from: string, to: string) => request<{ data: { total: number; from: string; to: string } }>(`/director/stats/revenue?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-    deletedAccounts:     () => request<{ data: any[] }>('/director/deleted-accounts'),
-    restoreAccount:      (id: string) => request<{ success: boolean; data: any }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
-    orders:              () => request<{ data: any[] }>('/director/orders'),
-    updateOrderStatus:   (id: string, status: string) => request<{ data: any }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-    users:               () => request<{ data: any[] }>('/director/users'),
-    staffMember:         (userId: string) => request<{ data: any }>(`/director/staff/${userId}`),
+    deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),
+    restoreAccount:      (id: string) => request<{ success: boolean; data: DeletedAccount }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
+    orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
+    updateOrderStatus:   (id: string, status: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
+    staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>('/director/staff/${userId}'),
     updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
-      request<{ data: any }>(`/director/staff/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    staffClockIn:        (userId: string) => request<{ data: any }>(`/director/staff/${userId}/clock-in`, { method: 'POST' }),
-    staffClockOut:       (userId: string) => request<{ data: any }>(`/director/staff/${userId}/clock-out`, { method: 'POST' }),
-    staffLeave:          (userId: string) => request<{ data: any[] }>(`/director/staff/${userId}/leave`),
-    approveLeave:        (leaveId: string, approved: boolean, note?: string) => request<{ data: any }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved, note }) }),
-    approveStaff:        (userId: string, approved: boolean) => request<{ data: any }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
-    promoteToDirector:   (userId: string) => request<{ data: any }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
+      request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    staffClockIn:        (userId: string) => request<{ data: StaffShift }>(`/director/staff/${userId}/clock-in`, { method: 'POST' }),
+    staffClockOut:       (userId: string) => request<{ data: StaffShift }>(`/director/staff/${userId}/clock-out`, { method: 'POST' }),
+    staffLeave:          (userId: string) => request<{ data: StaffLeaveRequest[] }>(`/director/staff/${userId}/leave`),
+    approveLeave:        (leaveId: string, approved: boolean, note?: string) => request<{ data: StaffLeaveRequest }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved, note }) }),
+    approveStaff:        (userId: string, approved: boolean) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
+    promoteToDirector:   (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
     setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
-      request<{ data: any }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),
+      request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),
     // Product catalog management
-    categories:       ()                      => request<{ data: any[] }>('/director/categories'),
-    createCategory:   (d: any)                => request<{ data: any }>('/director/categories', { method: 'POST', body: JSON.stringify(d) }),
-    updateCategory:   (id: string, d: any)    => request<{ data: any }>(`/director/categories/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    categories:       ()                      => request<{ data: DirectorCategory[] }>('/director/categories'),
+    createCategory:   (d: DirectorCategoryInput)                => request<{ data: DirectorCategory }>('/director/categories', { method: 'POST', body: JSON.stringify(d) }),
+    updateCategory:   (id: string, d: DirectorCategoryInput)    => request<{ data: DirectorCategory }>(`/director/categories/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
     deleteCategory:   (id: string)            => request<{ success: boolean }>(`/director/categories/${id}`, { method: 'DELETE' }),
-    optionGroups:     ()                      => request<{ data: any[] }>('/director/option-groups'),
-    createOptionGroup:(d: any)                => request<{ data: any }>('/director/option-groups', { method: 'POST', body: JSON.stringify(d) }),
-    updateOptionGroup:(id: string, d: any)    => request<{ data: any }>(`/director/option-groups/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    optionGroups:     ()                      => request<{ data: DirectorOptionGroup[] }>('/director/option-groups'),
+    createOptionGroup:(d: DirectorOptionGroupInput)                => request<{ data: DirectorOptionGroup }>('/director/option-groups', { method: 'POST', body: JSON.stringify(d) }),
+    updateOptionGroup:(id: string, d: DirectorOptionGroupInput)    => request<{ data: DirectorOptionGroup }>(`/director/option-groups/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
     deleteOptionGroup:(id: string)            => request<{ success: boolean }>(`/director/option-groups/${id}`, { method: 'DELETE' }),
-    createOption:     (groupId: string, d: any) => request<{ data: any }>(`/director/option-groups/${groupId}/options`, { method: 'POST', body: JSON.stringify(d) }),
-    updateOption:     (groupId: string, id: string, d: any) => request<{ data: any }>(`/director/option-groups/${groupId}/options/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    createOption:     (groupId: string, d: DirectorOptionInput) => request<{ data: DirectorOption }>(`/director/option-groups/${groupId}/options`, { method: 'POST', body: JSON.stringify(d) }),
+    updateOption:     (groupId: string, id: string, d: DirectorOptionInput) => request<{ data: DirectorOption }>(`/director/option-groups/${groupId}/options/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
     deleteOption:     (groupId: string, id: string) => request<{ success: boolean }>(`/director/option-groups/${groupId}/options/${id}`, { method: 'DELETE' }),
-    productVariants:  (productId: string)     => request<{ data: any[] }>(`/director/products/${productId}/variants`),
-    createVariant:    (productId: string, d: any) => request<{ data: any }>(`/director/products/${productId}/variants`, { method: 'POST', body: JSON.stringify(d) }),
-    updateVariant:    (productId: string, id: string, d: any) => request<{ data: any }>(`/director/products/${productId}/variants/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
+    productVariants:  (productId: string)     => request<{ data: DirectorProductVariant[] }>(`/director/products/${productId}/variants`),
+    createVariant:    (productId: string, d: DirectorProductVariantInput) => request<{ data: DirectorProductVariant }>(`/director/products/${productId}/variants`, { method: 'POST', body: JSON.stringify(d) }),
+    updateVariant:    (productId: string, id: string, d: DirectorProductVariantInput) => request<{ data: DirectorProductVariant }>(`/director/products/${productId}/variants/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),
     deleteVariant:    (productId: string, id: string) => request<{ success: boolean }>(`/director/products/${productId}/variants/${id}`, { method: 'DELETE' }),
     // Store management
-    storesList:      () => request<{ data: any[] }>('/director/stores'),
-    storeDetail:     (id: string) => request<{ data: any }>(`/director/stores/${id}`),
-    createStore:     (data: any) => request<{ data: any }>('/director/stores', { method: 'POST', body: JSON.stringify(data) }),
-    updateStore:     (id: string, data: any) => request<{ data: any }>(`/director/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    storesList:      () => request<{ data: StoreSummary[] }>('/director/stores'),
+    storeDetail:     (id: string) => request<{ data: StoreDetail }>(`/director/stores/${id}`),
+    createStore:     (data: StoreInput) => request<{ data: StoreDetail }>('/director/stores', { method: 'POST', body: JSON.stringify(data) }),
+    updateStore:     (id: string, data: StoreInput) => request<{ data: StoreDetail }>(`/director/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteStore:     (id: string) => request<{ success: boolean }>(`/director/stores/${id}`, { method: 'DELETE' }),
-    storeHours:      (id: string) => request<{ data: any[] }>(`/director/stores/${id}/hours`),
-    setStoreHours:   (id: string, hours: any[]) => request<{ data: any[] }>(`/director/stores/${id}/hours`, { method: 'PUT', body: JSON.stringify({ hours }) }),
+    storeHours:      (id: string) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`),
+    setStoreHours:   (id: string, hours: StoreHour[] ) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`, { method: 'PUT', body: JSON.stringify({ hours }) }),
     // Staff-store assignments
-    staffAssignments:(userId: string) => request<{ data: any[] }>(`/director/staff/${userId}/store-assignments`),
+    staffAssignments:(userId: string) => request<{ data: StaffStoreAssignment[] }>(`/director/staff/${userId}/store-assignments`),
     createAssignment:(data: { staffId: string; storeId: string; isPrimary?: boolean }) =>
-      request<{ data: any }>('/director/store-assignments', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: StaffStoreAssignment }>('/director/store-assignments', { method: 'POST', body: JSON.stringify(data) }),
     updateAssignment:(id: string, data: { isPrimary?: boolean; isActive?: boolean }) =>
-      request<{ data: any }>(`/director/store-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      request<{ data: StaffStoreAssignment }>(`/director/store-assignments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAssignment:(id: string) => request<{ success: boolean }>(`/director/store-assignments/${id}`, { method: 'DELETE' }),
     // Clock override
     clockOverride:   (data: { userId: string; action: 'clock-in' | 'clock-out'; storeId?: string; reason: string; latitude?: number; longitude?: number }) =>
-      request<{ data: any }>('/director/clock-override', { method: 'POST', body: JSON.stringify(data) }),
-    clockEvents:     () => request<{ data: any[] }>('/director/clock-events'),
+      request<{ data: StaffShift }>('/director/clock-override', { method: 'POST', body: JSON.stringify(data) }),
+    clockEvents:     () => request<{ data: StaffShift[] }>('/director/clock-events'),
     deleteUser:          (userId: string) => request<{ success: boolean }>(`/director/users/${userId}`, { method: 'DELETE' }),
-    setWholesaleStatus:  (accountId: string, status: string) => request<{ data: any }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-    products:            () => request<{ data: any[] }>('/director/products'),
-    createProduct:       (data: any) => request<{ data: any }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
-    updateProduct:       (id: string, updates: any) => request<{ data: any }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+    setWholesaleStatus:  (accountId: string, status: string) => request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    products:            () => request<{ data: DirectorCatalogProduct[] }>('/director/products'),
+    createProduct:       (data: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
+    updateProduct:       (id: string, updates: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
-    printerBytes:        (job?: any) =>
+    printerBytes:        (job?: PrinterJob) =>
       request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
     updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
-    wholesale:           () => request<{ data: any[] }>('/director/wholesale'),
+    wholesale:           () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
-      request<{ data: any }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: DirectorStaffMember }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     generateStaffInvite: (data: { note?: string; expiryDays?: number }) =>
-      request<{ data: any }>('/director/staff-invites', { method: 'POST', body: JSON.stringify(data) }),
-    listStaffInvites:    () => request<{ data: any[] }>('/director/staff-invites'),
+      request<{ data: StaffInviteToken }>('/director/staff-invites', { method: 'POST', body: JSON.stringify(data) }),
+    listStaffInvites:    () => request<{ data: StaffInviteToken[] }>('/director/staff-invites'),
     revokeStaffInvite:   (id: string) => request<{ success: boolean }>(`/director/staff-invites/${id}`, { method: 'DELETE' }),
     createWholesale:     (data: { name: string; email: string; password: string; companyName: string; abn?: string; phone?: string }) =>
-      request<{ data: any }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: WholesaleAccount }>('/director/create-wholesale', { method: 'POST', body: JSON.stringify(data) }),
     shopDisplays:        () => request<{ data: ShopDisplayUser[] }>('/director/shop-displays'),
     createShopDisplay:   (data: { name: string; email: string; password: string; phone?: string }) =>
       request<{ data: ShopDisplayUser }>('/director/shop-displays', { method: 'POST', body: JSON.stringify(data) }),
@@ -357,11 +357,11 @@ export const api = {
     deleteShopDisplay:   (id: string) => request<{ success: boolean }>(`/director/shop-displays/${id}`, { method: 'DELETE' }),
 
     // Pricing tiers
-    tiers:               () => request<{ data: any[] }>('/director/tiers'),
-    tier:                (id: string) => request<{ data: any }>(`/director/tiers/${id}`),
-    createTier:          (data: any) => request<{ data: any }>('/director/tiers', { method: 'POST', body: JSON.stringify(data) }),
-    updateTier:          (id: string, data: any) => request<{ data: any }>(`/director/tiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    archiveTier:         (id: string) => request<{ success: boolean; data: any }>(`/director/tiers/${id}`, { method: 'DELETE' }),
+    tiers:               () => request<{ data: PricingTier[] }>('/director/tiers'),
+    tier:                (id: string) => request<{ data: PricingTier }>(`/director/tiers/${id}`),
+    createTier:          (data: PricingTierInput) => request<{ data: PricingTier }>('/director/tiers', { method: 'POST', body: JSON.stringify(data) }),
+    updateTier:          (id: string, data: PricingTierInput) => request<{ data: PricingTier }>(`/director/tiers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    archiveTier:         (id: string) => request<{ success: boolean; data: PricingTier }>(`/director/tiers/${id}`, { method: 'DELETE' }),
     deleteTier:          (id: string, force?: boolean) =>
       request<{ success: boolean; assignedCount?: number; unassignedCount?: number }>(
         `/director/tiers/${id}`, { method: 'DELETE', body: force ? JSON.stringify({ force: true }) : undefined },
@@ -369,24 +369,29 @@ export const api = {
 
     // Quantity price breaks
     qtyBreaks:           (params?: { productId?: string; tierId?: string; customerId?: string }) => {
-      const q = new URLSearchParams(params as any).toString();
-      return request<{ data: any[] }>(`/director/quantity-breaks${q ? `?${q}` : ''}`);
+      const q = new URLSearchParams(
+        Object.entries(params ?? {}).reduce<Record<string, string>>((acc, [key, value]) => {
+          if (value) acc[key] = value;
+          return acc;
+        }, {}),
+      ).toString();
+      return request<{ data: QuantityPriceBreak[] }>(`/director/quantity-breaks${q ? `?${q}` : ''}`);
     },
-    createQtyBreak:      (data: any) => request<{ data: any }>('/director/quantity-breaks', { method: 'POST', body: JSON.stringify(data) }),
-    updateQtyBreak:      (id: string, data: any) => request<{ data: any }>(`/director/quantity-breaks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    createQtyBreak:      (data: QuantityPriceBreakInput) => request<{ data: QuantityPriceBreak }>('/director/quantity-breaks', { method: 'POST', body: JSON.stringify(data) }),
+    updateQtyBreak:      (id: string, data: QuantityPriceBreakInput) => request<{ data: QuantityPriceBreak }>(`/director/quantity-breaks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteQtyBreak:      (id: string) => request<{ success: boolean }>(`/director/quantity-breaks/${id}`, { method: 'DELETE' }),
 
     // Customer custom pricing
-    customerPricing:     (customerId?: string) => request<{ data: any[] }>(`/director/customer-pricing${customerId ? `?customerId=${customerId}` : ''}`),
-    createCustomerPricing:(data: any) => request<{ data: any }>('/director/customer-pricing', { method: 'POST', body: JSON.stringify(data) }),
-    updateCustomerPricing:(id: string, data: any) => request<{ data: any }>(`/director/customer-pricing/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    customerPricing:     (customerId?: string) => request<{ data: CustomerPricingRule[] }>(`/director/customer-pricing${customerId ? `?customerId=${customerId}` : ''}`),
+    createCustomerPricing:(data: CustomerPricingRuleInput) => request<{ data: CustomerPricingRule }>('/director/customer-pricing', { method: 'POST', body: JSON.stringify(data) }),
+    updateCustomerPricing:(id: string, data: CustomerPricingRuleInput) => request<{ data: CustomerPricingRule }>(`/director/customer-pricing/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCustomerPricing:(id: string) => request<{ success: boolean }>(`/director/customer-pricing/${id}`, { method: 'DELETE' }),
 
     // Wholesale account ops
     assignTier:          (accountId: string, data: { tierId?: string | null; customPricingEnabled?: boolean }) =>
-      request<{ data: any }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
+      request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}/tier`, { method: 'PATCH', body: JSON.stringify(data) }),
     suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
-      request<{ data: any }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
+      request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateWholesale:     (accountId: string, data: {
       creditEnabled?: boolean;
       creditLimitCents?: number;
@@ -400,12 +405,12 @@ export const api = {
       accountManagerEmail?: string | null;
       accountsEmail?: string | null;
     }) =>
-      request<{ data: any }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    wholesaleCards:      (accountId: string) => request<{ data: any[] }>(`/director/wholesale/${accountId}/cards`),
+      request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    wholesaleCards:      (accountId: string) => request<{ data: WholesaleCard[] }>(`/director/wholesale/${accountId}/cards`),
 
     // Product wholesale access
-    setProductWholesaleAccess: (id: string, data: any) =>
-      request<{ data: any }>(`/director/products/${id}/wholesale-access`, { method: 'PATCH', body: JSON.stringify(data) }),
+    setProductWholesaleAccess: (id: string, data: ProductWholesaleAccessInput) =>
+      request<{ data: DirectorCatalogProduct }>(`/director/products/${id}/wholesale-access`, { method: 'PATCH', body: JSON.stringify(data) }),
 
     // Rewards CRUD
     rewards:             () => request<{ data: DirectorReward[] }>('/director/rewards'),
@@ -421,9 +426,9 @@ export const api = {
     deleteAnnouncement:  (id: string) => request<{ success: boolean }>(`/director/announcements/${id}`, { method: 'DELETE' }),
 
     // Discount codes
-    discountCodes:       () => request<{ data: any[] }>('/director/discount-codes'),
-    createDiscountCode:  (data: any) => request<{ data: any }>('/director/discount-codes', { method: 'POST', body: JSON.stringify(data) }),
-    updateDiscountCode:  (id: string, data: any) => request<{ data: any }>(`/director/discount-codes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    discountCodes:       () => request<{ data: DiscountCodeRecord[] }>('/director/discount-codes'),
+    createDiscountCode:  (data: DiscountCodeInput) => request<{ data: DiscountCodeRecord }>('/director/discount-codes', { method: 'POST', body: JSON.stringify(data) }),
+    updateDiscountCode:  (id: string, data: DiscountCodeInput) => request<{ data: DiscountCodeRecord }>(`/director/discount-codes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteDiscountCode:  (id: string) => request<{ success: boolean }>(`/director/discount-codes/${id}`, { method: 'DELETE' }),
 
     // Reports
@@ -439,24 +444,24 @@ export const api = {
     markFeedbackRead:    (id: string) => request<{ data: DirectorFeedback }>(`/director/feedback/${id}/read`, { method: 'PATCH' }),
 
     // Staff hub
-    allWastage:          () => request<{ data: any[] }>('/director/wastage'),
-    deleteWastage:       (id: string) => request<{ data: any }>(`/director/wastage/${id}`, { method: 'DELETE' }),
-    allIssues:           () => request<{ data: any[] }>('/director/issues'),
-    resolveIssue:        (id: string, status: string) => request<{ data: any }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-    tasks:               () => request<{ data: any[] }>('/director/tasks'),
+    allWastage:          () => request<{ data: StaffWastageEntry[] }>('/director/wastage'),
+    deleteWastage:       (id: string) => request<{ data: StaffWastageEntry }>(`/director/wastage/${id}`, { method: 'DELETE' }),
+    allIssues:           () => request<{ data: StaffIssue[] }>('/director/issues'),
+    resolveIssue:        (id: string, status: string) => request<{ data: StaffIssue }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    tasks:               () => request<{ data: StaffTask[] }>('/director/tasks'),
     staffList:           () => request<{ data: { id: string; name: string; role: string }[] }>('/director/staff-list'),
     createTask:          (data: { title: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
-      request<{ data: any }>('/director/tasks', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: StaffTask }>('/director/tasks', { method: 'POST', body: JSON.stringify(data) }),
     updateTask:          (id: string, data: { title?: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
-      request<{ data: any }>(`/director/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      request<{ data: StaffTask }>(`/director/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     reorderTasks:        (taskIds: string[]) => request<{ success: boolean }>('/director/tasks/reorder', { method: 'POST', body: JSON.stringify({ taskIds }) }),
     deleteTask:          (id: string) => request<{ success: boolean }>(`/director/tasks/${id}`, { method: 'DELETE' }),
-    allLeave:            () => request<{ data: any[] }>('/director/leave'),
-    deleteLeave:         (id: string) => request<{ data: any }>(`/director/leave/${id}`, { method: 'DELETE' }),
+    allLeave:            () => request<{ data: StaffLeaveRequest[] }>('/director/leave'),
+    deleteLeave:         (id: string) => request<{ data: StaffLeaveRequest }>(`/director/leave/${id}`, { method: 'DELETE' }),
 
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
-      request<{ data: any }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
+      request<{ data: WholesalePricePreview }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
 
     // CRM — Customer profiles
     customers: {
@@ -469,39 +474,39 @@ export const api = {
       insights:     () => request<{ data: CrmInsights }>('/director/customers/insights'),
       get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
       update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null; payAtPickupEnabled?: boolean }) =>
-        request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+        request<{ data: CrmCustomer }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
       promote:          (id: string, role: 'staff' | 'manager' | 'director') =>
-        request<{ data: any }>(`/director/customers/${id}/promote`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+        request<{ data: CrmCustomer }>(`/director/customers/${id}/promote`, { method: 'PATCH', body: JSON.stringify({ role }) }),
       updateStatus:     (id: string, status: 'active' | 'inactive' | 'suspended') =>
-        request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+        request<{ data: CrmCustomer }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
       updateMarketing:  (id: string, emailMarketingOptIn: boolean) =>
-        request<{ data: any }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ emailMarketingOptIn }) }),
+        request<{ data: CrmCustomer }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ emailMarketingOptIn }) }),
       addNote:      (id: string, content: string) =>
         request<{ data: CrmNote }>(`/director/customers/${id}/notes`, { method: 'POST', body: JSON.stringify({ content }) }),
       deleteNote:   (id: string, noteId: string) =>
         request<{ ok: boolean }>(`/director/customers/${id}/notes/${noteId}`, { method: 'DELETE' }),
       addBadge:     (id: string, badge: string, note?: string) =>
-        request<{ data: any }>(`/director/customers/${id}/badges`, { method: 'POST', body: JSON.stringify({ badge, note }) }),
+        request<{ data: CrmBadge }>(`/director/customers/${id}/badges`, { method: 'POST', body: JSON.stringify({ badge, note }) }),
       deleteBadge:  (id: string, badgeId: string) =>
         request<{ ok: boolean }>(`/director/customers/${id}/badges/${badgeId}`, { method: 'DELETE' }),
     },
 
     // Manager management (director/master)
     managers: {
-      list:              () => request<{ data: any[] }>('/director/managers'),
+      list:              () => request<{ data: DirectorManager[] }>('/director/managers'),
       create:            (data: { name: string; email: string; password: string; permissions?: string[]; notes?: string }) =>
-        request<{ data: any }>('/director/managers', { method: 'POST', body: JSON.stringify(data) }),
+        request<{ data: DirectorManager }>('/director/managers', { method: 'POST', body: JSON.stringify(data) }),
       updatePermissions: (id: string, data: { permissions: string[]; notes?: string }) =>
-        request<{ data: any }>(`/director/managers/${id}/permissions`, { method: 'PATCH', body: JSON.stringify(data) }),
+        request<{ data: DirectorManager }>(`/director/managers/${id}/permissions`, { method: 'PATCH', body: JSON.stringify(data) }),
       delete:            (id: string) =>
         request<{ success: boolean }>(`/director/managers/${id}`, { method: 'DELETE' }),
     },
 
     // Director management (master only)
     directors: {
-      list:   () => request<{ data: any[] }>('/director/directors'),
+      list:   () => request<{ data: DirectorIdentity[] }>('/director/directors'),
       create: (data: { name: string; email: string; password: string }) =>
-        request<{ data: any }>('/director/directors', { method: 'POST', body: JSON.stringify(data) }),
+        request<{ data: DirectorIdentity }>(`/director/directors`, { method: 'POST', body: JSON.stringify(data) }),
       delete: (id: string) =>
         request<{ success: boolean }>(`/director/directors/${id}`, { method: 'DELETE' }),
     },
@@ -515,7 +520,7 @@ export const api = {
   // Storage — image upload helpers
   storage: {
     requestUploadUrl: (data: { name: string; size: number; contentType: string }) =>
-      request<{ uploadURL: string; objectPath: string; metadata: any }>('/storage/uploads/request-url', {
+      request<{ uploadURL: string; objectPath: string; metadata: Record<string, unknown> }>('/storage/uploads/request-url', {
         method: 'POST', body: JSON.stringify(data),
       }),
     uploadFile: async (fileUri: string, filename: string, contentType: string): Promise<{ objectPath: string; servingUrl: string }> => {
@@ -580,19 +585,11 @@ export const api = {
 
   stock: {
     categories:       () => request<{ data: { id: string; label: string }[] }>('/stock/categories'),
-    createCategory:   (name: string) => request<{ data: { id: string; label: string } }>('/stock/categories', { method: 'POST', body: JSON.stringify({ name }) }),
+    createCategory:   (name: string) => request<{ data: StockCategory }>('/stock/categories', { method: 'POST', body: JSON.stringify({ name }) }),
     deleteCategory:   (id: string) => request<{ data: { success: boolean } }>(`/stock/categories/${id}`, { method: 'DELETE' }),
     items:            () => request<{ data: StockItem[] }>('/stock/items'),
-    create:           (data: {
-      name: string; category: string; unit?: string;
-      currentQuantity?: number; lowStockThreshold?: number;
-      costCents?: number; supplier?: string; notes?: string;
-    }) => request<{ data: StockItem }>('/stock/items', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: {
-      name?: string; category?: string; unit?: string;
-      currentQuantity?: number; lowStockThreshold?: number;
-      costCents?: number | null; supplier?: string | null; notes?: string | null;
-    }) => request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    create:           (data: StockItemInput) => request<{ data: StockItem }>('/stock/items', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<StockItemInput>) => request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateQuantity: (id: string, currentQuantity: number) =>
       request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify({ currentQuantity }) }),
     delete: (id: string) => request<{ data: { success: boolean } }>(`/stock/items/${id}`, { method: 'DELETE' }),
@@ -653,7 +650,7 @@ export interface ApiOrder {
   scheduledFor?: string;
   notes?: string;
   totalCents: number;
-  items: any[];
+  items: ApiOrderItem[];
   createdAt: string;
   updatedAt: string;
   stripePaymentIntentId?: string;
@@ -797,6 +794,8 @@ export interface StaffProfile {
 export interface StaffShift {
   id: string;
   userId: string;
+  storeId?: string | null;
+  storeName?: string | null;
   clockIn: string;
   clockOut?: string | null;
   hoursWorked?: string | null;
@@ -844,8 +843,8 @@ export interface StaffMember {
 export interface DirectorProduct {
   id: string;
   name: string;
-  priceCents: number;
-  isActive: boolean;
+  priceCents?: number | null;
+  isActive?: boolean;
   category?: string | null;
 }
 
@@ -907,7 +906,7 @@ export interface DirectorReports {
   byStatus:{ status: string; count: number }[];
   dailyRevenue: { day: string; totalCents: number; count: number }[];
   topSellingItems: { name: string; quantity: number }[];
-  recentOrders: any[];
+  recentOrders: ApiOrder[];
   feedback:  DirectorFeedback[];
   unreadFeedback: number;
   customers: { total: number; newWeek: number };
@@ -945,7 +944,7 @@ export interface CrmCustomer {
     id: string;
     companyName: string;
     status: string;
-    pricingTier: string;
+    pricingTier?: string | null;
   } | null;
   badges: string[];
   manualBadges: CrmBadge[];
@@ -993,7 +992,7 @@ export interface CrmCustomerDetail extends CrmCustomer {
     topProducts: { name: string; qty: number }[];
   };
   notes: CrmNote[];
-  wholesaleAccount: any | null;
+  wholesaleAccount: WholesaleAccount | null;
 }
 
 export interface DirectorShift {
@@ -1022,4 +1021,664 @@ export interface DirectorFeedback {
   orderId?: string | null;
   isRead: boolean;
   createdAt: string;
+}
+
+export interface AuthProfile {
+  id?: string;
+  userId?: string;
+  phone?: string | null;
+  birthday?: string | null;
+  deliveryAddress?: string | null;
+  profileImage?: string | null;
+  notificationPreferences?: Record<string, boolean> | null;
+  loyaltyPoints?: number;
+  loyaltyTier?: string;
+  stampCount?: number;
+  totalVisits?: number;
+  referralCode?: string;
+  emailMarketingOptIn?: boolean;
+  payAtPickupEnabled?: boolean;
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  showPublic?: boolean;
+  showWholesale?: boolean;
+}
+
+export interface ApiOrderItemOption {
+  groupId?: string;
+  optionId?: string;
+  priceAdjustmentCents?: number;
+  groupName?: string;
+  optionName?: string;
+  textValue?: string | null;
+}
+
+export interface ApiOrderItem {
+  productId: string;
+  variantId?: string | null;
+  quantity: number;
+  selectedOptions?: ApiOrderItemOption[];
+  productName?: string;
+  category?: string | null;
+  metadata?: Record<string, string | null | undefined> | null;
+  variantName?: string | null;
+  unitPriceCents?: number;
+  totalPriceCents?: number;
+  imageUrl?: string | null;
+}
+
+export interface StaffShiftStats {
+  currentWeekHours: number;
+  previousWeekHours: number;
+  pendingApprovalHours?: number;
+  totalWagesCents?: number;
+  hourlyRateCents?: number;
+  todayMins?: number;
+  todayEarningsCents?: number;
+  weekMins?: number;
+  weekEarningsCents?: number;
+}
+
+export interface StaffStoreAssignment {
+  id: string;
+  staffId: string;
+  storeId: string;
+  isPrimary: boolean;
+  isActive?: boolean;
+  storeName?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StaffTask {
+  id: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  cadence?: 'daily' | 'weekly' | 'one_off' | null;
+  isRecurring?: boolean;
+  assignedToUserId?: string | null;
+  assignedToName?: string | null;
+  isCompleted: boolean;
+  completedAt?: string | null;
+  completedByUserId?: string | null;
+  completedByName?: string | null;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StaffWastageEntry {
+  id: string;
+  itemName: string;
+  quantity: number;
+  unit?: string | null;
+  reason?: string | null;
+  notes?: string | null;
+  estimatedCostCents?: number | null;
+  createdAt: string;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
+}
+
+export interface StaffWastageInput {
+  itemName?: string;
+  productName?: string;
+  quantity: number | string;
+  unit?: string;
+  reason?: string;
+  notes?: string | null;
+  estimatedCostCents?: number | null;
+}
+
+export interface StaffIssue {
+  id: string;
+  category?: string | null;
+  title?: string | null;
+  description: string;
+  status: string;
+  priority?: string | null;
+  createdAt: string;
+  createdByUserId?: string | null;
+  createdByName?: string | null;
+}
+
+export interface StaffIssueInput {
+  category?: string;
+  title?: string;
+  description: string;
+  priority?: string;
+}
+
+export interface StaffLeaveRequest {
+  id: string;
+  userId?: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  reason?: string | null;
+  status: string;
+  note?: string | null;
+  createdAt: string;
+  reviewedAt?: string | null;
+  reviewedByName?: string | null;
+}
+
+export interface StaffLeaveInput {
+  leaveType?: string;
+  type?: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
+export interface ShopDisplayMe {
+  id: string;
+  name: string;
+  email: string;
+  role: 'shop_display';
+  permissions?: string[];
+}
+
+export interface ShopDisplayOrder extends ApiOrder {
+  orderNumber?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  pickupTime?: string | null;
+  paymentStatus?: string | null;
+}
+
+export interface WholesaleProfile {
+  userId?: string;
+  companyName?: string;
+  abn?: string | null;
+  phone?: string | null;
+  deliveryAddress?: string | null;
+  pricingTier?: string | null;
+  paymentTerms?: string | null;
+}
+
+export interface WholesaleAccount {
+  id: string;
+  userId?: string;
+  companyName: string;
+  abn?: string | null;
+  status: string;
+  phone?: string | null;
+  deliveryAddress?: string | null;
+  pricingTier?: string | null;
+  tierId?: string | null;
+  tier?: PricingTier | null;
+  creditEnabled?: boolean;
+  creditLimitCents?: number | null;
+  currentBalanceCents?: number | null;
+  creditNotes?: string | null;
+  paymentTerms?: string | null;
+  deliveryFeeCents?: number | null;
+  minimumOrderCents?: number | null;
+  minOrderCents?: number | null;
+  accountManagerName?: string | null;
+  accountManagerPhone?: string | null;
+  accountManagerEmail?: string | null;
+  accountManager?: string | null;
+  accountsEmail?: string | null;
+  contactName?: string | null;
+  howDidYouHear?: string | null;
+  suburb?: string | null;
+  state?: string | null;
+  postcode?: string | null;
+  isSuspended?: boolean;
+  suspendedReason?: string | null;
+  customPricingEnabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface WholesaleOrderRecord {
+  id: string;
+  orderNumber?: string | null;
+  status: string;
+  items: ApiOrderItem[];
+  totalCents: number;
+  createdAt: string;
+  updatedAt: string;
+  poReference?: string | null;
+  notes?: string | null;
+  deliveryType?: string | null;
+  scheduledDate?: string | null;
+  deliveryAddress?: string | null;
+  invoiceNumber?: string | null;
+  invoiceStatus?: string | null;
+}
+
+export interface WholesaleInvoice {
+  id: string;
+  invoiceNumber?: string | null;
+  status: string;
+  amountCents: number;
+  dueDate?: string | null;
+  issuedAt?: string | null;
+  paidAt?: string | null;
+  orderId?: string | null;
+  pdfUrl?: string | null;
+}
+
+export interface WholesalePricingContext {
+  account: WholesaleAccount | null;
+  tier: PricingTier | null;
+  quantityBreaks: QuantityPriceBreak[];
+  customPricing: CustomerPricingRule[];
+}
+
+export interface WholesaleCard {
+  id: string;
+  nameOnCard: string;
+  cardBrand: string;
+  last4: string;
+  expiry: string;
+  isDefault?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StoreSummary {
+  id: string;
+  name: string;
+  suburb?: string | null;
+  state?: string | null;
+  isActive?: boolean;
+}
+
+export interface StoreDetail extends StoreSummary {
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  postcode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusMeters?: number | null;
+}
+
+export interface StoreInput {
+  name: string;
+  suburb?: string | null;
+  state?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  postcode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  radiusMeters?: number | null;
+  isActive?: boolean;
+}
+
+export interface StoreHour {
+  id?: string;
+  storeId?: string;
+  dayOfWeek: number;
+  openTime?: string | null;
+  closeTime?: string | null;
+  isClosed?: boolean;
+}
+
+export interface DirectorStats {
+  revenue: { today: number; week: number; month: number };
+  orders: {
+    today: number;
+    active: number;
+    wholesaleNew: number;
+  };
+  users: {
+    pendingStaff: number;
+    pendingWholesale: number;
+  };
+  staff: {
+    clockedIn: number;
+    pendingLeave: number;
+    weekWagesOwedCents: number;
+  };
+  tasks: {
+    open: number;
+  };
+  products: {
+    soldOut: number;
+    lowStock: number;
+  };
+  issues: {
+    open: number;
+    high: number;
+  };
+  wastage: {
+    countToday: number;
+    countWeek: number;
+    costToday: number;
+    costWeek: number;
+  };
+  customers: {
+    total?: number;
+    birthdayToday: number;
+    unreadFeedback: number;
+  };
+}
+
+export interface DirectorActivityItem {
+  id: string;
+  type: string;
+  title: string;
+  description?: string | null;
+  createdAt: string;
+}
+
+export interface DeletedAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  deletedAt: string;
+}
+
+export interface DirectorUserSummary {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone?: string | null;
+  status?: string | null;
+  wholesaleAccount?: WholesaleAccount | null;
+}
+
+export interface DirectorStaffMember extends DirectorUserSummary {
+  employeeId?: string | null;
+  address?: string | null;
+  taxFileNumber?: string | null;
+  position?: string | null;
+  department?: string | null;
+  hourlyRateCents?: number | null;
+  employmentStatus?: string | null;
+  approvedByAdmin?: boolean;
+  canViewOrders?: boolean;
+  createdAt?: string;
+  staffProfile?: {
+    employeeId?: string | null;
+    address?: string | null;
+    taxFileNumber?: string | null;
+    position?: string | null;
+    department?: string | null;
+    employmentStatus?: string | null;
+    hourlyRateCents?: number | null;
+    canViewOrders?: boolean;
+  } | null;
+  recentShifts?: StaffShift[];
+}
+
+export interface DirectorCategory extends ProductCategory {
+  productCount?: number;
+  isPickupAvailable?: boolean;
+  isDeliveryAvailable?: boolean;
+  showOnHome?: boolean;
+  homeOrder?: number;
+}
+
+export interface DirectorCategoryInput {
+  name?: string;
+  slug?: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  showPublic?: boolean;
+  showWholesale?: boolean;
+  isPickupAvailable?: boolean;
+  isDeliveryAvailable?: boolean;
+  showOnHome?: boolean;
+  homeOrder?: number;
+}
+
+export interface DirectorOption {
+  id: string;
+  groupId: string;
+  name: string;
+  priceAdjustmentCents: number;
+  sortOrder?: number;
+  isActive?: boolean;
+  isDefault?: boolean;
+}
+
+export interface DirectorOptionInput {
+  name: string;
+  priceAdjustmentCents?: number;
+  sortOrder?: number;
+  isActive?: boolean;
+  isDefault?: boolean;
+}
+
+export interface DirectorOptionGroup {
+  id: string;
+  name: string;
+  description?: string | null;
+  selectionType?: 'single' | 'multiple' | 'multi' | 'text';
+  isRequired?: boolean;
+  minSelections?: number;
+  maxSelections?: number | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  appliesToCategoryIds?: string[];
+  appliesToProductIds?: string[];
+  excludeProductIds?: string[];
+  options?: DirectorOption[];
+}
+
+export interface DirectorOptionGroupInput {
+  name?: string;
+  description?: string | null;
+  selectionType?: 'single' | 'multiple' | 'multi' | 'text';
+  isRequired?: boolean;
+  minSelections?: number;
+  maxSelections?: number | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  appliesToCategoryIds?: string[];
+  appliesToProductIds?: string[];
+  excludeProductIds?: string[];
+}
+
+export interface DirectorProductVariant {
+  id: string;
+  productId: string;
+  name: string;
+  priceCents: number;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface DirectorProductVariantInput {
+  name: string;
+  priceCents: number;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface DirectorCatalogProduct {
+  id: string;
+  name: string;
+  description?: string | null;
+  shortDescription?: string | null;
+  category?: string | null;
+  categoryId?: string | null;
+  imageUrl?: string | null;
+  galleryUrls?: string[];
+  priceCents?: number | null;
+  wholesalePriceCents?: number | null;
+  sku?: string | null;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  isSoldOut?: boolean;
+  variants?: DirectorProductVariant[];
+}
+
+export interface DirectorProductInput {
+  name?: string;
+  description?: string | null;
+  shortDescription?: string | null;
+  category?: string | null;
+  categoryId?: string | null;
+  imageUrl?: string | null;
+  galleryUrls?: string[];
+  priceCents?: number | null;
+  wholesalePriceCents?: number | null;
+  sku?: string | null;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  isSoldOut?: boolean;
+}
+
+export interface PrinterJob {
+  orderId?: string;
+  title?: string;
+  lines?: string[];
+  copies?: number;
+}
+
+export interface StaffInviteToken {
+  id: string;
+  token: string;
+  note?: string;
+  expiresAt: string;
+  createdAt: string;
+  usedAt?: string | null;
+  revokedAt?: string | null;
+}
+
+export interface PricingTier {
+  id: string;
+  name: string;
+  description?: string | null;
+  status?: string | null;
+  isActive?: boolean;
+  minOrderCents?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PricingTierInput {
+  name: string;
+  description?: string | null;
+  status?: string | null;
+  isActive?: boolean;
+}
+
+export interface QuantityPriceBreak {
+  id: string;
+  productId: string;
+  scope?: string | null;
+  tierId?: string | null;
+  customerId?: string | null;
+  minQty: number;
+  unitPriceCents: number;
+  isActive?: boolean;
+}
+
+export interface QuantityPriceBreakInput {
+  productId: string;
+  minQty: number;
+  unitPriceCents: number;
+  scope?: string | null;
+  tierId?: string | null;
+  customerId?: string | null;
+  isActive?: boolean;
+}
+
+export interface CustomerPricingRule {
+  id: string;
+  customerId: string;
+  productId: string;
+  unitPriceCents: number;
+  isActive?: boolean;
+}
+
+export interface CustomerPricingRuleInput {
+  customerId: string;
+  productId: string;
+  unitPriceCents: number;
+  isActive?: boolean;
+}
+
+export interface ProductWholesaleAccessInput {
+  isWholesaleVisible?: boolean;
+  isWholesalePurchasable?: boolean;
+  allowedTierIds?: string[];
+}
+
+export interface DiscountCodeRecord {
+  id: string;
+  code: string;
+  description?: string | null;
+  discountType: string;
+  discountAmountCents?: number | null;
+  isActive?: boolean;
+  expiresAt?: string | null;
+}
+
+export interface DiscountCodeInput {
+  code: string;
+  description?: string | null;
+  discountType: string;
+  discountAmountCents?: number | null;
+  isActive?: boolean;
+  expiresAt?: string | null;
+}
+
+export interface WholesalePricePreview {
+  productId: string;
+  qty: number;
+  unitPriceCents: number;
+  totalCents: number;
+  source?: string;
+}
+
+export interface DirectorManager {
+  id: string;
+  name: string;
+  email: string;
+  role: 'manager';
+  permissions: string[];
+  notes?: string | null;
+  createdAt?: string;
+}
+
+export interface DirectorIdentity {
+  id: string;
+  name: string;
+  email: string;
+  role: 'director' | 'master';
+  createdAt?: string;
+}
+
+export interface StockCategory {
+  id: string;
+  label: string;
+}
+
+export interface StockItemInput {
+  name: string;
+  category: string;
+  unit: string;
+  currentQuantity: number;
+  lowStockThreshold: number;
+  costCents?: number | null;
+  supplier?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
 }

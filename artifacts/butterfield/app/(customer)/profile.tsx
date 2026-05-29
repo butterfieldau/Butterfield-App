@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useRef } from 'react';
-import { useScrollToTop } from '@react-navigation/native';
+import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
   Alert, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
