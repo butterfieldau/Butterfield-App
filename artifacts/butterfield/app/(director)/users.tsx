@@ -13,6 +13,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -329,6 +330,14 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   <Text style={[sp_s.sectionLabel, { marginTop: 16 }]}>ADDRESS</Text>
                   <View style={sp_s.fieldWrap}>
                     <Text style={sp_s.fieldLabel}>Home address</Text>
+                    <AddressSearchInput
+                      currentValue={eAddress || undefined}
+                      placeholder="Search home address…"
+                      onSelect={(r) => {
+                        const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                        setEAddress(parts.join(', '));
+                      }}
+                    />
                     <View style={sp_s.fieldRow}>
                       <Feather name="map-pin" size={14} color={MUTED} />
                       <TextInput style={sp_s.fieldInput} value={eAddress} onChangeText={setEAddress}
@@ -1226,6 +1235,14 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
                 <Feather name="phone" size={15} color={MUTED} />
                 <TextInput style={[modal.input, { color: TEXT }]} placeholder="Phone number (optional)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
               </View>
+              <AddressSearchInput
+                currentValue={address || undefined}
+                placeholder="Search home address…"
+                onSelect={(r) => {
+                  const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                  setAddress(parts.join(', '));
+                }}
+              />
               <View style={[modal.inputRow, { borderColor: BORDER }]}>
                 <Feather name="map-pin" size={15} color={MUTED} />
                 <TextInput style={[modal.input, { color: TEXT }]} placeholder="Home address (optional)" placeholderTextColor={MUTED} value={address} onChangeText={setAddress} autoCapitalize="words" />
