@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -71,15 +72,6 @@ function serializeBreakToNotes(breakStart: string, breakEnd: string): string {
   return '';
 }
 
-// ── Nominatim address search ─────────────────────────────────────────────────
-async function nominatimSearch(q: string): Promise<any[]> {
-  if (q.length < 3) return [];
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}&addressdetails=1&countrycodes=au`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'ButterfieldCookiesDirector/1.0' } });
-    return res.ok ? res.json() : [];
-  } catch { return []; }
-}
 
 // ── StoreCard ────────────────────────────────────────────────────────────────
 function StoreCard({ store, onPress }: { store: any; onPress: () => void }) {
@@ -172,11 +164,6 @@ function StoreEditorModal({
   const [internalNotes,    setInternalNotes]     = useState('');
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
 
-  // Nominatim search
-  const [searchQuery,   setSearchQuery]   = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Populate from existing store
   useEffect(() => {
@@ -206,7 +193,6 @@ function StoreEditorModal({
       setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
     }
-    setSearchQuery(''); setSearchResults([]);
   }, [visible, store]);
 
   // Fetch opening hours when editing
@@ -234,33 +220,6 @@ function StoreEditorModal({
       .catch(() => setHours(defaultHours()));
   }, [visible, store?.id]);
 
-  const handleSearch = useCallback((q: string) => {
-    setSearchQuery(q);
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (q.length < 3) { setSearchResults([]); return; }
-    searchTimer.current = setTimeout(async () => {
-      setSearchLoading(true);
-      const results = await nominatimSearch(q);
-      setSearchResults(results);
-      setSearchLoading(false);
-    }, 600);
-  }, []);
-
-  const applyResult = (r: any) => {
-    Haptics.selectionAsync();
-    const addr = r.address ?? {};
-    const road  = [addr.house_number, addr.road].filter(Boolean).join(' ');
-    if (!name) setName(addr.amenity ?? addr.shop ?? addr.building ?? r.display_name.split(',')[0] ?? '');
-    setAddressLine(road || (r.display_name.split(',')[0] ?? ''));
-    setSuburb(addr.suburb ?? addr.town ?? addr.city_district ?? addr.city ?? '');
-    setState(addr.state ?? '');
-    setPostcode(addr.postcode ?? '');
-    setCountry(addr.country ?? 'Australia');
-    setLatitude(parseFloat(r.lat).toFixed(6));
-    setLongitude(parseFloat(r.lon).toFixed(6));
-    setSearchQuery(r.display_name);
-    setSearchResults([]);
-  };
 
   const updateHour = (dow: number, field: keyof HourRow, value: any) => {
     setHours(prev => prev.map(h => h.dayOfWeek === dow ? { ...h, [field]: value } : h));
@@ -386,42 +345,22 @@ function StoreEditorModal({
           {/* ── Address search ─── */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>ADDRESS SEARCH</Text>
-            <View style={[s.sectionCard, { overflow: 'visible', zIndex: 100 }]}>
-              <View style={{ position: 'relative' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-                  <Feather name="search" size={16} color={MUTED} />
-                  <TextInput
-                    style={{ flex: 1, fontWeight: '400', fontSize: 15, color: TEXT }}
-                    value={searchQuery}
-                    onChangeText={handleSearch}
-                    placeholder="Search address or place name…"
-                    placeholderTextColor={MUTED}
-                    returnKeyType="search"
-                  />
-                  {searchLoading && <ActivityIndicator size="small" color={BLUE} />}
-                  {searchQuery.length > 0 && !searchLoading && (
-                    <Pressable onPress={() => { setSearchQuery(''); setSearchResults([]); }} hitSlop={8}>
-                      <Feather name="x" size={15} color={MUTED} />
-                    </Pressable>
-                  )}
-                </View>
-                {searchResults.length > 0 && (
-                  <View style={s.searchDropdown}>
-                    {searchResults.map((r, i) => (
-                      <Pressable
-                        key={r.place_id}
-                        onPress={() => applyResult(r)}
-                        style={[s.searchResult, i > 0 && { borderTopWidth: 1, borderTopColor: BORDER }]}
-                      >
-                        <Feather name="map-pin" size={13} color={BLUE} style={{ marginTop: 2 }} />
-                        <Text style={s.searchResultText} numberOfLines={2}>{r.display_name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
+            <View style={[s.sectionCard, { paddingHorizontal: 14, paddingVertical: 12 }]}>
+              <AddressSearchInput
+                currentValue={addressLine ? `${addressLine}${suburb ? `, ${suburb}` : ''}` : undefined}
+                placeholder="Search store address…"
+                onSelect={(r) => {
+                  Haptics.selectionAsync();
+                  if (r.street) setAddressLine(r.street);
+                  if (r.suburb) setSuburb(r.suburb);
+                  if (r.state) setState(r.state);
+                  if (r.postcode) setPostcode(r.postcode);
+                  if (r.lat != null) setLatitude(r.lat.toFixed(6));
+                  if (r.lng != null) setLongitude(r.lng.toFixed(6));
+                }}
+              />
               {latitude && longitude && (
-                <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                   <View style={{ flex: 1, backgroundColor: BG, borderRadius: 8, padding: 8 }}>
                     <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>LATITUDE</Text>
                     <Text style={{ fontSize: 13, color: TEXT, fontWeight: '600', marginTop: 2 }}>{latitude}</Text>

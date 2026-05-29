@@ -34,6 +34,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { api, type SavedAddress, type ClaimedReward } from '@/lib/api';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 import {
   formatDateChip,
   formatTime,
@@ -1552,6 +1553,19 @@ function CartContent() {
       {orderType === 'delivery' && (
         <>
           <SectionLabel title="DELIVERY ADDRESS" />
+
+          {/* Google Places address search */}
+          <AddressSearchInput
+            currentValue={street ? `${street}${suburb ? `, ${suburb}` : ''}` : undefined}
+            placeholder="Search delivery address…"
+            onSelect={(r) => {
+              if (r.street) setStreet(r.street);
+              if (r.suburb) setSuburb(r.suburb);
+              if (r.postcode) setPostcode(r.postcode);
+              if (r.state) setAddrState(r.state);
+              setSelectedAddressId(null);
+            }}
+          />
 
           {/* Saved address chips */}
           {savedAddresses.length > 0 && (

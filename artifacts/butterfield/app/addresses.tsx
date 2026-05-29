@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type SavedAddress } from '@/lib/api';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
@@ -159,6 +160,17 @@ function AddressesContent() {
             <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
               <View style={{ padding: 20, gap: 16 }}>
                 <View style={s.fieldGroup}><Text style={s.fieldLabel}>Label</Text><View style={s.labelPills}>{['Home', 'Work', 'Other'].map((l) => <Pressable key={l} onPress={() => setForm((f) => ({ ...f, label: l }))} style={[s.labelPill, { backgroundColor: form.label === l ? BLUE : CARD, borderColor: form.label === l ? BLUE : BORDER }]}><Feather name={iconForLabel(l) as any} size={13} color={form.label === l ? '#fff' : MUTED} /><Text style={[s.labelPillText, { color: form.label === l ? '#fff' : TEXT }]}>{l}</Text></Pressable>)}</View></View>
+                <AddressSearchInput
+                  currentValue={form.street ? `${form.street}${form.suburb ? `, ${form.suburb}` : ''}` : undefined}
+                  placeholder="Search for your address…"
+                  onSelect={(r) => setForm((f) => ({
+                    ...f,
+                    street: r.street || f.street,
+                    suburb: r.suburb || f.suburb,
+                    state: r.state || f.state,
+                    postcode: r.postcode || f.postcode,
+                  }))}
+                />
                 <View style={s.fieldGroup}><Text style={s.fieldLabel}>Street address</Text><TextInput style={[s.textInput, { borderColor: BORDER, color: TEXT }]} value={form.street} onChangeText={(v) => setForm((f) => ({ ...f, street: v }))} placeholder="123 Smith St" placeholderTextColor={MUTED} autoCapitalize="words" /></View>
                 <View style={s.fieldGroup}><Text style={s.fieldLabel}>Apt / unit (optional)</Text><TextInput style={[s.textInput, { borderColor: BORDER, color: TEXT }]} value={form.apt} onChangeText={(v) => setForm((f) => ({ ...f, apt: v }))} placeholder="Unit 4" placeholderTextColor={MUTED} autoCapitalize="words" /></View>
                 <View style={s.fieldRow}><View style={[s.fieldGroup, { flex: 1 }]}><Text style={s.fieldLabel}>Suburb</Text><TextInput style={[s.textInput, { borderColor: BORDER, color: TEXT }]} value={form.suburb} onChangeText={(v) => setForm((f) => ({ ...f, suburb: v }))} placeholder="Merrylands" placeholderTextColor={MUTED} autoCapitalize="words" /></View><View style={[s.fieldGroup, { width: 110 }]}><Text style={s.fieldLabel}>Postcode</Text><TextInput style={[s.textInput, { borderColor: BORDER, color: TEXT }]} value={form.postcode} onChangeText={(v) => setForm((f) => ({ ...f, postcode: v }))} placeholder="2160" placeholderTextColor={MUTED} keyboardType="number-pad" maxLength={4} /></View></View>

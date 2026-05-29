@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/lib/api';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -347,6 +348,14 @@ export default function StaffRegisterScreen() {
                 />
 
                 <Label text="Home address" required />
+                <AddressSearchInput
+                  currentValue={address || undefined}
+                  placeholder="Search your home address…"
+                  onSelect={(r) => {
+                    const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                    setAddress(parts.join(', '));
+                  }}
+                />
                 <TextInput
                   ref={addressRef}
                   style={[styles.input, { minHeight: 56 }]}

@@ -1,1 +1,2 @@
 - [Geo-fence two-system disconnect](geo-fence-disconnect.md) — store_settings and stores table were disconnected; Settings screen must propagate to stores rows.
+- [Google Places address search](google-places-address.md) — Modal-based component at components/AddressSearchInput.tsx; key via EXPO_PUBLIC_GOOGLE_PLACES_API_KEY.

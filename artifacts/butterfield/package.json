@@ -73,6 +73,7 @@
     "expo-notifications": "^0.32.17",
     "expo-print": "^15.0.8",
     "expo-sharing": "^14.0.8",
+    "react-native-google-places-autocomplete": "^2.6.4",
     "react-native-maps": "^1.27.2",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-tcp-socket": "^6.4.1"

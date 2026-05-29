@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { api, type ApiProduct } from '@/lib/api';
 import {
   formatDateChip, formatTime, getDeliveryDates, getPickupDates,
@@ -533,6 +534,15 @@ export default function WholesaleCartScreen() {
                   <>
                     <Text style={cs.secLabel}>DELIVERY ADDRESS</Text>
                     <View style={cs.formCard}>
+                      <AddressSearchInput
+                        currentValue={street ? `${street}${suburb ? `, ${suburb}` : ''}` : undefined}
+                        placeholder="Search delivery address…"
+                        onSelect={(r) => {
+                          setStreet(r.street);
+                          setSuburb(r.suburb);
+                          setPostcode(r.postcode);
+                        }}
+                      />
                       <Text style={cs.fieldLabel}>Street address</Text>
                       <TextInput style={cs.input} placeholder="Street address" placeholderTextColor={MUTED} value={street} onChangeText={setStreet} autoCapitalize="words" />
                       <View style={{ flexDirection: 'row', gap: 10 }}>
