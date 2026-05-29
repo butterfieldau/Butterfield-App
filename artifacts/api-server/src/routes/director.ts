@@ -74,12 +74,14 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/wholesale' || path.startsWith('/wholesale/')) return 'users';
   if (path.startsWith('/wholesale-cards/')) return 'users';
   if (path === '/create-staff' || path === '/create-wholesale') return 'users';
-  if (path === '/staff-list') return 'users';
+  // Staff-hub manage mode is shown to ALL managers regardless of permissions,
+  // so every staffhub operation must be accessible to every manager.
+  if (path === '/staff-list') return 'always';
+  if (path === '/tasks' || path.startsWith('/tasks/')) return 'always';
+  if (path === '/wastage' || path.startsWith('/wastage/')) return 'always';
+  if (path === '/issues' || path.startsWith('/issues/')) return 'always';
+  if (path === '/leave' || path.startsWith('/leave/')) return 'always';
   if (path === '/timesheets' || path.startsWith('/timesheets/')) return 'self_only';
-  if (path === '/wastage' || path.startsWith('/wastage/')) return 'users';
-  if (path === '/issues' || path.startsWith('/issues/')) return 'users';
-  if (path === '/leave' || path.startsWith('/leave/')) return 'users';
-  if (path === '/tasks' || path.startsWith('/tasks/')) return 'users';
 
   // Products
   if (path === '/products' || path.startsWith('/products/')) return 'products';
@@ -96,9 +98,10 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // Announcements
   if (path === '/announcements' || path.startsWith('/announcements/')) return 'announcements';
 
-  // Reports / feedback
+  // Reports
   if (path === '/reports') return 'reports';
-  if (path === '/feedback' || path.startsWith('/feedback/')) return 'reports';
+  // Feedback tab is shown to all managers in staffhub manage mode
+  if (path === '/feedback' || path.startsWith('/feedback/')) return 'always';
 
   // Unknown paths: block managers
   return 'director_only';
