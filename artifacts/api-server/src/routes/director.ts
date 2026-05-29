@@ -7,7 +7,7 @@ import {
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable, staffTasksTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
-  staffInviteTokensTable,
+  staffInviteTokensTable, storesTable,
 } from '@workspace/db';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -994,6 +994,29 @@ router.patch('/settings', async (req, res) => {
     await db.insert(storeSettingsTable).values({ key, value, updatedBy: req.user!.id })
       .onConflictDoUpdate({ target: storeSettingsTable.key, set: { value, updatedAt: new Date(), updatedBy: req.user!.id } });
   }
+
+  // Propagate geo settings to the stores table so clock-in and login use the same values.
+  // Clock-in reads stores.geofenceRadius / stores.latitude / stores.longitude directly,
+  // not the store_settings table, so we must keep them in sync whenever the director
+  // updates the Settings screen.
+  const storeGeoUpdate: Record<string, any> = { updatedAt: new Date() };
+  if (updates.geo_radius_meters !== undefined) {
+    const r = parseInt(updates.geo_radius_meters);
+    if (!isNaN(r) && r >= 5) storeGeoUpdate.geofenceRadius = r;
+  }
+  if (updates.shop_lat !== undefined) {
+    const lat = parseFloat(updates.shop_lat);
+    if (!isNaN(lat)) storeGeoUpdate.latitude = lat;
+  }
+  if (updates.shop_lng !== undefined) {
+    const lng = parseFloat(updates.shop_lng);
+    if (!isNaN(lng)) storeGeoUpdate.longitude = lng;
+  }
+  if (Object.keys(storeGeoUpdate).length > 1) {
+    // Update all stores so every assigned store reflects the director's geo settings.
+    await db.update(storesTable).set(storeGeoUpdate);
+  }
+
   const rows = await db.select().from(storeSettingsTable);
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });
 });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
@@ -206,21 +206,26 @@ router.post('/staff-login', async (req, res) => {
       });
     }
 
-    const measured = assignments
-      .filter((a) => a.latitude != null && a.longitude != null)
-      .map((a) => ({
-        ...a,
-        radiusMeters: a.geofenceRadius ?? 40,
-        distanceMeters: haversineDistanceMeters(latitude, longitude, a.latitude!, a.longitude!),
-      }))
-      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+    // Load global geo settings as fallback for stores that have no coordinates set.
+    // The director configures lat/lng/radius in the Settings screen (store_settings table).
+    // Per-store values in the stores table take priority; global values are the fallback.
+    const geoRows = await db.select().from(storeSettingsTable);
+    const geoMap = Object.fromEntries(geoRows.map((r) => [r.key, r.value]));
+    const fallbackLat    = parseFloat(geoMap['shop_lat']          ?? '-33.8349');
+    const fallbackLng    = parseFloat(geoMap['shop_lng']          ?? '150.9942');
+    const fallbackRadius = parseInt(  geoMap['geo_radius_meters'] ?? '20');
 
-    if (measured.length === 0) {
-      return res.status(403).json({
-        error: 'Your assigned store is missing location details. Ask a director or master to update the store geofence before signing in.',
-        code: 'STORE_GEOFENCE_MISSING',
-      });
-    }
+    const measured = assignments
+      .map((a) => {
+        const effLat = (a.latitude  != null && !isNaN(a.latitude!))  ? a.latitude!  : fallbackLat;
+        const effLng = (a.longitude != null && !isNaN(a.longitude!)) ? a.longitude! : fallbackLng;
+        return {
+          ...a,
+          radiusMeters: a.geofenceRadius ?? fallbackRadius,
+          distanceMeters: haversineDistanceMeters(latitude, longitude, effLat, effLng),
+        };
+      })
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
     const matched = measured.find((a) => a.distanceMeters <= a.radiusMeters);
     if (!matched) {

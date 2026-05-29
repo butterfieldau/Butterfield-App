@@ -122,18 +122,25 @@ router.post('/shifts/clock-in', async (req, res) => {
       return res.status(400).json({ error: 'Location is required. Please enable location access to clock in.' });
     }
 
-    const measured = assignments
-      .filter(a => a.latitude != null && a.longitude != null)
-      .map(a => ({
-        ...a,
-        radiusMeters: a.geofenceRadius ?? 40,
-        distance: haversineMeters(latitude, longitude, a.latitude!, a.longitude!),
-      }))
-      .sort((a, b) => a.distance - b.distance);
+    // Load global geo settings as fallback for stores that have no coordinates set.
+    // The director configures lat/lng/radius in the Settings screen (store_settings table).
+    // Per-store values in the stores table take priority; global values are the fallback.
+    await ensureGeoDefaults();
+    const geoRows = await db.select().from(storeSettingsTable);
+    const geoMap = Object.fromEntries(geoRows.map(r => [r.key, r.value]));
+    const fallbackLat    = parseFloat(geoMap['shop_lat']          ?? String(SHOP_LAT_DEFAULT));
+    const fallbackLng    = parseFloat(geoMap['shop_lng']          ?? String(SHOP_LNG_DEFAULT));
+    const fallbackRadius = parseInt(  geoMap['geo_radius_meters'] ?? String(RADIUS_DEFAULT));
 
-    if (measured.length === 0) {
-      return res.status(403).json({ error: 'Your assigned store is missing location details. Ask a director or master to update the store geofence before clocking in.' });
-    }
+    const measured = assignments.map(a => {
+      const effLat = (a.latitude  != null && !isNaN(a.latitude))  ? a.latitude  : fallbackLat;
+      const effLng = (a.longitude != null && !isNaN(a.longitude)) ? a.longitude : fallbackLng;
+      return {
+        ...a,
+        radiusMeters: a.geofenceRadius ?? fallbackRadius,
+        distance: haversineMeters(latitude, longitude, effLat, effLng),
+      };
+    }).sort((a, b) => a.distance - b.distance);
 
     if (bodyStoreId) {
       const selected = measured.find(a => a.storeId === bodyStoreId);
