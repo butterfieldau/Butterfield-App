@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { getPalette } from '@/constants/categoryColors';
@@ -53,8 +54,8 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
         }
         {(isNew || isLimited) && (
           <View style={s.badgeRow}>
-            {isNew     && <View style={[s.badge, { backgroundColor: '#1C1C1E' }]}><Text style={[s.badgeText, { fontWeight: '700' }]}>NEW</Text></View>}
-            {isLimited && <View style={[s.badge, { backgroundColor: '#F40009' }]}><Text style={[s.badgeText, { fontWeight: '700' }]}>LIMITED</Text></View>}
+            {isNew     && <View style={[s.badge, { backgroundColor: 'rgba(28,28,30,0.82)' }]}><Text style={[s.badgeText, { fontWeight: '700' }]}>NEW</Text></View>}
+            {isLimited && <View style={[s.badge, { backgroundColor: 'rgba(244,0,9,0.88)' }]}><Text style={[s.badgeText, { fontWeight: '700' }]}>LIMITED</Text></View>}
           </View>
         )}
         {isSoldOut && (
@@ -86,7 +87,13 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
             style={s.addBtn}
             hitSlop={6}
           >
-            <Feather name="shopping-bag" size={13} color="#fff" />
+            <LinearGradient
+              colors={['#D0312D', '#B01B1B']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={s.addBtnGrad}
+            >
+              <Feather name="shopping-bag" size={13} color="#fff" />
+            </LinearGradient>
           </Pressable>
         </View>
       </View>
@@ -98,23 +105,25 @@ const s = StyleSheet.create({
   tile: {
     width: '100%',
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 22,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(20,147,255,0.09)',
+    shadowColor: '#1A3A6B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.09,
+    shadowRadius: 16,
     elevation: 4,
   },
   imageArea: {
-    height: 165,
+    height: 160,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   emoji:    { fontSize: 48, lineHeight: 60 },
   badgeRow: { position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 },
-  badge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  badge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   badgeText:{ color: '#fff', fontSize: 9 },
   soldOut:  { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
 
@@ -123,5 +132,6 @@ const s = StyleSheet.create({
   desc:     { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
   price:    { fontSize: 16, color: '#1C1C1E' },
-  addBtn:   { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
+  addBtn:   { width: 36, height: 36, borderRadius: 18, overflow: 'hidden' },
+  addBtnGrad: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 });

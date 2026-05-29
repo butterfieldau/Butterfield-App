@@ -89,7 +89,7 @@ function MenuShimmer({ shimmerProgress }: { shimmerProgress: SharedValue<number>
   );
 }
 const shimmerCard = StyleSheet.create({
-  tile:     { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  tile:     { backgroundColor: '#fff', borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(20,147,255,0.09)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.09, shadowRadius: 16, elevation: 4 },
   info:     { padding: 12, gap: 6, backgroundColor: '#fff' },
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
 });
@@ -368,22 +368,23 @@ export default function MenuScreen() {
   );
 }
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#fff' },
-  // Header
+  root:        { flex: 1, backgroundColor: '#F5F6FA' },
+  // Header — glass panel
   header:      {
-    paddingHorizontal: 16, paddingBottom: 16, gap: 14, backgroundColor: '#fff',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
+    paddingHorizontal: 16, paddingBottom: 16, gap: 14,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(20,147,255,0.08)',
+    shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4, zIndex: 10,
   },
   headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { fontSize: 32, color: '#1C1C1E' },
-  skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(224,123,0,0.15)' },
   skipBadgeText:{ fontSize: 12, color: '#E07B00' },
-  // Search
-  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 12 },
+  // Search — glass input
+  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 46, backgroundColor: '#F0F4FF', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(20,147,255,0.1)' },
   searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
-  // Category carousel — Uber Eats style
-  catTile:     { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
+  // Category carousel
+  catTile:     { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 18, borderWidth: 1.5, minWidth: 72 },
   catIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   catLabel:    { fontSize: 12, textAlign: 'center' },
   // Count row
@@ -396,14 +397,14 @@ const s = StyleSheet.create({
   frequentSub:     { fontSize: 12, color: '#8E8E93', marginTop: 1 },
   viewCartBtn:     { flexDirection: 'row', alignItems: 'center', gap: 2 },
   viewCartText:    { fontSize: 13, color: '#1493FF' },
-  frequentTile:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F9F9FB', borderRadius: 14, padding: 10, marginBottom: 8 },
-  frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  frequentTile:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fff', borderRadius: 18, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(20,147,255,0.09)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  frequentImg:     { width: 56, height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   frequentName:    { fontSize: 14, color: '#1C1C1E' },
   frequentPrice:   { fontSize: 13, color: '#8E8E93' },
   frequentAdd:     { width: 34, height: 34, borderRadius: 17, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
-  frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
+  frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(20,147,255,0.1)', marginTop: 8, marginBottom: 4 },
   // Product tile
-  tile:          { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  tile:          { flex: 1, backgroundColor: '#fff', borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(20,147,255,0.09)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.09, shadowRadius: 16, elevation: 4 },
   tileImg:       { height: 155, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
   tileEmoji:     { fontSize: 52, lineHeight: 62 },
   badgeRow:      { position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 },
@@ -415,5 +416,5 @@ const s = StyleSheet.create({
   shortDesc:     { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
   tilePriceRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   priceMain:     { fontSize: 15, color: '#1C1C1E' },
-  tileAddBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
+  tileAddBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
 });

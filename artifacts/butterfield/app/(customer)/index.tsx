@@ -497,7 +497,7 @@ export default function CustomerHome() {
 }
 const s = StyleSheet.create({
   // ── Frozen header ──────────────────────────────────────────────────────────
-  frozenHeader:  { paddingHorizontal: 20, paddingBottom: 26, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 16 },
+  frozenHeader:  { paddingHorizontal: 20, paddingBottom: 28, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, gap: 16 },
   headerTopRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   greetLine1:    { color: '#fff', fontSize: 24, lineHeight: 30, letterSpacing: -0.4 },
   greetLine2:    { color: 'rgba(255,255,255,0.92)', fontSize: 16, lineHeight: 22, marginTop: 4 },
@@ -505,10 +505,10 @@ const s = StyleSheet.create({
   loyaltyPts:    { color: '#fff', fontSize: 13 },
   loyaltyMember: { color: '#fff', fontSize: 11, letterSpacing: 0.5 },
   tierDivider:   { width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.4)' },
-  qrBtn:         { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 3 },
+  qrBtn:         { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 3 },
   // ── Store pickup row ───────────────────────────────────────────────────────
-  pickupRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  pickupIconWrap:{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#E6F4FF', alignItems: 'center', justifyContent: 'center' },
+  pickupRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(20,147,255,0.12)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 },
+  pickupIconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E6F4FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(20,147,255,0.12)' },
   pickupLabel:   { fontSize: 11, letterSpacing: 0.8, marginBottom: 2 },
   pickupTitle:   { fontSize: 15 },
   openDot:       { width: 7, height: 7, borderRadius: 4 },
@@ -524,28 +524,28 @@ const s = StyleSheet.create({
   // ── Your usual ─────────────────────────────────────────────────────────────
   usualHeader:  { flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   usualSub:     { fontSize: 13 },
-  usualCard:    { width: 200, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  usualImgWrap: { width: 56, height: 56, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  usualCard:    { width: 200, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 20, padding: 10, borderWidth: 1, borderColor: 'rgba(20,147,255,0.09)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 },
+  usualImgWrap: { width: 56, height: 56, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   usualInfo:    { flex: 1, gap: 2 },
   usualName:    { fontSize: 13, lineHeight: 17 },
   usualOpts:    { fontSize: 11, lineHeight: 14, fontWeight: '400' },
   usualPrice:   { fontSize: 13 },
   usualAddBtn:  { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   // ── Fan Favourites ─────────────────────────────────────────────────────────
-  favTile:       { width: 140, borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  favTop:        { height: 110, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
+  favTile:       { width: 140, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(20,147,255,0.09)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 },
+  favTop:        { height: 116, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
   favName:       { fontSize: 12 },
   favBannerStrip:{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 5, paddingHorizontal: 8, alignItems: 'center' },
   favBannerText: { fontSize: 9, color: '#fff', letterSpacing: 0.2 },
   // ── Category rows & shared ─────────────────────────────────────────────────
-  section:       { marginTop: 30 },
+  section:       { marginTop: 32 },
   sectionTitle:  { fontSize: 22, paddingHorizontal: 16, marginBottom: 14 },
   catRowHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 14 },
   viewMoreLink:  { fontSize: 14, fontWeight: '600' },
   empty:         { textAlign: 'center', marginTop: 40, fontSize: 14 },
   grid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   // ── Browse Categories strip ────────────────────────────────────────────────
-  browseCard:    { width: 140, height: 100, borderRadius: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
-  browseOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'rgba(0,0,0,0.38)' },
+  browseCard:    { width: 140, height: 104, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(20,147,255,0.08)', shadowColor: '#1A3A6B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3 },
+  browseOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'rgba(0,0,0,0.4)' },
   browseLabel:   { color: '#fff', fontSize: 14, lineHeight: 18 },
 });
