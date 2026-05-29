@@ -17,31 +17,11 @@ import { notifyUser } from '../lib/notificationService.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
-
-async function countCoffeeItemsFromOrderItems(items: unknown) {
-  const orderItems = Array.isArray(items) ? items as any[] : [];
-  const orderProductIds = Array.from(new Set(
-    orderItems
-      .map((item) => item?.productId)
-      .filter((productId: unknown): productId is string => Boolean(productId && typeof productId === 'string')),
-  ));
-  const products = orderProductIds.length > 0
-    ? await db.select({ id: productsTable.id, category: productsTable.category })
-      .from(productsTable)
-      .where(inArray(productsTable.id, orderProductIds))
-    : [];
-  const coffeeIds = new Set(
-    products.filter((product) => String(product.category ?? '').toLowerCase() === 'coffee').map((product) => product.id),
-  );
-  return orderItems.reduce((sum: number, item: any) => {
-    const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
-    return coffeeIds.has(item?.productId) ? sum + qty : sum;
-  }, 0);
-}
 
 // For managers, enforce per-route permissions based on method + path.
 // Discount code management is director/master only.

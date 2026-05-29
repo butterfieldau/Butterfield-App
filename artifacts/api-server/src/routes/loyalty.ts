@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, loyaltyTransactionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
 import { eq, desc, and, isNull, sql, inArray, gte } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import {
   applyCoffeeStamps,
   buildLoyaltyQrPayload,
@@ -699,7 +700,7 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager', 'sho
   });
 });
 
-router.post('/rewards', requireRole('director', 'manager'), async (req, res) => {
+router.post('/rewards', requireRole('director', 'manager', 'master'), requireManagerPermission('rewards'), async (req, res) => {
   const { name, description, pointsCost, category, isAppOnly, rewardType, voucherValueCents, linkedProductId } = req.body;
   const [reward] = await db.insert(loyaltyRewardsTable).values({
     id: randomUUID(),

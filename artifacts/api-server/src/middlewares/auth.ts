@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt, { type SignOptions } from 'jsonwebtoken';
+import { randomBytes } from 'crypto';
 
 export interface AuthUser {
   id: string;
@@ -17,15 +18,24 @@ declare global {
 }
 
 const JWT_SECRET = process.env.SESSION_SECRET;
-if (!JWT_SECRET) {
+let generatedDevSecret: string | null = null;
+
+export function getSessionSecret(): string {
+  if (JWT_SECRET) return JWT_SECRET;
+
   if (process.env.NODE_ENV === 'production') {
     throw new Error('SESSION_SECRET environment variable must be set in production');
   }
+
+  if (!generatedDevSecret) {
+    generatedDevSecret = randomBytes(32).toString('hex');
+  }
+
+  return generatedDevSecret;
 }
-const SECRET = JWT_SECRET ?? 'butterfield-dev-only-not-for-production';
 
 export function signToken(payload: AuthUser, expiresIn: SignOptions['expiresIn'] = '7d'): string {
-  return jwt.sign(payload, SECRET, { expiresIn });
+  return jwt.sign(payload, getSessionSecret(), { expiresIn });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -36,7 +46,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   const token = header.slice(7);
   try {
-    const payload = jwt.verify(token, SECRET) as AuthUser;
+    const payload = jwt.verify(token, getSessionSecret()) as AuthUser;
     req.user = payload;
     next();
   } catch {

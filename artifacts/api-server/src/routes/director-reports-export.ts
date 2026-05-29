@@ -5,6 +5,7 @@ import {
   db, ordersTable, usersTable, wholesaleOrdersTable, wholesaleAccountsTable,
 } from '@workspace/db';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 
 const router = Router();
 
@@ -93,7 +94,13 @@ function freezeAfterHeader(ws: ExcelJS.Worksheet) {
   ws.views = [{ state: 'frozen', ySplit: headerRow }];
 }
 
-router.get('/reports/export', requireRole('director', 'master', 'manager'), async (req, res) => {
+function addWorksheetWithTabColor(wb: ExcelJS.Workbook, name: string, tabColor: string) {
+  const ws = wb.addWorksheet(name);
+  (ws.properties as ExcelJS.WorksheetProperties & { tabColor?: { argb: string } }).tabColor = { argb: tabColor };
+  return ws;
+}
+
+router.get('/reports/export', requireRole('director', 'master', 'manager'), requireManagerPermission('reports'), async (req, res) => {
   const { from, to } = req.query as { from?: string; to?: string };
 
   if (!from || !to) {
@@ -190,7 +197,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   wb.modified = new Date();
 
   // ─── Sheet 1: Summary ───────────────────────────────────────────────────────
-  const wsSummary = wb.addWorksheet('Summary', { tabColor: { argb: BRAND_NAVY } });
+  const wsSummary = addWorksheetWithTabColor(wb, 'Summary', BRAND_NAVY);
   addBrandHeader(wsSummary, 'Business Report', 2, dateFromLabel, dateToLabel);
 
   const sections: [string, string | number][] = [
@@ -237,7 +244,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   wsSummary.getColumn(2).width = 24;
 
   // ─── Sheet 2: Item Sales ────────────────────────────────────────────────────
-  const wsItems = wb.addWorksheet('Item Sales', { tabColor: { argb: BRAND_BLUE } });
+  const wsItems = addWorksheetWithTabColor(wb, 'Item Sales', BRAND_BLUE);
   addBrandHeader(wsItems, 'Item Sales', 4, dateFromLabel, dateToLabel);
 
   const itemHdr = wsItems.addRow(['Item Name', 'Add-ons / Options', 'Qty Sold', 'Revenue (AUD)']);
@@ -277,7 +284,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   wsItems.getColumn(4).width = 18;
 
   // ─── Sheet 3: Order Types ───────────────────────────────────────────────────
-  const wsTypes = wb.addWorksheet('Order Types', { tabColor: { argb: 'FF22C55E' } });
+  const wsTypes = addWorksheetWithTabColor(wb, 'Order Types', 'FF22C55E');
   addBrandHeader(wsTypes, 'Order Types', 3, dateFromLabel, dateToLabel);
 
   const typeHdr = wsTypes.addRow(['Order Type', 'Count', 'Revenue (AUD)']);
@@ -301,7 +308,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   wsTypes.getColumn(3).width = 18;
 
   // ─── Sheet 4: Order Status ──────────────────────────────────────────────────
-  const wsStatus = wb.addWorksheet('Order Status', { tabColor: { argb: 'FFF59E0B' } });
+  const wsStatus = addWorksheetWithTabColor(wb, 'Order Status', 'FFF59E0B');
   addBrandHeader(wsStatus, 'Order Status', 2, dateFromLabel, dateToLabel);
 
   const statusHdr = wsStatus.addRow(['Status', 'Count']);
@@ -318,7 +325,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   wsStatus.getColumn(2).width = 12;
 
   // ─── Sheet 5: New Customers ─────────────────────────────────────────────────
-  const wsCust = wb.addWorksheet('New Customers', { tabColor: { argb: 'FF8B5CF6' } });
+  const wsCust = addWorksheetWithTabColor(wb, 'New Customers', 'FF8B5CF6');
   addBrandHeader(wsCust, 'New Customers', 3, dateFromLabel, dateToLabel);
 
   const custHdr = wsCust.addRow(['Name', 'Email', 'Registered']);
@@ -338,7 +345,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   wsCust.getColumn(3).width = 24;
 
   // ─── Sheet 6: Detailed Orders ───────────────────────────────────────────────
-  const wsOrders = wb.addWorksheet('Detailed Orders', { tabColor: { argb: 'FFD20001' } });
+  const wsOrders = addWorksheetWithTabColor(wb, 'Detailed Orders', 'FFD20001');
   addBrandHeader(wsOrders, 'Detailed Orders', 10, dateFromLabel, dateToLabel);
 
   const ordHdr = wsOrders.addRow([
@@ -398,7 +405,7 @@ router.get('/reports/export', requireRole('director', 'master', 'manager'), asyn
   res.setHeader('Cache-Control', 'no-cache');
 
   await wb.xlsx.write(res);
-  res.end();
+  return res.end();
 });
 
 export default router;

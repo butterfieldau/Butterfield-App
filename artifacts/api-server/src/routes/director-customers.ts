@@ -16,6 +16,10 @@ const router = Router();
 const allowedRoles = requireRole('director', 'manager', 'master');
 const requireUsers = requireManagerPermission('users');
 
+function getRouteParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
 // ── Badge computation ────────────────────────────────────────────────────────
 function computeAutoBadges(
   orderCount: number,
@@ -169,7 +173,7 @@ router.get('/customers', allowedRoles, requireUsers, async (req, res) => {
 
 // ── GET /director/customers/:id ───────────────────────────────────────────────
 router.get('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
-  const { id } = req.params;
+  const id = getRouteParam(req.params.id);
 
   const [[user], profile, orders, waList, addresses, notes, badges, loyaltyTxns, loyaltyAgg] = await Promise.all([
     db.select().from(usersTable).where(eq(usersTable.id, id)),
@@ -240,7 +244,7 @@ router.get('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
 
 // ── PATCH /director/customers/:id ─────────────────────────────────────────────
 router.patch('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
-  const id = req.params.id;
+  const id = getRouteParam(req.params.id);
   const userAllowed = ['name', 'phone', 'email', 'status'] as const;
   const userUpdates: Record<string, any> = { updatedAt: new Date() };
   for (const key of userAllowed) {
@@ -268,10 +272,11 @@ router.patch('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
 
 // ── POST /director/customers/:id/notes ────────────────────────────────────────
 router.post('/customers/:id/notes', allowedRoles, requireUsers, async (req, res) => {
+  const userId = getRouteParam(req.params.id);
   const { content } = req.body;
   if (!content?.trim()) return res.status(400).json({ error: 'Note content required.' });
   const [note] = await db.insert(customerNotesTable).values({
-    id: randomUUID(), userId: req.params.id,
+    id: randomUUID(), userId,
     authorId: req.user!.id, authorName: req.user!.name ?? 'Staff',
     content: content.trim(),
   }).returning();
@@ -280,17 +285,19 @@ router.post('/customers/:id/notes', allowedRoles, requireUsers, async (req, res)
 
 // ── DELETE /director/customers/:id/notes/:noteId ──────────────────────────────
 router.delete('/customers/:id/notes/:noteId', allowedRoles, requireUsers, async (req, res) => {
-  await db.delete(customerNotesTable).where(eq(customerNotesTable.id, req.params.noteId));
+  const noteId = getRouteParam(req.params.noteId);
+  await db.delete(customerNotesTable).where(eq(customerNotesTable.id, noteId));
   return res.json({ ok: true });
 });
 
 // ── POST /director/customers/:id/badges ───────────────────────────────────────
 router.post('/customers/:id/badges', allowedRoles, requireUsers, async (req, res) => {
+  const userId = getRouteParam(req.params.id);
   const { badge, note } = req.body;
   const VALID = ['vip', 'high_spend', 'needs_follow_up', 'flagged', 'loyal', 'frequent_buyer', 'inactive', 'at_risk', 'wholesale_partner'];
   if (!VALID.includes(badge)) return res.status(400).json({ error: 'Invalid badge.' });
   const [b] = await db.insert(customerBadgesTable).values({
-    id: randomUUID(), userId: req.params.id,
+    id: randomUUID(), userId,
     badge, addedByUserId: req.user!.id, note: note ?? null,
   }).returning();
   return res.status(201).json({ data: b });
@@ -298,7 +305,8 @@ router.post('/customers/:id/badges', allowedRoles, requireUsers, async (req, res
 
 // ── DELETE /director/customers/:id/badges/:badgeId ────────────────────────────
 router.delete('/customers/:id/badges/:badgeId', allowedRoles, requireUsers, async (req, res) => {
-  await db.delete(customerBadgesTable).where(eq(customerBadgesTable.id, req.params.badgeId));
+  const badgeId = getRouteParam(req.params.badgeId);
+  await db.delete(customerBadgesTable).where(eq(customerBadgesTable.id, badgeId));
   return res.json({ ok: true });
 });
 

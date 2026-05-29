@@ -5,7 +5,6 @@ const TWILIO_FROM        = process.env.TWILIO_FROM_NUMBER ?? process.env.TWILIO_
 export async function sendSms(to: string, body: string): Promise<{ success: boolean }> {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM) {
     console.warn('[smsService] Twilio not configured — SMS not sent.');
-    console.info(`[smsService] SMS TO: ${to} | BODY: ${body}`);
     return { success: false };
   }
   try {

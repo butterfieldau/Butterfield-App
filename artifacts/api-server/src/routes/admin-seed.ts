@@ -4,7 +4,8 @@ import { productCategoriesTable } from '@workspace/db';
 
 const router = Router();
 
-const SEED_SECRET = 'seed-butterfield-drinks-2025';
+const SEED_SECRET = process.env.ADMIN_SEED_SECRET ?? null;
+const SEED_ENABLED = process.env.ENABLE_ADMIN_SEED_ROUTES === 'true';
 
 const NEW_CATEGORIES = [
   { id: 'cat_milkshakes',     name: 'Milkshakes',     slug: 'milkshakes',     sortOrder: 11 },
@@ -42,6 +43,11 @@ const NEW_PRODUCTS = [
 ];
 
 router.post('/admin/seed-drinks', async (req, res) => {
+  if (!SEED_ENABLED || !SEED_SECRET) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
   const secret = req.headers['x-seed-secret'] ?? req.query['secret'];
   if (secret !== SEED_SECRET) {
     res.status(401).json({ error: 'Unauthorized' });

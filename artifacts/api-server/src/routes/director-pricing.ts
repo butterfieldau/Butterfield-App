@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { randomUUID } from 'crypto';
 import {
   db,
@@ -20,22 +20,27 @@ const router = Router();
 // other /director routers can pass through without being blocked here.
 const directorOnly = [requireRole('director', 'manager', 'master'), requireManagerPermission('pricing')];
 
+function getRouteParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
 // ── Pricing tiers CRUD ───────────────────────────────────────────────────────
 
-router.get('/tiers', directorOnly, async (_req, res) => {
+router.get('/tiers', directorOnly, async (_req: Request, res: Response) => {
   const tiers = await db.select().from(pricingTiersTable)
     .where(ne(pricingTiersTable.status, 'archived'))
     .orderBy(pricingTiersTable.sortOrder, pricingTiersTable.name);
   return res.json({ data: tiers });
 });
 
-router.get('/tiers/:id', directorOnly, async (req, res) => {
-  const [tier] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, req.params.id));
+router.get('/tiers/:id', directorOnly, async (req: Request, res: Response) => {
+  const tierId = getRouteParam(req.params.id);
+  const [tier] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, tierId));
   if (!tier) return res.status(404).json({ error: 'Tier not found' });
   return res.json({ data: tier });
 });
 
-router.post('/tiers', directorOnly, async (req, res) => {
+router.post('/tiers', directorOnly, async (req: Request, res: Response) => {
   const b = req.body ?? {};
   if (!b.name?.trim()) return res.status(400).json({ error: 'Tier name is required.' });
   const [tier] = await db.insert(pricingTiersTable).values({
@@ -59,7 +64,8 @@ router.post('/tiers', directorOnly, async (req, res) => {
   return res.status(201).json({ data: tier });
 });
 
-router.patch('/tiers/:id', directorOnly, async (req, res) => {
+router.patch('/tiers/:id', directorOnly, async (req: Request, res: Response) => {
+  const tierId = getRouteParam(req.params.id);
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
   if (b.name !== undefined) updates.name = b.name.trim();
@@ -71,18 +77,19 @@ router.patch('/tiers/:id', directorOnly, async (req, res) => {
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
   const [tier] = await db.update(pricingTiersTable).set(updates)
-    .where(eq(pricingTiersTable.id, req.params.id)).returning();
+    .where(eq(pricingTiersTable.id, tierId)).returning();
   if (!tier) return res.status(404).json({ error: 'Tier not found' });
   return res.json({ data: tier });
 });
 
 // Delete a tier — automatically unassigns all customers from that tier first
-router.delete('/tiers/:id', directorOnly, async (req, res) => {
+router.delete('/tiers/:id', directorOnly, async (req: Request, res: Response) => {
+  const tierId = getRouteParam(req.params.id);
   const { force } = req.body ?? {};
 
   // Count how many wholesale accounts are on this tier
   const assigned = await db.select().from(wholesaleAccountsTable)
-    .where(eq(wholesaleAccountsTable.tierId, req.params.id));
+    .where(eq(wholesaleAccountsTable.tierId, tierId));
 
   if (assigned.length > 0 && !force) {
     return res.status(409).json({
@@ -96,13 +103,13 @@ router.delete('/tiers/:id', directorOnly, async (req, res) => {
   if (assigned.length > 0) {
     await db.update(wholesaleAccountsTable)
       .set({ tierId: null, updatedAt: new Date() })
-      .where(eq(wholesaleAccountsTable.tierId, req.params.id));
+      .where(eq(wholesaleAccountsTable.tierId, tierId));
   }
 
   // Archive the tier (preserve for order audit trail)
   const [tier] = await db.update(pricingTiersTable)
     .set({ status: 'archived', updatedAt: new Date() })
-    .where(eq(pricingTiersTable.id, req.params.id))
+    .where(eq(pricingTiersTable.id, tierId))
     .returning();
   if (!tier) return res.status(404).json({ error: 'Tier not found' });
 
@@ -111,7 +118,7 @@ router.delete('/tiers/:id', directorOnly, async (req, res) => {
 
 // ── Quantity price breaks CRUD ───────────────────────────────────────────────
 
-router.get('/quantity-breaks', directorOnly, async (req, res) => {
+router.get('/quantity-breaks', directorOnly, async (req: Request, res: Response) => {
   const { productId, tierId, customerId } = req.query;
   const conds: any[] = [eq(quantityPriceBreaksTable.isActive, true)];
   if (productId)  conds.push(eq(quantityPriceBreaksTable.productId, productId as string));
@@ -123,7 +130,7 @@ router.get('/quantity-breaks', directorOnly, async (req, res) => {
   return res.json({ data: breaks });
 });
 
-router.post('/quantity-breaks', directorOnly, async (req, res) => {
+router.post('/quantity-breaks', directorOnly, async (req: Request, res: Response) => {
   const b = req.body ?? {};
   if (!b.productId) return res.status(400).json({ error: 'productId is required.' });
   if (typeof b.minQty !== 'number' || b.minQty < 1) return res.status(400).json({ error: 'minQty must be a positive number.' });
@@ -148,7 +155,8 @@ router.post('/quantity-breaks', directorOnly, async (req, res) => {
   return res.status(201).json({ data: created });
 });
 
-router.patch('/quantity-breaks/:id', directorOnly, async (req, res) => {
+router.patch('/quantity-breaks/:id', directorOnly, async (req: Request, res: Response) => {
+  const breakId = getRouteParam(req.params.id);
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
   if (b.minQty !== undefined)       updates.minQty = b.minQty;
@@ -157,15 +165,16 @@ router.patch('/quantity-breaks/:id', directorOnly, async (req, res) => {
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
   const [updated] = await db.update(quantityPriceBreaksTable).set(updates)
-    .where(eq(quantityPriceBreaksTable.id, req.params.id)).returning();
+    .where(eq(quantityPriceBreaksTable.id, breakId)).returning();
   if (!updated) return res.status(404).json({ error: 'Quantity break not found' });
   return res.json({ data: updated });
 });
 
 // Hard delete — immediately removes from pricing; order history retains the priceSource label
-router.delete('/quantity-breaks/:id', directorOnly, async (req, res) => {
+router.delete('/quantity-breaks/:id', directorOnly, async (req: Request, res: Response) => {
+  const breakId = getRouteParam(req.params.id);
   const [deleted] = await db.delete(quantityPriceBreaksTable)
-    .where(eq(quantityPriceBreaksTable.id, req.params.id))
+    .where(eq(quantityPriceBreaksTable.id, breakId))
     .returning();
   if (!deleted) return res.status(404).json({ error: 'Quantity break not found' });
   return res.json({ success: true });
@@ -173,7 +182,7 @@ router.delete('/quantity-breaks/:id', directorOnly, async (req, res) => {
 
 // ── Customer custom pricing CRUD ─────────────────────────────────────────────
 
-router.get('/customer-pricing', directorOnly, async (req, res) => {
+router.get('/customer-pricing', directorOnly, async (req: Request, res: Response) => {
   const { customerId } = req.query;
   const conds: any[] = [eq(customerPricingTable.isActive, true)];
   if (customerId) conds.push(eq(customerPricingTable.customerId, customerId as string));
@@ -183,7 +192,7 @@ router.get('/customer-pricing', directorOnly, async (req, res) => {
   return res.json({ data: rows });
 });
 
-router.post('/customer-pricing', directorOnly, async (req, res) => {
+router.post('/customer-pricing', directorOnly, async (req: Request, res: Response) => {
   const b = req.body ?? {};
   if (!b.customerId) return res.status(400).json({ error: 'customerId is required.' });
   if (!b.productId)  return res.status(400).json({ error: 'productId is required.' });
@@ -202,7 +211,8 @@ router.post('/customer-pricing', directorOnly, async (req, res) => {
   return res.status(201).json({ data: created });
 });
 
-router.patch('/customer-pricing/:id', directorOnly, async (req, res) => {
+router.patch('/customer-pricing/:id', directorOnly, async (req: Request, res: Response) => {
+  const customerPricingId = getRouteParam(req.params.id);
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
   if (b.unitPriceCents !== undefined) updates.unitPriceCents = b.unitPriceCents;
@@ -210,15 +220,16 @@ router.patch('/customer-pricing/:id', directorOnly, async (req, res) => {
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
   const [updated] = await db.update(customerPricingTable).set(updates)
-    .where(eq(customerPricingTable.id, req.params.id)).returning();
+    .where(eq(customerPricingTable.id, customerPricingId)).returning();
   if (!updated) return res.status(404).json({ error: 'Custom price not found' });
   return res.json({ data: updated });
 });
 
 // Hard delete — immediately removes from pricing; order history retains priceSource label
-router.delete('/customer-pricing/:id', directorOnly, async (req, res) => {
+router.delete('/customer-pricing/:id', directorOnly, async (req: Request, res: Response) => {
+  const customerPricingId = getRouteParam(req.params.id);
   const [deleted] = await db.delete(customerPricingTable)
-    .where(eq(customerPricingTable.id, req.params.id))
+    .where(eq(customerPricingTable.id, customerPricingId))
     .returning();
   if (!deleted) return res.status(404).json({ error: 'Custom price not found' });
   return res.json({ success: true });
@@ -226,28 +237,31 @@ router.delete('/customer-pricing/:id', directorOnly, async (req, res) => {
 
 // ── Assign / unassign tier on a wholesale account ────────────────────────────
 
-router.patch('/wholesale/:accountId/tier', directorOnly, async (req, res) => {
+router.patch('/wholesale/:accountId/tier', directorOnly, async (req: Request, res: Response) => {
+  const accountId = getRouteParam(req.params.accountId);
   const { tierId } = req.body ?? {};
   const updates: Record<string, any> = { updatedAt: new Date() };
   updates.tierId = tierId || null;
   const [updated] = await db.update(wholesaleAccountsTable).set(updates)
-    .where(eq(wholesaleAccountsTable.id, req.params.accountId)).returning();
+    .where(eq(wholesaleAccountsTable.id, accountId)).returning();
   if (!updated) return res.status(404).json({ error: 'Account not found' });
   return res.json({ data: updated });
 });
 
-router.patch('/wholesale/:accountId/suspend', directorOnly, async (req, res) => {
+router.patch('/wholesale/:accountId/suspend', directorOnly, async (req: Request, res: Response) => {
+  const accountId = getRouteParam(req.params.accountId);
   const { isSuspended, suspendedReason } = req.body ?? {};
   const [updated] = await db.update(wholesaleAccountsTable)
     .set({ isSuspended: !!isSuspended, suspendedReason: suspendedReason ?? null, updatedAt: new Date() })
-    .where(eq(wholesaleAccountsTable.id, req.params.accountId)).returning();
+    .where(eq(wholesaleAccountsTable.id, accountId)).returning();
   if (!updated) return res.status(404).json({ error: 'Account not found' });
   return res.json({ data: updated });
 });
 
 // ── Product wholesale access controls ────────────────────────────────────────
 
-router.patch('/products/:id/wholesale-access', directorOnly, async (req, res) => {
+router.patch('/products/:id/wholesale-access', directorOnly, async (req: Request, res: Response) => {
+  const productId = getRouteParam(req.params.id);
   const b = req.body ?? {};
   const updates: Record<string, any> = { updatedAt: new Date() };
   if (b.wholesaleAccessMode !== undefined) {
@@ -263,14 +277,14 @@ router.patch('/products/:id/wholesale-access', directorOnly, async (req, res) =>
   if (b.isWholesaleAvailable !== undefined) updates.isWholesaleAvailable = !!b.isWholesaleAvailable;
 
   if (Object.keys(updates).length === 1) return res.status(400).json({ error: 'No fields to update.' });
-  const [updated] = await db.update(productsTable).set(updates).where(eq(productsTable.id, req.params.id)).returning();
+  const [updated] = await db.update(productsTable).set(updates).where(eq(productsTable.id, productId)).returning();
   if (!updated) return res.status(404).json({ error: 'Product not found' });
   return res.json({ data: updated });
 });
 
 // ── Pricing preview ───────────────────────────────────────────────────────────
 
-router.post('/pricing-preview', directorOnly, async (req, res) => {
+router.post('/pricing-preview', directorOnly, async (req: Request, res: Response) => {
   const { customerId, productId, qty } = req.body ?? {};
   if (!customerId || !productId || !qty) return res.status(400).json({ error: 'customerId, productId, qty required.' });
   try {

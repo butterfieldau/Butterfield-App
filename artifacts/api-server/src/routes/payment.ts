@@ -1,10 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
-import { computeOrderTotal } from '../lib/orderPricing.js';
-import { validateDiscountCode } from '../lib/discountUtils.js';
-import { db, claimedRewardsTable, customerProfilesTable, loyaltyRewardsTable } from '@workspace/db';
-import { eq, and, inArray, sql } from 'drizzle-orm';
-import { LOYALTY_POINT_VALUE_CENTS } from '../lib/loyaltyIdentity.js';
+import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 
 const router = Router();
 
@@ -28,139 +24,37 @@ router.get('/config', async (_req, res) => {
 router.use(requireAuth);
 
 router.post('/payment-intent', async (req, res) => {
-  const { items, orderType, discountCode, paymentMethod, claimedRewardId, loyaltyPointsUsed } = req.body;
+  const { items: rawItems, orderType, discountCode, paymentMethod, claimedRewardId, loyaltyPointsUsed } = req.body;
 
   if (paymentMethod === 'pay_at_pickup') {
     return res.status(400).json({ error: 'Pay at pickup orders do not require a Stripe payment intent.' });
   }
 
-  let totalDiscountCents = 0;
   let validatedDiscountCode: string | null = null;
+  let claimedLoyaltyPoints = 0;
   let rewardDiscountCents = 0;
-  let claimedLoyaltyPoints = Math.max(0, Math.floor(loyaltyPointsUsed ?? 0));
-  // Strip any client-supplied isFreeReward flags — only the server may set this
-  let enrichedItems = (items as any[] ?? []).map(({ isFreeReward: _f, ...rest }: any) => rest);
-
-  if (claimedLoyaltyPoints > 0) {
-    const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
-    if (!profile || profile.loyaltyPoints < claimedLoyaltyPoints) {
-      return res.status(400).json({ error: 'Insufficient loyalty points' });
-    }
-  }
-
-  // ── Validate claimed reward and apply its effect to pricing ───────────────
-  if (claimedRewardId && typeof claimedRewardId === 'string') {
-    const claimRows = await db.select().from(claimedRewardsTable)
-      .where(and(
-        eq(claimedRewardsTable.userId, req.user!.id),
-        inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
-      ));
-    const claimedRow = claimRows.find(r => r.id === claimedRewardId);
-
-    if (!claimedRow) {
-      return res.status(400).json({ error: 'Claimed reward not found or already used' });
-    }
-
-    // Enforce expiry — atomically transition to expired and reject
-    if (claimedRow.expiresAt && claimedRow.expiresAt < new Date()) {
-      await db.execute(
-        sql`UPDATE claimed_rewards SET status='expired' WHERE id=${claimedRewardId} AND user_id=${req.user!.id} AND status IN ('available','applied_to_cart')`
-      );
-      return res.status(400).json({ error: 'This reward has expired' });
-    }
-
-    const [rewardRow] = await db.select({ rewardType: loyaltyRewardsTable.rewardType, linkedProductId: loyaltyRewardsTable.linkedProductId, name: loyaltyRewardsTable.name })
-      .from(loyaltyRewardsTable)
-      .where(eq(loyaltyRewardsTable.id, claimedRow.rewardId));
-
-    const rewardType = rewardRow?.rewardType ?? 'item_reward';
-    const rewardName = rewardRow?.name ?? 'Free Reward';
-    if (rewardType === 'money_voucher') {
-      rewardDiscountCents = claimedRow.voucherValueCents ?? 0;
-    } else if (rewardType === 'item_reward') {
-      // Grant exactly ONE free unit — never make multi-quantity lines entirely free
-      const lid = rewardRow?.linkedProductId ?? null;
-      if (lid) {
-        const existingIdx = enrichedItems.findIndex((i: any) => i.productId === lid && !i.isFreeReward);
-        if (existingIdx >= 0) {
-          const existingQty = Math.max(1, Math.floor(enrichedItems[existingIdx].quantity ?? 1));
-          if (existingQty === 1) {
-            enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], name: enrichedItems[existingIdx].name ?? rewardName, isFreeReward: true };
-          } else {
-            enrichedItems[existingIdx] = { ...enrichedItems[existingIdx], quantity: existingQty - 1 };
-            enrichedItems = [...enrichedItems, { productId: lid, name: rewardName, quantity: 1, isFreeReward: true }];
-          }
-        } else {
-          // Item not in cart — inject as new free line (handles empty-cart reward checkout)
-          enrichedItems = [...enrichedItems, { productId: lid, name: rewardName, quantity: 1, isFreeReward: true }];
-        }
-      } else {
-        // No linked product — inject named placeholder
-        enrichedItems = [...enrichedItems, { productId: `reward:${claimedRow.id}`, name: rewardName, quantity: 1, isFreeReward: true }];
-      }
-    }
-
-    // Idempotently transition claim to applied_to_cart so server tracks checkout state
-    if (claimedRow.status === 'available') {
-      await db.execute(
-        sql`UPDATE claimed_rewards SET status='applied_to_cart' WHERE id=${claimedRewardId} AND user_id=${req.user!.id} AND status='available'`
-      );
-    }
-  }
-
-  // Items must be present at this point — either client-supplied or injected by reward
-  if (!enrichedItems.length) {
-    return res.status(400).json({ error: 'Items are required to create a payment intent' });
-  }
-
+  let totalDiscountCents = 0;
+  let computed: { totalCents: number };
   try {
-    const base = await computeOrderTotal(enrichedItems, orderType ?? 'pickup', 0, 'card');
-
-    if (discountCode && typeof discountCode === 'string') {
-      const validated = await validateDiscountCode(
-        discountCode,
-        req.user!.id,
-        req.user!.role,
-        base.subtotalCents,
-        orderType ?? 'pickup',
-      );
-      totalDiscountCents = validated.discountAmountCents;
-      validatedDiscountCode = validated.code;
-    }
+    ({
+      validatedDiscountCode,
+      claimedLoyaltyPoints,
+      claimedRewardDiscountCents: rewardDiscountCents,
+      totalDiscountCents,
+      computed,
+    } = await prepareRetailCheckout({
+      userId: req.user!.id,
+      userRole: req.user!.role,
+      rawItems,
+      orderType,
+      paymentMethod: 'card',
+      discountCode,
+      claimedRewardId,
+      loyaltyPointsUsed,
+      markClaimAppliedToCart: true,
+    }));
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not validate discount code' });
-  }
-
-  totalDiscountCents += rewardDiscountCents;
-
-  let previewWithoutPoints: Awaited<ReturnType<typeof computeOrderTotal>>;
-  try {
-    previewWithoutPoints = await computeOrderTotal(
-      enrichedItems,
-      orderType ?? 'pickup',
-      totalDiscountCents,
-      'card',
-    );
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
-  }
-
-  claimedLoyaltyPoints = Math.min(
-    claimedLoyaltyPoints,
-    Math.floor(previewWithoutPoints.totalCents / LOYALTY_POINT_VALUE_CENTS),
-  );
-  totalDiscountCents += claimedLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS;
-
-  let computed: Awaited<ReturnType<typeof computeOrderTotal>>;
-  try {
-    computed = await computeOrderTotal(
-      enrichedItems,
-      orderType ?? 'pickup',
-      totalDiscountCents,
-      'card',
-    );
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
   }
 
   // Free orders (e.g. item_reward with empty cart) skip Stripe entirely

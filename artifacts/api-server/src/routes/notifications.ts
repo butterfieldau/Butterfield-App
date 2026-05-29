@@ -71,7 +71,7 @@ router.delete('/register-token', requireAuth, async (req, res) => {
 
 // ── Send notification (director/manager only) ─────────────────────────────────
 // Body: { type, title, body, targetRole?, targetUserId?, data? }
-router.post('/send', requireRole('director', 'manager'), requireManagerPermission('announcements'), async (req, res) => {
+router.post('/send', requireRole('director', 'manager', 'master'), requireManagerPermission('announcements'), async (req, res) => {
   const { type, title, body, targetRole, targetUserId, data } = req.body ?? {};
   if (!type || !title || !body) {
     return res.status(400).json({ error: 'type, title, and body are required' });
@@ -94,7 +94,7 @@ router.post('/send', requireRole('director', 'manager'), requireManagerPermissio
 });
 
 // ── Notification history (director/manager) ───────────────────────────────────
-router.get('/logs', requireRole('director', 'manager'), requireManagerPermission('announcements'), async (_req, res) => {
+router.get('/logs', requireRole('director', 'manager', 'master'), requireManagerPermission('announcements'), async (_req, res) => {
   const logs = await db
     .select()
     .from(notificationLogsTable)

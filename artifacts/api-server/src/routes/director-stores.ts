@@ -6,9 +6,11 @@ import {
 } from '@workspace/db';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
+import { requireManagerPermission } from '../middlewares/managerPermission.js';
 
 const router = Router();
 router.use(requireRole('director', 'master', 'manager'));
+router.use(requireManagerPermission('settings'));
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;

@@ -8,6 +8,36 @@ import { WebhookHandlers } from "./webhookHandlers.js";
 
 const app: Express = express();
 
+function getAllowedOrigins(): string[] {
+  const configured = (process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const replitDomains = (process.env.REPLIT_DOMAINS ?? '')
+    .split(',')
+    .map((domain) => domain.trim())
+    .filter(Boolean)
+    .map((domain) => `https://${domain}`);
+
+  const publicDomain = process.env.EXPO_PUBLIC_DOMAIN ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`] : [];
+
+  return Array.from(new Set([...configured, ...replitDomains, ...publicDomain]));
+}
+
+const allowedOrigins = getAllowedOrigins();
+
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+
+  try {
+    const parsed = new URL(origin);
+    return allowedOrigins.includes(`${parsed.protocol}//${parsed.host}`);
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   pinoHttp({
     logger,
@@ -42,7 +72,21 @@ app.post(
   },
 );
 
-app.use(cors({ origin: "*" }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('Origin not allowed by CORS'));
+  },
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

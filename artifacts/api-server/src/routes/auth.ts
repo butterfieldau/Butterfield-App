@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomInt, randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
-import { signToken, requireAuth } from '../middlewares/auth.js';
+import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
@@ -13,6 +13,52 @@ import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
 
 const router = Router();
+
+type RateLimitBucket = {
+  count: number;
+  resetAt: number;
+};
+
+const rateLimitBuckets = new Map<string, RateLimitBucket>();
+
+function getRequestIdentifier(req: any): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (Array.isArray(forwarded)) return forwarded[0] ?? req.ip ?? 'unknown';
+  if (typeof forwarded === 'string' && forwarded.trim()) return forwarded.split(',')[0]!.trim();
+  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
+}
+
+function createRateLimiter(name: string, maxAttempts: number, windowMs: number) {
+  return (req: any, res: any, next: any) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.toLowerCase().trim() : '';
+    const phone = typeof req.body?.phone === 'string' ? req.body.phone.replace(/\s+/g, '') : '';
+    const key = [name, getRequestIdentifier(req), email, phone].filter(Boolean).join(':');
+    const now = Date.now();
+    const current = rateLimitBuckets.get(key);
+
+    if (!current || current.resetAt <= now) {
+      rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      next();
+      return;
+    }
+
+    if (current.count >= maxAttempts) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+      res.status(429).json({ error: 'Too many attempts. Please wait a moment and try again.' });
+      return;
+    }
+
+    current.count += 1;
+    rateLimitBuckets.set(key, current);
+    next();
+  };
+}
+
+const loginRateLimit = createRateLimiter('login', 10, 10 * 60 * 1000);
+const resetRequestRateLimit = createRateLimiter('forgot-password', 5, 15 * 60 * 1000);
+const resetVerifyRateLimit = createRateLimiter('verify-reset-otp', 8, 15 * 60 * 1000);
+const resetPasswordRateLimit = createRateLimiter('reset-password', 5, 15 * 60 * 1000);
 
 function haversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -42,7 +88,8 @@ async function getAssignedInternalStores(userId: string) {
 
 function generateReferralCode(name: string): string {
   const prefix = name.replace(/\s+/g, '').toUpperCase().slice(0, 4);
-  const suffix = Math.random().toString(36).toUpperCase().slice(2, 6);
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const suffix = Array.from(randomBytes(4), (byte) => chars[byte % chars.length]).join('');
   return `${prefix}${suffix}`;
 }
 
@@ -70,7 +117,7 @@ router.post('/register', async (req, res) => {
   return res.status(201).json({ token, user: { id: userId, email, role: 'customer', name } });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimit, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
@@ -128,7 +175,7 @@ router.post('/login', async (req, res) => {
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
-router.post('/staff-login', async (req, res) => {
+router.post('/staff-login', loginRateLimit, async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const { email, password, latitude, longitude } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
@@ -650,13 +697,13 @@ router.post('/social', async (req, res) => {
 
 // ── Password reset ────────────────────────────────────────────────────────────
 
-const RESET_SECRET = (process.env.SESSION_SECRET ?? 'butterfield-dev-only-not-for-production') + ':reset';
+const RESET_SECRET = `${getSessionSecret()}:reset`;
 
 function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(100000, 1000000));
 }
 
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', resetRequestRateLimit, async (req, res) => {
   const { email, phone, method } = req.body as { email?: string; phone?: string; method?: 'email' | 'sms' };
   const deliveryMethod = method === 'sms' ? 'sms' : 'email';
 
@@ -754,7 +801,7 @@ function maskPhone(phone: string): string {
   return `${'*'.repeat(digits.length - 4)}${digits.slice(-4)}`;
 }
 
-router.post('/verify-reset-otp', async (req, res) => {
+router.post('/verify-reset-otp', resetVerifyRateLimit, async (req, res) => {
   const { email, phone, otp } = req.body as { email?: string; phone?: string; otp: string };
   if (!otp) return res.status(400).json({ error: 'Code is required.' });
   if (!email && !phone) return res.status(400).json({ error: 'Email or phone is required.' });
@@ -804,7 +851,7 @@ router.post('/verify-reset-otp', async (req, res) => {
   return res.json({ resetToken });
 });
 
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', resetPasswordRateLimit, async (req, res) => {
   const { resetToken, newPassword } = req.body;
   if (!resetToken || !newPassword) {
     return res.status(400).json({ error: 'Reset token and new password are required.' });

@@ -12,6 +12,10 @@ const router = Router();
 const allowedRoles = requireRole('director', 'manager', 'master');
 const requireProducts = requireManagerPermission('products');
 
+function getRouteParam(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
 // ── Helper ─────────────────────────────────────────────────────────────────
 function getPublicBaseUrl(): string {
   const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
@@ -78,6 +82,7 @@ router.post('/categories', allowedRoles, requireProducts, async (req, res) => {
 });
 
 router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
+  const categoryId = getRouteParam(req.params.id);
   const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
@@ -93,13 +98,14 @@ router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) 
   if (showOnHome !== undefined) updates.showOnHome = Boolean(showOnHome);
   if (homeOrder !== undefined) updates.homeOrder = Number(homeOrder);
   updates.updatedAt = new Date();
-  const [cat] = await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, req.params.id)).returning();
+  const [cat] = await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, categoryId)).returning();
   if (!cat) return res.status(404).json({ error: 'Category not found' });
   return res.json({ data: cat });
 });
 
 router.delete('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
-  await db.delete(productCategoriesTable).where(eq(productCategoriesTable.id, req.params.id));
+  const categoryId = getRouteParam(req.params.id);
+  await db.delete(productCategoriesTable).where(eq(productCategoriesTable.id, categoryId));
   return res.json({ success: true });
 });
 
@@ -108,38 +114,42 @@ router.delete('/categories/:id', allowedRoles, requireProducts, async (req, res)
 // ══════════════════════════════════════════════════════════════════════════════
 
 router.get('/products/:productId/variants', allowedRoles, requireProducts, async (req, res) => {
+  const productId = getRouteParam(req.params.productId);
   const variants = await db.select().from(productVariantsTable)
-    .where(eq(productVariantsTable.productId, req.params.productId))
+    .where(eq(productVariantsTable.productId, productId))
     .orderBy(asc(productVariantsTable.sortOrder));
   return res.json({ data: variants });
 });
 
 router.post('/products/:productId/variants', allowedRoles, requireProducts, async (req, res) => {
+  const productId = getRouteParam(req.params.productId);
   const { name, priceCents, sortOrder } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   if (priceCents == null || isNaN(Number(priceCents))) return res.status(400).json({ error: 'priceCents is required' });
   const id = `var_${randomUUID().slice(0, 12)}`;
   const [v] = await db.insert(productVariantsTable).values({
-    id, productId: req.params.productId, name: name.trim(),
+    id, productId, name: name.trim(),
     priceCents: Number(priceCents), sortOrder: sortOrder ?? 0, isActive: true,
   }).returning();
   return res.json({ data: v });
 });
 
 router.patch('/products/:productId/variants/:id', allowedRoles, requireProducts, async (req, res) => {
+  const variantId = getRouteParam(req.params.id);
   const { name, priceCents, sortOrder, isActive } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
   if (priceCents !== undefined) updates.priceCents = Number(priceCents);
   if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder);
   if (isActive !== undefined) updates.isActive = Boolean(isActive);
-  const [v] = await db.update(productVariantsTable).set(updates).where(eq(productVariantsTable.id, req.params.id)).returning();
+  const [v] = await db.update(productVariantsTable).set(updates).where(eq(productVariantsTable.id, variantId)).returning();
   if (!v) return res.status(404).json({ error: 'Variant not found' });
   return res.json({ data: v });
 });
 
 router.delete('/products/:productId/variants/:id', allowedRoles, requireProducts, async (req, res) => {
-  await db.delete(productVariantsTable).where(eq(productVariantsTable.id, req.params.id));
+  const variantId = getRouteParam(req.params.id);
+  await db.delete(productVariantsTable).where(eq(productVariantsTable.id, variantId));
   return res.json({ success: true });
 });
 
@@ -178,6 +188,7 @@ router.post('/option-groups', allowedRoles, requireProducts, async (req, res) =>
 });
 
 router.patch('/option-groups/:id', allowedRoles, requireProducts, async (req, res) => {
+  const groupId = getRouteParam(req.params.id);
   const { name, description, selectionType, isRequired, minSelections, maxSelections, sortOrder, isActive,
     appliesToCategoryIds, appliesToProductIds, excludeProductIds } = req.body;
   const updates: any = {};
@@ -193,24 +204,26 @@ router.patch('/option-groups/:id', allowedRoles, requireProducts, async (req, re
   if (appliesToProductIds !== undefined) updates.appliesToProductIds = JSON.stringify(appliesToProductIds);
   if (excludeProductIds !== undefined) updates.excludeProductIds = JSON.stringify(excludeProductIds);
   updates.updatedAt = new Date();
-  const [g] = await db.update(productOptionGroupsTable).set(updates).where(eq(productOptionGroupsTable.id, req.params.id)).returning();
+  const [g] = await db.update(productOptionGroupsTable).set(updates).where(eq(productOptionGroupsTable.id, groupId)).returning();
   if (!g) return res.status(404).json({ error: 'Option group not found' });
   return res.json({ data: g });
 });
 
 router.delete('/option-groups/:id', allowedRoles, requireProducts, async (req, res) => {
-  await db.delete(productOptionGroupsTable).where(eq(productOptionGroupsTable.id, req.params.id));
+  const groupId = getRouteParam(req.params.id);
+  await db.delete(productOptionGroupsTable).where(eq(productOptionGroupsTable.id, groupId));
   return res.json({ success: true });
 });
 
 // ── Options within a group ─────────────────────────────────────────────────
 
 router.post('/option-groups/:groupId/options', allowedRoles, requireProducts, async (req, res) => {
+  const groupId = getRouteParam(req.params.groupId);
   const { name, priceAdjustmentCents, sortOrder, isDefault } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = `opt_${randomUUID().slice(0, 12)}`;
   const [opt] = await db.insert(productOptionsTable).values({
-    id, groupId: req.params.groupId, name: name.trim(),
+    id, groupId, name: name.trim(),
     priceAdjustmentCents: priceAdjustmentCents ?? 0,
     sortOrder: sortOrder ?? 0, isActive: true, isDefault: isDefault ?? false,
   }).returning();
@@ -218,6 +231,7 @@ router.post('/option-groups/:groupId/options', allowedRoles, requireProducts, as
 });
 
 router.patch('/option-groups/:groupId/options/:id', allowedRoles, requireProducts, async (req, res) => {
+  const optionId = getRouteParam(req.params.id);
   const { name, priceAdjustmentCents, sortOrder, isActive, isDefault } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
@@ -225,13 +239,14 @@ router.patch('/option-groups/:groupId/options/:id', allowedRoles, requireProduct
   if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder);
   if (isActive !== undefined) updates.isActive = Boolean(isActive);
   if (isDefault !== undefined) updates.isDefault = Boolean(isDefault);
-  const [opt] = await db.update(productOptionsTable).set(updates).where(eq(productOptionsTable.id, req.params.id)).returning();
+  const [opt] = await db.update(productOptionsTable).set(updates).where(eq(productOptionsTable.id, optionId)).returning();
   if (!opt) return res.status(404).json({ error: 'Option not found' });
   return res.json({ data: opt });
 });
 
 router.delete('/option-groups/:groupId/options/:id', allowedRoles, requireProducts, async (req, res) => {
-  await db.delete(productOptionsTable).where(eq(productOptionsTable.id, req.params.id));
+  const optionId = getRouteParam(req.params.id);
+  await db.delete(productOptionsTable).where(eq(productOptionsTable.id, optionId));
   return res.json({ success: true });
 });
 

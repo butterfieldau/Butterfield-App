@@ -4,18 +4,18 @@ import {
   claimedRewardsTable,
   db,
   ordersTable,
-  productsTable,
   staffTaskHistoryTable,
   staffTasksTable,
   staffStoreAssignmentsTable,
   usersTable,
 } from '@workspace/db';
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
+import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 
 const router = Router();
 router.use(requireRole('shop_display'));
@@ -37,27 +37,6 @@ const ACTIVE_ORDER_RANK: Record<string, number> = {
   cancelled: 5,
   refunded: 6,
 };
-
-async function countCoffeeItemsFromOrderItems(items: unknown) {
-  const orderItems = Array.isArray(items) ? items as any[] : [];
-  const orderProductIds = Array.from(new Set(
-    orderItems
-      .map((item) => item?.productId)
-      .filter((productId: unknown): productId is string => Boolean(productId && typeof productId === 'string')),
-  ));
-  const products = orderProductIds.length > 0
-    ? await db.select({ id: productsTable.id, category: productsTable.category })
-      .from(productsTable)
-      .where(inArray(productsTable.id, orderProductIds))
-    : [];
-  const coffeeIds = new Set(
-    products.filter((product) => String(product.category ?? '').toLowerCase() === 'coffee').map((product) => product.id),
-  );
-  return orderItems.reduce((sum: number, item: any) => {
-    const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
-    return coffeeIds.has(item?.productId) ? sum + qty : sum;
-  }, 0);
-}
 
 router.get('/me', async (req, res) => {
   await ensureShopDisplaySchemaReady();

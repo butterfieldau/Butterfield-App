@@ -52,9 +52,6 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
 
   if (!resend) {
     console.warn('[emailService] Resend not configured — email not sent.');
-    console.info(`[emailService] EMAIL TO: ${opts.to} | SUBJECT: ${opts.subject}`);
-    const match = opts.html.match(/letter-spacing[^>]*>(\d{6})<\/span>/);
-    if (match) console.info(`[emailService] OTP CODE: ${match[1]}`);
     return { success: false };
   }
 
