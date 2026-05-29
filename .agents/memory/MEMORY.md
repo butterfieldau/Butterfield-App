@@ -1,3 +1,4 @@
 - [Geo-fence two-system disconnect](geo-fence-disconnect.md) — store_settings and stores table were disconnected; Settings screen must propagate to stores rows.
 - [Google Places address search](google-places-address.md) — Modal-based component at components/AddressSearchInput.tsx; key via EXPO_PUBLIC_GOOGLE_PLACES_API_KEY.
 - [Expo Replit domain routing](expo-replit-domain-routing.md) — REACT_NATIVE_PACKAGER_HOSTNAME must be REPLIT_EXPO_DEV_DOMAIN not REPLIT_DEV_DOMAIN; never install @expo/ngrok.
+- [Expo Go dev server on Replit](expo-go-replit-fix.md) — CI=1 + EXPO_OFFLINE=1 are both required to avoid login prompt AND code-signing error in Replit workflows.
