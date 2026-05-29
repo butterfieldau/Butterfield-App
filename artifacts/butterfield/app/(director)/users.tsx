@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 import DirectorCustomersScreen from './customers';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal,
@@ -329,7 +330,15 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   <Text style={[sp_s.sectionLabel, { marginTop: 16 }]}>ADDRESS</Text>
                   <View style={sp_s.fieldWrap}>
                     <Text style={sp_s.fieldLabel}>Home address</Text>
-                    <View style={sp_s.fieldRow}>
+                    <AddressSearchInput
+                      currentValue={eAddress || undefined}
+                      placeholder="Search home address…"
+                      onSelect={(r) => {
+                        const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                        setEAddress(parts.join(', '));
+                      }}
+                    />
+                    <View style={[sp_s.fieldRow, { marginTop: 8 }]}>
                       <Feather name="map-pin" size={14} color={MUTED} />
                       <TextInput style={sp_s.fieldInput} value={eAddress} onChangeText={setEAddress}
                         placeholder="Street, suburb, state, postcode" placeholderTextColor={MUTED}
@@ -991,7 +1000,15 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
           <View style={wdl.card}>
             <Text style={wdl.sectionLabel}>DELIVERY SETTINGS</Text>
             <Text style={wdl.fieldLabel}>Delivery Address</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER, height: 72, alignItems: 'flex-start', paddingTop: 12 }]}>
+            <AddressSearchInput
+              currentValue={deliveryAddr || undefined}
+              placeholder="Search delivery address…"
+              onSelect={(r) => {
+                const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                setDeliveryAddr(parts.join(', '));
+              }}
+            />
+            <View style={[wdl.inputRow, { borderColor: BORDER, height: 72, alignItems: 'flex-start', paddingTop: 12, marginTop: 8 }]}>
               <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
                 placeholder="Street, suburb, postcode"
                 value={deliveryAddr}
@@ -1226,6 +1243,14 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
                 <Feather name="phone" size={15} color={MUTED} />
                 <TextInput style={[modal.input, { color: TEXT }]} placeholder="Phone number (optional)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
               </View>
+              <AddressSearchInput
+                currentValue={address || undefined}
+                placeholder="Search home address…"
+                onSelect={(r) => {
+                  const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                  setAddress(parts.join(', '));
+                }}
+              />
               <View style={[modal.inputRow, { borderColor: BORDER }]}>
                 <Feather name="map-pin" size={15} color={MUTED} />
                 <TextInput style={[modal.input, { color: TEXT }]} placeholder="Home address (optional)" placeholderTextColor={MUTED} value={address} onChangeText={setAddress} autoCapitalize="words" />

@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
+import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import type { UserRole } from '@/types';
 
@@ -394,6 +395,14 @@ export default function LoginScreen() {
                     <Feather name="phone" size={16} color={MUTED} />
                     <TextInput style={[s.input, { color: TEXT }]} placeholder="Phone number (required)" placeholderTextColor={MUTED} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
                   </View>
+                  <AddressSearchInput
+                    currentValue={address || undefined}
+                    placeholder="Search business address…"
+                    onSelect={(r) => {
+                      const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                      setAddress(parts.join(', '));
+                    }}
+                  />
                   <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                     <Feather name="map-pin" size={16} color={MUTED} />
                     <TextInput style={[s.input, { color: TEXT }]} placeholder="Business address (required)" placeholderTextColor={MUTED} value={address} onChangeText={setAddress} autoCapitalize="words" />
