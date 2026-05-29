@@ -14,8 +14,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getToken } from '../lib/api';
 
-const PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY ?? '';
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : '/api';
 
 export interface AddressResult {
   street: string;
@@ -44,16 +47,14 @@ function getComponent(components: any[], type: string, short = false): string {
 async function fetchPredictions(input: string): Promise<Prediction[]> {
   if (input.length < 2) return [];
   try {
-    const url =
-      `https://maps.googleapis.com/maps/api/place/autocomplete/json` +
-      `?input=${encodeURIComponent(input)}` +
-      `&key=${PLACES_KEY}` +
-      `&components=country:au` +
-      `&types=address` +
-      `&language=en`;
-    const res = await fetch(url);
+    const token = await getToken();
+    const res = await fetch(
+      `${API_BASE}/places/autocomplete?input=${encodeURIComponent(input)}`,
+      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+    );
+    if (!res.ok) return [];
     const json = await res.json();
-    return json.status === 'OK' ? (json.predictions as Prediction[]) : [];
+    return Array.isArray(json.predictions) ? json.predictions : [];
   } catch {
     return [];
   }
@@ -61,15 +62,16 @@ async function fetchPredictions(input: string): Promise<Prediction[]> {
 
 async function fetchPlaceDetails(placeId: string): Promise<AddressResult | null> {
   try {
-    const url =
-      `https://maps.googleapis.com/maps/api/place/details/json` +
-      `?place_id=${placeId}` +
-      `&key=${PLACES_KEY}` +
-      `&fields=address_components,geometry,formatted_address`;
-    const res = await fetch(url);
+    const token = await getToken();
+    const res = await fetch(
+      `${API_BASE}/places/details?place_id=${encodeURIComponent(placeId)}`,
+      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+    );
+    if (!res.ok) return null;
     const json = await res.json();
-    if (json.status !== 'OK') return null;
-    const components: any[] = json.result.address_components ?? [];
+    const r = json.result;
+    if (!r) return null;
+    const components: any[] = r.address_components ?? [];
     const streetNumber = getComponent(components, 'street_number');
     const route        = getComponent(components, 'route');
     const street       = [streetNumber, route].filter(Boolean).join(' ');
@@ -80,9 +82,9 @@ async function fetchPlaceDetails(placeId: string): Promise<AddressResult | null>
       getComponent(components, 'administrative_area_level_2');
     const state    = getComponent(components, 'administrative_area_level_1', true);
     const postcode = getComponent(components, 'postal_code');
-    const lat      = json.result.geometry?.location?.lat as number | undefined;
-    const lng      = json.result.geometry?.location?.lng as number | undefined;
-    return { street, suburb, state, postcode, lat, lng, formatted: json.result.formatted_address };
+    const lat      = r.geometry?.location?.lat as number | undefined;
+    const lng      = r.geometry?.location?.lng as number | undefined;
+    return { street, suburb, state, postcode, lat, lng, formatted: r.formatted_address };
   } catch {
     return null;
   }

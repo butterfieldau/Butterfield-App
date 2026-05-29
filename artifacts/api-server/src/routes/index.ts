@@ -23,6 +23,7 @@ import stockRouter from "./stock.js";
 import discountsRouter from "./discounts.js";
 import adminSeedRouter from "./admin-seed.js";
 import directorReportsExportRouter from "./director-reports-export.js";
+import placesRouter from "./places.js";
 
 const router: IRouter = Router();
 
@@ -48,6 +49,7 @@ router.use("/shop-display", shopDisplayRouter);
 router.use("/stock", stockRouter);
 router.use("/discounts", discountsRouter);
 router.use(storageRouter);
+router.use("/places", placesRouter);
 router.use(adminSeedRouter);
 router.use(miscRouter);
 
