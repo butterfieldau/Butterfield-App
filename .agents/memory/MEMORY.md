@@ -2,3 +2,4 @@
 - [Google Places address search](google-places-address.md) — Modal-based component at components/AddressSearchInput.tsx; key via EXPO_PUBLIC_GOOGLE_PLACES_API_KEY.
 - [Expo Replit domain routing](expo-replit-domain-routing.md) — REACT_NATIVE_PACKAGER_HOSTNAME must be REPLIT_EXPO_DEV_DOMAIN not REPLIT_DEV_DOMAIN; never install @expo/ngrok.
 - [Expo Go dev server on Replit](expo-go-replit-fix.md) — CI=1 + EXPO_OFFLINE=1 are both required to avoid login prompt AND code-signing error in Replit workflows.
+- [Stripe schema _raw_data pattern](stripe-raw-data.md) — All stripe.* table columns are generated from _raw_data JSONB; must INSERT into (_raw_data, _account_id) only.
