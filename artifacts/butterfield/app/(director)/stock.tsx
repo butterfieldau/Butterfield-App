@@ -271,93 +271,91 @@ function EditModal({ item, onClose, onSave, categories }: {
   };
 
   return (
-    <Modal transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={em.overlay} onPress={onClose}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
-          <Pressable style={em.sheet} onPress={() => {}}>
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={em.title}>{isNew ? 'Add Stock Item' : 'Edit Stock Item'}</Text>
-                <Pressable onPress={onClose} style={em.closeBtn}>
-                  <Feather name="x" size={18} color={MUTED} />
-                </Pressable>
-              </View>
-
-              <Label>Name *</Label>
-              <TextInput style={em.input} value={name} onChangeText={setName} placeholder="e.g. Full Cream Milk" placeholderTextColor={MUTED} />
-
-              <Label>Category *</Label>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                {categories.map((c) => {
-                  const color = catColor(c.id);
-                  const active = category === c.id;
-                  return (
-                    <Pressable
-                      key={c.id}
-                      onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCustomCat(''); }}
-                      style={[em.catChip, active && { backgroundColor: color, borderColor: color }]}
-                    >
-                      <Text style={[em.catLabel, active && { color: '#fff' }]}>{c.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-              <TextInput
-                style={[em.input, { marginBottom: 16 }]}
-                value={customCat}
-                onChangeText={(v) => {
-                  setCustomCat(v);
-                  if (v.trim()) setCategory(v.trim().toLowerCase().replace(/\s+/g, '_'));
-                }}
-                placeholder="Or type a custom category…"
-                placeholderTextColor={MUTED}
-              />
-
-              <Label>Unit</Label>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
-                {COMMON_UNITS.map((u) => (
-                  <Pressable key={u} onPress={() => setUnit(u)} style={[em.unitChip, unit === u && { backgroundColor: NAVY, borderColor: NAVY }]}>
-                    <Text style={[em.unitLabel, unit === u && { color: '#fff' }]}>{u}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <TextInput style={[em.input, { marginTop: 8 }]} value={unit} onChangeText={setUnit} placeholder="Custom unit" placeholderTextColor={MUTED} />
-
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Label>Current Qty</Label>
-                  <TextInput style={em.input} value={qty} onChangeText={setQty} keyboardType="decimal-pad" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Label>Low Stock Alert</Label>
-                  <TextInput style={em.input} value={threshold} onChangeText={setThreshold} keyboardType="decimal-pad" placeholder="0 = off" placeholderTextColor={MUTED} />
-                </View>
-              </View>
-
-              <Label>Cost per unit (AUD)</Label>
-              <View style={em.costRow}>
-                <Text style={em.costPrefix}>$</Text>
-                <TextInput style={[em.input, { flex: 1 }]} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholder="0.00  (director only)" placeholderTextColor={MUTED} />
-              </View>
-
-              <Label>Supplier</Label>
-              <TextInput style={em.input} value={supplier} onChangeText={setSupplier} placeholder="Supplier name" placeholderTextColor={MUTED} />
-
-              <Label>Notes</Label>
-              <TextInput style={[em.input, { height: 70, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} placeholder="Any notes…" placeholderTextColor={MUTED} multiline />
-
-              <View style={em.btnRow}>
-                <Pressable style={[em.btn, { backgroundColor: BG }]} onPress={onClose}>
-                  <Text style={[em.btnTxt, { color: TEXT }]}>Cancel</Text>
-                </Pressable>
-                <Pressable style={[em.btn, { backgroundColor: NAVY }]} onPress={handleSave}>
-                  <Text style={[em.btnTxt, { color: '#fff' }]}>{isNew ? 'Add Item' : 'Save Changes'}</Text>
-                </Pressable>
-              </View>
-            </ScrollView>
+    <Modal animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={em.header}>
+          <Pressable onPress={onClose} style={em.closeBtn}>
+            <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
+          <Text style={em.title}>{isNew ? 'Add Stock Item' : 'Edit Stock Item'}</Text>
+          <Pressable onPress={handleSave} style={em.saveBtn}>
+            <Text style={em.saveTxt}>{isNew ? 'Add' : 'Save'}</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={em.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Label>Name *</Label>
+          <TextInput style={em.input} value={name} onChangeText={setName} placeholder="e.g. Full Cream Milk" placeholderTextColor={MUTED} />
+
+          <Label>Category *</Label>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+            {categories.map((c) => {
+              const color = catColor(c.id);
+              const active = category === c.id;
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => { Haptics.selectionAsync(); setCategory(c.id); setCustomCat(''); }}
+                  style={[em.catChip, active && { backgroundColor: color, borderColor: color }]}
+                >
+                  <Text style={[em.catLabel, active && { color: '#fff' }]}>{c.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <TextInput
+            style={[em.input, { marginBottom: 16 }]}
+            value={customCat}
+            onChangeText={(v) => {
+              setCustomCat(v);
+              if (v.trim()) setCategory(v.trim().toLowerCase().replace(/\s+/g, '_'));
+            }}
+            placeholder="Or type a custom category…"
+            placeholderTextColor={MUTED}
+          />
+
+          <Label>Unit</Label>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+            {COMMON_UNITS.map((u) => (
+              <Pressable key={u} onPress={() => setUnit(u)} style={[em.unitChip, unit === u && { backgroundColor: NAVY, borderColor: NAVY }]}>
+                <Text style={[em.unitLabel, unit === u && { color: '#fff' }]}>{u}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <TextInput style={[em.input, { marginTop: 8 }]} value={unit} onChangeText={setUnit} placeholder="Custom unit" placeholderTextColor={MUTED} />
+
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Label>Current Qty</Label>
+              <TextInput style={em.input} value={qty} onChangeText={setQty} keyboardType="decimal-pad" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Label>Low Stock Alert</Label>
+              <TextInput style={em.input} value={threshold} onChangeText={setThreshold} keyboardType="decimal-pad" placeholder="0 = off" placeholderTextColor={MUTED} />
+            </View>
+          </View>
+
+          <Label>Cost per unit (AUD)</Label>
+          <View style={em.costRow}>
+            <Text style={em.costPrefix}>$</Text>
+            <TextInput style={[em.input, { flex: 1 }]} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholder="0.00  (director only)" placeholderTextColor={MUTED} />
+          </View>
+
+          <Label>Supplier</Label>
+          <TextInput style={em.input} value={supplier} onChangeText={setSupplier} placeholder="Supplier name" placeholderTextColor={MUTED} />
+
+          <Label>Notes</Label>
+          <TextInput style={[em.input, { height: 70, textAlignVertical: 'top' }]} value={notes} onChangeText={setNotes} placeholder="Any notes…" placeholderTextColor={MUTED} multiline />
+
+          <Pressable style={em.primaryBtn} onPress={handleSave}>
+            <Text style={em.primaryBtnTxt}>{isNew ? 'Add Item' : 'Save Changes'}</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
     </Modal>
   );
 }
@@ -367,21 +365,22 @@ function Label({ children }: { children: string }) {
 }
 
 const em = StyleSheet.create({
-  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet:     { backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '92%' },
-  title:     { fontSize: 20, fontWeight: '700', color: TEXT },
-  closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  label:     { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
-  input:     { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT },
-  catChip:   { borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
-  catLabel:  { fontSize: 13, fontWeight: '600', color: MUTED },
-  unitChip:  { borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6 },
-  unitLabel: { fontSize: 12, fontWeight: '500', color: MUTED },
-  costRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  costPrefix:{ fontSize: 18, fontWeight: '600', color: TEXT },
-  btnRow:    { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 8 },
-  btn:       { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  btnTxt:    { fontSize: 15, fontWeight: '700' },
+  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  title:       { fontSize: 18, fontWeight: '700', color: TEXT },
+  closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  saveBtn:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: NAVY },
+  saveTxt:     { fontSize: 14, fontWeight: '700', color: '#fff' },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  label:       { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
+  input:       { borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TEXT },
+  catChip:     { borderWidth: 1.5, borderColor: BORDER, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
+  catLabel:    { fontSize: 13, fontWeight: '600', color: MUTED },
+  unitChip:    { borderWidth: 1.5, borderColor: BORDER, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 6 },
+  unitLabel:   { fontSize: 12, fontWeight: '500', color: MUTED },
+  costRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  costPrefix:  { fontSize: 18, fontWeight: '600', color: TEXT },
+  primaryBtn:  { marginTop: 28, marginBottom: 8, backgroundColor: NAVY, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  primaryBtnTxt: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
 
 // ── Stock item card ──────────────────────────────────────────────────────────
