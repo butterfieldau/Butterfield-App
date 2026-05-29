@@ -15,12 +15,6 @@ interface CartContextValue {
   updateItemQuantity: (cartItemId: string, quantity: number) => void;
   removeCartItem: (cartItemId: string) => void;
   clearCart: () => void;
-  /** @deprecated Use addItemToCart */
-  addItem: (product: any) => void;
-  /** @deprecated Use removeCartItem */
-  removeItem: (productId: string) => void;
-  /** @deprecated Use updateItemQuantity */
-  updateQuantity: (productId: string, quantity: number) => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -60,31 +54,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  // ── Legacy compat ────────────────────────────────────────────────────────
-  const addItem = useCallback((product: any) => {
-    addItemToCart({
-      productId: product.id ?? product.product?.id ?? 'unknown',
-      productName: product.name ?? product.product?.name ?? 'Item',
-      basePriceCents: Math.round((product.price ?? (product.priceCents ?? 0) / 100) * 100),
-      selectedOptions: [],
-      quantity: 1,
-      imageUrl: product.images?.[0] ?? product.imageUrl,
-      category: product.category ?? product.metadata?.category,
-    });
-  }, [addItemToCart]);
-
-  const removeItem = useCallback((productId: string) => {
-    setItems(prev => prev.filter(i => i.productId !== productId));
-  }, []);
-
-  const updateQuantity = useCallback((productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      setItems(prev => prev.filter(i => i.productId !== productId));
-    } else {
-      setItems(prev => prev.map(i => i.productId === productId ? { ...i, quantity } : i));
-    }
-  }, []);
-
   const totalItems      = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items]);
   const totalPriceCents = useMemo(() => items.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0), [items]);
   const totalPrice      = useMemo(() => totalPriceCents / 100, [totalPriceCents]);
@@ -92,10 +61,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({
     items, totalItems, totalPriceCents, totalPrice,
     addItemToCart, updateItemQuantity, removeCartItem, clearCart,
-    addItem, removeItem, updateQuantity,
   }), [items, totalItems, totalPriceCents, totalPrice,
-    addItemToCart, updateItemQuantity, removeCartItem, clearCart,
-    addItem, removeItem, updateQuantity]);
+    addItemToCart, updateItemQuantity, removeCartItem, clearCart]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
