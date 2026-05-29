@@ -9,6 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 
 const BG     = '#EFF6FF';
@@ -24,8 +25,8 @@ const PURPLE = '#8B5CF6';
 const PINK   = '#EC4899';
 
 // Glass card standard
-const GLASS_BG     = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER = 'rgba(255,255,255,0.85)';
+const GLASS_BG     = INTERNAL_GLASS_BG;
+const GLASS_BORDER = INTERNAL_GLASS_BORDER;
 
 type Tab = 'tasks' | 'issues' | 'wastage' | 'leave' | 'feedback';
 

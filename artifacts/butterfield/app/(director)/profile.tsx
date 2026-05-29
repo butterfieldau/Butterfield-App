@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import { AvatarPicker } from '@/components/AvatarPicker';
+import { InternalGlassCard } from '@/components/InternalGlass';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -67,7 +68,7 @@ export default function StaffProfileScreen() {
       <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 8 }}>
 
         {/* Identity card */}
-        <View style={[styles.idCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
+        <InternalGlassCard style={styles.idCard}>
           <AvatarPicker
             initial={user?.name?.charAt(0).toUpperCase() ?? 'S'}
             size={60}
@@ -88,11 +89,11 @@ export default function StaffProfileScreen() {
               )}
             </View>
           </View>
-        </View>
+        </InternalGlassCard>
 
         {/* Details card */}
         {profile && (
-          <View style={[styles.detailsCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
+          <InternalGlassCard style={styles.detailsCard}>
             {([
               { label: 'Employee ID',  value: profile.employeeId },
               { label: 'Department',   value: capitalize(profile.department ?? '') },
@@ -111,11 +112,11 @@ export default function StaffProfileScreen() {
                 <Text style={[styles.detailValue, { color: TEXT }]} numberOfLines={2}>{row.value}</Text>
               </View>
             ))}
-          </View>
+          </InternalGlassCard>
         )}
 
         {/* Menu items */}
-        <View style={[styles.menuCard, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(255,255,255,0.85)' }]}>
+        <InternalGlassCard style={styles.menuCard}>
           {menuItems.map((item) => (
             <Pressable
               key={item.label}
@@ -132,7 +133,7 @@ export default function StaffProfileScreen() {
               <Feather name="chevron-right" size={16} color={MUTED} />
             </Pressable>
           ))}
-        </View>
+        </InternalGlassCard>
 
         <Pressable onPress={handleLogout} style={[styles.signOutBtn, { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: '#FECACA' }]}>
           <Feather name="log-out" size={16} color="#EF4444" />
@@ -148,17 +149,17 @@ export default function StaffProfileScreen() {
 const styles = StyleSheet.create({
   topSection:      { paddingHorizontal: 20, paddingBottom: 12 },
   screenTitle:     { fontSize: 28, fontWeight: '700' },
-  idCard:          { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 16, borderWidth: 1 },
+  idCard:          { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 16 },
   idName:          { fontSize: 17, fontWeight: '700' },
   idEmail:         { fontSize: 13, fontWeight: '400' },
   roleBadge:       { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
   roleBadgeText:   { color: '#fff', fontSize: 11, fontWeight: '600' },
   rateText:        { fontSize: 13, fontWeight: '500' },
-  detailsCard:     { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  detailsCard:     { borderRadius: 16, overflow: 'hidden' },
   detailRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13 },
   detailLabel:     { fontSize: 13, fontWeight: '400' },
   detailValue:     { fontSize: 13, fontWeight: '600' },
-  menuCard:        { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  menuCard:        { borderRadius: 16, overflow: 'hidden' },
   menuRow:         { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   menuIconWrap:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   menuLabel:       { fontSize: 14, fontWeight: '500' },

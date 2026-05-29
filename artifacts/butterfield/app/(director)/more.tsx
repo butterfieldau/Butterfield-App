@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { InternalGlassCard } from '@/components/InternalGlass';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -33,7 +34,7 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
   return (
     <View style={s.section}>
       <Text style={s.sectionTitle}>{title}</Text>
-      <View style={s.card}>
+      <InternalGlassCard style={s.card}>
         {rows.map((row, i) => (
           <Pressable
             key={row.label}
@@ -53,7 +54,7 @@ function Section({ title, rows }: { title: string; rows: Row[] }) {
             {!row.danger && <Feather name="chevron-right" size={16} color={MUTED} />}
           </Pressable>
         ))}
-      </View>
+      </InternalGlassCard>
     </View>
   );
 }
@@ -232,7 +233,7 @@ const s = StyleSheet.create({
   headerSub:   { fontSize: 14, fontWeight: '400', color: MUTED },
   section:     { marginBottom: 28 },
   sectionTitle:{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1.4, marginBottom: 8, paddingHorizontal: 4 },
-  card:        { backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.85)', padding: 8, gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 2 },
+  card:        { borderRadius: 24, padding: 8, gap: 8 },
   row:         { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 14, paddingVertical: 13 },
   iconBox:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rowLabel:    { fontSize: 15, fontWeight: '500', color: TEXT },
