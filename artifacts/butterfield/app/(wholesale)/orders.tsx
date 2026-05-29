@@ -16,6 +16,7 @@ import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
+import { normalizeOrderItems } from '@/lib/orderItems';
 
 export const WS_REORDER_KEY = '@ws_pending_reorder';
 const GLASS_BG     = 'rgba(255,255,255,0.72)';
@@ -85,12 +86,12 @@ function mapOrderToInvoice(order: any): Invoice {
   };
 }
 function getOrderLines(order: any): InvoiceLine[] {
-  const items: any[] = Array.isArray(order?.items) ? order.items : [];
+  const items = normalizeOrderItems(order?.items);
   if (items.length > 0) {
-    return items.map((item: any) => ({
-      description: item.productName ?? 'Wholesale Product',
-      qty:         item.qty ?? 1,
-      unitPrice:   (item.unitPriceCents ?? 0) / 100,
+    return items.map((item) => ({
+      description: item.name,
+      qty:         item.quantity,
+      unitPrice:   item.unitPriceCents / 100,
     }));
   }
   return [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
@@ -114,7 +115,7 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
   const insets = useSafeAreaInsets();
   if (!order) return null;
   const cfg    = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
-  const items  = Array.isArray(order.items) ? order.items : [];
+  const items  = normalizeOrderItems(order.items);
   const stepIdx = STATUS_STEPS.indexOf(order.status);
   const subtotal = order.totalCents ?? 0;
   const gst = Math.round(subtotal / 11);
@@ -159,17 +160,14 @@ function OrderDetailModal({ order, onClose, onReorder }: { order: any | null; on
               </View>
             )}
             <Text style={[mdl.sectionTitle, { marginBottom: 8 }]}>Items ({items.length})</Text>
-            {items.map((item: any, i: number) => {
-              const qty       = item.qty ?? item.quantity ?? '?';
-              const name      = item.productName ?? item.name ?? `Product ${i + 1}`;
-              const lineCents = item.totalCents ?? ((item.unitPriceCents ?? 0) * qty);
+            {items.map((item, i: number) => {
               return (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: i < items.length - 1 ? 1 : 0, borderBottomColor: BORDER, gap: 10 }}>
                   <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{qty}</Text>
+                    <Text style={{ color: BLUE, fontWeight: '700', fontSize: 12 }}>{item.quantity}</Text>
                   </View>
-                  <Text style={{ flex: 1, color: TEXT, fontWeight: '500', fontSize: 13 }}>{name}</Text>
-                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
+                  <Text style={{ flex: 1, color: TEXT, fontWeight: '500', fontSize: 13 }}>{item.name}</Text>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(item.lineTotalCents / 100).toFixed(2)}</Text>
                 </View>
               );
             })}
@@ -509,7 +507,7 @@ export default function WholesaleOrdersScreen() {
             }
             renderItem={({ item: order }: { item: any }) => {
               const cfg = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
-              const items = Array.isArray(order.items) ? order.items : [];
+              const items = normalizeOrderItems(order.items);
               const stepIdx = STATUS_STEPS.indexOf(order.status);
               const overdue = isOverdue(order);
               return (
@@ -547,14 +545,11 @@ export default function WholesaleOrdersScreen() {
                     </View>
                   )}
                   <View style={{ gap: 2, marginTop: 8 }}>
-                    {items.slice(0, 2).map((item: any, i: number) => {
-                      const qty  = item.qty ?? item.quantity ?? '?';
-                      const name = item.productName ?? item.name ?? `Product ${i + 1}`;
-                      const lineCents = item.totalCents ?? ((item.unitPriceCents ?? 0) * qty);
+                    {items.slice(0, 2).map((item, i: number) => {
                       return (
                         <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12, flex: 1 }}>{qty}× {name}</Text>
-                          <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(lineCents / 100).toFixed(2)}</Text>
+                          <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12, flex: 1 }}>{item.quantity}× {item.name}</Text>
+                          <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(item.lineTotalCents / 100).toFixed(2)}</Text>
                         </View>
                       );
                     })}

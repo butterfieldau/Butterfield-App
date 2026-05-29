@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
+import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -118,7 +119,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   const [updating, setUpdating] = useState(false);
   if (!order) return null;
   const isWholesale = order.orderSource === 'wholesale';
-  const items = Array.isArray(order.items) ? order.items : [];
+  const items = normalizeOrderItems(order.items);
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
   // Filter cancel/refund from action list for non-directors (managers cannot cancel or refund)
@@ -288,24 +289,13 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Items ({items.length})</Text>
             <View style={{ gap: 0, marginTop: 6 }}>
-              {items.map((item: any, i: number) => {
-                const qty     = item.qty ?? item.quantity ?? 0;
-                const name    = item.productName ?? item.productNameSnapshot ?? item.name ?? `Item ${i + 1}`;
-                const variant = item.variantNameSnapshot ?? item.variantName;
-                const unit    = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
-                const line    = item.totalCents ?? item.totalPriceCents ?? (unit * qty);
-                const opts    = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
-                const notable = opts.filter((o: any) => {
-                  const n = o.optionName ?? o.name ?? '';
-                  return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
-                });
-                const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
+              {items.map((item, i: number) => {
                 return (
                   <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                     <View style={{ flex: 1, gap: 2 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <Text style={[{ color: TEXT, fontWeight: '500', fontSize: 14 }]}>
-                          {name}{variant ? ` · ${variant}` : ''}
+                          {item.name}{item.variantName ? ` · ${item.variantName}` : ''}
                         </Text>
                         {item.isFreeReward && (
                           <View style={{ backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -314,22 +304,21 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                         )}
                       </View>
                       <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
-                        {qty} × ${(unit / 100).toFixed(2)}
-                        {item.priceLabel ? ` · ${item.priceLabel}` : ''}
+                        {item.quantity} × ${(item.unitPriceCents / 100).toFixed(2)}
                       </Text>
-                      {notable.length > 0 && (
+                      {item.notableOptions.length > 0 && (
                         <Text style={{ color: BLUE, fontWeight: '400', fontSize: 12 }}>
-                          {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                          {item.notableOptions.join(' · ')}
                         </Text>
                       )}
-                      {baristaNote ? (
+                      {item.baristaNote ? (
                         <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic' }}>
-                          "{baristaNote}"
+                          "{item.baristaNote}"
                         </Text>
                       ) : null}
                     </View>
                     <Text style={[{ color: TEXT, fontWeight: '600', fontSize: 14 }]}>
-                      ${(line / 100).toFixed(2)}
+                      ${(item.lineTotalCents / 100).toFixed(2)}
                     </Text>
                   </View>
               );
@@ -393,12 +382,8 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress:
   const isWholesale = order.orderSource === 'wholesale';
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label = STATUS_LABEL[order.status] ?? order.status;
-  const items  = Array.isArray(order.items) ? order.items : [];
-  const itemSummary = items.slice(0, 3).map((it: any) => {
-    const name = it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item';
-    const qty  = it.qty ?? it.quantity ?? 1;
-    return `${qty}× ${name}`;
-  }).join(', ') + (items.length > 3 ? ` +${items.length - 3} more` : '');
+  const items  = normalizeOrderItems(order.items);
+  const itemSummary = summarizeOrderItems(items).replaceAll(' · ', ', ');
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, { opacity: pressed ? 0.92 : 1 }]}>
       <View style={[styles.orderCardAccent, { backgroundColor: colors.bg }]}>

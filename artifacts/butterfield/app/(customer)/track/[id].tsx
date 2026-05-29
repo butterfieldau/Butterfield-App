@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { api } from '@/lib/api';
+import { normalizeOrderItems } from '@/lib/orderItems';
 
 const STAGES = [
   { key: 'received',          label: 'Received',        icon: 'check-circle',  desc: 'Your order has been placed successfully. We\'ve got it!' },
@@ -196,44 +197,35 @@ export default function TrackOrderScreen() {
           )}
 
           {/* Items */}
-          {order.items && order.items.length > 0 && (
+          {normalizeOrderItems(order.items).length > 0 && (
             <View style={[styles.pipelineCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Items</Text>
               <View style={{ gap: 8, marginTop: 8 }}>
-                {order.items.map((item: any, i: number) => {
-                  const qty         = item.quantity ?? item.qty ?? 1;
-                  const variant     = item.variantNameSnapshot ?? item.variantName;
-                  const opts        = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
-                  const notable     = opts.filter((o: any) => {
-                    const n = o.optionName ?? o.name ?? '';
-                    return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
-                  });
-                  const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
-                  const unitCents   = item.unitPriceCents ?? item.priceCents ?? 0;
+                {normalizeOrderItems(order.items).map((item, i: number) => {
                   return (
                     <View key={i} style={[styles.itemRow, { borderBottomColor: colors.border }]}>
                       <View style={[styles.qtyBadge, { backgroundColor: colors.primary }]}>
-                        <Text style={styles.qtyText}>{qty}</Text>
+                        <Text style={styles.qtyText}>{item.quantity}</Text>
                       </View>
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={[styles.itemName, { color: colors.foreground }]}>
-                          {item.productName ?? 'Item'}
-                          {variant ? <Text style={{ color: colors.mutedForeground, fontWeight: '400' }}>{` · ${variant}`}</Text> : null}
+                          {item.name}
+                          {item.variantName ? <Text style={{ color: colors.mutedForeground, fontWeight: '400' }}>{` · ${item.variantName}`}</Text> : null}
                         </Text>
-                        {notable.length > 0 && (
+                        {item.notableOptions.length > 0 && (
                           <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '400' }}>
-                            {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                            {item.notableOptions.join(' · ')}
                           </Text>
                         )}
-                        {baristaNote ? (
+                        {item.baristaNote ? (
                           <Text style={{ fontSize: 11, color: colors.mutedForeground, fontWeight: '400', fontStyle: 'italic' }}>
-                            "{baristaNote}"
+                            "{item.baristaNote}"
                           </Text>
                         ) : null}
                       </View>
-                      {unitCents > 0 && (
+                      {item.lineTotalCents > 0 && (
                         <Text style={[styles.itemPrice, { color: colors.mutedForeground }]}>
-                          ${((unitCents * qty) / 100).toFixed(2)}
+                          ${(item.lineTotalCents / 100).toFixed(2)}
                         </Text>
                       )}
                     </View>

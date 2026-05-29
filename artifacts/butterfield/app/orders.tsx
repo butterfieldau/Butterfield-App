@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
+import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -152,7 +153,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
   const isActive     = ACTIVE_STATUSES.includes(status);
   const statusColor  = STAGE_COLOR[status] ?? BLUE;
   const currentStage = STAGES[stageIndex];
-  const items: any[] = Array.isArray(order?.items) ? order!.items : [];
+  const items = normalizeOrderItems(order?.items);
   const total        = (order?.totalCents ?? 0) / 100;
   const pointsEarned = order?.loyaltyPointsEarned ?? 0;
   return (
@@ -228,27 +229,17 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
               <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Text style={d.sectionTitle}>Items ordered</Text>
                 <View style={{ gap: 0 }}>
-                  {items.map((item: any, i: number) => {
-                    const unitCents   = item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0;
-                    const qty         = item.quantity ?? item.qty ?? 1;
-                    const lineCents   = item.totalCents ?? item.totalPriceCents ?? (unitCents * qty);
-                    const variant     = item.variantNameSnapshot ?? item.variantName;
-                    const opts        = (item.selectedOptionsSnapshot ?? item.selectedOptions ?? []) as any[];
-                    const notable     = opts.filter((o: any) => {
-                      const n = o.optionName ?? o.name ?? '';
-                      return n && !['No Sugar','No Honey','No Syrup','Regular Coffee','Regular','Normal','Full Cream'].includes(n);
-                    });
-                    const baristaNote = opts.find((o: any) => o.textValue)?.textValue;
+                  {items.map((item, i: number) => {
                     return (
                       <View key={i} style={[d.itemRow, { borderBottomColor: BORDER, borderBottomWidth: i < items.length - 1 ? 1 : 0 }]}>
                         <View style={[d.qtyBadge, { backgroundColor: BLUE }]}>
-                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{qty}</Text>
+                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{item.quantity}</Text>
                         </View>
                         <View style={{ flex: 1, gap: 2 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>
-                              {item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item'}
-                              {variant ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${variant}`}</Text> : null}
+                              {item.name}
+                              {item.variantName ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${item.variantName}`}</Text> : null}
                             </Text>
                             {item.isFreeReward && (
                               <View style={{ backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -256,25 +247,25 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                               </View>
                             )}
                           </View>
-                          {unitCents > 0 && (
+                          {item.unitPriceCents > 0 && (
                             <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
-                              ${(unitCents / 100).toFixed(2)} each
+                              ${(item.unitPriceCents / 100).toFixed(2)} each
                             </Text>
                           )}
-                          {notable.length > 0 && (
+                          {item.notableOptions.length > 0 && (
                             <Text style={{ fontSize: 12, color: BLUE, fontWeight: '400' }}>
-                              {notable.map((o: any) => o.optionName ?? o.name).join(' · ')}
+                              {item.notableOptions.join(' · ')}
                             </Text>
                           )}
-                          {baristaNote ? (
+                          {item.baristaNote ? (
                             <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', fontStyle: 'italic' }}>
-                              "{baristaNote}"
+                              "{item.baristaNote}"
                             </Text>
                           ) : null}
                         </View>
-                        {lineCents > 0 && (
+                        {item.lineTotalCents > 0 && (
                           <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>
-                            ${(lineCents / 100).toFixed(2)}
+                            ${(item.lineTotalCents / 100).toFixed(2)}
                           </Text>
                         )}
                       </View>
@@ -365,7 +356,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
   const label     = STATUS_LABEL[order.status] ?? order.status.replace(/_/g, ' ');
   const total     = (order.totalCents ?? 0) / 100;
   const scheduled = order.scheduledFor ? fmtShort(order.scheduledFor) : null;
-  const items: any[] = Array.isArray(order.items) ? order.items : [];
+  const items = normalizeOrderItems(order.items);
   const progress  = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const to = order.status === 'completed' ? 1
@@ -391,8 +382,7 @@ function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
       </View>
       {items.length > 0 && (
         <Text style={s.itemSummary} numberOfLines={1}>
-          {items.slice(0, 3).map((it: any) => `${it.quantity ?? 1}× ${it.productName ?? it.productNameSnapshot ?? it.name ?? 'Item'}`).join(' · ')}
-          {items.length > 3 ? ` +${items.length - 3} more` : ''}
+          {summarizeOrderItems(items)}
         </Text>
       )}
       {scheduled && (
