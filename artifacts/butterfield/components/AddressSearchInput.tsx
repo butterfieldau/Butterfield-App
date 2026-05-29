@@ -178,7 +178,11 @@ function SearchModal({
     const details = await fetchPlaceDetails(prediction.place_id);
     setFetching(false);
     if (details) {
-      onSelect(details);
+      // main_text is exactly what was shown in the list (e.g. "248 The Boulevarde").
+      // Always prefer it over the reassembled street from address_components,
+      // since Google sometimes omits street_number from components for AU addresses.
+      const mainText = prediction.structured_formatting.main_text;
+      onSelect({ ...details, street: mainText || details.street });
     } else {
       onSelect({ street: prediction.structured_formatting.main_text, suburb: '', state: '', postcode: '' });
     }
