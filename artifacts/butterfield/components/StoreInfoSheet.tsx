@@ -126,33 +126,24 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
         nestedScrollEnabled
         bounces
       >
-        {/* ── Hero image — 5:3 aspect ratio, full width ── */}
         <Pressable style={styles.hero} onPress={handleDirections}>
           {heroSource && !imageFailed ? (
             <Image source={heroSource} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={220} onError={() => setImageFailed(true)} />
           ) : (
             <LinearGradient colors={isOpen ? ['#1493FF', '#3CBBEE'] : ['#8E8E93', '#6B6B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
           )}
-          {/* Dark gradient for text legibility */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.58)']}
-            start={{ x: 0.5, y: 0.35 }}
+            colors={['transparent', 'rgba(0,0,0,0.54)']}
+            start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFillObject}
-          />
-          {/* Top glass sheen */}
-          <LinearGradient
-            colors={['rgba(255,255,255,0.14)', 'transparent']}
-            start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 0.4 }}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
           />
           <View style={styles.heroTopRow}>
             <View style={styles.heroPill}>
               <Feather name="navigation" size={11} color="#1493FF" />
               <Text style={styles.heroPillText}>Tap for directions</Text>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.88)' : 'rgba(80,80,80,0.82)' }]}>
+            <View style={[styles.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.9)' : 'rgba(100,100,100,0.8)' }]}>
               <View style={styles.dot} />
               <Text style={styles.statusText}>{storeStatusText}</Text>
             </View>
@@ -220,7 +211,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
           ) : null}
 
           {hours.length > 0 ? (
-            <View style={[styles.hoursCard, { backgroundColor: '#F5F8FF', borderColor: 'rgba(20,147,255,0.1)' }]}>
+            <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <Text style={[styles.hoursTitle, { color: colors.foreground }]}>Opening Hours</Text>
               {hours.map((h: any) => {
                 const dayName = DAYS_LONG[h.dayOfWeek] ?? '';
@@ -231,7 +222,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
                     : '—';
                 const isToday = new Date().getDay() === h.dayOfWeek;
                 return (
-                  <View key={String(h.dayOfWeek)} style={[styles.hoursRowWrap, isToday && { backgroundColor: 'rgba(20,147,255,0.1)', borderRadius: 10, paddingHorizontal: 8 }]}>
+                  <View key={String(h.dayOfWeek)} style={[styles.hoursRowWrap, isToday && { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 8 }]}>
                     <View style={styles.hoursRow}>
                       <Text style={[styles.hoursDay, { color: isToday ? '#1493FF' : colors.foreground, fontWeight: isToday ? '700' : '400' }]}>{dayName}</Text>
                       <Text style={[styles.hoursTime, { color: h.isClosed ? colors.mutedForeground : isToday ? '#1493FF' : colors.foreground }]}>{hoursStr}</Text>
@@ -247,12 +238,12 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 
           <View style={styles.footer}>
             {address ? (
-              <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: 'rgba(20,147,255,0.2)', backgroundColor: '#EBF5FF' }]} onPress={handleDirections}>
+              <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: colors.border }]} onPress={handleDirections}>
                 <Feather name="map" size={15} color="#1493FF" />
                 <Text style={styles.actionBtnText}>Directions</Text>
               </Pressable>
             ) : null}
-            <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: 'rgba(22,163,74,0.22)', backgroundColor: '#F0FDF4' }]} onPress={handleCall}>
+            <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: colors.border }]} onPress={handleCall}>
               <Feather name="phone" size={15} color="#16A34A" />
               <Text style={[styles.actionBtnText, { color: '#16A34A' }]}>Call</Text>
             </Pressable>
@@ -273,52 +264,41 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32 },
-  hero: {
-    width: '100%',
-    aspectRatio: 5 / 3,
-    justifyContent: 'space-between',
-    padding: 14,
-    overflow: 'hidden',
-  },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
+  hero: { height: 194, marginHorizontal: 14, marginTop: 2, borderRadius: 16, overflow: 'hidden', justifyContent: 'space-between', padding: 14 },
   heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  heroPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 20, paddingHorizontal: 11, paddingVertical: 7,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6,
-  },
+  heroPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 18, paddingHorizontal: 10, paddingVertical: 6 },
   heroPillText: { fontSize: 11, fontWeight: '700', color: '#1493FF' },
-  heroBottom: { gap: 3 },
-  headerLabel: { fontWeight: '600', fontSize: 10, color: 'rgba(255,255,255,0.9)', letterSpacing: 1, marginBottom: 2 },
-  headerName: { fontWeight: '800', fontSize: 20, lineHeight: 24, color: '#fff' },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 20, alignSelf: 'flex-start' },
+  heroBottom: { gap: 2 },
+  headerLabel: { fontWeight: '600', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
+  headerName: { fontWeight: '700', fontSize: 18, lineHeight: 22, color: '#fff' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 18, alignSelf: 'flex-start' },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
   statusText: { fontWeight: '700', fontSize: 11, color: '#fff' },
-  body: { paddingHorizontal: 18, paddingTop: 18, gap: 14 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  infoIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(20,147,255,0.1)' },
+  body: { paddingHorizontal: 18, paddingTop: 16, gap: 14 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  infoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   infoLabel: { fontWeight: '400', fontSize: 11, marginBottom: 1 },
   infoVal: { fontWeight: '500', fontSize: 14 },
   infoLink: { fontWeight: '400', fontSize: 11, color: '#1493FF', marginTop: 2 },
   infoBreakNote: { fontWeight: '400', fontSize: 11, marginTop: 2 },
   chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#EFF6FF', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(20,147,255,0.12)' },
-  chipText: { fontWeight: '600', fontSize: 12 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  chipText: { fontWeight: '500', fontSize: 12 },
   notes: { fontWeight: '400', fontSize: 12, fontStyle: 'italic', lineHeight: 18 },
-  hoursCard: { borderRadius: 20, borderWidth: 1, padding: 16, gap: 2 },
-  hoursTitle: { fontWeight: '700', fontSize: 13, marginBottom: 10 },
-  hoursRowWrap: { paddingVertical: 5 },
+  hoursCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 2 },
+  hoursTitle: { fontWeight: '700', fontSize: 13, marginBottom: 8 },
+  hoursRowWrap: { paddingVertical: 4 },
   hoursRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   hoursDay: { fontSize: 13 },
   hoursTime: { fontWeight: '500', fontSize: 13 },
   hoursBreakNote: { fontSize: 11, marginTop: 2 },
-  footer: { flexDirection: 'row', gap: 8, paddingTop: 8, alignItems: 'stretch' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1 },
-  secondaryActionBtn: { minWidth: 100 },
+  footer: { flexDirection: 'row', gap: 8, paddingTop: 12, alignItems: 'stretch' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1 },
+  secondaryActionBtn: { minWidth: 112 },
   actionBtnText: { fontWeight: '600', fontSize: 13, color: '#1493FF' },
-  orderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 13, borderRadius: 16, backgroundColor: '#1493FF' },
+  orderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#1493FF' },
   orderBtnText: { fontWeight: '700', fontSize: 14, color: '#fff' },
-  allStores: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 10, paddingBottom: 4 },
+  allStores: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
   allStoresText: { fontWeight: '500', fontSize: 13, color: '#1493FF' },
 });
