@@ -74,7 +74,11 @@ async function fetchPlaceDetails(placeId: string): Promise<AddressResult | null>
     const components: any[] = r.address_components ?? [];
     const streetNumber = getComponent(components, 'street_number');
     const route        = getComponent(components, 'route');
-    const street       = [streetNumber, route].filter(Boolean).join(' ');
+    // Prefer assembling from components; fall back to the first segment of
+    // formatted_address so the street number is never silently dropped.
+    const street = streetNumber
+      ? `${streetNumber} ${route}`.trim()
+      : (r.formatted_address ? (r.formatted_address as string).split(',')[0].trim() : route);
     const suburb =
       getComponent(components, 'locality') ||
       getComponent(components, 'sublocality_level_1') ||
