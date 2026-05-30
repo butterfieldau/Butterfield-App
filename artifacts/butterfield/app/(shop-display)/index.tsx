@@ -349,6 +349,8 @@ export default function ShopDisplayOrdersScreen() {
     const lines   = normalizeOrderItems(item.items);
     const availableActions = NEXT_STATUS_ACTIONS[item.status] ?? [];
     const isUpdating = updatingOrderId === item.id;
+    const primaryAction = STATUS_ACTIONS.find((action) => availableActions.find((status) => status === action.id && status !== 'cancelled'));
+    const secondaryAction = STATUS_ACTIONS.find((action) => action.id === 'cancelled' && availableActions.includes('cancelled'));
 
     return (
       <View style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
@@ -390,25 +392,41 @@ export default function ShopDisplayOrdersScreen() {
 
         {/* Action buttons */}
         {availableActions.length > 0 ? (
-        <View style={[s.actions, isWide && s.actionsWide]}>
-          {STATUS_ACTIONS.filter((action) => availableActions.includes(action.id)).map(action => (
+        <View style={s.actionRail}>
+          {primaryAction ? (
             <Pressable
-              key={action.id}
               disabled={isUpdating}
-              onPress={() => void updateStatus(item.id, action.id)}
+              onPress={() => void updateStatus(item.id, primaryAction.id)}
               style={[
-                s.actionBtn,
-                { backgroundColor: action.color },
-                isWide && s.actionBtnWide,
+                s.primaryActionTile,
+                { backgroundColor: primaryAction.color },
                 isUpdating && s.actionBtnDisabled,
               ]}
             >
-              <Feather name={action.icon} size={isWide ? 18 : 15} color="#fff" />
-              <Text style={[s.actionText, isWide && s.actionTextWide]}>
-                {isUpdating ? 'Updating…' : action.label}
-              </Text>
+              <Feather name={primaryAction.icon} size={20} color="#fff" />
+              <View style={{ gap: 2 }}>
+                <Text style={s.primaryActionText}>{isUpdating ? 'Updating…' : primaryAction.label}</Text>
+                <Text style={s.primaryActionHint}>
+                  {primaryAction.id === 'being_prepared'
+                    ? 'Move into prep'
+                    : primaryAction.id === 'ready_for_pickup'
+                      ? 'Mark ready for collection'
+                      : 'Finish and remove from queue'}
+                </Text>
+              </View>
             </Pressable>
-          ))}
+          ) : null}
+
+          {secondaryAction ? (
+            <Pressable
+              disabled={isUpdating}
+              onPress={() => void updateStatus(item.id, secondaryAction.id)}
+              style={[s.secondaryActionTile, isUpdating && s.actionBtnDisabled]}
+            >
+              <Feather name={secondaryAction.icon} size={16} color={RED} />
+              <Text style={s.secondaryActionText}>Cancel</Text>
+            </Pressable>
+          ) : null}
         </View>
         ) : (
           <View style={s.archivedNotice}>
@@ -426,17 +444,19 @@ export default function ShopDisplayOrdersScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Summary strip */}
       <View style={[s.summaryRow, isWide && s.summaryRowWide]}>
-        <View style={[s.summaryCard, isWide && { paddingVertical: 14 }]}>
-          <Text style={s.summaryLabel}>{summaryViewLabel}</Text>
+        <View style={[s.summaryCard, s.summaryCardHero, isWide && { paddingVertical: 14 }]}>
+          <Text style={s.summaryLabel}>{queueMode === 'active' ? 'Live queue' : queueMode === 'completed' ? 'Completed' : 'Cancelled'}</Text>
           <Text style={s.summaryValue}>{filteredRows.length}</Text>
+          <Text style={s.summaryCaption}>{selectedModeLabel}</Text>
         </View>
         <View style={[s.summaryCard, isWide && { paddingVertical: 14 }]}>
-          <Text style={s.summaryLabel}>Active / done / cancelled</Text>
+          <Text style={s.summaryLabel}>Queue split</Text>
           <Text style={[s.summaryValue, { fontSize: isWide ? 22 : 18 }]}>
             {queueCounts.active} / {queueCounts.completed} / {queueCounts.cancelled}
           </Text>
+          <Text style={s.summaryCaption}>Live / done / cancelled</Text>
         </View>
-        <View style={[s.summaryCard, isWide && { paddingVertical: 14 }]}>
+        <View style={[s.summaryCard, s.summaryCardTight, isWide && { paddingVertical: 14 }]}>
           <Text style={s.summaryLabel}>Last refresh</Text>
           <Text style={[s.summaryValue, { fontSize: isWide ? 22 : 18 }]}>
             {new Date().toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
@@ -444,8 +464,8 @@ export default function ShopDisplayOrdersScreen() {
         </View>
       </View>
 
-      <View style={s.filterPanel}>
-        <View style={s.queueRow}>
+      <View style={s.controlCard}>
+        <View style={s.tileGrid}>
           {([
             { key: 'active', label: `Live (${queueCounts.active})` },
             { key: 'completed', label: `Completed (${queueCounts.completed})` },
@@ -456,36 +476,36 @@ export default function ShopDisplayOrdersScreen() {
               <Pressable
                 key={queue.key}
                 onPress={() => setQueueMode(queue.key)}
-                style={[s.queueChip, active && s.queueChipActive]}
+                style={[s.tileButton, active && s.tileButtonActive]}
               >
-                <Text style={[s.queueChipText, active && s.queueChipTextActive]}>{queue.label}</Text>
+                <Text style={[s.tileButtonText, active && s.tileButtonTextActive]}>{queue.label}</Text>
               </Pressable>
             );
           })}
         </View>
-        <View style={s.filterRow}>
+
+        <View style={s.tileGrid}>
           <Pressable
             onPress={() => setFilterMode('today')}
-            style={[s.filterChip, filterMode === 'today' && s.filterChipActive]}
+            style={[s.tileButton, filterMode === 'today' && s.tileButtonSecondaryActive]}
           >
-            <Text style={[s.filterChipText, filterMode === 'today' && s.filterChipTextActive]}>Today</Text>
+            <Text style={[s.tileButtonText, filterMode === 'today' && s.tileButtonSecondaryActiveText]}>Today</Text>
           </Pressable>
           <Pressable
             onPress={() => setFilterMode('week')}
-            style={[s.filterChip, filterMode === 'week' && s.filterChipActive]}
+            style={[s.tileButton, filterMode === 'week' && s.tileButtonSecondaryActive]}
           >
-            <Text style={[s.filterChipText, filterMode === 'week' && s.filterChipTextActive]}>This week</Text>
+            <Text style={[s.tileButtonText, filterMode === 'week' && s.tileButtonSecondaryActiveText]}>This week</Text>
           </Pressable>
           <Pressable
-            onPress={() => {
-              openDatePicker();
-            }}
-            style={[s.filterChip, filterMode === 'date' && s.filterChipActive]}
+            onPress={openDatePicker}
+            style={[s.tileButton, filterMode === 'date' && s.tileButtonSecondaryActive]}
           >
             <Feather name="calendar" size={14} color={filterMode === 'date' ? '#fff' : NAVY} />
-            <Text style={[s.filterChipText, filterMode === 'date' && s.filterChipTextActive]}>Select date</Text>
+            <Text style={[s.tileButtonText, filterMode === 'date' && s.tileButtonSecondaryActiveText]}>Select date</Text>
           </Pressable>
         </View>
+
         <Text style={s.filterLabel}>{queueSubLabel} · {selectedModeLabel}</Text>
       </View>
 
@@ -609,8 +629,11 @@ const s = StyleSheet.create({
   summaryRow:      { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 2 },
   summaryRowWide:  { paddingHorizontal: 16, paddingBottom: 0 },
   summaryCard:     { flex: 1, backgroundColor: CARD, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: BORDER, gap: 2 },
+  summaryCardHero: { flex: 1.15 },
+  summaryCardTight:{ flex: 0.9 },
   summaryLabel:    { color: MUTED, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   summaryValue:    { color: TEXT, fontSize: 24, fontWeight: '800', marginTop: 2 },
+  summaryCaption:  { color: MUTED, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
   card:            { backgroundColor: CARD, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: BORDER, gap: 12 },
   cardWide:        { flex: 1 },
@@ -631,30 +654,27 @@ const s = StyleSheet.create({
   lineSub:         { color: MUTED, fontSize: 13, fontWeight: '500', lineHeight: 18 },
   noteText:        { color: TEXT, fontSize: 14, lineHeight: 20 },
 
-  actions:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
-  actionsWide:     { flexWrap: 'nowrap' },
-  actionBtn:       { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 10 },
-  actionBtnWide:   { flexBasis: 0, flexGrow: 1, paddingVertical: 16 },
   actionBtnDisabled: { opacity: 0.55 },
-  actionText:      { color: '#fff', fontSize: 14, fontWeight: '800' },
-  actionTextWide:  { fontSize: 15 },
+  actionRail:      { gap: 10, marginTop: 2 },
+  primaryActionTile: { minHeight: 74, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  primaryActionText: { color: '#fff', fontSize: 19, fontWeight: '800' },
+  primaryActionHint: { color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
+  secondaryActionTile: { minHeight: 48, borderRadius: 16, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFF5F5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  secondaryActionText: { color: RED, fontSize: 14, fontWeight: '800' },
   archivedNotice:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   archivedNoticeText: { color: MUTED, fontSize: 13, fontWeight: '600' },
 
   emptyWrap:       { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText:       { textAlign: 'center', color: MUTED, fontSize: 16, fontWeight: '500' },
-  filterPanel:     { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8 },
-  queueRow:        { flexDirection: 'row', gap: 8 },
-  queueChip:       { borderRadius: 999, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 9 },
-  queueChipActive: { backgroundColor: BLUE, borderColor: BLUE },
-  queueChipText:   { color: NAVY, fontSize: 12, fontWeight: '800' },
-  queueChipTextActive: { color: '#fff' },
-  filterRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterChip:      { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, paddingHorizontal: 14, paddingVertical: 10 },
-  filterChipActive:{ backgroundColor: NAVY, borderColor: NAVY },
-  filterChipText:  { color: NAVY, fontSize: 13, fontWeight: '800' },
-  filterChipTextActive: { color: '#fff' },
-  filterLabel:     { color: MUTED, fontSize: 12, fontWeight: '600', marginLeft: 2 },
+  controlCard:     { marginHorizontal: 16, marginTop: 12, marginBottom: 10, padding: 12, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, gap: 10 },
+  tileGrid:        { flexDirection: 'row', gap: 8 },
+  tileButton:      { flex: 1, minHeight: 58, borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, paddingHorizontal: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  tileButtonActive:{ backgroundColor: BLUE, borderColor: BLUE },
+  tileButtonSecondaryActive: { backgroundColor: NAVY, borderColor: NAVY },
+  tileButtonText:  { color: NAVY, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  tileButtonTextActive: { color: '#fff' },
+  tileButtonSecondaryActiveText: { color: '#fff' },
+  filterLabel:     { color: MUTED, fontSize: 12, fontWeight: '600', marginLeft: 2, marginTop: 2 },
   sheetHeader:     { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD },
   sheetCloseBtn:   { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   sheetHeaderTitle:{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT },
@@ -675,7 +695,6 @@ const s = StyleSheet.create({
   calendarDot:     { width: 5, height: 5, borderRadius: 2.5, marginTop: 1 },
   calendarDotSpacer:{ width: 5, height: 5, marginTop: 1 },
   sheetActions:    { marginTop: 20, flexDirection: 'row', gap: 10 },
-  modalActions:    { flexDirection: 'row', gap: 10 },
   modalActionBtn:  { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
   modalActionSecondary: { backgroundColor: BG },
   modalActionPrimary: { backgroundColor: BLUE },
