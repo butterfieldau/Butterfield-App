@@ -52,24 +52,8 @@ function formatTime(value?: string | null) {
   return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 
-function isValidDate(value: Date) {
-  return !Number.isNaN(value.getTime());
-}
-
-function safeDate(value: Date, fallback = new Date()) {
-  return isValidDate(value) ? value : new Date(fallback);
-}
-
 function getSydneyDateParts(input: string | Date) {
   const date = new Date(input);
-  if (!isValidDate(date)) {
-    const fallback = new Date();
-    return {
-      year: fallback.getFullYear(),
-      month: fallback.getMonth() + 1,
-      day: fallback.getDate(),
-    };
-  }
   const parts = new Intl.DateTimeFormat('en-AU', {
     timeZone: 'Australia/Sydney',
     year: 'numeric',
@@ -81,24 +65,16 @@ function getSydneyDateParts(input: string | Date) {
   const month = Number(parts.find((part) => part.type === 'month')?.value ?? 0);
   const day = Number(parts.find((part) => part.type === 'day')?.value ?? 0);
 
-  if (!year || !month || !day) {
-    return {
-      year: date.getFullYear(),
-      month: date.getMonth() + 1,
-      day: date.getDate(),
-    };
-  }
-
   return { year, month, day };
 }
 
 function toSydneyCalendarDate(input: string | Date) {
   const { year, month, day } = getSydneyDateParts(input);
-  return safeDate(new Date(year, month - 1, day, 12, 0, 0, 0));
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
 
 function toCalendarDate(input: Date) {
-  return safeDate(new Date(input.getFullYear(), input.getMonth(), input.getDate(), 12, 0, 0, 0));
+  return new Date(input.getFullYear(), input.getMonth(), input.getDate(), 12, 0, 0, 0);
 }
 
 function startOfSydneyDay(input: string | Date) {
@@ -140,21 +116,20 @@ function sameSydneyDay(left: string | Date, right: string | Date) {
 }
 
 function monthMatrix(anchor: Date) {
-  const safeAnchor = safeDate(anchor);
-  const first = new Date(safeAnchor.getFullYear(), safeAnchor.getMonth(), 1, 12, 0, 0, 0);
-  const daysInMonth = new Date(safeAnchor.getFullYear(), safeAnchor.getMonth() + 1, 0, 12, 0, 0, 0).getDate();
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
   const offset = (first.getDay() + 6) % 7;
   const cells: Array<Date | null> = [];
   for (let i = 0; i < offset; i += 1) cells.push(null);
   for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push(new Date(safeAnchor.getFullYear(), safeAnchor.getMonth(), day, 12, 0, 0, 0));
+    cells.push(new Date(anchor.getFullYear(), anchor.getMonth(), day));
   }
   while (cells.length % 7 !== 0) cells.push(null);
   return cells;
 }
 
 function monthLabel(date: Date) {
-  return safeDate(date).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+  return date.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
 }
 
 function orderSubtitle(order: any) {
@@ -184,12 +159,9 @@ export default function ShopDisplayOrdersScreen() {
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
-  const [selectedDate, setSelectedDate] = useState(() => safeDate(toSydneyCalendarDate(new Date())));
+  const [selectedDate, setSelectedDate] = useState(() => toSydneyCalendarDate(new Date()));
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerMonth, setPickerMonth] = useState(() => {
-    const today = safeDate(toSydneyCalendarDate(new Date()));
-    return new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
-  });
+  const [pickerMonth, setPickerMonth] = useState(() => startOfSydneyDay(new Date()));
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
 
@@ -244,7 +216,7 @@ export default function ShopDisplayOrdersScreen() {
   [rows]);
 
   const calendarCells = useMemo(() => monthMatrix(pickerMonth), [pickerMonth]);
-  const visibleMonth = safeDate(pickerMonth);
+  const visibleMonth = pickerMonth;
   const selectedModeLabel = filterMode === 'today'
     ? 'Today'
     : filterMode === 'week'
@@ -375,7 +347,7 @@ export default function ShopDisplayOrdersScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              setPickerMonth(safeDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1, 12, 0, 0, 0)));
+              setPickerMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1, 12, 0, 0, 0));
               setPickerOpen(true);
             }}
             style={[s.filterChip, filterMode === 'date' && s.filterChipActive]}
@@ -413,11 +385,11 @@ export default function ShopDisplayOrdersScreen() {
         <Pressable style={s.modalBackdrop} onPress={() => setPickerOpen(false)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
             <View style={s.modalHeader}>
-              <Pressable onPress={() => setPickerMonth((current) => safeDate(new Date(current.getFullYear(), current.getMonth() - 1, 1, 12, 0, 0, 0)))} style={s.monthNavBtn}>
+              <Pressable onPress={() => setPickerMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={s.monthNavBtn}>
                 <Feather name="chevron-left" size={18} color={NAVY} />
               </Pressable>
               <Text style={s.modalTitle}>{monthLabel(visibleMonth)}</Text>
-              <Pressable onPress={() => setPickerMonth((current) => safeDate(new Date(current.getFullYear(), current.getMonth() + 1, 1, 12, 0, 0, 0)))} style={s.monthNavBtn}>
+              <Pressable onPress={() => setPickerMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} style={s.monthNavBtn}>
                 <Feather name="chevron-right" size={18} color={NAVY} />
               </Pressable>
             </View>
