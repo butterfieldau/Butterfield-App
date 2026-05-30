@@ -49,36 +49,15 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
 
 function formatTime(value?: string | null) {
   if (!value) return 'ASAP';
-  return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' });
+  return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
 }
 
-function getSydneyDateParts(input: string | Date) {
-  const date = new Date(input);
-  const parts = new Intl.DateTimeFormat('en-AU', {
-    timeZone: 'Australia/Sydney',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-  }).formatToParts(date);
-
-  const year = Number(parts.find((part) => part.type === 'year')?.value ?? 0);
-  const month = Number(parts.find((part) => part.type === 'month')?.value ?? 0);
-  const day = Number(parts.find((part) => part.type === 'day')?.value ?? 0);
-
-  return { year, month, day };
-}
-
-function toSydneyCalendarDate(input: string | Date) {
-  const { year, month, day } = getSydneyDateParts(input);
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
-}
-
-function toCalendarDate(input: Date) {
-  return new Date(input.getFullYear(), input.getMonth(), input.getDate(), 12, 0, 0, 0);
+function toSydneyDate(input: string | Date) {
+  return new Date(new Date(input).toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
 }
 
 function startOfSydneyDay(input: string | Date) {
-  const d = toSydneyCalendarDate(input);
+  const d = toSydneyDate(input);
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -110,9 +89,7 @@ function orderSortTime(order: any) {
 }
 
 function sameSydneyDay(left: string | Date, right: string | Date) {
-  const a = getSydneyDateParts(left);
-  const b = getSydneyDateParts(right);
-  return a.year === b.year && a.month === b.month && a.day === b.day;
+  return startOfSydneyDay(left).getTime() === startOfSydneyDay(right).getTime();
 }
 
 function monthMatrix(anchor: Date) {
@@ -159,7 +136,7 @@ export default function ShopDisplayOrdersScreen() {
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
-  const [selectedDate, setSelectedDate] = useState(() => toSydneyCalendarDate(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => startOfSydneyDay(new Date()));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(() => startOfSydneyDay(new Date()));
   const seenRef = useRef<Record<string, string>>({});
@@ -347,7 +324,7 @@ export default function ShopDisplayOrdersScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              setPickerMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1, 12, 0, 0, 0));
+              setPickerMonth(selectedDate);
               setPickerOpen(true);
             }}
             style={[s.filterChip, filterMode === 'date' && s.filterChipActive]}
@@ -407,7 +384,7 @@ export default function ShopDisplayOrdersScreen() {
                     disabled={!day}
                     onPress={() => {
                       if (!day) return;
-                      setSelectedDate(toCalendarDate(day));
+                      setSelectedDate(startOfSydneyDay(day));
                       setFilterMode('date');
                     }}
                     style={[s.dayCell, active && s.dayCellActive, !day && s.dayCellEmpty]}
