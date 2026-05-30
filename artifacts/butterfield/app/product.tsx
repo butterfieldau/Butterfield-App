@@ -17,7 +17,8 @@ import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedOptions';
-import { api } from '@/lib/api';
+import { api, type ApiOrderItemOption, type ApiProduct, type DirectorOption, type DirectorOptionGroup } from '@/lib/api';
+import type { SelectedCartOption } from '@/types';
 
 const { width: W, height: H } = Dimensions.get('window');
 const HERO_H = Math.round(H * 0.46);
@@ -35,7 +36,33 @@ function priceDollars(cents?: number | null): string {
   return `AUD ${(cents / 100).toFixed(2)}`;
 }
 
-function parseArr(val: any): string[] {
+interface ProductDetailData extends ApiProduct {
+  category?: string | null;
+  optionGroups?: DirectorOptionGroup[];
+  priceCents?: number | null;
+  salePriceCents?: number | null;
+  galleryUrls?: string[] | string | null;
+  allergens?: string[] | string | null;
+  dietaryTags?: string[] | string | null;
+  tags?: string[] | string | null;
+  shortDescription?: string | null;
+  ingredients?: string | null;
+  storageInstructions?: string | null;
+  servingInstructions?: string | null;
+  nutritionInfo?: string | null;
+  productUrl?: string | null;
+  isNew?: boolean;
+  isLimitedDrop?: boolean;
+  isSoldOut?: boolean;
+  isComingSoon?: boolean;
+  gstIncluded?: boolean;
+  minOrderQty?: number | null;
+  maxOrderQty?: number | null;
+}
+
+type ProductOptionGroup = DirectorOptionGroup & { options?: DirectorOption[] };
+
+function parseArr(val: unknown): string[] {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string') {
     try { const r = JSON.parse(val); if (Array.isArray(r)) return r; } catch {}
@@ -92,7 +119,7 @@ export default function ProductDetailScreen() {
   const qc = useQueryClient();
   const params = useLocalSearchParams<{ id?: string }>();
   const routeProductId = Array.isArray(params.id) ? params.id[0] : params.id;
-  const selectedProduct = getSelectedProduct();
+  const selectedProduct = getSelectedProduct() as ProductDetailData | null;
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [missingRequired, setMissingRequired] = useState<string[]>([]);
   const [qty, setQty] = useState(1);
@@ -109,7 +136,7 @@ export default function ProductDetailScreen() {
   );
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
-  const productId = routeProductId ?? (selectedProduct as any)?.id ?? null;
+  const productId = routeProductId ?? selectedProduct?.id ?? null;
 
   const { data: routeProductData, isLoading: isRouteProductLoading } = useQuery({
     queryKey: ['product-detail-route', productId],
@@ -119,11 +146,13 @@ export default function ProductDetailScreen() {
     staleTime: 60_000,
   });
 
-  const product = (routeProductData?.data as any)
-    ?? (selectedProduct && (!routeProductId || (selectedProduct as any).id === routeProductId) ? selectedProduct : null);
+  const fetchedProduct = routeProductData?.data as ProductDetailData | undefined;
+  const product: ProductDetailData | null =
+    fetchedProduct
+    ?? (selectedProduct && (!routeProductId || selectedProduct.id === routeProductId) ? selectedProduct : null);
 
   // Option groups returned by GET /products/:id
-  const optGroups: any[] = (routeProductData?.data as any)?.optionGroups ?? [];
+  const optGroups: ProductOptionGroup[] = fetchedProduct?.optionGroups ?? [];
 
   // Apply pre-selected options (from "Your Usual") or fall back to group defaults
   React.useEffect(() => {
@@ -135,16 +164,16 @@ export default function ProductDetailScreen() {
       for (const opt of preselect.selectedOptions) {
         if (!opt.groupId || !opt.optionId) continue;
         // Only apply if the group + option still exists and is active
-        const group = optGroups.find((g: any) => g.id === opt.groupId);
+        const group = optGroups.find((g) => g.id === opt.groupId);
         if (!group) continue;
-        const option = (group.options ?? []).find((o: any) => o.id === opt.optionId && o.isActive !== false);
+        const option = (group.options ?? []).find((o) => o.id === opt.optionId && o.isActive !== false);
         if (!option) continue;
         sel[opt.groupId] = [...(sel[opt.groupId] ?? []), opt.optionId];
       }
       // Fill in any required groups that weren't in the saved options with their defaults
       for (const g of optGroups) {
         if (g.selectionType === 'text' || sel[g.id]?.length) continue;
-        const def = (g.options ?? []).find((o: any) => o.isDefault && o.isActive !== false);
+        const def = (g.options ?? []).find((o) => o.isDefault && o.isActive !== false);
         if (def) sel[g.id] = [def.id];
       }
       if (Object.keys(sel).length) setSelections(sel);
@@ -154,7 +183,7 @@ export default function ProductDetailScreen() {
       const defs: Record<string, string[]> = {};
       for (const g of optGroups) {
         if (g.selectionType === 'text') continue;
-        const def = (g.options ?? []).find((o: any) => o.isDefault && o.isActive !== false);
+        const def = (g.options ?? []).find((o) => o.isDefault && o.isActive !== false);
         if (def) defs[g.id] = [def.id];
       }
       if (Object.keys(defs).length) setSelections(defs);
@@ -169,19 +198,19 @@ export default function ProductDetailScreen() {
   }, []);
 
 
-  const category     = (product as any)?.category ?? product?.metadata?.category ?? 'cookies';
+  const category     = product?.category ?? product?.metadata?.category ?? 'cookies';
   const palette      = getPalette(category);
   const galleryUrls  = useMemo(() => {
     const combined = [
       ...((product?.images ?? []) as string[]),
-      ...parseArr((product as any)?.galleryUrls),
+      ...parseArr(product?.galleryUrls),
     ].filter(Boolean);
     return Array.from(new Set(combined));
   }, [product]);
   const photoUrl     = galleryUrls[0] ?? null;
 
-  const priceCents   = (product as any)?.priceCents ?? product?.prices?.[0]?.unit_amount ?? 0;
-  const saleCents    = (product as any)?.salePriceCents;
+  const priceCents   = product?.priceCents ?? product?.prices?.[0]?.unit_amount ?? 0;
+  const saleCents    = product?.salePriceCents;
   const displayCents = saleCents ?? priceCents;
 
   // Live price: base + sum of all selected option adjustments
@@ -189,7 +218,7 @@ export default function ProductDetailScreen() {
     let t = 0;
     for (const g of optGroups)
       for (const id of selections[g.id] ?? []) {
-        const o = (g.options ?? []).find((o: any) => o.id === id);
+        const o = (g.options ?? []).find((o) => o.id === id);
         if (o) t += o.priceAdjustmentCents ?? 0;
       }
     return t;
@@ -199,24 +228,24 @@ export default function ProductDetailScreen() {
   const pricePerItem = unitCents / 100;
   const total        = pricePerItem * qty;
 
-  const allergens    = parseArr((product as any)?.allergens  ?? product?.metadata?.allergens);
-  const dietaryTags  = parseArr((product as any)?.dietaryTags ?? product?.metadata?.dietaryTags);
-  const tags         = parseArr((product as any)?.tags       ?? product?.metadata?.tags);
-  const shortDesc    = (product as any)?.shortDescription   ?? product?.metadata?.shortDescription ?? '';
-  const ingredients  = (product as any)?.ingredients        ?? product?.metadata?.ingredients ?? '';
-  const storage      = (product as any)?.storageInstructions ?? product?.metadata?.storageInstructions ?? '';
-  const serving      = (product as any)?.servingInstructions ?? product?.metadata?.servingInstructions ?? '';
-  const nutrition    = (product as any)?.nutritionInfo      ?? product?.metadata?.nutritionInfo ?? '';
-  const productUrl   = (product as any)?.productUrl         ?? null;
-  const isNew        = product?.metadata?.isNew === 'true'         || (product as any)?.isNew;
-  const isLimited    = product?.metadata?.isLimitedDrop === 'true' || (product as any)?.isLimitedDrop;
-  const isSoldOut    = product?.metadata?.available === 'false'    || (product as any)?.isSoldOut;
-  const isComingSoon = product?.metadata?.isComingSoon === 'true'  || (product as any)?.isComingSoon;
+  const allergens    = parseArr(product?.allergens  ?? product?.metadata?.allergens);
+  const dietaryTags  = parseArr(product?.dietaryTags ?? product?.metadata?.dietaryTags);
+  const tags         = parseArr(product?.tags       ?? product?.metadata?.tags);
+  const shortDesc    = product?.shortDescription   ?? product?.metadata?.shortDescription ?? '';
+  const ingredients  = product?.ingredients        ?? product?.metadata?.ingredients ?? '';
+  const storage      = product?.storageInstructions ?? product?.metadata?.storageInstructions ?? '';
+  const serving      = product?.servingInstructions ?? product?.metadata?.servingInstructions ?? '';
+  const nutrition    = product?.nutritionInfo      ?? product?.metadata?.nutritionInfo ?? '';
+  const productUrl   = product?.productUrl         ?? null;
+  const isNew        = product?.metadata?.isNew === 'true'         || !!product?.isNew;
+  const isLimited    = product?.metadata?.isLimitedDrop === 'true' || !!product?.isLimitedDrop;
+  const isSoldOut    = product?.metadata?.available === 'false'    || !!product?.isSoldOut;
+  const isComingSoon = product?.metadata?.isComingSoon === 'true'  || !!product?.isComingSoon;
   const available    = !isSoldOut && !isComingSoon;
-  const gst          = (product as any)?.gstIncluded !== false;
+  const gst          = product?.gstIncluded !== false;
 
-  const minQty = (product as any)?.minOrderQty ?? 1;
-  const maxQty = (product as any)?.maxOrderQty ?? 99;
+  const minQty = product?.minOrderQty ?? 1;
+  const maxQty = product?.maxOrderQty ?? 99;
 
   if (!product && isRouteProductLoading) {
     return (
@@ -266,16 +295,16 @@ export default function ProductDetailScreen() {
     }
 
     // Build selectedOptions for cart
-    const opts = optGroups
+    const opts: SelectedCartOption[] = optGroups
       .filter(g => g.selectionType !== 'text')
       .flatMap(g => (selections[g.id] ?? []).map(id => {
-        const o = (g.options ?? []).find((o: any) => o.id === id);
+        const o = (g.options ?? []).find((o) => o.id === id);
         return o ? {
           groupId: g.id, groupName: g.name,
           optionId: o.id, optionName: o.name,
           priceAdjustmentCents: o.priceAdjustmentCents ?? 0,
         } : null;
-      }).filter(Boolean)) as any[];
+      }).filter((value): value is SelectedCartOption => value !== null));
 
     addItemToCart({
       productId:      product.id,
@@ -458,9 +487,9 @@ export default function ProductDetailScreen() {
             {/* ── Option groups (from director configuration) ─────────────── */}
             {optGroups.length > 0 && (
               <View style={{ marginTop: 20, gap: 16 }}>
-                {optGroups.map((g: any) => {
+                {optGroups.map((g) => {
                   const sel  = selections[g.id] ?? [];
-                  const opts = (g.options ?? []).filter((o: any) => o.isActive !== false);
+                  const opts = (g.options ?? []).filter((o) => o.isActive !== false);
                   const isMissing = missingRequired.includes(g.id);
                   return (
                     <View key={g.id}>
@@ -479,7 +508,7 @@ export default function ProductDetailScreen() {
                         </Text>
                       )}
                       <View style={s.optionGrid}>
-                        {opts.map((opt: any) => {
+                        {opts.map((opt) => {
                           const active = sel.includes(opt.id);
                           const adj    = opt.priceAdjustmentCents ?? 0;
                           const isSize = g.name.toLowerCase() === 'size';
