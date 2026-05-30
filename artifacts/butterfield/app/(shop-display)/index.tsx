@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,6 +17,7 @@ import {
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 
@@ -30,13 +32,19 @@ const GREEN = '#16A34A';
 const RED   = '#EF4444';
 
 type OrderFilterMode = 'today' | 'week' | 'date';
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 const STATUS_ACTIONS = [
   { id: 'being_prepared',  label: 'Accept',    icon: 'check-circle', color: BLUE  },
   { id: 'ready_for_pickup',label: 'Ready',     icon: 'bell',         color: GREEN },
   { id: 'completed',       label: 'Completed', icon: 'archive',      color: NAVY  },
   { id: 'cancelled',       label: 'Cancel',    icon: 'x-circle',     color: RED   },
-] as const;
+] as const satisfies ReadonlyArray<{
+  id: string;
+  label: string;
+  icon: FeatherIconName;
+  color: string;
+}>;
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   received:        { label: 'Received',   bg: '#DBEAFE', fg: '#1D4ED8' },
@@ -83,7 +91,7 @@ function endOfSydneyWeek(input: string | Date) {
   return d;
 }
 
-function orderSortTime(order: any) {
+function orderSortTime(order: ShopDisplayOrder) {
   const source = order.createdAt ?? order.scheduledFor ?? order.updatedAt ?? null;
   return source ? new Date(source).getTime() : 0;
 }
@@ -109,7 +117,7 @@ function monthLabel(date: Date) {
   return date.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
 }
 
-function orderSubtitle(order: any) {
+function orderSubtitle(order: ShopDisplayOrder) {
   return [
     order.type === 'delivery' ? 'Delivery' : 'Pickup',
     order.stripePaymentStatus ? `Payment ${order.stripePaymentStatus}` : null,
@@ -152,7 +160,7 @@ export default function ShopDisplayOrdersScreen() {
     refetchInterval: 7000,
   });
 
-  const rows: any[] = data?.data ?? [];
+  const rows: ShopDisplayOrder[] = data?.data ?? [];
 
   const filteredRows = useMemo(() => {
     const sorted = [...rows].sort((a, b) => orderSortTime(b) - orderSortTime(a));
@@ -227,7 +235,7 @@ export default function ShopDisplayOrdersScreen() {
 
   const numCols = isWide ? 2 : 1;
 
-  const renderCard = ({ item }: { item: any }) => {
+  const renderCard = ({ item }: { item: ShopDisplayOrder }) => {
     const total   = `$${((item.totalCents ?? 0) / 100).toFixed(2)}`;
     const isAlert = alertOrderId === item.id;
     const meta    = STATUS_META[item.status] ?? STATUS_META.received;
@@ -279,7 +287,7 @@ export default function ShopDisplayOrdersScreen() {
               onPress={() => void updateStatus(item.id, action.id)}
               style={[s.actionBtn, { backgroundColor: action.color }, isWide && s.actionBtnWide]}
             >
-              <Feather name={action.icon as any} size={isWide ? 18 : 15} color="#fff" />
+              <Feather name={action.icon} size={isWide ? 18 : 15} color="#fff" />
               <Text style={[s.actionText, isWide && s.actionTextWide]}>{action.label}</Text>
             </Pressable>
           ))}
