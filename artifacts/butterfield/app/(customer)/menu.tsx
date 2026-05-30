@@ -39,6 +39,7 @@ import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
+import { SvgUri } from 'react-native-svg';
 
 const BLUE   = '#1493FF';
 const CHERRY = '#D0312D';
@@ -118,6 +119,10 @@ function toCategoryImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('http')) return url;
   return process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}${url}` : null;
+}
+function isSvgUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /\.svg(?:\?|$)/i.test(url) || url.toLowerCase().includes('image/svg+xml');
 }
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
@@ -290,12 +295,14 @@ export default function MenuScreen() {
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
                   {cat.imageUrl ? (
-                    <Image
-                      source={{ uri: cat.imageUrl }}
-                      style={{ width: '100%', height: '100%' }}
-                      contentFit="cover"
-                      transition={200}
-                    />
+                    isSvgUrl(cat.imageUrl)
+                      ? <SvgUri uri={cat.imageUrl} width="100%" height="100%" />
+                      : <Image
+                          source={{ uri: cat.imageUrl }}
+                          style={{ width: '100%', height: '100%' }}
+                          contentFit="cover"
+                          transition={200}
+                        />
                   ) : cat.icon.startsWith('svg:')
                     ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
                     : cat.icon.startsWith('mc:')

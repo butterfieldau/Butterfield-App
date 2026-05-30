@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState, useMemo } from 'react';
@@ -11,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { SvgUri } from 'react-native-svg';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -199,6 +201,10 @@ function toDisplayUrl(url: string): string {
   if (!url) return url;
   if (/^https?:\/\//i.test(url)) return url;
   return API_DOMAIN ? `${API_DOMAIN}${url}` : url;
+}
+function isSvgUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /\.svg(?:\?|$)/i.test(url) || url.toLowerCase().includes('image/svg+xml');
 }
 function normalizeSortKey(value: string | null | undefined): string {
   return `${value ?? ''}`.trim().toLowerCase();
@@ -836,25 +842,21 @@ function CatalogTab() {
   };
   const handlePickCategoryImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') { Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return; }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.88,
-        selectionLimit: 1,
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/svg+xml'],
+        copyToCacheDirectory: true,
+        multiple: false,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) { Alert.alert('File too large', 'Please choose an image under 8 MB.'); return; }
-      const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'category.jpg';
-      const contentType = asset.mimeType ?? 'image/jpeg';
+      if (asset.size && asset.size > 2 * 1024 * 1024) { Alert.alert('File too large', 'Please choose an SVG icon under 2 MB.'); return; }
+      const filename = asset.name ?? asset.uri.split('/').pop() ?? 'category-icon.svg';
+      const contentType = asset.mimeType ?? 'image/svg+xml';
       setCatUploading(true);
-      const { objectPath } = await api.storage.uploadProductImage(asset.uri, filename, contentType, 'categories', catName.trim() || 'category');
-      setCatImageUrl(`/api/storage${objectPath}`);
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message ?? 'Could not upload image. Please try again.');
+      const { servingUrl } = await api.storage.uploadFile(asset.uri, filename, contentType);
+      setCatImageUrl(servingUrl);
+    } catch (e: unknown) {
+      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Could not upload SVG icon. Please try again.');
     } finally { setCatUploading(false); }
   };
   const toggleCatActive = async (c: any) => {
@@ -906,7 +908,9 @@ function CatalogTab() {
               {/* Thumbnail */}
               <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: BG, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {thumbUrl
-                  ? <Image source={{ uri: thumbUrl }} style={{ width: 44, height: 44 }} resizeMode="cover" />
+                  ? isSvgUrl(thumbUrl)
+                    ? <SvgUri uri={thumbUrl} width="44" height="44" />
+                    : <Image source={{ uri: thumbUrl }} style={{ width: 44, height: 44 }} resizeMode="cover" />
                   : <Feather name="image" size={18} color={MUTED} />}
               </View>
               <View style={{ flex: 1 }}>
@@ -964,7 +968,10 @@ function CatalogTab() {
             <View style={{ gap: 10 }}>
               {catImageUrl ? (
                 <View style={{ borderRadius: 14, overflow: 'hidden', height: 140, backgroundColor: BG }}>
-                  <Image source={{ uri: toDisplayUrl(catImageUrl) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  {isSvgUrl(catImageUrl)
+                    ? <SvgUri uri={toDisplayUrl(catImageUrl)} width="100%" height="100%" />
+                    : <Image source={{ uri: toDisplayUrl(catImageUrl) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  }
                   <View style={{ position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 6 }}>
                     <Pressable onPress={handlePickCategoryImage} style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 }}>
                       <Feather name="camera" size={14} color="#fff" />
@@ -984,8 +991,8 @@ function CatalogTab() {
                     ? <ActivityIndicator color={BLUE} />
                     : <>
                         <Feather name="upload" size={22} color={MUTED} />
-                        <Text style={{ color: MUTED, fontSize: 13, fontWeight: '500' }}>Upload category icon</Text>
-                        <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400' }}>Shows on the customer category tiles and home category strip</Text>
+                        <Text style={{ color: MUTED, fontSize: 13, fontWeight: '500' }}>Upload SVG category icon</Text>
+                        <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400' }}>Use an SVG file for the customer category tiles and home category strip</Text>
                       </>
                   }
                 </Pressable>
