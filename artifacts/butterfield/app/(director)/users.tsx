@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
+import type { ComponentProps } from 'react';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import DirectorCustomersScreen from './customers';
 import {
@@ -13,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#EFF6FF';
@@ -27,6 +29,8 @@ const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
+type InputKeyboardType = ComponentProps<typeof TextInput>['keyboardType'];
 const TABS = ['Customers', 'Staff', 'Shop Displays', 'Wholesale', 'Deleted'];
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
@@ -45,6 +49,10 @@ function fmtDateTime(dateStr: string | null | undefined): string {
   const date = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' });
   const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
   return `${date} at ${time}`;
+}
+
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+  return error instanceof Error ? error.message : fallback;
 }
 // ── Staff Profile Modal ────────────────────────────────────────────────────
 function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
@@ -71,7 +79,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     enabled: visible && !!userId,
     staleTime: 0,
   });
-  const u  = data?.data;
+  const u: DirectorStaffMember | undefined = data?.data;
   const sp = u?.staffProfile;
   useEffect(() => {
     if (u) {
@@ -102,14 +110,14 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
       await qc.invalidateQueries({ queryKey: ['director-users'] });
       setEditing(false);
       onRefresh();
-    } catch (e: any) { setSaveErr(e.message ?? 'Save failed.'); }
+    } catch (error) { setSaveErr(getErrorMessage(error, 'Save failed.')); }
     finally { setSaving(false); }
   };
   const [showLeave,        setShowLeave]        = useState(false);
   const [showAssignments,  setShowAssignments]  = useState(false);
   const inits = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   // hoursWorked is stored as text in two formats: "1h 30m" or "1.50" — parse both
-  const parseHrs = (h: any): number => {
+  const parseHrs = (h: string | number | null | undefined): number => {
     if (h == null) return 0;
     const s = String(h);
     const hm = s.match(/(\d+)h\s*(\d+)m/);
@@ -117,13 +125,13 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     const n = parseFloat(s);
     return isNaN(n) ? 0 : n;
   };
-  const recentShifts: any[] = u?.recentShifts ?? [];
-  const hasActiveShift = recentShifts.some((s: any) => !s.clockOut);
+  const recentShifts: StaffShift[] = u?.recentShifts ?? [];
+  const hasActiveShift = recentShifts.some((s) => !s.clockOut);
   const hoursThisWeek = (() => {
     const mon = new Date(); mon.setDate(mon.getDate() - mon.getDay() + 1); mon.setHours(0, 0, 0, 0);
     return recentShifts
-      .filter((s: any) => s.clockOut && new Date(s.clockIn) >= mon)
-      .reduce((sum: number, s: any) => sum + parseHrs(s.hoursWorked), 0);
+      .filter((s) => s.clockOut && new Date(s.clockIn) >= mon)
+      .reduce((sum: number, s) => sum + parseHrs(s.hoursWorked), 0);
   })();
   // Leave data — fetch when showLeave opens
   const { data: leaveData, isLoading: leaveLoading } = useQuery({
@@ -131,20 +139,20 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     queryFn: () => api.director.staffLeave(userId!),
     enabled: showLeave && !!userId,
   });
-  const leaveRequests: any[] = leaveData?.data ?? [];
+  const leaveRequests: StaffLeaveRequest[] = leaveData?.data ?? [];
   // Store assignments
   const { data: assignData, isLoading: assignLoading, refetch: refetchAssign } = useQuery({
     queryKey: ['director-staff-assignments', userId],
     queryFn: () => api.director.staffAssignments(userId!),
     enabled: showAssignments && !!userId,
   });
-  const staffAssignments: any[] = assignData?.data ?? [];
+  const staffAssignments: StaffStoreAssignment[] = assignData?.data ?? [];
   const { data: allStoresData } = useQuery({
     queryKey: ['director-stores'],
     queryFn: () => api.director.storesList(),
     staleTime: 60000,
   });
-  const allStores: any[] = allStoresData?.data ?? [];
+  const allStores: StoreSummary[] = allStoresData?.data ?? [];
   const handleAddAssignment = () => {
     const activeStores = allStores.filter(s => s.status !== 'closed');
     const assigned = staffAssignments.map(a => a.storeId);
@@ -159,7 +167,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
         try {
           await api.director.createAssignment({ staffId: userId!, storeId: s.id });
           refetchAssign();
-        } catch (e: any) { Alert.alert('Error', e.message); }
+        } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
       },
     }));
     Alert.alert('Assign to Store', 'Select a store to assign this staff member to:', [
@@ -178,12 +186,12 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     try {
       await api.director.updateAssignment(assignId, { isPrimary: true });
       refetchAssign();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
   };
   const clockInMut = useMutation({
     mutationFn: () => api.director.staffClockIn(userId!),
     onSuccess: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); refetch(); },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (error) => Alert.alert('Error', getErrorMessage(error)),
   });
   const clockOutMut = useMutation({
     mutationFn: () => api.director.staffClockOut(userId!),
@@ -312,18 +320,18 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
               {editing && (
                 <View style={sp_s.editSection}>
                   <Text style={sp_s.sectionLabel}>CONTACT DETAILS</Text>
-                  {[
-                    { label: 'Full name',     value: eName,    setter: setEName,    icon: 'user',  kbType: 'default',       cap: 'words' as const },
-                    { label: 'Email address', value: eEmail,   setter: setEEmail,   icon: 'mail',  kbType: 'email-address', cap: 'none'  as const },
-                    { label: 'Phone number',  value: ePhone,   setter: setEPhone,   icon: 'phone', kbType: 'phone-pad',     cap: 'none'  as const },
+                    {[
+                    { label: 'Full name',     value: eName,    setter: setEName,    icon: 'user' as FeatherIconName,  kbType: 'default' as InputKeyboardType,       cap: 'words' as const },
+                    { label: 'Email address', value: eEmail,   setter: setEEmail,   icon: 'mail' as FeatherIconName,  kbType: 'email-address' as InputKeyboardType, cap: 'none'  as const },
+                    { label: 'Phone number',  value: ePhone,   setter: setEPhone,   icon: 'phone' as FeatherIconName, kbType: 'phone-pad' as InputKeyboardType,     cap: 'none'  as const },
                   ].map(({ label, value, setter, icon, kbType, cap }) => (
                     <View key={label} style={sp_s.fieldWrap}>
                       <Text style={sp_s.fieldLabel}>{label}</Text>
                       <View style={sp_s.fieldRow}>
-                        <Feather name={icon as any} size={14} color={MUTED} />
+                        <Feather name={icon} size={14} color={MUTED} />
                         <TextInput style={sp_s.fieldInput} value={value} onChangeText={setter}
                           placeholder={label} placeholderTextColor={MUTED}
-                          keyboardType={kbType as any} autoCapitalize={cap} />
+                          keyboardType={kbType} autoCapitalize={cap} />
                       </View>
                     </View>
                   ))}
@@ -426,9 +434,9 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                         await api.director.setStaffOrdersPermission(userId, val);
                         await refetch();
                         await qc.invalidateQueries({ queryKey: ['director-users'] });
-                      } catch (e: any) {
+                      } catch (error) {
                         setCanViewOrders(!val);
-                        Alert.alert('Error', e.message ?? 'Could not update permission.');
+                        Alert.alert('Error', getErrorMessage(error, 'Could not update permission.'));
                       }
                     }}
                     trackColor={{ false: '#E5E7EB', true: '#BBF7D0' }}
@@ -516,14 +524,15 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     </View>
                   ) : (
                     <View style={sp_s.infoCard}>
-                      {leaveRequests.map((lr: any, idx: number) => {
+                      {leaveRequests.map((lr, idx) => {
                         const sc = LEAVE_STATUS_COLORS[lr.status] ?? { bg: '#F3F4F6', text: MUTED };
                         const isPending = lr.status === 'pending';
+                        const leaveType = lr.leaveType?.replace('_', ' ') ?? 'leave';
                         return (
                           <View key={lr.id} style={[sp_s.leaveRow, idx < leaveRequests.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                             <View style={{ flex: 1, gap: 2 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                <Text style={sp_s.leaveType}>{lr.type.replace('_', ' ')}</Text>
+                                <Text style={sp_s.leaveType}>{leaveType}</Text>
                                 <View style={[sp_s.statusPill, { backgroundColor: sc.bg }]}>
                                   <Text style={[sp_s.statusPillText, { color: sc.text }]}>{lr.status.toUpperCase()}</Text>
                                 </View>
@@ -575,7 +584,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     </View>
                   ) : (
                     <View style={sp_s.infoCard}>
-                      {staffAssignments.map((a: any, idx: number) => (
+                      {staffAssignments.map((a, idx) => (
                         <View key={a.id} style={[
                           { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
                           idx > 0 && { borderTopWidth: 1, borderTopColor: BORDER },
@@ -621,7 +630,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                 <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 16 }}>
                   <Text style={[sp_s.sectionLabel, { marginBottom: 10 }]}>RECENT SHIFTS</Text>
                   <View style={sp_s.infoCard}>
-                    {recentShifts.slice(0, 10).map((shift: any, idx: number) => (
+                    {recentShifts.slice(0, 10).map((shift, idx: number) => (
                       <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 10) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={sp_s.shiftDate}>
@@ -659,7 +668,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                             handleClose();
                             onRefresh();
                             Alert.alert('Promoted', `${u?.name ?? 'Staff member'} is now a Director and can log in via the Director portal.`);
-                          } catch (e: any) { Alert.alert('Error', e.message); }
+                          } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
                         }},
                       ]
                     );
@@ -682,7 +691,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                       try {
                         await api.director.deleteUser(userId);
                         onDelete();
-                      } catch (e: any) { Alert.alert('Error', e.message); }
+                      } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
                     }},
                   ]
                 )}
@@ -755,7 +764,7 @@ const BRAND_BG: Record<string, string> = {
   Visa: '#1A3A8C', Mastercard: '#8C1B1B', Amex: '#1B5C8C',
 };
 function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete }: {
-  user: any; wa: any; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
+  user: DirectorUserSummary | null; wa: WholesaleAccount | null; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const [creditEnabled, setCreditEnabled]   = useState(false);
@@ -777,7 +786,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
     queryFn: () => api.director.wholesaleCards(wa!.id),
     enabled: visible && !!wa?.id,
   });
-  const cards = (cardsData as any)?.data ?? [];
+  const cards: WholesaleCard[] = cardsData?.data ?? [];
   useEffect(() => {
     if (wa) {
       setCreditEnabled(wa.creditEnabled ?? false);
@@ -807,13 +816,13 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
     try {
       await api.director.setWholesaleStatus(wa.id, status);
       onRefresh();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
   };
   const handleSuspend = async (val: boolean) => {
     setSuspended(val);
     try {
       await api.director.suspendWholesale(wa.id, { isSuspended: val, suspendedReason: val ? suspendReason : undefined });
-    } catch (e: any) { Alert.alert('Error', e.message); setSuspended(!val); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error)); setSuspended(!val); }
   };
   const handleSave = async () => {
     setSaving(true);
@@ -837,7 +846,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       Alert.alert('Saved', 'Wholesale account updated.');
       onRefresh();
       onClose();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
     finally { setSaving(false); }
   };
   return (
@@ -1071,7 +1080,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             {!cardsLoading && cards.length === 0 && (
               <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>No cards saved by this account yet.</Text>
             )}
-            {cards.map((card: any) => {
+            {cards.map((card) => {
               const bg = BRAND_BG[card.cardBrand] ?? '#1A3A8C';
               return (
                 <View key={card.id} style={{ marginBottom: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: BORDER }}>
@@ -1124,7 +1133,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       onClose();
                       onDelete();
-                    } catch (e: any) { Alert.alert('Error', e.message); }
+                    } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
                   }},
                 ]
               );
@@ -1195,8 +1204,8 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
       }
       reset();
       onSuccess();
-    } catch (e: any) {
-      setError(e.message ?? 'Failed to create account.');
+    } catch (error) {
+      setError(getErrorMessage(error, 'Failed to create account.'));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally { setLoading(false); }
   };
@@ -1327,7 +1336,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
 }
 
 function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
-  user: any | null; visible: boolean; onClose: () => void; onRefresh: () => void;
+  user: ShopDisplayUser | null; visible: boolean; onClose: () => void; onRefresh: () => void;
 }) {
   const qc = useQueryClient();
   const [name, setName] = useState('');
@@ -1341,7 +1350,7 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
     setName(user?.name ?? '');
     setEmail(user?.email ?? '');
     setPhone(user?.phone ?? '');
-    setStatus((user?.status as any) ?? 'active');
+    setStatus(user?.status === 'inactive' || user?.status === 'suspended' ? user.status : 'active');
     setPassword('');
   }, [user]);
 
@@ -1356,8 +1365,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
     enabled: visible,
     staleTime: 60000,
   });
-  const assignments: any[] = assignData?.data ?? [];
-  const stores: any[] = storesData?.data ?? [];
+  const assignments: StaffStoreAssignment[] = assignData?.data ?? [];
+  const stores: StoreSummary[] = storesData?.data ?? [];
 
   const handleAddAssignment = () => {
     if (!user) return;
@@ -1377,8 +1386,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
               refetchAssignments(),
               qc.invalidateQueries({ queryKey: ['director-users'] }),
             ]);
-          } catch (error: any) {
-            Alert.alert('Error', error?.message ?? 'Unable to assign this store right now.');
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error, 'Unable to assign this store right now.'));
           }
         },
       })),
@@ -1390,8 +1399,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
     try {
       await api.director.updateAssignment(assignmentId, { isPrimary: true });
       await refetchAssignments();
-    } catch (error: any) {
-      Alert.alert('Error', error?.message ?? 'Unable to update the primary store.');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Unable to update the primary store.'));
     }
   };
 
@@ -1408,8 +1417,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
               refetchAssignments(),
               qc.invalidateQueries({ queryKey: ['director-users'] }),
             ]);
-          } catch (error: any) {
-            Alert.alert('Error', error?.message ?? 'Unable to remove this store assignment.');
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error, 'Unable to remove this store assignment.'));
           }
         },
       },
@@ -1431,8 +1440,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
       }
       await onRefresh();
       onClose();
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -1450,8 +1459,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
             await api.director.deleteShopDisplay(user.id);
             await onRefresh();
             onClose();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error));
           }
         },
       },
@@ -1548,9 +1557,9 @@ export default function DirectorUsersScreen() {
   const [tab, setTab] = useState('Customers');
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
-  const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<any | null>(null);
+  const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
-  const [selectedShopDisplayUser, setSelectedShopDisplayUser] = useState<any | null>(null);
+  const [selectedShopDisplayUser, setSelectedShopDisplayUser] = useState<ShopDisplayUser | null>(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
@@ -1561,8 +1570,8 @@ export default function DirectorUsersScreen() {
     refetchInterval: 60000,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchDeleted);
-  const allUsers: any[] = data?.data ?? [];
-  const deletedUsers: any[] = deletedData?.data ?? [];
+  const allUsers: DirectorUserSummary[] = data?.data ?? [];
+  const deletedUsers: DeletedAccount[] = deletedData?.data ?? [];
   const filtered = allUsers.filter((u) => {
     if (tab === 'Customers')  return u.role === 'customer';
     if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager';
@@ -1582,7 +1591,7 @@ export default function DirectorUsersScreen() {
     enabled: showInviteModal,
     staleTime: 0,
   });
-  const activeInvites = (invitesData?.data ?? []).filter((i: any) => !i.usedAt && new Date(i.expiresAt) > new Date());
+  const activeInvites: StaffInviteToken[] = (invitesData?.data ?? []).filter((invite) => !invite.usedAt && new Date(invite.expiresAt) > new Date());
 
   async function handleGenerateInvite() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1593,8 +1602,8 @@ export default function DirectorUsersScreen() {
       await refetchInvites();
       setInviteNote('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Failed to generate invite.');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to generate invite.'));
     } finally {
       setInviteGenerating(false);
     }
@@ -1605,12 +1614,12 @@ export default function DirectorUsersScreen() {
     try {
       await api.director.revokeStaffInvite(id);
       if (generatedInvite) {
-        const inv = (invitesData?.data ?? []).find((i: any) => i.id === id);
+        const inv = (invitesData?.data ?? []).find((invite) => invite.id === id);
         if (inv && inv.token === generatedInvite.token) setGeneratedInvite(null);
       }
       await refetchInvites();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Failed to revoke invite.');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to revoke invite.'));
     }
   }
 
@@ -1628,7 +1637,7 @@ export default function DirectorUsersScreen() {
             await qc.invalidateQueries({ queryKey: ['director-deleted-accounts'] });
             await qc.invalidateQueries({ queryKey: ['director-users'] });
             Alert.alert('Restored', `${name}'s account has been restored.`);
-          } catch (e: any) { Alert.alert('Error', e.message); }
+          } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
         },
       },
     ]);
@@ -1641,7 +1650,7 @@ export default function DirectorUsersScreen() {
     try {
       await api.director.approveStaff(userId, approved);
       await qc.invalidateQueries({ queryKey: ['director-users'] });
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
   };
   const handleRefreshUsers = async () => {
     await qc.invalidateQueries({ queryKey: ['director-users'] });
@@ -1989,7 +1998,7 @@ export default function DirectorUsersScreen() {
             {activeInvites.length > 0 && (
               <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY }}>Active codes ({activeInvites.length})</Text>
-                {activeInvites.map((inv: any) => (
+                {activeInvites.map((inv) => (
                   <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: BG, borderRadius: 12, padding: 12 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 }}>{inv.token}</Text>

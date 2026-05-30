@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -32,7 +33,9 @@ const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
 const RED = '#EF4444';
 const STATES = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT'];
-function iconForLabel(label: string): string {
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
+
+function iconForLabel(label: string): FeatherIconName {
   const l = label.toLowerCase();
   if (l === 'home') return 'home';
   if (l === 'work') return 'briefcase';
@@ -43,6 +46,11 @@ function formatAddress(a: SavedAddress): string {
   return `${apt}${a.street}, ${a.suburb} ${a.state} ${a.postcode}`;
 }
 const BLANK = { label: 'Home', street: '', apt: '', suburb: '', postcode: '', state: 'NSW', isDefault: false };
+
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function AddressesScreen() {
   const { user } = useAuth();
   if (!user) return <LoggedOutAccountPrompt redirectTo="/addresses" compact />;
@@ -87,20 +95,31 @@ function AddressesContent() {
       await qc.invalidateQueries({ queryKey: ['addresses'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       closeModal();
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not save address.');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Could not save address.'));
     } finally { setSaving(false); }
   };
   const handleDelete = (addr: SavedAddress) => {
     Alert.alert(`Remove "${addr.label}"?`, 'This address will be deleted.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => { await api.addresses.delete(addr.id); await qc.invalidateQueries({ queryKey: ['addresses'] }); } },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try {
+          await api.addresses.delete(addr.id);
+          await qc.invalidateQueries({ queryKey: ['addresses'] });
+        } catch (error) {
+          Alert.alert('Error', getErrorMessage(error, 'Could not remove address.'));
+        }
+      } },
     ]);
   };
   const handleSetDefault = async (addr: SavedAddress) => {
     if (addr.isDefault) return;
-    await api.addresses.update(addr.id, { isDefault: true });
-    await qc.invalidateQueries({ queryKey: ['addresses'] });
+    try {
+      await api.addresses.update(addr.id, { isDefault: true });
+      await qc.invalidateQueries({ queryKey: ['addresses'] });
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Could not set default address.'));
+    }
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -125,7 +144,7 @@ function AddressesContent() {
               {addresses.map((addr) => (
                 <View key={addr.id} style={[s.addressCard, { backgroundColor: CARD, borderColor: addr.isDefault ? BLUE : BORDER, borderWidth: addr.isDefault ? 2 : 1 }]}>
                   <View style={s.addressCardBody}>
-                    <View style={[s.addressIconCircle, { backgroundColor: addr.isDefault ? '#EBF8FF' : BG }]}><Feather name={iconForLabel(addr.label) as any} size={18} color={addr.isDefault ? BLUE : MUTED} /></View>
+                    <View style={[s.addressIconCircle, { backgroundColor: addr.isDefault ? '#EBF8FF' : BG }]}><Feather name={iconForLabel(addr.label)} size={18} color={addr.isDefault ? BLUE : MUTED} /></View>
                     <View style={{ flex: 1 }}>
                       <View style={s.addressLabelRow}><Text style={s.addressLabel}>{addr.label}</Text>{addr.isDefault && <View style={[s.defaultBadge, { backgroundColor: '#EBF8FF' }]}><Text style={[s.defaultBadgeText, { color: BLUE }]}>Default</Text></View>}</View>
                       <Text style={s.addressLine}>{formatAddress(addr)}</Text>
@@ -159,7 +178,7 @@ function AddressesContent() {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
               <View style={{ padding: 20, gap: 16 }}>
-                <View style={s.fieldGroup}><Text style={s.fieldLabel}>Label</Text><View style={s.labelPills}>{['Home', 'Work', 'Other'].map((l) => <Pressable key={l} onPress={() => setForm((f) => ({ ...f, label: l }))} style={[s.labelPill, { backgroundColor: form.label === l ? BLUE : CARD, borderColor: form.label === l ? BLUE : BORDER }]}><Feather name={iconForLabel(l) as any} size={13} color={form.label === l ? '#fff' : MUTED} /><Text style={[s.labelPillText, { color: form.label === l ? '#fff' : TEXT }]}>{l}</Text></Pressable>)}</View></View>
+                <View style={s.fieldGroup}><Text style={s.fieldLabel}>Label</Text><View style={s.labelPills}>{['Home', 'Work', 'Other'].map((l) => <Pressable key={l} onPress={() => setForm((f) => ({ ...f, label: l }))} style={[s.labelPill, { backgroundColor: form.label === l ? BLUE : CARD, borderColor: form.label === l ? BLUE : BORDER }]}><Feather name={iconForLabel(l)} size={13} color={form.label === l ? '#fff' : MUTED} /><Text style={[s.labelPillText, { color: form.label === l ? '#fff' : TEXT }]}>{l}</Text></Pressable>)}</View></View>
                 <AddressSearchInput
                   currentValue={form.street ? `${form.street}${form.suburb ? `, ${form.suburb}` : ''}` : undefined}
                   placeholder="Search for your address…"

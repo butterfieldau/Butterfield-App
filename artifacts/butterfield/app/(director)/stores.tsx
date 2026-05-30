@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { StoreDetail, StoreHour, StoreSummary } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 
@@ -38,6 +39,7 @@ const STATUS_OPTIONS = [
   { value: 'closed',             label: 'Closed',             color: RED    },
 ];
 const STORE_EDITOR_TABS = ['Details', 'Hours', 'Geofence', 'Printer', 'Notes'] as const;
+type StoreStatus = 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';
 
 function statusColor(status: string) {
   return STATUS_OPTIONS.find(s => s.value === status)?.color ?? MUTED;
@@ -73,9 +75,13 @@ function serializeBreakToNotes(breakStart: string, breakEnd: string): string {
   return '';
 }
 
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+  return error instanceof Error ? error.message : fallback;
+}
+
 
 // ── StoreCard ────────────────────────────────────────────────────────────────
-function StoreCard({ store, onPress }: { store: any; onPress: () => void }) {
+function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => void }) {
   const sc = statusColor(store.status);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}>
@@ -140,7 +146,7 @@ function StoreField({
 // ── StoreEditorModal ─────────────────────────────────────────────────────────
 function StoreEditorModal({
   store, visible, onClose, onSaved,
-}: { store: any | null; visible: boolean; onClose: () => void; onSaved: () => void }) {
+}: { store: StoreDetail | null; visible: boolean; onClose: () => void; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -158,7 +164,7 @@ function StoreEditorModal({
   const [email,            setEmail]             = useState('');
   const [website,          setWebsite]           = useState('');
   const [imageUrl,         setImageUrl]          = useState('');
-  const [status,           setStatus]            = useState<string>('open');
+  const [status,           setStatus]            = useState<StoreStatus>('open');
   const [pickupAvailable,  setPickupAvailable]   = useState(true);
   const [deliveryAvailable,setDeliveryAvailable] = useState(false);
   const [publicNotes,      setPublicNotes]       = useState('');
@@ -217,11 +223,19 @@ function StoreEditorModal({
       .then(r => {
         if (r.data && r.data.length > 0) {
           const base = defaultHours();
-          r.data.forEach((h: any) => {
+          r.data.forEach((h) => {
             const idx = base.findIndex(b => b.dayOfWeek === h.dayOfWeek);
             if (idx >= 0) {
               const { breakStart, breakEnd } = parseBreakFromNotes(h.notes ?? '');
-              base[idx] = { ...base[idx], isClosed: h.isClosed, openTime: h.openTime ?? '07:00', closeTime: h.closeTime ?? '17:00', notes: h.notes ?? '', breakStart, breakEnd };
+              base[idx] = {
+                ...base[idx],
+                isClosed: h.isClosed ?? false,
+                openTime: h.openTime ?? '07:00',
+                closeTime: h.closeTime ?? '17:00',
+                notes: h.notes ?? '',
+                breakStart,
+                breakEnd,
+              };
             }
           });
           setHours(base);
@@ -233,7 +247,7 @@ function StoreEditorModal({
   }, [visible, store?.id]);
 
 
-  const updateHour = (dow: number, field: keyof HourRow, value: any) => {
+  const updateHour = (dow: number, field: keyof HourRow, value: HourRow[keyof HourRow]) => {
     setHours(prev => prev.map(h => h.dayOfWeek === dow ? { ...h, [field]: value } : h));
   };
 
@@ -276,7 +290,7 @@ function StoreEditorModal({
       }
 
       // Serialize break times into notes before saving
-      const hoursWithNotes = hours.map(h => ({
+      const hoursWithNotes: StoreHour[] = hours.map(h => ({
         ...h,
         notes: serializeBreakToNotes(h.breakStart, h.breakEnd),
       }));
@@ -285,8 +299,8 @@ function StoreEditorModal({
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSaved();
       onClose();
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to save store.');
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Failed to save store.'));
     } finally {
       setSaving(false);
     }
@@ -304,7 +318,7 @@ function StoreEditorModal({
             await api.director.deleteStore(store.id);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             onSaved(); onClose();
-          } catch (e: any) { Alert.alert('Error', e.message); }
+          } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
         }},
       ],
     );
@@ -335,8 +349,8 @@ function StoreEditorModal({
       const upload = await api.storage.uploadFile(asset.uri, filename, mimeType);
       setImageUrl(upload.servingUrl);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message ?? 'Unable to upload the store image right now.');
+    } catch (error) {
+      Alert.alert('Upload failed', getErrorMessage(error, 'Unable to upload the store image right now.'));
     } finally {
       setUploadingImage(false);
     }
@@ -663,7 +677,7 @@ function StoreEditorModal({
 export default function DirectorStoresScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [editingStore, setEditingStore] = useState<any | null>(null);
+  const [editingStore, setEditingStore] = useState<StoreDetail | null>(null);
   const [showEditor, setShowEditor] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
@@ -674,7 +688,7 @@ export default function DirectorStoresScreen() {
     async () => { await refetch(); await qc.invalidateQueries({ queryKey: ['director-stores'] }); },
   );
 
-  const stores: any[] = data?.data ?? [];
+  const stores: StoreSummary[] = data?.data ?? [];
 
   const openAdd = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -682,7 +696,7 @@ export default function DirectorStoresScreen() {
     setShowEditor(true);
   };
 
-  const openEdit = (store: any) => {
+  const openEdit = (store: StoreSummary) => {
     Haptics.selectionAsync();
     setEditingStore(store);
     setShowEditor(true);
