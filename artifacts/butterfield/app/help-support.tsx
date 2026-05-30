@@ -20,6 +20,14 @@ const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const RED    = '#EF4444';
 
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
+
 export default function HelpSupportScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
@@ -56,8 +64,8 @@ export default function HelpSupportScreen() {
                       await logout();
                       qc.clear();
                       router.replace('/(tabs)');
-                    } catch (e: any) {
-                      Alert.alert('Error', e.message ?? 'Failed to delete account. Please contact hello@butterfieldcookies.com.au');
+                    } catch (e: unknown) {
+                      Alert.alert('Error', getErrorMessage(e, 'Failed to delete account. Please contact hello@butterfieldcookies.com.au'));
                     } finally {
                       setDeleting(false);
                     }

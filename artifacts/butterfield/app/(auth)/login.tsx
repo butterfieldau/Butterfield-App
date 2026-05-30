@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useState } from 'react';
+import React, { useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
@@ -46,6 +46,15 @@ const PUBLIC_ROLES = [
 
 const INTERNAL_EMAILS: string[] = [];
 type ScreenMode = 'login' | 'register' | 'wholesale-apply';
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
+
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -130,8 +139,8 @@ export default function LoginScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         routeAfterAuth('customer');
       }
-    } catch (e: any) {
-      if (e.code !== 'SIGN_IN_CANCELLED') {
+    } catch (e: unknown) {
+      if (!(typeof e === 'object' && e && 'code' in e && (e as { code?: string }).code === 'SIGN_IN_CANCELLED')) {
         setError('Google sign-in failed. Please try again.');
       }
     } finally {
@@ -159,8 +168,8 @@ export default function LoginScreen() {
       if (!result.success) { setError(result.error ?? 'Apple sign-in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       routeAfterAuth('customer');
-    } catch (e: any) {
-      if (e.code !== 'ERR_REQUEST_CANCELED') {
+    } catch (e: unknown) {
+      if (!(typeof e === 'object' && e && 'code' in e && (e as { code?: string }).code === 'ERR_REQUEST_CANCELED')) {
         setError('Apple sign-in failed. Please try again.');
       }
     } finally {
@@ -201,8 +210,8 @@ export default function LoginScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         routeAfterAuth(res.role);
       }
-    } catch (e: any) {
-      setError(e.message ?? 'Something went wrong.');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally { setLoading(false); }
   };
@@ -257,8 +266,8 @@ export default function LoginScreen() {
       if (!res.success) { setIError(res.error ?? 'Sign in failed.'); setGeoStatus('idle'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       routeAfterAuth(res.role);
-    } catch (e: any) {
-      setIError(e.message ?? 'Something went wrong.');
+    } catch (e: unknown) {
+      setIError(getErrorMessage(e));
       setGeoStatus('idle');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally { setILoading(false); }
@@ -298,7 +307,7 @@ export default function LoginScreen() {
                       style={[s.roleCard, { backgroundColor: CARD, borderColor: active ? BLUE : BORDER, borderWidth: active ? 2 : 1 }]}
                     >
                       <View style={[s.roleIconBox, { backgroundColor: active ? '#E6F0FF' : '#EFF6FF' }]}>
-                        <Feather name={r.icon as any} size={22} color={active ? BLUE : MUTED} />
+                        <Feather name={r.icon as FeatherIconName} size={22} color={active ? BLUE : MUTED} />
                       </View>
                       <Text style={[s.roleLabel, { fontWeight: active ? '700' : '500', color: active ? TEXT : MUTED }]}>
                         {r.label}
