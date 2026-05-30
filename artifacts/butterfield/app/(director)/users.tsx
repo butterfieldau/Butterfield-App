@@ -1329,6 +1329,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
 function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
   user: any | null; visible: boolean; onClose: () => void; onRefresh: () => void;
 }) {
+  const qc = useQueryClient();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -1343,6 +1344,77 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
     setStatus((user?.status as any) ?? 'active');
     setPassword('');
   }, [user]);
+
+  const { data: assignData, refetch: refetchAssignments } = useQuery({
+    queryKey: ['director-shop-display-assignments', user?.id],
+    queryFn: () => api.director.staffAssignments(user.id),
+    enabled: visible && !!user?.id,
+  });
+  const { data: storesData } = useQuery({
+    queryKey: ['director-stores'],
+    queryFn: () => api.director.storesList(),
+    enabled: visible,
+    staleTime: 60000,
+  });
+  const assignments: any[] = assignData?.data ?? [];
+  const stores: any[] = storesData?.data ?? [];
+
+  const handleAddAssignment = () => {
+    if (!user) return;
+    const assigned = assignments.map((assignment) => assignment.storeId);
+    const available = stores.filter((store) => store.status !== 'closed' && !assigned.includes(store.id));
+    if (available.length === 0) {
+      Alert.alert('No stores left', 'This shop display is already assigned to every active store.');
+      return;
+    }
+    Alert.alert('Assign Shop Display', 'Select a store for this counter iPad login:', [
+      ...available.map((store) => ({
+        text: `${store.name}${store.suburb ? ` – ${store.suburb}` : ''}`,
+        onPress: async () => {
+          try {
+            await api.director.createAssignment({ staffId: user.id, storeId: store.id, isPrimary: assignments.length === 0 });
+            await Promise.all([
+              refetchAssignments(),
+              qc.invalidateQueries({ queryKey: ['director-users'] }),
+            ]);
+          } catch (error: any) {
+            Alert.alert('Error', error?.message ?? 'Unable to assign this store right now.');
+          }
+        },
+      })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  };
+
+  const handleSetPrimary = async (assignmentId: string) => {
+    try {
+      await api.director.updateAssignment(assignmentId, { isPrimary: true });
+      await refetchAssignments();
+    } catch (error: any) {
+      Alert.alert('Error', error?.message ?? 'Unable to update the primary store.');
+    }
+  };
+
+  const handleRemoveAssignment = (assignmentId: string, storeName: string) => {
+    Alert.alert('Remove store', `Remove ${storeName} from this shop display login?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.director.deleteAssignment(assignmentId);
+            await Promise.all([
+              refetchAssignments(),
+              qc.invalidateQueries({ queryKey: ['director-users'] }),
+            ]);
+          } catch (error: any) {
+            Alert.alert('Error', error?.message ?? 'Unable to remove this store assignment.');
+          }
+        },
+      },
+    ]);
+  };
 
   const save = async () => {
     if (!user) return;
@@ -1418,6 +1490,46 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
                 <Text style={[modal.chipText, { color: status === option ? '#fff' : TEXT }]}>{option}</Text>
               </Pressable>
             ))}
+          </View>
+          <View style={[styles.card, { gap: 10 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>Assigned Stores</Text>
+              <Pressable onPress={handleAddAssignment} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
+                <Feather name="plus" size={13} color="#1D4ED8" />
+                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Assign</Text>
+              </Pressable>
+            </View>
+            {assignments.length === 0 ? (
+              <Text style={{ fontSize: 13, color: MUTED, lineHeight: 18 }}>
+                No stores assigned yet. Assign the shop display to the store locations it should run for.
+              </Text>
+            ) : (
+              assignments.map((assignment) => (
+                <View key={assignment.id} style={[styles.subRow, { marginTop: 0, borderTopWidth: 0, borderRadius: 14, backgroundColor: BG }]}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.subTitle}>{assignment.storeName ?? assignment.storeId}</Text>
+                      {assignment.isPrimary && (
+                        <View style={{ backgroundColor: '#DBEAFE', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#1D4ED8' }}>PRIMARY</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.subSub}>{assignment.storeSuburb ?? 'Store assignment'}</Text>
+                  </View>
+                  <View style={{ gap: 6 }}>
+                    {!assignment.isPrimary && (
+                      <Pressable onPress={() => { void handleSetPrimary(assignment.id); }}>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: BLUE }}>Set Primary</Text>
+                      </Pressable>
+                    )}
+                    <Pressable onPress={() => handleRemoveAssignment(assignment.id, assignment.storeName ?? 'this store')}>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: RED }}>Remove</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))
+            )}
           </View>
           <Pressable onPress={save} disabled={loading} style={[modal.submitBtn, { backgroundColor: BLUE }]}>
             {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={modal.submitBtnText}>Save Changes</Text>}

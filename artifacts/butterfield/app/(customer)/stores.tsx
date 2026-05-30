@@ -3,14 +3,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React from 'react';
 import {
-  ActivityIndicator, Linking, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Linking, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
-import { api } from '@/lib/api';
+import { api, type AuthProfile } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function fmt12(t: string): string {
@@ -45,7 +46,17 @@ const cs = StyleSheet.create({
   actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
   actionBtnText:   { fontWeight: '600', fontSize: 13, color: '#1493FF' },
 });
-function StoreCard({ store }: { store: any }) {
+function StoreCard({
+  store,
+  isSelected,
+  onSelect,
+  canSelect,
+}: {
+  store: any;
+  isSelected: boolean;
+  onSelect: () => void;
+  canSelect: boolean;
+}) {
   const colors = useColors();
   const sc = openStatusColor(store.openStatus);
   const isOpen = store.openStatus === 'open' || store.openStatus === 'closing_soon';
@@ -119,6 +130,24 @@ function StoreCard({ store }: { store: any }) {
         ) : null}
         {/* Action buttons */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+          {canSelect && (
+            <Pressable
+              style={[
+                cs.actionBtn,
+                {
+                  flex: 1,
+                  backgroundColor: isSelected ? '#1493FF' : '#FFFFFF',
+                  borderColor: isSelected ? '#1493FF' : '#E5E7EB',
+                },
+              ]}
+              onPress={onSelect}
+            >
+              <Feather name={isSelected ? 'check-circle' : 'map-pin'} size={14} color={isSelected ? '#fff' : '#1493FF'} />
+              <Text style={[cs.actionBtnText, { color: isSelected ? '#fff' : '#1493FF' }]}>
+                {isSelected ? 'My Store' : 'Set as My Store'}
+              </Text>
+            </Pressable>
+          )}
           {store.latitude && store.longitude && (
             <Pressable style={[cs.actionBtn, { flex: 1 }]} onPress={handleDirections}>
               <Feather name="map" size={14} color="#1493FF" />
@@ -131,7 +160,7 @@ function StoreCard({ store }: { store: any }) {
               <Text style={[cs.actionBtnText, { color: '#16A34A' }]}>Call</Text>
             </Pressable>
           )}
-          {store.pickupAvailable && store.status === 'open' && (
+          {store.pickupAvailable && (store.openStatus === 'open' || store.openStatus === 'closing_soon') && (
             <Pressable style={[cs.actionBtn, { flex: 1, backgroundColor: '#1493FF' }]} onPress={() => router.push('/(customer)/menu')}>
               <Feather name="shopping-bag" size={14} color="#fff" />
               <Text style={[cs.actionBtnText, { color: '#fff' }]}>Order</Text>
@@ -143,6 +172,8 @@ function StoreCard({ store }: { store: any }) {
   );
 }
 export default function CustomerStoresScreen() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const { data, isLoading, refetch } = useQuery({
@@ -152,8 +183,31 @@ export default function CustomerStoresScreen() {
   });
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.auth.me(),
+    enabled: !!user,
+    staleTime: 60000,
+  });
 
   const stores: any[] = data?.data ?? [];
+  const preferredStoreId = (meData?.profile as AuthProfile | null)?.preferredStoreId ?? null;
+
+  const handleSelectStore = async (storeId: string) => {
+    try {
+      await api.auth.updateMe({ preferredStoreId: storeId });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['me'] }),
+        qc.invalidateQueries({ queryKey: ['auth-me'] }),
+        qc.invalidateQueries({ queryKey: ['stores'] }),
+        qc.invalidateQueries({ queryKey: ['store-status'] }),
+      ]);
+      Alert.alert('Store updated', 'This store will now be used for your pickup times and in-store orders.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to save your store right now.';
+      Alert.alert('Could not save store', message);
+    }
+  };
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -181,7 +235,15 @@ export default function CustomerStoresScreen() {
             <Text style={{ fontWeight: '400', fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>Check back soon for our upcoming locations.</Text>
           </View>
         ) : (
-          stores.map(store => <StoreCard key={store.id} store={store} />)
+          stores.map(store => (
+            <StoreCard
+              key={store.id}
+              store={store}
+              canSelect={!!user}
+              isSelected={preferredStoreId === store.id}
+              onSelect={() => { void handleSelectStore(store.id); }}
+            />
+          ))
         )}
       </View>
     </ScrollView>

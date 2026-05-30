@@ -45,12 +45,6 @@ export function useHomeScreenData() {
     enabled: !!user,
     retry: 1,
   });
-  const { data: storeStatusData } = useQuery({
-    queryKey: ['store-status'],
-    queryFn: () => api.misc.storeStatus(),
-    refetchInterval: 60000,
-    retry: 1,
-  });
   const { data: meData } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.auth.me(),
@@ -87,15 +81,26 @@ export function useHomeScreenData() {
   const products      = productsData?.data ?? [];
   const loyaltyProfile: LoyaltyProfile | null = loyaltyData?.data ?? null;
   const meProfile: AuthProfile | null = meData?.profile ?? null;
+  const stores = storesData?.data ?? [];
   const rewards: LoyaltyReward[] = rewardsData?.data ?? [];
   const loyaltyPoints = loyaltyProfile?.loyaltyPoints ?? 0;
   const loyaltyTier   = loyaltyProfile?.loyaltyTier ?? 'blue';
   const stampCount    = loyaltyProfile?.coffeeStampCount ?? loyaltyProfile?.stampCount ?? 0;
   const banner        = bannerData?.data ?? null;
-  const featuredStore = (storesData?.data ?? [])[0] ?? null;
+  const preferredStoreId = meProfile?.preferredStoreId ?? loyaltyProfile?.preferredStoreId ?? null;
+  const featuredStore = (preferredStoreId
+    ? stores.find((store) => store.id === preferredStoreId)
+    : null) ?? stores[0] ?? null;
   const topSellers    = topSellersData?.data ?? [];
-  const storeStatus   = storeStatusData?.data;
-  const open          = storeStatus?.isOpen ?? false;
+  const storeStatus = featuredStore
+    ? {
+        isOpen: featuredStore.openStatus === 'open' || featuredStore.openStatus === 'closing_soon',
+        openUntil: featuredStore.todayHours?.closeTime ?? null,
+        opensAt: featuredStore.todayHours?.openTime ?? null,
+        manualOverride: false,
+      }
+    : null;
+  const open = storeStatus?.isOpen ?? false;
   const liveContext   = (contextData?.data ?? null) as LiveContext | null;
   const freshName     = meData?.user?.name ?? user?.name;
   const firstName     = freshName?.split(' ')[0] ?? 'there';
@@ -103,9 +108,10 @@ export function useHomeScreenData() {
   const tierCfg       = getTierConfig(loyaltyTier);
   const loyaltyCustomerName = loyaltyProfile?.customerName ?? freshName ?? 'Butterfield Member';
 
-  const storeHint = open
-    ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
-    : (storeStatus?.opensAt   ? `Opens ${storeStatus.opensAt}`         : 'Closed');
+  const storeHint = featuredStore?.openLabel
+    ?? (open
+      ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
+      : (storeStatus?.opensAt ? `Opens ${storeStatus.opensAt}` : 'Closed'));
 
   const favouriteCategory = useFavouriteCategory(products);
 

@@ -246,7 +246,7 @@ export default function CustomerHome() {
             <View style={{ flex: 1 }}>
               <Text style={[s.pickupLabel, { fontWeight: '600', color: BLUE_TOP }]}>IN-STORE PICKUP</Text>
               <Text style={[s.pickupTitle, { fontWeight: '700', color: colors.foreground }]} numberOfLines={1}>
-                Butterfield Cookies — Merrylands
+                {featuredStore?.name ?? 'Select your store'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
                 <View style={[s.openDot, { backgroundColor: open ? '#22C55E' : '#EF4444' }]} />

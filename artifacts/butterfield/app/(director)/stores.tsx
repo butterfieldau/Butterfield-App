@@ -37,6 +37,7 @@ const STATUS_OPTIONS = [
   { value: 'temporarily_closed', label: 'Temporarily Closed', color: AMBER  },
   { value: 'closed',             label: 'Closed',             color: RED    },
 ];
+const STORE_EDITOR_TABS = ['Details', 'Hours', 'Geofence', 'Printer', 'Notes'] as const;
 
 function statusColor(status: string) {
   return STATUS_OPTIONS.find(s => s.value === status)?.color ?? MUTED;
@@ -162,7 +163,12 @@ function StoreEditorModal({
   const [deliveryAvailable,setDeliveryAvailable] = useState(false);
   const [publicNotes,      setPublicNotes]       = useState('');
   const [internalNotes,    setInternalNotes]     = useState('');
+  const [printerIp,        setPrinterIp]         = useState('');
+  const [printerPort,      setPrinterPort]       = useState('9100');
+  const [orderCutoffTime,  setOrderCutoffTime]   = useState('');
+  const [dailySpecial,     setDailySpecial]      = useState('');
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
+  const [activeTab,        setActiveTab]         = useState<(typeof STORE_EDITOR_TABS)[number]>('Details');
 
 
   // Populate from existing store
@@ -187,12 +193,18 @@ function StoreEditorModal({
       setDeliveryAvailable(store.deliveryAvailable ?? false);
       setPublicNotes(store.publicNotes ?? '');
       setInternalNotes(store.internalNotes ?? '');
+      setPrinterIp(store.printerIp ?? '');
+      setPrinterPort(store.printerPort != null ? String(store.printerPort) : '9100');
+      setOrderCutoffTime(store.orderCutoffTime ?? '');
+      setDailySpecial(store.dailySpecial ?? '');
     } else {
       setName(''); setAddressLine(''); setSuburb(''); setState(''); setPostcode('');
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
       setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
+      setPrinterIp(''); setPrinterPort('9100'); setOrderCutoffTime(''); setDailySpecial('');
     }
+    setActiveTab('Details');
   }, [visible, store]);
 
   // Fetch opening hours when editing
@@ -243,6 +255,10 @@ function StoreEditorModal({
         email: email.trim() || null,
         website: website.trim() || null,
         imageUrl: imageUrl.trim() || null,
+        printerIp: printerIp.trim() || null,
+        printerPort: parseInt(printerPort, 10) || 9100,
+        orderCutoffTime: orderCutoffTime.trim() || null,
+        dailySpecial: dailySpecial.trim() || null,
         status,
         pickupAvailable,
         deliveryAvailable,
@@ -341,8 +357,20 @@ function StoreEditorModal({
         </View>
 
         <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+          <View style={s.tabRow}>
+            {STORE_EDITOR_TABS.map((tab) => (
+              <Pressable
+                key={tab}
+                onPress={() => { setActiveTab(tab); Haptics.selectionAsync(); }}
+                style={[s.tabChip, activeTab === tab && s.tabChipActive]}
+              >
+                <Text style={[s.tabChipText, activeTab === tab && s.tabChipTextActive]}>{tab}</Text>
+              </Pressable>
+            ))}
+          </View>
 
-          {/* ── Address search ─── */}
+          {activeTab === 'Details' && (
+          <>
           <View style={s.section}>
             <Text style={s.sectionTitle}>ADDRESS SEARCH</Text>
             <View style={[s.sectionCard, { paddingHorizontal: 14, paddingVertical: 12 }]}>
@@ -374,7 +402,6 @@ function StoreEditorModal({
             </View>
           </View>
 
-          {/* ── Store details ─── */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>STORE DETAILS</Text>
             <View style={s.sectionCard}>
@@ -417,8 +444,29 @@ function StoreEditorModal({
               ) : null}
             </View>
           </View>
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>PICKUP & SERVICE</Text>
+            <View style={s.sectionCard}>
+              <View style={[s.toggleRow, { borderTopWidth: 0 }]}>
+                <Feather name="shopping-bag" size={15} color={BLUE} />
+                <Text style={s.toggleLabel}>Pickup Available</Text>
+                <Switch value={pickupAvailable} onValueChange={setPickupAvailable} trackColor={{ false: BORDER, true: '#BBF7D0' }} thumbColor={pickupAvailable ? GREEN : '#9CA3AF'} />
+              </View>
+              <View style={[s.toggleRow, { borderTopWidth: 1, borderTopColor: BORDER }]}>
+                <Feather name="truck" size={15} color={PURPLE} />
+                <Text style={s.toggleLabel}>Delivery Available</Text>
+                <Switch value={deliveryAvailable} onValueChange={setDeliveryAvailable} trackColor={{ false: BORDER, true: '#DDD6FE' }} thumbColor={deliveryAvailable ? PURPLE : '#9CA3AF'} />
+              </View>
+              <StoreField label="Pickup Order Cutoff" value={orderCutoffTime} onChangeText={setOrderCutoffTime} placeholder="e.g. 16:00" keyboardType="numbers-and-punctuation" autoCapitalize="none" />
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER }}>
+                <StoreField label="Daily Special" value={dailySpecial} onChangeText={setDailySpecial} placeholder="e.g. Free cookie with large coffee" />
+              </View>
+            </View>
+          </View>
+          </>
+          )}
 
-          {/* ── Location / geofence ─── */}
+          {activeTab === 'Geofence' && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>LOCATION & GEOFENCE</Text>
             <View style={s.sectionCard}>
@@ -445,8 +493,9 @@ function StoreEditorModal({
               </Text>
             </View>
           </View>
+          )}
 
-          {/* ── Status ─── */}
+          {activeTab === 'Details' && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>STATUS & SERVICES</Text>
             <View style={s.sectionCard}>
@@ -461,20 +510,11 @@ function StoreEditorModal({
                   </Pressable>
                 ))}
               </View>
-              <View style={[s.toggleRow, { borderTopWidth: 1, borderTopColor: BORDER }]}>
-                <Feather name="shopping-bag" size={15} color={BLUE} />
-                <Text style={s.toggleLabel}>Pickup Available</Text>
-                <Switch value={pickupAvailable} onValueChange={setPickupAvailable} trackColor={{ false: BORDER, true: '#BBF7D0' }} thumbColor={pickupAvailable ? GREEN : '#9CA3AF'} />
-              </View>
-              <View style={[s.toggleRow, { borderTopWidth: 1, borderTopColor: BORDER }]}>
-                <Feather name="truck" size={15} color={PURPLE} />
-                <Text style={s.toggleLabel}>Delivery Available</Text>
-                <Switch value={deliveryAvailable} onValueChange={setDeliveryAvailable} trackColor={{ false: BORDER, true: '#DDD6FE' }} thumbColor={deliveryAvailable ? PURPLE : '#9CA3AF'} />
-              </View>
             </View>
           </View>
+          )}
 
-          {/* ── Opening hours ─── */}
+          {activeTab === 'Hours' && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>OPENING HOURS</Text>
             <View style={s.sectionCard}>
@@ -547,8 +587,24 @@ function StoreEditorModal({
               ))}
             </View>
           </View>
+          )}
 
-          {/* ── Notes ─── */}
+          {activeTab === 'Printer' && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>PRINTER DETAILS</Text>
+            <View style={s.sectionCard}>
+              <StoreField label="Printer IP" value={printerIp} onChangeText={setPrinterIp} placeholder="192.168.1.20" keyboardType="decimal-pad" autoCapitalize="none" />
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER }}>
+                <StoreField label="Printer Port" value={printerPort} onChangeText={v => setPrinterPort(v.replace(/[^\d]/g, ''))} placeholder="9100" keyboardType="number-pad" autoCapitalize="none" />
+              </View>
+              <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 12 }}>
+                Orders for this store should print to this network printer.
+              </Text>
+            </View>
+          </View>
+          )}
+
+          {activeTab === 'Notes' && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>NOTES</Text>
             <View style={s.sectionCard}>
@@ -576,6 +632,7 @@ function StoreEditorModal({
               </View>
             </View>
           </View>
+          )}
 
           {/* ── Actions ─── */}
           <View style={[s.section, { gap: 10 }]}>
@@ -700,6 +757,11 @@ const s = StyleSheet.create({
   // Modal
   modalHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
   modalTitle:     { fontWeight: '700', fontSize: 18, color: TEXT },
+  tabRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 16 },
+  tabChip:        { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER },
+  tabChipActive:  { backgroundColor: NAVY, borderColor: NAVY },
+  tabChipText:    { fontWeight: '600', fontSize: 12, color: TEXT },
+  tabChipTextActive: { color: '#fff' },
   section:        { paddingHorizontal: 16, paddingTop: 20 },
   sectionTitle:   { fontWeight: '600', fontSize: 11, color: MUTED, letterSpacing: 1.2, marginBottom: 8, paddingHorizontal: 4 },
   sectionCard:    { backgroundColor: GLASS_BG, borderRadius: 14, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },

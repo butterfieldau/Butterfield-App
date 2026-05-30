@@ -1,8 +1,17 @@
 import { Router } from 'express';
 import { db, storesTable, storeOpeningHoursTable } from '@workspace/db';
 import { inArray, eq, ne } from 'drizzle-orm';
+import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 
 const router = Router();
+router.use(async (_req, _res, next) => {
+  try {
+    await ensureStoreConfigSchemaReady();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 function toSydneyDate(): Date {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));

@@ -32,21 +32,24 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
+import { useStores } from '@/hooks/useStores';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
-import { api, type SavedAddress, type ClaimedReward } from '@/lib/api';
+import { api, type SavedAddress, type ClaimedReward, type AuthProfile } from '@/lib/api';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import {
   formatDateChip,
   formatTime,
   getDeliveryDates,
-  getPickupDates,
-  getPickupTimeMins,
   getSydneyNow,
   isSameDay,
-  isStoreOpen,
-  getAsapUnavailableReason,
 } from '@/lib/dateUtils';
 import { getPalette } from '@/constants/categoryColors';
+import {
+  getStoreAsapUnavailableReason,
+  getStorePickupDates,
+  getStorePickupTimeMins,
+  isStoreOpenForAsap,
+} from '@/lib/storeSchedule';
 
 const BG       = '#EFF6FF';
 const CARD     = '#FFFFFF';
@@ -806,9 +809,7 @@ function CartContent() {
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
   const [selectedDate, setSelectedDate]       = useState<Date | null>(null);
   const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
-  const [pickupMode, setPickupMode]           = useState<'asap' | 'scheduled'>(() =>
-    isStoreOpen(getSydneyNow()) ? 'asap' : 'scheduled'
-  );
+  const [pickupMode, setPickupMode]           = useState<'asap' | 'scheduled'>('scheduled');
   const [street, setStreet]                   = useState('');
   const [suburb, setSuburb]                   = useState('');
   const [postcode, setPostcode]               = useState('');
@@ -913,7 +914,7 @@ function CartContent() {
       setOrderType('pickup');
       setSelectedDate(null);
       setSelectedTimeMins(null);
-      setPickupMode(isStoreOpen(getSydneyNow()) ? 'asap' : 'scheduled');
+      setPickupMode('scheduled');
     }
   }, [deliveryEnabled, orderType, setPickupMode]);
 
@@ -945,6 +946,7 @@ function CartContent() {
     enabled: !!user,
     retry: 1,
   });
+  const { data: storesData } = useStores();
   const { data: stripeConfig } = useQuery({
     queryKey: ['stripe-config'],
     queryFn: () => api.payment.config(),
@@ -956,6 +958,9 @@ function CartContent() {
   const canPayAtPickup  = Boolean((meData?.profile as any)?.payAtPickupEnabled);
   const stripePublishableKey = stripeConfig?.data?.publishableKey ?? null;
   const stripeMerchantDisplayName = stripeConfig?.data?.merchantDisplayName ?? 'Butterfield Cookies';
+  const preferredStoreId = (meData?.profile as AuthProfile | null)?.preferredStoreId ?? null;
+  const stores = storesData?.data ?? [];
+  const selectedStore = (preferredStoreId ? stores.find((store) => store.id === preferredStoreId) : null) ?? stores[0] ?? null;
 
   // Helper: fill delivery form from a saved address
   const fillFromAddress = (addr: SavedAddress) => {
@@ -990,10 +995,28 @@ function CartContent() {
   const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, 'card');
 
   const sydNow        = getSydneyNow();
-  const storeOpen     = isStoreOpen(sydNow);
+  const storeOpen     = isStoreOpenForAsap(selectedStore, sydNow);
   const deliveryDates = getDeliveryDates();
-  const pickupDates   = getPickupDates();
-  const pickupTimes   = selectedDate ? getPickupTimeMins(selectedDate, sydNow) : [];
+  const pickupDates   = getStorePickupDates(selectedStore, sydNow);
+  const pickupTimes   = selectedDate ? getStorePickupTimeMins(selectedStore, selectedDate, sydNow) : [];
+
+  useEffect(() => {
+    if (orderType !== 'pickup') return;
+    setPickupMode(storeOpen ? 'asap' : 'scheduled');
+  }, [orderType, storeOpen, selectedStore?.id]);
+
+  useEffect(() => {
+    if (orderType !== 'pickup' || !selectedDate) return;
+    const dateStillAvailable = pickupDates.some((date) => isSameDay(date, selectedDate));
+    if (!dateStillAvailable) {
+      setSelectedDate(null);
+      setSelectedTimeMins(null);
+      return;
+    }
+    if (selectedTimeMins != null && !pickupTimes.includes(selectedTimeMins)) {
+      setSelectedTimeMins(null);
+    }
+  }, [orderType, pickupDates, pickupTimes, selectedDate, selectedTimeMins]);
 
   // Build 2-column pairs for date grid
   const deliveryPairs: (typeof deliveryDates[0] | null)[][] = [];
@@ -1100,6 +1123,7 @@ function CartContent() {
         discountCodeId:   opts.discountCodeId,
         paymentMethodType: opts.paymentMethodType,
         claimedRewardId:  opts.claimedRewardId,
+        storeId: orderType === 'pickup' ? selectedStore?.id : undefined,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -1354,7 +1378,7 @@ function CartContent() {
               setOrderType(t.id as any);
               setSelectedDate(null);
               setSelectedTimeMins(null);
-              if (t.id === 'pickup') setPickupMode(isStoreOpen(getSydneyNow()) ? 'asap' : 'scheduled');
+              if (t.id === 'pickup') setPickupMode(isStoreOpenForAsap(selectedStore, getSydneyNow()) ? 'asap' : 'scheduled');
               Haptics.selectionAsync();
             }}
               style={[styles.orderTypeCard, {
@@ -1397,6 +1421,23 @@ function CartContent() {
         </View>
       )}
 
+      {orderType === 'pickup' && selectedStore && (
+        <View style={[styles.deliveryInfoCard, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+          <View style={[styles.deliveryInfoIcon, { backgroundColor: BLUE }]}>
+            <Feather name="map-pin" size={16} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.deliveryInfoTag, { color: BLUE }]}>PICKUP STORE</Text>
+            <Text style={styles.deliveryInfoTitle}>{selectedStore.name}</Text>
+            <Text style={styles.deliveryInfoSub}>
+              {selectedStore.openLabel ?? 'Check store hours'}{selectedStore.todayHours?.openTime && selectedStore.todayHours?.closeTime
+                ? ` · ${selectedStore.todayHours.openTime}–${selectedStore.todayHours.closeTime}`
+                : ''}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* ASAP / Schedule toggle — pickup only */}
       {orderType === 'pickup' && (
         <View style={{ gap: 10 }}>
@@ -1423,7 +1464,7 @@ function CartContent() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.pickupModeLabel, { color: pickupMode === 'asap' && storeOpen ? BLUE : TEXT }]}>ASAP</Text>
               <Text style={[styles.pickupModeSub, { color: pickupMode === 'asap' && storeOpen ? BLUE : MUTED }]}>
-                {storeOpen ? 'Within 10 minutes' : getAsapUnavailableReason(sydNow)}
+                {storeOpen ? 'Ready from your selected store' : getStoreAsapUnavailableReason(selectedStore, sydNow)}
               </Text>
             </View>
             <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', borderColor: pickupMode === 'asap' && storeOpen ? BLUE : BORDER }}>
@@ -1516,8 +1557,8 @@ function CartContent() {
                   >
                     <Text style={[styles.dateDayName, { color: BLUE }]}>{lbl === 'Today' ? 'TODAY' : lbl === 'Tomorrow' ? 'TOMORROW' : dayFull}</Text>
                     <Text style={styles.dateDayNum}>{dayDate}</Text>
-                    <Text style={styles.dateTimeRange}>10am – 7pm</Text>
-                  </Pressable>
+              <Text style={styles.dateTimeRange}>10am – 7pm</Text>
+            </Pressable>
                 );
               })}
             </View>
@@ -1755,13 +1796,13 @@ function CartContent() {
           <Text style={[styles.orderDetailText, { color: TEXT }]}>
             {orderType === 'delivery'
               ? `Delivery · ${street}, ${suburb} NSW ${postcode}`
-              : 'In-store Pickup · Butterfield Merrylands'}
+              : `In-store Pickup · ${selectedStore?.name ?? 'Your selected store'}`}
           </Text>
         </View>
         {orderType === 'pickup' && pickupMode === 'asap' ? (
           <View style={styles.orderDetailRow}>
             <Feather name="clock" size={14} color={BLUE} />
-            <Text style={[styles.orderDetailText, { color: TEXT }]}>Within 10 minutes</Text>
+            <Text style={[styles.orderDetailText, { color: TEXT }]}>ASAP from your selected store</Text>
           </View>
         ) : selectedDate ? (
           <View style={styles.orderDetailRow}>

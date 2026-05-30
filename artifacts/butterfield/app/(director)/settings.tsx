@@ -333,37 +333,18 @@ function BannerTab() {
 
 // ─── Store Settings ──────────────────────────────────────────────────────────
 function StoreTab() {
-  const { user } = useAuth();
-  const canEditGeo = user?.role === 'director' || user?.role === 'master';
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['director-settings'],
     queryFn: () => api.director.settings(),
   });
   const settings = data?.data ?? {};
-  const [geoRadius,       setGeoRadius]       = useState('');
-  const [storeOpen,       setStoreOpen]       = useState(true);
-  const [dailySpecial,    setDailySpecial]    = useState('');
-  const [shopLat,         setShopLat]         = useState('');
-  const [shopLng,         setShopLng]         = useState('');
-  const [orderCutoff,     setOrderCutoff]     = useState('');
-  const [printerIp,       setPrinterIp]       = useState('');
-  const [printerPort,     setPrinterPort]     = useState('9100');
   const [saving,          setSaving]          = useState(false);
-  const [testing,         setTesting]         = useState(false);
   const [welcomeBg,       setWelcomeBg]       = useState('');
   const [uploadingWelcome,setUploadingWelcome]= useState(false);
 
   useEffect(() => {
     if (settings) {
-      setGeoRadius(settings.geo_radius_meters ?? '20');
-      setStoreOpen(settings.store_open !== 'false');
-      setDailySpecial(settings.daily_special ?? '');
-      setShopLat(settings.shop_lat ?? '-33.8349');
-      setShopLng(settings.shop_lng ?? '150.9942');
-      setOrderCutoff(settings.order_cutoff_time ?? '');
-      setPrinterIp(settings.printer_ip ?? '');
-      setPrinterPort(settings.printer_port ?? '9100');
       setWelcomeBg(settings.welcome_background ?? '');
     }
   }, [data]);
@@ -394,14 +375,6 @@ function StoreTab() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await api.director.updateSettings({
-        geo_radius_meters:  geoRadius,
-        store_open:         String(storeOpen),
-        daily_special:      dailySpecial,
-        shop_lat:           shopLat,
-        shop_lng:           shopLng,
-        order_cutoff_time:  orderCutoff.trim(),
-        printer_ip:         printerIp.trim(),
-        printer_port:       printerPort.trim() || '9100',
         welcome_background: welcomeBg.trim(),
       });
       await qc.invalidateQueries({ queryKey: ['director-settings'] });
@@ -412,23 +385,6 @@ function StoreTab() {
     } finally { setSaving(false); }
   };
 
-  const testPrint = async () => {
-    if (!printerIp.trim()) {
-      Alert.alert('No IP Set', 'Enter the printer IP address first.');
-      return;
-    }
-    setTesting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await sendTestPrint(printerIp.trim(), parseInt(printerPort.trim() || '9100', 10));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Print Sent', 'Test receipt sent to printer successfully.');
-    } catch (e: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Print Failed', e.message ?? 'Could not reach the printer. Make sure the device is on the same WiFi as the printer.');
-    } finally { setTesting(false); }
-  };
-
   if (isLoading) {
     return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
   }
@@ -437,48 +393,11 @@ function StoreTab() {
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
       <Text style={styles.section}>STORE</Text>
       <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Store open</Text>
-            <Text style={styles.rowSub}>Controls the "Open now" status shown to customers</Text>
-          </View>
-          <Switch value={storeOpen} onValueChange={v => { setStoreOpen(v); Haptics.selectionAsync(); }}
-            trackColor={{ false: '#D1D5DB', true: GREEN }} thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Daily special</Text>
-          <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={dailySpecial}
-            onChangeText={setDailySpecial} placeholder="e.g. Cookie & Cream Sandwich" placeholderTextColor={MUTED} />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Order cutoff time (24h, Sydney)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={orderCutoff}
-            onChangeText={setOrderCutoff}
-            placeholder="e.g. 15:00 — leave blank for no cutoff"
-            placeholderTextColor={MUTED}
-            keyboardType="numbers-and-punctuation"
-            autoCorrect={false}
-          />
-          {orderCutoff.trim() ? (
-            <Text style={{ color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 2 }}>
-              Orders will be blocked after {(() => {
-                const [h, m] = orderCutoff.split(':').map(Number);
-                if (isNaN(h)) return orderCutoff;
-                const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
-                const suf = h < 12 ? 'am' : 'pm';
-                const mn  = m > 0 ? `:${String(m).padStart(2,'0')}` : '';
-                return `${h12}${mn}${suf}`;
-              })()} Sydney time
-            </Text>
-          ) : (
-            <Text style={{ color: MUTED, fontSize: 12, fontWeight: '400', marginTop: 2 }}>
-              No cutoff — orders accepted at any hour
-            </Text>
-          )}
+        <View style={[styles.infoBanner, { backgroundColor: '#F8FAFC', borderColor: BORDER }]}>
+          <Feather name="map-pin" size={13} color={BLUE} />
+          <Text style={[styles.infoBannerText, { color: TEXT }]}>
+            Store printers, opening hours, pickup settings, geofence, notes, and contact details now live inside each individual store editor.
+          </Text>
         </View>
       </View>
 
@@ -528,94 +447,6 @@ function StoreTab() {
           />
         </View>
       </View>
-
-      {canEditGeo && (
-        <>
-          <Text style={styles.section}>STAFF GEO-FENCE</Text>
-          <View style={styles.card}>
-            <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
-              <Feather name="map-pin" size={13} color={BLUE} />
-              <Text style={[styles.infoBannerText, { color: BLUE }]}>
-                Staff must be within this radius of the store coordinates to clock in.
-              </Text>
-            </View>
-            <View style={{ gap: 6 }}>
-              <Text style={styles.fieldLabel}>Check-in radius (metres)</Text>
-              <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={geoRadius}
-                onChangeText={setGeoRadius} keyboardType="number-pad" placeholder="20" placeholderTextColor={MUTED} />
-            </View>
-            <View style={[styles.divider, { backgroundColor: BORDER }]} />
-            <View style={styles.coordRow}>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.fieldLabel}>Shop latitude</Text>
-                <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={shopLat}
-                  onChangeText={setShopLat} keyboardType="decimal-pad" placeholder="-33.8349" placeholderTextColor={MUTED} />
-              </View>
-              <View style={{ flex: 1, gap: 6 }}>
-                <Text style={styles.fieldLabel}>Shop longitude</Text>
-                <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={shopLng}
-                  onChangeText={setShopLng} keyboardType="decimal-pad" placeholder="150.9942" placeholderTextColor={MUTED} />
-              </View>
-            </View>
-            <Text style={[styles.hint, { color: MUTED }]}>Butterfield Merrylands: –33.8349, 150.9942</Text>
-          </View>
-        </>
-      )}
-
-      <Text style={styles.section}>RECEIPT PRINTER</Text>
-      <View style={[styles.card, { gap: 12 }]}>
-        <View style={[styles.infoBanner, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
-          <Feather name="printer" size={13} color={BLUE} />
-          <Text style={[styles.infoBannerText, { color: BLUE }]}>
-            Star Micronics printer on your network. Enter its IP address, then tap Send Test Print from this device (must be on the same WiFi as the printer). Staff can print receipts from the Orders screen when marking an order as Ready.
-          </Text>
-        </View>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Printer IP address</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={printerIp}
-            onChangeText={setPrinterIp}
-            placeholder="e.g. 192.168.1.50"
-            placeholderTextColor={MUTED}
-            keyboardType="decimal-pad"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Port (default 9100)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={printerPort}
-            onChangeText={setPrinterPort}
-            placeholder="9100"
-            placeholderTextColor={MUTED}
-            keyboardType="number-pad"
-          />
-        </View>
-        <Pressable
-          onPress={testPrint}
-          disabled={testing || !printerIp.trim()}
-          style={[styles.saveBtn, {
-            backgroundColor: printerIp.trim() ? '#22C55E' : '#D1D5DB',
-            opacity: testing ? 0.7 : 1,
-            marginTop: 4,
-          }]}
-        >
-          {testing
-            ? <ActivityIndicator color="#fff" />
-            : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Feather name="printer" size={16} color="#fff" />
-                <Text style={styles.saveBtnText}>Send Test Print</Text>
-              </View>
-            )}
-        </Pressable>
-      </View>
-
-      <StoreHoursSection />
 
       <Pressable onPress={save} disabled={saving}
         style={[styles.saveBtn, { backgroundColor: BLUE, opacity: saving ? 0.8 : 1 }]}>

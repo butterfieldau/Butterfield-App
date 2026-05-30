@@ -8,6 +8,7 @@ import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
+import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
@@ -462,12 +463,20 @@ router.post('/seed-demo', async (req, res) => {
 });
 
 router.get('/me', requireAuth, async (req, res) => {
+  await ensureStoreConfigSchemaReady();
   const user = req.user!;
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
   if (!dbUser) return res.status(404).json({ error: 'User not found' });
   let profile = null;
   if (dbUser.role === 'customer') {
-    profile = await getOrCreateCustomerLoyaltyProfile(user.id, dbUser.name);
+    const loyaltyProfile = await getOrCreateCustomerLoyaltyProfile(user.id, dbUser.name);
+    const [customerProfile] = await db.select({
+      preferredStoreId: customerProfilesTable.preferredStoreId,
+    }).from(customerProfilesTable).where(eq(customerProfilesTable.userId, user.id));
+    profile = {
+      ...loyaltyProfile,
+      preferredStoreId: customerProfile?.preferredStoreId ?? null,
+    };
   } else if (dbUser.role === 'staff') {
     const [sp] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
     profile = sp;
@@ -494,8 +503,9 @@ router.get('/me', requireAuth, async (req, res) => {
 
 // ── PATCH /me — update name, phone, profileImage, notification prefs ──────────
 router.patch('/me', requireAuth, async (req, res) => {
+  await ensureStoreConfigSchemaReady();
   const user = req.user!;
-  const { name, phone, notificationPreferences, profileImage } = req.body;
+  const { name, phone, notificationPreferences, profileImage, preferredStoreId } = req.body;
 
   const updates: Record<string, any> = { updatedAt: new Date() };
   if (name !== undefined && name.trim()) updates.name = name.trim();
@@ -512,6 +522,24 @@ router.patch('/me', requireAuth, async (req, res) => {
   let profile = null;
   if (updated.role === 'customer') {
     profile = await getOrCreateCustomerLoyaltyProfile(user.id, updated.name);
+    if (preferredStoreId !== undefined) {
+      if (preferredStoreId) {
+        const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(eq(storesTable.id, String(preferredStoreId)));
+        if (!store) {
+          return res.status(400).json({ error: 'Selected store could not be found.' });
+        }
+      }
+      await db.update(customerProfilesTable)
+        .set({
+          preferredStoreId: preferredStoreId ? String(preferredStoreId) : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(customerProfilesTable.userId, user.id));
+      profile = {
+        ...profile,
+        preferredStoreId: preferredStoreId ? String(preferredStoreId) : null,
+      };
+    }
   } else if (updated.role === 'staff') {
     const [sp] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
     profile = sp;

@@ -92,7 +92,7 @@ export const api = {
       taxFileNumber?: string;
       emergencyContact?: { name: string; phone: string; relationship: string };
     }) => request<{ success: boolean; message: string; employeeId: string }>('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
-    updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null }) =>
+    updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null; preferredStoreId?: string | null }) =>
       request<{ user: ApiUser; profile: AuthProfile | null }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAccount: () =>
       request<{ success: boolean; message: string }>('/auth/account', { method: 'DELETE' }),
@@ -114,6 +114,7 @@ export const api = {
       paymentMethod?: 'card' | 'pay_at_pickup';
       discountCode?: string; discountCodeId?: string; paymentMethodType?: string;
       claimedRewardId?: string;
+      storeId?: string;
     }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -645,6 +646,7 @@ export interface ApiProduct {
 export interface ApiOrder {
   id: string;
   userId: string;
+  storeId?: string | null;
   status: string;
   type: string;
   scheduledFor?: string;
@@ -691,6 +693,7 @@ export interface HomeBannerConfig {
 
 export interface LoyaltyProfile {
   userId?: string;
+  preferredStoreId?: string | null;
   customerName?: string;
   customerEmail?: string;
   loyaltyPoints: number;
@@ -1026,6 +1029,7 @@ export interface DirectorFeedback {
 export interface AuthProfile {
   id?: string;
   userId?: string;
+  preferredStoreId?: string | null;
   phone?: string | null;
   birthday?: string | null;
   deliveryAddress?: string | null;
@@ -1186,6 +1190,7 @@ export interface ShopDisplayMe {
   email: string;
   role: 'shop_display';
   permissions?: string[];
+  storeIds?: string[];
 }
 
 export interface ShopDisplayOrder extends ApiOrder {
@@ -1292,36 +1297,73 @@ export interface WholesaleCard {
 
 export interface StoreSummary {
   id: string;
+  slug: string;
   name: string;
+  address?: string | null;
   suburb?: string | null;
   state?: string | null;
-  isActive?: boolean;
+  postcode?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofenceRadius?: number | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  imageUrl?: string | null;
+  printerIp?: string | null;
+  printerPort?: number | null;
+  orderCutoffTime?: string | null;
+  dailySpecial?: string | null;
+  status?: string;
+  pickupAvailable?: boolean;
+  deliveryAvailable?: boolean;
+  publicNotes?: string | null;
+  internalNotes?: string | null;
+  sortOrder?: number;
+  openStatus?: string;
+  openLabel?: string;
+  todayHours?: StoreHour | null;
+  openingHours?: StoreHour[];
 }
 
 export interface StoreDetail extends StoreSummary {
-  addressLine1?: string | null;
-  addressLine2?: string | null;
-  postcode?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  radiusMeters?: number | null;
+  assignments?: Array<{
+    id: string;
+    staffId: string;
+    isPrimary?: boolean;
+    isActive?: boolean;
+    name?: string | null;
+    email?: string | null;
+    position?: string | null;
+  }>;
 }
 
 export interface StoreInput {
   name: string;
+  slug?: string | null;
+  address?: string | null;
   suburb?: string | null;
   state?: string | null;
-  addressLine1?: string | null;
-  addressLine2?: string | null;
   postcode?: string | null;
+  country?: string | null;
   phone?: string | null;
   email?: string | null;
+  website?: string | null;
+  imageUrl?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-  radiusMeters?: number | null;
-  isActive?: boolean;
+  geofenceRadius?: number | null;
+  printerIp?: string | null;
+  printerPort?: number | null;
+  orderCutoffTime?: string | null;
+  dailySpecial?: string | null;
+  status?: 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';
+  pickupAvailable?: boolean;
+  deliveryAvailable?: boolean;
+  publicNotes?: string | null;
+  internalNotes?: string | null;
+  sortOrder?: number;
 }
 
 export interface StoreHour {
@@ -1331,6 +1373,7 @@ export interface StoreHour {
   openTime?: string | null;
   closeTime?: string | null;
   isClosed?: boolean;
+  notes?: string | null;
 }
 
 export interface DirectorStats {

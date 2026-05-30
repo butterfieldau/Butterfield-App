@@ -1,38 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, type StoreSummary as ApiStore } from '@/lib/api';
 
 const STORES_CACHE_KEY = '@butterfield/stores_v1';
-
-export interface ApiStore {
-  id: string;
-  name: string;
-  address?: string;
-  suburb?: string;
-  state?: string;
-  postcode?: string;
-  phone?: string;
-  latitude?: number;
-  longitude?: number;
-  openStatus?: string;
-  openLabel?: string;
-  pickupAvailable?: boolean;
-  deliveryAvailable?: boolean;
-  publicNotes?: string;
-  todayHours?: {
-    dayOfWeek: number;
-    isClosed: boolean;
-    openTime: string | null;
-    closeTime: string | null;
-  };
-  openingHours?: Array<{
-    dayOfWeek: number;
-    isClosed: boolean;
-    openTime: string | null;
-    closeTime: string | null;
-  }>;
-}
 
 /**
  * Fetches the list of stores with a dedicated AsyncStorage cache.

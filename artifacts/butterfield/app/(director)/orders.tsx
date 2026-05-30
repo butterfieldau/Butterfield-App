@@ -621,17 +621,26 @@ export default function DirectorOrdersScreen() {
     queryFn: () => api.director.settings(),
     retry: 1,
   });
+  const { data: storesData } = useQuery({
+    queryKey: ['director-stores'],
+    queryFn: () => api.director.storesList(),
+    staleTime: 60000,
+  });
   const allOrders = data?.data ?? [];
+  const stores = storesData?.data ?? [];
   const printerIp = (settingsData?.data?.printer_ip ?? '').trim();
   const printerPort = parseInt(settingsData?.data?.printer_port ?? '9100', 10);
   const printOrder = async (order: any) => {
-    if (!printerIp) {
-      Alert.alert('Printer Not Set', 'Set the printer IP in Director Settings first.');
+    const orderStore = stores.find((store) => store.id === order.storeId);
+    const effectivePrinterIp = (orderStore?.printerIp ?? printerIp ?? '').trim();
+    const effectivePrinterPort = orderStore?.printerPort ?? printerPort;
+    if (!effectivePrinterIp) {
+      Alert.alert('Printer Not Set', 'Set the printer details inside this store before printing orders for it.');
       return;
     }
     setPrintingOrderId(order.id);
     try {
-      await sendReceiptPrint(orderToPrintJob(order), printerIp, printerPort);
+      await sendReceiptPrint(orderToPrintJob(order), effectivePrinterIp, effectivePrinterPort);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Printed', 'Receipt sent to the printer.');
     } catch (e: any) {

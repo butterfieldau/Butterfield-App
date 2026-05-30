@@ -9,7 +9,7 @@ import {
   staffStoreAssignmentsTable,
   usersTable,
 } from '@workspace/db';
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
@@ -66,8 +66,19 @@ router.get('/me', async (req, res) => {
 
 router.get('/orders', async (req, res) => {
   await ensureShopDisplaySchemaReady();
+  const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  const assignedStoreIds = assignments.map((assignment) => assignment.storeId);
+  const ordersQuery = assignedStoreIds.length > 0
+    ? db.select().from(ordersTable).where(inArray(ordersTable.storeId, assignedStoreIds)).orderBy(desc(ordersTable.createdAt)).limit(150)
+    : db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(150);
+
   const [orders, users] = await Promise.all([
-    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(150),
+    ordersQuery,
     db.select({
       id: usersTable.id,
       name: usersTable.name,

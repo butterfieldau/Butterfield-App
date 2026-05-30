@@ -20,6 +20,7 @@ export const ordersTable = pgTable("orders", {
   userId: text("user_id").notNull(),
   status: orderStatusEnum("status").notNull().default("received"),
   type: orderTypeEnum("type").notNull().default("pickup"),
+  storeId: text("store_id"),
   scheduledFor: timestamp("scheduled_for"),
   notes: text("notes"),
   totalCents: integer("total_cents").notNull(),

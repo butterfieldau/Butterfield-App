@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable } from '@workspace/db';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable } from '@workspace/db';
 import { eq, desc, sql, and, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
+import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 
 const router = Router();
 
@@ -45,11 +46,12 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  await ensureStoreConfigSchemaReady();
   const {
     items: rawItems, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed,
     deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
     discountCode, discountCodeId: clientDiscountCodeId, paymentMethodType,
-    claimedRewardId,
+    claimedRewardId, storeId,
   } = req.body;
 
   // ── Sydney-only delivery enforcement ─────────────────────────────────────
@@ -108,10 +110,45 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Pay at pickup orders should not include a Stripe payment intent.' });
   }
 
+  let resolvedStoreId: string | null = storeId ? String(storeId) : null;
+  if (resolvedOrderType === 'pickup') {
+    if (!resolvedStoreId) {
+      const [profile] = await db.select({
+        preferredStoreId: customerProfilesTable.preferredStoreId,
+      }).from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
+      resolvedStoreId = profile?.preferredStoreId ?? null;
+    }
+    if (!resolvedStoreId) {
+      const [fallbackStore] = await db.select({ id: storesTable.id })
+        .from(storesTable)
+        .where(and(
+          eq(storesTable.pickupAvailable, true),
+          eq(storesTable.status, 'open'),
+        ))
+        .orderBy(storesTable.sortOrder, storesTable.name);
+      resolvedStoreId = fallbackStore?.id ?? null;
+    }
+  }
+
+  let selectedStore: typeof storesTable.$inferSelect | null = null;
+  if (resolvedStoreId) {
+    const [store] = await db.select().from(storesTable).where(eq(storesTable.id, resolvedStoreId));
+    selectedStore = store ?? null;
+    if (!selectedStore) {
+      return res.status(400).json({ error: 'Selected store could not be found.' });
+    }
+    if (resolvedOrderType === 'pickup' && !selectedStore.pickupAvailable) {
+      return res.status(400).json({ error: 'This store is not currently accepting pickup orders.' });
+    }
+    if (resolvedOrderType === 'pickup' && selectedStore.status !== 'open') {
+      return res.status(400).json({ error: 'This store is not currently open for pickup orders.' });
+    }
+  }
+
   // ── Cutoff time enforcement ────────────────────────────────────────────────
   const settingsRows = await db.select().from(storeSettingsTable);
   const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
-  const cutoffTime = settings['order_cutoff_time'] ?? '';
+  const cutoffTime = selectedStore?.orderCutoffTime ?? settings['order_cutoff_time'] ?? '';
   if (cutoffTime) {
     const syd  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
     const mins = syd.getHours() * 60 + syd.getMinutes();
@@ -175,7 +212,8 @@ router.post('/', async (req, res) => {
         id: orderId,
         userId: req.user!.id,
         status: 'received',
-        type: type ?? 'pickup',
+        type: resolvedOrderType,
+        storeId: resolvedStoreId,
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
         notes,
         totalCents: authorativeTotalCents,

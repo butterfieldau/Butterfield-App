@@ -7,8 +7,17 @@ import {
 import { eq, and, desc, isNull } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
+import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 
 const router = Router();
+router.use(async (_req, _res, next) => {
+  try {
+    await ensureStoreConfigSchemaReady();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 router.use(requireRole('director', 'master', 'manager'));
 router.use(requireManagerPermission('settings'));
 
@@ -54,6 +63,7 @@ router.post('/stores', async (req, res) => {
   const {
     name, slug, address, suburb, state, postcode, country = 'Australia',
     latitude, longitude, geofenceRadius = 100, phone, email, website, imageUrl,
+    printerIp, printerPort = 9100, orderCutoffTime, dailySpecial,
     status = 'open', pickupAvailable = true, deliveryAvailable = false,
     publicNotes, internalNotes, sortOrder = 0,
   } = req.body;
@@ -61,7 +71,8 @@ router.post('/stores', async (req, res) => {
   const finalSlug = slug ?? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const [store] = await db.insert(storesTable).values({
     id: randomUUID(), name, slug: finalSlug, address, suburb, state, postcode, country,
-    latitude, longitude, geofenceRadius, phone, email, website, imageUrl, status,
+    latitude, longitude, geofenceRadius, phone, email, website, imageUrl,
+    printerIp, printerPort, orderCutoffTime, dailySpecial, status,
     pickupAvailable, deliveryAvailable, publicNotes, internalNotes, sortOrder,
   }).returning();
   return res.status(201).json({ data: store });
@@ -72,6 +83,7 @@ router.patch('/stores/:id', async (req, res) => {
   const allowed = [
     'name','slug','address','suburb','state','postcode','country',
     'latitude','longitude','geofenceRadius','phone','email','website','imageUrl',
+    'printerIp','printerPort','orderCutoffTime','dailySpecial',
     'status','pickupAvailable','deliveryAvailable','publicNotes','internalNotes','sortOrder',
   ];
   const updates: Record<string, any> = { updatedAt: new Date() };

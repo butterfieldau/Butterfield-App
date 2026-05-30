@@ -3,9 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
 import {
-  Image,
+  ActivityIndicator,
   Linking,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,48 +14,50 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
-import { api } from '@/lib/api';
+import { useStores } from '@/hooks/useStores';
+import { api, type AuthProfile, type StoreSummary } from '@/lib/api';
 
-const STORE_LAT = -33.8360;
-const STORE_LNG = 150.9878;
-const ADDRESS = '2 Main Lane, Merrylands NSW 2160';
-const MAP_URL = `https://staticmap.openstreetmap.de/staticmap.php?center=${STORE_LAT},${STORE_LNG}&zoom=16&size=800x400&markers=${STORE_LAT},${STORE_LNG},red-pushpin`;
-
-const HOURS = [
-  { day: 'Sunday',    hours: '8:00 AM – 10:00 PM' },
-  { day: 'Mon – Wed', hours: '6:30 AM – 3:00 PM · 5:00 – 9:00 PM' },
-  { day: 'Thu – Sat', hours: '6:30 AM – 10:00 PM' },
-];
-
-function openDirections() {
-  const encoded = encodeURIComponent(ADDRESS);
-  const url = Platform.select({
-    ios:     `maps:0,0?q=${encoded}`,
-    android: `geo:0,0?q=${encoded}`,
-    default: `https://www.google.com/maps/search/?api=1&query=${encoded}`,
-  })!;
-  Linking.openURL(url);
+function fmt12(time: string) {
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
-function openInMaps() {
-  const encoded = encodeURIComponent(ADDRESS);
-  Linking.openURL(`https://maps.apple.com/?q=${encoded}&ll=${STORE_LAT},${STORE_LNG}`);
-}
+const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  const { data: storeStatusData } = useQuery({
-    queryKey: ['store-status'],
-    queryFn: () => api.misc.storeStatus(),
-    refetchInterval: 60000,
-    retry: 1,
+  const { data: storesData, isLoading } = useStores();
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.auth.me(),
+    staleTime: 60000,
   });
-  const storeStatus = storeStatusData?.data;
-  const storeOpen = storeStatus?.isOpen ?? false;
-  const storeHint = storeOpen
-    ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
-    : (storeStatus?.opensAt ? `Closed · Opens ${storeStatus.opensAt}` : 'Closed · See hours below');
+
+  const stores = storesData?.data ?? [];
+  const preferredStoreId = (meData?.profile as AuthProfile | null)?.preferredStoreId ?? null;
+  const store: StoreSummary | null = (preferredStoreId
+    ? stores.find((item) => item.id === preferredStoreId)
+    : null) ?? stores[0] ?? null;
+
+  const address = [store?.address, store?.suburb, store?.state, store?.postcode].filter(Boolean).join(', ');
+  const isOpen = store?.openStatus === 'open' || store?.openStatus === 'closing_soon';
+
+  const openDirections = () => {
+    if (!store) return;
+    const q = address || store.name;
+    const url = store.latitude != null && store.longitude != null
+      ? `https://maps.apple.com/?q=${encodeURIComponent(q)}&ll=${store.latitude},${store.longitude}`
+      : `https://maps.apple.com/?q=${encodeURIComponent(q)}`;
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const openCall = () => {
+    if (!store?.phone) return;
+    Linking.openURL(`tel:${store.phone.replace(/\s/g, '')}`).catch(() => {});
+  };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -69,135 +70,105 @@ export default function StoreScreen() {
           <Feather name="chevron-left" size={26} color={colors.foreground} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { fontWeight: '700', color: colors.foreground }]}>Our store</Text>
-          <Text style={[styles.headerSub, { fontWeight: '400', color: colors.mutedForeground }]}>Merrylands NSW 2160</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Your store</Text>
+          <Text style={[styles.headerSub, { color: colors.mutedForeground }]}>Pickup details and opening hours</Text>
         </View>
-        <Text style={[styles.brandText, { color: colors.primary, fontWeight: '700' }]}>Butterfield</Text>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
-        <Pressable onPress={openInMaps} style={styles.mapWrapper}>
-          <Image
-            source={{ uri: MAP_URL }}
-            style={styles.mapImage}
-            resizeMode="cover"
-          />
-          <View style={[styles.mapBadge, { backgroundColor: colors.card }]}>
-            <Feather name="external-link" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.mapBadgeText, { color: colors.mutedForeground, fontWeight: '500' }]}>Open in Maps</Text>
-          </View>
-        </Pressable>
-
-        <View style={styles.body}>
-          <Text style={[styles.visitLabel, { color: colors.primary, fontWeight: '600' }]}>VISIT US</Text>
-          <Text style={[styles.storeName, { color: colors.foreground, fontWeight: '700' }]}>Butterfield Cookies</Text>
-          <Text style={[styles.storeAddress, { color: colors.mutedForeground, fontWeight: '400' }]}>{ADDRESS}</Text>
-          <View style={[styles.openBadge, { backgroundColor: storeOpen ? '#DCFCE7' : '#FEE2E2' }]}>
-            <View style={[styles.openDot, { backgroundColor: storeOpen ? '#22C55E' : '#EF4444' }]} />
-            <Text style={[styles.openText, { color: storeOpen ? '#15803D' : '#DC2626', fontWeight: '600' }]}>
-              {storeHint}
-            </Text>
-          </View>
-
-          <View style={[styles.addressCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-            <View style={[styles.addrIconWrap, { backgroundColor: '#E6F4FF' }]}>
-              <Feather name="map-pin" size={18} color={colors.primary} />
-            </View>
-            <View>
-              <Text style={[styles.addrLabel, { color: colors.mutedForeground, fontWeight: '500' }]}>ADDRESS</Text>
-              <Text style={[styles.addrText, { color: colors.foreground, fontWeight: '600' }]}>{ADDRESS}</Text>
-            </View>
-          </View>
-
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontWeight: '600' }]}>OPENING HOURS</Text>
-
-          <View style={[styles.hoursCard, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
-            <View style={styles.hoursHeader}>
-              <View style={[styles.clockWrap, { backgroundColor: '#E6F4FF' }]}>
-                <Feather name="clock" size={18} color={colors.primary} />
-              </View>
-              <Text style={[styles.hoursTitle, { color: colors.foreground, fontWeight: '700' }]}>Trading hours</Text>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            {HOURS.map(({ day, hours }, i) => (
-              <View key={day} style={[styles.hoursRow, i < HOURS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                <Text style={[styles.hoursDay, { color: colors.foreground, fontWeight: '400' }]}>{day}</Text>
-                <Text style={[
-                  styles.hoursTime,
-                  { color: hours === 'Closed' ? colors.mutedForeground : colors.foreground,
-                    fontWeight: hours === 'Closed' ? '400' : '500' }
-                ]}>{hours}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.btns}>
-            <Pressable
-              style={[styles.dirBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openDirections(); }}
-            >
-              <Feather name="navigation" size={16} color="#fff" />
-              <Text style={[styles.dirBtnText, { fontWeight: '600' }]}>Directions</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.mapsBtn, { borderColor: colors.border, borderRadius: colors.radius, backgroundColor: colors.card }]}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); openInMaps(); }}
-            >
-              <Feather name="external-link" size={16} color={colors.foreground} />
-              <Text style={[styles.mapsBtnText, { fontWeight: '600', color: colors.foreground }]}>Open in Maps</Text>
-            </Pressable>
-          </View>
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#1493FF" />
         </View>
-      </ScrollView>
+      ) : !store ? (
+        <View style={styles.center}>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No store selected yet</Text>
+          <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>Choose your preferred store to see pickup details here.</Text>
+          <Pressable style={styles.primaryBtn} onPress={() => router.push('/(customer)/stores')}>
+            <Text style={styles.primaryBtnText}>Choose Store</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]} showsVerticalScrollIndicator={false}>
+          <View style={styles.body}>
+            <Text style={styles.visitLabel}>YOUR PICKUP STORE</Text>
+            <Text style={[styles.storeName, { color: colors.foreground }]}>{store.name}</Text>
+            <Text style={[styles.storeAddress, { color: colors.mutedForeground }]}>{address || 'Address coming soon'}</Text>
+            <View style={[styles.openBadge, { backgroundColor: isOpen ? '#DCFCE7' : '#FEE2E2' }]}>
+              <View style={[styles.openDot, { backgroundColor: isOpen ? '#22C55E' : '#EF4444' }]} />
+              <Text style={[styles.openText, { color: isOpen ? '#15803D' : '#DC2626' }]}>{store.openLabel ?? 'Check hours below'}</Text>
+            </View>
+
+            <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Store details</Text>
+              <Text style={[styles.infoText, { color: colors.foreground }]}>{address || 'Address coming soon'}</Text>
+              {store.phone ? <Text style={[styles.infoText, { color: colors.foreground }]}>{store.phone}</Text> : null}
+              {store.website ? <Text style={[styles.infoLink, { color: '#1493FF' }]}>{store.website.replace(/^https?:\/\//, '')}</Text> : null}
+              {store.dailySpecial ? <Text style={[styles.noteText, { color: colors.mutedForeground }]}>Today’s special: {store.dailySpecial}</Text> : null}
+            </View>
+
+            {(store.openingHours?.length ?? 0) > 0 && (
+              <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Opening hours</Text>
+                {store.openingHours!.map((hour) => (
+                  <View key={`${hour.dayOfWeek}`} style={styles.hoursRow}>
+                    <Text style={[styles.hoursDay, { color: colors.foreground }]}>{DAYS_LONG[hour.dayOfWeek] ?? 'Day'}</Text>
+                    <Text style={[styles.hoursTime, { color: hour.isClosed ? colors.mutedForeground : colors.foreground }]}>
+                      {hour.isClosed ? 'Closed' : hour.openTime && hour.closeTime ? `${fmt12(hour.openTime)} – ${fmt12(hour.closeTime)}` : '—'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.actions}>
+              <Pressable style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => router.push('/(customer)/stores')}>
+                <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Change Store</Text>
+              </Pressable>
+              {!!store.phone && (
+                <Pressable style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={openCall}>
+                  <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Call</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.primaryBtn} onPress={openDirections}>
+                <Text style={styles.primaryBtnText}>Directions</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 8 },
   backBtn: { padding: 4 },
   headerCenter: { flex: 1 },
-  headerTitle: { fontSize: 17 },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
   headerSub: { fontSize: 12, marginTop: 1 },
-  brandText: { fontSize: 18, fontStyle: 'italic' },
-
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  emptySub: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   scroll: { flexGrow: 1 },
-
-  mapWrapper: { width: '100%', height: 220, overflow: 'hidden' },
-  mapImage: { width: '100%', height: '100%' },
-  mapBadge: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  mapBadgeText: { fontSize: 12 },
-
   body: { padding: 20, gap: 16 },
-
-  visitLabel: { fontSize: 12, letterSpacing: 1 },
-  storeName: { fontSize: 30, lineHeight: 34, marginTop: -4 },
+  visitLabel: { fontSize: 12, letterSpacing: 1, color: '#1493FF', fontWeight: '600' },
+  storeName: { fontSize: 30, lineHeight: 34, fontWeight: '700', marginTop: -4 },
   storeAddress: { fontSize: 14, marginTop: 2 },
   openBadge: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignSelf: 'flex-start' },
   openDot: { width: 8, height: 8, borderRadius: 4 },
-  openText: { fontSize: 13 },
-
-  addressCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1, marginTop: 4 },
-  addrIconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  addrLabel: { fontSize: 11, letterSpacing: 0.7, marginBottom: 2 },
-  addrText: { fontSize: 14 },
-
-  sectionLabel: { fontSize: 12, letterSpacing: 0.8, marginTop: 4 },
-
-  hoursCard: { borderWidth: 1, overflow: 'hidden' },
-  hoursHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
-  clockWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  hoursTitle: { fontSize: 15 },
-  divider: { height: StyleSheet.hairlineWidth, marginHorizontal: 14 },
-  hoursRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
-  hoursDay: { fontSize: 14 },
-  hoursTime: { fontSize: 14 },
-
-  btns: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  dirBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
-  dirBtnText: { color: '#fff', fontSize: 15 },
-  mapsBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderWidth: 1 },
-  mapsBtnText: { fontSize: 15 },
+  openText: { fontSize: 13, fontWeight: '600' },
+  infoCard: { borderWidth: 1, borderRadius: 18, padding: 16, gap: 10 },
+  sectionLabel: { fontSize: 12, letterSpacing: 0.8, fontWeight: '600' },
+  infoText: { fontSize: 15, lineHeight: 22 },
+  infoLink: { fontSize: 14, fontWeight: '600' },
+  noteText: { fontSize: 13, lineHeight: 19 },
+  hoursRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  hoursDay: { fontSize: 14, flex: 1 },
+  hoursTime: { fontSize: 14, fontWeight: '500' },
+  actions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  primaryBtn: { backgroundColor: '#1493FF', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  secondaryBtn: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 18, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  secondaryBtnText: { fontSize: 15, fontWeight: '600' },
 });
