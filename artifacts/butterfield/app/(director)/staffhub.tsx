@@ -8,7 +8,18 @@ import {
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api';
+import {
+  api,
+  type DirectorFeedback,
+  type StaffIssue,
+  type StaffIssueInput,
+  type StaffLeaveInput,
+  type StaffLeaveRequest,
+  type StaffMember,
+  type StaffTask,
+  type StaffWastageEntry,
+  type StaffWastageInput,
+} from '@/lib/api';
 import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 
@@ -27,17 +38,53 @@ const PINK   = '#EC4899';
 // Glass card standard
 const GLASS_BG     = INTERNAL_GLASS_BG;
 const GLASS_BORDER = INTERNAL_GLASS_BORDER;
+type FeatherIcon = keyof typeof Feather.glyphMap;
 
 type Tab = 'tasks' | 'issues' | 'wastage' | 'leave' | 'feedback';
+type TaskCadence = 'daily' | 'weekly' | 'one_off';
+type TaskCategory = 'daily' | 'opening' | 'closing' | 'prep' | 'cleaning' | 'training';
 
-const STAFF_TABS: { key: Tab; label: string; icon: string }[] = [
+type TaskEditorPayload = {
+  title: string;
+  description?: string;
+  category: string;
+  cadence: TaskCadence;
+  assignedToUserId?: string | null;
+  assignedToName?: string | null;
+};
+
+type ManagerTask = StaffTask & {
+  completedBy?: string | null;
+};
+
+type EditableTask = Partial<ManagerTask>;
+
+type ManagedIssue = StaffIssue & {
+  staffName?: string | null;
+};
+
+type ManagedWastageEntry = StaffWastageEntry & {
+  productName?: string | null;
+  itemName?: string | null;
+  staffName?: string | null;
+};
+
+type ManagedLeaveRequest = StaffLeaveRequest & {
+  staffName?: string | null;
+  type?: string | null;
+  reviewNote?: string | null;
+};
+
+type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+const STAFF_TABS: { key: Tab; label: string; icon: FeatherIcon }[] = [
   { key: 'tasks',   label: 'Tasks',   icon: 'clipboard'      },
   { key: 'issues',  label: 'Issues',  icon: 'alert-triangle' },
   { key: 'wastage', label: 'Wastage', icon: 'trash-2'        },
   { key: 'leave',   label: 'Leave',   icon: 'calendar'       },
 ];
 
-const MANAGER_TABS: { key: Tab; label: string; icon: string }[] = [
+const MANAGER_TABS: { key: Tab; label: string; icon: FeatherIcon }[] = [
   { key: 'tasks',    label: 'Tasks',    icon: 'clipboard'      },
   { key: 'issues',   label: 'Issues',   icon: 'alert-triangle' },
   { key: 'wastage',  label: 'Wastage',  icon: 'trash-2'        },
@@ -126,10 +173,10 @@ function Badge({ label, color }: { label: string; color: string }) {
     </View>
   );
 }
-function EmptyState({ icon, message }: { icon: string; message: string }) {
+function EmptyState({ icon, message }: { icon: FeatherIcon; message: string }) {
   return (
     <View style={s.emptyState}>
-      <Feather name={icon as any} size={36} color={BORDER} />
+      <Feather name={icon} size={36} color={BORDER} />
       <Text style={s.emptyText}>{message}</Text>
     </View>
   );
@@ -139,13 +186,13 @@ function EmptyState({ icon, message }: { icon: string; message: string }) {
 function TaskEditorModal({
   visible, task, onClose, onSubmit,
 }: {
-  visible: boolean; task: any | null; onClose: () => void;
-  onSubmit: (payload: { title: string; description?: string; category: string; cadence: 'daily' | 'weekly' | 'one_off'; assignedToUserId?: string | null; assignedToName?: string | null }) => Promise<void>;
+  visible: boolean; task: EditableTask | null; onClose: () => void;
+  onSubmit: (payload: TaskEditorPayload) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('daily');
-  const [cadence, setCadence] = useState<'daily' | 'weekly' | 'one_off'>('daily');
+  const [category, setCategory] = useState<TaskCategory>('daily');
+  const [cadence, setCadence] = useState<TaskCadence>('daily');
   const [saving, setSaving] = useState(false);
   const [assignedToUserId, setAssignedToUserId] = useState<string | null>(null);
   const [assignedToName, setAssignedToName] = useState<string | null>(null);
@@ -155,13 +202,13 @@ function TaskEditorModal({
     queryFn: () => api.director.staffList(),
     staleTime: 60_000,
   });
-  const staffMembers: { id: string; name: string; role: string }[] = staffData?.data ?? [];
+  const staffMembers: StaffMember[] = staffData?.data ?? [];
 
   useEffect(() => {
     setTitle(task?.title ?? '');
     setDescription(task?.description ?? '');
-    setCategory(task?.category ?? 'daily');
-    setCadence((task?.cadence as any) ?? 'daily');
+    setCategory((task?.category as TaskCategory | undefined) ?? 'daily');
+    setCadence(task?.cadence ?? 'daily');
     setAssignedToUserId(task?.assignedToUserId ?? null);
     setAssignedToName(task?.assignedToName ?? null);
     setSaving(false);
@@ -174,7 +221,7 @@ function TaskEditorModal({
           <Pressable onPress={onClose} style={s.modalCloseBtn}>
             <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-          <Text style={s.modalTitle}>{task ? 'Edit Task' : 'New Task'}</Text>
+          <Text style={s.modalTitle}>{task?.id ? 'Edit Task' : 'New Task'}</Text>
           <View style={{ width: 36 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
@@ -190,7 +237,7 @@ function TaskEditorModal({
           <Text style={s.fieldLabel}>TASK TYPE</Text>
           <View style={s.chipRow}>
             {Object.entries(TASK_CATEGORY_LABELS).map(([key, label]) => (
-              <Pressable key={key} onPress={() => setCategory(key)} style={[s.chip, category === key && { backgroundColor: BLUE, borderColor: BLUE }]}>
+              <Pressable key={key} onPress={() => setCategory(key as TaskCategory)} style={[s.chip, category === key && { backgroundColor: BLUE, borderColor: BLUE }]}>
                 <Text style={[s.chipText, category === key && { color: '#fff' }]}>{label}</Text>
               </Pressable>
             ))}
@@ -212,8 +259,8 @@ function TaskEditorModal({
               <Text style={[s.chipText, !assignedToUserId && { color: '#fff' }]}>All staff</Text>
             </Pressable>
             {staffMembers.map((m) => (
-              <Pressable key={m.id} onPress={() => { setAssignedToUserId(m.id); setAssignedToName(m.name); }} style={[s.chip, assignedToUserId === m.id && { backgroundColor: BLUE, borderColor: BLUE }]}>
-                <Text style={[s.chipText, assignedToUserId === m.id && { color: '#fff' }]}>{m.name}</Text>
+              <Pressable key={m.userId} onPress={() => { setAssignedToUserId(m.userId); setAssignedToName(m.name ?? null); }} style={[s.chip, assignedToUserId === m.userId && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                <Text style={[s.chipText, assignedToUserId === m.userId && { color: '#fff' }]}>{m.name ?? 'Staff member'}</Text>
               </Pressable>
             ))}
           </View>
@@ -224,7 +271,7 @@ function TaskEditorModal({
             try { await onSubmit({ title: title.trim(), description: description.trim() || undefined, category, cadence, assignedToUserId, assignedToName }); onClose(); }
             finally { setSaving(false); }
           }}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryBtnText}>{task ? 'Save Changes' : 'Create Task'}</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryBtnText}>{task?.id ? 'Save Changes' : 'Create Task'}</Text>}
           </Pressable>
         </ScrollView>
       </View>
@@ -259,15 +306,15 @@ function StaffTasksTab({ userId }: { userId?: string }) {
     retry: 1,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const allTasks: any[] = tasksData?.data ?? [];
+  const allTasks: StaffTask[] = tasksData?.data ?? [];
 
   // My Tasks: personally assigned to this user
-  const myTasks = allTasks.filter((t: any) => t.assignedToUserId === userId);
+  const myTasks = allTasks.filter((t) => t.assignedToUserId === userId);
   // General tasks: unassigned (visible to everyone on shift)
-  const generalTasks = allTasks.filter((t: any) => !t.assignedToUserId);
+  const generalTasks = allTasks.filter((t) => !t.assignedToUserId);
 
   const totalCount = allTasks.length;
-  const completedCount = allTasks.filter((t: any) => t.isCompleted).length;
+  const completedCount = allTasks.filter((t) => t.isCompleted).length;
 
   const handleComplete = async (id: string, isCompleted: boolean) => {
     Haptics.selectionAsync();
@@ -275,10 +322,10 @@ function StaffTasksTab({ userId }: { userId?: string }) {
       await api.staff.completeTask(id, !isCompleted);
       qc.invalidateQueries({ queryKey: ['staff-tasks-all'] });
       qc.invalidateQueries({ queryKey: ['staff-tasks'] });
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
   };
 
-  const renderTaskRow = (task: any) => (
+  const renderTaskRow = (task: StaffTask) => (
     <Pressable key={task.id} onPress={() => handleComplete(task.id, task.isCompleted)}
       style={({ pressed }) => [s.taskRow, { opacity: pressed ? 0.6 : 1 }]}>
       <View style={[s.checkbox, {
@@ -294,16 +341,16 @@ function StaffTasksTab({ userId }: { userId?: string }) {
         {task.description && !task.isCompleted && (
           <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>
         )}
-        {task.isCompleted && task.completedBy ? (
-          <Text style={[s.taskCat, { color: GREEN }]}>✓ {task.completedBy}</Text>
+        {task.isCompleted && task.completedByName ? (
+          <Text style={[s.taskCat, { color: GREEN }]}>✓ {task.completedByName}</Text>
         ) : null}
       </View>
     </Pressable>
   );
 
-  const renderCategoryBox = (tasks: any[], cat: string, label: string, color: string) => {
+  const renderCategoryBox = (tasks: StaffTask[], cat: string, label: string, color: string) => {
     if (tasks.length === 0) return null;
-    const done = tasks.filter((t: any) => t.isCompleted).length;
+    const done = tasks.filter((t) => t.isCompleted).length;
     return (
       <View key={cat} style={s.glassCard}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
@@ -328,7 +375,7 @@ function StaffTasksTab({ userId }: { userId?: string }) {
           <Text style={s.metaLabel}>{completedCount}/{totalCount} tasks complete</Text>
           <View style={s.progressTrack}>
             <View style={[s.progressFill, {
-              width: `${(completedCount / totalCount) * 100}%` as any,
+              width: `${(completedCount / totalCount) * 100}%`,
               backgroundColor: completedCount === totalCount ? GREEN : BLUE,
             }]} />
           </View>
@@ -342,7 +389,7 @@ function StaffTasksTab({ userId }: { userId?: string }) {
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: AMBER, flexShrink: 0 }} />
             <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, flex: 1 }}>My Tasks</Text>
             <Text style={s.metaLabel}>
-              {myTasks.filter((t: any) => t.isCompleted).length}/{myTasks.length}
+              {myTasks.filter((t) => t.isCompleted).length}/{myTasks.length}
             </Text>
           </View>
           {myTasks.map(renderTaskRow)}
@@ -351,7 +398,7 @@ function StaffTasksTab({ userId }: { userId?: string }) {
 
       {/* ── Cadence groups: Daily → Weekly → One-Off ── */}
       {CADENCE_GROUPS.map(({ cadence, label }) => {
-        const cadenceTasks = generalTasks.filter((t: any) => t.cadence === cadence);
+        const cadenceTasks = generalTasks.filter((t) => t.cadence === cadence);
         if (cadenceTasks.length === 0) return null;
         return (
           <View key={cadence} style={{ gap: 12 }}>
@@ -362,7 +409,7 @@ function StaffTasksTab({ userId }: { userId?: string }) {
             </View>
             {CAT_SECTIONS.map(({ cat, label: catLabel, color }) =>
               renderCategoryBox(
-                cadenceTasks.filter((t: any) => t.category === cat),
+                cadenceTasks.filter((t) => t.category === cat),
                 cat, catLabel, color,
               )
             )}
@@ -382,7 +429,7 @@ function StaffTasksTab({ userId }: { userId?: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function ManagerTasksTab() {
   const qc = useQueryClient();
-  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [editingTask, setEditingTask] = useState<EditableTask | null>(null);
   const [showEditor, setShowEditor] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
@@ -391,17 +438,17 @@ function ManagerTasksTab() {
     staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const tasks: any[] = data?.data ?? [];
+  const tasks: ManagerTask[] = data?.data ?? [];
 
   const { data: staffData } = useQuery({
     queryKey: ['director-staff-list'],
     queryFn: () => api.director.staffList(),
     staleTime: 60_000,
   });
-  const staffMembers: { id: string; name: string; role: string }[] = staffData?.data ?? [];
+  const staffMembers: StaffMember[] = staffData?.data ?? [];
 
   const saveTask = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: TaskEditorPayload & { id?: string }) => {
       const body = { ...payload, isRecurring: payload.cadence !== 'one_off' };
       return payload.id ? api.director.updateTask(payload.id, body) : api.director.createTask(body);
     },
@@ -409,7 +456,7 @@ function ManagerTasksTab() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await qc.invalidateQueries({ queryKey: ['director-tasks'] });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
   });
 
   const deleteTask = useMutation({
@@ -418,7 +465,7 @@ function ManagerTasksTab() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await qc.invalidateQueries({ queryKey: ['director-tasks'] });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
   });
 
   const reorder = async (taskId: string, direction: -1 | 1) => {
@@ -458,20 +505,20 @@ function ManagerTasksTab() {
             <Text style={[s.metaLabel, { paddingHorizontal: 2, letterSpacing: 1, marginTop: 4 }]}>BY EMPLOYEE</Text>
             <View style={s.glassCard}>
               {staffMembers.map((member, i) => {
-                const assigned = tasks.filter((t: any) => t.assignedToUserId === member.id);
-                const done     = assigned.filter((t: any) => t.isCompleted).length;
+                const assigned = tasks.filter((t) => t.assignedToUserId === member.userId);
+                const done     = assigned.filter((t) => t.isCompleted).length;
                 const isLast   = i === staffMembers.length - 1;
                 return (
-                  <View key={member.id}
+                  <View key={member.userId}
                     style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 2 },
                       !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}>
                     <View style={[s.iconBox, { backgroundColor: BLUE + '15' }]}>
                       <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>
-                        {member.name.charAt(0).toUpperCase()}
+                        {(member.name ?? '?').charAt(0).toUpperCase()}
                       </Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.cardTitle}>{member.name}</Text>
+                      <Text style={s.cardTitle}>{member.name ?? 'Staff member'}</Text>
                       <Text style={s.cardSub}>
                         {assigned.length === 0 ? 'No assigned tasks' : `${done}/${assigned.length} tasks complete`}
                       </Text>
@@ -479,7 +526,7 @@ function ManagerTasksTab() {
                     <Pressable
                       onPress={() => {
                         Haptics.selectionAsync();
-                        setEditingTask({ assignedToUserId: member.id, assignedToName: member.name });
+                        setEditingTask({ id: '', title: '', category: 'daily', isCompleted: false, assignedToUserId: member.userId, assignedToName: member.name ?? null });
                         setShowEditor(true);
                       }}
                       style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center' }}>
@@ -496,7 +543,7 @@ function ManagerTasksTab() {
 
         {tasks.length === 0 ? (
           <EmptyState icon="check-square" message="No tasks configured yet" />
-        ) : tasks.map((task: any, index: number) => (
+        ) : tasks.map((task, index) => (
           <View key={task.id} style={s.glassCard}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: BLUE + '18' }]}>
@@ -541,7 +588,7 @@ function ManagerTasksTab() {
         task={editingTask}
         onClose={() => setShowEditor(false)}
         onSubmit={async (payload) => {
-          await saveTask.mutateAsync(editingTask ? { ...payload, id: editingTask.id } : payload as any);
+          await saveTask.mutateAsync(editingTask?.id ? { ...payload, id: editingTask.id } : payload);
         }}
       />
     </>
@@ -552,7 +599,7 @@ function ManagerTasksTab() {
 // ISSUES TAB — staff view: submit form
 // ══════════════════════════════════════════════════════════════════════════════
 function StaffIssuesTab() {
-  const [form, setForm] = useState({ title: '', description: '', priority: 'medium' });
+  const [form, setForm] = useState<Required<Pick<StaffIssueInput, 'title' | 'description' | 'priority'>>>({ title: '', description: '', priority: 'medium' });
   const [submitting, setSubmitting] = useState(false);
 
   const handle = async () => {
@@ -562,7 +609,7 @@ function StaffIssuesTab() {
       await api.staff.submitIssue(form);
       setForm({ title: '', description: '', priority: 'medium' });
       Alert.alert('Reported', 'Issue submitted to management.');
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setSubmitting(false); }
   };
 
@@ -579,7 +626,7 @@ function StaffIssuesTab() {
               <Text style={s.fieldLabel}>{field.label}</Text>
               <TextInput
                 style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
-                value={(form as any)[field.key]}
+                value={form[field.key as keyof typeof form]}
                 onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
                 multiline={field.multiline}
                 numberOfLines={field.multiline ? 4 : 1}
@@ -625,20 +672,20 @@ function ManagerIssuesTab() {
     staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const issues: any[] = data?.data ?? [];
+  const issues: ManagedIssue[] = data?.data ?? [];
 
   const resolve = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => api.director.resolveIssue(id, status),
+    mutationFn: ({ id, status }: { id: string; status: IssueStatus }) => api.director.resolveIssue(id, status),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['director-all-issues'] });
       qc.invalidateQueries({ queryKey: ['director-stats'] });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
   });
 
-  const handleAction = (issue: any) => {
-    const opts: any[] = [];
+  const handleAction = (issue: ManagedIssue) => {
+    const opts: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [];
     if (issue.status === 'open') {
       opts.push({ text: 'Mark In Progress', onPress: () => resolve.mutate({ id: issue.id, status: 'in_progress' }) });
       opts.push({ text: 'Mark Resolved',    onPress: () => resolve.mutate({ id: issue.id, status: 'resolved' }) });
@@ -659,7 +706,7 @@ function ManagerIssuesTab() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       showsVerticalScrollIndicator={false}>
       {issues.length === 0 ? <EmptyState icon="check-circle" message="No issues reported" /> :
-        issues.map((item: any) => (
+        issues.map((item) => (
           <Pressable key={item.id} onPress={() => handleAction(item)} style={s.glassCard}>
             <View style={s.cardHeader}>
               <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority) + '18' }]}>
@@ -689,10 +736,10 @@ function ManagerIssuesTab() {
 // ══════════════════════════════════════════════════════════════════════════════
 function StaffWastageTab() {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
+  const [form, setForm] = useState<{ productName: string; quantity: string; unit: string; reason: string; estimatedCost: string; notes: string }>({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const { data: wastageData } = useQuery({ queryKey: ['staff-wastage'], queryFn: () => api.staff.wastage() });
-  const wastageList = wastageData?.data ?? [];
+  const wastageList: StaffWastageEntry[] = wastageData?.data ?? [];
 
   const handle = async () => {
     if (!form.productName || !form.quantity || !form.reason) { Alert.alert('Fill all required fields'); return; }
@@ -703,16 +750,17 @@ function StaffWastageTab() {
       if (cost && (costNum === null || !Number.isFinite(costNum!) || costNum! < 0)) {
         Alert.alert('Invalid amount', 'Enter a valid loss amount.'); setSubmitting(false); return;
       }
-      await api.staff.submitWastage({
+      const payload: StaffWastageInput = {
         productName: form.productName, quantity: form.quantity, unit: form.unit, reason: form.reason,
         notes: form.notes.trim() || null,
         estimatedCostCents: costNum !== null ? Math.round(costNum! * 100) : null,
-      });
+      };
+      await api.staff.submitWastage(payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setForm({ productName: '', quantity: '', unit: 'units', reason: '', estimatedCost: '', notes: '' });
       qc.invalidateQueries({ queryKey: ['staff-wastage'] });
       Alert.alert('Logged', 'Wastage recorded successfully.');
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setSubmitting(false); }
   };
 
@@ -732,7 +780,7 @@ function StaffWastageTab() {
               <Text style={s.fieldLabel}>{field.label}</Text>
               <TextInput
                 style={s.input} placeholder={field.placeholder} placeholderTextColor={MUTED}
-                keyboardType={field.keyboard} value={(form as any)[field.key]}
+                keyboardType={field.keyboard} value={form[field.key as keyof typeof form]}
                 onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
               />
             </View>
@@ -747,10 +795,10 @@ function StaffWastageTab() {
         <View style={{ gap: 8 }}>
           <Text style={[s.metaLabel, { letterSpacing: 0.8 }]}>RECENT LOGS</Text>
           <View style={s.glassCard}>
-            {(wastageList as any[]).slice(0, 5).map((w: any) => (
+            {wastageList.slice(0, 5).map((w) => (
               <View key={w.id} style={s.taskRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.taskTitle}>{w.productName} × {w.quantity} {w.unit}</Text>
+                  <Text style={s.taskTitle}>{(w.itemName ?? 'Item')} × {w.quantity} {w.unit ?? 'units'}</Text>
                   <Text style={s.taskDesc}>{w.reason}</Text>
                   {w.estimatedCostCents ? (
                     <Text style={[s.taskCat, { color: PURPLE }]}>Loss: {fmtAUD(w.estimatedCostCents)}</Text>
@@ -773,11 +821,11 @@ function ManagerWastageTab() {
     queryKey: ['director-all-wastage'], queryFn: () => api.director.allWastage(), staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const wastage: any[] = data?.data ?? [];
+  const wastage: ManagedWastageEntry[] = data?.data ?? [];
   const currentWeekKey = startOfSydneyWeek(new Date()).toISOString();
 
   const weekGroups = useMemo(() => {
-    const groups = new Map<string, { key: string; start: Date; end: Date; items: any[]; totalCost: number }>();
+    const groups = new Map<string, { key: string; start: Date; end: Date; items: ManagedWastageEntry[]; totalCost: number }>();
     wastage.forEach((item) => {
       const start = startOfSydneyWeek(item.createdAt);
       const key = start.toISOString();
@@ -807,7 +855,7 @@ function ManagerWastageTab() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.director.deleteWastage(id),
     onSuccess: () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); refetch(); },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
   });
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
@@ -853,11 +901,12 @@ function ManagerWastageTab() {
 
       {selectedWeek == null || selectedWeek.items.length === 0
         ? <EmptyState icon="trash-2" message="No wastage logged" />
-        : selectedWeek.items.map((item: any) => (
+        : selectedWeek.items.map((item) => (
           <Pressable key={item.id} style={s.glassCard} onPress={() => {
             const cost = item.estimatedCostCents ? fmtAUD(item.estimatedCostCents) : 'Not estimated';
-            Alert.alert(`Wastage: ${item.productName}`,
-              `Staff: ${item.staffName ?? 'Unknown'}\nQty: ${item.quantity} ${item.unit}\nReason: ${item.reason}\nEst. cost: ${cost}${item.notes ? `\nNotes: ${item.notes}` : ''}`,
+            const itemName = item.productName ?? item.itemName ?? 'Item';
+            Alert.alert(`Wastage: ${itemName}`,
+              `Staff: ${item.staffName ?? 'Unknown'}\nQty: ${item.quantity} ${item.unit ?? 'units'}\nReason: ${item.reason ?? '—'}\nEst. cost: ${cost}${item.notes ? `\nNotes: ${item.notes}` : ''}`,
               [
                 { text: 'Delete', style: 'destructive', onPress: () => deleteMut.mutate(item.id) },
                 { text: 'OK' },
@@ -868,8 +917,8 @@ function ManagerWastageTab() {
                 <Feather name="trash-2" size={15} color={PURPLE} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={s.cardTitle} numberOfLines={1}>{item.productName}</Text>
-                <Text style={s.cardSub} numberOfLines={1}>{item.staffName ?? 'Unknown staff'} · {item.quantity} {item.unit}</Text>
+                <Text style={s.cardTitle} numberOfLines={1}>{item.productName ?? item.itemName ?? 'Item'}</Text>
+                <Text style={s.cardSub} numberOfLines={1}>{item.staffName ?? 'Unknown staff'} · {item.quantity} {item.unit ?? 'units'}</Text>
               </View>
               {item.estimatedCostCents ? (
                 <Text style={[s.metricValue, { color: PURPLE, fontSize: 14 }]}>{fmtAUD(item.estimatedCostCents)}</Text>
@@ -890,17 +939,18 @@ function ManagerWastageTab() {
 // LEAVE TAB — staff view: request form
 // ══════════════════════════════════════════════════════════════════════════════
 function StaffLeaveTab() {
-  const [form, setForm] = useState({ startDate: '', endDate: '', type: 'annual', reason: '' });
+  const [form, setForm] = useState<{ startDate: string; endDate: string; type: 'annual' | 'sick' | 'personal' | 'other'; reason: string }>({ startDate: '', endDate: '', type: 'annual', reason: '' });
   const [submitting, setSubmitting] = useState(false);
 
   const handle = async () => {
     if (!form.startDate || !form.endDate || !form.reason) { Alert.alert('Fill all fields'); return; }
     setSubmitting(true);
     try {
-      await api.staff.submitLeave(form);
+      const payload: StaffLeaveInput = form;
+      await api.staff.submitLeave(payload);
       setForm({ startDate: '', endDate: '', type: 'annual', reason: '' });
       Alert.alert('Submitted', 'Leave request sent to management.');
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setSubmitting(false); }
   };
 
@@ -917,11 +967,11 @@ function StaffLeaveTab() {
             <View key={field.key} style={s.fieldWrap}>
               <Text style={s.fieldLabel}>{field.label}</Text>
               <TextInput
-                style={[s.input, (field as any).multiline && { minHeight: 80, textAlignVertical: 'top' }]}
-                value={(form as any)[field.key]}
+                style={[s.input, field.multiline && { minHeight: 80, textAlignVertical: 'top' }]}
+                value={form[field.key as keyof typeof form]}
                 onChangeText={(v) => setForm((f) => ({ ...f, [field.key]: v }))}
                 placeholder={field.placeholder} placeholderTextColor={MUTED}
-                multiline={(field as any).multiline} numberOfLines={(field as any).multiline ? 4 : 1}
+                multiline={field.multiline} numberOfLines={field.multiline ? 4 : 1}
               />
             </View>
           ))}
@@ -961,7 +1011,7 @@ function ManagerLeaveTab() {
     queryKey: ['director-all-leave'], queryFn: () => api.director.allLeave(), staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const leave: any[] = data?.data ?? [];
+  const leave: ManagedLeaveRequest[] = data?.data ?? [];
   const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
   const [reviewNote, setReviewNote] = useState('');
 
@@ -974,7 +1024,7 @@ function ManagerLeaveTab() {
       qc.invalidateQueries({ queryKey: ['director-all-leave'] });
       qc.invalidateQueries({ queryKey: ['director-stats'] });
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
   });
 
   const leaveTypeColor = (t: string) => {
@@ -992,11 +1042,11 @@ function ManagerLeaveTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         showsVerticalScrollIndicator={false}>
         {leave.length === 0 ? <EmptyState icon="calendar" message="No leave requests" /> :
-          leave.map((item: any) => (
+          leave.map((item) => (
             <View key={item.id} style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '70' }]}>
               <View style={s.cardHeader}>
-                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
-                  <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? item.leaveType) + '18' }]}>
+                  <Feather name="calendar" size={15} color={leaveTypeColor(item.type ?? item.leaveType)} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
@@ -1015,7 +1065,7 @@ function ManagerLeaveTab() {
                 </View>
               )}
               <View style={s.cardFooter}>
-                <Badge label={item.type} color={leaveTypeColor(item.type)} />
+                <Badge label={item.type ?? item.leaveType} color={leaveTypeColor(item.type ?? item.leaveType)} />
                 <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
               </View>
               <View style={s.actionRow}>
@@ -1080,7 +1130,7 @@ function FeedbackTab() {
     queryKey: ['director-all-feedback'], queryFn: () => api.director.allFeedback(), staleTime: 0,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const feedback: any[] = data?.data ?? [];
+  const feedback: DirectorFeedback[] = data?.data ?? [];
 
   const markRead = useMutation({
     mutationFn: (id: string) => api.director.markFeedbackRead(id),
@@ -1109,7 +1159,7 @@ function FeedbackTab() {
         </View>
       )}
       {feedback.length === 0 ? <EmptyState icon="message-circle" message="No feedback submitted yet" /> :
-        feedback.map((item: any) => (
+        feedback.map((item) => (
           <Pressable key={item.id} style={[s.glassCard, !item.isRead && { borderColor: BLUE + '50' }]}
             onPress={() => {
               if (!item.isRead) markRead.mutate(item.id);
@@ -1209,7 +1259,7 @@ export default function StaffHubScreen() {
               onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
               style={[s.tabPill, active && s.tabPillActive]}
             >
-              <Feather name={tab.icon as any} size={13} color={active ? '#fff' : MUTED} />
+              <Feather name={tab.icon} size={13} color={active ? '#fff' : MUTED} />
               <Text style={[s.tabPillText, active && { color: '#fff' }]} numberOfLines={1}>{tab.label}</Text>
             </Pressable>
           );
