@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { ApiOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
@@ -107,9 +108,13 @@ function getPastDays(n: number) {
   }
   return days;
 }
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Something went wrong.';
+}
 // ── Order Detail Modal ────────────────────────────────────────────────────────
 function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing, canCancelRefund }: {
-  order: any; visible: boolean; onClose: () => void;
+  order: ApiOrder | null; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string) => Promise<void>;
   onPrintReceipt: () => Promise<void>;
   printing: boolean;
@@ -378,7 +383,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
   );
 }
 // ── Order Card (compact list item) ───────────────────────────────────────────
-function OrderCard({ order, onPress, onPrint, printing }: { order: any; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
+function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
   const isWholesale = order.orderSource === 'wholesale';
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label = STATUS_LABEL[order.status] ?? order.status;
@@ -605,7 +610,7 @@ export default function DirectorOrdersScreen() {
   const [filter, setFilter]         = useState('all');
   const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const { data, isLoading, refetch } = useQuery({
@@ -626,11 +631,11 @@ export default function DirectorOrdersScreen() {
     queryFn: () => api.director.storesList(),
     staleTime: 60000,
   });
-  const allOrders = data?.data ?? [];
+  const allOrders: ApiOrder[] = data?.data ?? [];
   const stores = storesData?.data ?? [];
   const printerIp = (settingsData?.data?.printer_ip ?? '').trim();
   const printerPort = parseInt(settingsData?.data?.printer_port ?? '9100', 10);
-  const printOrder = async (order: any) => {
+  const printOrder = async (order: ApiOrder) => {
     const orderStore = stores.find((store) => store.id === order.storeId);
     const effectivePrinterIp = (orderStore?.printerIp ?? printerIp ?? '').trim();
     const effectivePrinterPort = orderStore?.printerPort ?? printerPort;
@@ -643,8 +648,8 @@ export default function DirectorOrdersScreen() {
       await sendReceiptPrint(orderToPrintJob(order), effectivePrinterIp, effectivePrinterPort);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Printed', 'Receipt sent to the printer.');
-    } catch (e: any) {
-      Alert.alert('Print Failed', e.message ?? 'Could not send the receipt to the printer.');
+    } catch (error) {
+      Alert.alert('Print Failed', getErrorMessage(error) || 'Could not send the receipt to the printer.');
     } finally {
       setPrintingOrderId(null);
     }
@@ -652,22 +657,22 @@ export default function DirectorOrdersScreen() {
   // Apply status filter
   const statusFiltered = useMemo(() => {
     if (filter === 'all') return allOrders;
-    if (filter === 'active') return allOrders.filter((o: any) =>
+    if (filter === 'active') return allOrders.filter((o) =>
       ['received','being_prepared','ready_for_pickup','pending','processing','dispatched'].includes(o.status)
     );
-    if (filter === 'wholesale') return allOrders.filter((o: any) => o.orderSource === 'wholesale');
-    return allOrders.filter((o: any) => o.status === filter);
+    if (filter === 'wholesale') return allOrders.filter((o) => o.orderSource === 'wholesale');
+    return allOrders.filter((o) => o.status === filter);
   }, [allOrders, filter]);
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const todayOrders = useMemo(() =>
-    statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)),
+    statusFiltered.filter((o) => isSameDay(o.createdAt, today)),
     [statusFiltered, today]
   );
   const thisWeekOrders = useMemo(() =>
-    statusFiltered.filter((o: any) => isThisWeek(o.createdAt) && !isSameDay(o.createdAt, today)),
+    statusFiltered.filter((o) => isThisWeek(o.createdAt) && !isSameDay(o.createdAt, today)),
     [statusFiltered, today]);
   const dateOrders = useMemo(() =>
-    statusFiltered.filter((o: any) => isSameDay(o.createdAt, selectedDate)),
+    statusFiltered.filter((o) => isSameDay(o.createdAt, selectedDate)),
     [statusFiltered, selectedDate]
   );
   const ordersByDate = useMemo(() => {
@@ -684,18 +689,18 @@ export default function DirectorOrdersScreen() {
       await api.director.updateOrderStatus(orderId, status);
       await qc.invalidateQueries({ queryKey: ['director-orders'] });
       await qc.invalidateQueries({ queryKey: ['director-stats'] });
-      setSelectedOrder((prev: any) => prev ? { ...prev, status } : null);
+      setSelectedOrder((prev) => prev ? { ...prev, status } : null);
       if (status === 'ready_for_pickup') {
-        const order = allOrders.find((o: any) => o.id === orderId) ?? selectedOrder;
+        const order = allOrders.find((o) => o.id === orderId) ?? selectedOrder;
         if (order) {
           await printOrder({ ...order, status });
         }
       }
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
-  const totalToday = statusFiltered.filter((o: any) => isSameDay(o.createdAt, today)).length;
+  const totalToday = statusFiltered.filter((o) => isSameDay(o.createdAt, today)).length;
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page heading */}
@@ -782,7 +787,7 @@ export default function DirectorOrdersScreen() {
                   <Text style={styles.emptyText}>No orders today yet</Text>
                 </View>
               ) : (
-                todayOrders.map((o: any) => (
+                todayOrders.map((o) => (
                   <OrderCard
                     key={o.id}
                     order={o}
@@ -803,7 +808,7 @@ export default function DirectorOrdersScreen() {
                   <Text style={styles.emptyText}>No other orders this week</Text>
                 </View>
               ) : (
-                thisWeekOrders.map((o: any) => (
+                thisWeekOrders.map((o) => (
                   <OrderCard
                     key={o.id}
                     order={o}
@@ -824,7 +829,7 @@ export default function DirectorOrdersScreen() {
                   <Text style={styles.emptyText}>No orders on this date</Text>
                 </View>
               ) : (
-                dateOrders.map((o: any) => (
+                dateOrders.map((o) => (
                   <OrderCard
                     key={o.id}
                     order={o}

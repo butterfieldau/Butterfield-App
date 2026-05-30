@@ -9,6 +9,7 @@ import {
   Modal,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -60,14 +61,23 @@ function formatTime(value?: string | null) {
   return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
 }
 
-function toSydneyDate(input: string | Date) {
-  return new Date(new Date(input).toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+function getSydneyDayParts(input: string | Date) {
+  const date = new Date(input);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === 'year')?.value ?? 0);
+  const month = Number(parts.find((part) => part.type === 'month')?.value ?? 1);
+  const day = Number(parts.find((part) => part.type === 'day')?.value ?? 1);
+  return { year, month, day };
 }
 
 function startOfSydneyDay(input: string | Date) {
-  const d = toSydneyDate(input);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const { year, month, day } = getSydneyDayParts(input);
+  return new Date(year, month - 1, day);
 }
 
 function endOfSydneyDay(input: string | Date) {
@@ -100,21 +110,9 @@ function sameSydneyDay(left: string | Date, right: string | Date) {
   return startOfSydneyDay(left).getTime() === startOfSydneyDay(right).getTime();
 }
 
-function monthMatrix(anchor: Date) {
-  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
-  const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
-  const offset = (first.getDay() + 6) % 7;
-  const cells: Array<Date | null> = [];
-  for (let i = 0; i < offset; i += 1) cells.push(null);
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push(new Date(anchor.getFullYear(), anchor.getMonth(), day));
-  }
-  while (cells.length % 7 !== 0) cells.push(null);
-  return cells;
-}
-
-function monthLabel(date: Date) {
-  return date.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+function toSydneyDateKey(input: string | Date) {
+  const { year, month, day } = getSydneyDayParts(input);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function orderSubtitle(order: ShopDisplayOrder) {
@@ -146,7 +144,8 @@ export default function ShopDisplayOrdersScreen() {
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
   const [selectedDate, setSelectedDate] = useState(() => startOfSydneyDay(new Date()));
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerMonth, setPickerMonth] = useState(() => startOfSydneyDay(new Date()));
+  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
 
@@ -200,8 +199,15 @@ export default function ShopDisplayOrdersScreen() {
     rows.filter(o => o.status === 'completed').length,
   [rows]);
 
-  const calendarCells = useMemo(() => monthMatrix(pickerMonth), [pickerMonth]);
-  const visibleMonth = pickerMonth;
+  const ordersByDate = useMemo(() => {
+    return rows.reduce<Record<string, number>>((acc, order) => {
+      const source = order.createdAt ?? order.scheduledFor ?? order.updatedAt;
+      if (!source) return acc;
+      const key = toSydneyDateKey(source);
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [rows]);
   const selectedModeLabel = filterMode === 'today'
     ? 'Today'
     : filterMode === 'week'
@@ -217,6 +223,78 @@ export default function ShopDisplayOrdersScreen() {
     : filterMode === 'week'
       ? 'Completed this week'
       : 'Completed on date';
+
+  const today = useMemo(() => {
+    const d = startOfSydneyDay(new Date());
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const sixMonthsAgo = useMemo(() => {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() - 6);
+    return d;
+  }, [today]);
+  const twoYearsAgo = useMemo(() => {
+    const d = new Date(today);
+    d.setFullYear(d.getFullYear() - 2);
+    return d;
+  }, [today]);
+  const canGoPrev = new Date(calYear, calMonth, 1) > new Date(twoYearsAgo.getFullYear(), twoYearsAgo.getMonth(), 1);
+  const canGoNext = new Date(calYear, calMonth, 1) < new Date(today.getFullYear(), today.getMonth(), 1);
+  const firstDayOfMonth = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const calendarCells: (number | null)[] = useMemo(() => {
+    const cells: (number | null)[] = [
+      ...Array(firstDayOfMonth).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [daysInMonth, firstDayOfMonth]);
+  const visibleMonthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+
+  const dateOf = (day: number) => new Date(calYear, calMonth, day);
+  const isSelectedDay = (day: number) =>
+    selectedDate.getFullYear() === calYear &&
+    selectedDate.getMonth() === calMonth &&
+    selectedDate.getDate() === day;
+  const isTodayDay = (day: number) =>
+    today.getFullYear() === calYear &&
+    today.getMonth() === calMonth &&
+    today.getDate() === day;
+  const isArchivedDay = (day: number) => dateOf(day) < sixMonthsAgo;
+  const isFutureDay = (day: number) => {
+    const d = dateOf(day);
+    d.setHours(0, 0, 0, 0);
+    return d > today;
+  };
+  const dateKey = (day: number) => `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  const openDatePicker = () => {
+    setCalYear(selectedDate.getFullYear());
+    setCalMonth(selectedDate.getMonth());
+    setPickerOpen(true);
+  };
+
+  const prevMonth = () => {
+    if (!canGoPrev) return;
+    if (calMonth === 0) {
+      setCalYear((year) => year - 1);
+      setCalMonth(11);
+      return;
+    }
+    setCalMonth((month) => month - 1);
+  };
+
+  const nextMonth = () => {
+    if (!canGoNext) return;
+    if (calMonth === 11) {
+      setCalYear((year) => year + 1);
+      setCalMonth(0);
+      return;
+    }
+    setCalMonth((month) => month + 1);
+  };
 
   const updateStatus = async (id: string, status: string) => {
     Haptics.selectionAsync();
@@ -332,8 +410,7 @@ export default function ShopDisplayOrdersScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              setPickerMonth(selectedDate);
-              setPickerOpen(true);
+              openDatePicker();
             }}
             style={[s.filterChip, filterMode === 'date' && s.filterChipActive]}
           >
@@ -366,43 +443,69 @@ export default function ShopDisplayOrdersScreen() {
         renderItem={renderCard}
       />
 
-      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
-        <Pressable style={s.modalBackdrop} onPress={() => setPickerOpen(false)}>
-          <Pressable style={s.modalCard} onPress={() => {}}>
-            <View style={s.modalHeader}>
-              <Pressable onPress={() => setPickerMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} style={s.monthNavBtn}>
-                <Feather name="chevron-left" size={18} color={NAVY} />
+      <Modal visible={pickerOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPickerOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={s.sheetHeader}>
+            <Pressable onPress={() => setPickerOpen(false)} style={s.sheetCloseBtn}>
+              <Feather name="x" size={20} color={TEXT} />
+            </Pressable>
+            <Text style={s.sheetHeaderTitle}>Pick a Date</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          <ScrollView contentContainerStyle={s.sheetContent} showsVerticalScrollIndicator={false}>
+            <View style={s.monthHeader}>
+              <Pressable onPress={prevMonth} style={s.monthStepper} hitSlop={8}>
+                <Feather name="chevron-left" size={22} color={canGoPrev ? TEXT : BORDER} />
               </Pressable>
-              <Text style={s.modalTitle}>{monthLabel(visibleMonth)}</Text>
-              <Pressable onPress={() => setPickerMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} style={s.monthNavBtn}>
-                <Feather name="chevron-right" size={18} color={NAVY} />
+              <Text style={s.monthTitle}>{visibleMonthLabel}</Text>
+              <Pressable onPress={nextMonth} style={s.monthStepper} hitSlop={8}>
+                <Feather name="chevron-right" size={22} color={canGoNext ? TEXT : BORDER} />
               </Pressable>
             </View>
+
             <View style={s.weekdayRow}>
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                 <Text key={day} style={s.weekdayText}>{day}</Text>
               ))}
             </View>
-            <View style={s.calendarGrid}>
-              {calendarCells.map((day, index) => {
-                const active = day ? sameSydneyDay(day, selectedDate) : false;
-                return (
-                  <Pressable
-                    key={`${visibleMonth.toISOString()}-${index}-${day ? day.getDate() : 'empty'}`}
-                    disabled={!day}
-                    onPress={() => {
-                      if (!day) return;
-                      setSelectedDate(startOfSydneyDay(day));
-                      setFilterMode('date');
-                    }}
-                    style={[s.dayCell, active && s.dayCellActive, !day && s.dayCellEmpty]}
-                  >
-                    {day ? <Text style={[s.dayCellText, active && s.dayCellTextActive]}>{day.getDate()}</Text> : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={s.modalActions}>
+
+            {Array.from({ length: calendarCells.length / 7 }, (_, row) => (
+              <View key={row} style={s.calendarRow}>
+                {calendarCells.slice(row * 7, row * 7 + 7).map((day, col) => {
+                  if (day === null) return <View key={col} style={s.emptyCalendarCell} />;
+                  const selected = isSelectedDay(day);
+                  const todayCell = isTodayDay(day);
+                  const archived = isArchivedDay(day);
+                  const future = isFutureDay(day);
+                  const count = ordersByDate[dateKey(day)] ?? 0;
+                  const textColor = selected ? '#fff' : future ? BORDER : archived ? '#C7C7CC' : todayCell ? BLUE : TEXT;
+                  return (
+                    <Pressable
+                      key={col}
+                      onPress={() => {
+                        if (future) return;
+                        setSelectedDate(new Date(calYear, calMonth, day));
+                        setFilterMode('date');
+                        setPickerOpen(false);
+                        Haptics.selectionAsync();
+                      }}
+                      style={s.calendarPressable}
+                    >
+                      <View style={[s.calendarBubble, selected && s.calendarBubbleSelected, !selected && todayCell && s.calendarBubbleToday]}>
+                        <Text style={[s.calendarDayText, { color: textColor }, (selected || todayCell) && s.calendarDayTextStrong]}>{day}</Text>
+                      </View>
+                      {count > 0 && !future ? (
+                        <View style={[s.calendarDot, { backgroundColor: archived ? '#C7C7CC' : BLUE }]} />
+                      ) : (
+                        <View style={s.calendarDotSpacer} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+
+            <View style={s.sheetActions}>
               <Pressable
                 onPress={() => {
                   setFilterMode('today');
@@ -419,8 +522,8 @@ export default function ShopDisplayOrdersScreen() {
                 <Text style={s.modalActionPrimaryText}>Done</Text>
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
+          </ScrollView>
+        </View>
       </Modal>
     </View>
   );
@@ -470,19 +573,26 @@ const s = StyleSheet.create({
   filterChipText:  { color: NAVY, fontSize: 13, fontWeight: '800' },
   filterChipTextActive: { color: '#fff' },
   filterLabel:     { color: MUTED, fontSize: 12, fontWeight: '600', marginLeft: 2 },
-  modalBackdrop:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 16 },
-  modalCard:       { backgroundColor: CARD, borderRadius: 22, padding: 16, gap: 14 },
-  modalHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalTitle:      { color: TEXT, fontSize: 18, fontWeight: '800' },
-  monthNavBtn:     { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
-  weekdayRow:      { flexDirection: 'row', justifyContent: 'space-between' },
-  weekdayText:     { width: `${100 / 7}%`, textAlign: 'center', color: MUTED, fontSize: 11, fontWeight: '800' },
-  calendarGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  dayCell:         { width: '13.2%', aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
-  dayCellEmpty:    { backgroundColor: 'transparent', borderColor: 'transparent' },
-  dayCellActive:   { backgroundColor: NAVY, borderColor: NAVY },
-  dayCellText:     { color: TEXT, fontSize: 13, fontWeight: '800' },
-  dayCellTextActive: { color: '#fff' },
+  sheetHeader:     { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD },
+  sheetCloseBtn:   { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  sheetHeaderTitle:{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT },
+  sheetContent:    { padding: 20 },
+  monthHeader:     { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  monthStepper:    { padding: 10 },
+  monthTitle:      { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: TEXT },
+  weekdayRow:      { flexDirection: 'row', marginBottom: 10 },
+  weekdayText:     { flex: 1, textAlign: 'center', color: MUTED, fontSize: 11, fontWeight: '600' },
+  calendarRow:     { flexDirection: 'row', marginBottom: 4 },
+  emptyCalendarCell:{ flex: 1, height: 50 },
+  calendarPressable:{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center' },
+  calendarBubble:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' },
+  calendarBubbleSelected: { backgroundColor: BLUE },
+  calendarBubbleToday: { backgroundColor: `${BLUE}18` },
+  calendarDayText: { fontSize: 14, fontWeight: '400' },
+  calendarDayTextStrong: { fontWeight: '700' },
+  calendarDot:     { width: 5, height: 5, borderRadius: 2.5, marginTop: 1 },
+  calendarDotSpacer:{ width: 5, height: 5, marginTop: 1 },
+  sheetActions:    { marginTop: 20, flexDirection: 'row', gap: 10 },
   modalActions:    { flexDirection: 'row', gap: 10 },
   modalActionBtn:  { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
   modalActionSecondary: { backgroundColor: BG },
