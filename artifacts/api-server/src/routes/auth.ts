@@ -524,7 +524,7 @@ router.patch('/me', requireAuth, async (req, res) => {
     profile = await getOrCreateCustomerLoyaltyProfile(user.id, updated.name);
     if (preferredStoreId !== undefined) {
       if (preferredStoreId) {
-        const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(eq(storesTable.id, String(preferredStoreId)));
+        const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(and(eq(storesTable.id, String(preferredStoreId)), isNull(storesTable.deletedAt)));
         if (!store) {
           return res.status(400).json({ error: 'Selected store could not be found.' });
         }

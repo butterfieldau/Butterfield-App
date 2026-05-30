@@ -4,15 +4,31 @@ import {
   db, storesTable, storeOpeningHoursTable, staffStoreAssignmentsTable,
   staffShiftsTable, staffProfilesTable, usersTable,
 } from '@workspace/db';
-import { eq, and, desc, isNull } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull, lte } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 
 const router = Router();
+const STORE_DELETE_GRACE_MS = 24 * 60 * 60 * 1000;
+
+async function purgeExpiredDeletedStores() {
+  const now = new Date();
+  const expired = await db.select({ id: storesTable.id })
+    .from(storesTable)
+    .where(and(isNotNull(storesTable.deletedAt), lte(storesTable.purgeAt, now)));
+
+  if (expired.length === 0) return;
+
+  for (const store of expired) {
+    await db.delete(storesTable).where(eq(storesTable.id, store.id));
+  }
+}
+
 router.use(async (_req, _res, next) => {
   try {
     await ensureStoreConfigSchemaReady();
+    await purgeExpiredDeletedStores();
     next();
   } catch (error) {
     next(error);
@@ -97,10 +113,39 @@ router.patch('/stores/:id', async (req, res) => {
 
 router.delete('/stores/:id', async (req, res) => {
   if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot delete stores.' });
+  const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
+  if (!existing) return res.status(404).json({ error: 'Store not found.' });
+  const now = new Date();
+  const purgeAt = new Date(now.getTime() + STORE_DELETE_GRACE_MS);
   const [updated] = await db.update(storesTable)
-    .set({ status: 'closed', updatedAt: new Date() })
+    .set({
+      preDeleteStatus: existing.status,
+      status: 'closed',
+      deletedAt: now,
+      purgeAt,
+      updatedAt: now,
+    })
     .where(eq(storesTable.id, req.params.id)).returning();
-  if (!updated) return res.status(404).json({ error: 'Store not found.' });
+  return res.json({ success: true, data: updated });
+});
+
+router.post('/stores/:id/restore', async (req, res) => {
+  if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot restore stores.' });
+  const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
+  if (!existing) return res.status(404).json({ error: 'Store not found.' });
+  if (!existing.deletedAt) return res.status(400).json({ error: 'Store is not pending deletion.' });
+
+  const [updated] = await db.update(storesTable)
+    .set({
+      status: (existing.preDeleteStatus as typeof existing.status | null) ?? 'open',
+      preDeleteStatus: null,
+      deletedAt: null,
+      purgeAt: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(storesTable.id, req.params.id))
+    .returning();
+
   return res.json({ success: true, data: updated });
 });
 

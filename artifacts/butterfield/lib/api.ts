@@ -314,6 +314,7 @@ export const api = {
     createStore:     (data: StoreInput) => request<{ data: StoreDetail }>('/director/stores', { method: 'POST', body: JSON.stringify(data) }),
     updateStore:     (id: string, data: StoreInput) => request<{ data: StoreDetail }>(`/director/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteStore:     (id: string) => request<{ success: boolean }>(`/director/stores/${id}`, { method: 'DELETE' }),
+    restoreStore:    (id: string) => request<{ success: boolean; data: StoreDetail }>(`/director/stores/${id}/restore`, { method: 'POST' }),
     storeHours:      (id: string) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`),
     setStoreHours:   (id: string, hours: StoreHour[] ) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`, { method: 'PUT', body: JSON.stringify({ hours }) }),
     // Staff-store assignments
@@ -1320,6 +1321,9 @@ export interface StoreSummary {
   deliveryAvailable?: boolean;
   publicNotes?: string | null;
   internalNotes?: string | null;
+  preDeleteStatus?: string | null;
+  deletedAt?: string | null;
+  purgeAt?: string | null;
   sortOrder?: number;
   openStatus?: string;
   openLabel?: string;

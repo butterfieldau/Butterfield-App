@@ -75,6 +75,7 @@ router.get('/my-store-assignments', async (req, res) => {
     .where(and(
       eq(staffStoreAssignmentsTable.staffId, req.user!.id),
       eq(staffStoreAssignmentsTable.isActive, true),
+      isNull(storesTable.deletedAt),
     ));
   return res.json({ data: rows });
 });
@@ -109,6 +110,7 @@ router.post('/shifts/clock-in', async (req, res) => {
     .where(and(
       eq(staffStoreAssignmentsTable.staffId, req.user!.id),
       eq(staffStoreAssignmentsTable.isActive, true),
+      isNull(storesTable.deletedAt),
     ));
 
   let finalStoreId: string | null = bodyStoreId ?? null;

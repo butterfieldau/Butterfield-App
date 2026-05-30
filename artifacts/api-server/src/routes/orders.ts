@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable } from '@workspace/db';
-import { eq, desc, sql, and, inArray } from 'drizzle-orm';
+import { eq, desc, sql, and, inArray, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
@@ -122,6 +122,7 @@ router.post('/', async (req, res) => {
       const [fallbackStore] = await db.select({ id: storesTable.id })
         .from(storesTable)
         .where(and(
+          isNull(storesTable.deletedAt),
           eq(storesTable.pickupAvailable, true),
           eq(storesTable.status, 'open'),
         ))
@@ -132,7 +133,7 @@ router.post('/', async (req, res) => {
 
   let selectedStore: typeof storesTable.$inferSelect | null = null;
   if (resolvedStoreId) {
-    const [store] = await db.select().from(storesTable).where(eq(storesTable.id, resolvedStoreId));
+    const [store] = await db.select().from(storesTable).where(and(eq(storesTable.id, resolvedStoreId), isNull(storesTable.deletedAt)));
     selectedStore = store ?? null;
     if (!selectedStore) {
       return res.status(400).json({ error: 'Selected store could not be found.' });

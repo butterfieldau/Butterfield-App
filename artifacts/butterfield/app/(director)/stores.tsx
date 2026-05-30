@@ -47,6 +47,14 @@ function statusColor(status: string) {
 function statusLabel(status: string) {
   return STATUS_OPTIONS.find(s => s.value === status)?.label ?? status;
 }
+function deletionTimeLabel(purgeAt?: string | null) {
+  if (!purgeAt) return 'Scheduled for deletion';
+  const diff = new Date(purgeAt).getTime() - Date.now();
+  if (diff <= 0) return 'Deleting soon';
+  const hours = Math.ceil(diff / (60 * 60 * 1000));
+  if (hours >= 24) return 'Deletes within 24 hours';
+  return `Deletes in ${hours}h`;
+}
 
 function defaultHours() {
   return DAYS.map((_, i) => ({
@@ -82,7 +90,8 @@ function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
 
 // ── StoreCard ────────────────────────────────────────────────────────────────
 function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => void }) {
-  const sc = statusColor(store.status);
+  const isPendingDeletion = !!store.deletedAt;
+  const sc = isPendingDeletion ? RED : statusColor(store.status);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -96,11 +105,12 @@ function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => voi
           </Text>
         </View>
         <View style={[s.badge, { backgroundColor: sc + '18' }]}>
-          <Text style={[s.badgeText, { color: sc }]}>{statusLabel(store.status)}</Text>
+          <Text style={[s.badgeText, { color: sc }]}>{isPendingDeletion ? 'Pending Delete' : statusLabel(store.status)}</Text>
         </View>
         <Feather name="chevron-right" size={16} color={MUTED} />
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, paddingLeft: 50 }}>
+        {isPendingDeletion && <View style={[s.chip, { backgroundColor: '#FEF2F2' }]}><Feather name="trash-2" size={11} color={RED} /><Text style={[s.chipText, { color: RED }]}>{deletionTimeLabel(store.purgeAt)}</Text></View>}
         {store.pickupAvailable   && <View style={s.chip}><Feather name="shopping-bag" size={11} color={BLUE} /><Text style={s.chipText}>Pickup</Text></View>}
         {store.deliveryAvailable && <View style={s.chip}><Feather name="truck"        size={11} color={PURPLE} /><Text style={[s.chipText, { color: PURPLE }]}>Delivery</Text></View>}
         {store.geofenceRadius    && <View style={s.chip}><Feather name="radio"        size={11} color={MUTED} /><Text style={[s.chipText, { color: MUTED }]}>{store.geofenceRadius}m fence</Text></View>}
@@ -315,13 +325,50 @@ function StoreEditorModal({
         { text: 'Cancel', style: 'cancel' },
         { text: 'Deactivate', style: 'destructive', onPress: async () => {
           try {
-            await api.director.deleteStore(store.id);
+            await api.director.updateStore(store.id, { status: 'closed' });
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
             onSaved(); onClose();
           } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
         }},
       ],
     );
+  };
+
+  const handleDelete = () => {
+    if (!store?.id) return;
+    Alert.alert(
+      'Delete Store',
+      `Delete "${store.name}"? It will leave the app and operations view now, but you can restore it for the next 24 hours before it is removed completely.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.director.deleteStore(store.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              onSaved();
+              onClose();
+            } catch (error) {
+              Alert.alert('Error', getErrorMessage(error, 'Could not delete store.'));
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleRestore = async () => {
+    if (!store?.id) return;
+    try {
+      await api.director.restoreStore(store.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSaved();
+      onClose();
+    } catch (error) {
+      Alert.alert('Error', getErrorMessage(error, 'Could not restore store.'));
+    }
   };
 
   const handleUploadStoreImage = async () => {
@@ -385,6 +432,19 @@ function StoreEditorModal({
 
           {activeTab === 'Details' && (
           <>
+          {store?.deletedAt && (
+            <View style={s.section}>
+              <View style={[s.infoBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                <Feather name="trash-2" size={15} color={RED} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[s.infoBannerTitle, { color: '#991B1B' }]}>Store pending deletion</Text>
+                  <Text style={[s.infoBannerText, { color: '#B91C1C' }]}>
+                    {deletionTimeLabel(store.purgeAt)}. Restore this store any time before then.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
           <View style={s.section}>
             <Text style={s.sectionTitle}>ADDRESS SEARCH</Text>
             <View style={[s.sectionCard, { paddingHorizontal: 14, paddingVertical: 12 }]}>
@@ -660,10 +720,22 @@ function StoreEditorModal({
                 : <Text style={s.saveBtnText}>{store ? 'Save Changes' : 'Create Store'}</Text>
               }
             </Pressable>
-            {store && (
+            {store && !store.deletedAt && (
+              <>
               <Pressable style={s.deactivateBtn} onPress={handleDeactivate}>
                 <Feather name="slash" size={14} color={AMBER} />
-                <Text style={s.deactivateBtnText}>Deactivate Store</Text>
+                <Text style={s.deactivateBtnText}>Close Store</Text>
+              </Pressable>
+              <Pressable style={s.deleteBtn} onPress={handleDelete}>
+                <Feather name="trash-2" size={14} color={RED} />
+                <Text style={s.deleteBtnText}>Delete Store</Text>
+              </Pressable>
+              </>
+            )}
+            {store?.deletedAt && (
+              <Pressable style={s.restoreBtn} onPress={handleRestore}>
+                <Feather name="rotate-ccw" size={14} color={GREEN} />
+                <Text style={s.restoreBtnText}>Restore Store</Text>
               </Pressable>
             )}
           </View>
@@ -800,7 +872,14 @@ const s = StyleSheet.create({
   saveBtnText:    { fontWeight: '600', fontSize: 16, color: '#fff' },
   deactivateBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: AMBER },
   deactivateBtnText:{ fontWeight: '600', fontSize: 14, color: AMBER },
+  deleteBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
+  deleteBtnText:  { fontWeight: '600', fontSize: 14, color: RED },
+  restoreBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
+  restoreBtnText: { fontWeight: '600', fontSize: 14, color: GREEN },
   imageUploadBtn: { minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14 },
   imageUploadBtnText: { fontWeight: '600', fontSize: 14, color: BLUE },
   imageUploadHint: { fontWeight: '400', fontSize: 12, color: MUTED, lineHeight: 17 },
+  infoBanner:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 14, borderWidth: 1 },
+  infoBannerTitle:{ fontWeight: '700', fontSize: 14 },
+  infoBannerText: { fontWeight: '400', fontSize: 12, lineHeight: 18 },
 });

@@ -1,12 +1,25 @@
 import { Router } from 'express';
 import { db, storesTable, storeOpeningHoursTable } from '@workspace/db';
-import { inArray, eq, ne } from 'drizzle-orm';
+import { inArray, eq, ne, isNull, and, isNotNull, lte } from 'drizzle-orm';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 
 const router = Router();
+async function purgeExpiredDeletedStores() {
+  const now = new Date();
+  const expired = await db.select({ id: storesTable.id })
+    .from(storesTable)
+    .where(and(isNotNull(storesTable.deletedAt), lte(storesTable.purgeAt, now)));
+
+  if (expired.length === 0) return;
+
+  for (const store of expired) {
+    await db.delete(storesTable).where(eq(storesTable.id, store.id));
+  }
+}
 router.use(async (_req, _res, next) => {
   try {
     await ensureStoreConfigSchemaReady();
+    await purgeExpiredDeletedStores();
     next();
   } catch (error) {
     next(error);
@@ -51,7 +64,7 @@ function getOpenStatus(store: typeof storesTable.$inferSelect, hours: typeof sto
 // Public — all visible stores with live open/closed status
 router.get('/stores', async (_req, res) => {
   const stores = await db.select().from(storesTable)
-    .where(ne(storesTable.status, 'closed'))
+    .where(and(isNull(storesTable.deletedAt), ne(storesTable.status, 'closed')))
     .orderBy(storesTable.sortOrder, storesTable.name);
 
   const ids = stores.map(s => s.id);
@@ -71,7 +84,7 @@ router.get('/stores', async (_req, res) => {
 
 // Public — single store detail
 router.get('/stores/:id', async (req, res) => {
-  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
+  const [store] = await db.select().from(storesTable).where(and(eq(storesTable.id, req.params.id), isNull(storesTable.deletedAt)));
   if (!store) return res.status(404).json({ error: 'Store not found.' });
   const hours = (await db.select().from(storeOpeningHoursTable).where(eq(storeOpeningHoursTable.storeId, store.id)))
     .sort((a, b) => a.dayOfWeek - b.dayOfWeek);

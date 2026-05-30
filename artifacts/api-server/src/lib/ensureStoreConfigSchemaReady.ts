@@ -18,6 +18,9 @@ export async function ensureStoreConfigSchemaReady() {
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS printer_port integer NOT NULL DEFAULT 9100`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS order_cutoff_time text`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS daily_special text`,
+          `ALTER TABLE stores ADD COLUMN IF NOT EXISTS pre_delete_status text`,
+          `ALTER TABLE stores ADD COLUMN IF NOT EXISTS deleted_at timestamp`,
+          `ALTER TABLE stores ADD COLUMN IF NOT EXISTS purge_at timestamp`,
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS preferred_store_id text`,
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS store_id text`,
         ]);
