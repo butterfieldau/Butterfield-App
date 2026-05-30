@@ -16,6 +16,7 @@ import {
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 
 const BG    = '#EFF6FF';
@@ -230,6 +231,7 @@ export default function ShopDisplayOrdersScreen() {
     const total   = `$${((item.totalCents ?? 0) / 100).toFixed(2)}`;
     const isAlert = alertOrderId === item.id;
     const meta    = STATUS_META[item.status] ?? STATUS_META.received;
+    const lines   = normalizeOrderItems(item.items);
 
     return (
       <View style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
@@ -251,18 +253,12 @@ export default function ShopDisplayOrdersScreen() {
         {/* Items */}
         <View style={{ gap: 6 }}>
           <Text style={s.sectionLabel}>Items</Text>
-          {(Array.isArray(item.items) ? item.items : []).map((line: any, i: number) => (
+          {lines.map((line, i: number) => (
             <View key={`${item.id}-${i}`} style={s.lineItem}>
-              <Text style={s.lineMain}>{line.quantity} × {line.productName ?? line.name}</Text>
+              <Text style={s.lineMain}>{line.quantity} × {line.name}</Text>
               {line.variantName ? <Text style={s.lineSub}>{line.variantName}</Text> : null}
-              {Array.isArray(line.selectedOptions) && line.selectedOptions.length ? (
-                <Text style={s.lineSub}>
-                  {line.selectedOptions.map((o: any) => o.optionName ?? o.groupName ?? o.textValue).filter(Boolean).join(' · ')}
-                </Text>
-              ) : null}
-              {Array.isArray(line.packSelections) && line.packSelections.length ? (
-                <Text style={s.lineSub}>{line.packSelections.join(' · ')}</Text>
-              ) : null}
+              {line.notableOptions.length > 0 ? <Text style={s.lineSub}>{line.notableOptions.join(' · ')}</Text> : null}
+              {line.baristaNote ? <Text style={s.lineSub}>{line.baristaNote}</Text> : null}
             </View>
           ))}
         </View>

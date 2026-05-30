@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { normalizeOrderItems } from '@/lib/orderItems';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -621,7 +622,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 <View style={{ gap: 0 }}>
                   {customer.orders?.map((order: any, i: number) => {
                     const statusColor = STATUS_ORDER_COLOR[order.status] ?? MUTED;
-                    const items: any[] = Array.isArray(order.items) ? order.items : [];
+                    const items = normalizeOrderItems(order.items);
                     const isLast = i === (customer.orders.length - 1);
                     return (
                       <View key={order.id} style={[det.orderRow, !isLast && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>

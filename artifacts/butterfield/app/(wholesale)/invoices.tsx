@@ -15,6 +15,7 @@ import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api } from '@/lib/api';
 import type { Invoice } from '@/types';
+import { normalizeOrderItems } from '@/lib/orderItems';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -61,12 +62,12 @@ function mapOrderToInvoice(order: any): Invoice {
 }
 
 function getOrderLines(order: any): InvoiceLine[] {
-  const items: any[] = Array.isArray(order?.items) ? order.items : [];
+  const items = normalizeOrderItems(order?.items);
   if (items.length > 0) {
-    return items.map((item: any) => ({
-      description: item.productName ?? 'Wholesale Product',
-      qty:         item.qty ?? 1,
-      unitPrice:   (item.unitPriceCents ?? 0) / 100,
+    return items.map((item) => ({
+      description: item.name,
+      qty:         item.quantity,
+      unitPrice:   item.unitPriceCents / 100,
     }));
   }
   return [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
