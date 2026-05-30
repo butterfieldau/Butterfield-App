@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
+import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,15 +11,18 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
+  ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { DirectorProduct, DirectorUserSummary, CustomerPricingRule, PricingTier, QuantityPriceBreak } from '@/lib/api';
 
 const NAVY  = '#1A2B4A';
 const BLUE  = '#1493FF';
@@ -34,7 +38,8 @@ const GLASS_BG    = 'rgba(255,255,255,0.6)';
 const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 
 type Tab = 'tiers' | 'breaks' | 'custom' | 'assign';
-const TABS: { id: Tab; label: string; icon: string }[] = [
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
+const TABS: { id: Tab; label: string; icon: FeatherIconName }[] = [
   { id: 'tiers',  label: 'Tiers',      icon: 'layers' },
   { id: 'breaks', label: 'Qty Breaks', icon: 'trending-down' },
   { id: 'custom', label: 'Custom',     icon: 'user' },
@@ -51,6 +56,10 @@ interface CustomForm { id?: string; customerId: string; productId: string; unitP
 const EMPTY_TIER:   TierForm   = { name: '', description: '', status: 'active' };
 const EMPTY_BREAK:  BreakForm  = { productId: '', scope: 'tier', tierId: '', customerId: '', minQty: '', unitPrice: '', isActive: true };
 const EMPTY_CUSTOM: CustomForm = { customerId: '', productId: '', unitPrice: '', isActive: true };
+
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function DirectorPricing() {
   const qc     = useQueryClient();
@@ -69,36 +78,36 @@ export default function DirectorPricing() {
     queryKey: ['director-tiers'],
     queryFn: () => api.director.tiers(),
   });
-  const tiers = tiersData?.data ?? [];
+  const tiers: PricingTier[] = tiersData?.data ?? [];
 
   const { data: breaksData, isLoading: breaksLoading } = useQuery({
     queryKey: ['director-qty-breaks'],
     queryFn: () => api.director.qtyBreaks(),
     enabled: tab === 'breaks',
   });
-  const breaks = breaksData?.data ?? [];
+  const breaks: QuantityPriceBreak[] = breaksData?.data ?? [];
 
   const { data: customData, isLoading: customLoading } = useQuery({
     queryKey: ['director-customer-pricing'],
     queryFn: () => api.director.customerPricing(),
     enabled: tab === 'custom',
   });
-  const customPrices = customData?.data ?? [];
+  const customPrices: CustomerPricingRule[] = customData?.data ?? [];
 
   const { data: productsData } = useQuery({
     queryKey: ['director-products'],
     queryFn: () => api.director.products(),
     staleTime: 60_000,
   });
-  const products = (productsData?.data ?? []).filter((p: any) => p.isActive !== false);
+  const products: DirectorProduct[] = (productsData?.data ?? []).filter((product) => product.isActive !== false);
 
   const { data: usersData } = useQuery({
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
     staleTime: 30_000,
   });
-  const wholesaleUsers = (usersData?.data ?? []).filter(
-    (u: any) => u.role === 'wholesale' && u.wholesaleAccount,
+  const wholesaleUsers: DirectorUserSummary[] = (usersData?.data ?? []).filter(
+    (user) => user.role === 'wholesale' && user.wholesaleAccount,
   );
 
   // ── Mutations ────────────────────────────────────────────────────────────
@@ -171,27 +180,27 @@ export default function DirectorPricing() {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const productName = (id: string) => {
-    const p = products.find((p: any) => p.id === id);
+    const p = products.find((product) => product.id === id);
     return p?.name ?? id.slice(0, 12) + '…';
   };
   const tierName = (id: string | null) => {
     if (!id) return 'No tier';
-    return tiers.find((t: any) => t.id === id)?.name ?? 'Unknown';
+    return tiers.find((tier) => tier.id === id)?.name ?? 'Unknown';
   };
   const userLabel = (userId: string) => {
-    const u = wholesaleUsers.find((u: any) => u.id === userId);
+    const u = wholesaleUsers.find((user) => user.id === userId);
     return u?.wholesaleAccount?.companyName ?? u?.name ?? userId.slice(0, 10);
   };
   const customersOnTier = (tierId: string) =>
-    wholesaleUsers.filter((u: any) => u.wholesaleAccount?.tierId === tierId).length;
+    wholesaleUsers.filter((user) => user.wholesaleAccount?.tierId === tierId).length;
 
   // ── Action handlers ───────────────────────────────────────────────────────
   const openNewTier  = () => { setTierForm(EMPTY_TIER);  setTierModal(true); };
-  const openEditTier = (t: any) => {
+  const openEditTier = (t: PricingTier) => {
     setTierForm({ id: t.id, name: t.name, description: t.description ?? '', status: t.status === 'active' ? 'active' : 'inactive' });
     setTierModal(true);
   };
-  const confirmDeleteTier = (t: any) => {
+  const confirmDeleteTier = (t: PricingTier) => {
     const count = customersOnTier(t.id);
     const msg = count > 0
       ? `${count} customer${count !== 1 ? 's are' : ' is'} assigned to this tier and will be unassigned.`
@@ -203,7 +212,7 @@ export default function DirectorPricing() {
   };
 
   const openNewBreak  = () => { setBreakForm(EMPTY_BREAK);  setBreakModal(true); };
-  const openEditBreak = (b: any) => {
+  const openEditBreak = (b: QuantityPriceBreak) => {
     setBreakForm({
       id: b.id, productId: b.productId, scope: b.scope ?? 'tier',
       tierId: b.tierId ?? '', customerId: b.customerId ?? '',
@@ -213,7 +222,7 @@ export default function DirectorPricing() {
     });
     setBreakModal(true);
   };
-  const confirmDeleteBreak = (b: any) => {
+  const confirmDeleteBreak = (b: QuantityPriceBreak) => {
     Alert.alert('Delete Qty Break?',
       `${productName(b.productId)}: ${b.minQty}+ units → $${(b.unitPriceCents / 100).toFixed(2)}/unit`,
       [
@@ -224,7 +233,7 @@ export default function DirectorPricing() {
   };
 
   const openNewCustom  = () => { setCustomForm(EMPTY_CUSTOM);  setCustomModal(true); };
-  const openEditCustom = (cp: any) => {
+  const openEditCustom = (cp: CustomerPricingRule) => {
     setCustomForm({
       id: cp.id, customerId: cp.customerId, productId: cp.productId,
       unitPrice: cp.unitPriceCents ? (cp.unitPriceCents / 100).toFixed(2) : '',
@@ -232,7 +241,7 @@ export default function DirectorPricing() {
     });
     setCustomModal(true);
   };
-  const confirmDeleteCustom = (cp: any) => {
+  const confirmDeleteCustom = (cp: CustomerPricingRule) => {
     Alert.alert('Delete Custom Price?',
       `${userLabel(cp.customerId)} · ${productName(cp.productId)} · $${(cp.unitPriceCents / 100).toFixed(2)}/unit`,
       [
@@ -267,7 +276,7 @@ export default function DirectorPricing() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent}>
-            {tiers.map((t: any) => (
+            {tiers.map((t) => (
               <View key={t.id} style={styles.card}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -310,7 +319,7 @@ export default function DirectorPricing() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent}>
-            {breaks.map((b: any) => (
+            {breaks.map((b) => (
               <View key={b.id} style={styles.card}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{productName(b.productId)}</Text>
@@ -353,7 +362,7 @@ export default function DirectorPricing() {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent}>
-            {customPrices.map((cp: any) => (
+            {customPrices.map((cp) => (
               <View key={cp.id} style={styles.card}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{productName(cp.productId)}</Text>
@@ -383,7 +392,7 @@ export default function DirectorPricing() {
             <Text style={styles.emptyTitle}>No wholesale customers</Text>
             <Text style={styles.emptySub}>Approved wholesale accounts will appear here for tier assignment.</Text>
           </View>
-        ) : wholesaleUsers.map((u: any) => {
+        ) : wholesaleUsers.map((u) => {
           const wa          = u.wholesaleAccount;
           const currentTier = wa?.tierId ?? null;
           return (
@@ -409,7 +418,7 @@ export default function DirectorPricing() {
                 >
                   <Text style={[styles.assignChipText, { color: !currentTier ? '#fff' : MUTED }]}>No Tier</Text>
                 </Pressable>
-                {tiers.map((t: any) => {
+                {tiers.map((t) => {
                   const active = currentTier === t.id;
                   return (
                     <Pressable key={t.id}
@@ -431,9 +440,9 @@ export default function DirectorPricing() {
     );
   }
 
-  const tierSaveErr   = (saveTierMut.error  as any)?.message;
-  const breakSaveErr  = (saveBreakMut.error as any)?.message;
-  const customSaveErr = (saveCustomMut.error as any)?.message;
+  const tierSaveErr   = saveTierMut.error ? getErrorMessage(saveTierMut.error) : undefined;
+  const breakSaveErr  = saveBreakMut.error ? getErrorMessage(saveBreakMut.error) : undefined;
+  const customSaveErr = saveCustomMut.error ? getErrorMessage(saveCustomMut.error) : undefined;
   const breakFormValid = !!breakForm.productId && !!breakForm.minQty && !!breakForm.unitPrice &&
     (breakForm.scope === 'tier' ? !!breakForm.tierId : !!breakForm.customerId);
   const customFormValid = !!customForm.customerId && !!customForm.productId && !!customForm.unitPrice;
@@ -451,7 +460,7 @@ export default function DirectorPricing() {
           const active = tab === t.id;
           return (
             <Pressable key={t.id} onPress={() => { setTab(t.id); Haptics.selectionAsync(); }} style={styles.tabItem}>
-              <Feather name={t.icon as any} size={15} color={active ? BLUE : MUTED} />
+              <Feather name={t.icon} size={15} color={active ? BLUE : MUTED} />
               <Text style={[styles.tabLabel, { color: active ? BLUE : MUTED, fontWeight: active ? '700' : '400' }]}>
                 {t.label}
               </Text>
@@ -534,7 +543,7 @@ export default function DirectorPricing() {
             {!!breakSaveErr && <ErrBanner msg={breakSaveErr} />}
             <Field label="Product *">
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {products.map((p: any) => (
+                {products.map((p) => (
                   <Pressable key={p.id} onPress={() => setBreakForm((f) => ({ ...f, productId: p.id }))}
                     style={[styles.pickerChip, {
                       backgroundColor: breakForm.productId === p.id ? BLUE : '#F3F4F6',
@@ -550,7 +559,7 @@ export default function DirectorPricing() {
                 {([['tier', 'A Tier', 'layers'], ['customer', 'A Customer', 'user']] as const).map(([s, lbl, ic]) => (
                   <Pressable key={s} onPress={() => setBreakForm((f) => ({ ...f, scope: s as 'tier' | 'customer' }))}
                     style={[styles.scopeChip, { flex: 1, backgroundColor: breakForm.scope === s ? BLUE : '#F3F4F6', borderColor: breakForm.scope === s ? BLUE : BORDER }]}>
-                    <Feather name={ic as any} size={14} color={breakForm.scope === s ? '#fff' : MUTED} />
+                    <Feather name={ic} size={14} color={breakForm.scope === s ? '#fff' : MUTED} />
                     <Text style={[styles.scopeChipText, { color: breakForm.scope === s ? '#fff' : TEXT }]}>{lbl}</Text>
                   </Pressable>
                 ))}
@@ -562,7 +571,7 @@ export default function DirectorPricing() {
                   ? <Text style={{ color: MUTED, fontSize: 13 }}>No tiers yet — create a tier first.</Text>
                   : (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                      {tiers.map((t: any) => (
+                      {tiers.map((t) => (
                         <Pressable key={t.id} onPress={() => setBreakForm((f) => ({ ...f, tierId: t.id }))}
                           style={[styles.pickerChip, { backgroundColor: breakForm.tierId === t.id ? NAVY : '#F3F4F6', borderColor: breakForm.tierId === t.id ? NAVY : BORDER }]}>
                           <Text style={[styles.pickerChipText, { color: breakForm.tierId === t.id ? '#fff' : TEXT }]}>{t.name}</Text>
@@ -578,7 +587,7 @@ export default function DirectorPricing() {
                   ? <Text style={{ color: MUTED, fontSize: 13 }}>No approved wholesale customers.</Text>
                   : (
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                      {wholesaleUsers.map((u: any) => (
+                      {wholesaleUsers.map((u) => (
                         <Pressable key={u.id} onPress={() => setBreakForm((f) => ({ ...f, customerId: u.id }))}
                           style={[styles.pickerChip, { backgroundColor: breakForm.customerId === u.id ? NAVY : '#F3F4F6', borderColor: breakForm.customerId === u.id ? NAVY : BORDER }]}>
                           <Text style={[styles.pickerChipText, { color: breakForm.customerId === u.id ? '#fff' : TEXT }]}>
@@ -633,7 +642,7 @@ export default function DirectorPricing() {
                 ? <Text style={{ color: MUTED, fontSize: 13 }}>No approved wholesale customers.</Text>
                 : (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                    {wholesaleUsers.map((u: any) => (
+                    {wholesaleUsers.map((u) => (
                       <Pressable key={u.id} onPress={() => setCustomForm((f) => ({ ...f, customerId: u.id }))}
                         style={[styles.pickerChip, { backgroundColor: customForm.customerId === u.id ? NAVY : '#F3F4F6', borderColor: customForm.customerId === u.id ? NAVY : BORDER }]}>
                         <Text style={[styles.pickerChipText, { color: customForm.customerId === u.id ? '#fff' : TEXT }]}>
@@ -647,7 +656,7 @@ export default function DirectorPricing() {
             </Field>
             <Field label="Product *">
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {products.map((p: any) => (
+                {products.map((p) => (
                   <Pressable key={p.id} onPress={() => setCustomForm((f) => ({ ...f, productId: p.id }))}
                     style={[styles.pickerChip, { backgroundColor: customForm.productId === p.id ? BLUE : '#F3F4F6', borderColor: customForm.productId === p.id ? BLUE : BORDER }]}>
                     <Text style={[styles.pickerChipText, { color: customForm.productId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>{p.name}</Text>
@@ -697,7 +706,7 @@ const mhStyle = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
 });
 
-function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: any }) {
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
     <View style={[{ gap: 6 }, style]}>
       <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280' }}>{label}</Text>
@@ -715,10 +724,10 @@ function StatusBadge({ status }: { status: string }) {
     </View>
   );
 }
-function IconBtn({ icon, color, bg, onPress }: { icon: string; color: string; bg: string; onPress: () => void }) {
+function IconBtn({ icon, color, bg, onPress }: { icon: FeatherIconName; color: string; bg: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={{ width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }}>
-      <Feather name={icon as any} size={15} color={color} />
+      <Feather name={icon} size={15} color={color} />
     </Pressable>
   );
 }
