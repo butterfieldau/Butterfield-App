@@ -1,11 +1,11 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type ApiOrder, type ApiOrderItem } from '@/lib/api';
 
 export interface NewOrderInfo {
   id: string;
   totalCents: number;
-  items: { productName: string; quantity: number }[];
+  items: ApiOrderItem[];
   type: string;
   createdAt: string;
 }
@@ -23,7 +23,7 @@ export function useOrderNotifications(
     enabled,
     queryFn: async () => {
       const res = await api.staff.allOrders();
-      const orders: any[] = res.data ?? [];
+      const orders: ApiOrder[] = res.data ?? [];
 
       const incoming = orders.filter(
         (o) => o.status === 'received' && !seenIds.current.has(o.id)

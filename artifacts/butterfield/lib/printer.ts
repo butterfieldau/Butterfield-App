@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, type ApiOrder, type ApiOrderItem } from './api';
 
 export interface PrintJob {
   orderId: string;
@@ -17,19 +17,28 @@ export interface PrintJob {
   scheduledFor?: Date | null;
 }
 
-export function orderToPrintJob(order: any): PrintJob {
+type PrintableOrder = Partial<ApiOrder> & {
+  customerName?: string | null;
+  contactName?: string | null;
+  email?: string | null;
+  deliveryType?: string | null;
+};
+
+function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
+  const quantity = Number(item.quantity ?? 1) || 1;
+  const unitPriceCents = Number(item.unitPriceCents ?? item.totalPriceCents ?? 0) || 0;
+  const name = item.productName ?? 'Item';
+  const variantName = item.variantName ?? undefined;
+  return { name, quantity, unitPriceCents, variantName };
+}
+
+export function orderToPrintJob(order: PrintableOrder): PrintJob {
   const items = Array.isArray(order?.items) ? order.items : [];
   return {
     orderId: order?.id ?? 'unknown-order',
     customerName: order?.customerName ?? order?.contactName ?? order?.email ?? 'Customer',
     type: (order?.type === 'delivery' || order?.deliveryType === 'delivery') ? 'delivery' : 'pickup',
-    items: items.map((item: any) => {
-      const quantity = Number(item.qty ?? item.quantity ?? 1) || 1;
-      const unitPriceCents = Number(item.unitPriceCents ?? item.finalItemPriceCents ?? item.priceCents ?? 0) || 0;
-      const name = item.productName ?? item.productNameSnapshot ?? item.name ?? 'Item';
-      const variantName = item.variantNameSnapshot ?? item.variantName ?? item.selectedVariantName ?? undefined;
-      return { name, quantity, unitPriceCents, variantName };
-    }),
+    items: items.map(toPrintableItem),
     totalCents: Number(order?.totalCents ?? 0) || 0,
     discountCents: Number(order?.discountCents ?? 0) || 0,
     loyaltyPointsEarned: Number(order?.loyaltyPointsEarned ?? 0) || 0,

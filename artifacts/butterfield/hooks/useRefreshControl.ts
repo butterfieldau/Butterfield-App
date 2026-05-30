@@ -1,11 +1,13 @@
 import { useState } from 'react';
 
-export function useRefreshControl(...refetchFns: Array<() => Promise<any> | any>) {
+type Refreshable = () => void | Promise<unknown>;
+
+export function useRefreshControl(...refetchFns: Refreshable[]) {
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all(refetchFns.map((fn) => fn()));
+      await Promise.all(refetchFns.map((fn) => Promise.resolve(fn())));
     } finally {
       setRefreshing(false);
     }
