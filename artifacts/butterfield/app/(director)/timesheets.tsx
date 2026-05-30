@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -26,6 +26,7 @@ const GLASS_BG    = 'rgba(255,255,255,0.6)';
 const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -104,6 +105,13 @@ function applyHHMM(base: string, hhmm: string): string | null {
 }
 function capitalize(s: string) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  return fallback;
 }
 // ── Payroll summary per staff member ─────────────────────────────────────────
 type StaffPaySummary = {
@@ -199,7 +207,7 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSaved();
     },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (error: unknown) => Alert.alert('Error', getErrorMessage(error, 'Could not update shift approval.')),
   });
   const handleSaveEdit = async () => {
     if (!shift) return;
@@ -212,8 +220,8 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       if (!newIn) { Alert.alert('Invalid time', 'Clock-in time must be in HH:MM format.'); return; }
       if (outTime.trim() && !newOut) { Alert.alert('Invalid time', 'Clock-out time must be in HH:MM format.'); return; }
       await api.director.updateShift(shift.id, { clockIn: newIn, clockOut: newOut, unpaidBreakMins: brkMin });
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (error: unknown) {
+      Alert.alert('Error', getErrorMessage(error, 'Could not save shift changes.'));
     } finally { setSaving(false); }
   };
   if (!shift) return null;
@@ -305,7 +313,7 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
                 <View key={f.label} style={i > 0 ? { marginTop: 12 } : {}}>
                   <Text style={sm.fieldLabel}>{f.label}</Text>
                   <View style={[sm.inputRow, { borderColor: BORDER }]}>
-                    <Feather name={f.icon as any} size={15} color={MUTED} />
+                    <Feather name={f.icon as FeatherIconName} size={15} color={MUTED} />
                     <TextInput style={[sm.input, { color: TEXT }]} value={f.val} onChangeText={f.set}
                       placeholder={f.ph} placeholderTextColor={MUTED} keyboardType="numbers-and-punctuation" />
                   </View>
@@ -454,8 +462,8 @@ export default function DirectorTimesheetsScreen() {
       }
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       await WebBrowser.openBrowserAsync(uri);
-    } catch (e: any) {
-      Alert.alert('Export Error', e.message ?? 'Could not generate timesheet.');
+    } catch (error: unknown) {
+      Alert.alert('Export Error', getErrorMessage(error, 'Could not generate timesheet.'));
     } finally { setExporting(false); }
   };
   const openShift = (s: DirectorShift) => {
