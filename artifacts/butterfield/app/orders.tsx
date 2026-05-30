@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type ApiOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
@@ -351,7 +351,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
 }
 
 // ── Order list card ──────────────────────────────────────────────────────────
-function OrderCard({ order, onPress }: { order: any; onPress: () => void }) {
+function OrderCard({ order, onPress }: { order: ApiOrder; onPress: () => void }) {
   const col       = STATUS_COLORS[order.status] ?? STATUS_COLORS.completed;
   const label     = STATUS_LABEL[order.status] ?? order.status.replace(/_/g, ' ');
   const total     = (order.totalCents ?? 0) / 100;
@@ -418,7 +418,7 @@ function CustomerOrdersContent() {
     refetchInterval: 15000,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const orders = data?.data ?? [];
+  const orders: ApiOrder[] = data?.data ?? [];
   const handleExit = () => {
     if (router.canGoBack()) {
       router.back();
