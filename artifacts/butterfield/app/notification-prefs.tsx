@@ -22,7 +22,7 @@ const RED    = '#EF4444';
 
 type PrefItem = {
   key: string;
-  icon: any;
+  icon: keyof typeof Feather.glyphMap;
   iconBg: string;
   iconColor: string;
   title: string;

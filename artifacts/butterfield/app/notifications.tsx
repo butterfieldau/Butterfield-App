@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, type AuthProfile, type DirectorAnnouncement } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
@@ -32,6 +32,9 @@ const DEFAULT_PREFS = {
   newCookies:    true,
   offersPromos:  false,
 };
+
+type CustomerNotificationPrefs = typeof DEFAULT_PREFS;
+
 const PREF_CONFIG = [
   { key: 'orderUpdates',  icon: 'package'   as const, title: 'Order updates',       desc: 'When your order is ready or status changes.' },
   { key: 'rewardsStamps', icon: 'star'      as const, title: 'Rewards & stamps',    desc: 'Free coffee unlocked? We\'ll let you know.' },
@@ -60,12 +63,12 @@ function NotificationsContent() {
     queryFn:  () => api.misc.announcements(),
     refetchInterval: 30000,
   });
-  const announcements = data?.data ?? [];
+  const announcements: DirectorAnnouncement[] = data?.data ?? [];
   // Sync prefs from backend when me loads
   useEffect(() => {
-    const backendPrefs = (meData?.user as any)?.notificationPreferences;
+    const backendPrefs = (meData?.profile as AuthProfile | null | undefined)?.notificationPreferences;
     if (backendPrefs && typeof backendPrefs === 'object') {
-      setPrefs(p => ({ ...DEFAULT_PREFS, ...backendPrefs }));
+      setPrefs((p) => ({ ...DEFAULT_PREFS, ...p, ...(backendPrefs as Partial<CustomerNotificationPrefs>) }));
     }
   }, [meData]);
 
@@ -171,7 +174,7 @@ function NotificationsContent() {
               <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>Check back soon for updates!</Text>
             </View>
           ) : (
-            announcements.map((a: any) => (
+            announcements.map((a) => (
               <View key={a.id} style={[s.annRow, { borderTopWidth: 1, borderTopColor: BORDER }]}>
                 <View style={[s.dot, { backgroundColor: a.isPinned ? '#F59E0B' : BLUE }]} />
                 <View style={{ flex: 1, gap: 4 }}>

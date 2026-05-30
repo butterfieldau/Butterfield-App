@@ -5,7 +5,7 @@ import { useStores } from '@/hooks/useStores';
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { getTierConfig } from '@/constants/tierConfig';
 import { buildGreeting } from '@/lib/greetings';
-import { api, type ApiOrder, type ApiProduct, type LiveContext } from '@/lib/api';
+import { api, type ApiOrder, type ApiProduct, type AuthProfile, type LiveContext, type LoyaltyProfile, type LoyaltyReward } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 
 export type UsualItem = {
@@ -85,21 +85,23 @@ export function useHomeScreenData() {
   });
 
   const products      = productsData?.data ?? [];
-  const loyaltyPoints = loyaltyData?.data?.loyaltyPoints ?? 0;
-  const loyaltyTier   = loyaltyData?.data?.loyaltyTier ?? 'blue';
-  const stampCount    = loyaltyData?.data?.coffeeStampCount ?? loyaltyData?.data?.stampCount ?? 0;
-  const rewards       = rewardsData?.data ?? [];
+  const loyaltyProfile: LoyaltyProfile | null = loyaltyData?.data ?? null;
+  const meProfile: AuthProfile | null = meData?.profile ?? null;
+  const rewards: LoyaltyReward[] = rewardsData?.data ?? [];
+  const loyaltyPoints = loyaltyProfile?.loyaltyPoints ?? 0;
+  const loyaltyTier   = loyaltyProfile?.loyaltyTier ?? 'blue';
+  const stampCount    = loyaltyProfile?.coffeeStampCount ?? loyaltyProfile?.stampCount ?? 0;
   const banner        = bannerData?.data ?? null;
   const featuredStore = (storesData?.data ?? [])[0] ?? null;
   const topSellers    = topSellersData?.data ?? [];
   const storeStatus   = storeStatusData?.data;
   const open          = storeStatus?.isOpen ?? false;
   const liveContext   = (contextData?.data ?? null) as LiveContext | null;
-  const freshName     = (meData?.user as any)?.name ?? user?.name;
+  const freshName     = meData?.user?.name ?? user?.name;
   const firstName     = freshName?.split(' ')[0] ?? 'there';
-  const birthday      = (loyaltyData?.data as any)?.birthday ?? null;
+  const birthday      = meProfile?.birthday ?? loyaltyProfile?.birthday ?? null;
   const tierCfg       = getTierConfig(loyaltyTier);
-  const loyaltyCustomerName = loyaltyData?.data?.customerName ?? freshName ?? 'Butterfield Member';
+  const loyaltyCustomerName = loyaltyProfile?.customerName ?? freshName ?? 'Butterfield Member';
 
   const storeHint = open
     ? (storeStatus?.openUntil ? `Open until ${storeStatus.openUntil}` : 'Open now')
@@ -108,7 +110,7 @@ export function useHomeScreenData() {
   const favouriteCategory = useFavouriteCategory(products);
 
   const hasClaimableReward = useMemo(
-    () => rewards.some((r: any) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
+    () => rewards.some((r) => r.type !== 'tier' && loyaltyPoints >= r.pointsCost),
     [rewards, loyaltyPoints],
   );
 
@@ -135,16 +137,15 @@ export function useHomeScreenData() {
         const product = productMap.get(pid);
         if (product) {
           seen.add(pid);
-          const raw = item as any;
           const basePriceCents: number =
-            raw.basePriceCents ?? raw.unitPriceCents ?? (product.prices?.[0]?.unit_amount ?? 0);
+            item.basePriceCents ?? item.unitPriceCents ?? (product.prices?.[0]?.unit_amount ?? 0);
           result.push({
             product,
-            variantId:       raw.variantId,
-            variantName:     raw.variantName,
+            variantId:       item.variantId ?? undefined,
+            variantName:     item.variantName ?? undefined,
             basePriceCents,
-            selectedOptions: (raw.selectedOptions ?? []) as SelectedCartOption[],
-            quantity:        raw.quantity ?? 1,
+            selectedOptions: (item.selectedOptions ?? []) as SelectedCartOption[],
+            quantity:        item.quantity ?? 1,
           });
         }
       }
@@ -176,22 +177,21 @@ export function useHomeScreenData() {
   const effectiveQrToken = serverQrToken ?? healedQrToken;
 
   const qrValue = useMemo(() => {
-    return loyaltyData?.data?.qrPayload
+    return loyaltyProfile?.qrPayload
       ?? (effectiveQrToken ? `BUTTERFIELD:LOYALTY:${effectiveQrToken}` : null)
-      ?? (loyaltyData?.data?.userId && loyaltyData?.data?.referralCode
-        ? `BUTTERFIELD:${loyaltyData.data.userId}:${loyaltyData.data.referralCode}`
+      ?? (loyaltyProfile?.userId && loyaltyProfile?.referralCode
+        ? `BUTTERFIELD:${loyaltyProfile.userId}:${loyaltyProfile.referralCode}`
         : null);
-  }, [loyaltyData?.data?.qrPayload, effectiveQrToken, loyaltyData?.data?.userId, loyaltyData?.data?.referralCode]);
+  }, [loyaltyProfile?.qrPayload, effectiveQrToken, loyaltyProfile?.userId, loyaltyProfile?.referralCode]);
 
   React.useEffect(() => {
-    const loyaltyProfile = loyaltyData?.data;
     if (!loyaltyProfile || qrValue) return;
     api.loyalty.ensureQr()
       .then((res) => {
         if (res.data?.loyaltyQrToken) setHealedQrToken(res.data.loyaltyQrToken);
       })
       .catch(() => {});
-  }, [loyaltyData?.data?.userId, qrValue]);
+  }, [loyaltyProfile, qrValue]);
 
   return {
     products,
