@@ -33,6 +33,7 @@ const GREEN = '#16A34A';
 const RED   = '#EF4444';
 
 type OrderFilterMode = 'today' | 'week' | 'date';
+type QueueMode = 'active' | 'completed' | 'cancelled';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 const STATUS_ACTIONS = [
@@ -54,6 +55,16 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   completed:       { label: 'Completed',  bg: '#E5E7EB', fg: '#374151' },
   cancelled:       { label: 'Cancelled',  bg: '#FEE2E2', fg: '#B91C1C' },
   refunded:        { label: 'Refunded',   bg: '#F3E8FF', fg: '#7C3AED' },
+};
+
+const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup'] as const;
+const COMPLETED_STATUSES = ['completed'] as const;
+const CANCELLED_STATUSES = ['cancelled', 'refunded'] as const;
+
+const NEXT_STATUS_ACTIONS: Partial<Record<ShopDisplayOrder['status'], ReadonlyArray<(typeof STATUS_ACTIONS)[number]['id']>>> = {
+  received: ['being_prepared', 'cancelled'],
+  being_prepared: ['ready_for_pickup', 'cancelled'],
+  ready_for_pickup: ['completed'],
 };
 
 function formatTime(value?: string | null) {
@@ -142,10 +153,12 @@ export default function ShopDisplayOrdersScreen() {
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
+  const [queueMode, setQueueMode] = useState<QueueMode>('active');
   const [selectedDate, setSelectedDate] = useState(() => startOfSydneyDay(new Date()));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
 
@@ -161,7 +174,7 @@ export default function ShopDisplayOrdersScreen() {
 
   const rows: ShopDisplayOrder[] = data?.data ?? [];
 
-  const filteredRows = useMemo(() => {
+  const dateFilteredRows = useMemo(() => {
     const sorted = [...rows].sort((a, b) => orderSortTime(b) - orderSortTime(a));
     const now = new Date();
     const dayStart = startOfSydneyDay(now);
@@ -178,6 +191,16 @@ export default function ShopDisplayOrdersScreen() {
     });
   }, [filterMode, rows, selectedDate]);
 
+  const filteredRows = useMemo(() => {
+    if (queueMode === 'completed') {
+      return dateFilteredRows.filter((order) => COMPLETED_STATUSES.includes(order.status));
+    }
+    if (queueMode === 'cancelled') {
+      return dateFilteredRows.filter((order) => CANCELLED_STATUSES.includes(order.status));
+    }
+    return dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number]));
+  }, [dateFilteredRows, queueMode]);
+
   useEffect(() => {
     const currentMap: Record<string, string> = {};
     for (const o of rows) currentMap[o.id] = o.status;
@@ -191,13 +214,11 @@ export default function ShopDisplayOrdersScreen() {
     seenRef.current = currentMap;
   }, [rows, soundEnabled]);
 
-  const activeCount = useMemo(() =>
-    rows.filter(o => !['completed', 'cancelled', 'refunded'].includes(o.status)).length,
-  [rows]);
-
-  const completedToday = useMemo(() =>
-    rows.filter(o => o.status === 'completed').length,
-  [rows]);
+  const queueCounts = useMemo(() => ({
+    active: dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number])).length,
+    completed: dateFilteredRows.filter((order) => COMPLETED_STATUSES.includes(order.status)).length,
+    cancelled: dateFilteredRows.filter((order) => CANCELLED_STATUSES.includes(order.status)).length,
+  }), [dateFilteredRows]);
 
   const ordersByDate = useMemo(() => {
     return rows.reduce<Record<string, number>>((acc, order) => {
@@ -213,16 +234,17 @@ export default function ShopDisplayOrdersScreen() {
     : filterMode === 'week'
       ? 'This week'
       : `Selected: ${selectedDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+  const queueLabel = queueMode === 'active' ? 'Live queue' : queueMode === 'completed' ? 'Completed' : 'Cancelled';
   const summaryViewLabel = filterMode === 'today'
-    ? 'Orders today'
+    ? `${queueLabel} today`
     : filterMode === 'week'
-      ? 'Orders this week'
-      : 'Orders on date';
-  const completedViewLabel = filterMode === 'today'
-    ? 'Completed today'
-    : filterMode === 'week'
-      ? 'Completed this week'
-      : 'Completed on date';
+      ? `${queueLabel} this week`
+      : `${queueLabel} on date`;
+  const queueSubLabel = queueMode === 'active'
+    ? 'Orders needing action'
+    : queueMode === 'completed'
+      ? 'Finished orders'
+      : 'Removed orders';
 
   const today = useMemo(() => {
     const d = startOfSydneyDay(new Date());
@@ -297,10 +319,17 @@ export default function ShopDisplayOrdersScreen() {
   };
 
   const updateStatus = async (id: string, status: string) => {
+    if (updatingOrderId) return;
+    setUpdatingOrderId(id);
     Haptics.selectionAsync();
-    await api.shopDisplay.updateOrderStatus(id, status);
-    setAlertOrderId(cur => cur === id ? null : cur);
-    qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
+    try {
+      await api.shopDisplay.updateOrderStatus(id, status);
+      setAlertOrderId(cur => cur === id ? null : cur);
+      await qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
+      setQueueMode('active');
+    } finally {
+      setUpdatingOrderId(null);
+    }
   };
 
   if (isLoading) {
@@ -318,6 +347,8 @@ export default function ShopDisplayOrdersScreen() {
     const isAlert = alertOrderId === item.id;
     const meta    = STATUS_META[item.status] ?? STATUS_META.received;
     const lines   = normalizeOrderItems(item.items);
+    const availableActions = NEXT_STATUS_ACTIONS[item.status] ?? [];
+    const isUpdating = updatingOrderId === item.id;
 
     return (
       <View style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
@@ -358,18 +389,35 @@ export default function ShopDisplayOrdersScreen() {
         ) : null}
 
         {/* Action buttons */}
+        {availableActions.length > 0 ? (
         <View style={[s.actions, isWide && s.actionsWide]}>
-          {STATUS_ACTIONS.map(action => (
+          {STATUS_ACTIONS.filter((action) => availableActions.includes(action.id)).map(action => (
             <Pressable
               key={action.id}
+              disabled={isUpdating}
               onPress={() => void updateStatus(item.id, action.id)}
-              style={[s.actionBtn, { backgroundColor: action.color }, isWide && s.actionBtnWide]}
+              style={[
+                s.actionBtn,
+                { backgroundColor: action.color },
+                isWide && s.actionBtnWide,
+                isUpdating && s.actionBtnDisabled,
+              ]}
             >
               <Feather name={action.icon} size={isWide ? 18 : 15} color="#fff" />
-              <Text style={[s.actionText, isWide && s.actionTextWide]}>{action.label}</Text>
+              <Text style={[s.actionText, isWide && s.actionTextWide]}>
+                {isUpdating ? 'Updating…' : action.label}
+              </Text>
             </Pressable>
           ))}
         </View>
+        ) : (
+          <View style={s.archivedNotice}>
+            <Feather name={queueMode === 'completed' ? 'archive' : 'slash'} size={15} color={MUTED} />
+            <Text style={s.archivedNoticeText}>
+              {queueMode === 'completed' ? 'This order has been completed.' : 'This order has been removed from the live queue.'}
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -380,11 +428,13 @@ export default function ShopDisplayOrdersScreen() {
       <View style={[s.summaryRow, isWide && s.summaryRowWide]}>
         <View style={[s.summaryCard, isWide && { paddingVertical: 14 }]}>
           <Text style={s.summaryLabel}>{summaryViewLabel}</Text>
-          <Text style={s.summaryValue}>{filteredRows.filter(o => !['completed', 'cancelled', 'refunded'].includes(o.status)).length}</Text>
+          <Text style={s.summaryValue}>{filteredRows.length}</Text>
         </View>
         <View style={[s.summaryCard, isWide && { paddingVertical: 14 }]}>
-          <Text style={s.summaryLabel}>{completedViewLabel}</Text>
-          <Text style={s.summaryValue}>{filteredRows.filter(o => o.status === 'completed').length}</Text>
+          <Text style={s.summaryLabel}>Active / done / cancelled</Text>
+          <Text style={[s.summaryValue, { fontSize: isWide ? 22 : 18 }]}>
+            {queueCounts.active} / {queueCounts.completed} / {queueCounts.cancelled}
+          </Text>
         </View>
         <View style={[s.summaryCard, isWide && { paddingVertical: 14 }]}>
           <Text style={s.summaryLabel}>Last refresh</Text>
@@ -395,6 +445,24 @@ export default function ShopDisplayOrdersScreen() {
       </View>
 
       <View style={s.filterPanel}>
+        <View style={s.queueRow}>
+          {([
+            { key: 'active', label: `Live (${queueCounts.active})` },
+            { key: 'completed', label: `Completed (${queueCounts.completed})` },
+            { key: 'cancelled', label: `Cancelled (${queueCounts.cancelled})` },
+          ] as const).map((queue) => {
+            const active = queueMode === queue.key;
+            return (
+              <Pressable
+                key={queue.key}
+                onPress={() => setQueueMode(queue.key)}
+                style={[s.queueChip, active && s.queueChipActive]}
+              >
+                <Text style={[s.queueChipText, active && s.queueChipTextActive]}>{queue.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
         <View style={s.filterRow}>
           <Pressable
             onPress={() => setFilterMode('today')}
@@ -418,7 +486,7 @@ export default function ShopDisplayOrdersScreen() {
             <Text style={[s.filterChipText, filterMode === 'date' && s.filterChipTextActive]}>Select date</Text>
           </Pressable>
         </View>
-        <Text style={s.filterLabel}>{selectedModeLabel}</Text>
+        <Text style={s.filterLabel}>{queueSubLabel} · {selectedModeLabel}</Text>
       </View>
 
       {/* Orders list */}
@@ -437,7 +505,13 @@ export default function ShopDisplayOrdersScreen() {
         ListEmptyComponent={
           <View style={s.emptyWrap}>
             <Feather name="inbox" size={40} color={MUTED} />
-            <Text style={s.emptyText}>No live app orders right now</Text>
+            <Text style={s.emptyText}>
+              {queueMode === 'active'
+                ? 'No live app orders right now'
+                : queueMode === 'completed'
+                  ? 'No completed orders in this view'
+                  : 'No cancelled orders in this view'}
+            </Text>
           </View>
         }
         renderItem={renderCard}
@@ -561,12 +635,20 @@ const s = StyleSheet.create({
   actionsWide:     { flexWrap: 'nowrap' },
   actionBtn:       { flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 10 },
   actionBtnWide:   { flexBasis: 0, flexGrow: 1, paddingVertical: 16 },
+  actionBtnDisabled: { opacity: 0.55 },
   actionText:      { color: '#fff', fontSize: 14, fontWeight: '800' },
   actionTextWide:  { fontSize: 15 },
+  archivedNotice:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  archivedNoticeText: { color: MUTED, fontSize: 13, fontWeight: '600' },
 
   emptyWrap:       { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText:       { textAlign: 'center', color: MUTED, fontSize: 16, fontWeight: '500' },
   filterPanel:     { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8 },
+  queueRow:        { flexDirection: 'row', gap: 8 },
+  queueChip:       { borderRadius: 999, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 9 },
+  queueChipActive: { backgroundColor: BLUE, borderColor: BLUE },
+  queueChipText:   { color: NAVY, fontSize: 12, fontWeight: '800' },
+  queueChipTextActive: { color: '#fff' },
   filterRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterChip:      { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, paddingHorizontal: 14, paddingVertical: 10 },
   filterChipActive:{ backgroundColor: NAVY, borderColor: NAVY },
