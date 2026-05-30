@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, type ComponentProps } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
   Modal, Platform, Pressable, RefreshControl, ScrollView,
@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
-import { api, type StockItem } from '@/lib/api';
+import { api, type StockCategory, type StockItem, type StockItemInput } from '@/lib/api';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -25,6 +25,7 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const BLUE   = '#1493FF';
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 const CAT_COLORS: Record<string, string> = {
   coffee:         '#7C3AED',
@@ -39,7 +40,7 @@ const CAT_COLORS: Record<string, string> = {
   cleaning:       '#14B8A6',
 };
 
-const CAT_ICONS: Record<string, string> = {
+const CAT_ICONS: Record<string, FeatherIconName> = {
   coffee:         'coffee',
   drinks:         'droplet',
   front_of_house: 'star',
@@ -58,8 +59,15 @@ function catColor(id: string): string {
   return CAT_COLORS[id] ?? PALETTE[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % PALETTE.length];
 }
 
-function catIcon(id: string): string {
+function catIcon(id: string): FeatherIconName {
   return CAT_ICONS[id] ?? 'box';
+}
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  return fallback;
 }
 
 function centsToAud(c?: number | null) {
@@ -122,7 +130,7 @@ function ManageCategoriesModal({
   onClose, categories, onCreated, onDeleted, itemCategories,
 }: {
   onClose: () => void;
-  categories: { id: string; label: string }[];
+  categories: StockCategory[];
   onCreated: (name: string) => Promise<void>;
   onDeleted: (id: string) => Promise<void>;
   itemCategories: string[];
@@ -139,7 +147,7 @@ function ManageCategoriesModal({
     catch { } finally { setSaving(false); }
   };
 
-  const handleDelete = (cat: { id: string; label: string }) => {
+  const handleDelete = (cat: StockCategory) => {
     const inUse = itemCategories.includes(cat.id);
     if (inUse) {
       Alert.alert('Cannot Delete', `"${cat.label}" still has items assigned to it. Reassign or delete those items first.`);
@@ -150,7 +158,7 @@ function ManageCategoriesModal({
       { text: 'Delete', style: 'destructive', onPress: async () => {
         setDeleting(cat.id);
         try { await onDeleted(cat.id); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
-        catch (e: any) { Alert.alert('Error', e.message); }
+        catch (error: unknown) { Alert.alert('Error', getErrorMessage(error, 'Could not delete category.')); }
         finally { setDeleting(null); }
       }},
     ]);
@@ -193,7 +201,7 @@ function ManageCategoriesModal({
             return (
               <View key={cat.id} style={mm.row}>
                 <View style={[mm.dot, { backgroundColor: color + '22' }]}>
-                  <Feather name={catIcon(cat.id) as any} size={14} color={color} />
+                  <Feather name={catIcon(cat.id)} size={14} color={color} />
                 </View>
                 <Text style={mm.catName}>{cat.label}</Text>
                 {inUse && (
@@ -241,8 +249,8 @@ const COMMON_UNITS = ['units', 'kg', 'g', 'L', 'mL', 'bags', 'boxes', 'bottles',
 function EditModal({ item, onClose, onSave, categories }: {
   item: Partial<StockItem> | null;
   onClose: () => void;
-  onSave: (data: any) => void;
-  categories: { id: string; label: string }[];
+  onSave: (data: StockItemInput) => void;
+  categories: StockCategory[];
 }) {
   const isNew = !item?.id;
   const [name, setName]           = useState(item?.name ?? '');
@@ -397,7 +405,7 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
     <View style={sc.card}>
       <View style={sc.left}>
         <View style={[sc.catDot, { backgroundColor: color + '22' }]}>
-          <Feather name={icon as any} size={14} color={color} />
+          <Feather name={icon} size={14} color={color} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={sc.name} numberOfLines={1}>{item.name}</Text>
@@ -476,7 +484,7 @@ export default function StockScreen() {
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchCats);
 
   const items: StockItem[] = data?.data ?? [];
-  const categories = catData?.data ?? [];
+  const categories: StockCategory[] = catData?.data ?? [];
 
   // Only show filter tabs for categories that actually have items
   const activeCatIds = useMemo(() => {
@@ -503,25 +511,25 @@ export default function StockScreen() {
   const updateQtyMut = useMutation({
     mutationFn: ({ id, qty }: { id: string; qty: number }) => api.stock.updateQuantity(id, qty),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-items'] }),
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (error: unknown) => Alert.alert('Error', getErrorMessage(error, 'Could not update stock quantity.')),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.stock.create(d),
+    mutationFn: (data: StockItemInput) => api.stock.create(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['stock-items'] }); setEditItem(false); },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (error: unknown) => Alert.alert('Error', getErrorMessage(error, 'Could not create stock item.')),
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, d }: { id: string; d: any }) => api.stock.update(id, d),
+    mutationFn: ({ id, data }: { id: string; data: Partial<StockItemInput> }) => api.stock.update(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['stock-items'] }); setEditItem(false); },
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (error: unknown) => Alert.alert('Error', getErrorMessage(error, 'Could not update stock item.')),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.stock.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-items'] }),
-    onError: (e: any) => Alert.alert('Error', e.message),
+    onError: (error: unknown) => Alert.alert('Error', getErrorMessage(error, 'Could not remove stock item.')),
   });
 
   const handleDelete = (item: StockItem) => {
@@ -714,7 +722,7 @@ export default function StockScreen() {
           onClose={() => setEditItem(false)}
           onSave={(d) => {
             if (editItem && 'id' in editItem && editItem.id) {
-              updateMut.mutate({ id: editItem.id, d });
+              updateMut.mutate({ id: editItem.id, data: d });
             } else {
               createMut.mutate(d);
             }
