@@ -139,24 +139,6 @@ function sameSydneyDay(left: string | Date, right: string | Date) {
   return a.year === b.year && a.month === b.month && a.day === b.day;
 }
 
-function monthMatrix(anchor: Date) {
-  const safeAnchor = safeDate(anchor);
-  const first = new Date(safeAnchor.getFullYear(), safeAnchor.getMonth(), 1, 12, 0, 0, 0);
-  const daysInMonth = new Date(safeAnchor.getFullYear(), safeAnchor.getMonth() + 1, 0, 12, 0, 0, 0).getDate();
-  const offset = (first.getDay() + 6) % 7;
-  const cells: Array<Date | null> = [];
-  for (let i = 0; i < offset; i += 1) cells.push(null);
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push(new Date(safeAnchor.getFullYear(), safeAnchor.getMonth(), day, 12, 0, 0, 0));
-  }
-  while (cells.length % 7 !== 0) cells.push(null);
-  return cells;
-}
-
-function monthLabel(date: Date) {
-  return safeDate(date).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-}
-
 function orderSubtitle(order: any) {
   return [
     order.type === 'delivery' ? 'Delivery' : 'Pickup',
@@ -186,10 +168,8 @@ export default function ShopDisplayOrdersScreen() {
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
   const [selectedDate, setSelectedDate] = useState(() => safeDate(toSydneyCalendarDate(new Date())));
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pickerMonth, setPickerMonth] = useState(() => {
-    const today = safeDate(toSydneyCalendarDate(new Date()));
-    return new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
-  });
+  const [calYear, setCalYear] = useState(() => selectedDate.getFullYear());
+  const [calMonth, setCalMonth] = useState(() => selectedDate.getMonth());
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
 
@@ -243,8 +223,33 @@ export default function ShopDisplayOrdersScreen() {
     rows.filter(o => o.status === 'completed').length,
   [rows]);
 
-  const calendarCells = useMemo(() => monthMatrix(pickerMonth), [pickerMonth]);
-  const visibleMonth = safeDate(pickerMonth);
+  const firstDay = useMemo(() => new Date(calYear, calMonth, 1).getDay(), [calYear, calMonth]);
+  const daysInMonth = useMemo(() => new Date(calYear, calMonth + 1, 0).getDate(), [calYear, calMonth]);
+  const calendarCells = useMemo(() => {
+    const cells: Array<number | null> = [
+      ...Array(firstDay).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [daysInMonth, firstDay]);
+  const visibleMonthLabel = useMemo(
+    () => new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
+    [calYear, calMonth],
+  );
+  const today = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }, []);
+  const dateOf = (day: number) => new Date(calYear, calMonth, day, 12, 0, 0, 0);
+  const isFutureDay = (day: number) => {
+    const d = dateOf(day);
+    d.setHours(0, 0, 0, 0);
+    return d > today;
+  };
+  const isSelectedDay = (day: number) => selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth && selectedDate.getDate() === day;
+  const isTodayDay = (day: number) => today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
   const selectedModeLabel = filterMode === 'today'
     ? 'Today'
     : filterMode === 'week'
@@ -375,7 +380,8 @@ export default function ShopDisplayOrdersScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              setPickerMonth(safeDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1, 12, 0, 0, 0)));
+              setCalYear(selectedDate.getFullYear());
+              setCalMonth(selectedDate.getMonth());
               setPickerOpen(true);
             }}
             style={[s.filterChip, filterMode === 'date' && s.filterChipActive]}
@@ -413,34 +419,62 @@ export default function ShopDisplayOrdersScreen() {
         <Pressable style={s.modalBackdrop} onPress={() => setPickerOpen(false)}>
           <Pressable style={s.modalCard} onPress={() => {}}>
             <View style={s.modalHeader}>
-              <Pressable onPress={() => setPickerMonth((current) => safeDate(new Date(current.getFullYear(), current.getMonth() - 1, 1, 12, 0, 0, 0)))} style={s.monthNavBtn}>
+              <Pressable
+                onPress={() => {
+                  if (calMonth === 0) {
+                    setCalYear((year) => year - 1);
+                    setCalMonth(11);
+                  } else {
+                    setCalMonth((month) => month - 1);
+                  }
+                }}
+                style={s.monthNavBtn}
+              >
                 <Feather name="chevron-left" size={18} color={NAVY} />
               </Pressable>
-              <Text style={s.modalTitle}>{monthLabel(visibleMonth)}</Text>
-              <Pressable onPress={() => setPickerMonth((current) => safeDate(new Date(current.getFullYear(), current.getMonth() + 1, 1, 12, 0, 0, 0)))} style={s.monthNavBtn}>
+              <Text style={s.modalTitle}>{visibleMonthLabel}</Text>
+              <Pressable
+                onPress={() => {
+                  if (calMonth === 11) {
+                    setCalYear((year) => year + 1);
+                    setCalMonth(0);
+                  } else {
+                    setCalMonth((month) => month + 1);
+                  }
+                }}
+                style={s.monthNavBtn}
+              >
                 <Feather name="chevron-right" size={18} color={NAVY} />
               </Pressable>
             </View>
             <View style={s.weekdayRow}>
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
                 <Text key={day} style={s.weekdayText}>{day}</Text>
               ))}
             </View>
             <View style={s.calendarGrid}>
               {calendarCells.map((day, index) => {
-                const active = day ? sameSydneyDay(day, selectedDate) : false;
+                const active = day ? isSelectedDay(day) : false;
+                const future = day ? isFutureDay(day) : false;
+                const isToday = day ? isTodayDay(day) : false;
                 return (
                   <Pressable
-                    key={`${visibleMonth.toISOString()}-${index}-${day ? day.getDate() : 'empty'}`}
-                    disabled={!day}
+                    key={`${calYear}-${calMonth}-${index}-${day ?? 'empty'}`}
+                    disabled={!day || future}
                     onPress={() => {
                       if (!day) return;
-                      setSelectedDate(toCalendarDate(day));
+                      setSelectedDate(toCalendarDate(dateOf(day)));
                       setFilterMode('date');
+                      setPickerOpen(false);
                     }}
-                    style={[s.dayCell, active && s.dayCellActive, !day && s.dayCellEmpty]}
+                    style={[s.dayCell, active && s.dayCellActive, !day && s.dayCellEmpty, future && s.dayCellDisabled]}
                   >
-                    {day ? <Text style={[s.dayCellText, active && s.dayCellTextActive]}>{day.getDate()}</Text> : null}
+                    {day ? (
+                      <Text style={[s.dayCellText, active && s.dayCellTextActive, future && s.dayCellTextDisabled]}>
+                        {day}
+                        {isToday ? '' : ''}
+                      </Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -523,8 +557,10 @@ const s = StyleSheet.create({
   calendarGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   dayCell:         { width: '13.2%', aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
   dayCellEmpty:    { backgroundColor: 'transparent', borderColor: 'transparent' },
+  dayCellDisabled: { opacity: 0.35 },
   dayCellActive:   { backgroundColor: NAVY, borderColor: NAVY },
   dayCellText:     { color: TEXT, fontSize: 13, fontWeight: '800' },
+  dayCellTextDisabled: { color: MUTED },
   dayCellTextActive: { color: '#fff' },
   modalActions:    { flexDirection: 'row', gap: 10 },
   modalActionBtn:  { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
