@@ -34,7 +34,7 @@ import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
-import { api, type ApiProduct } from '@/lib/api';
+import { api, type ApiProduct, type ProductCategory } from '@/lib/api';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
@@ -114,6 +114,11 @@ const CAT_ICON_MAP: Record<string, string> = {
   'iced-drinks':    'svg:iced-drink',
   'cookie-frappes': 'svg:frappe',
 };
+function toCategoryImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http')) return url;
+  return process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}${url}` : null;
+}
 const DIETARY_ICONS: Record<string, string> = {
   Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
 };
@@ -179,13 +184,14 @@ export default function MenuScreen() {
     staleTime: 0,
   });
   const categories = useMemo(() => {
-    const backendCats: any[] = categoriesData?.data ?? [];
+    const backendCats: ProductCategory[] = categoriesData?.data ?? [];
     const items = backendCats.map(c => ({
-      id: c.slug as string,
-      label: c.name as string,
+      id: c.slug,
+      label: c.name,
       icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
+      imageUrl: toCategoryImageUrl(c.imageUrl),
     }));
-    return [{ id: 'all', label: 'All', icon: 'grid' as string }, ...items];
+    return [{ id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null }, ...items];
   }, [categoriesData]);
   const listRef = useRef(null);
   useScrollToTop(listRef);
@@ -283,7 +289,14 @@ export default function MenuScreen() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {cat.icon.startsWith('svg:')
+                  {cat.imageUrl ? (
+                    <Image
+                      source={{ uri: cat.imageUrl }}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : cat.icon.startsWith('svg:')
                     ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
                     : cat.icon.startsWith('mc:')
                     ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />

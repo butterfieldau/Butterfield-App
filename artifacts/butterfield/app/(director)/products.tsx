@@ -959,8 +959,8 @@ function CatalogTab() {
             <Field label="Description">
               <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
             </Field>
-            {/* Category Photo */}
-            <SectionHeader title="Category Photo" icon="image" color={PINK} />
+            {/* Category Icon / Photo */}
+            <SectionHeader title="Category Icon" icon="image" color={PINK} />
             <View style={{ gap: 10 }}>
               {catImageUrl ? (
                 <View style={{ borderRadius: 14, overflow: 'hidden', height: 140, backgroundColor: BG }}>
@@ -984,8 +984,8 @@ function CatalogTab() {
                     ? <ActivityIndicator color={BLUE} />
                     : <>
                         <Feather name="upload" size={22} color={MUTED} />
-                        <Text style={{ color: MUTED, fontSize: 13, fontWeight: '500' }}>Upload category photo</Text>
-                        <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400' }}>Shows in the home screen category strip</Text>
+                        <Text style={{ color: MUTED, fontSize: 13, fontWeight: '500' }}>Upload category icon</Text>
+                        <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400' }}>Shows on the customer category tiles and home category strip</Text>
                       </>
                   }
                 </Pressable>
