@@ -52,9 +52,17 @@ function formatTime(value?: string | null) {
   return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 
+function isValidDate(value: Date) {
+  return !Number.isNaN(value.getTime());
+}
+
+function safeDate(value: Date, fallback = new Date()) {
+  return isValidDate(value) ? value : new Date(fallback);
+}
+
 function getSydneyDateParts(input: string | Date) {
   const date = new Date(input);
-  if (Number.isNaN(date.getTime())) {
+  if (!isValidDate(date)) {
     const fallback = new Date();
     return {
       year: fallback.getFullYear(),
@@ -86,19 +94,11 @@ function getSydneyDateParts(input: string | Date) {
 
 function toSydneyCalendarDate(input: string | Date) {
   const { year, month, day } = getSydneyDateParts(input);
-  return new Date(year, month - 1, day, 12, 0, 0, 0);
+  return safeDate(new Date(year, month - 1, day, 12, 0, 0, 0));
 }
 
 function toCalendarDate(input: Date) {
-  return new Date(input.getFullYear(), input.getMonth(), input.getDate(), 12, 0, 0, 0);
-}
-
-function isValidDate(value: unknown): value is Date {
-  return value instanceof Date && !Number.isNaN(value.getTime());
-}
-
-function safeCalendarDate(value: Date, fallback: Date) {
-  return isValidDate(value) ? toCalendarDate(value) : toCalendarDate(fallback);
+  return safeDate(new Date(input.getFullYear(), input.getMonth(), input.getDate(), 12, 0, 0, 0));
 }
 
 function startOfSydneyDay(input: string | Date) {
@@ -163,33 +163,15 @@ export default function ShopDisplayOrdersScreen() {
   useScrollToTop(listRef);
 
   const qc = useQueryClient();
-  const today = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return now;
-  }, []);
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
-  const [selectedDate, setSelectedDate] = useState(() => toCalendarDate(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => safeDate(toSydneyCalendarDate(new Date())));
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [calYear, setCalYear] = useState(() => today.getFullYear());
-  const [calMonth, setCalMonth] = useState(() => today.getMonth());
+  const [calYear, setCalYear] = useState(() => selectedDate.getFullYear());
+  const [calMonth, setCalMonth] = useState(() => selectedDate.getMonth());
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
-
-  useEffect(() => {
-    if (!isValidDate(selectedDate)) {
-      setSelectedDate(toCalendarDate(today));
-    }
-  }, [selectedDate, today]);
-
-  useEffect(() => {
-    if (!Number.isFinite(calYear) || !Number.isFinite(calMonth) || calMonth < 0 || calMonth > 11) {
-      setCalYear(today.getFullYear());
-      setCalMonth(today.getMonth());
-    }
-  }, [calMonth, calYear, today]);
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabled).catch(() => {});
@@ -241,17 +223,8 @@ export default function ShopDisplayOrdersScreen() {
     rows.filter(o => o.status === 'completed').length,
   [rows]);
 
-  const visibleMonthDate = useMemo(() => {
-    const candidate = new Date(calYear, calMonth, 1, 12, 0, 0, 0);
-    return isValidDate(candidate)
-      ? candidate
-      : new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0);
-  }, [calMonth, calYear, today]);
-  const firstDay = useMemo(() => visibleMonthDate.getDay(), [visibleMonthDate]);
-  const daysInMonth = useMemo(
-    () => new Date(visibleMonthDate.getFullYear(), visibleMonthDate.getMonth() + 1, 0).getDate(),
-    [visibleMonthDate],
-  );
+  const firstDay = useMemo(() => new Date(calYear, calMonth, 1).getDay(), [calYear, calMonth]);
+  const daysInMonth = useMemo(() => new Date(calYear, calMonth + 1, 0).getDate(), [calYear, calMonth]);
   const calendarCells = useMemo(() => {
     const cells: Array<number | null> = [
       ...Array(firstDay).fill(null),
@@ -261,25 +234,27 @@ export default function ShopDisplayOrdersScreen() {
     return cells;
   }, [daysInMonth, firstDay]);
   const visibleMonthLabel = useMemo(
-    () => visibleMonthDate.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
-    [visibleMonthDate],
+    () => new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),
+    [calYear, calMonth],
   );
-  const dateOf = (day: number) => new Date(visibleMonthDate.getFullYear(), visibleMonthDate.getMonth(), day, 12, 0, 0, 0);
+  const today = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }, []);
+  const dateOf = (day: number) => new Date(calYear, calMonth, day, 12, 0, 0, 0);
   const isFutureDay = (day: number) => {
     const d = dateOf(day);
     d.setHours(0, 0, 0, 0);
     return d > today;
   };
-  const safeSelectedDate = safeCalendarDate(selectedDate, today);
-  const visibleYear = visibleMonthDate.getFullYear();
-  const visibleMonth = visibleMonthDate.getMonth();
-  const isSelectedDay = (day: number) => safeSelectedDate.getFullYear() === visibleYear && safeSelectedDate.getMonth() === visibleMonth && safeSelectedDate.getDate() === day;
-  const isTodayDay = (day: number) => today.getFullYear() === visibleYear && today.getMonth() === visibleMonth && today.getDate() === day;
+  const isSelectedDay = (day: number) => selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth && selectedDate.getDate() === day;
+  const isTodayDay = (day: number) => today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
   const selectedModeLabel = filterMode === 'today'
     ? 'Today'
     : filterMode === 'week'
       ? 'This week'
-      : `Selected: ${safeSelectedDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+      : `Selected: ${selectedDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
   const summaryViewLabel = filterMode === 'today'
     ? 'Orders today'
     : filterMode === 'week'
@@ -405,9 +380,8 @@ export default function ShopDisplayOrdersScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              const anchor = safeCalendarDate(selectedDate, today);
-              setCalYear(anchor.getFullYear());
-              setCalMonth(anchor.getMonth());
+              setCalYear(selectedDate.getFullYear());
+              setCalMonth(selectedDate.getMonth());
               setPickerOpen(true);
             }}
             style={[s.filterChip, filterMode === 'date' && s.filterChipActive]}
@@ -485,18 +459,22 @@ export default function ShopDisplayOrdersScreen() {
                 const isToday = day ? isTodayDay(day) : false;
                 return (
                   <Pressable
-                    key={`${visibleYear}-${visibleMonth}-${index}-${day ?? 'empty'}`}
+                    key={`${calYear}-${calMonth}-${index}-${day ?? 'empty'}`}
                     disabled={!day || future}
                     onPress={() => {
                       if (!day) return;
                       setSelectedDate(toCalendarDate(dateOf(day)));
                       setFilterMode('date');
-                      Haptics.selectionAsync();
                       setPickerOpen(false);
                     }}
                     style={[s.dayCell, active && s.dayCellActive, !day && s.dayCellEmpty, future && s.dayCellDisabled]}
                   >
-                    {day ? <Text style={[s.dayCellText, active && s.dayCellTextActive, future && s.dayCellTextDisabled]}>{day}</Text> : null}
+                    {day ? (
+                      <Text style={[s.dayCellText, active && s.dayCellTextActive, future && s.dayCellTextDisabled]}>
+                        {day}
+                        {isToday ? '' : ''}
+                      </Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
