@@ -12,12 +12,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/lib/api';
+import { api, type ApiUser, type LoyaltyProfile } from '@/lib/api';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 
 const BG     = '#EFF6FF';
@@ -26,6 +27,7 @@ const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+type FeatherIcon = keyof typeof Feather.glyphMap;
 
 function autoFormatBirthday(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8);
@@ -77,23 +79,25 @@ function EditDetailsContent() {
 
   // Track whether the birthday was already saved when this screen opened.
   // Once locked the field becomes read-only and the API will also reject changes.
-  const birthdayLocked = Boolean((loyaltyData?.data as any)?.birthday);
+  const loyaltyProfile: LoyaltyProfile | undefined = loyaltyData?.data;
+  const birthdayLocked = Boolean(loyaltyProfile?.birthday);
 
   // Populate fields once data arrives
   useEffect(() => {
-    if (meData?.user) {
-      setName( (meData.user as any).name  ?? '');
-      setPhone((meData.user as any).phone ?? '');
+    const apiUser: ApiUser | undefined = meData?.user;
+    if (apiUser) {
+      setName(apiUser.name ?? '');
+      setPhone(apiUser.phone ?? '');
     }
   }, [meData?.user?.name, meData?.user?.phone]);
 
   useEffect(() => {
-    const bd = (loyaltyData?.data as any)?.birthday;
+    const bd = loyaltyProfile?.birthday;
     if (bd) {
       const [y, m, d] = bd.split('-');
       setBirthday(`${d}/${m}/${y}`);
     }
-  }, [(loyaltyData?.data as any)?.birthday]);
+  }, [loyaltyProfile?.birthday]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -137,8 +141,8 @@ function EditDetailsContent() {
       Alert.alert('Saved!', 'Your details have been updated.', [
         { text: 'Done', onPress: () => router.back() },
       ]);
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Could not save your details. Please try again.');
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not save your details. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -286,15 +290,18 @@ function FieldRow({
   icon, label, value, onChangeText, placeholder, editable = true,
   dimmed = false, autoCapitalize, keyboardType, hint, returnKeyType,
 }: {
-  icon: string; label: string; value: string; onChangeText: (v: string) => void;
+  icon: FeatherIcon; label: string; value: string; onChangeText: (v: string) => void;
   placeholder?: string; editable?: boolean; dimmed?: boolean;
-  autoCapitalize?: any; keyboardType?: any; hint?: string; returnKeyType?: any;
+  autoCapitalize?: TextInputProps['autoCapitalize'];
+  keyboardType?: TextInputProps['keyboardType'];
+  hint?: string;
+  returnKeyType?: TextInputProps['returnKeyType'];
 }) {
   const iconBgs: Record<string, string> = { user: '#E0F5FE', mail: '#F3F4F6', phone: '#DCFCE7' };
   return (
     <View style={styles.fieldRow}>
       <View style={[styles.iconCircle, { backgroundColor: iconBgs[icon] ?? '#F3F4F6' }]}>
-        <Feather name={icon as any} size={16} color={editable ? BLUE : MUTED} />
+        <Feather name={icon} size={16} color={editable ? BLUE : MUTED} />
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={styles.fieldLabel}>{label}</Text>
