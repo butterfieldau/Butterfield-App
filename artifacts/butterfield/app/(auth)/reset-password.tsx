@@ -55,8 +55,8 @@ export default function ResetPasswordScreen() {
       await api.auth.resetPassword({ resetToken: resetToken ?? '', newPassword: password });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setDone(true);
-    } catch (e: any) {
-      setError(e.message ?? 'Something went wrong. Please start over.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Please start over.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);

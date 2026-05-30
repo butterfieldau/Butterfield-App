@@ -66,8 +66,8 @@ export default function VerifyOtpScreen() {
         pathname: '/(auth)/reset-password',
         params: { resetToken: res.resetToken, email: email ?? '' },
       });
-    } catch (e: any) {
-      setError(e.message ?? 'Invalid or expired code. Please try again.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Invalid or expired code. Please try again.');
       setOtp('');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {

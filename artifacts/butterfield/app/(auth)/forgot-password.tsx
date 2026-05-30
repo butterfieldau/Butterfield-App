@@ -69,8 +69,8 @@ export default function ForgotPasswordScreen() {
           devOtp:      res.devOtp ?? '',
         },
       });
-    } catch (e: any) {
-      setError(e.message ?? 'Something went wrong. Please try again.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
