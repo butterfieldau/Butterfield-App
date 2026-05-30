@@ -10,7 +10,15 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import {
+  api,
+  type ApiOrder,
+  type CrmBadge,
+  type CrmCustomer,
+  type CrmCustomerDetail,
+  type CrmNote,
+  type LoyaltyTransaction,
+} from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 
 const BG     = '#EFF6FF';
@@ -47,6 +55,21 @@ const BADGE_CFG: Record<string, { label: string; bg: string; text: string }> = {
 const MANUAL_BADGES = [
   'vip', 'high_spend', 'needs_follow_up', 'flagged', 'loyal', 'frequent_buyer', 'inactive', 'at_risk',
 ];
+type CustomerDetailProfile = NonNullable<CrmCustomer['profile']> & {
+  freeCoffeesEarned?: number | null;
+};
+
+type CustomerLoyaltyStats = {
+  totalEarnedPoints?: number | null;
+  totalRedeemedPoints?: number | null;
+};
+
+type CustomerDetail = Omit<CrmCustomerDetail, 'profile'> & {
+  profile?: CustomerDetailProfile | null;
+  loyaltyStats?: CustomerLoyaltyStats | null;
+  loyaltyTransactions?: LoyaltyTransaction[] | null;
+};
+
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
@@ -90,7 +113,7 @@ function statusLabel(s: string) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 // ── Shopify-style list row ────────────────────────────────────────────────────
-function ShopifyCustomerRow({ item, onPress, isLast }: { item: any; onPress: () => void; isLast: boolean }) {
+function ShopifyCustomerRow({ item, onPress, isLast }: { item: CrmCustomer; onPress: () => void; isLast: boolean }) {
   const loc = locationStr(item.suburb, item.state);
   return (
     <Pressable
@@ -142,8 +165,8 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
-  const customer = data?.data;
-  const startEdit = (c: any) => {
+  const customer: CustomerDetail | undefined = data?.data as CustomerDetail | undefined;
+  const startEdit = (c: CustomerDetail) => {
     setEName(c.name ?? '');
     setEPhone(c.phone ?? '');
     setEEmail(c.email ?? '');
@@ -162,7 +185,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
       refetch();
       qc.invalidateQueries({ queryKey: ['director-customers'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setSavingContact(false); }
   };
   const addNote = async () => {
@@ -171,7 +194,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
     try {
       await api.director.customers.addNote(customerId, noteText.trim());
       setNoteText('');
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setAddingNote(false); }
   };
   const deleteNote = (noteId: string) => {
@@ -179,7 +202,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try { await api.director.customers.deleteNote(customerId, noteId); refetch(); }
-        catch (e: any) { Alert.alert('Error', e.message); }
+        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
       }},
     ]);
   };
@@ -189,7 +212,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
     try {
       await api.director.customers.updateMarketing(customerId, val);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setTogglingMarketing(false); }
   };
   const addBadge = (badge: string) => {
@@ -197,7 +220,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
       { text: 'Cancel', style: 'cancel' },
       { text: 'Add', onPress: async () => {
         try { await api.director.customers.addBadge(customerId, badge); refetch(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }
-        catch (e: any) { Alert.alert('Error', (e as any).message); }
+        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
       }},
     ]);
   };
@@ -206,16 +229,16 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => {
         try { await api.director.customers.deleteBadge(customerId, badgeId); refetch(); }
-        catch (e: any) { Alert.alert('Error', (e as any).message); }
+        catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
       }},
     ]);
   };
-  const defaultAddr = customer?.addresses?.find((a: any) => a.isDefault) ?? customer?.addresses?.[0] ?? null;
+  const defaultAddr = customer?.addresses?.find((a) => a.isDefault) ?? customer?.addresses?.[0] ?? null;
   const loyaltyTier = customer?.profile?.loyaltyTier;
   const tierCfg     = TIER_CFG[loyaltyTier ?? ''] ?? null;
   const marketingOn = customer?.profile?.emailMarketingOptIn ?? false;
-  const manualSet   = new Set((customer?.manualBadges ?? []).map((m: any) => m.badge));
-  const allBadges   = customer?.badges ?? [];
+  const manualSet   = new Set((customer?.manualBadges ?? []).map((m) => m.badge));
+  const allBadges: string[] = customer?.badges ?? [];
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
@@ -245,17 +268,21 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                           Alert.alert('Done', `${customer.name} is now a staff member.`);
                           onClose(); onDelete?.();
-                        } catch (e: any) { Alert.alert('Error', e.message); }
+                        } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
                       }},
                     { text: 'Manager', onPress: async () => {
-                          await api.director.customers.promote(customerId, 'manager');
-                          Alert.alert('Done', `${customer.name} is now a manager.`);
-                          onClose(); onDelete?.();
+                          try {
+                            await api.director.customers.promote(customerId, 'manager');
+                            Alert.alert('Done', `${customer.name} is now a manager.`);
+                            onClose(); onDelete?.();
+                          } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
                         }},
                     { text: 'Director', onPress: async () => {
-                          await api.director.customers.promote(customerId, 'director');
-                          Alert.alert('Done', `${customer.name} is now a director.`);
-                          onClose(); onDelete?.();
+                          try {
+                            await api.director.customers.promote(customerId, 'director');
+                            Alert.alert('Done', `${customer.name} is now a director.`);
+                            onClose(); onDelete?.();
+                          } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
                         }},
                     { text: 'Cancel', style: 'cancel' },
                   ]
@@ -271,7 +298,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                         onClose();
                         onDelete?.();
-                      } catch (e: any) { Alert.alert('Error', e.message); }
+                      } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
                     }},
                     { text: 'Cancel', style: 'cancel' },
                   ])
@@ -336,7 +363,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 { label: 'Total orders',     value: String(customer.orderStats?.orderCount ?? 0) },
                 { label: 'Avg order',        value: customer.orderStats?.avgOrderCents ? fmtAUD(customer.orderStats.avgOrderCents) : '—' },
                 { label: 'Stamps so far',    value: `${customer.profile?.stampCount ?? 0} / 6` },
-                { label: '☕ Free coffees',  value: String((customer.profile as any)?.freeCoffeesEarned ?? 0) },
+                { label: '☕ Free coffees',  value: String(customer.profile?.freeCoffeesEarned ?? 0) },
               ].map((r, i, arr) => (
                 <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                   <Text style={det.infoLabel}>{r.label}</Text>
@@ -351,20 +378,20 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 { label: 'Current points',   value: String(customer.profile?.loyaltyPoints ?? 0) },
                 { label: 'Tier',             value: TIER_CFG[customer.profile?.loyaltyTier ?? '']?.label ?? 'Blue' },
                 { label: 'Stamps',           value: `${customer.profile?.stampCount ?? 0} / 6` },
-                { label: 'Points earned',    value: String((customer as any).loyaltyStats?.totalEarnedPoints ?? 0) },
-                { label: 'Points redeemed',  value: String((customer as any).loyaltyStats?.totalRedeemedPoints ?? 0) },
+                { label: 'Points earned',    value: String(customer.loyaltyStats?.totalEarnedPoints ?? 0) },
+                { label: 'Points redeemed',  value: String(customer.loyaltyStats?.totalRedeemedPoints ?? 0) },
               ].map((r, i, arr) => (
                 <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                   <Text style={det.infoLabel}>{r.label}</Text>
                   <Text style={det.infoValue}>{r.value}</Text>
                 </View>
               ))}
-              {((customer as any).loyaltyTransactions?.length ?? 0) > 0 && (
+              {(customer.loyaltyTransactions?.length ?? 0) > 0 && (
                 <>
                   <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 14, marginBottom: 6 }}>
                     Recent activity
                   </Text>
-                  {((customer as any).loyaltyTransactions as any[]).slice(0, 10).map((txn: any, i: number, arr: any[]) => {
+                  {customer.loyaltyTransactions?.slice(0, 10).map((txn, i, arr) => {
                     const pts = txn.points ?? 0;
                     const isEarn = pts >= 0;
                     return (
@@ -502,7 +529,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               )}
               {(addingNote || (customer.notes?.length ?? 0) > 0) && (
                 <View style={{ gap: 10 }}>
-                  {customer.notes?.map((note: any) => (
+                  {customer.notes?.map((note: CrmNote) => (
                     <View key={note.id} style={[det.noteCard, { borderColor: BORDER }]}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                         <View>
@@ -550,9 +577,9 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               </View>
               {allBadges.length > 0 ? (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {allBadges.map((b: string) => {
+                  {allBadges.map((b) => {
                     const cfg = BADGE_CFG[b] ?? { label: b, bg: BG, text: MUTED };
-                    const mb  = customer.manualBadges.find((m: any) => m.badge === b);
+                    const mb  = customer.manualBadges.find((m: CrmBadge) => m.badge === b);
                     if (mb) {
                       return (
                         <Pressable key={b} onPress={() => removeBadge(mb.id, b)}
@@ -620,7 +647,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 </View>
               ) : (
                 <View style={{ gap: 0 }}>
-                  {customer.orders?.map((order: any, i: number) => {
+                  {customer.orders?.map((order: ApiOrder, i: number) => {
                     const statusColor = STATUS_ORDER_COLOR[order.status] ?? MUTED;
                     const items = normalizeOrderItems(order.items);
                     const isLast = i === (customer.orders.length - 1);
@@ -669,7 +696,7 @@ export default function DirectorCustomersScreen() {
     queryKey: ['director-customers', search],
     queryFn:  () => api.director.customers.list({ search }),
   });
-  const customers: any[] = (data as any)?.data ?? [];
+  const customers: CrmCustomer[] = data?.data ?? [];
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => { setRefreshing(true); await refetch(); setRefreshing(false); };
   return (
