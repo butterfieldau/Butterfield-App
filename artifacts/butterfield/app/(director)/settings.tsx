@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -10,7 +10,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api, type DirectorReward, type DirectorProduct, type DirectorAnnouncement, type HomeBannerConfig } from '@/lib/api';
+import {
+  api,
+  type ApiUser,
+  type DirectorAnnouncement,
+  type DirectorProduct,
+  type DirectorReward,
+  type DirectorUserSummary,
+  type HomeBannerConfig,
+  type StoreHour,
+  type StoreSummary,
+} from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +43,17 @@ type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Managers' | 'Director
 const REWARD_CATEGORIES = ['food', 'drink', 'discount', 'experience', 'merchandise'];
 const TARGET_ROLES      = ['customer', 'staff', 'wholesale'];
 
+type FeatherIconName = ComponentProps<typeof Feather>['name'];
+type RewardType = DirectorReward['rewardType'];
+
+function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
+
 // ─── Banner Tab ───────────────────────────────────────────────────────────────
 const BANNER_ROUTE_OPTIONS = [
   { value: 'menu',    label: 'Menu (order cookies)' },
@@ -50,7 +71,7 @@ function BannerTab() {
     queryKey: ['director-home-banner'],
     queryFn:  () => api.director.homeBanner(),
   });
-  const banner = data?.data;
+  const banner: HomeBannerConfig | undefined = data?.data;
 
   const [isActive,        setIsActive]        = useState(false);
   const [imageUrl,        setImageUrl]        = useState('');
@@ -86,8 +107,8 @@ function BannerTab() {
       const { servingUrl } = await api.storage.uploadFile(asset.uri, name, mime);
       setImageUrl(servingUrl);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message ?? 'Could not upload image.');
+    } catch (e) {
+      Alert.alert('Upload failed', getErrorMessage(e, 'Could not upload image.'));
     } finally { setUploading(false); }
   };
 
@@ -121,8 +142,8 @@ function BannerTab() {
       await qc.invalidateQueries({ queryKey: ['director-home-banner'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Saved', 'Home banner updated. Customers will see the change immediately.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
     } finally { setSaving(false); }
   };
 
@@ -365,8 +386,8 @@ function StoreTab() {
       await qc.invalidateQueries({ queryKey: ['director-settings', 'welcome-config'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Uploaded', 'Welcome screen background updated.');
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
+    } catch (e) {
+      Alert.alert('Upload failed', getErrorMessage(e));
     } finally { setUploadingWelcome(false); }
   };
 
@@ -380,8 +401,8 @@ function StoreTab() {
       await qc.invalidateQueries({ queryKey: ['director-settings'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Saved', 'Settings updated successfully.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
     } finally { setSaving(false); }
   };
 
@@ -462,7 +483,7 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 const DAY_SHORT  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Mon → Sun
 
-interface HourRow {
+interface HourRow extends StoreHour {
   dayOfWeek: number;
   openTime:  string;
   closeTime: string;
@@ -537,7 +558,7 @@ function StoreHoursSection() {
     queryKey: ['director-stores-list'],
     queryFn:  () => api.director.storesList(),
   });
-  const stores: any[] = storesData?.data ?? [];
+  const stores: StoreSummary[] = storesData?.data ?? [];
 
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [hours,  setHours]  = useState<HourRow[]>(defaultHours());
@@ -553,7 +574,7 @@ function StoreHoursSection() {
 
   useEffect(() => {
     if (hoursData?.data && hoursData.data.length > 0) {
-      const fetched: HourRow[] = hoursData.data.map((r: any) => ({
+      const fetched: HourRow[] = hoursData.data.map((r: StoreHour) => ({
         dayOfWeek: r.dayOfWeek,
         openTime:  r.openTime  ?? '08:00',
         closeTime: r.closeTime ?? '17:00',
@@ -598,8 +619,8 @@ function StoreHoursSection() {
       await qc.invalidateQueries({ queryKey: ['stores'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Saved', 'Trading hours updated. The store info sheet will reflect these changes immediately.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to save trading hours.');
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e, 'Failed to save trading hours.'));
     } finally { setSaving(false); }
   };
 
@@ -631,7 +652,7 @@ function StoreHoursSection() {
         <>
           <Text style={[styles.fieldLabel, { marginBottom: 4 }]}>Select store</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4, alignItems: 'flex-start' }}>
-            {stores.map((s: any) => (
+            {stores.map((s) => (
               <Pressable
                 key={s.id}
                 onPress={() => { setSelectedStoreId(s.id); Haptics.selectionAsync(); }}
@@ -850,7 +871,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       setName(reward.name); setDesc(reward.description); setPts(String(reward.pointsCost));
       setCategory(reward.category); setStock(reward.stock != null ? String(reward.stock) : '');
       setIsAppOnly(reward.isAppOnly); setIsActive(reward.isActive);
-      setRewardType((reward.rewardType as any) ?? 'item_reward');
+      setRewardType(reward.rewardType ?? 'item_reward');
       setVoucherDollars(reward.voucherValueCents ? String(reward.voucherValueCents / 100) : '');
       setLinkedProductId(reward.linkedProductId ?? '');
       setCustomerRedeemable(reward.customerRedeemable !== false);
@@ -880,7 +901,20 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
         ? Math.round(parseFloat(voucherDollars) * 100)
         : null;
       const parsedExpiryDays = claimExpiryDays.trim() ? parseInt(claimExpiryDays.trim(), 10) : null;
-      const payload: Record<string, any> = {
+      const payload: {
+        name: string;
+        description: string;
+        pointsCost: number;
+        category: string;
+        stock: number | null;
+        isAppOnly: boolean;
+        isActive: boolean;
+        rewardType: RewardType;
+        voucherValueCents: number | null;
+        linkedProductId: string | null;
+        customerRedeemable: boolean;
+        claimExpiryDays: number | null;
+      } = {
         name: name.trim(), description: desc.trim(), pointsCost, category,
         stock: stock ? parseInt(stock, 10) : null, isAppOnly, isActive,
         rewardType,
@@ -893,8 +927,8 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       else            await api.director.createReward(payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSuccess();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(getErrorMessage(e));
     } finally { setLoading(false); }
   };
 
@@ -1293,8 +1327,8 @@ function AnnouncementModal({ visible, announcement, onClose, onSuccess }: {
       else                   await api.director.createAnnouncement(payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSuccess();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(getErrorMessage(e));
     } finally { setLoading(false); }
   };
 
@@ -1479,6 +1513,9 @@ const ALL_PERMISSIONS = [
 const INDIGO = '#3730A3';
 
 interface ManagerFormData { name: string; email: string; password: string; notes: string }
+type ManagerFormFieldKey = keyof ManagerFormData;
+type DirectorFormData = { name: string; email: string; password: string };
+type DirectorFormFieldKey = keyof DirectorFormData;
 
 function ManagersTab() {
   const qc = useQueryClient();
@@ -1487,7 +1524,7 @@ function ManagersTab() {
     queryFn: () => api.director.managers.list(),
   });
 
-  const managers = data?.data ?? [];
+  const managers: DirectorUserSummary[] = data?.data ?? [];
 
   const [createModal, setCreateModal] = useState(false);
   const [form, setForm] = useState<ManagerFormData>({ name: '', email: '', password: '', notes: '' });
@@ -1515,8 +1552,8 @@ function ManagersTab() {
       setCreateModal(false);
       setForm({ name: '', email: '', password: '', notes: '' });
       setFormPerms([]);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
     } finally { setCreating(false); }
   };
 
@@ -1527,8 +1564,8 @@ function ManagersTab() {
       await qc.invalidateQueries({ queryKey: ['director-managers'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditingId(null);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
     } finally { setSavingPerms(false); }
   };
 
@@ -1540,7 +1577,7 @@ function ManagersTab() {
           await api.director.managers.delete(id);
           await qc.invalidateQueries({ queryKey: ['director-managers'] });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        } catch (e: any) { Alert.alert('Error', e.message); }
+        } catch (e) { Alert.alert('Error', getErrorMessage(e)); }
       }},
     ]);
   };
@@ -1562,7 +1599,7 @@ function ManagersTab() {
             <Text style={styles.emptyText}>No managers yet. Add one above.</Text>
           </View>
         ) : (
-          managers.map((m: any) => (
+          managers.map((m) => (
             <View key={m.id} style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
@@ -1584,7 +1621,7 @@ function ManagersTab() {
                   {ALL_PERMISSIONS.map(p => (
                     <View key={p.key} style={styles.switchRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Feather name={p.icon as any} size={14} color={INDIGO} />
+                        <Feather name={p.icon as FeatherIconName} size={14} color={INDIGO} />
                         <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>{p.label}</Text>
                       </View>
                       <Switch
@@ -1654,7 +1691,7 @@ function ManagersTab() {
                 <View key={field.key} style={{ gap: 6 }}>
                   <Text style={styles.fieldLabel}>{field.label}</Text>
                   <TextInput
-                    value={(form as any)[field.key]}
+                    value={form[field.key as ManagerFormFieldKey]}
                     onChangeText={v => setForm(p => ({ ...p, [field.key]: v }))}
                     placeholder={field.placeholder}
                     placeholderTextColor={MUTED}
@@ -1668,7 +1705,7 @@ function ManagersTab() {
               {ALL_PERMISSIONS.map(p => (
                 <View key={p.key} style={styles.switchRow}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Feather name={p.icon as any} size={14} color={INDIGO} />
+                    <Feather name={p.icon as FeatherIconName} size={14} color={INDIGO} />
                     <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>{p.label}</Text>
                   </View>
                   <Switch
@@ -1697,10 +1734,10 @@ function DirectorsTab() {
     queryKey: ['master-directors'],
     queryFn: () => api.director.directors.list(),
   });
-  const directors = data?.data ?? [];
+  const directors: DirectorUserSummary[] = data?.data ?? [];
 
   const [createModal, setCreateModal] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState<DirectorFormData>({ name: '', email: '', password: '' });
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
@@ -1717,8 +1754,8 @@ function DirectorsTab() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCreateModal(false);
       setForm({ name: '', email: '', password: '' });
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
     } finally { setCreating(false); }
   };
 
@@ -1730,7 +1767,7 @@ function DirectorsTab() {
           await api.director.directors.delete(id);
           await qc.invalidateQueries({ queryKey: ['master-directors'] });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        } catch (e: any) { Alert.alert('Error', e.message); }
+        } catch (e) { Alert.alert('Error', getErrorMessage(e)); }
       }},
     ]);
   };
@@ -1762,7 +1799,7 @@ function DirectorsTab() {
             <Text style={styles.emptyText}>No directors yet. Add one above.</Text>
           </View>
         ) : (
-          directors.map((d: any) => (
+          directors.map((d) => (
             <View key={d.id} style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <View style={{ flex: 1 }}>
@@ -1808,7 +1845,7 @@ function DirectorsTab() {
                 <View key={field.key} style={{ gap: 6 }}>
                   <Text style={styles.fieldLabel}>{field.label}</Text>
                   <TextInput
-                    value={(form as any)[field.key]}
+                    value={form[field.key as DirectorFormFieldKey]}
                     onChangeText={v => setForm(p => ({ ...p, [field.key]: v }))}
                     placeholder={field.placeholder}
                     placeholderTextColor={MUTED}
@@ -1838,10 +1875,10 @@ export default function DirectorSettingsScreen() {
     queryFn: () => api.auth.me(),
     enabled: isManager,
   });
-  const managerPerms: string[] = useMemo(
-    () => (meData?.user as any)?.managerPermissions ?? [],
-    [meData],
-  );
+  const managerPerms: string[] = useMemo(() => {
+    const user = meData?.user as (ApiUser & { managerPermissions?: string[] }) | undefined;
+    return user?.managerPermissions ?? [];
+  }, [meData]);
 
   const TABS = useMemo<TabKey[]>(() => {
     const base: TabKey[] = ['Store'];
