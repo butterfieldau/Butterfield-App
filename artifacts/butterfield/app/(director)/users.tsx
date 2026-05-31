@@ -649,7 +649,38 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   </View>
                 </View>
               )}
-              {/* ── Promote to Director — master accounts only ───────── */}
+              {/* ── Promote to Manager / Director ────────────────────── */}
+              {u?.role === 'staff' && (
+                <Pressable
+                  style={[sp_s.promoteBtn, { borderColor: GREEN }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    Alert.alert(
+                      'Promote to Manager',
+                      `Give ${u?.name ?? 'this staff member'} manager access?\n\nThey will move into the manager/director-style portal and you can fine-tune their permissions from Roles & Permissions straight after.`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Promote', onPress: async () => {
+                          if (!userId) return;
+                          try {
+                            await api.director.customers.promote(userId, 'manager');
+                            await qc.invalidateQueries({ queryKey: ['director-users'] });
+                            await qc.invalidateQueries({ queryKey: ['director-managers'] });
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            handleClose();
+                            onRefresh();
+                            Alert.alert('Promoted', `${u?.name ?? 'Staff member'} is now a manager. You can adjust their permissions in Roles & Permissions.`);
+                          } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
+                        }},
+                      ]
+                    );
+                  }}
+                >
+                  <Feather name="arrow-up-right" size={15} color={GREEN} />
+                  <Text style={[sp_s.promoteBtnText, { color: GREEN }]}>Promote to Manager</Text>
+                </Pressable>
+              )}
+
               {isMaster && (
                 <Pressable
                   style={sp_s.promoteBtn}

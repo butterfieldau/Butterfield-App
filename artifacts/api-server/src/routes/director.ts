@@ -1742,7 +1742,27 @@ router.post('/managers', async (req, res) => {
   const { name, email, password, permissions = [], notes } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (existing) return res.status(409).json({ error: 'An account with this email already exists.' });
+  if (existing) {
+    if (existing.role === 'staff') {
+      await db.update(usersTable)
+        .set({ role: 'manager' as any, name, updatedAt: new Date() })
+        .where(eq(usersTable.id, existing.id));
+      await db.insert(managerProfilesTable).values({
+        userId: existing.id,
+        permissions: JSON.stringify(permissions),
+        createdByUserId: req.user!.id,
+        notes: notes ?? null,
+      }).onConflictDoUpdate({
+        target: managerProfilesTable.userId,
+        set: {
+          permissions: JSON.stringify(permissions),
+          notes: notes ?? null,
+        },
+      });
+      return res.status(201).json({ data: { id: existing.id, name, email: email.toLowerCase(), permissions, notes } });
+    }
+    return res.status(409).json({ error: 'An account with this email already exists.' });
+  }
   const passwordHash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
   await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'manager', name });

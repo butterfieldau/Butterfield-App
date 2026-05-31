@@ -587,9 +587,9 @@ function DirectorDashboardInner() {
                 <QuickBtn icon="package"      label="Add Wholesale" color={GREEN}   onPress={() => router.navigate('/(director)/users' as any)} />
                 <QuickBtn icon="shopping-bag" label="View Orders"   color={AMBER}   onPress={() => router.navigate('/(director)/orders' as any)} />
                 <QuickBtn icon="clipboard"    label="Tasks"         color={BLUE}    onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
-                <QuickBtn icon="bell"         label="Notify"        color="#06B6D4" onPress={() => router.push({ pathname: '/(director)/settings', params: { tab: 'Notify' } } as any)} />
+                <QuickBtn icon="bell"         label="Notify"        color="#06B6D4" onPress={() => router.push('/(director)/settings-notify' as any)} />
                 <QuickBtn icon="bar-chart-2"  label="Reports"       color={NAVY}    onPress={() => router.navigate('/(director)/reports' as any)} />
-                <QuickBtn icon="settings"     label="Settings"      color={MUTED}   onPress={() => router.navigate('/(director)/settings' as any)} />
+                <QuickBtn icon="settings"     label="Settings"      color={MUTED}   onPress={() => router.navigate('/(director)/more' as any)} />
               </View>
             </View>
 

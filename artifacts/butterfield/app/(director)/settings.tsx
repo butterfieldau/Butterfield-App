@@ -8,11 +8,10 @@ import {
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   api,
-  type ApiUser,
   type DirectorAnnouncement,
   type DirectorProduct,
   type DirectorReward,
@@ -23,7 +22,6 @@ import {
 } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
-import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -1879,61 +1877,28 @@ export function DirectorsTab() {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorSettingsScreen() {
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const { user } = useAuth();
-  const isMaster  = user?.role === 'master';
-  const isManager = user?.role === 'manager';
+  const tab = (tabParam ?? '').toString() as TabKey | '';
 
-  // Fetch manager permissions so we can conditionally show the Banner tab
-  const { data: meData } = useQuery({
-    queryKey: ['me'],
-    queryFn: () => api.auth.me(),
-    enabled: isManager,
-  });
-  const managerPerms: string[] = useMemo(() => {
-    const user = meData?.user as (ApiUser & { managerPermissions?: string[] }) | undefined;
-    return user?.managerPermissions ?? [];
-  }, [meData]);
+  if (tab === 'Store') {
+    return <Redirect href="/(director)/stores" />;
+  }
+  if (tab === 'Banner') {
+    return <Redirect href="/(director)/settings-banner" />;
+  }
+  if (tab === 'Rewards') {
+    return <Redirect href="/(director)/settings-rewards" />;
+  }
+  if (tab === 'Notify') {
+    return <Redirect href="/(director)/settings-notify" />;
+  }
+  if (tab === 'Managers') {
+    return <Redirect href="/(director)/settings-managers" />;
+  }
+  if (tab === 'Directors') {
+    return <Redirect href="/(director)/settings-directors" />;
+  }
 
-  const TABS = useMemo<TabKey[]>(() => {
-    const base: TabKey[] = ['Store'];
-    // Banner tab: always for director/master; for managers only if granted 'banners' permission
-    if (!isManager || managerPerms.includes('banners')) base.push('Banner');
-    base.push('Rewards', 'Notify');
-    if (!isManager) base.push('Managers');
-    if (isMaster) base.push('Directors');
-    return base;
-  }, [isManager, isMaster, managerPerms]);
-
-  const [tab, setTab] = useState<TabKey>('Store');
-
-  // Jump to the requested tab when navigated from More screen
-  useEffect(() => {
-    if (tabParam && (TABS as readonly string[]).includes(tabParam)) {
-      setTab(tabParam as TabKey);
-    }
-  }, [tabParam, TABS]);
-
-  return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Settings</Text>
-      </View>
-      <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
-        {(TABS as readonly string[]).map(t => (
-          <Pressable key={t} style={[styles.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
-            onPress={() => { setTab(t as TabKey); Haptics.selectionAsync(); }}>
-            <Text style={[styles.tabText, { color: tab === t ? BLUE : MUTED }]} numberOfLines={1}>{t}</Text>
-          </Pressable>
-        ))}
-      </View>
-      {tab === 'Store'     && <StoreTab />}
-      {tab === 'Banner'    && <BannerTab />}
-      {tab === 'Rewards'   && <RewardsTab />}
-      {tab === 'Notify'    && <NotifyTab />}
-      {tab === 'Managers'  && <ManagersTab />}
-      {tab === 'Directors' && <DirectorsTab />}
-    </View>
-  );
+  return <Redirect href="/(director)/more" />;
 }
 
 const styles = StyleSheet.create({

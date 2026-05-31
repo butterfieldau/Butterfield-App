@@ -286,6 +286,9 @@ export default function DirectorRolesSettingsPage() {
             <Feather name="user-plus" size={17} color="#fff" />
             <Text style={styles.primaryBtnText}>Create New Manager Account</Text>
           </Pressable>
+          <Text style={{ fontSize: 12, color: MUTED, lineHeight: 18, marginTop: -6 }}>
+            If the email already belongs to a staff account, we now restore that person back into manager access instead of leaving them stranded.
+          </Text>
 
           <SectionTitle>STAFF TO PROMOTE</SectionTitle>
           {staffCandidates.length === 0 ? (
