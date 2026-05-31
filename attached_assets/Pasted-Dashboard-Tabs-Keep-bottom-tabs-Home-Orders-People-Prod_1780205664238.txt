@@ -1,0 +1,136 @@
+Dashboard Tabs
+
+Keep bottom tabs:
+
+* Home
+* Orders
+* People
+* Products
+* More
+
+That’s perfect.
+
+More
+
+SALES & MARKETING
+
+* Reports
+    * Revenue
+    * Sales Trends
+    * Top Products
+    * Customer Analytics
+* Discount Codes
+    * Coupons
+    * Promotions
+    * Campaigns
+* Rewards & Loyalty
+    * Loyalty Tiers
+    * Rewards
+    * Coffee Stamps
+    * Referral Program
+* Banners & Promotions
+    * Homepage Banners
+    * Featured Products
+    * App Promotions
+* Announcements
+    * Push Notifications
+    * In-App Messages
+
+⸻
+
+OPERATIONS
+
+* Store Settings
+    * Open / Close Store
+    * Daily Special
+    * Pickup Settings
+    * Delivery Settings
+* Store Locations
+    * Locations
+    * Trading Hours
+    * Geofence
+* Stock & Inventory
+    * Inventory Levels
+    * Stock Movements
+    * Purchase Orders
+    * Low Stock Alerts
+* Timesheets
+    * Staff Hours
+    * Payroll Export
+    * Attendance
+
+⸻
+
+PEOPLE
+
+* Customers
+    * Customer Profiles
+    * CRM
+    * Loyalty History
+    * Customer Notes
+* People & Accounts
+    * Staff
+    * Managers
+    * Wholesale Accounts
+    * Customer Accounts
+* Manager Access
+    * Roles
+    * Permissions
+    * Portal Access
+
+⸻
+
+WHOLESALE
+
+Move Pricing & Tiers into its own section.
+
+* Pricing & Tiers
+    * Wholesale Tiers
+    * Quantity Breaks
+    * Customer Pricing
+    * Credit Limits
+    * Account Managers
+
+As Butterfield grows this will become a huge area and deserves its own category.
+
+⸻
+
+SYSTEM
+
+* Notification Settings
+* Integrations
+    * Square
+    * Shopify
+    * Xero
+    * Google
+* App Settings
+* Security
+* Audit Logs
+
+⸻
+
+Biggest change I’d make
+
+I’d remove “My Notification Settings” from the Director Portal completely.
+
+That is a personal setting, not a business management tool.
+
+Move it into the user profile when they tap their name/avatar.
+
+That immediately makes the Director Portal feel more professional.
+
+Even better
+
+Instead of showing 12-15 rows in More, use cards:
+
+🟦 Sales & Marketing
+
+🟩 Operations
+
+🟪 People
+
+🟨 Wholesale
+
+⚫ System
+
+Tap the card → opens the section.
