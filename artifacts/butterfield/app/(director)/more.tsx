@@ -17,8 +17,9 @@ const BORD  = '#E5E7EB';
 const RED   = '#EF4444';
 
 function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) {
-  const realCount = cat.items.filter(i => !i.soon).length;
-  const soonCount = cat.items.filter(i => i.soon).length;
+  const allItems  = cat.groups.flatMap(g => g.items);
+  const realCount = allItems.filter(i => !i.soon).length;
+  const soonCount = allItems.filter(i =>  i.soon).length;
 
   return (
     <Pressable
@@ -35,7 +36,9 @@ function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) 
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
           {realCount > 0 && (
             <View style={[s.badge, { backgroundColor: cat.color + '18' }]}>
-              <Text style={[s.badgeText, { color: cat.color }]}>{realCount} {realCount === 1 ? 'tool' : 'tools'}</Text>
+              <Text style={[s.badgeText, { color: cat.color }]}>
+                {cat.groups.length} {cat.groups.length === 1 ? 'section' : 'sections'}
+              </Text>
             </View>
           )}
           {soonCount > 0 && (
@@ -91,7 +94,9 @@ export default function MoreScreen() {
           <CategoryCard
             key={cat.key}
             cat={cat}
-            onPress={() => router.push({ pathname: '/(director)/more-category', params: { key: cat.key } } as any)}
+            onPress={() =>
+              router.push({ pathname: '/(director)/more-category', params: { key: cat.key } } as any)
+            }
           />
         ))}
 
@@ -119,10 +124,10 @@ export default function MoreScreen() {
 }
 
 const s = StyleSheet.create({
-  header:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 },
-  title:     { fontSize: 30, fontWeight: '700', color: TEXT, marginBottom: 4 },
-  sub:       { fontSize: 14, color: MUTED },
-  footer:    { textAlign: 'center', fontSize: 12, color: BORD, marginTop: 16, marginBottom: 8 },
+  header:   { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 },
+  title:    { fontSize: 30, fontWeight: '700', color: TEXT, marginBottom: 4 },
+  sub:      { fontSize: 14, color: MUTED },
+  footer:   { textAlign: 'center', fontSize: 12, color: BORD, marginTop: 16, marginBottom: 8 },
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
