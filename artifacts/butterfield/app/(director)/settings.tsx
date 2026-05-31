@@ -22,6 +22,7 @@ import {
 } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -64,23 +65,10 @@ const BANNER_ROUTE_OPTIONS = [
 ];
 
 export function SettingsStandaloneScreen({ title, children }: { title: string; children: ReactNode }) {
-  const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <Pressable
-        onPress={() => { Haptics.selectionAsync(); router.back(); }}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 4 }}
-      >
-        <Feather name="chevron-left" size={20} color={BLUE} />
-        <Text style={{ fontSize: 15, fontWeight: '600', color: BLUE }}>More</Text>
-      </Pressable>
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>{title}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        {children}
-      </View>
-    </View>
+    <DirectorStandaloneScreen title={title}>
+      {children}
+    </DirectorStandaloneScreen>
   );
 }
 

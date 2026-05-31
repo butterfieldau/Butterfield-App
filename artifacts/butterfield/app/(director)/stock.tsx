@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
 import { api, type StockCategory, type StockItem, type StockItemInput } from '@/lib/api';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -558,93 +559,81 @@ export default function StockScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: insets.top + 20 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable onPress={() => router.back()} style={s.backBtn}>
-            <Feather name="chevron-left" size={20} color={NAVY} />
+    <DirectorStandaloneScreen
+      title="Stock & Inventory"
+      subtitle={lowCount > 0 ? `⚠ ${lowCount} item${lowCount > 1 ? 's' : ''} need attention` : undefined}
+      headerRight={isDirector ? (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
+            style={s.manageBtn}
+          >
+            <Feather name="tag" size={16} color={NAVY} />
           </Pressable>
-          <View style={{ flex: 1 }}>
-            <Text style={s.title}>Stock & Inventory</Text>
-            {lowCount > 0 && (
-              <Text style={{ fontSize: 12, color: AMBER, fontWeight: '600', marginTop: 1 }}>
-                ⚠ {lowCount} item{lowCount > 1 ? 's' : ''} need attention
-              </Text>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
+            style={s.addBtn}
+          >
+            <Feather name="plus" size={18} color="#fff" />
+            <Text style={s.addBtnTxt}>Add</Text>
+          </Pressable>
+        </View>
+      ) : undefined}
+      headerBottom={
+        <View style={s.header}>
+          {/* Search */}
+          <View style={s.searchBox}>
+            <Feather name="search" size={15} color={MUTED} />
+            <TextInput
+              style={s.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search items or supplier…"
+              placeholderTextColor={MUTED}
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => setSearch('')}>
+                <Feather name="x-circle" size={15} color={MUTED} />
+              </Pressable>
             )}
           </View>
-          {isDirector && (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+
+          {/* Category filter — only categories with items */}
+          {(activeCatIds.length > 0 || items.length > 0) && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
               <Pressable
-                onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
-                style={s.manageBtn}
+                key="all"
+                onPress={() => { Haptics.selectionAsync(); setCatFilter('all'); }}
+                style={[s.catTab, catFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}
               >
-                <Feather name="tag" size={16} color={NAVY} />
+                <Text style={[s.catTabTxt, catFilter === 'all' && { color: '#fff' }]}>All</Text>
+                <View style={[s.catCount, catFilter === 'all' && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
+                  <Text style={[s.catCountTxt, catFilter === 'all' && { color: '#fff' }]}>{items.length}</Text>
+                </View>
               </Pressable>
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
-                style={s.addBtn}
-              >
-                <Feather name="plus" size={18} color="#fff" />
-                <Text style={s.addBtnTxt}>Add</Text>
-              </Pressable>
-            </View>
+              {activeCatIds.map((catId) => {
+                const active = catFilter === catId;
+                const color  = catColor(catId);
+                const count  = items.filter((i) => i.category === catId).length;
+                const label  = catLabel(catId);
+                return (
+                  <Pressable
+                    key={catId}
+                    onPress={() => { Haptics.selectionAsync(); setCatFilter(catId); }}
+                    style={[s.catTab, active && { backgroundColor: color, borderColor: color }]}
+                  >
+                    <Text style={[s.catTabTxt, active && { color: '#fff' }]}>{label}</Text>
+                    <View style={[s.catCount, active && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
+                      <Text style={[s.catCountTxt, active && { color: '#fff' }]}>{count}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           )}
         </View>
-
-        {/* Search */}
-        <View style={s.searchBox}>
-          <Feather name="search" size={15} color={MUTED} />
-          <TextInput
-            style={s.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search items or supplier…"
-            placeholderTextColor={MUTED}
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')}>
-              <Feather name="x-circle" size={15} color={MUTED} />
-            </Pressable>
-          )}
-        </View>
-
-        {/* Category filter — only categories with items */}
-        {(activeCatIds.length > 0 || items.length > 0) && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-            {/* All tab */}
-            <Pressable
-              key="all"
-              onPress={() => { Haptics.selectionAsync(); setCatFilter('all'); }}
-              style={[s.catTab, catFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}
-            >
-              <Text style={[s.catTabTxt, catFilter === 'all' && { color: '#fff' }]}>All</Text>
-              <View style={[s.catCount, catFilter === 'all' && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                <Text style={[s.catCountTxt, catFilter === 'all' && { color: '#fff' }]}>{items.length}</Text>
-              </View>
-            </Pressable>
-            {/* One tab per category that has items */}
-            {activeCatIds.map((catId) => {
-              const active = catFilter === catId;
-              const color  = catColor(catId);
-              const count  = items.filter((i) => i.category === catId).length;
-              const label  = catLabel(catId);
-              return (
-                <Pressable
-                  key={catId}
-                  onPress={() => { Haptics.selectionAsync(); setCatFilter(catId); }}
-                  style={[s.catTab, active && { backgroundColor: color, borderColor: color }]}
-                >
-                  <Text style={[s.catTabTxt, active && { color: '#fff' }]}>{label}</Text>
-                  <View style={[s.catCount, active && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                    <Text style={[s.catCountTxt, active && { color: '#fff' }]}>{count}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        )}
-      </View>
+      }
+    >
 
       {/* ── Stats strip ── */}
       {items.length > 0 && (
@@ -740,7 +729,7 @@ export default function StockScreen() {
           onDeleted={handleDeleteCategory}
         />
       )}
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

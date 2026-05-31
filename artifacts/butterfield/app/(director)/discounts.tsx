@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -284,20 +285,17 @@ export default function DirectorDiscountsScreen() {
         : '';
 
   return (
-    <View style={s.root}>
-      <View style={s.header}>
-        <View style={s.headerRow}>
-          <View>
-            <Text style={s.headerTitle}>Discount Codes</Text>
-            <Text style={s.headerSub}>Create and manage promotional codes</Text>
-          </View>
-          <Pressable onPress={openCreate} style={s.addBtn}>
-            <Feather name="plus" size={16} color="#fff" />
-            <Text style={s.addBtnText}>New Code</Text>
-          </Pressable>
-        </View>
-
-        <View style={s.filterRow}>
+    <DirectorStandaloneScreen
+      title="Discount Codes"
+      subtitle="Create and manage promotional codes"
+      headerRight={
+        <Pressable onPress={openCreate} style={s.addBtn}>
+          <Feather name="plus" size={16} color="#fff" />
+          <Text style={s.addBtnText}>New Code</Text>
+        </Pressable>
+      }
+      headerBottom={
+        <View style={[s.filterRow, { paddingHorizontal: 16 }]}>
           {(['all', 'active', 'inactive'] as const).map((f) => (
             <Pressable
               key={f}
@@ -310,7 +308,8 @@ export default function DirectorDiscountsScreen() {
             </Pressable>
           ))}
         </View>
-      </View>
+      }
+    >
 
       {isLoading ? (
         <View style={s.loadingWrap}>
@@ -563,7 +562,7 @@ export default function DirectorDiscountsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

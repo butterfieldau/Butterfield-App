@@ -8,12 +8,13 @@ import {
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { StoreDetail, StoreHour, StoreSummary } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -747,7 +748,6 @@ function StoreEditorModal({
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorStoresScreen() {
-  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [editingStore, setEditingStore] = useState<StoreDetail | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -775,18 +775,16 @@ export default function DirectorStoresScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Header */}
-      <View style={[s.header, { paddingTop: insets.top + 20 }]}>
-        <View>
-          <Text style={s.headerTitle}>Store Locations</Text>
-          <Text style={s.headerSub}>{stores.length} location{stores.length !== 1 ? 's' : ''} configured</Text>
-        </View>
+    <DirectorStandaloneScreen
+      title="Store Locations"
+      subtitle={`${stores.length} location${stores.length !== 1 ? 's' : ''} configured`}
+      headerRight={
         <Pressable style={s.addBtn} onPress={openAdd}>
           <Feather name="plus" size={18} color="#fff" />
           <Text style={s.addBtnText}>Add Store</Text>
         </Pressable>
-      </View>
+      }
+    >
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -822,7 +820,7 @@ export default function DirectorStoresScreen() {
         onClose={() => setShowEditor(false)}
         onSaved={onRefreshStores}
       />
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

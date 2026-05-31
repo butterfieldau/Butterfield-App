@@ -9,9 +9,9 @@ import {
   TextInput, View,
 } from 'react-native';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { api, getToken, type DirectorFeedback } from '@/lib/api';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -531,16 +531,11 @@ function FeedbackTab() {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function DirectorReportsScreen() {
-  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<TabKey>('Revenue');
   const [showDownload, setShowDownload] = useState(false);
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Reports</Text>
-      </View>
+    <DirectorStandaloneScreen title="Reports">
       {/* Sub-tab bar */}
       <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
         {TABS.map(t => (
@@ -558,7 +553,7 @@ export default function DirectorReportsScreen() {
       {tab === 'Feedback' && <FeedbackTab />}
 
       <DownloadReportModal visible={showDownload} onClose={() => setShowDownload(false)} />
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorShift } from '@/lib/api';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useAuth } from '@/context/AuthContext';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -471,27 +472,27 @@ export default function DirectorTimesheetsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <DirectorStandaloneScreen
+      title="Staff Hours"
+      headerRight={
+        <Pressable
+          onPress={handleExport}
+          disabled={exporting || filtered.filter(s => s.clockOut).length === 0}
+          style={[styles.exportBtn, { backgroundColor: BLUE, opacity: filtered.filter(s => s.clockOut).length === 0 ? 0.4 : 1 }]}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <><Feather name="download" size={14} color="#fff" /><Text style={styles.exportBtnText}>Export</Text></>}
+        </Pressable>
+      }
+    >
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
-        {/* ── Header ──────────────────────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: 16 }]}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Timesheet</Text>
-            <Pressable
-              onPress={handleExport}
-              disabled={exporting || filtered.filter(s => s.clockOut).length === 0}
-              style={[styles.exportBtn, { backgroundColor: BLUE, opacity: filtered.filter(s => s.clockOut).length === 0 ? 0.4 : 1 }]}
-            >
-              {exporting
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <><Feather name="download" size={14} color="#fff" /><Text style={styles.exportBtnText}>Export</Text></>}
-            </Pressable>
-          </View>
-          {/* Week navigator */}
+        {/* ── Week navigator ─────────────────────────────────────────────────── */}
+        <View style={[styles.header, { paddingTop: 8 }]}>
           <View style={styles.weekNav}>
             <Pressable onPress={() => { setWeekOffset(o => o - 1); setPersonFilter('all'); }} style={styles.weekNavBtn}>
               <Feather name="chevron-left" size={20} color={TEXT} />
@@ -683,7 +684,7 @@ export default function DirectorTimesheetsScreen() {
         onSaved={() => { setModalVisible(false); setSelected(null); }}
         hidePayInfo={isManager}
       />
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 // ── Styles ────────────────────────────────────────────────────────────────────

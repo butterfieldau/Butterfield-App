@@ -9,6 +9,7 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   api,
@@ -700,11 +701,7 @@ export default function DirectorCustomersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => { setRefreshing(true); await refetch(); setRefreshing(false); };
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Customers</Text>
-      </View>
+    <DirectorStandaloneScreen title="Customers">
       {/* Search bar */}
       <View style={[scr.searchBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         <View style={[scr.searchInput, { borderColor: BORDER }]}>
@@ -763,7 +760,7 @@ export default function DirectorCustomersScreen() {
           onClose={() => setSelectedId(null)}
         />
       )}
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 // ── Styles ───────────────────────────────────────────────────────────────────
