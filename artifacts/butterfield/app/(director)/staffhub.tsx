@@ -151,6 +151,11 @@ function startOfSydneyWeek(input: string | Date) {
 function endOfSydneyWeek(start: Date) {
   const d = new Date(start); d.setDate(d.getDate() + 6); d.setHours(23, 59, 59, 999); return d;
 }
+function sydneyDayBounds(input: Date) {
+  const from = startOfSydneyDay(input);
+  const to   = new Date(from); to.setHours(23, 59, 59, 999);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
 
 function priorityColor(p: string) {
   if (p === 'urgent' || p === 'high') return RED;
@@ -428,11 +433,11 @@ function StaffTasksTab({ userId }: { userId?: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function ManagerTasksTab() {
   const qc = useQueryClient();
-  const [editingTask, setEditingTask]         = useState<EditableTask | null>(null);
-  const [showEditor, setShowEditor]           = useState(false);
+  const [editingTask, setEditingTask]             = useState<EditableTask | null>(null);
+  const [showEditor, setShowEditor]               = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
   const [incompleteExpanded, setIncompleteExpanded] = useState(false);
-  const [weekOffset, setWeekOffset]           = useState(0);
+  const [dayOffset, setDayOffset]                 = useState(0);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-tasks'],
@@ -442,22 +447,20 @@ function ManagerTasksTab() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const tasks: ManagerTask[] = data?.data ?? [];
 
-  // History date range (full calendar week, Sydney-aligned)
+  // Single-day history range (Sydney-aligned)
   const historyRange = useMemo(() => {
-    const anchor = new Date();
-    anchor.setDate(anchor.getDate() + weekOffset * 7);
-    const wStart = startOfSydneyWeek(anchor);
-    const wEnd   = endOfSydneyWeek(wStart);
-    return { from: wStart.toISOString(), to: wEnd.toISOString() };
-  }, [weekOffset]);
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    return sydneyDayBounds(d);
+  }, [dayOffset]);
 
   const { data: historyData } = useQuery({
     queryKey: ['director-tasks-history', historyRange.from, historyRange.to],
     queryFn:  () => api.director.taskHistory(historyRange.from, historyRange.to),
-    enabled:  completedExpanded,
+    enabled:  completedExpanded || incompleteExpanded,
     staleTime: 0,
   });
-  const history: TaskHistoryEntry[] = (historyData?.data ?? []).filter(h => h.completionStatus === 'completed');
+  const completedHistory: TaskHistoryEntry[] = (historyData?.data ?? []).filter(h => h.completionStatus === 'completed');
 
   const saveTask = useMutation({
     mutationFn: async (payload: TaskEditorPayload & { id?: string }) => {
@@ -480,6 +483,17 @@ function ManagerTasksTab() {
     onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
   });
 
+  const toggleComplete = useMutation({
+    mutationFn: ({ id, isCompleted }: { id: string; isCompleted: boolean }) =>
+      api.director.completeTask(id, isCompleted),
+    onSuccess: () => {
+      Haptics.selectionAsync();
+      qc.invalidateQueries({ queryKey: ['director-tasks'] });
+      qc.invalidateQueries({ queryKey: ['director-tasks-history'] });
+    },
+    onError: (e: unknown) => Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'),
+  });
+
   const reorder = async (taskId: string, direction: -1 | 1) => {
     const index = tasks.findIndex((t) => t.id === taskId);
     const swapIndex = index + direction;
@@ -494,24 +508,37 @@ function ManagerTasksTab() {
   const completedTasks  = tasks.filter(t => t.isCompleted);
   const incompleteTasks = tasks.filter(t => !t.isCompleted);
 
-  const historyByCategory = useMemo(() => {
+  const completedHistoryByCategory = useMemo(() => {
     const groups = new Map<string, TaskHistoryEntry[]>();
-    for (const h of history) {
+    for (const h of completedHistory) {
       const cat = h.taskCategory ?? 'daily';
-      const arr = groups.get(cat) ?? [];
-      arr.push(h);
-      groups.set(cat, arr);
+      groups.set(cat, [...(groups.get(cat) ?? []), h]);
     }
     return groups;
-  }, [history]);
+  }, [completedHistory]);
 
-  const weekLabel = weekOffset === 0 ? 'This week'
-    : weekOffset === -1 ? 'Last week'
+  const dayLabel = dayOffset === 0 ? 'Today'
+    : dayOffset === -1 ? 'Yesterday'
     : (() => {
-        const f = new Date(historyRange.from);
-        const t = new Date(historyRange.to);
-        return `${f.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${t.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+        const d = new Date();
+        d.setDate(d.getDate() + dayOffset);
+        return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
       })();
+
+  const DayNavRow = () => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Pressable onPress={() => setDayOffset(d => d - 1)}
+        style={[s.actionBtn, { borderColor: BORDER, paddingHorizontal: 10 }]}>
+        <Feather name="chevron-left" size={15} color={TEXT} />
+      </Pressable>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, letterSpacing: 0.4 }}>{dayLabel}</Text>
+      <Pressable onPress={() => setDayOffset(d => Math.min(d + 1, 0))}
+        style={[s.actionBtn, { borderColor: BORDER, paddingHorizontal: 10, opacity: dayOffset >= 0 ? 0.3 : 1 }]}
+        disabled={dayOffset >= 0}>
+        <Feather name="chevron-right" size={15} color={TEXT} />
+      </Pressable>
+    </View>
+  );
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
@@ -521,30 +548,28 @@ function ManagerTasksTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         showsVerticalScrollIndicator={false}>
 
-        {/* ── Add shop task tile (full-width) ── */}
-        <Pressable onPress={() => { setEditingTask(null); setShowEditor(true); }}
-          style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
-          <View style={[s.summaryIcon, { backgroundColor: BLUE + '20' }]}>
-            <Feather name="plus" size={16} color={BLUE} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[s.summaryTitle, { color: BLUE }]}>Add shop task</Text>
-            <Text style={[s.summarySub, { color: MUTED }]}>Opening, closing, coffee bar, cleaning, one-off…</Text>
-          </View>
-        </Pressable>
+        {/* ── 3-tile row: Add Task | Completed | Incomplete ── */}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {/* Add Task tile */}
+          <Pressable onPress={() => { Haptics.selectionAsync(); setEditingTask(null); setShowEditor(true); }}
+            style={[s.tileBig, { flex: 1, borderColor: BLUE + '50', backgroundColor: BLUE + '0D' }]}>
+            <View style={[s.tileIcon, { backgroundColor: BLUE + '20' }]}>
+              <Feather name="plus" size={16} color={BLUE} />
+            </View>
+            <Text style={[s.tileCount, { color: BLUE }]}>{tasks.length}</Text>
+            <Text style={[s.tileLabel, { color: BLUE }]}>Add Task</Text>
+          </Pressable>
 
-        {/* ── Summary tiles row ── */}
-        <View style={{ flexDirection: 'row', gap: 10 }}>
           {/* Completed tile */}
           <Pressable
             style={[s.tileBig, { flex: 1, borderColor: completedExpanded ? GREEN : BORDER, backgroundColor: completedExpanded ? GREEN + '10' : GLASS_BG }]}
             onPress={() => { Haptics.selectionAsync(); setCompletedExpanded(v => !v); setIncompleteExpanded(false); }}>
             <View style={[s.tileIcon, { backgroundColor: GREEN + '20' }]}>
-              <Feather name="check-circle" size={18} color={GREEN} />
+              <Feather name="check-circle" size={16} color={GREEN} />
             </View>
             <Text style={[s.tileCount, { color: completedExpanded ? GREEN : TEXT }]}>{completedTasks.length}</Text>
             <Text style={s.tileLabel}>Completed</Text>
-            <Feather name={completedExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} style={{ marginTop: 2 }} />
+            <Feather name={completedExpanded ? 'chevron-up' : 'chevron-down'} size={11} color={MUTED} />
           </Pressable>
 
           {/* Incomplete tile */}
@@ -552,36 +577,23 @@ function ManagerTasksTab() {
             style={[s.tileBig, { flex: 1, borderColor: incompleteExpanded ? AMBER : BORDER, backgroundColor: incompleteExpanded ? AMBER + '10' : GLASS_BG }]}
             onPress={() => { Haptics.selectionAsync(); setIncompleteExpanded(v => !v); setCompletedExpanded(false); }}>
             <View style={[s.tileIcon, { backgroundColor: AMBER + '20' }]}>
-              <Feather name="clock" size={18} color={AMBER} />
+              <Feather name="clock" size={16} color={AMBER} />
             </View>
             <Text style={[s.tileCount, { color: incompleteExpanded ? AMBER : TEXT }]}>{incompleteTasks.length}</Text>
             <Text style={s.tileLabel}>Incomplete</Text>
-            <Feather name={incompleteExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} style={{ marginTop: 2 }} />
+            <Feather name={incompleteExpanded ? 'chevron-up' : 'chevron-down'} size={11} color={MUTED} />
           </Pressable>
         </View>
 
         {/* ── Completed history section ── */}
         {completedExpanded && (
           <View style={[s.glassCard, { gap: 12 }]}>
-            {/* Week navigation */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Pressable onPress={() => setWeekOffset(w => w - 1)} style={[s.actionBtn, { borderColor: BORDER }]}>
-                <Feather name="chevron-left" size={14} color={TEXT} />
-                <Text style={[s.actionBtnText, { color: TEXT }]}>Prev</Text>
-              </Pressable>
-              <Text style={[s.metaLabel, { letterSpacing: 0.8 }]}>{weekLabel.toUpperCase()}</Text>
-              <Pressable onPress={() => setWeekOffset(w => Math.min(w + 1, 0))}
-                style={[s.actionBtn, { borderColor: BORDER, opacity: weekOffset >= 0 ? 0.3 : 1 }]}
-                disabled={weekOffset >= 0}>
-                <Text style={[s.actionBtnText, { color: TEXT }]}>Next</Text>
-                <Feather name="chevron-right" size={14} color={TEXT} />
-              </Pressable>
-            </View>
-            {history.length === 0 ? (
-              <EmptyState icon="check-circle" message="No completed tasks this period" />
+            <DayNavRow />
+            {completedHistory.length === 0 ? (
+              <EmptyState icon="check-circle" message="No completed tasks this day" />
             ) : (
               CATEGORIES.map(cat => {
-                const items = historyByCategory.get(cat) ?? [];
+                const items = completedHistoryByCategory.get(cat) ?? [];
                 if (items.length === 0) return null;
                 const color = CAT_COLORS[cat] ?? BLUE;
                 return (
@@ -607,9 +619,10 @@ function ManagerTasksTab() {
           </View>
         )}
 
-        {/* ── Incomplete tasks section ── */}
+        {/* ── Incomplete section ── */}
         {incompleteExpanded && (
           <View style={[s.glassCard, { gap: 12 }]}>
+            <DayNavRow />
             {incompleteTasks.length === 0 ? (
               <EmptyState icon="check-square" message="All tasks are complete!" />
             ) : (
@@ -649,11 +662,18 @@ function ManagerTasksTab() {
         {tasks.length === 0 ? (
           <EmptyState icon="check-square" message="No tasks configured yet" />
         ) : tasks.map((task, index) => (
-          <View key={task.id} style={s.glassCard}>
+          <View key={task.id} style={[s.glassCard, task.isCompleted && { borderColor: GREEN + '40', backgroundColor: GREEN + '06' }]}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: (CAT_COLORS[task.category] ?? BLUE) + '18' }]}>
-                <Feather name="check-square" size={15} color={CAT_COLORS[task.category] ?? BLUE} />
-              </View>
+              {/* Tap checkbox to toggle */}
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); toggleComplete.mutate({ id: task.id, isCompleted: !task.isCompleted }); }}
+                style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '18' }]}
+                hitSlop={8}>
+                <Feather
+                  name={task.isCompleted ? 'check-circle' : 'circle'}
+                  size={15}
+                  color={task.isCompleted ? GREEN : (CAT_COLORS[task.category] ?? BLUE)} />
+              </Pressable>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[s.cardTitle, task.isCompleted && { color: MUTED, textDecorationLine: 'line-through' }]}>{task.title}</Text>
                 <Text style={s.cardSub}>
@@ -661,7 +681,6 @@ function ManagerTasksTab() {
                   {task.assignedToName ? ` · ${task.assignedToName}` : ' · All staff'}
                 </Text>
               </View>
-              {task.isCompleted && <Feather name="check-circle" size={16} color={GREEN} />}
             </View>
             {task.description ? <Text style={s.cardDesc}>{task.description}</Text> : null}
             <View style={s.actionRow}>
@@ -1267,7 +1286,7 @@ function ManagerLeaveTab() {
               </View>
               <Pressable
                 style={[s.primaryBtn, { backgroundColor: reviewTarget?.action === 'approve' ? GREEN : RED, opacity: reviewMut.isPending ? 0.7 : 1 }]}
-                onPress={() => reviewMut.mutate({ id: reviewTarget!.id, approved: reviewTarget!.action === 'approve', note: reviewNote })}
+                onPress={() => { if (!reviewTarget) return; reviewMut.mutate({ id: reviewTarget.id, approved: reviewTarget.action === 'approve', note: reviewNote }); }}
                 disabled={reviewMut.isPending}>
                 <Text style={s.primaryBtnText}>{reviewMut.isPending ? 'Saving…' : reviewTarget?.action === 'approve' ? 'Approve' : 'Reject'}</Text>
               </Pressable>

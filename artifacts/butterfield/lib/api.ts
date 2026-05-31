@@ -459,6 +459,8 @@ export const api = {
       request<{ data: StaffTask }>(`/director/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     reorderTasks:        (taskIds: string[]) => request<{ success: boolean }>('/director/tasks/reorder', { method: 'POST', body: JSON.stringify({ taskIds }) }),
     deleteTask:          (id: string) => request<{ success: boolean }>(`/director/tasks/${id}`, { method: 'DELETE' }),
+    completeTask:        (id: string, isCompleted: boolean) =>
+      request<{ data: StaffTask }>(`/director/tasks/${id}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
     allLeave:            () => request<{ data: StaffLeaveRequest[] }>('/director/leave'),
     deleteLeave:         (id: string) => request<{ data: StaffLeaveRequest }>(`/director/leave/${id}`, { method: 'DELETE' }),
     taskHistory:         (from?: string, to?: string) => {
