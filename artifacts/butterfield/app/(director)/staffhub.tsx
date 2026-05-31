@@ -457,7 +457,6 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
   const { data: historyData } = useQuery({
     queryKey: ['director-tasks-history', historyRange.from, historyRange.to],
     queryFn:  () => api.director.taskHistory(historyRange.from, historyRange.to),
-    enabled:  completedExpanded || incompleteExpanded,
     staleTime: 0,
   });
   const completedHistory: TaskHistoryEntry[] = (historyData?.data ?? []).filter(h => h.completionStatus === 'completed');
@@ -550,25 +549,16 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
 
         {/* ── 3-tile row: Add Task | Completed | Incomplete ── */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {/* Add Task tile — only for users with edit permission */}
-          {canEdit ? (
-            <Pressable onPress={() => { Haptics.selectionAsync(); setEditingTask(null); setShowEditor(true); }}
-              style={[s.tileBig, { flex: 1, borderColor: BLUE + '50', backgroundColor: BLUE + '0D' }]}>
-              <View style={[s.tileIcon, { backgroundColor: BLUE + '20' }]}>
-                <Feather name="plus" size={16} color={BLUE} />
-              </View>
-              <Text style={[s.tileCount, { color: BLUE }]}>{tasks.length}</Text>
-              <Text style={[s.tileLabel, { color: BLUE }]}>Add Task</Text>
-            </Pressable>
-          ) : (
-            <View style={[s.tileBig, { flex: 1, borderColor: BORDER, backgroundColor: GLASS_BG }]}>
-              <View style={[s.tileIcon, { backgroundColor: MUTED + '20' }]}>
-                <Feather name="clipboard" size={16} color={MUTED} />
-              </View>
-              <Text style={[s.tileCount, { color: TEXT }]}>{tasks.length}</Text>
-              <Text style={s.tileLabel}>All Tasks</Text>
+          {/* Add Task tile */}
+          <Pressable
+            onPress={() => { if (!canEdit) return; Haptics.selectionAsync(); setEditingTask(null); setShowEditor(true); }}
+            style={[s.tileBig, { flex: 1, borderColor: BLUE + '50', backgroundColor: BLUE + '0D', opacity: canEdit ? 1 : 0.5 }]}>
+            <View style={[s.tileIcon, { backgroundColor: BLUE + '20' }]}>
+              <Feather name="plus" size={16} color={BLUE} />
             </View>
-          )}
+            <Text style={[s.tileCount, { color: BLUE }]}>{tasks.length}</Text>
+            <Text style={[s.tileLabel, { color: BLUE }]}>Add Task</Text>
+          </Pressable>
 
           {/* Completed tile */}
           <Pressable
@@ -1403,8 +1393,9 @@ export default function StaffHubScreen() {
   // Directors/masters always can edit tasks; managers need the 'tasks' permission
   const canEditTasks = user?.role !== 'manager' || mgrPerms.includes('tasks');
 
-  // In staff-tools mode managers see the same 4 tabs as regular staff
-  const tabs = (isManager && manageMode) ? MANAGER_TABS : STAFF_TABS;
+  // Manager tabs: hide 'tasks' tab when manager doesn't have the tasks permission
+  const managerTabs = canEditTasks ? MANAGER_TABS : MANAGER_TABS.filter(t => t.key !== 'tasks');
+  const tabs = (isManager && manageMode) ? managerTabs : STAFF_TABS;
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
 
   useEffect(() => {
@@ -1414,10 +1405,12 @@ export default function StaffHubScreen() {
     }
   }, [params.tab, params.initialTab]);
 
-  // When mode flips, stay on the same tab if it exists, else go to tasks
+  // When mode or permissions change, reset to a valid tab
   useEffect(() => {
-    if (!tabs.some(t => t.key === activeTab)) setActiveTab('tasks');
-  }, [manageMode]);
+    if (!tabs.some(t => t.key === activeTab)) {
+      setActiveTab(tabs[0]?.key ?? 'issues');
+    }
+  }, [manageMode, canEditTasks]);
 
   const showManagerContent = isManager && manageMode;
 
