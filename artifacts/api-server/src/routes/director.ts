@@ -1566,18 +1566,16 @@ router.patch('/tasks/:id/complete', requireRole('director', 'manager'), async (r
     completedAt:  shouldComplete ? new Date() : null,
   }).where(eq(staffTasksTable.id, req.params.id as string)).returning();
   if (!task) return res.status(404).json({ error: 'Task not found.' });
-  if (shouldComplete) {
-    await db.insert(staffTaskHistoryTable).values({
-      id:               randomUUID(),
-      taskId:           task.id,
-      taskTitle:        task.title ?? '',
-      taskCategory:     task.category ?? 'daily',
-      completedByUserId: req.user!.id,
-      completedByName:  req.user!.name ?? null,
-      completedByRole:  req.user!.role,
-      completionStatus: 'completed',
-    });
-  }
+  await db.insert(staffTaskHistoryTable).values({
+    id:               randomUUID(),
+    taskId:           task.id,
+    taskTitle:        task.title ?? '',
+    taskCategory:     task.category ?? 'daily',
+    completedByUserId: req.user!.id,
+    completedByName:  req.user!.name ?? null,
+    completedByRole:  req.user!.role,
+    completionStatus: shouldComplete ? 'completed' : 'reopened',
+  });
   return res.json({ data: task });
 });
 

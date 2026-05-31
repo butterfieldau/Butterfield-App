@@ -576,7 +576,9 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
             <View style={[s.tileIcon, { backgroundColor: GREEN + '20' }]}>
               <Feather name="check-circle" size={16} color={GREEN} />
             </View>
-            <Text style={[s.tileCount, { color: completedExpanded ? GREEN : TEXT }]}>{completedTasks.length}</Text>
+            <Text style={[s.tileCount, { color: completedExpanded ? GREEN : TEXT }]}>
+              {dayOffset === 0 ? completedTasks.length : completedHistory.length}
+            </Text>
             <Text style={s.tileLabel}>Completed</Text>
             <Feather name={completedExpanded ? 'chevron-up' : 'chevron-down'} size={11} color={MUTED} />
           </Pressable>
@@ -588,7 +590,9 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
             <View style={[s.tileIcon, { backgroundColor: AMBER + '20' }]}>
               <Feather name="clock" size={16} color={AMBER} />
             </View>
-            <Text style={[s.tileCount, { color: incompleteExpanded ? AMBER : TEXT }]}>{incompleteTasks.length}</Text>
+            <Text style={[s.tileCount, { color: incompleteExpanded ? AMBER : TEXT }]}>
+              {dayOffset === 0 ? incompleteTasks.length : tasks.length - completedHistory.length}
+            </Text>
             <Text style={s.tileLabel}>Incomplete</Text>
             <Feather name={incompleteExpanded ? 'chevron-up' : 'chevron-down'} size={11} color={MUTED} />
           </Pressable>
@@ -729,6 +733,11 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
                   {TASK_CATEGORY_LABELS[task.category] ?? task.category} · {TASK_CADENCE_LABELS[task.cadence ?? 'daily'] ?? 'Daily'}
                   {task.assignedToName ? ` · ${task.assignedToName}` : ' · All staff'}
                 </Text>
+                {task.isCompleted && (task.completedBy ?? task.completedByName) ? (
+                  <Text style={[s.taskDesc, { color: GREEN, marginTop: 1 }]}>
+                    {'✓ '}{task.completedBy ?? task.completedByName}{task.completedAt ? `  ·  ${timeAgo(task.completedAt)}` : ''}
+                  </Text>
+                ) : null}
               </View>
             </View>
             {task.description ? <Text style={s.cardDesc}>{task.description}</Text> : null}
