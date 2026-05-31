@@ -5,7 +5,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import type { ComponentProps } from 'react';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
-import DirectorCustomersScreen from './customers';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal,
   Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet,
@@ -15,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { AccessRole, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
+import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#EFF6FF';
@@ -32,7 +31,7 @@ const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 type InputKeyboardType = ComponentProps<typeof TextInput>['keyboardType'];
-const TABS = ['Customers', 'Staff', 'POS Screens'] as const;
+const TABS = ['Customers', 'Staff', 'POS Screens', 'Deleted'] as const;
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
   staff:     { bg: '#EDE9FE', text: '#5B21B6' },
@@ -1643,10 +1642,27 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     if (wholesaleMode) return u.role === 'wholesale';
     if (staffMode) return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (posMode) return u.role === 'shop_display';
-    if (tab === 'Customers')  return u.role === 'customer';
-    if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (tab === 'Customers')   return u.role === 'customer' || u.role === 'wholesale';
+    if (tab === 'Staff')       return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (tab === 'POS Screens') return u.role === 'shop_display';
+    if (tab === 'Deleted')     return false;
     return false;
+  });
+  // ── Deleted accounts ───────────────────────────────────────────────────────
+  const { data: deletedData, isLoading: deletedLoading, refetch: refetchDeleted } = useQuery({
+    queryKey: ['director-deleted-accounts'],
+    queryFn:  () => api.director.deletedAccounts(),
+    enabled:  !dedicatedMode && tab === 'Deleted',
+  });
+  const deletedAccounts: DeletedAccount[] = deletedData?.data ?? [];
+  const restoreMut = useMutation({
+    mutationFn: (id: string) => api.director.restoreAccount(id),
+    onSuccess: () => {
+      refetchDeleted();
+      qc.invalidateQueries({ queryKey: ['director-users'] });
+      Alert.alert('Restored', 'Account has been restored successfully.');
+    },
+    onError: (e) => Alert.alert('Error', getErrorMessage(e, 'Failed to restore account.')),
   });
   // ── Staff invite state ─────────────────────────────────────────────────────
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -1709,7 +1725,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
       {/* Page title */}
       <View style={{ paddingHorizontal: 20, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 12, backgroundColor: BG }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
-          {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'Users'}
+          {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
         </Text>
       </View>
       {/* Tab bar + Add buttons */}
@@ -1731,10 +1747,10 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           </ScrollView>
         )}
         {/* Quick-add strip */}
-        {(dedicatedMode || tab !== 'Customers') && (
+        {(dedicatedMode || tab !== 'Deleted') && (
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
-            {wholesaleMode && (
+            {(wholesaleMode || (!dedicatedMode && tab === 'Customers')) && (
               <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
                 <Feather name="briefcase" size={13} color="#166534" />
                 <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
@@ -1771,9 +1787,66 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           </View>
         )}
       </View>
-      {/* Customers → full Shopify-style CRM screen */}
-      {!wholesaleMode && tab === 'Customers' ? (
-        <DirectorCustomersScreen />
+      {/* Deleted accounts tab */}
+      {!dedicatedMode && tab === 'Deleted' ? (
+        deletedLoading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={BLUE} />
+          </View>
+        ) : (
+          <FlatList
+            data={deletedAccounts}
+            keyExtractor={(d) => d.id}
+            contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', marginTop: 80, gap: 14 }}>
+                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="trash-2" size={28} color={RED} />
+                </View>
+                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 16 }}>No deleted accounts</Text>
+                <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 19 }}>
+                  Deleted accounts appear here and are recoverable for 30 days
+                </Text>
+              </View>
+            }
+            renderItem={({ item: d }) => {
+              const roleColors = ROLE_COLORS[d.role] ?? { bg: '#FEF2F2', text: RED };
+              return (
+                <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
+                  <View style={styles.userTop}>
+                    <View style={[styles.avatar, { backgroundColor: '#FEF2F2' }]}>
+                      <Text style={[styles.avatarText, { color: RED }]}>{initials(d.name)}</Text>
+                    </View>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.userName}>{d.name}</Text>
+                        <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
+                          <Text style={[styles.rolePillText, { color: roleColors.text }]}>{d.role}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.userEmail}>{d.email}</Text>
+                      <Text style={styles.userDate}>Deleted {fmtDateTime(d.deletedAt)}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.subRow, { borderTopColor: BORDER, justifyContent: 'space-between' }]}>
+                    <Text style={[styles.subSub, { color: AMBER }]}>⏳ Recoverable for 30 days</Text>
+                    <Pressable
+                      onPress={() => Alert.alert('Restore Account', `Restore ${d.name}'s account? They will be able to log in again.`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Restore', onPress: () => restoreMut.mutate(d.id) },
+                      ])}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                    >
+                      <Text style={{ color: GREEN, fontSize: 12, fontWeight: '600' }}>Restore</Text>
+                      <Feather name="refresh-cw" size={12} color={GREEN} />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
