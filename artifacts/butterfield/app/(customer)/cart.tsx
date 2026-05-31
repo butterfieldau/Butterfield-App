@@ -171,6 +171,8 @@ function PaymentStepWithStripe({
   const defaultMethod: PayMethod = Platform.OS === 'ios' ? 'apple_pay' : Platform.OS === 'android' ? 'google_pay' : 'credit_card';
   const [method, setMethod] = useState<PayMethod>(defaultMethod);
   const [platformPayAvailable, setPlatformPayAvailable] = useState(false);
+  const [showAddCardForm, setShowAddCardForm] = useState(false);
+  const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
   const [discountInput, setDiscountInput] = useState('');
   const [saveCardForNextTime, setSaveCardForNextTime] = useState(true);
   const [discountApplied, setDiscountApplied] = useState<ValidatedDiscount | null>(null);
@@ -191,7 +193,14 @@ function PaymentStepWithStripe({
     queryKey: ['loyalty-profile'],
     queryFn: () => api.loyalty.profile(),
   });
+  const { data: savedMethodsData } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => api.payment.methods(),
+    enabled: stripeReady,
+    staleTime: 60_000,
+  });
   const claimedRewards: ClaimedReward[] = claimedRewardsData?.data ?? [];
+  const savedPaymentMethods = savedMethodsData?.data ?? [];
   const availableLoyaltyPoints = loyaltyProfileData?.data?.loyaltyPoints ?? 0;
   const [pointsToUseInput, setPointsToUseInput] = useState('');
 
@@ -226,6 +235,24 @@ function PaymentStepWithStripe({
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (method !== 'credit_card') return;
+    if (!savedPaymentMethods.length) {
+      setSelectedSavedPaymentMethodId(null);
+      setShowAddCardForm(true);
+      return;
+    }
+
+    setSelectedSavedPaymentMethodId((current) => {
+      if (current && savedPaymentMethods.some((savedMethod) => savedMethod.id === current)) {
+        return current;
+      }
+      const defaultMethodId = savedPaymentMethods.find((savedMethod) => savedMethod.isDefault)?.id;
+      return defaultMethodId ?? savedPaymentMethods[0]?.id ?? null;
+    });
+    setShowAddCardForm(false);
+  }, [method, savedPaymentMethods]);
 
   // If previously selected reward no longer available, clear selection
   useEffect(() => {
@@ -344,6 +371,44 @@ function PaymentStepWithStripe({
 
     setBusy(true);
     try {
+      if (method === 'credit_card' && selectedSavedPaymentMethodId && !showAddCardForm) {
+        const savedPayment = await api.payment.confirmSavedMethod({
+          items: items as any[],
+          orderType,
+          discountCode: discountApplied?.code,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          paymentMethodId: selectedSavedPaymentMethodId,
+        });
+
+        if (savedPayment.paymentRequired === false || savedPayment.amountCents === 0) {
+          await onSuccess({
+            paymentMethodType: 'free_reward',
+            discountCode: discountApplied?.code,
+            discountCodeId: discountApplied?.id,
+            discountAmountCents: discountApplied?.discountAmountCents,
+            claimedRewardId: selectedClaimedRewardId ?? undefined,
+            loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          });
+          return;
+        }
+
+        if (!savedPayment.success) {
+          throw new Error('We could not charge that saved card. Please try another card.');
+        }
+
+        await onSuccess({
+          stripePaymentIntentId: savedPayment.paymentIntentId ?? undefined,
+          paymentMethodType: 'credit_card',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+        });
+        return;
+      }
+
       const intent = await api.payment.createIntent({
         items: items as any[],
         orderType,
@@ -483,26 +548,96 @@ function PaymentStepWithStripe({
 
       {method === 'credit_card' && stripeReady && (
         <View style={psStyles.cardFieldWrap}>
-          <CardField
-            postalCodeEnabled={false}
-            style={{ height: 50, width: '100%' }}
-            cardStyle={{ backgroundColor: '#FFFFFF', textColor: TEXT, borderWidth: 0 }}
-            placeholders={{ number: '1234 1234 1234 1234' }}
-          />
-          <View style={psStyles.saveCardRowCompact}>
-            <View style={{ flex: 1 }}>
-              <Text style={psStyles.saveCardLabel}>Remember card for next time</Text>
-              <Text style={psStyles.saveCardSub}>
-                Stored securely by Stripe for quicker checkout next time.
-              </Text>
+          {savedPaymentMethods.length > 0 && (
+            <View style={psStyles.savedMethodsWrap}>
+              {savedPaymentMethods.map((savedMethod) => {
+                const selected = selectedSavedPaymentMethodId === savedMethod.id && !showAddCardForm;
+                return (
+                  <Pressable
+                    key={savedMethod.id}
+                    onPress={() => {
+                      setSelectedSavedPaymentMethodId(savedMethod.id);
+                      setShowAddCardForm(false);
+                    }}
+                    style={[
+                      psStyles.savedMethodRow,
+                      selected
+                        ? { borderColor: BLUE, backgroundColor: LIGHT_BLUE }
+                        : { borderColor: BORDER, backgroundColor: CARD },
+                    ]}
+                  >
+                    <View style={psStyles.savedMethodIcon}>
+                      <Feather name="credit-card" size={18} color={selected ? BLUE : MUTED} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={psStyles.savedMethodHeader}>
+                        <Text style={[psStyles.savedMethodBrand, selected && { color: BLUE }]}>
+                          {savedMethod.brand.toUpperCase()} ending in {savedMethod.last4}
+                        </Text>
+                        {savedMethod.isDefault && (
+                          <View style={psStyles.defaultBadge}>
+                            <Text style={psStyles.defaultBadgeText}>Default</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={psStyles.savedMethodMeta}>
+                        Expires {`${String(savedMethod.expMonth ?? '').padStart(2, '0')}/${String(savedMethod.expYear ?? '').slice(-2)}`}
+                      </Text>
+                    </View>
+                    <View style={[psStyles.radioOuter, selected ? { borderColor: BLUE } : { borderColor: BORDER }]}>
+                      {selected && <View style={[psStyles.radioInner, { backgroundColor: BLUE }]} />}
+                    </View>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => {
+                  setShowAddCardForm((current) => {
+                    const next = !current;
+                    if (next) {
+                      setSelectedSavedPaymentMethodId(null);
+                    } else if (savedPaymentMethods.length > 0) {
+                      setSelectedSavedPaymentMethodId(
+                        savedPaymentMethods.find((savedMethod) => savedMethod.isDefault)?.id ?? savedPaymentMethods[0]?.id ?? null,
+                      );
+                    }
+                    return next;
+                  });
+                }}
+                style={psStyles.addCardToggle}
+              >
+                <Feather name={showAddCardForm ? 'check-circle' : 'plus-circle'} size={16} color={BLUE} />
+                <Text style={psStyles.addCardToggleText}>
+                  {showAddCardForm ? 'Use saved card instead' : 'Use a different card'}
+                </Text>
+              </Pressable>
             </View>
-            <Switch
-              value={saveCardForNextTime}
-              onValueChange={setSaveCardForNextTime}
-              trackColor={{ false: '#D1D5DB', true: '#BFDBFE' }}
-              thumbColor={saveCardForNextTime ? BLUE : '#FFFFFF'}
-            />
-          </View>
+          )}
+
+          {(showAddCardForm || savedPaymentMethods.length === 0) && (
+            <>
+              <CardField
+                postalCodeEnabled={false}
+                style={{ height: 50, width: '100%' }}
+                cardStyle={{ backgroundColor: '#FFFFFF', textColor: TEXT, borderWidth: 0 }}
+                placeholders={{ number: '1234 1234 1234 1234' }}
+              />
+              <View style={psStyles.saveCardRowCompact}>
+                <View style={{ flex: 1 }}>
+                  <Text style={psStyles.saveCardLabel}>Remember card for next time</Text>
+                  <Text style={psStyles.saveCardSub}>
+                    Stored securely by Stripe for quicker checkout next time.
+                  </Text>
+                </View>
+                <Switch
+                  value={saveCardForNextTime}
+                  onValueChange={setSaveCardForNextTime}
+                  trackColor={{ false: '#D1D5DB', true: '#BFDBFE' }}
+                  thumbColor={saveCardForNextTime ? BLUE : '#FFFFFF'}
+                />
+              </View>
+            </>
+          )}
         </View>
       )}
 
@@ -712,7 +847,9 @@ function PaymentStepWithStripe({
           {method === 'pay_at_pickup'
             ? 'Order will be paid at pickup.'
             : method === 'credit_card'
-              ? 'Secured by Stripe. Card details stay in-app during checkout.'
+              ? showAddCardForm || savedPaymentMethods.length === 0
+                ? 'Secured by Stripe. Card details stay in-app during checkout.'
+                : 'Secured by Stripe. Your selected saved card will be charged securely.'
               : 'Secured by Stripe with Apple Pay or Google Pay.'}
         </Text>
       </View>
@@ -728,6 +865,16 @@ const psStyles = StyleSheet.create({
   radioOuter:    { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioInner:    { width: 10, height: 10, borderRadius: 5 },
   cardFieldWrap: { backgroundColor: CARD, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, padding: 12, overflow: 'hidden' },
+  savedMethodsWrap:{ gap: 10 },
+  savedMethodRow:{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1.5 },
+  savedMethodIcon:{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  savedMethodHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  savedMethodBrand:{ fontSize: 13, fontWeight: '700', color: TEXT },
+  savedMethodMeta:{ marginTop: 3, fontSize: 12, color: MUTED },
+  defaultBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#DBEAFE' },
+  defaultBadgeText:{ fontSize: 10, fontWeight: '700', color: BLUE, textTransform: 'uppercase', letterSpacing: 0.4 },
+  addCardToggle:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10, borderRadius: 10, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#DBEAFE' },
+  addCardToggleText:{ fontSize: 13, fontWeight: '600', color: BLUE },
   savedCardSub:  { marginTop: 3, fontSize: 12, lineHeight: 18, color: MUTED },
   saveCardRowCompact:{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
   saveCardLabel: { fontSize: 13, fontWeight: '600', color: TEXT },
