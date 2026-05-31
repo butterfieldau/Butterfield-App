@@ -163,14 +163,19 @@ export default function DirectorLayout() {
         }}
       >
         <Tabs.Screen name="index"
+          listeners={{ tabPress: (e) => { e.preventDefault(); router.replace('/(director)/index'); } }}
           options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
         <Tabs.Screen name="orders"
+          listeners={{ tabPress: (e) => { e.preventDefault(); router.replace('/(director)/orders'); } }}
           options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
         <Tabs.Screen name="users"
+          listeners={{ tabPress: (e) => { e.preventDefault(); router.replace('/(director)/users'); } }}
           options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
         <Tabs.Screen name="products"
+          listeners={{ tabPress: (e) => { e.preventDefault(); router.replace('/(director)/products'); } }}
           options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"       size={size} color={color} /> }} />
         <Tabs.Screen name="more"
+          listeners={{ tabPress: (e) => { e.preventDefault(); router.replace('/(director)/more'); } }}
           options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
         <Tabs.Screen name="scan"             options={{ href: null }} />

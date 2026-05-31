@@ -73,22 +73,22 @@ function RootLayoutNav() {
       <Stack.Screen name="notifications" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="notification-prefs" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="director-more-category" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-settings-banner" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-settings-rewards" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-settings-notify" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-settings-managers" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-settings-directors" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-wholesale-accounts" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-staff-accounts" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-pos-screens" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-customer-profiles" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-store-locations" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-inventory" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-staff-hours" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-reports" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-pricing" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
-      <Stack.Screen name="director-discounts" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
+      <Stack.Screen name="director-more-category" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-settings-banner" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-settings-rewards" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-settings-notify" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-settings-managers" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-settings-directors" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-wholesale-accounts" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-staff-accounts" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-pos-screens" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-customer-profiles" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-store-locations" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-inventory" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-staff-hours" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-reports" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-pricing" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="director-discounts" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true }} />
       <Stack.Screen name="(staff)" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="(shop-display)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />

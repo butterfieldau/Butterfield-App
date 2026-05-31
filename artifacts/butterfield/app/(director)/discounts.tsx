@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -154,7 +155,7 @@ function TypeButton({ label, selected, onPress }: { label: string; selected: boo
   );
 }
 
-export default function DirectorDiscountsScreen() {
+export function DirectorDiscountsScreen({ standalone = false }: { standalone?: boolean } = {}) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
@@ -285,13 +286,13 @@ export default function DirectorDiscountsScreen() {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, standalone && { backgroundColor: NAVY }]}> 
         <View style={s.headerRow}>
           <View>
-            <Text style={s.headerTitle}>Discount Codes</Text>
-            <Text style={s.headerSub}>Create and manage promotional codes</Text>
+            <Text style={[s.headerTitle, standalone && { color: '#fff' }]}>Discount Codes</Text>
+            <Text style={[s.headerSub, standalone && { color: 'rgba(255,255,255,0.72)' }]}>Create and manage promotional codes</Text>
           </View>
-          <Pressable onPress={openCreate} style={s.addBtn}>
+          <Pressable onPress={openCreate} style={[s.addBtn, standalone && { backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }]}> 
             <Feather name="plus" size={16} color="#fff" />
             <Text style={s.addBtnText}>New Code</Text>
           </Pressable>
@@ -319,7 +320,7 @@ export default function DirectorDiscountsScreen() {
       ) : (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 32 }}
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: standalone ? Math.max(insets.bottom, 16) + 88 : insets.bottom + 32 }}
           refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={MUTED} />}
         >
           {codes.length === 0 && (
@@ -391,6 +392,8 @@ export default function DirectorDiscountsScreen() {
           ))}
         </ScrollView>
       )}
+
+      {standalone && <DirectorStandaloneTabBar active="more" />}
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeModal}>
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -566,6 +569,8 @@ export default function DirectorDiscountsScreen() {
     </View>
   );
 }
+
+export default DirectorDiscountsScreen;
 
 const s = StyleSheet.create({
   root:         { flex: 1, backgroundColor: BG },

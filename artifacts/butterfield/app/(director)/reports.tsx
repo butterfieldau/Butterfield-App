@@ -11,6 +11,8 @@ import {
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { api, getToken, type DirectorFeedback } from '@/lib/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -529,15 +531,17 @@ function FeedbackTab() {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function DirectorReportsScreen() {
+export function DirectorReportsScreen({ standalone = false }: { standalone?: boolean } = {}) {
   const [tab, setTab] = useState<TabKey>('Revenue');
   const [showDownload, setShowDownload] = useState(false);
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Reports</Text>
+      <View style={{ paddingHorizontal: 20, paddingTop: standalone ? insets.top + 14 : 16, paddingBottom: standalone ? 18 : 12, backgroundColor: standalone ? NAVY : BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: standalone ? '#fff' : TEXT }}>Reports</Text>
+        {standalone && <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.72)', marginTop: 6 }}>Revenue, customers, order mix and feedback</Text>}
       </View>
       {/* Sub-tab bar */}
       <View style={[styles.tabBar, { borderBottomColor: BORDER }]}>
@@ -556,9 +560,12 @@ export default function DirectorReportsScreen() {
       {tab === 'Feedback' && <FeedbackTab />}
 
       <DownloadReportModal visible={showDownload} onClose={() => setShowDownload(false)} />
+      {standalone && <DirectorStandaloneTabBar active="more" />}
     </View>
   );
 }
+
+export default DirectorReportsScreen;
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 

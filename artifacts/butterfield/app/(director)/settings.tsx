@@ -22,6 +22,7 @@ import {
 } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
+import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -64,21 +65,17 @@ const BANNER_ROUTE_OPTIONS = [
 ];
 
 export function SettingsStandaloneScreen({ title, children }: { title: string; children: ReactNode }) {
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <Pressable
-        onPress={() => { Haptics.selectionAsync(); router.back(); }}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 }}
-      >
-        <Feather name="chevron-left" size={20} color={BLUE} />
-        <Text style={{ fontSize: 15, fontWeight: '600', color: BLUE }}>More</Text>
-      </Pressable>
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>{title}</Text>
+      <View style={{ backgroundColor: NAVY, paddingTop: insets.top + 10, paddingHorizontal: 20, paddingBottom: 18 }}>
+        <Text style={{ fontSize: 30, fontWeight: '700', color: '#fff' }}>{title}</Text>
+        <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 6 }}>Director tools and configuration</Text>
       </View>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingBottom: Math.max(insets.bottom, 16) + 72 }}>
         {children}
       </View>
+      <DirectorStandaloneTabBar active="more" />
     </View>
   );
 }

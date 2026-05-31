@@ -10,6 +10,7 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 import {
   api,
   type ApiOrder,
@@ -689,9 +690,10 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
   );
 }
 // ── Main screen ──────────────────────────────────────────────────────────────
-export default function DirectorCustomersScreen() {
+export function DirectorCustomersScreen({ standalone = false }: { standalone?: boolean } = {}) {
   const [search, setSearch]         = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-customers', search],
     queryFn:  () => api.director.customers.list({ search }),
@@ -700,10 +702,24 @@ export default function DirectorCustomersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => { setRefreshing(true); await refetch(); setRefreshing(false); };
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: standalone ? NAVY : BG }}>
       {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Customers</Text>
+      <View
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: standalone ? insets.top + 14 : 16,
+          paddingBottom: standalone ? 22 : 12,
+          backgroundColor: standalone ? NAVY : BG,
+        }}
+      >
+        <Text style={{ fontSize: standalone ? 22 : 28, fontWeight: '700', color: standalone ? '#fff' : TEXT }}>
+          Customer Profiles
+        </Text>
+        {standalone && (
+          <Text style={{ marginTop: 6, fontSize: 15, color: 'rgba(255,255,255,0.72)', fontWeight: '500' }}>
+            CRM, loyalty history and customer notes
+          </Text>
+        )}
       </View>
       {/* Search bar */}
       <View style={[scr.searchBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
@@ -738,7 +754,7 @@ export default function DirectorCustomersScreen() {
           keyExtractor={c => c.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
           style={{ backgroundColor: CARD }}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ paddingBottom: standalone ? insets.bottom + 110 : 120 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
@@ -763,9 +779,11 @@ export default function DirectorCustomersScreen() {
           onClose={() => setSelectedId(null)}
         />
       )}
+      {standalone && <DirectorStandaloneTabBar active="more" />}
     </View>
   );
 }
+export default DirectorCustomersScreen;
 // ── Styles ───────────────────────────────────────────────────────────────────
 const row = StyleSheet.create({
   wrap:      { paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD },

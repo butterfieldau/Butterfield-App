@@ -13,6 +13,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorShift } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const BG     = '#EFF6FF';
@@ -388,8 +389,9 @@ function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySumma
   );
 }
 // ── Main Screen ────────────────────────────────────────────────────────────────
-export default function DirectorTimesheetsScreen() {
+export function DirectorTimesheetsScreen({ standalone = false }: { standalone?: boolean } = {}) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const isManager = user?.role === 'manager';
   const [weekOffset,    setWeekOffset]    = useState(0);
   const [personFilter,  setPersonFilter]  = useState<string>('all');
@@ -471,20 +473,37 @@ export default function DirectorTimesheetsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: standalone ? NAVY : BG }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: standalone ? insets.bottom + 110 : 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
         {/* ── Header ──────────────────────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: 16 }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: standalone ? insets.top + 14 : 16,
+              paddingBottom: standalone ? 18 : 12,
+              backgroundColor: standalone ? NAVY : BG,
+              borderBottomColor: standalone ? 'rgba(255,255,255,0.12)' : BORDER,
+            },
+          ]}
+        >
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Timesheet</Text>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={[styles.title, standalone && { color: '#fff' }]}>Staff Hours</Text>
+              {standalone && (
+                <Text style={{ marginTop: 6, fontSize: 15, color: 'rgba(255,255,255,0.72)', fontWeight: '500' }}>
+                  Shifts, approvals and payroll summaries
+                </Text>
+              )}
+            </View>
             <Pressable
               onPress={handleExport}
               disabled={exporting || filtered.filter(s => s.clockOut).length === 0}
-              style={[styles.exportBtn, { backgroundColor: BLUE, opacity: filtered.filter(s => s.clockOut).length === 0 ? 0.4 : 1 }]}
+              style={[styles.exportBtn, standalone && styles.exportBtnStandalone, { backgroundColor: BLUE, opacity: filtered.filter(s => s.clockOut).length === 0 ? 0.4 : 1 }]}
             >
               {exporting
                 ? <ActivityIndicator size="small" color="#fff" />
@@ -676,6 +695,7 @@ export default function DirectorTimesheetsScreen() {
           )}
         </View>
       </ScrollView>
+      {standalone && <DirectorStandaloneTabBar active="more" />}
       <ShiftModal
         shift={selected}
         visible={modalVisible}
@@ -686,12 +706,14 @@ export default function DirectorTimesheetsScreen() {
     </View>
   );
 }
+export default DirectorTimesheetsScreen;
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   header:          { paddingHorizontal: 16, paddingBottom: 14, gap: 14 },
   headerRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title:           { fontSize: 28, fontWeight: '700', color: TEXT },
   exportBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
+  exportBtnStandalone: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2 },
   exportBtnText:   { color: '#fff', fontSize: 13, fontWeight: '600' },
   weekNav:         { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, overflow: 'hidden', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   weekNavBtn:      { padding: 14 },
