@@ -9,7 +9,6 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { InternalGlassCard } from '@/components/InternalGlass';
 import { buildCategories, type RowItem } from './_moreCategories';
-import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG    = '#EFF6FF';
 const TEXT  = '#1C1C1E';
@@ -82,7 +81,6 @@ export default function MoreCategoryScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
@@ -91,7 +89,7 @@ export default function MoreCategoryScreen() {
       {/* Back */}
       <Pressable
         onPress={() => { Haptics.selectionAsync(); router.back(); }}
-        style={[s.backRow, { paddingTop: insets.top + 12 }]}
+        style={[s.backRow, { paddingTop: 20 }]}
       >
         <Feather name="chevron-left" size={20} color={category.color} />
         <Text style={[s.backLabel, { color: category.color }]}>More</Text>
@@ -129,8 +127,6 @@ export default function MoreCategoryScreen() {
         ))}
       </View>
     </ScrollView>
-      <DirectorStandaloneTabBar active="more" />
-    </View>
   );
 }
 

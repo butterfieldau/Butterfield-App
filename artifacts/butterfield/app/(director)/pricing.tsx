@@ -23,7 +23,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { DirectorProduct, DirectorUserSummary, CustomerPricingRule, PricingTier, QuantityPriceBreak } from '@/lib/api';
-import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const NAVY  = '#1A2B4A';
 const BLUE  = '#1493FF';
@@ -62,7 +61,7 @@ function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function DirectorPricing({ standalone = false }: { standalone?: boolean } = {}) {
+export default function DirectorPricing() {
   const qc     = useQueryClient();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('tiers');
@@ -471,14 +470,12 @@ export function DirectorPricing({ standalone = false }: { standalone?: boolean }
         })}
       </View>
 
-      <View style={{ flex: 1, paddingBottom: standalone ? Math.max(insets.bottom, 16) + 72 : 0 }}>
+      <View style={{ flex: 1 }}>
         {tab === 'tiers'  && renderTiers()}
         {tab === 'breaks' && renderBreaks()}
         {tab === 'custom' && renderCustom()}
         {tab === 'assign' && renderAssign()}
       </View>
-
-      {standalone && <DirectorStandaloneTabBar active="more" />}
 
       {/* ── Tier Modal ── */}
       <Modal visible={tierModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTierModal(false)}>
@@ -686,8 +683,6 @@ export function DirectorPricing({ standalone = false }: { standalone?: boolean }
     </View>
   );
 }
-
-export default DirectorPricing;
 
 // ── Helper components ─────────────────────────────────────────────────────────
 function ModalHeader({ title, onCancel, onSave, saveDisabled, saving }: {

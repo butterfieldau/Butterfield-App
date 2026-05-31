@@ -17,7 +17,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { AccessRole, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -1613,9 +1612,8 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
 }
 
 type UsersMode = 'wholesale' | 'staff' | 'pos';
-type StandaloneTabKey = 'people' | 'more';
 
-export function DirectorUsersScreen({ modeOverride, standaloneActiveTab }: { modeOverride?: UsersMode; standaloneActiveTab?: StandaloneTabKey } = {}) {
+export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode } = {}) {
   const params = useLocalSearchParams<{ mode?: string }>();
   const routeMode = params.mode === 'wholesale' || params.mode === 'staff' || params.mode === 'pos'
     ? params.mode
@@ -1626,7 +1624,6 @@ export function DirectorUsersScreen({ modeOverride, standaloneActiveTab }: { mod
   const posMode = screenMode === 'pos';
   const dedicatedMode = Boolean(screenMode);
   const qc = useQueryClient();
-  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<(typeof TABS)[number]>(
     wholesaleMode || staffMode ? 'Staff' : posMode ? 'POS Screens' : 'Customers'
   );
@@ -1709,24 +1706,10 @@ export function DirectorUsersScreen({ modeOverride, standaloneActiveTab }: { mod
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page title */}
-      <View style={{
-        paddingHorizontal: 20,
-        paddingTop: dedicatedMode ? insets.top + 14 : 16,
-        paddingBottom: dedicatedMode ? 18 : 12,
-        backgroundColor: dedicatedMode ? NAVY : BG,
-      }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: dedicatedMode ? '#fff' : TEXT }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
           {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'Users'}
         </Text>
-        {dedicatedMode && (
-          <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.72)', marginTop: 6 }}>
-            {wholesaleMode
-              ? 'Approved B2B customers and account setup'
-              : staffMode
-                ? 'Staff profiles, portal access and employment details'
-                : 'Counter iPad logins assigned to each store'}
-          </Text>
-        )}
       </View>
       {/* Tab bar + Add buttons */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -1799,7 +1782,7 @@ export function DirectorUsersScreen({ modeOverride, standaloneActiveTab }: { mod
           data={filtered}
           keyExtractor={(u) => u.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: dedicatedMode ? Math.max(insets.bottom, 16) + 88 : 100 }}
+          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
@@ -1906,7 +1889,6 @@ export function DirectorUsersScreen({ modeOverride, standaloneActiveTab }: { mod
           }}
         />
       )}
-      {dedicatedMode && <DirectorStandaloneTabBar active={standaloneActiveTab ?? 'people'} />}
       <CreateUserModal
         visible={showCreate}
         type={createType}

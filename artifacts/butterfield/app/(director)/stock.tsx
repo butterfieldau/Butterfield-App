@@ -12,7 +12,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
 import { api, type StockCategory, type StockItem, type StockItemInput } from '@/lib/api';
-import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -461,7 +460,7 @@ const sc = StyleSheet.create({
 });
 
 // ── Main screen ──────────────────────────────────────────────────────────────
-export function StockScreen({ standalone = false }: { standalone?: boolean } = {}) {
+export default function StockScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -559,30 +558,15 @@ export function StockScreen({ standalone = false }: { standalone?: boolean } = {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: standalone ? NAVY : BG }}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Header ── */}
-      <View
-        style={[
-          s.header,
-          {
-            paddingTop: standalone ? insets.top + 14 : 20,
-            paddingBottom: standalone ? 18 : 12,
-            backgroundColor: standalone ? NAVY : BG,
-            borderBottomColor: standalone ? 'rgba(255,255,255,0.12)' : BORDER,
-          },
-        ]}
-      >
+      <View style={[s.header, { paddingTop: 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Pressable onPress={() => router.back()} style={[s.backBtn, standalone && s.backBtnStandalone]}>
+          <Pressable onPress={() => router.back()} style={s.backBtn}>
             <Feather name="chevron-left" size={20} color={NAVY} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={[s.title, standalone && { color: '#fff' }]}>Inventory</Text>
-            {standalone && (
-              <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.72)', fontWeight: '500', marginTop: 4 }}>
-                Stock on hand, categories and item quantities
-              </Text>
-            )}
+            <Text style={s.title}>Stock & Inventory</Text>
             {lowCount > 0 && (
               <Text style={{ fontSize: 12, color: AMBER, fontWeight: '600', marginTop: 1 }}>
                 ⚠ {lowCount} item{lowCount > 1 ? 's' : ''} need attention
@@ -593,13 +577,13 @@ export function StockScreen({ standalone = false }: { standalone?: boolean } = {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable
                 onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
-                style={[s.manageBtn, standalone && s.headerGlassBtn]}
+                style={s.manageBtn}
               >
                 <Feather name="tag" size={16} color={NAVY} />
               </Pressable>
               <Pressable
                 onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
-                style={[s.addBtn, standalone && s.addBtnStandalone]}
+                style={s.addBtn}
               >
                 <Feather name="plus" size={18} color="#fff" />
                 <Text style={s.addBtnTxt}>Add</Text>
@@ -707,7 +691,7 @@ export function StockScreen({ standalone = false }: { standalone?: boolean } = {
         <FlatList
           data={filtered}
           keyExtractor={(i) => i.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: standalone ? insets.bottom + 110 : insets.bottom + 32 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={NAVY} />}
           renderItem={({ item }) => (
             <StockCard
@@ -756,21 +740,16 @@ export function StockScreen({ standalone = false }: { standalone?: boolean } = {
           onDeleted={handleDeleteCategory}
         />
       )}
-      {standalone && <DirectorStandaloneTabBar active="more" />}
     </View>
   );
 }
-export default StockScreen;
 
 const s = StyleSheet.create({
   header:      { backgroundColor: BG, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  backBtnStandalone: { backgroundColor: 'rgba(255,255,255,0.92)' },
   title:       { fontSize: 22, fontWeight: '700', color: TEXT },
   manageBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  headerGlassBtn: { backgroundColor: 'rgba(255,255,255,0.92)' },
   addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  addBtnStandalone: { backgroundColor: 'rgba(20,147,255,0.92)' },
   addBtnTxt:   { fontSize: 14, fontWeight: '700', color: '#fff' },
   searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput: { flex: 1, fontSize: 15, color: TEXT },

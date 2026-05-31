@@ -14,7 +14,6 @@ import { api } from '@/lib/api';
 import type { StoreDetail, StoreHour, StoreSummary } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
-import { DirectorStandaloneTabBar } from '@/components/DirectorStandaloneTabBar';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -747,7 +746,7 @@ function StoreEditorModal({
 }
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
-export function DirectorStoresScreen({ standalone = false }: { standalone?: boolean } = {}) {
+export default function DirectorStoresScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [editingStore, setEditingStore] = useState<StoreDetail | null>(null);
@@ -778,12 +777,12 @@ export function DirectorStoresScreen({ standalone = false }: { standalone?: bool
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Header */}
-      <View style={[s.header, { paddingTop: standalone ? insets.top + 14 : 20, backgroundColor: standalone ? NAVY : BG }]}> 
+      <View style={[s.header, { paddingTop: 20 }]}>
         <View>
-          <Text style={[s.headerTitle, standalone && { color: '#fff' }]}>Store Locations</Text>
-          <Text style={[s.headerSub, standalone && { color: 'rgba(255,255,255,0.72)' }]}>{stores.length} location{stores.length !== 1 ? 's' : ''} configured</Text>
+          <Text style={s.headerTitle}>Store Locations</Text>
+          <Text style={s.headerSub}>{stores.length} location{stores.length !== 1 ? 's' : ''} configured</Text>
         </View>
-        <Pressable style={[s.addBtn, standalone && { backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }]} onPress={openAdd}>
+        <Pressable style={s.addBtn} onPress={openAdd}>
           <Feather name="plus" size={18} color="#fff" />
           <Text style={s.addBtnText}>Add Store</Text>
         </Pressable>
@@ -809,15 +808,13 @@ export function DirectorStoresScreen({ standalone = false }: { standalone?: bool
         <FlatList
           data={stores}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: standalone ? Math.max(insets.bottom, 16) + 88 : 16 }}
+          contentContainerStyle={{ padding: 16, gap: 10 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefreshStores} tintColor={BLUE} />}
           renderItem={({ item }) => (
             <StoreCard store={item} onPress={() => openEdit(item)} />
           )}
         />
       )}
-
-      {standalone && <DirectorStandaloneTabBar active="more" />}
 
       <StoreEditorModal
         store={editingStore}
@@ -828,8 +825,6 @@ export function DirectorStoresScreen({ standalone = false }: { standalone?: bool
     </View>
   );
 }
-
-export default DirectorStoresScreen;
 
 const s = StyleSheet.create({
   header:         { paddingHorizontal: 20, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: BG },

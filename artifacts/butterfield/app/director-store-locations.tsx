@@ -1,6 +1,1 @@
-import React from 'react';
-import { DirectorStoresScreen } from './(director)/stores';
-
-export default function DirectorStoreLocationsPage() {
-  return <DirectorStoresScreen standalone />;
-}
+export { default } from './(director)/stores';
