@@ -16,7 +16,7 @@ import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
-import { autoResetTasks } from '../lib/taskReset.js';
+import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -58,7 +58,9 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // Staff-hub manage mode is shown to ALL managers regardless of permissions,
   // so every staffhub operation must be accessible to every manager.
   if (path === '/staff-list') return 'always';
-  if (path === '/tasks' || path.startsWith('/tasks/')) return 'always';
+  if (path === '/tasks') return method === 'GET' ? 'always' : 'tasks';
+  if (path === '/tasks/history') return 'always';
+  if (path.startsWith('/tasks/')) return method === 'GET' ? 'always' : 'tasks';
   if (path === '/wastage' || path.startsWith('/wastage/')) return 'always';
   if (path === '/issues' || path.startsWith('/issues/')) return 'always';
   if (path === '/leave' || path.startsWith('/leave/')) return 'always';
@@ -1537,9 +1539,8 @@ router.delete('/leave/:leaveId', async (req, res) => {
 
 router.get('/tasks', async (_req, res) => {
   await ensureShopDisplaySchemaReady();
-  await autoResetTasks();
   const rows = await db.select().from(staffTasksTable).orderBy(staffTasksTable.sortOrder, staffTasksTable.title);
-  return res.json({ data: rows });
+  return res.json({ data: normalizeTaskListCompletion(rows) });
 });
 
 router.get('/tasks/history', async (req, res) => {
@@ -1548,6 +1549,9 @@ router.get('/tasks/history', async (req, res) => {
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const fromDate = req.query.from ? new Date(req.query.from as string) : sevenDaysAgo;
   const toDate   = req.query.to   ? new Date(req.query.to   as string) : now;
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid history date range.' });
+  }
   const rows = await db.select().from(staffTaskHistoryTable)
     .where(and(
       gte(staffTaskHistoryTable.createdAt, fromDate),
@@ -1558,7 +1562,7 @@ router.get('/tasks/history', async (req, res) => {
   return res.json({ data: rows });
 });
 
-router.patch('/tasks/:id/complete', requireRole('director', 'manager'), async (req, res) => {
+router.patch('/tasks/:id/complete', async (req, res) => {
   const shouldComplete: boolean = req.body.isCompleted !== false;
   const [task] = await db.update(staffTasksTable).set({
     isCompleted: shouldComplete,

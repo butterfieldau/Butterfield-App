@@ -97,7 +97,7 @@ router.post('/stores', async (req, res) => {
   return res.status(201).json({ data: store });
 });
 
-router.patch('/stores/:id', async (req, res) => {
+router.patch('/stores/:id', requireManagerPermission('settings'), async (req, res) => {
   if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot edit stores.' });
   const allowed = [
     'name','slug','address','suburb','state','postcode','country',
@@ -114,7 +114,7 @@ router.patch('/stores/:id', async (req, res) => {
   return res.json({ data: updated });
 });
 
-router.delete('/stores/:id', async (req, res) => {
+router.delete('/stores/:id', requireManagerPermission('settings'), async (req, res) => {
   if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot delete stores.' });
   const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
   if (!existing) return res.status(404).json({ error: 'Store not found.' });
@@ -132,7 +132,7 @@ router.delete('/stores/:id', async (req, res) => {
   return res.json({ success: true, data: updated });
 });
 
-router.post('/stores/:id/restore', async (req, res) => {
+router.post('/stores/:id/restore', requireManagerPermission('settings'), async (req, res) => {
   if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot restore stores.' });
   const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
   if (!existing) return res.status(404).json({ error: 'Store not found.' });
@@ -162,7 +162,7 @@ router.get('/stores/:id/hours', async (req, res) => {
 });
 
 // Bulk replace opening hours for a store (7 rows, one per day)
-router.put('/stores/:id/hours', async (req, res) => {
+router.put('/stores/:id/hours', requireManagerPermission('settings'), async (req, res) => {
   const { id } = req.params;
   const { hours } = req.body as { hours: { dayOfWeek: number; openTime?: string; closeTime?: string; isClosed?: boolean; notes?: string }[] };
   if (!Array.isArray(hours)) return res.status(400).json({ error: 'hours must be an array.' });
@@ -205,7 +205,7 @@ router.get('/staff/:userId/store-assignments', async (req, res) => {
   return res.json({ data: rows });
 });
 
-router.post('/store-assignments', async (req, res) => {
+router.post('/store-assignments', requireManagerPermission('settings'), async (req, res) => {
   const { staffId, storeId, isPrimary = false } = req.body;
   if (!staffId || !storeId) return res.status(400).json({ error: 'staffId and storeId are required.' });
 
@@ -222,7 +222,7 @@ router.post('/store-assignments', async (req, res) => {
   return res.status(201).json({ data: row });
 });
 
-router.patch('/store-assignments/:id', async (req, res) => {
+router.patch('/store-assignments/:id', requireManagerPermission('settings'), async (req, res) => {
   const { isPrimary, isActive } = req.body;
   const updates: Record<string, any> = {};
   if (typeof isPrimary === 'boolean') updates.isPrimary = isPrimary;
@@ -244,7 +244,7 @@ router.patch('/store-assignments/:id', async (req, res) => {
   return res.json({ data: updated });
 });
 
-router.delete('/store-assignments/:id', async (req, res) => {
+router.delete('/store-assignments/:id', requireManagerPermission('settings'), async (req, res) => {
   await db.delete(staffStoreAssignmentsTable).where(eq(staffStoreAssignmentsTable.id, req.params.id));
   return res.json({ success: true });
 });

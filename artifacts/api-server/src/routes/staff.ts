@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte, sql } from 'drizzle-orm';
-import { autoResetTasks } from '../lib/taskReset.js';
+import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -338,7 +338,6 @@ router.get('/timesheet', async (req, res) => {
 });
 
 router.get('/tasks', async (req, res) => {
-  await autoResetTasks();
   const { category } = req.query;
   const userId = req.user!.id;
   const visibilityFilter = sql`(${staffTasksTable.assignedToUserId} IS NULL OR ${staffTasksTable.assignedToUserId} = ${userId})`;
@@ -346,18 +345,28 @@ router.get('/tasks', async (req, res) => {
     const tasks = await db.select().from(staffTasksTable).where(
       and(eq(staffTasksTable.category, category as any), visibilityFilter)
     );
-    return res.json({ data: tasks });
+    return res.json({ data: normalizeTaskListCompletion(tasks) });
   }
   const tasks = await db.select().from(staffTasksTable).where(visibilityFilter).orderBy(staffTasksTable.sortOrder);
-  return res.json({ data: tasks });
+  return res.json({ data: normalizeTaskListCompletion(tasks) });
 });
 
 router.patch('/tasks/:id/complete', async (req, res) => {
   const { isCompleted } = req.body;
+  const [existing] = await db.select().from(staffTasksTable).where(eq(staffTasksTable.id, req.params.id));
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+
+  const isPrivileged = ['manager', 'director', 'master'].includes(req.user!.role);
+  const isVisibleToCurrentUser = existing.assignedToUserId == null || existing.assignedToUserId === req.user!.id;
+  if (!isPrivileged && !isVisibleToCurrentUser) {
+    return res.status(403).json({ error: 'You can only update tasks assigned to you.' });
+  }
+
+  const shouldComplete = isCompleted !== false;
   const [task] = await db.update(staffTasksTable).set({
-    isCompleted: isCompleted ?? true,
-    completedBy: isCompleted ? req.user!.name : null,
-    completedAt: isCompleted ? new Date() : null,
+    isCompleted: shouldComplete,
+    completedBy: shouldComplete ? req.user!.name : null,
+    completedAt: shouldComplete ? new Date() : null,
   }).where(eq(staffTasksTable.id, req.params.id)).returning();
   if (task) {
     await db.insert(staffTaskHistoryTable).values({
@@ -368,7 +377,7 @@ router.patch('/tasks/:id/complete', async (req, res) => {
       completedByUserId: req.user!.id,
       completedByName: req.user!.name,
       completedByRole: req.user!.role,
-      completionStatus: (isCompleted ?? true) ? 'completed' : 'reopened',
+      completionStatus: shouldComplete ? 'completed' : 'reopened',
     });
   }
   return res.json({ data: task });

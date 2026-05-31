@@ -515,6 +515,11 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
 
   const completedTasks  = tasks.filter(t => t.isCompleted);
   const incompleteTasks = tasks.filter(t => !t.isCompleted);
+  const selectedDayEnd = useMemo(() => new Date(historyRange.to), [historyRange.to]);
+  const tasksAvailableOnSelectedDay = useMemo(
+    () => tasks.filter((task) => !task.createdAt || new Date(task.createdAt) <= selectedDayEnd),
+    [tasks, selectedDayEnd],
+  );
 
   const completedHistoryByCategory = useMemo(() => {
     const groups = new Map<string, TaskHistoryEntry[]>();
@@ -547,6 +552,12 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
       </Pressable>
     </View>
   );
+  const pastDayIncompleteTasks = useMemo(() => {
+    const completedIdsForDay = new Set(completedHistory.map((history) => history.taskId));
+    return tasksAvailableOnSelectedDay.filter((task) => !completedIdsForDay.has(task.id));
+  }, [completedHistory, tasksAvailableOnSelectedDay]);
+
+  const incompleteCount = dayOffset === 0 ? incompleteTasks.length : pastDayIncompleteTasks.length;
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
@@ -591,7 +602,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
               <Feather name="clock" size={16} color={AMBER} />
             </View>
             <Text style={[s.tileCount, { color: incompleteExpanded ? AMBER : TEXT }]}>
-              {dayOffset === 0 ? incompleteTasks.length : tasks.length - completedHistory.length}
+              {incompleteCount}
             </Text>
             <Text style={s.tileLabel}>Incomplete</Text>
             <Feather name={incompleteExpanded ? 'chevron-up' : 'chevron-down'} size={11} color={MUTED} />
@@ -666,12 +677,9 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
 
         {/* ── Incomplete section ── */}
         {incompleteExpanded && (() => {
-          // Today: use live isCompleted=false list
-          // Past days: tasks not found in that day's completed history
-          const completedIdsForDay = new Set(completedHistory.map(h => h.taskId));
           const displayIncomplete = dayOffset === 0
             ? incompleteTasks
-            : tasks.filter(t => !completedIdsForDay.has(t.id));
+            : pastDayIncompleteTasks;
           return (
             <View style={[s.glassCard, { gap: 12 }]}>
               <DayNavRow />
@@ -716,12 +724,17 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
           <EmptyState icon="check-square" message="No tasks configured yet" />
         ) : tasks.map((task, index) => (
           <View key={task.id} style={[s.glassCard, task.isCompleted && { borderColor: GREEN + '40', backgroundColor: GREEN + '06' }]}>
-            <View style={s.cardHeader}>
-              {/* Tap checkbox to toggle */}
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); toggleComplete.mutate({ id: task.id, isCompleted: !task.isCompleted }); }}
-                style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '18' }]}
-                hitSlop={8}>
+              <View style={s.cardHeader}>
+                {/* Tap checkbox to toggle */}
+                <Pressable
+                  onPress={() => {
+                    if (!canEdit) return;
+                    Haptics.selectionAsync();
+                    toggleComplete.mutate({ id: task.id, isCompleted: !task.isCompleted });
+                  }}
+                  disabled={!canEdit}
+                  style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '18' }]}
+                  hitSlop={8}>
                 <Feather
                   name={task.isCompleted ? 'check-circle' : 'circle'}
                   size={15}
