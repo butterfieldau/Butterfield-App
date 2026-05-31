@@ -16,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { ShopifyCustomerDetailModal } from './customers';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -1639,6 +1640,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedShopDisplayUser, setSelectedShopDisplayUser] = useState<ShopDisplayUser | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
@@ -1878,11 +1880,18 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
             const sp = u.staffProfile;
             const wa = u.wholesaleAccount;
             const canOpenStaffProfile = u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+            const canOpenCustomerProfile = u.role === 'customer';
             return (
               <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
                 <Pressable
                   style={styles.userTop}
-                  onPress={canOpenStaffProfile ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); } : undefined}
+                  onPress={
+                    canOpenStaffProfile
+                      ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); }
+                      : canOpenCustomerProfile
+                        ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedCustomerId(u.id); }
+                        : undefined
+                  }
                 >
                   {u.profileImage ? (
                     <Image
@@ -1901,7 +1910,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                       <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
                         <Text style={[styles.rolePillText, { color: roleColors.text }]}>{roleLabel}</Text>
                       </View>
-                      {canOpenStaffProfile && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
+                      {(canOpenStaffProfile || canOpenCustomerProfile) && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
                     </View>
                     <Text style={styles.userEmail}>{u.email}</Text>
                     <Text style={styles.userDate}>Joined {fmtDateTime(u.createdAt)}</Text>
@@ -2002,6 +2011,13 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
         onClose={() => setSelectedShopDisplayUser(null)}
         onRefresh={handleRefreshUsers}
       />
+      {selectedCustomerId && (
+        <ShopifyCustomerDetailModal
+          customerId={selectedCustomerId}
+          onClose={() => setSelectedCustomerId(null)}
+          onDelete={() => { setSelectedCustomerId(null); handleRefreshUsers(); }}
+        />
+      )}
 
       {/* ── Staff Invite Modal ──────────────────────────────────────────── */}
       <Modal
