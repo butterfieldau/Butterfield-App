@@ -173,6 +173,7 @@ export const api = {
       request<{ data: StaffIssue }>('/staff/issues', { method: 'POST', body: JSON.stringify(data) }),
     submitLeave:  (data: StaffLeaveInput) =>
       request<{ data: StaffLeaveRequest }>('/staff/leave', { method: 'POST', body: JSON.stringify(data) }),
+    myLeave:      () => request<{ data: StaffLeaveRequest[] }>('/staff/leave'),
     members:      () => request<{ data: StaffMember[] }>('/staff/members'),
     timesheet:    (from?: string, to?: string, userId?: string) => {
       const params = new URLSearchParams();
@@ -460,6 +461,13 @@ export const api = {
     deleteTask:          (id: string) => request<{ success: boolean }>(`/director/tasks/${id}`, { method: 'DELETE' }),
     allLeave:            () => request<{ data: StaffLeaveRequest[] }>('/director/leave'),
     deleteLeave:         (id: string) => request<{ data: StaffLeaveRequest }>(`/director/leave/${id}`, { method: 'DELETE' }),
+    taskHistory:         (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to)   params.set('to', to);
+      const qs = params.toString();
+      return request<{ data: TaskHistoryEntry[] }>(`/director/tasks/history${qs ? `?${qs}` : ''}`);
+    },
 
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
@@ -1166,23 +1174,34 @@ export interface StaffIssueInput {
 export interface StaffLeaveRequest {
   id: string;
   userId?: string;
-  leaveType: string;
+  type: string;
   startDate: string;
   endDate: string;
   reason?: string | null;
   status: string;
-  note?: string | null;
+  reviewNote?: string | null;
   createdAt: string;
   reviewedAt?: string | null;
   reviewedByName?: string | null;
 }
 
 export interface StaffLeaveInput {
-  leaveType?: string;
   type?: string;
   startDate: string;
   endDate: string;
   reason?: string;
+}
+
+export interface TaskHistoryEntry {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  taskCategory: string;
+  completedByName?: string | null;
+  completedByRole?: string | null;
+  completionStatus: string;
+  notes?: string | null;
+  createdAt: string;
 }
 
 export interface ShopDisplayMe {

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import {
   db, usersTable, customerProfilesTable, staffProfilesTable,
   wholesaleAccountsTable, wholesaleOrdersTable, ordersTable, storeSettingsTable, productsTable,
-  staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable, staffTasksTable,
+  staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable, staffTasksTable, staffTaskHistoryTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
   staffInviteTokensTable, storesTable,
@@ -16,6 +16,7 @@ import type { ManagerPermission } from '@workspace/db';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
+import { autoResetTasks } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -1536,7 +1537,24 @@ router.delete('/leave/:leaveId', async (req, res) => {
 
 router.get('/tasks', async (_req, res) => {
   await ensureShopDisplaySchemaReady();
+  await autoResetTasks();
   const rows = await db.select().from(staffTasksTable).orderBy(staffTasksTable.sortOrder, staffTasksTable.title);
+  return res.json({ data: rows });
+});
+
+router.get('/tasks/history', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const fromDate = req.query.from ? new Date(req.query.from as string) : sevenDaysAgo;
+  const toDate   = req.query.to   ? new Date(req.query.to   as string) : now;
+  const rows = await db.select().from(staffTaskHistoryTable)
+    .where(and(
+      gte(staffTaskHistoryTable.createdAt, fromDate),
+      lte(staffTaskHistoryTable.createdAt, toDate),
+    ))
+    .orderBy(desc(staffTaskHistoryTable.createdAt))
+    .limit(500);
   return res.json({ data: rows });
 });
 

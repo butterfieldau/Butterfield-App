@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte, sql } from 'drizzle-orm';
+import { autoResetTasks } from '../lib/taskReset.js';
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -337,6 +338,7 @@ router.get('/timesheet', async (req, res) => {
 });
 
 router.get('/tasks', async (req, res) => {
+  await autoResetTasks();
   const { category } = req.query;
   const userId = req.user!.id;
   const visibilityFilter = sql`(${staffTasksTable.assignedToUserId} IS NULL OR ${staffTasksTable.assignedToUserId} = ${userId})`;
@@ -407,6 +409,14 @@ router.post('/issues', async (req, res) => {
     category: category ?? 'general', priority: priority ?? 'medium', status: 'open',
   }).returning();
   return res.status(201).json({ data: issue });
+});
+
+router.get('/leave', async (req, res) => {
+  const leave = await db.select().from(staffLeaveRequestsTable)
+    .where(eq(staffLeaveRequestsTable.userId, req.user!.id))
+    .orderBy(desc(staffLeaveRequestsTable.createdAt))
+    .limit(20);
+  return res.json({ data: leave });
 });
 
 router.post('/leave', async (req, res) => {

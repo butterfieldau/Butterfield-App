@@ -19,6 +19,7 @@ import {
   type StaffTask,
   type StaffWastageEntry,
   type StaffWastageInput,
+  type TaskHistoryEntry,
 } from '@/lib/api';
 import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -71,8 +72,6 @@ type ManagedWastageEntry = StaffWastageEntry & {
 
 type ManagedLeaveRequest = StaffLeaveRequest & {
   staffName?: string | null;
-  type?: string | null;
-  reviewNote?: string | null;
 };
 
 type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
@@ -166,10 +165,10 @@ function statusColor(s: string) {
 }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
-function Badge({ label, color }: { label: string; color: string }) {
+function Badge({ label, color }: { label?: string | null; color: string }) {
   return (
     <View style={[s.badge, { backgroundColor: color + '20', borderColor: color + '50' }]}>
-      <Text style={[s.badgeText, { color }]}>{label.replace('_', ' ').toUpperCase()}</Text>
+      <Text style={[s.badgeText, { color }]}>{(label ?? '').replace('_', ' ').toUpperCase()}</Text>
     </View>
   );
 }
@@ -202,7 +201,7 @@ function TaskEditorModal({
     queryFn: () => api.director.staffList(),
     staleTime: 60_000,
   });
-  const staffMembers: StaffMember[] = staffData?.data ?? [];
+  const staffMembers = staffData?.data ?? [];
 
   useEffect(() => {
     setTitle(task?.title ?? '');
@@ -259,8 +258,8 @@ function TaskEditorModal({
               <Text style={[s.chipText, !assignedToUserId && { color: '#fff' }]}>All staff</Text>
             </Pressable>
             {staffMembers.map((m) => (
-              <Pressable key={m.userId} onPress={() => { setAssignedToUserId(m.userId); setAssignedToName(m.name ?? null); }} style={[s.chip, assignedToUserId === m.userId && { backgroundColor: BLUE, borderColor: BLUE }]}>
-                <Text style={[s.chipText, assignedToUserId === m.userId && { color: '#fff' }]}>{m.name ?? 'Staff member'}</Text>
+              <Pressable key={m.id} onPress={() => { setAssignedToUserId(m.id); setAssignedToName(m.name ?? null); }} style={[s.chip, assignedToUserId === m.id && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                <Text style={[s.chipText, assignedToUserId === m.id && { color: '#fff' }]}>{m.name ?? 'Staff member'}</Text>
               </Pressable>
             ))}
           </View>
@@ -429,8 +428,11 @@ function StaffTasksTab({ userId }: { userId?: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 function ManagerTasksTab() {
   const qc = useQueryClient();
-  const [editingTask, setEditingTask] = useState<EditableTask | null>(null);
-  const [showEditor, setShowEditor] = useState(false);
+  const [editingTask, setEditingTask]         = useState<EditableTask | null>(null);
+  const [showEditor, setShowEditor]           = useState(false);
+  const [completedExpanded, setCompletedExpanded] = useState(false);
+  const [incompleteExpanded, setIncompleteExpanded] = useState(false);
+  const [weekOffset, setWeekOffset]           = useState(0);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-tasks'],
@@ -440,12 +442,22 @@ function ManagerTasksTab() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const tasks: ManagerTask[] = data?.data ?? [];
 
-  const { data: staffData } = useQuery({
-    queryKey: ['director-staff-list'],
-    queryFn: () => api.director.staffList(),
-    staleTime: 60_000,
+  // History date range (full calendar week, Sydney-aligned)
+  const historyRange = useMemo(() => {
+    const anchor = new Date();
+    anchor.setDate(anchor.getDate() + weekOffset * 7);
+    const wStart = startOfSydneyWeek(anchor);
+    const wEnd   = endOfSydneyWeek(wStart);
+    return { from: wStart.toISOString(), to: wEnd.toISOString() };
+  }, [weekOffset]);
+
+  const { data: historyData } = useQuery({
+    queryKey: ['director-tasks-history', historyRange.from, historyRange.to],
+    queryFn:  () => api.director.taskHistory(historyRange.from, historyRange.to),
+    enabled:  completedExpanded,
+    staleTime: 0,
   });
-  const staffMembers: StaffMember[] = staffData?.data ?? [];
+  const history: TaskHistoryEntry[] = (historyData?.data ?? []).filter(h => h.completionStatus === 'completed');
 
   const saveTask = useMutation({
     mutationFn: async (payload: TaskEditorPayload & { id?: string }) => {
@@ -479,6 +491,28 @@ function ManagerTasksTab() {
     await qc.invalidateQueries({ queryKey: ['director-tasks'] });
   };
 
+  const completedTasks  = tasks.filter(t => t.isCompleted);
+  const incompleteTasks = tasks.filter(t => !t.isCompleted);
+
+  const historyByCategory = useMemo(() => {
+    const groups = new Map<string, TaskHistoryEntry[]>();
+    for (const h of history) {
+      const cat = h.taskCategory ?? 'daily';
+      const arr = groups.get(cat) ?? [];
+      arr.push(h);
+      groups.set(cat, arr);
+    }
+    return groups;
+  }, [history]);
+
+  const weekLabel = weekOffset === 0 ? 'This week'
+    : weekOffset === -1 ? 'Last week'
+    : (() => {
+        const f = new Date(historyRange.from);
+        const t = new Date(historyRange.to);
+        return `${f.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${t.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`;
+      })();
+
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
 
   return (
@@ -487,7 +521,7 @@ function ManagerTasksTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         showsVerticalScrollIndicator={false}>
 
-        {/* Add task prompt */}
+        {/* ── Add shop task tile (full-width) ── */}
         <Pressable onPress={() => { setEditingTask(null); setShowEditor(true); }}
           style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
           <View style={[s.summaryIcon, { backgroundColor: BLUE + '20' }]}>
@@ -499,46 +533,117 @@ function ManagerTasksTab() {
           </View>
         </Pressable>
 
-        {/* ── By Employee ── */}
-        {staffMembers.length > 0 && (
-          <View style={{ gap: 10 }}>
-            <Text style={[s.metaLabel, { paddingHorizontal: 2, letterSpacing: 1, marginTop: 4 }]}>BY EMPLOYEE</Text>
-            <View style={s.glassCard}>
-              {staffMembers.map((member, i) => {
-                const assigned = tasks.filter((t) => t.assignedToUserId === member.userId);
-                const done     = assigned.filter((t) => t.isCompleted).length;
-                const isLast   = i === staffMembers.length - 1;
+        {/* ── Summary tiles row ── */}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {/* Completed tile */}
+          <Pressable
+            style={[s.tileBig, { flex: 1, borderColor: completedExpanded ? GREEN : BORDER, backgroundColor: completedExpanded ? GREEN + '10' : GLASS_BG }]}
+            onPress={() => { Haptics.selectionAsync(); setCompletedExpanded(v => !v); setIncompleteExpanded(false); }}>
+            <View style={[s.tileIcon, { backgroundColor: GREEN + '20' }]}>
+              <Feather name="check-circle" size={18} color={GREEN} />
+            </View>
+            <Text style={[s.tileCount, { color: completedExpanded ? GREEN : TEXT }]}>{completedTasks.length}</Text>
+            <Text style={s.tileLabel}>Completed</Text>
+            <Feather name={completedExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} style={{ marginTop: 2 }} />
+          </Pressable>
+
+          {/* Incomplete tile */}
+          <Pressable
+            style={[s.tileBig, { flex: 1, borderColor: incompleteExpanded ? AMBER : BORDER, backgroundColor: incompleteExpanded ? AMBER + '10' : GLASS_BG }]}
+            onPress={() => { Haptics.selectionAsync(); setIncompleteExpanded(v => !v); setCompletedExpanded(false); }}>
+            <View style={[s.tileIcon, { backgroundColor: AMBER + '20' }]}>
+              <Feather name="clock" size={18} color={AMBER} />
+            </View>
+            <Text style={[s.tileCount, { color: incompleteExpanded ? AMBER : TEXT }]}>{incompleteTasks.length}</Text>
+            <Text style={s.tileLabel}>Incomplete</Text>
+            <Feather name={incompleteExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} style={{ marginTop: 2 }} />
+          </Pressable>
+        </View>
+
+        {/* ── Completed history section ── */}
+        {completedExpanded && (
+          <View style={[s.glassCard, { gap: 12 }]}>
+            {/* Week navigation */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Pressable onPress={() => setWeekOffset(w => w - 1)} style={[s.actionBtn, { borderColor: BORDER }]}>
+                <Feather name="chevron-left" size={14} color={TEXT} />
+                <Text style={[s.actionBtnText, { color: TEXT }]}>Prev</Text>
+              </Pressable>
+              <Text style={[s.metaLabel, { letterSpacing: 0.8 }]}>{weekLabel.toUpperCase()}</Text>
+              <Pressable onPress={() => setWeekOffset(w => Math.min(w + 1, 0))}
+                style={[s.actionBtn, { borderColor: BORDER, opacity: weekOffset >= 0 ? 0.3 : 1 }]}
+                disabled={weekOffset >= 0}>
+                <Text style={[s.actionBtnText, { color: TEXT }]}>Next</Text>
+                <Feather name="chevron-right" size={14} color={TEXT} />
+              </Pressable>
+            </View>
+            {history.length === 0 ? (
+              <EmptyState icon="check-circle" message="No completed tasks this period" />
+            ) : (
+              CATEGORIES.map(cat => {
+                const items = historyByCategory.get(cat) ?? [];
+                if (items.length === 0) return null;
+                const color = CAT_COLORS[cat] ?? BLUE;
                 return (
-                  <View key={member.userId}
-                    style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 2 },
-                      !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}>
-                    <View style={[s.iconBox, { backgroundColor: BLUE + '15' }]}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>
-                        {(member.name ?? '?').charAt(0).toUpperCase()}
-                      </Text>
+                  <View key={cat} style={{ gap: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
+                      <Badge label={String(items.length)} color={color} />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.cardTitle}>{member.name ?? 'Staff member'}</Text>
-                      <Text style={s.cardSub}>
-                        {assigned.length === 0 ? 'No assigned tasks' : `${done}/${assigned.length} tasks complete`}
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setEditingTask({ id: '', title: '', category: 'daily', isCompleted: false, assignedToUserId: member.userId, assignedToName: member.name ?? null });
-                        setShowEditor(true);
-                      }}
-                      style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center' }}>
-                      <Feather name="plus" size={16} color={BLUE} />
-                    </Pressable>
+                    {items.map(h => (
+                      <View key={h.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
+                        <Feather name="check-circle" size={14} color={GREEN} style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.taskTitle, { fontSize: 13, textDecorationLine: 'line-through', color: MUTED }]}>{h.taskTitle}</Text>
+                          <Text style={s.taskDesc}>{h.completedByName ? `✓ ${h.completedByName}  ·  ` : ''}{timeAgo(h.createdAt)}</Text>
+                        </View>
+                      </View>
+                    ))}
                   </View>
                 );
-              })}
-            </View>
+              })
+            )}
           </View>
         )}
 
+        {/* ── Incomplete tasks section ── */}
+        {incompleteExpanded && (
+          <View style={[s.glassCard, { gap: 12 }]}>
+            {incompleteTasks.length === 0 ? (
+              <EmptyState icon="check-square" message="All tasks are complete!" />
+            ) : (
+              CATEGORIES.map(cat => {
+                const items = incompleteTasks.filter(t => t.category === cat);
+                if (items.length === 0) return null;
+                const color = CAT_COLORS[cat] ?? BLUE;
+                return (
+                  <View key={cat} style={{ gap: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
+                      <Badge label={String(items.length)} color={AMBER} />
+                    </View>
+                    {items.map(t => (
+                      <View key={t.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
+                        <Feather name="square" size={14} color={AMBER} style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.taskTitle, { fontSize: 13 }]}>{t.title}</Text>
+                          <Text style={s.taskDesc}>
+                            {TASK_CADENCE_LABELS[t.cadence ?? 'daily'] ?? 'Daily'}
+                            {t.assignedToName ? `  ·  ${t.assignedToName}` : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        {/* ── All Tasks ── */}
         <Text style={[s.metaLabel, { paddingHorizontal: 2, letterSpacing: 1, marginTop: 4 }]}>ALL TASKS</Text>
 
         {tasks.length === 0 ? (
@@ -546,16 +651,17 @@ function ManagerTasksTab() {
         ) : tasks.map((task, index) => (
           <View key={task.id} style={s.glassCard}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: BLUE + '18' }]}>
-                <Feather name="check-square" size={15} color={BLUE} />
+              <View style={[s.iconBox, { backgroundColor: (CAT_COLORS[task.category] ?? BLUE) + '18' }]}>
+                <Feather name="check-square" size={15} color={CAT_COLORS[task.category] ?? BLUE} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={s.cardTitle}>{task.title}</Text>
+                <Text style={[s.cardTitle, task.isCompleted && { color: MUTED, textDecorationLine: 'line-through' }]}>{task.title}</Text>
                 <Text style={s.cardSub}>
                   {TASK_CATEGORY_LABELS[task.category] ?? task.category} · {TASK_CADENCE_LABELS[task.cadence ?? 'daily'] ?? 'Daily'}
                   {task.assignedToName ? ` · ${task.assignedToName}` : ' · All staff'}
                 </Text>
               </View>
+              {task.isCompleted && <Feather name="check-circle" size={16} color={GREEN} />}
             </View>
             {task.description ? <Text style={s.cardDesc}>{task.description}</Text> : null}
             <View style={s.actionRow}>
@@ -567,7 +673,7 @@ function ManagerTasksTab() {
                 <Feather name="arrow-down" size={13} color={index === tasks.length - 1 ? BORDER : BLUE} />
                 <Text style={[s.actionBtnText, { color: index === tasks.length - 1 ? MUTED : BLUE }]}>Down</Text>
               </Pressable>
-              <Pressable style={[s.actionBtn, { borderColor: BLUE + '40', backgroundColor: BLUE + '10' }]} onPress={() => { setEditingTask(task); setShowEditor(true); }}>
+              <Pressable style={[s.actionBtn, { borderColor: BLUE + '40', backgroundColor: BLUE + '10', flex: 1 }]} onPress={() => { setEditingTask(task); setShowEditor(true); }}>
                 <Feather name="edit-2" size={13} color={BLUE} />
                 <Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text>
               </Pressable>
@@ -577,7 +683,6 @@ function ManagerTasksTab() {
                   { text: 'Delete', style: 'destructive', onPress: () => deleteTask.mutate(task.id) },
                 ])}>
                 <Feather name="trash-2" size={13} color={RED} />
-                <Text style={[s.actionBtnText, { color: RED }]}>Delete</Text>
               </Pressable>
             </View>
           </View>
@@ -696,7 +801,7 @@ function ManagerIssuesTab() {
       opts.push({ text: 'Close Issue',      onPress: () => resolve.mutate({ id: issue.id, status: 'closed' }) });
     }
     opts.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert(issue.title, `${issue.description}\n\nReported by: ${issue.staffName ?? 'Unknown'}\nPriority: ${issue.priority}`, opts);
+    Alert.alert(issue.title ?? 'Issue', `${issue.description}\n\nReported by: ${issue.staffName ?? 'Unknown'}\nPriority: ${issue.priority ?? ''}`, opts);
   };
 
   if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />;
@@ -709,8 +814,8 @@ function ManagerIssuesTab() {
         issues.map((item) => (
           <Pressable key={item.id} onPress={() => handleAction(item)} style={s.glassCard}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority) + '18' }]}>
-                <Feather name="alert-triangle" size={15} color={priorityColor(item.priority)} />
+              <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority ?? '') + '18' }]}>
+                <Feather name="alert-triangle" size={15} color={priorityColor(item.priority ?? '')} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={s.cardTitle} numberOfLines={1}>{item.title}</Text>
@@ -720,7 +825,7 @@ function ManagerIssuesTab() {
             </View>
             <Text style={s.cardDesc} numberOfLines={2}>{item.description}</Text>
             <View style={s.cardFooter}>
-              <Badge label={item.priority} color={priorityColor(item.priority)} />
+              <Badge label={item.priority} color={priorityColor(item.priority ?? '')} />
               <Badge label={item.status}   color={statusColor(item.status)} />
               <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
             </View>
@@ -939,8 +1044,28 @@ function ManagerWastageTab() {
 // LEAVE TAB — staff view: request form
 // ══════════════════════════════════════════════════════════════════════════════
 function StaffLeaveTab() {
+  const qc = useQueryClient();
   const [form, setForm] = useState<{ startDate: string; endDate: string; type: 'annual' | 'sick' | 'personal' | 'other'; reason: string }>({ startDate: '', endDate: '', type: 'annual', reason: '' });
   const [submitting, setSubmitting] = useState(false);
+
+  const { data: leaveData } = useQuery({
+    queryKey: ['staff-my-leave'],
+    queryFn:  () => api.staff.myLeave(),
+    staleTime: 0,
+  });
+  const myLeave: StaffLeaveRequest[] = leaveData?.data ?? [];
+
+  const leaveTypeColor = (t: string) => {
+    if (t === 'annual')   return BLUE;
+    if (t === 'sick')     return AMBER;
+    if (t === 'personal') return PINK;
+    return MUTED;
+  };
+  const leaveStatusColor = (st: string) => {
+    if (st === 'approved') return GREEN;
+    if (st === 'rejected') return RED;
+    return AMBER;
+  };
 
   const handle = async () => {
     if (!form.startDate || !form.endDate || !form.reason) { Alert.alert('Fill all fields'); return; }
@@ -949,6 +1074,7 @@ function StaffLeaveTab() {
       const payload: StaffLeaveInput = form;
       await api.staff.submitLeave(payload);
       setForm({ startDate: '', endDate: '', type: 'annual', reason: '' });
+      await qc.invalidateQueries({ queryKey: ['staff-my-leave'] });
       Alert.alert('Submitted', 'Leave request sent to management.');
     } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong'); }
     finally { setSubmitting(false); }
@@ -956,6 +1082,7 @@ function StaffLeaveTab() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 120 }}>
+      {/* ── Submit form ── */}
       <View style={s.glassCard}>
         <View style={{ padding: 8, gap: 14 }}>
           <Text style={s.formHeading}>Leave Request</Text>
@@ -996,6 +1123,37 @@ function StaffLeaveTab() {
           </Pressable>
         </View>
       </View>
+
+      {/* ── My requests ── */}
+      {myLeave.length > 0 && (
+        <>
+          <Text style={[s.metaLabel, { letterSpacing: 1, paddingHorizontal: 2 }]}>MY REQUESTS</Text>
+          {myLeave.map(item => (
+            <View key={item.id}
+              style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '60' }]}>
+              <View style={s.cardHeader}>
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
+                  <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={s.cardTitle}>{item.startDate} → {item.endDate}</Text>
+                  {item.reason ? <Text style={s.cardSub} numberOfLines={2}>{item.reason}</Text> : null}
+                </View>
+                <Badge label={item.status} color={leaveStatusColor(item.status)} />
+              </View>
+              {item.reviewNote ? (
+                <View style={{ backgroundColor: leaveStatusColor(item.status) + '12', borderRadius: 8, padding: 8 }}>
+                  <Text style={{ fontSize: 12, color: leaveStatusColor(item.status) }}>{item.reviewNote}</Text>
+                </View>
+              ) : null}
+              <View style={s.cardFooter}>
+                <Badge label={item.type} color={leaveTypeColor(item.type)} />
+                <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -1045,8 +1203,8 @@ function ManagerLeaveTab() {
           leave.map((item) => (
             <View key={item.id} style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '70' }]}>
               <View style={s.cardHeader}>
-                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? item.leaveType) + '18' }]}>
-                  <Feather name="calendar" size={15} color={leaveTypeColor(item.type ?? item.leaveType)} />
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? '') + '18' }]}>
+                  <Feather name="calendar" size={15} color={leaveTypeColor(item.type ?? '')} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={s.cardTitle} numberOfLines={1}>{item.staffName ?? 'Unknown staff'}</Text>
@@ -1065,7 +1223,7 @@ function ManagerLeaveTab() {
                 </View>
               )}
               <View style={s.cardFooter}>
-                <Badge label={item.type ?? item.leaveType} color={leaveTypeColor(item.type ?? item.leaveType)} />
+                <Badge label={item.type} color={leaveTypeColor(item.type ?? '')} />
                 <Text style={[s.cardTime, { marginLeft: 'auto' }]}>{timeAgo(item.createdAt)}</Text>
               </View>
               <View style={s.actionRow}>
@@ -1249,8 +1407,13 @@ export default function StaffHubScreen() {
         </View>
       </View>
 
-      {/* ── Tab bar (pill style, full-width) ── */}
-      <View style={s.tabRow}>
+      {/* ── Tab bar (scrollable pills) ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={s.tabRow}
+      >
         {tabs.map((tab) => {
           const active = activeTab === tab.key;
           return (
@@ -1264,7 +1427,7 @@ export default function StaffHubScreen() {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* ── Content ── */}
       {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab />   : <StaffTasksTab userId={user?.id} />)}
@@ -1291,11 +1454,17 @@ const s = StyleSheet.create({
   modeBtnActive:{ backgroundColor: BLUE },
   modeBtnText:  { fontSize: 12, fontWeight: '700', color: MUTED },
 
-  // Tab pills
-  tabRow:     { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
-  tabPill:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: GLASS_BG },
-  tabPillActive: { backgroundColor: BLUE, borderColor: BLUE },
-  tabPillText:   { fontSize: 12, fontWeight: '600', color: MUTED },
+  // Tab pills (horizontal-scroll row)
+  tabRow:       { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
+  tabPill:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: GLASS_BG },
+  tabPillActive:{ backgroundColor: BLUE, borderColor: BLUE },
+  tabPillText:  { fontSize: 12, fontWeight: '600', color: MUTED },
+
+  // Summary tiles (Completed / Incomplete)
+  tileBig:   { padding: 14, borderRadius: 18, borderWidth: 1, alignItems: 'center', gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  tileIcon:  { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tileCount: { fontSize: 28, fontWeight: '700' },
+  tileLabel: { fontSize: 12, fontWeight: '600', color: MUTED },
 
   // Glass card
   glassCard:  { backgroundColor: GLASS_BG, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
