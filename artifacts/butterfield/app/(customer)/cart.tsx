@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CardField, StripeProvider, useStripe, usePlatformPay, PlatformPay } from '@stripe/stripe-react-native';
+import { StripeProvider, useStripe, usePlatformPay, PlatformPay } from '@stripe/stripe-react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -165,13 +165,15 @@ function PaymentStepWithStripe({
     loyaltyPointsUsed?: number;
   }) => Promise<void>;
 }) {
-  const { confirmPayment } = useStripe();
+  const { user } = useAuth();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { isPlatformPaySupported, confirmPlatformPayPayment } = usePlatformPay();
 
   const defaultMethod: PayMethod = Platform.OS === 'ios' ? 'apple_pay' : Platform.OS === 'android' ? 'google_pay' : 'credit_card';
   const [method, setMethod] = useState<PayMethod>(defaultMethod);
   const [platformPayAvailable, setPlatformPayAvailable] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
+  const [saveCardForNextTime, setSaveCardForNextTime] = useState(true);
   const [discountApplied, setDiscountApplied] = useState<ValidatedDiscount | null>(null);
   const [discountError, setDiscountError] = useState('');
   const [validatingDiscount, setValidatingDiscount] = useState(false);
@@ -349,6 +351,7 @@ function PaymentStepWithStripe({
         discountCode: discountApplied?.code,
         claimedRewardId: selectedClaimedRewardId ?? undefined,
         loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+        savePaymentMethod: method === 'credit_card' ? saveCardForNextTime : false,
       });
 
       // Zero-total orders (e.g. free item reward with empty cart) skip Stripe entirely
@@ -398,13 +401,28 @@ function PaymentStepWithStripe({
         return;
       }
 
-      const { paymentIntent: pi, error: piError } = await confirmPayment(intent.clientSecret!, {
-        paymentMethodType: 'Card',
-      } as any);
-      if (piError) throw new Error(piError.message);
-      if (!pi) throw new Error('Payment confirmation failed.');
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'Butterfield Cookies',
+        customerId: intent.customerId ?? undefined,
+        customerEphemeralKeySecret: intent.customerEphemeralKeySecret ?? undefined,
+        paymentIntentClientSecret: intent.clientSecret!,
+        allowsDelayedPaymentMethods: false,
+        defaultBillingDetails: {
+          name: user?.name ?? loyaltyProfileData?.data?.customerName ?? undefined,
+          email: user?.email ?? loyaltyProfileData?.data?.customerEmail ?? undefined,
+        },
+        applePay: Platform.OS === 'ios' ? { merchantCountryCode: 'AU' } : undefined,
+        googlePay: Platform.OS === 'android'
+          ? { merchantCountryCode: 'AU', currencyCode: 'AUD', testEnv: false }
+          : undefined,
+        returnURL: 'butterfield://stripe-redirect',
+      });
+      if (initError) throw new Error(initError.message);
+
+      const { error: presentError } = await presentPaymentSheet();
+      if (presentError) throw new Error(presentError.message);
       await onSuccess({
-        stripePaymentIntentId: pi.id,
+        stripePaymentIntentId: intent.paymentIntentId ?? undefined,
         paymentMethodType: 'credit_card',
         discountCode: discountApplied?.code,
         discountCodeId: discountApplied?.id,
@@ -481,11 +499,29 @@ function PaymentStepWithStripe({
 
       {method === 'credit_card' && stripeReady && (
         <View style={psStyles.cardFieldWrap}>
-          <CardField
-            postalCodeEnabled={false}
-            style={{ height: 50, width: '100%' }}
-            cardStyle={{ backgroundColor: '#FFFFFF', textColor: TEXT, borderWidth: 0 }}
-          />
+          <View style={psStyles.savedCardInfo}>
+            <Feather name="credit-card" size={18} color={BLUE} />
+            <View style={{ flex: 1 }}>
+              <Text style={psStyles.savedCardTitle}>Saved cards & secure checkout</Text>
+              <Text style={psStyles.savedCardSub}>
+                Use saved cards, add a new one once, and reuse it next time for faster checkout.
+              </Text>
+            </View>
+          </View>
+          <View style={psStyles.saveCardRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={psStyles.saveCardLabel}>Remember card for next time</Text>
+              <Text style={psStyles.saveCardSub}>
+                Stored securely by Stripe for quicker future orders.
+              </Text>
+            </View>
+            <Switch
+              value={saveCardForNextTime}
+              onValueChange={setSaveCardForNextTime}
+              trackColor={{ false: '#D1D5DB', true: '#BFDBFE' }}
+              thumbColor={saveCardForNextTime ? BLUE : '#FFFFFF'}
+            />
+          </View>
         </View>
       )}
 
@@ -692,7 +728,11 @@ function PaymentStepWithStripe({
       <View style={[psStyles.secureRow]}>
         <Feather name="lock" size={11} color={MUTED} />
         <Text style={{ fontSize: 11, color: MUTED }}>
-          {method === 'pay_at_pickup' ? 'Order will be paid at pickup.' : 'Secured by Stripe. Your card details are never stored.'}
+          {method === 'pay_at_pickup'
+            ? 'Order will be paid at pickup.'
+            : method === 'credit_card'
+              ? 'Secured by Stripe. Saved cards stay with Stripe, not Butterfield.'
+              : 'Secured by Stripe with Apple Pay or Google Pay.'}
         </Text>
       </View>
     </View>
@@ -707,6 +747,11 @@ const psStyles = StyleSheet.create({
   radioOuter:    { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   radioInner:    { width: 10, height: 10, borderRadius: 5 },
   cardFieldWrap: { backgroundColor: CARD, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, padding: 12, overflow: 'hidden' },
+  savedCardInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  savedCardTitle:{ fontSize: 14, fontWeight: '700', color: TEXT },
+  savedCardSub:  { marginTop: 3, fontSize: 12, lineHeight: 18, color: MUTED },
+  saveCardRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: BORDER },
+  saveCardLabel: { fontSize: 13, fontWeight: '600', color: TEXT },
   discountRow:   { flexDirection: 'row', gap: 8 },
   discountInput: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '600', letterSpacing: 1.5, backgroundColor: CARD },
   applyBtn:      { paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

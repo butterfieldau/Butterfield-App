@@ -1,8 +1,48 @@
 import { Router } from 'express';
+import { db, usersTable } from '@workspace/db';
+import { eq } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 
 const router = Router();
+
+async function getOrCreateStripeCustomer(userId: string, email: string, name: string) {
+  const [user] = await db
+    .select({
+      id: usersTable.id,
+      stripeCustomerId: usersTable.stripeCustomerId,
+      email: usersTable.email,
+      name: usersTable.name,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (user.stripeCustomerId) {
+    return user.stripeCustomerId;
+  }
+
+  const { getUncachableStripeClient } = await import('../stripeClient.js');
+  const stripe = await getUncachableStripeClient();
+  const customer = await stripe.customers.create({
+    email,
+    name,
+    metadata: { userId },
+  });
+
+  await db
+    .update(usersTable)
+    .set({
+      stripeCustomerId: customer.id,
+      updatedAt: new Date(),
+    })
+    .where(eq(usersTable.id, userId));
+
+  return customer.id;
+}
 
 router.get('/config', async (_req, res) => {
   try {
@@ -24,7 +64,15 @@ router.get('/config', async (_req, res) => {
 router.use(requireAuth);
 
 router.post('/payment-intent', async (req, res) => {
-  const { items: rawItems, orderType, discountCode, paymentMethod, claimedRewardId, loyaltyPointsUsed } = req.body;
+  const {
+    items: rawItems,
+    orderType,
+    discountCode,
+    paymentMethod,
+    claimedRewardId,
+    loyaltyPointsUsed,
+    savePaymentMethod,
+  } = req.body;
 
   if (paymentMethod === 'pay_at_pickup') {
     return res.status(400).json({ error: 'Pay at pickup orders do not require a Stripe payment intent.' });
@@ -75,10 +123,13 @@ router.post('/payment-intent', async (req, res) => {
   try {
     const { getUncachableStripeClient } = await import('../stripeClient.js');
     const stripe = await getUncachableStripeClient();
+    const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
     const intent = await stripe.paymentIntents.create({
       amount: computed.totalCents,
       currency: 'aud',
+      customer: customerId,
       automatic_payment_methods: { enabled: true },
+      setup_future_usage: savePaymentMethod ? 'off_session' : undefined,
       metadata: {
         userId: req.user!.id,
         computedAmountCents: String(computed.totalCents),
@@ -89,9 +140,15 @@ router.post('/payment-intent', async (req, res) => {
         rewardDiscountCents: String(rewardDiscountCents),
       },
     });
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customerId },
+      { apiVersion: '2026-04-22.dahlia' },
+    );
     return res.json({
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
+      customerId,
+      customerEphemeralKeySecret: ephemeralKey.secret,
       amountCents: computed.totalCents,
       discountAmountCents: totalDiscountCents,
     });

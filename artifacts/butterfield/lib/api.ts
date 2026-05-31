@@ -269,8 +269,18 @@ export const api = {
       paymentMethod?: 'card' | 'pay_at_pickup';
       claimedRewardId?: string;
       loyaltyPointsUsed?: number;
+      savePaymentMethod?: boolean;
     }) =>
-      request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; amountCents: number; discountAmountCents?: number; rewardDiscountCents?: number }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
+      request<{
+        paymentRequired?: boolean;
+        clientSecret: string | null;
+        paymentIntentId: string | null;
+        customerId?: string | null;
+        customerEphemeralKeySecret?: string | null;
+        amountCents: number;
+        discountAmountCents?: number;
+        rewardDiscountCents?: number;
+      }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
   },
   director: {
     stats:               () => request<{ data: DirectorStats }>('/director/stats'),
