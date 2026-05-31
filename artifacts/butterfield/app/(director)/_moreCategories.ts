@@ -152,19 +152,9 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'users',      label: 'Staff Accounts',     sub: 'All staff, roles & employment details',  color: PURPLE, perm: 'users', onPress: () => router.push('/(director)/users' as any) },
           { icon: 'clock',      label: 'Timesheet Access',   sub: 'Staff clock-in history & hour totals',   color: GREEN,  perm: 'timesheets', onPress: () => router.push('/(director)/timesheets' as any) },
           { icon: 'file-text',  label: 'Employment Details', sub: 'Contracts, TFN & pay rates',             color: NAVY,   perm: 'users', soon: true },
-        ],
-      },
-      {
-        label: 'Managers',
-        items: [
           { icon: 'user-plus',  label: 'Add Manager',        sub: 'Create a manager or promote staff in one place', color: GREEN, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
           { icon: 'sliders',    label: 'Permission Groups',  sub: 'Manager, Supervisor, Store Manager and more', color: PURPLE, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
           { icon: 'key',        label: 'Portal Access',      sub: 'See which tools each role can access', color: BLUE, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
-        ],
-      },
-      {
-        label: 'Role Management',
-        items: [
           { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manager, Supervisor, Store Manager, Area Manager, Director and Master', color: NAVY, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
         ],
       },

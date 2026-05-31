@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type DirectorIdentity, type DirectorUserSummary } from '@/lib/api';
+import { api, type AccessRole, type DirectorIdentity, type DirectorManager, type DirectorUserSummary } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const BG = '#EFF6FF';
@@ -67,6 +67,15 @@ const PORTAL_ACCESS = [
   { role: 'Master', access: 'Everything including director creation and removal' },
 ] as const;
 
+const ACCESS_ROLE_OPTIONS: { key: AccessRole; label: string; color: string }[] = [
+  { key: 'manager', label: 'Manager', color: '#1D4ED8' },
+  { key: 'supervisor', label: 'Supervisor', color: '#7C3AED' },
+  { key: 'store_manager', label: 'Store Manager', color: '#059669' },
+  { key: 'area_manager', label: 'Area Manager', color: '#EA580C' },
+  { key: 'director', label: 'Director', color: '#DC2626' },
+  { key: 'master', label: 'Master', color: '#111827' },
+] as const;
+
 type ManagerFormData = { name: string; email: string; password: string; notes: string };
 type ManagerFormFieldKey = keyof ManagerFormData;
 type DirectorFormData = { name: string; email: string; password: string };
@@ -99,7 +108,7 @@ export default function DirectorRolesSettingsPage() {
     enabled: isMaster,
   });
 
-  const managers: DirectorUserSummary[] = managersData?.data ?? [];
+  const managers: DirectorManager[] = managersData?.data ?? [];
   const staffCandidates = useMemo(
     () => (staffListData?.data ?? []).filter((person) => person.role === 'staff'),
     [staffListData],
@@ -113,6 +122,8 @@ export default function DirectorRolesSettingsPage() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPerms, setEditPerms] = useState<string[]>([]);
+  const [selectedAccessRole, setSelectedAccessRole] = useState<AccessRole>('manager');
+  const [editAccessRole, setEditAccessRole] = useState<AccessRole>('manager');
   const [savingPerms, setSavingPerms] = useState(false);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [directorForm, setDirectorForm] = useState<DirectorFormData>({ name: '', email: '', password: '' });
@@ -130,13 +141,14 @@ export default function DirectorRolesSettingsPage() {
     }
     setCreating(true);
     try {
-      await api.director.managers.create({ ...form, permissions: formPerms });
+      await api.director.managers.create({ ...form, permissions: formPerms, accessRole: selectedAccessRole });
       await qc.invalidateQueries({ queryKey: ['director-managers'] });
       await qc.invalidateQueries({ queryKey: ['director-users'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCreateModal(false);
       setForm({ name: '', email: '', password: '', notes: '' });
       setFormPerms([]);
+      setSelectedAccessRole('manager');
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error));
     } finally {
@@ -145,19 +157,21 @@ export default function DirectorRolesSettingsPage() {
   };
 
   const handlePromoteStaff = (id: string, name: string) => {
+    const options = ACCESS_ROLE_OPTIONS.filter((option) => isMaster || (option.key !== 'director' && option.key !== 'master'));
     Alert.alert(
-      'Promote to Manager',
-      `Give ${name} manager access? They will move from the staff portal into the manager/director-style internal portal with the permissions you set afterward.`,
+      'Assign Role',
+      `Choose the access role for ${name}.`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Promote',
+        ...options.map((option) => ({
+          text: option.label,
           onPress: async () => {
             setPromotingId(id);
             try {
-              await api.director.customers.promote(id, 'manager');
+              const targetRole = option.key === 'director' || option.key === 'master' ? option.key : 'manager';
+              await api.director.customers.promote(id, targetRole, option.key);
               await qc.invalidateQueries({ queryKey: ['director-staff-list'] });
               await qc.invalidateQueries({ queryKey: ['director-managers'] });
+              await qc.invalidateQueries({ queryKey: ['master-directors'] });
               await qc.invalidateQueries({ queryKey: ['director-users'] });
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
@@ -166,7 +180,8 @@ export default function DirectorRolesSettingsPage() {
               setPromotingId(null);
             }
           },
-        },
+        })),
+        { text: 'Cancel', style: 'cancel' },
       ],
     );
   };
@@ -174,8 +189,9 @@ export default function DirectorRolesSettingsPage() {
   const handleSavePerms = async (id: string) => {
     setSavingPerms(true);
     try {
-      await api.director.managers.updatePermissions(id, { permissions: editPerms });
+      await api.director.managers.updatePermissions(id, { permissions: editPerms, accessRole: editAccessRole });
       await qc.invalidateQueries({ queryKey: ['director-managers'] });
+      await qc.invalidateQueries({ queryKey: ['director-users'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setEditingId(null);
     } catch (error) {
@@ -186,7 +202,7 @@ export default function DirectorRolesSettingsPage() {
   };
 
   const handleRemoveManager = (id: string, name: string) => {
-    Alert.alert('Remove Manager', `Remove ${name}'s manager access? Their account will become a staff account again.`, [
+    Alert.alert('Remove Leadership Access', `Remove ${name}'s leadership access? Their account will become a staff account again.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -281,10 +297,10 @@ export default function DirectorRolesSettingsPage() {
             ))}
           </View>
 
-          <SectionTitle>ADD MANAGER</SectionTitle>
+          <SectionTitle>STAFF ROLES</SectionTitle>
           <Pressable onPress={() => { Haptics.selectionAsync(); setCreateModal(true); }} style={[styles.primaryBtn, { backgroundColor: INDIGO }]}>
             <Feather name="user-plus" size={17} color="#fff" />
-            <Text style={styles.primaryBtnText}>Create New Manager Account</Text>
+            <Text style={styles.primaryBtnText}>Create Role Account</Text>
           </Pressable>
           <Text style={{ fontSize: 12, color: MUTED, lineHeight: 18, marginTop: -6 }}>
             If the email already belongs to a staff account, we now restore that person back into manager access instead of leaving them stranded.
@@ -314,7 +330,7 @@ export default function DirectorRolesSettingsPage() {
                       ) : (
                         <>
                           <Feather name="arrow-up-right" size={13} color={GREEN} />
-                          <Text style={[styles.actionBtnText, { color: GREEN }]}>Promote</Text>
+                          <Text style={[styles.actionBtnText, { color: GREEN }]}>Assign Role</Text>
                         </>
                       )}
                     </Pressable>
@@ -324,22 +340,26 @@ export default function DirectorRolesSettingsPage() {
             </View>
           )}
 
-          <SectionTitle>PERMISSION GROUPS</SectionTitle>
+          <SectionTitle>ROLES & PERMISSIONS</SectionTitle>
           <View style={{ gap: 10 }}>
             {managers.length === 0 ? (
               <View style={styles.card}>
-                <Text style={styles.emptyText}>No managers yet. Create one above and their permission groups will appear here.</Text>
+                <Text style={styles.emptyText}>No leadership accounts yet. Create one above and their permission groups will appear here.</Text>
               </View>
             ) : managers.map((manager) => (
               <View key={manager.id} style={styles.card}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{manager.name}</Text>
-                    <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{manager.email}</Text>
-                  </View>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{manager.name}</Text>
+                        <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{manager.email}</Text>
+                      </View>
                   <Pressable onPress={() => handleRemoveManager(manager.id, manager.name)} style={{ padding: 6 }}>
                     <Feather name="trash-2" size={18} color={RED} />
                   </Pressable>
+                </View>
+
+                <View style={[styles.chip, { backgroundColor: INDIGO + '12', borderColor: INDIGO + '30', alignSelf: 'flex-start' }]}>
+                  <Text style={[styles.chipText, { color: INDIGO }]}>{ACCESS_ROLE_OPTIONS.find((option) => option.key === (manager.accessRole ?? 'manager'))?.label ?? 'Manager'}</Text>
                 </View>
 
                 {manager.notes ? (
@@ -348,6 +368,21 @@ export default function DirectorRolesSettingsPage() {
 
                 {editingId === manager.id ? (
                   <View style={{ gap: 10 }}>
+                    <Text style={styles.fieldLabel}>Role</Text>
+                    <View style={styles.rolePickerGrid}>
+                      {ACCESS_ROLE_OPTIONS.filter((option) => option.key !== 'director' && option.key !== 'master').map((option) => {
+                        const active = editAccessRole === option.key;
+                        return (
+                          <Pressable
+                            key={option.key}
+                            onPress={() => { setEditAccessRole(option.key); Haptics.selectionAsync(); }}
+                            style={[styles.rolePickerCard, { borderColor: active ? option.color : BORDER, backgroundColor: active ? `${option.color}12` : CARD }]}
+                          >
+                            <Text style={[styles.rolePickerTitle, { color: active ? option.color : TEXT }]}>{option.label}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                     {ALL_PERMISSIONS.map((permission) => (
                       <View key={permission.key} style={styles.switchRow}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -393,6 +428,7 @@ export default function DirectorRolesSettingsPage() {
                       onPress={() => {
                         setEditingId(manager.id);
                         setEditPerms([...(manager.permissions as string[])]);
+                        setEditAccessRole(manager.accessRole ?? 'manager');
                         Haptics.selectionAsync();
                       }}
                       style={[styles.actionBtn, { borderColor: INDIGO, alignSelf: 'flex-start' }]}
@@ -452,7 +488,7 @@ export default function DirectorRolesSettingsPage() {
             <Pressable onPress={() => setCreateModal(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </Pressable>
-            <Text style={styles.modalTitle}>Add Manager</Text>
+            <Text style={styles.modalTitle}>Create Role Account</Text>
             <Pressable onPress={handleCreateManager} disabled={creating}>
               {creating ? <ActivityIndicator color={BLUE} size="small" /> : <Text style={styles.modalSave}>Create</Text>}
             </Pressable>
@@ -477,6 +513,22 @@ export default function DirectorRolesSettingsPage() {
                   />
                 </View>
               ))}
+
+              <SectionTitle>ACCESS ROLE</SectionTitle>
+              <View style={styles.rolePickerGrid}>
+                {ACCESS_ROLE_OPTIONS.filter((option) => isMaster || (option.key !== 'director' && option.key !== 'master')).map((option) => {
+                  const active = selectedAccessRole === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      onPress={() => { setSelectedAccessRole(option.key); Haptics.selectionAsync(); }}
+                      style={[styles.rolePickerCard, { borderColor: active ? option.color : BORDER, backgroundColor: active ? `${option.color}12` : CARD }]}
+                    >
+                      <Text style={[styles.rolePickerTitle, { color: active ? option.color : TEXT }]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
 
               <SectionTitle>INITIAL ACCESS</SectionTitle>
               {ALL_PERMISSIONS.map((permission) => (
@@ -587,6 +639,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { fontSize: 11, fontWeight: '600' },
+  rolePickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  rolePickerCard: {
+    minWidth: 140,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  rolePickerTitle: { fontSize: 13, fontWeight: '700' },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',

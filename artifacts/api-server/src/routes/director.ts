@@ -24,6 +24,21 @@ import { claimedRewardsTable } from '@workspace/db';
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
 
+const ACCESS_ROLE_LABELS = {
+  manager: 'Manager',
+  supervisor: 'Supervisor',
+  store_manager: 'Store Manager',
+  area_manager: 'Area Manager',
+  director: 'Director',
+  master: 'Master',
+} as const;
+
+type AccessRoleKey = keyof typeof ACCESS_ROLE_LABELS;
+
+function isManagerFamilyRole(role: string): role is Extract<AccessRoleKey, 'manager' | 'supervisor' | 'store_manager' | 'area_manager'> {
+  return ['manager', 'supervisor', 'store_manager', 'area_manager'].includes(role);
+}
+
 // For managers, enforce per-route permissions based on method + path.
 // Discount code management is director/master only.
 // Directors and masters pass through unconditionally.
@@ -758,13 +773,28 @@ router.patch('/staff/:userId/approve', async (req, res) => {
 // ── Promote any customer to staff / manager / director ────────────────────────
 router.patch('/customers/:id/promote', requireRole('director', 'master'), async (req, res) => {
   const id = req.params.id as string;
-  const { role } = req.body;
-  if (!['staff', 'manager', 'director'].includes(role)) {
-    return res.status(400).json({ error: 'Role must be staff, manager, or director.' });
+  const { role, accessRole } = req.body;
+  if (!['staff', 'manager', 'director', 'master'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be staff, manager, director, or master.' });
   }
   const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
   if (!target) return res.status(404).json({ error: 'User not found.' });
   if (target.role === 'master') return res.status(403).json({ error: 'Cannot change master account role.' });
+  if (role === 'master' && req.user!.role !== 'master') {
+    return res.status(403).json({ error: 'Only a master account can assign master access.' });
+  }
+  if (role === 'director' && req.user!.role !== 'master') {
+    return res.status(403).json({ error: 'Only a master account can assign director access.' });
+  }
+
+  const normalizedAccessRole: AccessRoleKey =
+    role === 'manager'
+      ? (isManagerFamilyRole(accessRole) ? accessRole : 'manager')
+      : role === 'director'
+        ? 'director'
+        : role === 'master'
+          ? 'master'
+          : 'manager';
 
   // Change role
   const [updated] = await db.update(usersTable)
@@ -779,7 +809,7 @@ router.patch('/customers/:id/promote', requireRole('director', 'master'), async 
       await db.insert(staffProfilesTable).values({
         userId:          id,
         employeeId:      `EMP-${Date.now().toString(36).toUpperCase()}`,
-        position:        role === 'manager' ? 'Manager' : 'Staff',
+        position:        role === 'manager' ? ACCESS_ROLE_LABELS[normalizedAccessRole] : 'Staff',
         department:      'floor',
         isManager:       role === 'manager',
         approvedByAdmin: true,
@@ -787,6 +817,15 @@ router.patch('/customers/:id/promote', requireRole('director', 'master'), async 
         address:         null,
         taxFileNumber:   null,
       });
+    } else if (role === 'manager') {
+      await db.update(staffProfilesTable)
+        .set({
+          position: ACCESS_ROLE_LABELS[normalizedAccessRole],
+          isManager: true,
+          approvedByAdmin: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(staffProfilesTable.userId, id));
     }
     if (role === 'manager') {
       const existingMpRows = await db.select().from(managerProfilesTable).where(eq(managerProfilesTable.userId, id));
@@ -799,7 +838,14 @@ router.patch('/customers/:id/promote', requireRole('director', 'master'), async 
           notes:           null,
         });
       }
+    } else {
+      await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, id));
+      await db.update(staffProfilesTable)
+        .set({ position: 'Staff', isManager: false, updatedAt: new Date() })
+        .where(eq(staffProfilesTable.userId, id));
     }
+  } else if (role === 'director' || role === 'master') {
+    await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, id));
   }
 
   return res.json({ data: updated });
@@ -1620,7 +1666,7 @@ router.get('/staff-list', async (req, res) => {
   const staff = await db
     .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
     .from(usersTable)
-    .where(sql`${usersTable.role} IN ('staff', 'manager')`);
+    .where(sql`${usersTable.role} IN ('staff', 'manager', 'director', 'master')`);
   return res.json({ data: staff });
 });
 
@@ -1724,14 +1770,18 @@ router.get('/managers', async (req, res) => {
     email: usersTable.email,
     permissions: managerProfilesTable.permissions,
     notes: managerProfilesTable.notes,
+    position: staffProfilesTable.position,
     createdAt: managerProfilesTable.createdAt,
   }).from(managerProfilesTable)
     .leftJoin(usersTable, eq(usersTable.id, managerProfilesTable.userId))
+    .leftJoin(staffProfilesTable, eq(staffProfilesTable.userId, managerProfilesTable.userId))
     .orderBy(desc(managerProfilesTable.createdAt));
 
   return res.json({
     data: managers.map(m => ({
       ...m,
+      role: 'manager',
+      accessRole: Object.entries(ACCESS_ROLE_LABELS).find(([, label]) => label === (m.position ?? 'Manager'))?.[0] ?? 'manager',
       permissions: parsePerms(m.permissions),
     })),
   });
@@ -1739,45 +1789,77 @@ router.get('/managers', async (req, res) => {
 
 router.post('/managers', async (req, res) => {
   if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
-  const { name, email, password, permissions = [], notes } = req.body;
+  const { name, email, password, permissions = [], notes, accessRole = 'manager' } = req.body;
+  const normalizedAccessRole: AccessRoleKey = Object.prototype.hasOwnProperty.call(ACCESS_ROLE_LABELS, accessRole) ? accessRole : 'manager';
+  const targetRole = normalizedAccessRole === 'director' || normalizedAccessRole === 'master'
+    ? normalizedAccessRole
+    : 'manager';
+  if ((targetRole === 'director' || targetRole === 'master') && req.user!.role !== 'master') {
+    return res.status(403).json({ error: `Only a master account can assign ${ACCESS_ROLE_LABELS[normalizedAccessRole]} access.` });
+  }
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
   if (existing) {
-    if (existing.role === 'staff') {
+    if (existing.role === 'staff' || existing.role === 'manager' || (req.user!.role === 'master' && (existing.role === 'director' || existing.role === 'master'))) {
       await db.update(usersTable)
-        .set({ role: 'manager' as any, name, updatedAt: new Date() })
+        .set({ role: targetRole as any, name, updatedAt: new Date() })
         .where(eq(usersTable.id, existing.id));
-      await db.insert(managerProfilesTable).values({
-        userId: existing.id,
-        permissions: JSON.stringify(permissions),
-        createdByUserId: req.user!.id,
-        notes: notes ?? null,
-      }).onConflictDoUpdate({
-        target: managerProfilesTable.userId,
-        set: {
+      if (targetRole === 'manager') {
+        await db.insert(managerProfilesTable).values({
+          userId: existing.id,
           permissions: JSON.stringify(permissions),
+          createdByUserId: req.user!.id,
           notes: notes ?? null,
-        },
-      });
-      return res.status(201).json({ data: { id: existing.id, name, email: email.toLowerCase(), permissions, notes } });
+        }).onConflictDoUpdate({
+          target: managerProfilesTable.userId,
+          set: {
+            permissions: JSON.stringify(permissions),
+            notes: notes ?? null,
+          },
+        });
+        await db.update(staffProfilesTable)
+          .set({
+            position: ACCESS_ROLE_LABELS[normalizedAccessRole],
+            isManager: true,
+            approvedByAdmin: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(staffProfilesTable.userId, existing.id));
+      } else {
+        await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, existing.id));
+      }
+      return res.status(201).json({ data: { id: existing.id, name, email: email.toLowerCase(), role: targetRole, accessRole: normalizedAccessRole, permissions, notes } });
     }
     return res.status(409).json({ error: 'An account with this email already exists.' });
   }
   const passwordHash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
-  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'manager', name });
-  await db.insert(managerProfilesTable).values({
-    userId,
-    permissions: JSON.stringify(permissions),
-    createdByUserId: req.user!.id,
-    notes: notes ?? null,
-  });
-  return res.status(201).json({ data: { id: userId, name, email: email.toLowerCase(), permissions, notes } });
+  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: targetRole as any, name });
+  if (targetRole === 'manager') {
+    await db.insert(staffProfilesTable).values({
+      userId,
+      employeeId: `EMP-${Date.now().toString(36).toUpperCase()}`,
+      position: ACCESS_ROLE_LABELS[normalizedAccessRole],
+      department: 'floor',
+      isManager: true,
+      approvedByAdmin: true,
+      hourlyRateCents: 0,
+      address: null,
+      taxFileNumber: null,
+    }).onConflictDoNothing();
+    await db.insert(managerProfilesTable).values({
+      userId,
+      permissions: JSON.stringify(permissions),
+      createdByUserId: req.user!.id,
+      notes: notes ?? null,
+    });
+  }
+  return res.status(201).json({ data: { id: userId, name, email: email.toLowerCase(), role: targetRole, accessRole: normalizedAccessRole, permissions, notes } });
 });
 
 router.patch('/managers/:id/permissions', async (req, res) => {
   if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
-  const { permissions, notes } = req.body;
+  const { permissions, notes, accessRole } = req.body;
   const updates: Record<string, any> = {};
   if (Array.isArray(permissions)) updates.permissions = JSON.stringify(permissions);
   if (notes !== undefined) updates.notes = notes;
@@ -1786,13 +1868,21 @@ router.patch('/managers/:id/permissions', async (req, res) => {
     .where(eq(managerProfilesTable.userId, req.params.id))
     .returning();
   if (!updated) return res.status(404).json({ error: 'Manager not found' });
-  return res.json({ data: { ...updated, permissions: parsePerms(updated.permissions) } });
+  if (isManagerFamilyRole(accessRole)) {
+    await db.update(staffProfilesTable)
+      .set({ position: ACCESS_ROLE_LABELS[accessRole], updatedAt: new Date() })
+      .where(eq(staffProfilesTable.userId, req.params.id));
+  }
+  return res.json({ data: { ...updated, role: 'manager', accessRole: isManagerFamilyRole(accessRole) ? accessRole : 'manager', permissions: parsePerms(updated.permissions) } });
 });
 
 router.delete('/managers/:id', async (req, res) => {
   if (!['director', 'master'].includes(req.user?.role ?? '')) return res.status(403).json({ error: 'Director only' });
   await db.delete(managerProfilesTable).where(eq(managerProfilesTable.userId, req.params.id));
   await db.update(usersTable).set({ role: 'staff' as any }).where(eq(usersTable.id, req.params.id));
+  await db.update(staffProfilesTable)
+    .set({ position: 'Staff', isManager: false, updatedAt: new Date() })
+    .where(eq(staffProfilesTable.userId, req.params.id));
   return res.json({ success: true });
 });
 

@@ -487,8 +487,8 @@ export const api = {
       get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
       update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null; payAtPickupEnabled?: boolean }) =>
         request<{ data: CrmCustomer }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-      promote:          (id: string, role: 'staff' | 'manager' | 'director') =>
-        request<{ data: CrmCustomer }>(`/director/customers/${id}/promote`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+      promote:          (id: string, role: 'staff' | 'manager' | 'director' | 'master', accessRole?: AccessRole) =>
+        request<{ data: CrmCustomer }>(`/director/customers/${id}/promote`, { method: 'PATCH', body: JSON.stringify({ role, accessRole }) }),
       updateStatus:     (id: string, status: 'active' | 'inactive' | 'suspended') =>
         request<{ data: CrmCustomer }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
       updateMarketing:  (id: string, emailMarketingOptIn: boolean) =>
@@ -506,9 +506,9 @@ export const api = {
     // Manager management (director/master)
     managers: {
       list:              () => request<{ data: DirectorManager[] }>('/director/managers'),
-      create:            (data: { name: string; email: string; password: string; permissions?: string[]; notes?: string }) =>
+      create:            (data: { name: string; email: string; password: string; permissions?: string[]; notes?: string; accessRole?: AccessRole }) =>
         request<{ data: DirectorManager }>('/director/managers', { method: 'POST', body: JSON.stringify(data) }),
-      updatePermissions: (id: string, data: { permissions: string[]; notes?: string }) =>
+      updatePermissions: (id: string, data: { permissions: string[]; notes?: string; accessRole?: AccessRole }) =>
         request<{ data: DirectorManager }>(`/director/managers/${id}/permissions`, { method: 'PATCH', body: JSON.stringify(data) }),
       delete:            (id: string) =>
         request<{ success: boolean }>(`/director/managers/${id}`, { method: 'DELETE' }),
@@ -1722,10 +1722,19 @@ export interface DirectorManager {
   name: string;
   email: string;
   role: 'manager';
+  accessRole?: AccessRole;
   permissions: string[];
   notes?: string | null;
   createdAt?: string;
 }
+
+export type AccessRole =
+  | 'manager'
+  | 'supervisor'
+  | 'store_manager'
+  | 'area_manager'
+  | 'director'
+  | 'master';
 
 export interface DirectorIdentity {
   id: string;

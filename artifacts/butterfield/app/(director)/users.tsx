@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import type { ComponentProps } from 'react';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
@@ -14,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
+import type { AccessRole, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 const BG     = '#EFF6FF';
@@ -31,14 +32,24 @@ const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 type InputKeyboardType = ComponentProps<typeof TextInput>['keyboardType'];
-const TABS = ['Customers', 'Staff', 'Shop Displays', 'Wholesale', 'Deleted'];
+const TABS = ['Customers', 'Staff', 'POS Screens'] as const;
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
   staff:     { bg: '#EDE9FE', text: '#5B21B6' },
+  manager:   { bg: '#E0E7FF', text: '#4338CA' },
   wholesale: { bg: '#DCFCE7', text: '#166534' },
   director:  { bg: '#FEF9C3', text: '#854D0E' },
+  master:    { bg: '#E5E7EB', text: '#111827' },
   shop_display: { bg: '#DBEAFE', text: '#1D4ED8' },
 };
+const ACCESS_ROLE_OPTIONS: { key: AccessRole; label: string }[] = [
+  { key: 'manager', label: 'Manager' },
+  { key: 'supervisor', label: 'Supervisor' },
+  { key: 'store_manager', label: 'Store Manager' },
+  { key: 'area_manager', label: 'Area Manager' },
+  { key: 'director', label: 'Director' },
+  { key: 'master', label: 'Master' },
+];
 function initials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
@@ -53,6 +64,16 @@ function fmtDateTime(dateStr: string | null | undefined): string {
 
 function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
   return error instanceof Error ? error.message : fallback;
+}
+
+function getUserRoleLabel(user: DirectorUserSummary): string {
+  if (user.role === 'manager') return user.staffProfile?.position?.trim() || 'Manager';
+  if (user.role === 'shop_display') return 'POS Screen';
+  if (user.role === 'master') return 'Master';
+  if (user.role === 'director') return 'Director';
+  if (user.role === 'staff') return 'Staff';
+  if (user.role === 'wholesale') return 'Wholesale';
+  return 'Customer';
 }
 // ── Staff Profile Modal ────────────────────────────────────────────────────
 function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
@@ -649,35 +670,42 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   </View>
                 </View>
               )}
-              {/* ── Promote to Manager / Director ────────────────────── */}
+              {/* ── Assign leadership role ───────────────────────────── */}
               {u?.role === 'staff' && (
                 <Pressable
                   style={[sp_s.promoteBtn, { borderColor: GREEN }]}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     Alert.alert(
-                      'Promote to Manager',
-                      `Give ${u?.name ?? 'this staff member'} manager access?\n\nThey will move into the manager/director-style portal and you can fine-tune their permissions from Roles & Permissions straight after.`,
+                      'Assign Leadership Role',
+                      `Choose the access role for ${u?.name ?? 'this staff member'}.`,
                       [
+                        ...ACCESS_ROLE_OPTIONS
+                          .filter((option) => isMaster || (option.key !== 'director' && option.key !== 'master'))
+                          .map((option) => ({
+                            text: option.label,
+                            onPress: async () => {
+                              if (!userId) return;
+                              try {
+                                const targetRole = option.key === 'director' || option.key === 'master' ? option.key : 'manager';
+                                await api.director.customers.promote(userId, targetRole, option.key);
+                                await qc.invalidateQueries({ queryKey: ['director-users'] });
+                                await qc.invalidateQueries({ queryKey: ['director-managers'] });
+                                await qc.invalidateQueries({ queryKey: ['master-directors'] });
+                                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                                handleClose();
+                                onRefresh();
+                                Alert.alert('Role Updated', `${u?.name ?? 'Staff member'} now has ${option.label} access.`);
+                              } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
+                            },
+                          })),
                         { text: 'Cancel', style: 'cancel' },
-                        { text: 'Promote', onPress: async () => {
-                          if (!userId) return;
-                          try {
-                            await api.director.customers.promote(userId, 'manager');
-                            await qc.invalidateQueries({ queryKey: ['director-users'] });
-                            await qc.invalidateQueries({ queryKey: ['director-managers'] });
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            handleClose();
-                            onRefresh();
-                            Alert.alert('Promoted', `${u?.name ?? 'Staff member'} is now a manager. You can adjust their permissions in Roles & Permissions.`);
-                          } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
-                        }},
                       ]
                     );
                   }}
                 >
                   <Feather name="arrow-up-right" size={15} color={GREEN} />
-                  <Text style={[sp_s.promoteBtnText, { color: GREEN }]}>Promote to Manager</Text>
+                  <Text style={[sp_s.promoteBtnText, { color: GREEN }]}>Assign Role</Text>
                 </Pressable>
               )}
 
@@ -1249,7 +1277,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
           <Pressable onPress={handleClose} style={modal.closeBtn}>
             <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-          <Text style={[modal.title, { color: TEXT }]}>Add {isStaff ? 'Staff Member' : isShopDisplay ? 'Shop Display Login' : 'Wholesale Customer'}</Text>
+          <Text style={[modal.title, { color: TEXT }]}>Add {isStaff ? 'Staff Member' : isShopDisplay ? 'POS Screen Login' : 'Wholesale Customer'}</Text>
         </View>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
           {/* Role badge */}
@@ -1357,7 +1385,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
           ) : null}
           <Pressable onPress={handleSubmit} disabled={loading} style={[modal.submitBtn, { backgroundColor: isStaff ? NAVY : isShopDisplay ? BLUE : GREEN, opacity: loading ? 0.8 : 1 }]}>
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
-              <Text style={modal.submitBtnText}>Create {isStaff ? 'Staff Account' : isShopDisplay ? 'Shop Display Login' : 'Wholesale Account'}</Text>
+              <Text style={modal.submitBtnText}>Create {isStaff ? 'Staff Account' : isShopDisplay ? 'POS Screen Login' : 'Wholesale Account'}</Text>
             )}
           </Pressable>
         </ScrollView>
@@ -1585,7 +1613,7 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
 
 export default function DirectorUsersScreen() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState('Customers');
+  const [tab, setTab] = useState<(typeof TABS)[number]>('Customers');
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
@@ -1595,20 +1623,13 @@ export default function DirectorUsersScreen() {
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
   });
-  const { data: deletedData, refetch: refetchDeleted } = useQuery({
-    queryKey: ['director-deleted-accounts'],
-    queryFn: () => api.director.deletedAccounts(),
-    refetchInterval: 60000,
-  });
-  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchDeleted);
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
   const allUsers: DirectorUserSummary[] = data?.data ?? [];
-  const deletedUsers: DeletedAccount[] = deletedData?.data ?? [];
   const filtered = allUsers.filter((u) => {
     if (tab === 'Customers')  return u.role === 'customer';
-    if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager';
-    if (tab === 'Shop Displays') return u.role === 'shop_display';
-    if (tab === 'Wholesale')  return u.role === 'wholesale';
-    return true;
+    if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (tab === 'POS Screens') return u.role === 'shop_display';
+    return false;
   });
   // ── Staff invite state ─────────────────────────────────────────────────────
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -1657,26 +1678,6 @@ export default function DirectorUsersScreen() {
   const openCreate = (type: CreateType) => {
     setCreateType(type); setShowCreate(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
-  const handleRestore = async (id: string, name: string) => {
-    Alert.alert('Restore Account', `Restore ${name}'s account?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Restore',
-        onPress: async () => {
-          try {
-            await api.director.restoreAccount(id);
-            await qc.invalidateQueries({ queryKey: ['director-deleted-accounts'] });
-            await qc.invalidateQueries({ queryKey: ['director-users'] });
-            Alert.alert('Restored', `${name}'s account has been restored.`);
-          } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
-        },
-      },
-    ]);
-  };
-  const fmtRelDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-  };
   const approveStaff = async (userId: string, approved: boolean) => {
     try {
       await api.director.approveStaff(userId, approved);
@@ -1708,8 +1709,8 @@ export default function DirectorUsersScreen() {
             );
           })}
         </ScrollView>
-        {/* Quick-add strip — only for Staff + Wholesale */}
-        {tab !== 'Customers' && tab !== 'Deleted' && (
+        {/* Quick-add strip — only for Staff + POS screens */}
+        {tab !== 'Customers' && (
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
             {tab === 'Staff' && (
@@ -1725,18 +1726,19 @@ export default function DirectorUsersScreen() {
                   <Feather name="link" size={13} color="#1D4ED8" />
                   <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
                 </Pressable>
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); router.push('/(director)/settings-managers' as any); }}
+                  style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
+                >
+                  <Feather name="shield" size={13} color={NAVY} />
+                  <Text style={[styles.addBtnText, { color: NAVY }]}>Roles & Permissions</Text>
+                </Pressable>
               </>
             )}
-            {tab === 'Shop Displays' && (
+            {tab === 'POS Screens' && (
               <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
                 <Feather name="monitor" size={13} color="#1D4ED8" />
-                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Shop Display</Text>
-              </Pressable>
-            )}
-            {tab === 'Wholesale' && (
-              <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
-                <Feather name="package" size={13} color="#166534" />
-                <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale</Text>
+                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
               </Pressable>
             )}
           </View>
@@ -1745,62 +1747,6 @@ export default function DirectorUsersScreen() {
       {/* Customers → full Shopify-style CRM screen */}
       {tab === 'Customers' ? (
         <DirectorCustomersScreen />
-      ) : tab === 'Deleted' ? (
-        <FlatList
-          data={deletedUsers}
-          keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
-              <Feather name="trash-2" size={40} color={MUTED} />
-              <Text style={{ color: MUTED, fontWeight: '400' }}>No recently deleted accounts</Text>
-              <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', fontWeight: '400', paddingHorizontal: 32 }}>
-                Deleted accounts are kept here for 30 days before being permanently removed.
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const daysLeft = Math.max(0, Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / 86400000));
-            const roleColors = ROLE_COLORS[item.role] ?? { bg: BG, text: MUTED };
-            return (
-              <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
-                <View style={styles.userTop}>
-                  <View style={[styles.avatar, { backgroundColor: roleColors.bg, alignItems: 'center', justifyContent: 'center' }]}>
-                    <Feather name="user" size={20} color={roleColors.text} />
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={[styles.userName, { color: TEXT }]}>{item.name}</Text>
-                    <Text style={[styles.userEmail, { color: MUTED }]}>{item.email}</Text>
-                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: roleColors.bg }}>
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: roleColors.text }}>{item.role}</Text>
-                      </View>
-                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: daysLeft <= 5 ? '#FEF2F2' : '#EFF6FF' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: daysLeft <= 5 ? RED : MUTED }}>
-                          {daysLeft}d left
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-                <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
-                    Deleted {fmtRelDate(item.deletedAt)}
-                  </Text>
-                  <Pressable
-                    onPress={() => handleRestore(item.id, item.name)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, backgroundColor: '#EBF8FF', borderWidth: 1, borderColor: '#BAE6FD' }}
-                  >
-                    <Feather name="rotate-ccw" size={12} color={BLUE} />
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>Restore</Text>
-                  </Pressable>
-                </View>
-              </View>
-            );
-          }}
-        />
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
@@ -1820,13 +1766,15 @@ export default function DirectorUsersScreen() {
           }
           renderItem={({ item: u }) => {
             const roleColors = ROLE_COLORS[u.role] ?? { bg: BG, text: MUTED };
+            const roleLabel = getUserRoleLabel(u);
             const sp = u.staffProfile;
             const wa = u.wholesaleAccount;
+            const canOpenStaffProfile = u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
             return (
               <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
                 <Pressable
                   style={styles.userTop}
-                  onPress={sp ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); } : undefined}
+                  onPress={canOpenStaffProfile ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); } : undefined}
                 >
                   {u.profileImage ? (
                     <Image
@@ -1843,9 +1791,9 @@ export default function DirectorUsersScreen() {
                     <View style={styles.nameRow}>
                       <Text style={styles.userName}>{u.name}</Text>
                       <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
-                        <Text style={[styles.rolePillText, { color: roleColors.text }]}>{u.role}</Text>
+                        <Text style={[styles.rolePillText, { color: roleColors.text }]}>{roleLabel}</Text>
                       </View>
-                      {sp && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
+                      {canOpenStaffProfile && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
                     </View>
                     <Text style={styles.userEmail}>{u.email}</Text>
                     <Text style={styles.userDate}>Joined {fmtDateTime(u.createdAt)}</Text>
