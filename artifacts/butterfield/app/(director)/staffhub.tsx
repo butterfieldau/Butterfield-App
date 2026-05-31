@@ -1450,8 +1450,8 @@ export default function StaffHubScreen() {
   const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
   const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
 
-  // Managers/directors default to Manage mode; staff default to My Shift
-  const [manageMode, setManageMode] = useState(isManager);
+  // Always start on My Shift; user can switch to Manage via the toggle
+  const [manageMode, setManageMode] = useState(false);
 
   // Fetch manager permissions (only relevant for role=manager)
   const { data: mgrProfileData } = useQuery({
