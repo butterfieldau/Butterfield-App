@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BG    = '#EFF6FF';
@@ -30,6 +30,7 @@ export function DirectorStandaloneScreen({
   const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor }}>
+      <StatusBar barStyle="dark-content" backgroundColor={backgroundColor} />
       <View style={{ paddingTop: insets.top, backgroundColor }}>
         <Pressable
           onPress={() => { Haptics.selectionAsync(); router.back(); }}
