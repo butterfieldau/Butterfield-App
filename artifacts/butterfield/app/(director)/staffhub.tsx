@@ -661,41 +661,49 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
         )}
 
         {/* ── Incomplete section ── */}
-        {incompleteExpanded && (
-          <View style={[s.glassCard, { gap: 12 }]}>
-            <DayNavRow />
-            {incompleteTasks.length === 0 ? (
-              <EmptyState icon="check-square" message="All tasks are complete!" />
-            ) : (
-              CATEGORIES.map(cat => {
-                const items = incompleteTasks.filter(t => t.category === cat);
-                if (items.length === 0) return null;
-                const color = CAT_COLORS[cat] ?? BLUE;
-                return (
-                  <View key={cat} style={{ gap: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
-                      <Badge label={String(items.length)} color={AMBER} />
-                    </View>
-                    {items.map(t => (
-                      <View key={t.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
-                        <Feather name="square" size={14} color={AMBER} style={{ marginTop: 2 }} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[s.taskTitle, { fontSize: 13 }]}>{t.title}</Text>
-                          <Text style={s.taskDesc}>
-                            {TASK_CADENCE_LABELS[t.cadence ?? 'daily'] ?? 'Daily'}
-                            {t.assignedToName ? `  ·  ${t.assignedToName}` : ''}
-                          </Text>
-                        </View>
+        {incompleteExpanded && (() => {
+          // Today: use live isCompleted=false list
+          // Past days: tasks not found in that day's completed history
+          const completedIdsForDay = new Set(completedHistory.map(h => h.taskId));
+          const displayIncomplete = dayOffset === 0
+            ? incompleteTasks
+            : tasks.filter(t => !completedIdsForDay.has(t.id));
+          return (
+            <View style={[s.glassCard, { gap: 12 }]}>
+              <DayNavRow />
+              {displayIncomplete.length === 0 ? (
+                <EmptyState icon="check-square" message="All tasks completed that day!" />
+              ) : (
+                CATEGORIES.map(cat => {
+                  const items = displayIncomplete.filter(t => t.category === cat);
+                  if (items.length === 0) return null;
+                  const color = CAT_COLORS[cat] ?? BLUE;
+                  return (
+                    <View key={cat} style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
+                        <Badge label={String(items.length)} color={AMBER} />
                       </View>
-                    ))}
-                  </View>
-                );
-              })
-            )}
-          </View>
-        )}
+                      {items.map(t => (
+                        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
+                          <Feather name="square" size={14} color={AMBER} style={{ marginTop: 2 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[s.taskTitle, { fontSize: 13 }]}>{t.title}</Text>
+                            <Text style={s.taskDesc}>
+                              {TASK_CADENCE_LABELS[t.cadence ?? 'daily'] ?? 'Daily'}
+                              {t.assignedToName ? `  ·  ${t.assignedToName}` : ''}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          );
+        })()}
 
         {/* ── All Tasks ── */}
         <Text style={[s.metaLabel, { paddingHorizontal: 2, letterSpacing: 1, marginTop: 4 }]}>ALL TASKS</Text>
