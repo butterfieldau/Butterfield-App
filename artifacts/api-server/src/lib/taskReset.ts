@@ -23,7 +23,8 @@ export async function autoResetTasks(): Promise<void> {
 
   const toReset = completed.filter((t) => {
     if (!t.completedAt) return false;
-    const cat = new Date(t.completedAt);
+    // Convert completedAt to Sydney "local" time for correct boundary comparison
+    const cat = new Date(t.completedAt.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
     if (t.cadence === 'daily')  return cat < dailyBoundary;
     if (t.cadence === 'weekly') return cat < weeklyBoundary;
     return false;

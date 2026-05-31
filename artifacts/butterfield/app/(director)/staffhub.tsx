@@ -431,7 +431,7 @@ function StaffTasksTab({ userId }: { userId?: string }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TASKS TAB — manager view: configure tasks
 // ══════════════════════════════════════════════════════════════════════════════
-function ManagerTasksTab() {
+function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
   const qc = useQueryClient();
   const [editingTask, setEditingTask]             = useState<EditableTask | null>(null);
   const [showEditor, setShowEditor]               = useState(false);
@@ -550,15 +550,25 @@ function ManagerTasksTab() {
 
         {/* ── 3-tile row: Add Task | Completed | Incomplete ── */}
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {/* Add Task tile */}
-          <Pressable onPress={() => { Haptics.selectionAsync(); setEditingTask(null); setShowEditor(true); }}
-            style={[s.tileBig, { flex: 1, borderColor: BLUE + '50', backgroundColor: BLUE + '0D' }]}>
-            <View style={[s.tileIcon, { backgroundColor: BLUE + '20' }]}>
-              <Feather name="plus" size={16} color={BLUE} />
+          {/* Add Task tile — only for users with edit permission */}
+          {canEdit ? (
+            <Pressable onPress={() => { Haptics.selectionAsync(); setEditingTask(null); setShowEditor(true); }}
+              style={[s.tileBig, { flex: 1, borderColor: BLUE + '50', backgroundColor: BLUE + '0D' }]}>
+              <View style={[s.tileIcon, { backgroundColor: BLUE + '20' }]}>
+                <Feather name="plus" size={16} color={BLUE} />
+              </View>
+              <Text style={[s.tileCount, { color: BLUE }]}>{tasks.length}</Text>
+              <Text style={[s.tileLabel, { color: BLUE }]}>Add Task</Text>
+            </Pressable>
+          ) : (
+            <View style={[s.tileBig, { flex: 1, borderColor: BORDER, backgroundColor: GLASS_BG }]}>
+              <View style={[s.tileIcon, { backgroundColor: MUTED + '20' }]}>
+                <Feather name="clipboard" size={16} color={MUTED} />
+              </View>
+              <Text style={[s.tileCount, { color: TEXT }]}>{tasks.length}</Text>
+              <Text style={s.tileLabel}>All Tasks</Text>
             </View>
-            <Text style={[s.tileCount, { color: BLUE }]}>{tasks.length}</Text>
-            <Text style={[s.tileLabel, { color: BLUE }]}>Add Task</Text>
-          </Pressable>
+          )}
 
           {/* Completed tile */}
           <Pressable
@@ -683,27 +693,29 @@ function ManagerTasksTab() {
               </View>
             </View>
             {task.description ? <Text style={s.cardDesc}>{task.description}</Text> : null}
-            <View style={s.actionRow}>
-              <Pressable style={[s.actionBtn, { borderColor: BORDER }]} onPress={() => void reorder(task.id, -1)} disabled={index === 0}>
-                <Feather name="arrow-up" size={13} color={index === 0 ? BORDER : BLUE} />
-                <Text style={[s.actionBtnText, { color: index === 0 ? MUTED : BLUE }]}>Up</Text>
-              </Pressable>
-              <Pressable style={[s.actionBtn, { borderColor: BORDER }]} onPress={() => void reorder(task.id, 1)} disabled={index === tasks.length - 1}>
-                <Feather name="arrow-down" size={13} color={index === tasks.length - 1 ? BORDER : BLUE} />
-                <Text style={[s.actionBtnText, { color: index === tasks.length - 1 ? MUTED : BLUE }]}>Down</Text>
-              </Pressable>
-              <Pressable style={[s.actionBtn, { borderColor: BLUE + '40', backgroundColor: BLUE + '10', flex: 1 }]} onPress={() => { setEditingTask(task); setShowEditor(true); }}>
-                <Feather name="edit-2" size={13} color={BLUE} />
-                <Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text>
-              </Pressable>
-              <Pressable style={[s.actionBtn, { borderColor: RED + '40', backgroundColor: RED + '10' }]}
-                onPress={() => Alert.alert('Delete Task', `Delete "${task.title}"?`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: () => deleteTask.mutate(task.id) },
-                ])}>
-                <Feather name="trash-2" size={13} color={RED} />
-              </Pressable>
-            </View>
+            {canEdit && (
+              <View style={s.actionRow}>
+                <Pressable style={[s.actionBtn, { borderColor: BORDER }]} onPress={() => void reorder(task.id, -1)} disabled={index === 0}>
+                  <Feather name="arrow-up" size={13} color={index === 0 ? BORDER : BLUE} />
+                  <Text style={[s.actionBtnText, { color: index === 0 ? MUTED : BLUE }]}>Up</Text>
+                </Pressable>
+                <Pressable style={[s.actionBtn, { borderColor: BORDER }]} onPress={() => void reorder(task.id, 1)} disabled={index === tasks.length - 1}>
+                  <Feather name="arrow-down" size={13} color={index === tasks.length - 1 ? BORDER : BLUE} />
+                  <Text style={[s.actionBtnText, { color: index === tasks.length - 1 ? MUTED : BLUE }]}>Down</Text>
+                </Pressable>
+                <Pressable style={[s.actionBtn, { borderColor: BLUE + '40', backgroundColor: BLUE + '10', flex: 1 }]} onPress={() => { setEditingTask(task); setShowEditor(true); }}>
+                  <Feather name="edit-2" size={13} color={BLUE} />
+                  <Text style={[s.actionBtnText, { color: BLUE }]}>Edit</Text>
+                </Pressable>
+                <Pressable style={[s.actionBtn, { borderColor: RED + '40', backgroundColor: RED + '10' }]}
+                  onPress={() => Alert.alert('Delete Task', `Delete "${task.title}"?`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => deleteTask.mutate(task.id) },
+                  ])}>
+                  <Feather name="trash-2" size={13} color={RED} />
+                </Pressable>
+              </View>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -1377,8 +1389,19 @@ export default function StaffHubScreen() {
   const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
   const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
 
-  // Managers can toggle between their own staff tools and the management view
-  const [manageMode, setManageMode] = useState(false);
+  // Managers/directors default to Manage mode; staff default to My Shift
+  const [manageMode, setManageMode] = useState(isManager);
+
+  // Fetch manager permissions (only relevant for role=manager)
+  const { data: mgrProfileData } = useQuery({
+    queryKey: ['manager-profile'],
+    queryFn:  () => api.manager.profile(),
+    enabled:  user?.role === 'manager',
+    staleTime: 60_000,
+  });
+  const mgrPerms: string[] = (mgrProfileData?.data?.permissions as string[]) ?? [];
+  // Directors/masters always can edit tasks; managers need the 'tasks' permission
+  const canEditTasks = user?.role !== 'manager' || mgrPerms.includes('tasks');
 
   // In staff-tools mode managers see the same 4 tabs as regular staff
   const tabs = (isManager && manageMode) ? MANAGER_TABS : STAFF_TABS;
@@ -1449,7 +1472,7 @@ export default function StaffHubScreen() {
       </ScrollView>
 
       {/* ── Content ── */}
-      {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab />   : <StaffTasksTab userId={user?.id} />)}
+      {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab canEdit={canEditTasks} />   : <StaffTasksTab userId={user?.id} />)}
       {activeTab === 'issues'   && (showManagerContent ? <ManagerIssuesTab />  : <StaffIssuesTab />)}
       {activeTab === 'wastage'  && (showManagerContent ? <ManagerWastageTab /> : <StaffWastageTab />)}
       {activeTab === 'leave'    && (showManagerContent ? <ManagerLeaveTab />   : <StaffLeaveTab />)}
