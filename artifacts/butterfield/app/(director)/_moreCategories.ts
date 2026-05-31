@@ -119,7 +119,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Hardware & Devices',
         items: [
-          { icon: 'printer',     label: 'Receipt Printers',      sub: 'Configure receipt printer settings',     color: NAVY,   directorOnly: true, soon: true },
+          { icon: 'printer',     label: 'Receipt Printers',      sub: 'IP address & port per store',            color: NAVY,   perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
           { icon: 'server',      label: 'Kitchen Printers',      sub: 'Kitchen display & order tickets',        color: '#D97706', directorOnly: true, soon: true },
           { icon: 'tag',         label: 'Label Printers',        sub: 'Product label & barcode printers',       color: TEAL,   directorOnly: true, soon: true },
           { icon: 'maximize',    label: 'Scanner Devices',       sub: 'Barcode & QR scanners',                  color: PURPLE, directorOnly: true, soon: true },
@@ -157,7 +157,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Roles & Permissions',
         items: [
-          { icon: 'shield',     label: 'Add Manager',        sub: 'Create a new manager account',           color: NAVY,   directorOnly: true, onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Managers' } } as any) },
+          { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manage access levels, roles & managers', color: NAVY,   directorOnly: true, onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Managers' } } as any) },
           { icon: 'sliders',    label: 'Permission Groups',  sub: 'Manager, Supervisor, Store Manager etc.', color: PURPLE, directorOnly: true, soon: true },
           { icon: 'key',        label: 'Portal Access',      sub: 'Which portals each role can see',        color: BLUE,   directorOnly: true, soon: true },
           { icon: 'layers',     label: 'Role Management',    sub: 'Create & edit role definitions',         color: AMBER,  directorOnly: true, soon: true },
