@@ -19,6 +19,7 @@ import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaRead
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
@@ -399,17 +400,16 @@ router.patch('/orders/:id/status', async (req, res) => {
         req.log.error({ err, orderId: updated.id }, 'Failed to reverse coffee stamps on director cancellation');
       }
 
-      // Trigger Stripe refund if order was paid online
-      if (updated.stripePaymentIntentId) {
-        try {
-          const { getUncachableStripeClient } = await import('../stripeClient.js');
-          const stripe = await getUncachableStripeClient();
-          await stripe.refunds.create({ payment_intent: updated.stripePaymentIntentId });
-          req.log.info({ orderId: updated.id, paymentIntentId: updated.stripePaymentIntentId }, 'Stripe refund issued on order cancellation');
-        } catch (err: any) {
-          // Non-fatal: log but don't fail the request — refund may already exist or be ineligible
-          req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on order cancellation');
-        }
+      try {
+        await refundOrderStripePayment({
+          orderId: updated.id,
+          stripePaymentIntentId: updated.stripePaymentIntentId ?? null,
+          stripePaymentStatus: updated.stripePaymentStatus ?? null,
+          log: req.log,
+        });
+      } catch (err: any) {
+        // Non-fatal: log but don't fail the request — refund may already exist or be ineligible
+        req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on order cancellation');
       }
     }
 

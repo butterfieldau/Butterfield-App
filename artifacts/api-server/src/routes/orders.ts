@@ -8,6 +8,7 @@ import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfil
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
+import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 
 const router = Router();
 
@@ -373,7 +374,9 @@ router.patch(
 
     // ── On cancellation: restore claimed reward + reverse loyalty points earned ──
     // Guard: only run once — skip if order was already cancelled before this call
-    if (status === 'cancelled' && previousStatus !== 'cancelled' && order) {
+    const isCancelOrRefund = (status === 'cancelled' || status === 'refunded');
+    const wasAlreadyCancelledOrRefunded = previousStatus === 'cancelled' || previousStatus === 'refunded';
+    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && order) {
       try {
         await db.update(claimedRewardsTable)
           .set({ status: 'available', redeemedAt: null, orderId: null })
@@ -391,7 +394,7 @@ router.patch(
             userId: order.userId,
             pointsDelta: -order.loyaltyPointsEarned,
             orderId: order.id,
-            description: 'Order cancelled — points reversed',
+            description: `Order ${status} — points reversed`,
           });
         } catch (err: any) {
           req.log.error({ err, orderId: order.id }, 'Failed to reverse loyalty points on order cancellation');
@@ -404,13 +407,24 @@ router.patch(
           await reverseCoffeeStamps({
             userId: order.userId,
             stampsToRemove: coffeeStampCount,
-            source: 'order_cancel',
+            source: status === 'refunded' ? 'order_refund' : 'order_cancel',
             orderId: order.id,
-            description: 'Order cancelled — coffee stamps reversed',
+            description: `Order ${status} — coffee stamps reversed`,
           });
         }
       } catch (err: any) {
         req.log.error({ err, orderId: order.id }, 'Failed to reverse coffee stamps on order cancellation');
+      }
+
+      try {
+        await refundOrderStripePayment({
+          orderId: order.id,
+          stripePaymentIntentId: order.stripePaymentIntentId ?? null,
+          stripePaymentStatus: order.stripePaymentStatus ?? null,
+          log: req.log,
+        });
+      } catch (err: any) {
+        req.log.warn({ err, orderId: order.id }, 'Stripe refund failed or skipped on order cancellation');
       }
     }
 

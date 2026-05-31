@@ -16,6 +16,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 
 const router = Router();
 router.use(requireRole('shop_display'));
@@ -176,14 +177,15 @@ router.patch('/orders/:id/status', async (req, res) => {
       req.log.error({ err, orderId: updated.id }, 'Failed to reverse coffee stamps on shop display cancellation');
     }
 
-    if (updated.stripePaymentIntentId) {
-      try {
-        const { getUncachableStripeClient } = await import('../stripeClient.js');
-        const stripe = await getUncachableStripeClient();
-        await stripe.refunds.create({ payment_intent: updated.stripePaymentIntentId });
-      } catch (err: any) {
-        req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on shop display cancellation');
-      }
+    try {
+      await refundOrderStripePayment({
+        orderId: updated.id,
+        stripePaymentIntentId: updated.stripePaymentIntentId ?? null,
+        stripePaymentStatus: updated.stripePaymentStatus ?? null,
+        log: req.log,
+      });
+    } catch (err: any) {
+      req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on shop display cancellation');
     }
   }
 
