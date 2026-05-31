@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, type AccessRole, type DirectorIdentity, type DirectorManager, type DirectorUserSummary } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
@@ -90,6 +91,7 @@ function SectionTitle({ children }: { children: string }) {
 }
 
 export default function DirectorRolesSettingsPage() {
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { user } = useAuth();
   const isMaster = user?.role === 'master';
@@ -264,7 +266,7 @@ export default function DirectorRolesSettingsPage() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 16, paddingBottom: 12 }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Roles & Permissions</Text>
       </View>
 

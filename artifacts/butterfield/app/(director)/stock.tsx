@@ -560,7 +560,7 @@ export default function StockScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: 20 }]}>
+      <View style={[s.header, { paddingTop: insets.top + 20 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Pressable onPress={() => router.back()} style={s.backBtn}>
             <Feather name="chevron-left" size={20} color={NAVY} />

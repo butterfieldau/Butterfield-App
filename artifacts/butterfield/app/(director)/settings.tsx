@@ -64,11 +64,12 @@ const BANNER_ROUTE_OPTIONS = [
 ];
 
 export function SettingsStandaloneScreen({ title, children }: { title: string; children: ReactNode }) {
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <Pressable
         onPress={() => { Haptics.selectionAsync(); router.back(); }}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 }}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: insets.top + 16, paddingBottom: 4 }}
       >
         <Feather name="chevron-left" size={20} color={BLUE} />
         <Text style={{ fontSize: 15, fontWeight: '600', color: BLUE }}>More</Text>

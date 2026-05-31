@@ -1623,6 +1623,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const staffMode = screenMode === 'staff';
   const posMode = screenMode === 'pos';
   const dedicatedMode = Boolean(screenMode);
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [tab, setTab] = useState<(typeof TABS)[number]>(
     wholesaleMode || staffMode ? 'Staff' : posMode ? 'POS Screens' : 'Customers'
@@ -1706,7 +1707,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 12, backgroundColor: BG }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
           {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'Users'}
         </Text>
