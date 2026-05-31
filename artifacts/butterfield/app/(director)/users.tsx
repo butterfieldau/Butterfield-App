@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import type { ComponentProps } from 'react';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
@@ -1612,8 +1612,10 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
 }
 
 export default function DirectorUsersScreen() {
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const wholesaleMode = params.mode === 'wholesale';
   const qc = useQueryClient();
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Customers');
+  const [tab, setTab] = useState<(typeof TABS)[number]>(wholesaleMode ? 'Staff' : 'Customers');
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
@@ -1626,6 +1628,7 @@ export default function DirectorUsersScreen() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const allUsers: DirectorUserSummary[] = data?.data ?? [];
   const filtered = allUsers.filter((u) => {
+    if (wholesaleMode) return u.role === 'wholesale';
     if (tab === 'Customers')  return u.role === 'customer';
     if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (tab === 'POS Screens') return u.role === 'shop_display';
@@ -1691,28 +1694,38 @@ export default function DirectorUsersScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page title */}
       <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Users</Text>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
+          {wholesaleMode ? 'Wholesale Accounts' : 'Users'}
+        </Text>
       </View>
       {/* Tab bar + Add buttons */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}>
-          {TABS.map((t) => {
-            const active = tab === t;
-            return (
-              <Pressable
-                key={t}
-                onPress={() => { setTab(t); Haptics.selectionAsync(); }}
-                style={[styles.tabChip, { backgroundColor: active ? BLUE : BG, borderColor: active ? BLUE : BORDER }]}
-              >
-                <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        {/* Quick-add strip — only for Staff + POS screens */}
-        {tab !== 'Customers' && (
+        {!wholesaleMode && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}>
+            {TABS.map((t) => {
+              const active = tab === t;
+              return (
+                <Pressable
+                  key={t}
+                  onPress={() => { setTab(t); Haptics.selectionAsync(); }}
+                  style={[styles.tabChip, { backgroundColor: active ? BLUE : BG, borderColor: active ? BLUE : BORDER }]}
+                >
+                  <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+        {/* Quick-add strip */}
+        {(wholesaleMode || tab !== 'Customers') && (
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
+            {wholesaleMode && (
+              <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
+                <Feather name="briefcase" size={13} color="#166534" />
+                <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
+              </Pressable>
+            )}
             {tab === 'Staff' && (
               <>
                 <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
@@ -1735,7 +1748,7 @@ export default function DirectorUsersScreen() {
                 </Pressable>
               </>
             )}
-            {tab === 'POS Screens' && (
+            {!wholesaleMode && tab === 'POS Screens' && (
               <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
                 <Feather name="monitor" size={13} color="#1D4ED8" />
                 <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
@@ -1745,7 +1758,7 @@ export default function DirectorUsersScreen() {
         )}
       </View>
       {/* Customers → full Shopify-style CRM screen */}
-      {tab === 'Customers' ? (
+      {!wholesaleMode && tab === 'Customers' ? (
         <DirectorCustomersScreen />
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

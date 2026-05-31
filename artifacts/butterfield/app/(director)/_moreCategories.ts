@@ -88,16 +88,12 @@ const ALL_CATEGORIES: Category[] = [
     label: 'Operations',
     icon: 'tool',
     color: GREEN,
-    description: 'Store settings, stock, timesheets & hardware',
+    description: 'Store setup, stock, timesheets & hardware',
     groups: [
       {
-        label: 'Store Settings',
+        label: 'Store Setup',
         items: [
-          { icon: 'toggle-right', label: 'Open / Close Store',   sub: 'Set open status inside each store location',          color: GREEN,    perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
-          { icon: 'shopping-bag', label: 'Pickup & Delivery',    sub: 'Manage pickup windows per individual store',          color: '#059669', perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
-          { icon: 'sun',          label: 'Daily Specials',       sub: 'Configure specials inside each store editor',         color: AMBER,    perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
-          { icon: 'clock',        label: 'Trading Hours',        sub: 'Opening & closing times per day',         color: BLUE,     perm: 'settings', soon: true },
-          { icon: 'map-pin',      label: 'Store Locations',      sub: 'Locations, addresses & geofence',         color: RED,      perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
+          { icon: 'map-pin',      label: 'Store Locations',      sub: 'Open status, hours, printers, pickup, geofence and notes per store', color: RED, perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
         ],
       },
       {
@@ -119,7 +115,6 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Hardware & Devices',
         items: [
-          { icon: 'printer',     label: 'Receipt Printers',      sub: 'IP address & port per store',            color: NAVY,   perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
           { icon: 'server',      label: 'Kitchen Printers',      sub: 'Kitchen display & order tickets',        color: '#D97706', directorOnly: true, soon: true },
           { icon: 'tag',         label: 'Label Printers',        sub: 'Product label & barcode printers',       color: TEAL,   directorOnly: true, soon: true },
           { icon: 'maximize',    label: 'Scanner Devices',       sub: 'Barcode & QR scanners',                  color: PURPLE, directorOnly: true, soon: true },
@@ -170,6 +165,12 @@ const ALL_CATEGORIES: Category[] = [
     description: 'Pricing tiers, quantity breaks & credit limits',
     groups: [
       {
+        label: 'Accounts',
+        items: [
+          { icon: 'briefcase',    label: 'Wholesale Accounts',  sub: 'B2B customers, account status & credit setup', color: GREEN, perm: 'users', onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'wholesale' } } as any) },
+        ],
+      },
+      {
         label: 'Pricing & Tiers',
         items: [
           { icon: 'tag',          label: 'Pricing Tiers',       sub: 'Tier names, discounts & min orders',    color: AMBER,    perm: 'pricing', onPress: () => router.push({ pathname: '/(director)/pricing', params: { tab: 'Tiers' } } as any) },
@@ -177,7 +178,7 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'dollar-sign',  label: 'Custom Pricing',      sub: 'Per-customer product overrides',        color: '#B45309', perm: 'pricing', onPress: () => router.push({ pathname: '/(director)/pricing', params: { tab: 'Custom' } } as any) },
           { icon: 'user-plus',    label: 'Customer Assignments',sub: 'Assign wholesale clients to tiers',     color: '#92400E', perm: 'pricing', onPress: () => router.push({ pathname: '/(director)/pricing', params: { tab: 'Assign' } } as any) },
           { icon: 'credit-card',  label: 'Credit Limits',       sub: 'Enable credit & set limits per client', color: GREEN,    perm: 'users',   soon: true },
-          { icon: 'phone',        label: 'Account Managers',    sub: 'Assign account managers to clients',    color: BLUE,     perm: 'users',   onPress: () => router.push('/(director)/users' as any) },
+          { icon: 'phone',        label: 'Account Managers',    sub: 'Assign account managers to wholesale customers',    color: BLUE,     perm: 'users',   onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'wholesale' } } as any) },
         ],
       },
     ],
