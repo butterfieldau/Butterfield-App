@@ -35,7 +35,10 @@ router.use(async (_req, _res, next) => {
   }
 });
 router.use(requireRole('director', 'master', 'manager'));
-router.use(requireManagerPermission('settings'));
+// No global requireManagerPermission here — this router is mounted before the main
+// director router, so a global guard would block managers on ALL /director/* paths
+// (tasks, orders, etc.) that are handled by other routers. Write routes below use
+// inline role checks; reads are accessible to all manager roles.
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
