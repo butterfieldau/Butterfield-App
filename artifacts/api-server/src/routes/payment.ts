@@ -220,7 +220,10 @@ router.post('/payment-intent', async (req, res) => {
       amount: computed.totalCents,
       currency: 'aud',
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'never',
+      },
       setup_future_usage: savePaymentMethod ? 'off_session' : undefined,
       metadata: {
         userId: req.user!.id,
@@ -310,6 +313,7 @@ router.post('/confirm-saved-method', async (req, res) => {
       currency: 'aud',
       customer: customerId,
       payment_method: paymentMethodId,
+      payment_method_types: ['card'],
       confirmation_method: 'manual',
       confirm: true,
       metadata: {
