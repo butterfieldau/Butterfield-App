@@ -88,7 +88,7 @@ export default function MoreCategoryScreen() {
     >
       {/* Back */}
       <Pressable
-        onPress={() => { Haptics.selectionAsync(); router.navigate('/(director)/more' as any); }}
+        onPress={() => { Haptics.selectionAsync(); router.back(); }}
         style={[s.backRow, { paddingTop: 20 }]}
       >
         <Feather name="chevron-left" size={20} color={category.color} />

@@ -1611,11 +1611,22 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
   );
 }
 
-export default function DirectorUsersScreen() {
+type UsersMode = 'wholesale' | 'staff' | 'pos';
+
+export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode } = {}) {
   const params = useLocalSearchParams<{ mode?: string }>();
-  const wholesaleMode = params.mode === 'wholesale';
+  const routeMode = params.mode === 'wholesale' || params.mode === 'staff' || params.mode === 'pos'
+    ? params.mode
+    : undefined;
+  const screenMode = modeOverride ?? routeMode;
+  const wholesaleMode = screenMode === 'wholesale';
+  const staffMode = screenMode === 'staff';
+  const posMode = screenMode === 'pos';
+  const dedicatedMode = Boolean(screenMode);
   const qc = useQueryClient();
-  const [tab, setTab] = useState<(typeof TABS)[number]>(wholesaleMode ? 'Staff' : 'Customers');
+  const [tab, setTab] = useState<(typeof TABS)[number]>(
+    wholesaleMode || staffMode ? 'Staff' : posMode ? 'POS Screens' : 'Customers'
+  );
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
@@ -1629,6 +1640,8 @@ export default function DirectorUsersScreen() {
   const allUsers: DirectorUserSummary[] = data?.data ?? [];
   const filtered = allUsers.filter((u) => {
     if (wholesaleMode) return u.role === 'wholesale';
+    if (staffMode) return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (posMode) return u.role === 'shop_display';
     if (tab === 'Customers')  return u.role === 'customer';
     if (tab === 'Staff')      return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (tab === 'POS Screens') return u.role === 'shop_display';
@@ -1695,12 +1708,12 @@ export default function DirectorUsersScreen() {
       {/* Page title */}
       <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
-          {wholesaleMode ? 'Wholesale Accounts' : 'Users'}
+          {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'Users'}
         </Text>
       </View>
       {/* Tab bar + Add buttons */}
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        {!wholesaleMode && (
+        {!dedicatedMode && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}>
             {TABS.map((t) => {
               const active = tab === t;
@@ -1717,7 +1730,7 @@ export default function DirectorUsersScreen() {
           </ScrollView>
         )}
         {/* Quick-add strip */}
-        {(wholesaleMode || tab !== 'Customers') && (
+        {(dedicatedMode || tab !== 'Customers') && (
           <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
             <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
             {wholesaleMode && (
@@ -1726,7 +1739,7 @@ export default function DirectorUsersScreen() {
                 <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
               </Pressable>
             )}
-            {tab === 'Staff' && (
+            {(staffMode || (!dedicatedMode && tab === 'Staff')) && (
               <>
                 <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
                   <Feather name="user-plus" size={13} color="#5B21B6" />
@@ -1740,7 +1753,7 @@ export default function DirectorUsersScreen() {
                   <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => { Haptics.selectionAsync(); router.push('/(director)/settings-managers' as any); }}
+                  onPress={() => { Haptics.selectionAsync(); router.push('/director-settings-managers' as any); }}
                   style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
                 >
                   <Feather name="shield" size={13} color={NAVY} />
@@ -1748,8 +1761,8 @@ export default function DirectorUsersScreen() {
                 </Pressable>
               </>
             )}
-            {!wholesaleMode && tab === 'POS Screens' && (
-              <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
+            {(posMode || (!dedicatedMode && tab === 'POS Screens')) && (
+              <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}> 
                 <Feather name="monitor" size={13} color="#1D4ED8" />
                 <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
               </Pressable>
@@ -2038,6 +2051,8 @@ export default function DirectorUsersScreen() {
     </View>
   );
 }
+
+export default DirectorUsersScreen;
 const styles = StyleSheet.create({
   tabChip:       { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   tabChipText:   { fontSize: 12, fontWeight: '600', lineHeight: 16 },

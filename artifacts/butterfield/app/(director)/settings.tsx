@@ -8,7 +8,7 @@ import {
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   api,
@@ -66,6 +66,13 @@ const BANNER_ROUTE_OPTIONS = [
 export function SettingsStandaloneScreen({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <Pressable
+        onPress={() => { Haptics.selectionAsync(); router.back(); }}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 }}
+      >
+        <Feather name="chevron-left" size={20} color={BLUE} />
+        <Text style={{ fontSize: 15, fontWeight: '600', color: BLUE }}>More</Text>
+      </Pressable>
       <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>{title}</Text>
       </View>
@@ -1883,19 +1890,19 @@ export default function DirectorSettingsScreen() {
     return <Redirect href="/(director)/stores" />;
   }
   if (tab === 'Banner') {
-    return <Redirect href="/(director)/settings-banner" />;
+    return <Redirect href="/director-settings-banner" />;
   }
   if (tab === 'Rewards') {
-    return <Redirect href="/(director)/settings-rewards" />;
+    return <Redirect href="/director-settings-rewards" />;
   }
   if (tab === 'Notify') {
-    return <Redirect href="/(director)/settings-notify" />;
+    return <Redirect href="/director-settings-notify" />;
   }
   if (tab === 'Managers') {
-    return <Redirect href="/(director)/settings-managers" />;
+    return <Redirect href="/director-settings-managers" />;
   }
   if (tab === 'Directors') {
-    return <Redirect href="/(director)/settings-directors" />;
+    return <Redirect href="/director-settings-directors" />;
   }
 
   return <Redirect href="/(director)/more" />;

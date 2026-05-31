@@ -95,7 +95,7 @@ export default function MoreScreen() {
             key={cat.key}
             cat={cat}
             onPress={() =>
-              router.push({ pathname: '/(director)/more-category', params: { key: cat.key } } as any)
+              router.push({ pathname: '/director-more-category', params: { key: cat.key } } as any)
             }
           />
         ))}
