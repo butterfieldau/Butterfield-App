@@ -132,8 +132,9 @@ export default function DirectorLayout() {
           <Tabs.Screen name="settings-directors" options={{ href: null }} />
 
           {/* Always hidden for staff/manager */}
-          <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
-          <Tabs.Screen name="more-category"    options={{ href: null }} />
+          <Tabs.Screen name="_staff-dashboard"  options={{ href: null }} />
+          <Tabs.Screen name="more-category"     options={{ href: null }} />
+          <Tabs.Screen name="_moreCategories"   options={{ href: null }} />
         </Tabs>
       </View>
     );
@@ -191,7 +192,8 @@ export default function DirectorLayout() {
         <Tabs.Screen name="settings-managers" options={{ href: null }} />
         <Tabs.Screen name="settings-directors" options={{ href: null }} />
         <Tabs.Screen name="stores"           options={{ href: null }} />
-        <Tabs.Screen name="more-category"    options={{ href: null }} />
+        <Tabs.Screen name="more-category"     options={{ href: null }} />
+        <Tabs.Screen name="_moreCategories"   options={{ href: null }} />
       </Tabs>
     </View>
   );
