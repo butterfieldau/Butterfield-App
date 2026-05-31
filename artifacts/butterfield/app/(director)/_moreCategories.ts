@@ -135,7 +135,7 @@ const ALL_CATEGORIES: Category[] = [
     label: 'People',
     icon: 'users',
     color: PURPLE,
-    description: 'Customers, staff accounts & roles',
+    description: 'Customers, staff accounts, roles & access',
     groups: [
       {
         label: 'Customers',
@@ -155,12 +155,17 @@ const ALL_CATEGORIES: Category[] = [
         ],
       },
       {
-        label: 'Roles & Permissions',
+        label: 'Managers',
         items: [
-          { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manage access levels, roles & managers', color: NAVY,   directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
-          { icon: 'sliders',    label: 'Permission Groups',  sub: 'Manager, Supervisor, Store Manager etc.', color: PURPLE, directorOnly: true, soon: true },
-          { icon: 'key',        label: 'Portal Access',      sub: 'Which portals each role can see',        color: BLUE,   directorOnly: true, soon: true },
-          { icon: 'layers',     label: 'Role Management',    sub: 'Create & edit role definitions',         color: AMBER,  directorOnly: true, soon: true },
+          { icon: 'user-plus',  label: 'Add Manager',        sub: 'Create a manager or promote staff in one place', color: GREEN, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
+          { icon: 'sliders',    label: 'Permission Groups',  sub: 'Manager, Supervisor, Store Manager and more', color: PURPLE, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
+          { icon: 'key',        label: 'Portal Access',      sub: 'See which tools each role can access', color: BLUE, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
+        ],
+      },
+      {
+        label: 'Role Management',
+        items: [
+          { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manager, Supervisor, Store Manager, Area Manager, Director and Master', color: NAVY, directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
         ],
       },
     ],
