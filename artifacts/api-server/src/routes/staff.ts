@@ -82,7 +82,7 @@ router.get('/my-store-assignments', async (req, res) => {
 });
 
 router.post('/shifts/clock-in', async (req, res) => {
-  const { storeId: bodyStoreId, latitude, longitude } = req.body ?? {};
+  const { storeId: bodyStoreId, latitude, longitude, accuracyMeters } = req.body ?? {};
 
   const existing = await db.select().from(staffShiftsTable)
     .where(and(eq(staffShiftsTable.userId, req.user!.id), isNull(staffShiftsTable.clockOut)));
@@ -125,23 +125,33 @@ router.post('/shifts/clock-in', async (req, res) => {
       return res.status(400).json({ error: 'Location is required. Please enable location access to clock in.' });
     }
 
-    // Load global geo settings as fallback for stores that have no coordinates set.
-    // The director configures lat/lng/radius in the Settings screen (store_settings table).
-    // Per-store values in the stores table take priority; global values are the fallback.
-    await ensureGeoDefaults();
-    const geoRows = await db.select().from(storeSettingsTable);
-    const geoMap = Object.fromEntries(geoRows.map(r => [r.key, r.value]));
-    const fallbackLat    = parseFloat(geoMap['shop_lat']          ?? String(SHOP_LAT_DEFAULT));
-    const fallbackLng    = parseFloat(geoMap['shop_lng']          ?? String(SHOP_LNG_DEFAULT));
-    const fallbackRadius = parseInt(  geoMap['geo_radius_meters'] ?? String(RADIUS_DEFAULT));
+    const storesMissingGeofence = assignments.filter(
+      (assignment) =>
+        assignment.latitude == null ||
+        Number.isNaN(assignment.latitude) ||
+        assignment.longitude == null ||
+        Number.isNaN(assignment.longitude),
+    );
+    if (storesMissingGeofence.length > 0) {
+      return res.status(403).json({
+        error: `The assigned store geofence is not fully set up for ${storesMissingGeofence[0]?.storeName ?? 'this account'}. Ask a director to update the store pin in Store Locations before clocking in.`,
+        code: 'STORE_GEOFENCE_NOT_CONFIGURED',
+      });
+    }
+
+    const locationAccuracy = typeof accuracyMeters === 'number' && Number.isFinite(accuracyMeters)
+      ? Math.max(0, Math.min(accuracyMeters, 200))
+      : 0;
 
     const measured = assignments.map(a => {
-      const effLat = (a.latitude  != null && !isNaN(a.latitude))  ? a.latitude  : fallbackLat;
-      const effLng = (a.longitude != null && !isNaN(a.longitude)) ? a.longitude : fallbackLng;
+      const effLat = a.latitude!;
+      const effLng = a.longitude!;
+      const distance = haversineMeters(latitude, longitude, effLat, effLng);
       return {
         ...a,
-        radiusMeters: a.geofenceRadius ?? fallbackRadius,
-        distance: haversineMeters(latitude, longitude, effLat, effLng),
+        radiusMeters: a.geofenceRadius,
+        distance,
+        effectiveDistance: Math.max(0, distance - locationAccuracy),
       };
     }).sort((a, b) => a.distance - b.distance);
 
@@ -150,7 +160,7 @@ router.post('/shifts/clock-in', async (req, res) => {
       if (!selected) {
         return res.status(403).json({ error: 'That store is not assigned to your account. Please choose one of your assigned stores.' });
       }
-      if (selected.distance > selected.radiusMeters) {
+      if (selected.effectiveDistance > selected.radiusMeters) {
         return res.status(403).json({
           error: `You are ${Math.round(selected.distance)}m from ${selected.storeName}. You must be within ${selected.radiusMeters}m to clock in.`,
           distanceMeters: Math.round(selected.distance),
@@ -159,7 +169,7 @@ router.post('/shifts/clock-in', async (req, res) => {
       finalStoreId = selected.storeId;
       distanceMeters = Math.round(selected.distance);
     } else {
-      const matched = measured.find(a => a.distance <= a.radiusMeters);
+      const matched = measured.find(a => a.effectiveDistance <= a.radiusMeters);
       if (!matched) {
         const nearest = measured[0];
         return res.status(403).json({

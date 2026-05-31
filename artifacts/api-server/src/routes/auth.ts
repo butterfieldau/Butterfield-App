@@ -178,7 +178,7 @@ router.post('/login', loginRateLimit, async (req, res) => {
 
 router.post('/staff-login', loginRateLimit, async (req, res) => {
   await ensureShopDisplaySchemaReady();
-  const { email, password, latitude, longitude } = req.body;
+  const { email, password, latitude, longitude, accuracyMeters } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
 
   let user: typeof usersTable.$inferSelect | undefined;
@@ -254,33 +254,45 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
       });
     }
 
-    // Load global geo settings as fallback for stores that have no coordinates set.
-    // The director configures lat/lng/radius in the Settings screen (store_settings table).
-    // Per-store values in the stores table take priority; global values are the fallback.
-    const geoRows = await db.select().from(storeSettingsTable);
-    const geoMap = Object.fromEntries(geoRows.map((r) => [r.key, r.value]));
-    const fallbackLat    = parseFloat(geoMap['shop_lat']          ?? '-33.8349');
-    const fallbackLng    = parseFloat(geoMap['shop_lng']          ?? '150.9942');
-    const fallbackRadius = parseInt(  geoMap['geo_radius_meters'] ?? '20');
+    const storesMissingGeofence = assignments.filter(
+      (assignment) =>
+        assignment.latitude == null ||
+        Number.isNaN(assignment.latitude) ||
+        assignment.longitude == null ||
+        Number.isNaN(assignment.longitude),
+    );
+    if (storesMissingGeofence.length > 0) {
+      return res.status(403).json({
+        error: `The assigned store geofence is not fully set up for ${storesMissingGeofence[0]?.storeName ?? 'this account'}. Ask a director to update the store pin in Store Locations before signing in.`,
+        code: 'STORE_GEOFENCE_NOT_CONFIGURED',
+      });
+    }
+
+    const locationAccuracy = typeof accuracyMeters === 'number' && Number.isFinite(accuracyMeters)
+      ? Math.max(0, Math.min(accuracyMeters, 200))
+      : 0;
 
     const measured = assignments
       .map((a) => {
-        const effLat = (a.latitude  != null && !isNaN(a.latitude!))  ? a.latitude!  : fallbackLat;
-        const effLng = (a.longitude != null && !isNaN(a.longitude!)) ? a.longitude! : fallbackLng;
+        const effLat = a.latitude!;
+        const effLng = a.longitude!;
+        const distanceMeters = haversineDistanceMeters(latitude, longitude, effLat, effLng);
         return {
           ...a,
-          radiusMeters: a.geofenceRadius ?? fallbackRadius,
-          distanceMeters: haversineDistanceMeters(latitude, longitude, effLat, effLng),
+          radiusMeters: a.geofenceRadius,
+          distanceMeters,
+          effectiveDistanceMeters: Math.max(0, distanceMeters - locationAccuracy),
         };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
-    const matched = measured.find((a) => a.distanceMeters <= a.radiusMeters);
+    const matched = measured.find((a) => a.effectiveDistanceMeters <= a.radiusMeters);
     if (!matched) {
       const nearest = measured[0];
       return res.status(403).json({
         error: `You must be within ${nearest.radiusMeters}m of ${nearest.storeName ?? 'your assigned store'} to sign in. You are currently ${Math.round(nearest.distanceMeters)}m away.`,
         distanceMeters: Math.round(nearest.distanceMeters),
+        effectiveDistanceMeters: Math.round(nearest.effectiveDistanceMeters),
         radiusMeters: nearest.radiusMeters,
         storeName: nearest.storeName ?? null,
         code: 'OUTSIDE_STORE_GEOFENCE',

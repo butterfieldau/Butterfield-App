@@ -62,7 +62,7 @@ export const api = {
       request<{ token: string; user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     login: (data: { email: string; password: string }) =>
       request<{ token: string; user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
-    staffLogin: (data: { email: string; password: string; latitude?: number; longitude?: number }) =>
+    staffLogin: (data: { email: string; password: string; latitude?: number; longitude?: number; accuracyMeters?: number }) =>
       request<{ token: string; user: ApiUser }>('/auth/staff-login', { method: 'POST', body: JSON.stringify(data) }),
     wholesaleApply: (data: {
       email: string; password: string; name: string; phone: string;
@@ -156,7 +156,7 @@ export const api = {
     profile:      () => request<{ data: StaffProfile }>('/staff/profile'),
     currentShift: () => request<{ data: StaffShift | null }>('/staff/shifts/current'),
     shiftStats:   () => request<{ data: StaffShiftStats }>('/staff/shifts/stats'),
-    clockIn:      (data?: { storeId?: string; latitude?: number; longitude?: number }) =>
+    clockIn:      (data?: { storeId?: string; latitude?: number; longitude?: number; accuracyMeters?: number }) =>
       request<{ data: StaffShift }>('/staff/shifts/clock-in', { method: 'POST', body: JSON.stringify(data ?? {}) }),
     clockOut:     (unpaidBreakMins = 0, coords?: { latitude: number; longitude: number }) =>
       request<{ data: StaffShift }>('/staff/shifts/clock-out', { method: 'POST', body: JSON.stringify({ unpaidBreakMins, ...coords }) }),

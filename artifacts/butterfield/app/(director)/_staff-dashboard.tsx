@@ -113,18 +113,26 @@ export function StaffDashboard() {
   }, []);
 
   const [storePickerVisible, setStorePickerVisible] = useState(false);
-  const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number } | undefined>();
+  const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number; accuracyMeters?: number } | undefined>();
 
-  const getFastLocation = useCallback(async (accuracy: Location.Accuracy = Location.Accuracy.Balanced) => {
+  const getFastLocation = useCallback(async (accuracy: Location.Accuracy = Platform.OS === 'ios' ? Location.Accuracy.BestForNavigation : Location.Accuracy.Highest) => {
     const lastKnown = await Location.getLastKnownPositionAsync({
       maxAge: 120000,
-      requiredAccuracy: 500,
+      requiredAccuracy: 120,
     }).catch(() => null);
     if (lastKnown?.coords) {
-      return { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
+      return {
+        latitude: lastKnown.coords.latitude,
+        longitude: lastKnown.coords.longitude,
+        accuracyMeters: typeof lastKnown.coords.accuracy === 'number' ? lastKnown.coords.accuracy : undefined,
+      };
     }
     const pos = await Location.getCurrentPositionAsync({ accuracy });
-    return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+    return {
+      latitude: pos.coords.latitude,
+      longitude: pos.coords.longitude,
+      accuracyMeters: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : undefined,
+    };
   }, []);
 
   const { data: shiftData, refetch: refetchShift } = useQuery({
@@ -177,9 +185,9 @@ export function StaffDashboard() {
     ? ((liveElapsedMins / 60) * (hourlyRateCents / 100)).toFixed(2)
     : '0.00';
 
-  const doClockIn = async (coords?: { latitude: number; longitude: number }, storeId?: string) => {
+  const doClockIn = async (coords?: { latitude: number; longitude: number; accuracyMeters?: number }, storeId?: string) => {
     try {
-      const res = await api.staff.clockIn(coords ? { storeId, latitude: coords.latitude, longitude: coords.longitude } : { storeId });
+      const res = await api.staff.clockIn(coords ? { storeId, latitude: coords.latitude, longitude: coords.longitude, accuracyMeters: coords.accuracyMeters } : { storeId });
       setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       qc.invalidateQueries({ queryKey: ['current-shift'] });
@@ -201,7 +209,7 @@ export function StaffDashboard() {
       : await Location.requestForegroundPermissionsAsync();
     if (status === 'granted') {
       try {
-        coords = await getFastLocation(Location.Accuracy.Balanced);
+        coords = await getFastLocation();
       } catch { /* use undefined */ }
     } else {
       if (storeAssignments.length > 0) {
@@ -239,7 +247,7 @@ export function StaffDashboard() {
           const unpaidMins = Math.floor(currentUnpaidMs / 60000);
           let outCoords: { latitude: number; longitude: number } | undefined;
           try {
-            outCoords = await getFastLocation(Location.Accuracy.Balanced);
+            outCoords = await getFastLocation();
           } catch { /* ignore */ }
           const res = await api.staff.clockOut(unpaidMins, outCoords);
           setAccUnpaidBreakMs(0); setBreakActiveType(null); setBreakStartMs(0);

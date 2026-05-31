@@ -19,12 +19,12 @@ interface AuthContextValue {
     email: string,
     password: string,
     role?: UserRole,
-    coords?: { latitude: number; longitude: number }
+    coords?: { latitude: number; longitude: number; accuracyMeters?: number }
   ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   internalLogin: (
     email: string,
     password: string,
-    coords?: { latitude: number; longitude: number }
+    coords?: { latitude: number; longitude: number; accuracyMeters?: number }
   ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
   wholesaleApply: (data: { email: string; password: string; name: string; phone: string; companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     role?: UserRole,
-    coords?: { latitude: number; longitude: number }
+    coords?: { latitude: number; longitude: number; accuracyMeters?: number }
   ) => {
     if (!email.trim() || !password.trim()) return { success: false, error: 'Email and password are required.' };
     try {
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (role === 'staff') {
         res = await api.auth.staffLogin({
           email: email.trim(), password,
-          latitude: coords?.latitude, longitude: coords?.longitude,
+          latitude: coords?.latitude, longitude: coords?.longitude, accuracyMeters: coords?.accuracyMeters,
         });
       } else {
         res = await api.auth.login({ email: email.trim(), password });
@@ -127,13 +127,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const internalLogin = useCallback(async (
     email: string,
     password: string,
-    coords?: { latitude: number; longitude: number }
+    coords?: { latitude: number; longitude: number; accuracyMeters?: number }
   ) => {
     if (!email.trim() || !password.trim()) return { success: false, error: 'Email and password are required.' };
     try {
       const res = await api.auth.staffLogin({
         email: email.trim(), password,
-        latitude: coords?.latitude, longitude: coords?.longitude,
+        latitude: coords?.latitude, longitude: coords?.longitude, accuracyMeters: coords?.accuracyMeters,
       });
       const returnedRole = res.user.role as UserRole;
       if (!['staff', 'director', 'manager', 'master', 'shop_display'].includes(returnedRole)) {

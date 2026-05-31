@@ -238,7 +238,7 @@ export default function LoginScreen() {
 
       if (needsLocation) {
         const isDemoAcc = INTERNAL_EMAILS.includes(iEmail.trim().toLowerCase());
-        let coords: { latitude: number; longitude: number } | undefined;
+        let coords: { latitude: number; longitude: number; accuracyMeters?: number } | undefined;
         if (!isDemoAcc) {
           setGeoStatus('acquiring');
           try {
@@ -251,9 +251,15 @@ export default function LoginScreen() {
             const timeout = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('Location timed out')), 10000)
             );
-            const locPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const locPromise = Location.getCurrentPositionAsync({
+              accuracy: Platform.OS === 'ios' ? Location.Accuracy.BestForNavigation : Location.Accuracy.Highest,
+            });
             const loc = await Promise.race([locPromise, timeout]);
-            coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+            coords = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              accuracyMeters: typeof loc.coords.accuracy === 'number' ? loc.coords.accuracy : undefined,
+            };
             setGeoStatus('ready');
           } catch {
             setIError('Could not get your location. Ensure Location Services are on.');
@@ -579,7 +585,7 @@ export default function LoginScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 2 }}>
                 <Feather name="map-pin" size={11} color={MUTED} style={{ marginTop: 1 }} />
                 <Text style={[s.geoNote, { fontWeight: '400', color: MUTED }]}>
-                  Staff must be within range of Butterfield Merrylands to sign in.
+                  Staff must be within range of their assigned store to sign in.
                 </Text>
               </View>
 
