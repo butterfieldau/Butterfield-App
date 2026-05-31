@@ -14,7 +14,7 @@ function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number)
 import { requireRole } from '../middlewares/auth.js';
 
 const router = Router();
-router.use(requireRole('staff', 'manager'));
+router.use(requireRole('staff', 'manager', 'director', 'master'));
 
 const SHOP_LAT_DEFAULT  = -33.8349;
 const SHOP_LNG_DEFAULT  = 150.9942;

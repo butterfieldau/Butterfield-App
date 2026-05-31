@@ -459,7 +459,15 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
     queryFn:  () => api.director.taskHistory(historyRange.from, historyRange.to),
     staleTime: 0,
   });
-  const completedHistory: TaskHistoryEntry[] = (historyData?.data ?? []).filter(h => h.completionStatus === 'completed');
+  // Deduplicate by taskId — keep only the most recent completion per task
+  const completedHistory: TaskHistoryEntry[] = (() => {
+    const byTask = new Map<string, TaskHistoryEntry>();
+    for (const h of (historyData?.data ?? []).filter((h: TaskHistoryEntry) => h.completionStatus === 'completed')) {
+      const prev = byTask.get(h.taskId);
+      if (!prev || new Date(h.createdAt) > new Date(prev.createdAt)) byTask.set(h.taskId, h);
+    }
+    return Array.from(byTask.values());
+  })();
 
   const saveTask = useMutation({
     mutationFn: async (payload: TaskEditorPayload & { id?: string }) => {
@@ -1415,7 +1423,7 @@ export default function StaffHubScreen() {
   const showManagerContent = isManager && manageMode;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Header ── */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1464,13 +1472,15 @@ export default function StaffHubScreen() {
         })}
       </ScrollView>
 
-      {/* ── Content ── */}
-      {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab canEdit={canEditTasks} />   : <StaffTasksTab userId={user?.id} />)}
-      {activeTab === 'issues'   && (showManagerContent ? <ManagerIssuesTab />  : <StaffIssuesTab />)}
-      {activeTab === 'wastage'  && (showManagerContent ? <ManagerWastageTab /> : <StaffWastageTab />)}
-      {activeTab === 'leave'    && (showManagerContent ? <ManagerLeaveTab />   : <StaffLeaveTab />)}
-      {activeTab === 'feedback' && showManagerContent  && <FeedbackTab />}
-    </KeyboardAvoidingView>
+      {/* ── Content (KAV only here so keyboard never pushes the header/tabs) ── */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab canEdit={canEditTasks} />   : <StaffTasksTab userId={user?.id} />)}
+        {activeTab === 'issues'   && (showManagerContent ? <ManagerIssuesTab />  : <StaffIssuesTab />)}
+        {activeTab === 'wastage'  && (showManagerContent ? <ManagerWastageTab /> : <StaffWastageTab />)}
+        {activeTab === 'leave'    && (showManagerContent ? <ManagerLeaveTab />   : <StaffLeaveTab />)}
+        {activeTab === 'feedback' && showManagerContent  && <FeedbackTab />}
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
