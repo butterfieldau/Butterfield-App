@@ -1124,6 +1124,7 @@ export interface StaffTask {
   assignedToName?: string | null;
   isCompleted: boolean;
   completedAt?: string | null;
+  completedBy?: string | null;
   completedByUserId?: string | null;
   completedByName?: string | null;
   sortOrder?: number;

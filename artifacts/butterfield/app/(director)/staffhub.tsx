@@ -345,8 +345,8 @@ function StaffTasksTab({ userId }: { userId?: string }) {
         {task.description && !task.isCompleted && (
           <Text style={s.taskDesc} numberOfLines={1}>{task.description}</Text>
         )}
-        {task.isCompleted && task.completedByName ? (
-          <Text style={[s.taskCat, { color: GREEN }]}>✓ {task.completedByName}</Text>
+        {task.isCompleted && (task.completedBy ?? task.completedByName) ? (
+          <Text style={[s.taskCat, { color: GREEN }]}>✓ {task.completedBy ?? task.completedByName}</Text>
         ) : null}
       </View>
     </Pressable>
@@ -459,14 +459,15 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
     queryFn:  () => api.director.taskHistory(historyRange.from, historyRange.to),
     staleTime: 0,
   });
-  // Deduplicate by taskId — keep only the most recent completion per task
+  // For past-day browsing: per-task keep the most-recent entry overall,
+  // then include only if that latest entry is 'completed' (not reopened).
   const completedHistory: TaskHistoryEntry[] = (() => {
-    const byTask = new Map<string, TaskHistoryEntry>();
-    for (const h of (historyData?.data ?? []).filter((h: TaskHistoryEntry) => h.completionStatus === 'completed')) {
-      const prev = byTask.get(h.taskId);
-      if (!prev || new Date(h.createdAt) > new Date(prev.createdAt)) byTask.set(h.taskId, h);
+    const latestByTask = new Map<string, TaskHistoryEntry>();
+    for (const h of (historyData?.data ?? []) as TaskHistoryEntry[]) {
+      const prev = latestByTask.get(h.taskId);
+      if (!prev || new Date(h.createdAt) > new Date(prev.createdAt)) latestByTask.set(h.taskId, h);
     }
-    return Array.from(byTask.values());
+    return Array.from(latestByTask.values()).filter(h => h.completionStatus === 'completed');
   })();
 
   const saveTask = useMutation({
@@ -593,36 +594,68 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
           </Pressable>
         </View>
 
-        {/* ── Completed history section ── */}
+        {/* ── Completed section ── */}
         {completedExpanded && (
           <View style={[s.glassCard, { gap: 12 }]}>
             <DayNavRow />
-            {completedHistory.length === 0 ? (
-              <EmptyState icon="check-circle" message="No completed tasks this day" />
-            ) : (
-              CATEGORIES.map(cat => {
-                const items = completedHistoryByCategory.get(cat) ?? [];
-                if (items.length === 0) return null;
-                const color = CAT_COLORS[cat] ?? BLUE;
-                return (
-                  <View key={cat} style={{ gap: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
-                      <Badge label={String(items.length)} color={color} />
-                    </View>
-                    {items.map(h => (
-                      <View key={h.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
-                        <Feather name="check-circle" size={14} color={GREEN} style={{ marginTop: 2 }} />
-                        <View style={{ flex: 1 }}>
-                          <Text style={[s.taskTitle, { fontSize: 13, textDecorationLine: 'line-through', color: MUTED }]}>{h.taskTitle}</Text>
-                          <Text style={s.taskDesc}>{h.completedByName ? `✓ ${h.completedByName}  ·  ` : ''}{timeAgo(h.createdAt)}</Text>
-                        </View>
+            {/* Today: render straight from completedTasks (same source as the tile) */}
+            {dayOffset === 0 ? (
+              completedTasks.length === 0 ? (
+                <EmptyState icon="check-circle" message="No completed tasks yet today" />
+              ) : (
+                CATEGORIES.map(cat => {
+                  const items = completedTasks.filter(t => t.category === cat);
+                  if (items.length === 0) return null;
+                  const color = CAT_COLORS[cat] ?? BLUE;
+                  return (
+                    <View key={cat} style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
+                        <Badge label={String(items.length)} color={color} />
                       </View>
-                    ))}
-                  </View>
-                );
-              })
+                      {items.map(t => (
+                        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
+                          <Feather name="check-circle" size={14} color={GREEN} style={{ marginTop: 2 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[s.taskTitle, { fontSize: 13, textDecorationLine: 'line-through', color: MUTED }]}>{t.title}</Text>
+                            <Text style={s.taskDesc}>{(t.completedBy ?? t.completedByName) ? `✓ ${t.completedBy ?? t.completedByName}  ·  ` : ''}{t.completedAt ? timeAgo(t.completedAt) : ''}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })
+              )
+            ) : (
+              /* Past days: use history (deduplicated, latest-entry-wins) */
+              completedHistory.length === 0 ? (
+                <EmptyState icon="check-circle" message="No completed tasks this day" />
+              ) : (
+                CATEGORIES.map(cat => {
+                  const items = completedHistoryByCategory.get(cat) ?? [];
+                  if (items.length === 0) return null;
+                  const color = CAT_COLORS[cat] ?? BLUE;
+                  return (
+                    <View key={cat} style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }}>{TASK_CATEGORY_LABELS[cat] ?? cat}</Text>
+                        <Badge label={String(items.length)} color={color} />
+                      </View>
+                      {items.map(h => (
+                        <View key={h.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingLeft: 16 }}>
+                          <Feather name="check-circle" size={14} color={GREEN} style={{ marginTop: 2 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[s.taskTitle, { fontSize: 13, textDecorationLine: 'line-through', color: MUTED }]}>{h.taskTitle}</Text>
+                            <Text style={s.taskDesc}>{h.completedByName ? `✓ ${h.completedByName}  ·  ` : ''}{timeAgo(h.createdAt)}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })
+              )
             )}
           </View>
         )}
