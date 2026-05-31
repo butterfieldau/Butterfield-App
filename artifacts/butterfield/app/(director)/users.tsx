@@ -7,7 +7,7 @@ import type { ComponentProps } from 'react';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal,
-  Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet,
+  Platform, Pressable, RefreshControl, ScrollView, Share, StatusBar, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1729,6 +1729,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
       {/* Page title */}
       <View style={{ paddingHorizontal: 20, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 12, backgroundColor: BG }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
