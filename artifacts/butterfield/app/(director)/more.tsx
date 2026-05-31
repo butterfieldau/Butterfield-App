@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -89,8 +89,9 @@ export default function MoreScreen() {
   const { user, logout } = useAuth();
   const isManager  = user?.role === 'manager';
   const isDirector = !isManager;
+  const { category } = useLocalSearchParams<{ category?: string }>();
 
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(category ?? null);
 
   // Left-edge swipe to go back (only when detail view is open)
   // Captures only when the touch starts within 30 px of the left edge
