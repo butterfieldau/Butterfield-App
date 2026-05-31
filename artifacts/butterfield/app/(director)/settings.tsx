@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import React, { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -65,7 +65,20 @@ const BANNER_ROUTE_OPTIONS = [
   { value: 'category:coffee', label: 'Category: Coffee / Skip Queue' },
 ];
 
-function BannerTab() {
+export function SettingsStandaloneScreen({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>{title}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+export function BannerTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['director-home-banner'],
@@ -353,7 +366,7 @@ function BannerTab() {
 }
 
 // ─── Store Settings ──────────────────────────────────────────────────────────
-function StoreTab() {
+export function StoreTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['director-settings'],
@@ -1052,7 +1065,7 @@ function daysUntilPurge(deletedAt: string): number {
   return Math.max(0, Math.ceil((purgeMs - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
-function RewardsTab() {
+export function RewardsTab() {
   const qc = useQueryClient();
   const [modal,   setModal]   = useState(false);
   const [editing, setEditing] = useState<DirectorReward | null>(null);
@@ -1386,7 +1399,7 @@ function AnnouncementModal({ visible, announcement, onClose, onSuccess }: {
 }
 
 // ─── Notifications Tab ────────────────────────────────────────────────────────
-function NotifyTab() {
+export function NotifyTab() {
   const qc = useQueryClient();
   const [modal, setModal]     = useState(false);
   const [editing, setEditing] = useState<DirectorAnnouncement | null>(null);
@@ -1518,7 +1531,7 @@ type ManagerFormFieldKey = keyof ManagerFormData;
 type DirectorFormData = { name: string; email: string; password: string };
 type DirectorFormFieldKey = keyof DirectorFormData;
 
-function ManagersTab() {
+export function ManagersTab() {
   const qc = useQueryClient();
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-managers'],
@@ -1729,7 +1742,7 @@ function ManagersTab() {
 // ─── Directors Tab (master only) ──────────────────────────────────────────────
 const PURPLE = '#7C3AED';
 
-function DirectorsTab() {
+export function DirectorsTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['master-directors'],

@@ -54,7 +54,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Rewards & Loyalty',
         items: [
-          { icon: 'gift',        label: 'Loyalty Tiers',         sub: 'Bronze, Silver, Gold & Platinum',        color: GREEN,  perm: 'rewards', onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Rewards' } } as any) },
+          { icon: 'gift',        label: 'Loyalty Tiers',         sub: 'Bronze, Silver, Gold & Platinum',        color: GREEN,  perm: 'rewards', onPress: () => router.push('/(director)/settings-rewards' as any) },
           { icon: 'star',        label: 'Reward Catalogue',      sub: 'Points redemption catalog',              color: AMBER,  perm: 'rewards', soon: true },
           { icon: 'coffee',      label: 'Coffee Stamp Settings', sub: 'Stamp card thresholds & rewards',        color: '#92400E', perm: 'rewards', soon: true },
           { icon: 'share-2',     label: 'Referral Program',      sub: 'Referral codes & incentives',            color: ROSE,   perm: 'rewards', soon: true },
@@ -64,7 +64,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Marketing',
         items: [
-          { icon: 'image',       label: 'Banners',               sub: 'Homepage banners & hero images',         color: AMBER,  perm: 'banners', onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Banner' } } as any) },
+          { icon: 'image',       label: 'Banners',               sub: 'Homepage banners & hero images',         color: AMBER,  perm: 'banners', onPress: () => router.push('/(director)/settings-banner' as any) },
           { icon: 'package',     label: 'Featured Products',     sub: 'Highlight products on the home screen',  color: BLUE,   perm: 'banners', soon: true },
           { icon: 'layout',      label: 'Homepage Promotions',   sub: 'Banners, callouts & promo tiles',        color: TEAL,   perm: 'banners', soon: true },
           { icon: 'sun',         label: 'Seasonal Campaigns',    sub: 'Holiday & event promotions',             color: ROSE,   perm: 'banners', soon: true },
@@ -73,7 +73,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Announcements',
         items: [
-          { icon: 'bell',        label: 'Push Notifications',    sub: 'Send to all or segmented customers',     color: TEAL,   perm: 'announcements', onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Notify' } } as any) },
+          { icon: 'bell',        label: 'Push Notifications',    sub: 'Send to all or segmented customers',     color: TEAL,   perm: 'announcements', onPress: () => router.push('/(director)/settings-notify' as any) },
           { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',             color: BLUE,   perm: 'announcements', soon: true },
           { icon: 'users',       label: 'Customer Segments',     sub: 'Target by tier, location or behaviour',  color: PURPLE, perm: 'announcements', soon: true },
           { icon: 'list',        label: 'Announcement History',  sub: 'Past sends & open rates',                color: NAVY,   perm: 'announcements', soon: true },
@@ -93,9 +93,9 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Store Settings',
         items: [
-          { icon: 'toggle-right', label: 'Open / Close Store',   sub: 'Toggle store open or closed',            color: GREEN,    perm: 'settings', onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Store' } } as any) },
-          { icon: 'shopping-bag', label: 'Pickup & Delivery',    sub: 'Pickup windows & delivery rules',         color: '#059669', perm: 'settings', onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Store' } } as any) },
-          { icon: 'sun',          label: 'Daily Specials',       sub: 'Today\'s special product & description',  color: AMBER,    perm: 'settings', onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Store' } } as any) },
+          { icon: 'toggle-right', label: 'Open / Close Store',   sub: 'Set open status inside each store location',          color: GREEN,    perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
+          { icon: 'shopping-bag', label: 'Pickup & Delivery',    sub: 'Manage pickup windows per individual store',          color: '#059669', perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
+          { icon: 'sun',          label: 'Daily Specials',       sub: 'Configure specials inside each store editor',         color: AMBER,    perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
           { icon: 'clock',        label: 'Trading Hours',        sub: 'Opening & closing times per day',         color: BLUE,     perm: 'settings', soon: true },
           { icon: 'map-pin',      label: 'Store Locations',      sub: 'Locations, addresses & geofence',         color: RED,      perm: 'settings', onPress: () => router.push('/(director)/stores' as any) },
         ],
@@ -157,7 +157,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Roles & Permissions',
         items: [
-          { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manage access levels, roles & managers', color: NAVY,   directorOnly: true, onPress: () => router.push({ pathname: '/(director)/settings', params: { tab: 'Managers' } } as any) },
+          { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manage access levels, roles & managers', color: NAVY,   directorOnly: true, onPress: () => router.push('/(director)/settings-managers' as any) },
           { icon: 'sliders',    label: 'Permission Groups',  sub: 'Manager, Supervisor, Store Manager etc.', color: PURPLE, directorOnly: true, soon: true },
           { icon: 'key',        label: 'Portal Access',      sub: 'Which portals each role can see',        color: BLUE,   directorOnly: true, soon: true },
           { icon: 'layers',     label: 'Role Management',    sub: 'Create & edit role definitions',         color: AMBER,  directorOnly: true, soon: true },
