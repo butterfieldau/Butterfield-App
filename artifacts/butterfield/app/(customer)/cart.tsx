@@ -165,7 +165,7 @@ function PaymentStepWithStripe({
     loyaltyPointsUsed?: number;
   }) => Promise<void>;
 }) {
-  const { confirmPayment } = useStripe();
+  const { confirmPayment, createPaymentMethod, handleNextAction } = useStripe();
   const { isPlatformPaySupported, confirmPlatformPayPayment } = usePlatformPay();
 
   const defaultMethod: PayMethod = Platform.OS === 'ios' ? 'apple_pay' : Platform.OS === 'android' ? 'google_pay' : 'credit_card';
@@ -393,8 +393,78 @@ function PaymentStepWithStripe({
           return;
         }
 
+        if (savedPayment.requiresAction && savedPayment.clientSecret && savedPayment.paymentIntentId) {
+          const { error: nextActionError } = await handleNextAction(savedPayment.clientSecret);
+          if (nextActionError) {
+            throw new Error(nextActionError.message);
+          }
+          const finalized = await api.payment.confirmIntent(savedPayment.paymentIntentId);
+          if (!finalized.success) {
+            throw new Error('We could not finalize that saved-card payment. Please try again.');
+          }
+        }
+
         if (!savedPayment.success) {
           throw new Error('We could not charge that saved card. Please try another card.');
+        }
+
+        await onSuccess({
+          stripePaymentIntentId: savedPayment.paymentIntentId ?? undefined,
+          paymentMethodType: 'credit_card',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+        });
+        return;
+      }
+
+      if (method === 'credit_card' && showAddCardForm && saveCardForNextTime) {
+        const { paymentMethod, error: paymentMethodError } = await createPaymentMethod({
+          paymentMethodType: 'Card',
+        });
+        if (paymentMethodError) throw new Error(paymentMethodError.message);
+        if (!paymentMethod?.id) throw new Error('We could not save that card. Please try again.');
+
+        await api.payment.saveMethod({
+          paymentMethodId: paymentMethod.id,
+          setAsDefault: savedPaymentMethods.length === 0,
+        });
+        qc.invalidateQueries({ queryKey: ['payment-methods'] });
+
+        const savedPayment = await api.payment.confirmSavedMethod({
+          items: items as any[],
+          orderType,
+          discountCode: discountApplied?.code,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          paymentMethodId: paymentMethod.id,
+        });
+
+        if (savedPayment.paymentRequired === false || savedPayment.amountCents === 0) {
+          await onSuccess({
+            paymentMethodType: 'free_reward',
+            discountCode: discountApplied?.code,
+            discountCodeId: discountApplied?.id,
+            discountAmountCents: discountApplied?.discountAmountCents,
+            claimedRewardId: selectedClaimedRewardId ?? undefined,
+            loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          });
+          return;
+        }
+
+        if (savedPayment.requiresAction && savedPayment.clientSecret && savedPayment.paymentIntentId) {
+          const { error: nextActionError } = await handleNextAction(savedPayment.clientSecret);
+          if (nextActionError) {
+            throw new Error(nextActionError.message);
+          }
+          const finalized = await api.payment.confirmIntent(savedPayment.paymentIntentId);
+          if (!finalized.success) {
+            throw new Error('We could not finalize your saved card. Please try again.');
+          }
+        } else if (!savedPayment.success) {
+          throw new Error('We could not charge that card. Please try again.');
         }
 
         await onSuccess({
