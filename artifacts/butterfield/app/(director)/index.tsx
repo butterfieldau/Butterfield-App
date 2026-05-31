@@ -582,9 +582,9 @@ function DirectorDashboardInner() {
             <View>
               <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>QUICK ACTIONS</Text>
               <View style={styles.qaGrid}>
-                <QuickBtn icon="plus-square"  label="Add Product"   color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
-                <QuickBtn icon="user-plus"    label="Add Staff"     color={PURPLE}  onPress={() => router.navigate('/(director)/users' as any)} />
-                <QuickBtn icon="package"      label="Add Wholesale" color={GREEN}   onPress={() => router.navigate('/(director)/users' as any)} />
+                <QuickBtn icon="box"          label="Products"   color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
+                <QuickBtn icon="users"        label="Staff"      color={PURPLE}  onPress={() => router.navigate('/(director)/users' as any)} />
+                <QuickBtn icon="briefcase"    label="Wholesale"  color={GREEN}   onPress={() => router.navigate('/(director)/users' as any)} />
                 <QuickBtn icon="shopping-bag" label="View Orders"   color={AMBER}   onPress={() => router.navigate('/(director)/orders' as any)} />
                 <QuickBtn icon="clipboard"    label="Tasks"         color={BLUE}    onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
                 <QuickBtn icon="bell"         label="Notify"        color="#06B6D4" onPress={() => router.push('/director-settings-notify' as any)} />
