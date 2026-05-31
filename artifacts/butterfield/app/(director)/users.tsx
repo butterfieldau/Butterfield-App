@@ -1613,7 +1613,7 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
 type UsersMode = 'wholesale' | 'staff' | 'pos';
 
 export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode } = {}) {
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; tab?: string }>();
   const routeMode = params.mode === 'wholesale' || params.mode === 'staff' || params.mode === 'pos'
     ? params.mode
     : undefined;
@@ -1624,9 +1624,16 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const dedicatedMode = Boolean(screenMode);
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<(typeof TABS)[number]>(
-    wholesaleMode || staffMode ? 'Staff' : posMode ? 'POS Screens' : 'Customers'
-  );
+  const initialTab = ((): (typeof TABS)[number] => {
+    if (params.tab === 'Staff') return 'Staff';
+    if (params.tab === 'POS Screens') return 'POS Screens';
+    if (params.tab === 'Deleted') return 'Deleted';
+    if (params.tab === 'Wholesale') return 'Customers';
+    if (wholesaleMode || staffMode) return 'Staff';
+    if (posMode) return 'POS Screens';
+    return 'Customers';
+  })();
+  const [tab, setTab] = useState<(typeof TABS)[number]>(initialTab);
   const [createType, setCreateType] = useState<CreateType>('staff');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
