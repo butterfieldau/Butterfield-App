@@ -224,6 +224,42 @@ router.get('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
   const totalEarnedPoints   = loyaltyAgg.filter(r => earnTypes.includes(r.type)).reduce((s, r) => s + Number(r.total), 0);
   const totalRedeemedPoints = loyaltyAgg.filter(r => redeemTypes.includes(r.type)).reduce((s, r) => s + Math.abs(Number(r.total)), 0);
 
+  let paymentMethods: Array<{
+    id: string;
+    brand: string;
+    last4: string;
+    expMonth: number | null;
+    expYear: number | null;
+    isDefault: boolean;
+  }> = [];
+
+  if (user.stripeCustomerId) {
+    try {
+      const { getUncachableStripeClient } = await import('../stripeClient.js');
+      const stripe = await getUncachableStripeClient();
+      const [customerRecord, stripeMethods] = await Promise.all([
+        stripe.customers.retrieve(user.stripeCustomerId),
+        stripe.paymentMethods.list({ customer: user.stripeCustomerId, type: 'card' }),
+      ]);
+
+      const defaultPaymentMethodId =
+        !('deleted' in customerRecord) && typeof customerRecord.invoice_settings.default_payment_method === 'string'
+          ? customerRecord.invoice_settings.default_payment_method
+          : null;
+
+      paymentMethods = stripeMethods.data.map((method) => ({
+        id: method.id,
+        brand: method.card?.brand ?? 'card',
+        last4: method.card?.last4 ?? '0000',
+        expMonth: method.card?.exp_month ?? null,
+        expYear: method.card?.exp_year ?? null,
+        isDefault: method.id === defaultPaymentMethodId,
+      }));
+    } catch (err) {
+      req.log.warn({ err, userId: id }, 'Could not load Stripe payment method summaries for customer');
+    }
+  }
+
   return res.json({
     data: {
       id: user.id, name: user.name, email: user.email, phone: user.phone, profileImage: user.profileImage,
@@ -238,6 +274,7 @@ router.get('/customers/:id', allowedRoles, requireUsers, async (req, res) => {
       manualBadges: badges,
       loyaltyStats: { totalEarnedPoints, totalRedeemedPoints },
       loyaltyTransactions: loyaltyTxns,
+      paymentMethods,
     },
   });
 });

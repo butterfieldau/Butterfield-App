@@ -257,6 +257,13 @@ export const api = {
   welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
     config: () => request<{ data: { publishableKey: string | null; merchantDisplayName: string } }>('/payment/config'),
+    methods: () => request<{ data: Array<{ id: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; isDefault: boolean }> }>('/payment/methods'),
+    saveMethod: (data: { paymentMethodId: string; setAsDefault?: boolean }) =>
+      request<{ data: { id: string; brand: string; last4: string; expMonth: number | null; expYear: number | null; isDefault: boolean } }>('/payment/methods', { method: 'POST', body: JSON.stringify(data) }),
+    setDefaultMethod: (paymentMethodId: string) =>
+      request<{ success: boolean }>(`/payment/methods/${paymentMethodId}/default`, { method: 'PATCH' }),
+    deleteMethod: (paymentMethodId: string) =>
+      request<{ success: boolean }>(`/payment/methods/${paymentMethodId}`, { method: 'DELETE' }),
     createIntent: (data: {
       items: Array<{
         productId: string;
@@ -281,6 +288,33 @@ export const api = {
         discountAmountCents?: number;
         rewardDiscountCents?: number;
       }>('/payment/payment-intent', { method: 'POST', body: JSON.stringify(data) }),
+    confirmSavedMethod: (data: {
+      items: Array<{
+        productId: string;
+        variantId?: string | null;
+        quantity: number;
+        selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
+      }>;
+      orderType: 'pickup' | 'delivery';
+      discountCode?: string;
+      claimedRewardId?: string;
+      loyaltyPointsUsed?: number;
+      paymentMethodId: string;
+    }) =>
+      request<{
+        paymentRequired?: boolean;
+        paymentIntentId: string | null;
+        clientSecret: string | null;
+        amountCents: number;
+        discountAmountCents?: number;
+        requiresAction?: boolean;
+        success?: boolean;
+      }>('/payment/confirm-saved-method', { method: 'POST', body: JSON.stringify(data) }),
+    confirmIntent: (paymentIntentId: string) =>
+      request<{ success?: boolean; requiresAction?: boolean; paymentIntentId: string; clientSecret: string | null }>(
+        '/payment/confirm-intent',
+        { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
+      ),
   },
   director: {
     stats:               () => request<{ data: DirectorStats }>('/director/stats'),
@@ -1000,6 +1034,14 @@ export interface CrmBadge {
 }
 
 export interface CrmCustomerDetail extends CrmCustomer {
+  paymentMethods?: {
+    id: string;
+    brand: string;
+    last4: string;
+    expMonth: number | null;
+    expYear: number | null;
+    isDefault: boolean;
+  }[];
   addresses: {
     id: string; label: string; street: string; apt?: string | null;
     suburb: string; postcode: string; state: string; isDefault: boolean;

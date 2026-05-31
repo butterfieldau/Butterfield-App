@@ -84,6 +84,14 @@ function fmtDate(iso: string | null | undefined) {
 function fmtDateTime(iso: string | null | undefined) {
   return new Date(iso ?? '').toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+function formatCardBrand(brand: string | null | undefined) {
+  if (!brand) return 'Card';
+  return brand
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 function locationStr(suburb?: string | null, state?: string | null) {
   if (suburb && state) return `${suburb} ${state}, Australia`;
   if (suburb) return `${suburb}, Australia`;
@@ -513,6 +521,48 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 </>
               )}
             </View>
+            {/* ── Payment methods ── */}
+            <View style={[det.section, { borderBottomColor: BORDER }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Feather name="credit-card" size={16} color={MUTED} />
+                <Text style={det.sectionTitle}>Saved payment methods</Text>
+              </View>
+              {(customer.paymentMethods?.length ?? 0) > 0 ? (
+                <View style={{ gap: 10 }}>
+                  {customer.paymentMethods!.map((paymentMethod) => (
+                    <View key={paymentMethod.id} style={[det.noteCard, { borderColor: BORDER, paddingVertical: 12 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View style={det.paymentIconBadge}>
+                          <Feather name="credit-card" size={16} color={BLUE} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>
+                              {formatCardBrand(paymentMethod.brand)} ending in {paymentMethod.last4}
+                            </Text>
+                            {paymentMethod.isDefault && (
+                              <View style={det.defaultCardBadge}>
+                                <Text style={det.defaultCardBadgeText}>Default</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>
+                            Expires {`${String(paymentMethod.expMonth ?? '').padStart(2, '0')}/${String(paymentMethod.expYear ?? '').slice(-2) || '—'}`}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                  <Text style={{ fontSize: 12, color: MUTED, lineHeight: 18 }}>
+                    Full card numbers are stored securely by Stripe and are never visible in Butterfield.
+                  </Text>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 13, color: MUTED, lineHeight: 20 }}>
+                  No saved cards on file for this customer yet.
+                </Text>
+              )}
+            </View>
             {/* ── Note ── */}
             <View style={[det.section, { borderBottomColor: BORDER }]}>
               <Text style={[det.sectionTitle, { marginBottom: 12 }]}>Note</Text>
@@ -805,6 +855,9 @@ const det = StyleSheet.create({
   contactBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 10, borderWidth: 1 },
   contactBtnTx: { fontSize: 13, fontWeight: '500', color: TEXT },
   noteCard:     { borderWidth: 1, borderRadius: 10, padding: 12 },
+  paymentIconBadge:{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
+  defaultCardBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#DBEAFE' },
+  defaultCardBadgeText:{ fontSize: 10, fontWeight: '700', color: BLUE, textTransform: 'uppercase', letterSpacing: 0.4 },
   noteInput:    { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', fontWeight: '400', color: TEXT },
   actionBtn:    { height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   editInput:    { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontWeight: '400', backgroundColor: BG },
