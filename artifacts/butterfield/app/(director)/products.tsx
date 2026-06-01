@@ -36,7 +36,7 @@ const CAT_COLORS: Record<string, string> = {
   pastries:'#F97316', drinks:'#06B6D4', 'iced-drinks':'#06B6D4',
   boxes:'#F59E0B', seasonal:'#F97316', specials:'#EF4444', other:'#8E8E93',
 };
-const STATUS_OPTIONS = ['All','Available','Featured','Sold Out','Low Stock','Archived'] as const;
+const STATUS_OPTIONS = ['All','Active','Draft','Archived'] as const;
 type StatusOption = typeof STATUS_OPTIONS[number];
 const SORT_OPTIONS = ['Name A → Z','Name Z → A','Price: Low → High','Price: High → Low','Newest First'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
@@ -1428,12 +1428,9 @@ export default function DirectorProductsScreen() {
   const all: any[] = data?.data ?? [];
   const products = useMemo(() => {
     let list = [...all];
-    if (statusFilter === 'Available')  list = list.filter(p => p.isAvailable && p.isActive);
-    else if (statusFilter === 'Featured')   list = list.filter(p => p.isFeatured);
-    else if (statusFilter === 'Sold Out')   list = list.filter(p => p.isSoldOut);
-    else if (statusFilter === 'Low Stock')  list = list.filter(p => p.stockCount != null && p.stockCount <= p.lowStockThreshold);
-    else if (statusFilter === 'Archived')   list = list.filter(p => !p.isActive);
-    else list = list.filter(p => p.isActive);
+    if (statusFilter === 'Active') list = list.filter(p => p.isActive && (p.isAvailable ?? true));
+    else if (statusFilter === 'Draft') list = list.filter(p => p.isActive && !(p.isAvailable ?? true));
+    else if (statusFilter === 'Archived') list = list.filter(p => !p.isActive);
     if (catFilter !== 'all') list = list.filter(p => (p.category ?? '') === catFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -1452,10 +1449,16 @@ export default function DirectorProductsScreen() {
     Haptics.selectionAsync();
     setOpenDropdown(prev => (prev === which ? null : which));
   };
+  const counts = useMemo(() => ({
+    all: all.length,
+    active: all.filter(p => p.isActive && (p.isAvailable ?? true)).length,
+    draft: all.filter(p => p.isActive && !(p.isAvailable ?? true)).length,
+    archived: all.filter(p => !p.isActive).length,
+  }), [all]);
 
   const activeCatLabel = catFilter === 'all' ? 'Category' : (dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter);
-  const activeSortLabel = statusFilter !== 'All' ? statusFilter : sortBy === 'Name A → Z' ? 'Sort' : sortBy;
-  const sortActive = statusFilter !== 'All' || sortBy !== 'Name A → Z';
+  const activeSortLabel = sortBy === 'Name A → Z' ? 'Sort' : sortBy;
+  const sortActive = sortBy !== 'Name A → Z';
   const toggle = async (product: any, field: string, value: boolean) => {
     Haptics.selectionAsync();
     try {
@@ -1470,6 +1473,13 @@ export default function DirectorProductsScreen() {
         try { await api.director.archiveProduct(product.id); await qc.invalidateQueries({ queryKey: ['director-products'] }); } catch (e: any) { Alert.alert('Error', e.message); }
       }},
     ]);
+  };
+  const handleRestore = async (product: any) => {
+    Haptics.selectionAsync();
+    try {
+      await api.director.updateProduct(product.id, { isActive: true, isAvailable: true });
+      await qc.invalidateQueries({ queryKey: ['director-products'] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
   };
   const handleSave = async (data: any) => {
     try {
@@ -1488,6 +1498,30 @@ export default function DirectorProductsScreen() {
   };
   const openEdit = (product: any) => { setEditTarget(product); setModalOpen(true); };
   const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
+  const openProductActions = (product: any) => {
+    const actions = [
+      { text: 'Edit product', onPress: () => openEdit(product) },
+      {
+        text: product.isFeatured ? 'Remove featured' : 'Mark as featured',
+        onPress: () => toggle(product, 'isFeatured', !product.isFeatured),
+      },
+      {
+        text: product.isSoldOut ? 'Mark back in stock' : 'Mark sold out',
+        onPress: () => toggle(product, 'isSoldOut', !product.isSoldOut),
+      },
+      {
+        text: product.isAvailable ? 'Move to draft' : 'Make active',
+        onPress: () => toggle(product, 'isAvailable', !product.isAvailable),
+      },
+      {
+        text: product.isActive ? 'Archive' : 'Restore',
+        style: product.isActive ? 'destructive' : 'default',
+        onPress: () => product.isActive ? handleArchive(product) : handleRestore(product),
+      },
+      { text: 'Cancel', style: 'cancel' as const },
+    ];
+    Alert.alert(product.name, 'Choose an action', actions);
+  };
   const TAB_ITEMS = [
     { id: 'products' as const, label: 'Products', icon: 'package' },
     { id: 'catalog'  as const, label: 'Categories', icon: 'grid' },
@@ -1518,16 +1552,61 @@ export default function DirectorProductsScreen() {
       {/* Products tab */}
       {activeTab !== 'catalog' && activeTab !== 'options' && (
       <>
-      {/* Search bar */}
-      <View style={[styles.searchBar, { borderColor: BORDER }]}>
-        <Feather name="search" size={16} color={MUTED} />
-        <TextInput
-          value={search} onChangeText={setSearch}
-          placeholder="Search products, SKU, category…"
-          placeholderTextColor={MUTED}
-          style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
-          clearButtonMode="while-editing"
-        />
+      <View style={styles.productsShell}>
+        <View style={styles.productsHeroRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.productsHeroTitle}>Product library</Text>
+            <Text style={styles.productsHeroSub}>{counts.all} items across your live catalog</Text>
+          </View>
+          <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }} style={styles.addTopBtn}>
+            <Feather name="plus-circle" size={16} color="#fff" />
+            <Text style={styles.addTopBtnText}>New product</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.searchBar, { borderColor: BORDER, margin: 0 }]}>
+          <Feather name="search" size={16} color={MUTED} />
+          <TextInput
+            value={search} onChangeText={setSearch}
+            placeholder="Search products, SKU, category…"
+            placeholderTextColor={MUTED}
+            style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
+            clearButtonMode="while-editing"
+          />
+        </View>
+        <View style={styles.productsFilterHeader}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChipRow}>
+            {STATUS_OPTIONS.map(opt => {
+              const isActive = statusFilter === opt;
+              const count = opt === 'All' ? counts.all : opt === 'Active' ? counts.active : opt === 'Draft' ? counts.draft : counts.archived;
+              return (
+                <Pressable
+                  key={opt}
+                  onPress={() => { setStatusFilter(opt); Haptics.selectionAsync(); }}
+                  style={[styles.statusChip, isActive && styles.statusChipActive]}
+                >
+                  <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>{opt}</Text>
+                  <Text style={[styles.statusChipCount, isActive && styles.statusChipCountActive]}>{count}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.compactTools}>
+            <Pressable
+              onPress={() => toggleDropdown('sort')}
+              style={[styles.roundToolBtn, sortActive && styles.roundToolBtnActive,
+                openDropdown === 'sort' && { borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }]}
+            >
+              <Feather name="sliders" size={16} color={sortActive ? NAVY : MUTED} />
+            </Pressable>
+            <Pressable
+              onPress={() => toggleDropdown('category')}
+              style={[styles.roundToolBtn, catFilter !== 'all' && { borderColor: BLUE, backgroundColor: BLUE + '10' },
+                openDropdown === 'category' && { borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }]}
+            >
+              <Feather name="filter" size={16} color={catFilter !== 'all' ? BLUE : MUTED} />
+            </Pressable>
+          </View>
+        </View>
       </View>
       {/* Filter row + inline dropdowns */}
       <View style={{ zIndex: 20 }}>
@@ -1538,29 +1617,6 @@ export default function DirectorProductsScreen() {
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: -4000, zIndex: 19 }}
           />
         )}
-        <View style={styles.filterRow}>
-          {/* Category button */}
-          <Pressable
-            onPress={() => toggleDropdown('category')}
-            style={[styles.dropBtn, catFilter !== 'all' && { borderColor: BLUE, backgroundColor: BLUE + '0A' },
-              openDropdown === 'category' && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomColor: 'transparent' }]}
-          >
-            <Feather name="grid" size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
-            <Text style={[styles.dropBtnText, { fontWeight: catFilter !== 'all' ? '600' : '500', color: catFilter !== 'all' ? BLUE : TEXT }]} numberOfLines={1}>{activeCatLabel}</Text>
-            <Feather name={openDropdown === 'category' ? 'chevron-up' : 'chevron-down'} size={13} color={catFilter !== 'all' ? BLUE : MUTED} />
-          </Pressable>
-          {/* Sort button */}
-          <Pressable
-            onPress={() => toggleDropdown('sort')}
-            style={[styles.dropBtn, sortActive && { borderColor: NAVY, backgroundColor: NAVY + '0A' },
-              openDropdown === 'sort' && { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottomColor: 'transparent' }]}
-          >
-            <Feather name="sliders" size={13} color={sortActive ? NAVY : MUTED} />
-            <Text style={[styles.dropBtnText, { fontWeight: sortActive ? '600' : '500', color: sortActive ? NAVY : TEXT }]} numberOfLines={1}>{activeSortLabel}</Text>
-            <Feather name={openDropdown === 'sort' ? 'chevron-up' : 'chevron-down'} size={13} color={sortActive ? NAVY : MUTED} />
-          </Pressable>
-        </View>
-
         {/* Category dropdown panel */}
         {openDropdown === 'category' && (
           <View style={[styles.dropPanel, { zIndex: 21 }]}>
@@ -1598,26 +1654,11 @@ export default function DirectorProductsScreen() {
             <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
               <Text style={styles.dropSectionLabel}>SORT ORDER</Text>
               {SORT_OPTIONS.map(opt => {
-                const active = sortBy === opt && statusFilter === 'All';
+                const active = sortBy === opt;
                 return (
                   <Pressable
                     key={opt}
-                    onPress={() => { setSortBy(opt); setStatusFilter('All'); setOpenDropdown(null); Haptics.selectionAsync(); }}
-                    style={[styles.dropOption, active && styles.dropOptionActive]}
-                  >
-                    <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
-                    {active && <Feather name="check" size={14} color={NAVY} />}
-                  </Pressable>
-                );
-              })}
-              <View style={styles.dropDivider} />
-              <Text style={styles.dropSectionLabel}>SHOW ONLY</Text>
-              {STATUS_OPTIONS.map(opt => {
-                const active = statusFilter === opt;
-                return (
-                  <Pressable
-                    key={opt}
-                    onPress={() => { setStatusFilter(opt); setOpenDropdown(null); Haptics.selectionAsync(); }}
+                    onPress={() => { setSortBy(opt); setOpenDropdown(null); Haptics.selectionAsync(); }}
                     style={[styles.dropOption, active && styles.dropOptionActive]}
                   >
                     <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
@@ -1638,14 +1679,18 @@ export default function DirectorProductsScreen() {
           data={products}
           keyExtractor={p => p.id}
           refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={[styles.count, { fontWeight: '400', color: MUTED }]}>
-              {products.length} product{products.length !== 1 ? 's' : ''}
-              {catFilter !== 'all' ? ` · ${dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter}` : ''}
-              {statusFilter !== 'All' ? ` · ${statusFilter}` : ''}
-            </Text>
+            <View style={styles.listSummaryRow}>
+              <Text style={[styles.count, { fontWeight: '400', color: MUTED }]}>
+                {products.length} product{products.length !== 1 ? 's' : ''}
+              </Text>
+              <Text style={styles.listSummaryMeta}>
+                {catFilter !== 'all' ? activeCatLabel : 'All categories'}
+                {sortBy !== 'Name A → Z' ? ` · ${activeSortLabel}` : ''}
+              </Text>
+            </View>
           }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 60, gap: 14 }}>
@@ -1663,94 +1708,77 @@ export default function DirectorProductsScreen() {
             const catColor = CAT_COLORS[p.category] ?? MUTED;
             const priceFmt = `$${((p.priceCents ?? 0) / 100).toFixed(2)}`;
             const wsFmt    = p.wholesalePriceCents ? `$${(p.wholesalePriceCents / 100).toFixed(2)}` : null;
-            const profitPct = p.costPriceCents && p.priceCents
-              ? Math.round(((p.priceCents - p.costPriceCents) / p.priceCents) * 100)
-              : null;
+            const statusTone = !p.isActive
+              ? { bg: '#DBEAFE', text: '#2563EB', label: 'Archived' }
+              : !(p.isAvailable ?? true)
+              ? { bg: '#E5E7EB', text: '#6B7280', label: 'Draft' }
+              : p.isSoldOut
+              ? { bg: '#FEE2E2', text: RED, label: 'Sold out' }
+              : { bg: '#DCFCE7', text: '#15803D', label: 'Active' };
+            const supportBits = [
+              p.category ? p.category : null,
+              p.sku ? `SKU ${p.sku}` : null,
+              p.isFeatured ? 'Featured' : null,
+            ].filter(Boolean);
+            const inventoryBits = [
+              priceFmt,
+              wsFmt ? `WS ${wsFmt}` : null,
+              p.stockCount != null ? `${p.stockCount} in stock` : null,
+            ].filter(Boolean);
             return (
-              <Pressable onPress={() => openEdit(p)} style={[styles.productCard, { backgroundColor: p.isSoldOut ? 'rgba(255,220,220,0.7)' : GLASS_BG, borderColor: p.isSoldOut ? '#FCA5A5' : (p.stockCount != null && p.stockCount <= p.lowStockThreshold ? '#FDE68A' : GLASS_BORDER) }]}>
-                {/* Status badges */}
-                <View style={styles.badgeRow}>
-                  {p.isFeatured    && <View style={[styles.badge, { backgroundColor: BLUE + '18'   }]}><Text style={[styles.badgeText, { color: BLUE   }]}>Featured</Text></View>}
-                  {p.isNew         && <View style={[styles.badge, { backgroundColor: PINK + '18'   }]}><Text style={[styles.badgeText, { color: PINK   }]}>New</Text></View>}
-                  {p.isLimitedDrop && <View style={[styles.badge, { backgroundColor: RED  + '18'   }]}><Text style={[styles.badgeText, { color: RED    }]}>Limited</Text></View>}
-                  {p.isSoldOut     && <View style={[styles.badge, { backgroundColor: '#FEE2E2'     }]}><Text style={[styles.badgeText, { color: RED    }]}>Sold Out</Text></View>}
-                  {p.isComingSoon  && <View style={[styles.badge, { backgroundColor: AMBER + '18'  }]}><Text style={[styles.badgeText, { color: AMBER  }]}>Soon</Text></View>}
-                  {p.stockCount != null && p.stockCount <= p.lowStockThreshold && !p.isSoldOut &&
-                    <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.badgeText, { color: AMBER }]}>Low Stock ({p.stockCount})</Text></View>}
-                </View>
-                <View style={styles.productTop}>
-                  {/* Thumbnail / category icon */}
+              <Pressable onPress={() => openEdit(p)} style={styles.productRow}>
+                <View style={styles.productRowMain}>
                   {p.imageUrl ? (
                     <Image
                       source={{ uri: toDisplayUrl(p.imageUrl) }}
-                      style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: '#F3F4F6' }}
+                      style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: '#F3F4F6' }}
                       resizeMode="cover"
                     />
                   ) : (
-                    <View style={[styles.catBox, { backgroundColor: catColor + '18', borderColor: catColor + '40' }]}>
-                      <Feather name="package" size={14} color={catColor} />
+                    <View style={[styles.productThumbFallback, { backgroundColor: catColor + '12', borderColor: catColor + '30' }]}>
+                      <Feather name="package" size={16} color={catColor} />
                     </View>
                   )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.productName, { fontWeight: '700', color: TEXT }]} numberOfLines={1}>{p.name}</Text>
-                    {p.shortDescription && <Text style={[styles.productSub, { fontWeight: '400', color: MUTED }]} numberOfLines={1}>{p.shortDescription}</Text>}
-                    <View style={styles.metaRow}>
-                      <View style={[styles.catPill, { backgroundColor: catColor + '18' }]}>
-                        <Text style={[styles.catPillText, { fontWeight: '600', color: catColor }]}>{p.category}</Text>
+                  <View style={styles.productCopy}>
+                    <View style={styles.productTitleRow}>
+                      <Text style={[styles.productName, { fontWeight: '700', color: TEXT }]} numberOfLines={1}>{p.name}</Text>
+                      <View style={[styles.statePill, { backgroundColor: statusTone.bg }]}>
+                        <Text style={[styles.statePillText, { color: statusTone.text }]}>{statusTone.label}</Text>
                       </View>
-                      {p.sku && <Text style={[styles.skuText, { fontWeight: '400', color: MUTED }]}>#{p.sku}</Text>}
                     </View>
+                    <Text style={styles.productMetaLine} numberOfLines={1}>
+                      {supportBits.join(' · ') || 'No category assigned'}
+                    </Text>
+                    <Text style={styles.productMetaLine} numberOfLines={1}>
+                      {inventoryBits.join(' · ')}
+                    </Text>
+                    {(p.isLimitedDrop || p.isNew || p.isComingSoon || (p.stockCount != null && p.stockCount <= p.lowStockThreshold && !p.isSoldOut)) && (
+                      <View style={styles.inlineBadgeRow}>
+                        {p.isNew && <View style={[styles.badge, { backgroundColor: PINK + '16' }]}><Text style={[styles.badgeText, { color: PINK }]}>New</Text></View>}
+                        {p.isLimitedDrop && <View style={[styles.badge, { backgroundColor: RED + '16' }]}><Text style={[styles.badgeText, { color: RED }]}>Limited</Text></View>}
+                        {p.isComingSoon && <View style={[styles.badge, { backgroundColor: AMBER + '16' }]}><Text style={[styles.badgeText, { color: AMBER }]}>Coming soon</Text></View>}
+                        {p.stockCount != null && p.stockCount <= p.lowStockThreshold && !p.isSoldOut && (
+                          <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.badgeText, { color: AMBER }]}>Low stock</Text></View>
+                        )}
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.priceStack}>
-                    <Text style={[styles.price, { fontWeight: '700', color: TEXT }]}>{priceFmt}</Text>
-                    {wsFmt && <Text style={[styles.wsPrice, { fontWeight: '400', color: MUTED }]}>WS {wsFmt}</Text>}
-                    {profitPct != null && <Text style={[styles.profit, { fontWeight: '600', color: GREEN }]}>{profitPct}% margin</Text>}
+                  <Pressable onPress={() => openProductActions(p)} style={styles.rowMenuBtn} hitSlop={6}>
+                    <Feather name="more-horizontal" size={18} color={MUTED} />
+                  </Pressable>
+                </View>
+                <View style={styles.productRowFooter}>
+                  <View style={styles.footerFlagWrap}>
+                    <Text style={styles.footerFlag}>{p.isAvailable ? 'Live in menu' : 'Hidden from menu'}</Text>
+                    {p.wholesaleOnly && <Text style={styles.footerFlag}>Wholesale only</Text>}
                   </View>
-                </View>
-                {/* Toggle 2×2 grid */}
-                <View style={[styles.toggleGrid, { borderTopColor: BORDER }]}>
-                  {[
-                    { label: 'Available', field: 'isAvailable', value: p.isAvailable ?? true,  color: GREEN },
-                    { label: 'Featured',  field: 'isFeatured',  value: p.isFeatured  ?? false, color: BLUE  },
-                    { label: 'New',       field: 'isNew',       value: p.isNew       ?? false, color: PINK  },
-                    { label: 'Sold Out',  field: 'isSoldOut',   value: p.isSoldOut   ?? false, color: RED   },
-                  ].map((t, i) => (
-                    <View key={t.field} style={[
-                      styles.toggleGridItem,
-                      i % 2 === 1 && { borderLeftWidth: 1, borderLeftColor: BORDER },
-                      i >= 2      && { borderTopWidth: 1,  borderTopColor: BORDER  },
-                    ]}>
-                      <Text style={[styles.toggleLabel, { fontWeight: '600', color: TEXT, fontSize: 13 }]}>{t.label}</Text>
-                      <Switch value={t.value} onValueChange={v => toggle(p, t.field, v)}
-                        trackColor={{ false: '#D1D5DB', true: t.color }}
-                        thumbColor="#fff" ios_backgroundColor="transparent" />
-                    </View>
-                  ))}
-                </View>
-                {/* Action row */}
-                <View style={[styles.actionRow, { borderTopColor: BORDER }]}>
-                  <Pressable onPress={() => openEdit(p)} style={styles.actionBtn}>
-                    <Feather name="edit-2" size={13} color={BLUE} />
-                    <Text style={[styles.actionText, { fontWeight: '500', color: BLUE }]}>Edit</Text>
-                  </Pressable>
-                  <Pressable onPress={() => toggle(p, 'isLimitedDrop', !p.isLimitedDrop)} style={styles.actionBtn}>
-                    <Feather name="zap" size={13} color={AMBER} />
-                    <Text style={[styles.actionText, { fontWeight: '500', color: AMBER }]}>{p.isLimitedDrop ? 'Remove Drop' : 'Limited Drop'}</Text>
-                  </Pressable>
-                  <Pressable onPress={() => handleArchive(p)} style={styles.actionBtn}>
-                    <Feather name="archive" size={13} color={MUTED} />
-                    <Text style={[styles.actionText, { fontWeight: '500', color: MUTED }]}>Archive</Text>
-                  </Pressable>
+                  <Text style={styles.footerHint}>Tap row to edit</Text>
                 </View>
               </Pressable>
             );
           }}
         />
       )}
-      <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
-        style={[styles.fab, { backgroundColor: NAVY, bottom: 100 }]}>
-        <Feather name="plus" size={24} color="#fff" />
-      </Pressable>
       <ProductModal
         visible={modalOpen}
         onClose={() => { setModalOpen(false); setEditTarget(null); }}
@@ -1765,22 +1793,51 @@ export default function DirectorProductsScreen() {
   );
 }
 const styles = StyleSheet.create({
-  searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, height: 44 },
+  productsShell: { paddingHorizontal: 16, paddingBottom: 10, gap: 14 },
+  productsHeroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  productsHeroTitle: { fontSize: 22, fontWeight: '700', color: TEXT },
+  productsHeroSub: { fontSize: 13, color: MUTED, marginTop: 2 },
+  addTopBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14 },
+  addTopBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, height: 50 },
   searchInput:   { flex: 1, fontSize: 14, height: 44 },
-  filterRow:       { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
-  dropBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  dropBtnText:     { flex: 1, fontSize: 13, color: TEXT },
-  dropPanel:       { marginHorizontal: 16, backgroundColor: CARD, borderRadius: 12, borderTopLeftRadius: 0, borderWidth: 1, borderColor: BORDER, borderTopColor: 'transparent', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, marginBottom: 4 },
+  productsFilterHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  statusChipRow: { gap: 10, paddingRight: 8 },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER },
+  statusChipActive: { backgroundColor: NAVY, borderColor: NAVY },
+  statusChipText: { fontSize: 13, fontWeight: '600', color: TEXT },
+  statusChipTextActive: { color: '#fff' },
+  statusChipCount: { minWidth: 22, textAlign: 'center', fontSize: 12, fontWeight: '700', color: MUTED },
+  statusChipCountActive: { color: '#fff' },
+  compactTools: { flexDirection: 'row', gap: 10 },
+  roundToolBtn: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
+  roundToolBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '10' },
+  dropPanel:       { marginHorizontal: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, marginBottom: 8 },
   dropOption:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   dropOptionActive:{ backgroundColor: BG },
   dropOptionText:  { flex: 1, fontSize: 14, color: TEXT },
   dropSectionLabel:{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   dropDivider:     { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginTop: 4 },
-  count:         { fontSize: 13, marginBottom: 4 },
-  productCard:   { borderRadius: 16, borderWidth: 1, overflow: 'hidden', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  listSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, paddingBottom: 8 },
+  count:         { fontSize: 13 },
+  listSummaryMeta: { fontSize: 12, color: MUTED },
+  productRow:    { backgroundColor: CARD, borderRadius: 22, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 12 },
+  productRowMain: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  productThumbFallback: { width: 52, height: 52, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  productCopy: { flex: 1, gap: 5 },
+  productTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  statePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, alignSelf: 'flex-start' },
+  statePillText: { fontSize: 12, fontWeight: '700' },
+  productMetaLine: { fontSize: 12, color: MUTED },
+  inlineBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
   badgeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, paddingBottom: 0 },
   badge:         { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   badgeText:     { fontSize: 11, fontWeight: '600' },
+  rowMenuBtn: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
+  productRowFooter: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  footerFlagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  footerFlag: { fontSize: 12, color: MUTED, fontWeight: '500' },
+  footerHint: { fontSize: 12, color: BLUE, fontWeight: '600' },
   productTop:    { flexDirection: 'row', gap: 12, padding: 14 },
   catBox:        { width: 42, height: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   productName:   { fontSize: 15 },
