@@ -289,14 +289,7 @@ export default function MenuScreen() {
                 style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
               >
                 <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
-                  {cat.imageUrl ? (
-                    <Image
-                      source={{ uri: cat.imageUrl }}
-                      style={{ width: '100%', height: '100%' }}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  ) : cat.icon.startsWith('svg:')
+                  {cat.icon.startsWith('svg:')
                     ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
                     : cat.icon.startsWith('mc:')
                     ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
