@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
-import * as WebBrowser from 'expo-web-browser';
+import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState, type ComponentProps } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal,
@@ -462,7 +462,16 @@ export default function DirectorTimesheetsScreen() {
         return;
       }
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      await WebBrowser.openBrowserAsync(uri);
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Save Staff Hours Report',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('File Saved', `Saved to: ${uri}`);
+      }
     } catch (error: unknown) {
       Alert.alert('Export Error', getErrorMessage(error, 'Could not generate timesheet.'));
     } finally { setExporting(false); }
