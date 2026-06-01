@@ -937,8 +937,11 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
             {[
               { label: 'Company',  value: wa.companyName },
               { label: 'ABN',      value: wa.abn ?? '—' },
-              { label: 'Contact',  value: user.name },
-              { label: 'Email',    value: user.email },
+              { label: 'Contact',  value: wa.contactName ?? user.name },
+              { label: 'Email',    value: wa.email ?? user.email },
+              { label: 'Phone',    value: wa.phone ?? user.phone ?? '—' },
+              { label: 'Address',  value: wa.deliveryAddress ?? '—' },
+              { label: 'Referred via', value: wa.howDidYouHear ?? '—' },
               { label: 'Tier',     value: wa.tier?.name ?? wa.pricingTier ?? 'Standard' },
               { label: 'Registered', value: fmtDateTime(user.createdAt) },
               { label: 'Credit Used', value: wa.creditUsedCents ? `$${(wa.creditUsedCents / 100).toFixed(2)}` : '$0.00' },

@@ -1294,6 +1294,7 @@ export interface WholesaleAccount {
   companyName: string;
   abn?: string | null;
   status: string;
+  email?: string | null;
   phone?: string | null;
   deliveryAddress?: string | null;
   pricingTier?: string | null;

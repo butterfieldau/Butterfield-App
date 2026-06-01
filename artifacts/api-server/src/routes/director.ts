@@ -1165,14 +1165,22 @@ router.post('/create-wholesale', async (req, res) => {
 
   const hash = await bcrypt.hash(password, 10);
   const userId = randomUUID();
-  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase().trim(), passwordHash: hash, role: 'wholesale' as any, name: name.trim() });
+  await db.insert(usersTable).values({
+    id: userId,
+    email: email.toLowerCase().trim(),
+    passwordHash: hash,
+    role: 'wholesale' as any,
+    name: name.trim(),
+    phone: phone?.trim() || null,
+  });
   const accountId = randomUUID();
   const [account] = await db.insert(wholesaleAccountsTable).values({
     id: accountId, userId,
     companyName: companyName.trim(),
     abn:         abn?.trim()   ?? '',
     contactName: name.trim(),
-    phone:       phone?.trim() ?? '',
+    phone:       phone?.trim() || null,
+    email:       email.toLowerCase().trim(),
     status:      'approved',
   }).returning();
   return res.status(201).json({ data: { userId, email, name, role: 'wholesale', account } });

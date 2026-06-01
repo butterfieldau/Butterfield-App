@@ -94,6 +94,38 @@ function generateReferralCode(name: string): string {
   return `${prefix}${suffix}`;
 }
 
+function splitAddressParts(address: string): { deliveryAddress: string; suburb: string | null; state: string | null; postcode: string | null } {
+  const trimmed = address.trim();
+  const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+  const street = parts[0] ?? trimmed;
+  const suburb = parts[1] ?? null;
+  let state: string | null = null;
+  let postcode: string | null = null;
+
+  const tail = parts[2] ?? '';
+  if (tail) {
+    const statePostcodeMatch = tail.match(/^([A-Za-z ]+?)\s+(\d{4})$/);
+    if (statePostcodeMatch) {
+      state = statePostcodeMatch[1]?.trim().toUpperCase() ?? null;
+      postcode = statePostcodeMatch[2] ?? null;
+    } else {
+      state = tail.toUpperCase();
+    }
+  }
+
+  if (!postcode) {
+    const postcodeMatch = trimmed.match(/\b(\d{4})\b/);
+    postcode = postcodeMatch?.[1] ?? null;
+  }
+
+  return {
+    deliveryAddress: street,
+    suburb,
+    state,
+    postcode,
+  };
+}
+
 router.post('/register', async (req, res) => {
   const { email, password, name, phone, birthday } = req.body;
   if (!email || !password || !name) {
@@ -321,22 +353,33 @@ router.post('/wholesale-apply', async (req, res) => {
   if (!deliveryAddress || !deliveryAddress.trim()) {
     return res.status(400).json({ error: 'Business address is required.' });
   }
-  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedPhone = phone.trim();
+  const normalizedName = name.trim();
+  const normalizedCompany = companyName.trim();
+  const normalizedAbn = abn?.trim() || null;
+  const normalizedHowDidYouHear = howDidYouHear?.trim() || null;
+  const addressParts = splitAddressParts(deliveryAddress);
+
+  const existing = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail));
   if (existing.length > 0) return res.status(409).json({ error: 'An account with this email already exists.' });
   const passwordHash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
   const accountId = randomUUID();
-  await db.insert(usersTable).values({ id: userId, email: email.toLowerCase(), passwordHash, role: 'wholesale', name, phone: phone.trim() });
+  await db.insert(usersTable).values({ id: userId, email: normalizedEmail, passwordHash, role: 'wholesale', name: normalizedName, phone: normalizedPhone });
   await db.insert(wholesaleAccountsTable).values({
     id: accountId,
     userId,
-    companyName,
-    abn: abn || null,
-    contactName: name,
-    phone: phone.trim(),
-    email: email.toLowerCase(),
-    deliveryAddress: deliveryAddress.trim(),
-    howDidYouHear: howDidYouHear || null,
+    companyName: normalizedCompany,
+    abn: normalizedAbn,
+    contactName: normalizedName,
+    phone: normalizedPhone,
+    email: normalizedEmail,
+    deliveryAddress: addressParts.deliveryAddress,
+    suburb: addressParts.suburb,
+    state: addressParts.state,
+    postcode: addressParts.postcode,
+    howDidYouHear: normalizedHowDidYouHear,
     status: 'pending',
   });
   // Fire-and-forget push notification to directors and masters
@@ -345,8 +388,8 @@ router.post('/wholesale-apply', async (req, res) => {
       roles: ['director', 'master'],
       type: 'wholesale_application',
       title: 'New Stockist Registration',
-      body: `${companyName} has applied for a wholesale account.`,
-      data: { accountId, companyName },
+      body: `${normalizedCompany} has applied for a wholesale account.`,
+      data: { accountId, companyName: normalizedCompany },
     }).catch(() => {});
   }).catch(() => {});
   return res.status(201).json({ message: 'Your application has been submitted. Someone from our team will be in contact with you soon.', userId });
