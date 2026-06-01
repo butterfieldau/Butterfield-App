@@ -91,7 +91,7 @@ function getCategoryColor(cat: string): string {
 }
 
 export function StaffDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
 
@@ -391,9 +391,21 @@ export function StaffDashboard() {
             </View>
             <Pressable
               style={styles.menuBtn}
-              onPress={() => router.navigate({ pathname: '/(director)/tasks', params: { initialTab: 'tasks' } } as any)}
+              onPress={() =>
+                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await logout();
+                      router.replace('/(auth)/login');
+                    },
+                  },
+                ])
+              }
             >
-              <Feather name="menu" size={20} color={TEXT} />
+              <Feather name="log-out" size={19} color={RED} />
             </Pressable>
           </View>
 
