@@ -97,6 +97,14 @@ const ALL_CATEGORIES: Category[] = [
         ],
       },
       {
+        label: 'Catalogue & Menu',
+        items: [
+          { icon: 'package', label: 'Products', sub: 'Browse, search and manage the product library', color: BLUE, perm: 'products', onPress: () => router.push('/(director)/products' as any) },
+          { icon: 'grid', label: 'Categories', sub: 'Organise menu categories and category order', color: PURPLE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'catalog' } } as any) },
+          { icon: 'sliders', label: 'Options', sub: 'Milk types, extras, sizes and product options', color: TEAL, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'options' } } as any) },
+        ],
+      },
+      {
         label: 'Stock & Inventory',
         items: [
           { icon: 'archive',     label: 'Inventory',             sub: 'View & adjust stock on hand',            color: AMBER,  perm: 'stock', onPress: () => router.push('/director-inventory' as any) },

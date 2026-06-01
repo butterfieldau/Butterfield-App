@@ -17,6 +17,7 @@ const BG_STAFF = '#EFF6FF';
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',         title: 'Dashboard' },
   orders:   { icon: 'shopping-bag', title: 'Orders'    },
+  products: { icon: 'package',      title: 'Products'  },
   scan:     { icon: 'maximize',     title: 'Scan'      },
   staffhub: { icon: 'users',        title: 'Staff Hub' },
   profile:  { icon: 'user',         title: 'Profile'   },
@@ -67,6 +68,7 @@ export default function DirectorLayout() {
     ? [
         'index',
         ...(hasPerm('orders')    ? ['orders']   : []),
+        ...(hasPerm('products')  ? ['products'] : []),
         'staffhub',
         'more',
       ]

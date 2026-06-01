@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -1408,7 +1409,10 @@ function OptionsTab() {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorProductsScreen() {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'options'>('products');
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  const requestedTab: 'products' | 'catalog' | 'options' =
+    tab === 'catalog' || tab === 'options' ? tab : 'products';
+  const [activeTab, setActiveTab] = useState<'products' | 'catalog' | 'options'>(requestedTab);
   const [statusFilter, setStatusFilter] = useState<StatusOption>('All');
   const [catFilter, setCatFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('Name A → Z');
@@ -1498,6 +1502,9 @@ export default function DirectorProductsScreen() {
   };
   const openEdit = (product: any) => { setEditTarget(product); setModalOpen(true); };
   const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
+  useEffect(() => {
+    setActiveTab((prev) => (prev === requestedTab ? prev : requestedTab));
+  }, [requestedTab]);
   const openProductActions = (product: any) => {
     const actions = [
       { text: 'Edit product', onPress: () => openEdit(product) },
