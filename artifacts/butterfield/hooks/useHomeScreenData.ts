@@ -105,7 +105,7 @@ export function useHomeScreenData() {
   const freshName     = meData?.user?.name ?? user?.name;
   const firstName     = freshName?.split(' ')[0] ?? 'there';
   const birthday      = meProfile?.birthday ?? loyaltyProfile?.birthday ?? null;
-  const tierCfg       = getTierConfig(loyaltyTier);
+  const tierCfg       = getTierConfig(loyaltyTier, loyaltyProfile?.loyaltyTierSettings);
   const loyaltyCustomerName = loyaltyProfile?.customerName ?? freshName ?? 'Butterfield Member';
 
   const storeHint = featuredStore?.openLabel

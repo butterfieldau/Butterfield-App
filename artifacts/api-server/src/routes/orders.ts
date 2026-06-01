@@ -4,8 +4,9 @@ import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCod
 import { eq, desc, sql, and, inArray, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
-import { applyCoffeeStamps, computeLoyaltyTier, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
@@ -281,7 +282,7 @@ router.post('/', async (req, res) => {
       const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
       if (profile) {
         const newSpent = profile.totalSpentCents + authorativeTotalCents;
-        const newTier = computeLoyaltyTier(newSpent);
+        const newTier = await computeLoyaltyTierFromSpend(newSpent);
         await db.update(customerProfilesTable).set({
           totalSpentCents: newSpent,
           loyaltyTier: newTier,

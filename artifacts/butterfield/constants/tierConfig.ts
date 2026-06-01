@@ -1,3 +1,5 @@
+import type { LoyaltyTierSettings } from '@/lib/api';
+
 export type TierKey = 'blue' | 'silver' | 'gold' | 'black';
 
 export interface TierConfig {
@@ -44,6 +46,19 @@ export const TIERS_ORDERED: TierConfig[] = [
   TIER_CONFIG.black,
 ];
 
+function toTierConfig(key: TierKey, settings?: LoyaltyTierSettings | null): TierConfig {
+  if (!settings) return TIER_CONFIG[key];
+  const tier = settings[key];
+  return {
+    key,
+    label: tier?.label ?? TIER_CONFIG[key].label,
+    spendThreshold: tier?.spendThresholdCents ?? TIER_CONFIG[key].spendThreshold,
+    gradient: tier?.gradient ?? TIER_CONFIG[key].gradient,
+    accent: tier?.accent ?? TIER_CONFIG[key].accent,
+    progressColor: tier?.progressColor ?? TIER_CONFIG[key].progressColor,
+  };
+}
+
 export function normalizeTierKey(tier: string | null | undefined): TierKey {
   switch ((tier ?? '').toLowerCase()) {
     case 'bronze':
@@ -62,8 +77,8 @@ export function normalizeTierKey(tier: string | null | undefined): TierKey {
 }
 
 /** Resolve a tier key (from the server) to its full config. */
-export function getTierConfig(tier: string): TierConfig {
-  return TIER_CONFIG[normalizeTierKey(tier)];
+export function getTierConfig(tier: string, settings?: LoyaltyTierSettings | null): TierConfig {
+  return toTierConfig(normalizeTierKey(tier), settings);
 }
 
 /**
@@ -71,17 +86,23 @@ export function getTierConfig(tier: string): TierConfig {
  * Blue is the base member tier, while the progress milestones shown in UI are:
  * Blue $200 -> Silver $500 -> Gold $1,000 -> Black $2,000.
  */
-export function getTierBySpendCents(spentCents: number): TierConfig {
-  if (spentCents >= 200000) return TIER_CONFIG.black;
-  if (spentCents >= 100000) return TIER_CONFIG.gold;
-  if (spentCents >= 50000)  return TIER_CONFIG.silver;
-  return TIER_CONFIG.blue;
+export function getTierBySpendCents(spentCents: number, settings?: LoyaltyTierSettings | null): TierConfig {
+  const blackThreshold = settings?.black?.spendThresholdCents ?? 200000;
+  const goldThreshold = settings?.gold?.spendThresholdCents ?? 100000;
+  const silverThreshold = settings?.silver?.spendThresholdCents ?? 50000;
+  if (spentCents >= blackThreshold) return toTierConfig('black', settings);
+  if (spentCents >= goldThreshold) return toTierConfig('gold', settings);
+  if (spentCents >= silverThreshold) return toTierConfig('silver', settings);
+  return toTierConfig('blue', settings);
 }
 
 /** Returns the next tier to unlock, or null if already Black. */
-export function getNextTierBySpend(spentCents: number): TierConfig | null {
-  if (spentCents >= 200000) return null;
-  if (spentCents >= 100000) return TIER_CONFIG.black;
-  if (spentCents >= 50000)  return TIER_CONFIG.gold;
-  return TIER_CONFIG.silver;
+export function getNextTierBySpend(spentCents: number, settings?: LoyaltyTierSettings | null): TierConfig | null {
+  const blackThreshold = settings?.black?.spendThresholdCents ?? 200000;
+  const goldThreshold = settings?.gold?.spendThresholdCents ?? 100000;
+  const silverThreshold = settings?.silver?.spendThresholdCents ?? 50000;
+  if (spentCents >= blackThreshold) return null;
+  if (spentCents >= goldThreshold) return toTierConfig('black', settings);
+  if (spentCents >= silverThreshold) return toTierConfig('gold', settings);
+  return toTierConfig('silver', settings);
 }

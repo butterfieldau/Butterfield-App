@@ -58,7 +58,7 @@ export default function AccountScreen() {
   const displayPhone = currentUser?.phone ?? '';
   const addressCount = addressesData?.data?.length ?? 0;
   const profile      = loyaltyData?.data;
-  const tierLabel    = getTierConfig(profile?.loyaltyTier ?? 'blue').label;
+  const tierLabel    = getTierConfig(profile?.loyaltyTier ?? 'blue', profile?.loyaltyTierSettings).label;
   const initial      = displayName.charAt(0).toUpperCase();
 
   const handleLogout = () => {

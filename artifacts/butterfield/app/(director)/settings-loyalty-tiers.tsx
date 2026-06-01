@@ -1,9 +1,10 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-import { TIER_CONFIG, TIERS_ORDERED, type TierKey } from '@/constants/tierConfig';
+import { api, type LoyaltyTierKey, type LoyaltyTierSetting, type LoyaltyTierSettings } from '@/lib/api';
 
 const BG = '#EFF6FF';
 const CARD = '#FFFFFF';
@@ -11,126 +12,305 @@ const TEXT = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORDER = '#E5E7EB';
 const BLUE = '#1493FF';
-const GREEN = '#22C55E';
-const BLACK_ACCENT = '#0F172A';
+const TIER_ORDER: LoyaltyTierKey[] = ['blue', 'silver', 'gold', 'black'];
 
-const TIER_BENEFITS: Record<TierKey, string[]> = {
-  blue: [
-    'Base tier entry experience',
-    'Birthday reward eligibility',
-    'App-only member offers',
-    'Standard points earning',
-  ],
-  silver: [
-    'Everything in Blue',
-    'Higher-value monthly rewards',
-    'Earlier drop access',
-    'Stronger loyalty reward settings',
-  ],
-  gold: [
-    'Everything in Silver',
-    'Priority member treatment',
-    'Richer ongoing benefits',
-    'Premium reward unlocks',
-  ],
-  black: [
-    'Everything in Gold',
-    'Top-tier exclusive benefits',
-    'Best reward settings',
-    'Highest-value member treatment',
-  ],
+type EditableTierState = LoyaltyTierSetting & {
+  spendThresholdDollars: string;
+  benefitsText: string;
 };
 
-function formatSpend(cents: number) {
+function toEditableState(settings: LoyaltyTierSettings): Record<LoyaltyTierKey, EditableTierState> {
+  return {
+    blue: {
+      ...settings.blue,
+      spendThresholdDollars: String(Math.round(settings.blue.spendThresholdCents / 100)),
+      benefitsText: settings.blue.benefits.join('\n'),
+    },
+    silver: {
+      ...settings.silver,
+      spendThresholdDollars: String(Math.round(settings.silver.spendThresholdCents / 100)),
+      benefitsText: settings.silver.benefits.join('\n'),
+    },
+    gold: {
+      ...settings.gold,
+      spendThresholdDollars: String(Math.round(settings.gold.spendThresholdCents / 100)),
+      benefitsText: settings.gold.benefits.join('\n'),
+    },
+    black: {
+      ...settings.black,
+      spendThresholdDollars: String(Math.round(settings.black.spendThresholdCents / 100)),
+      benefitsText: settings.black.benefits.join('\n'),
+    },
+  };
+}
+
+function parseDollarInput(value: string) {
+  const amount = Number(value.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return Math.round(amount * 100);
+}
+
+function buildPayload(state: Record<LoyaltyTierKey, EditableTierState>): LoyaltyTierSettings | null {
+  const payload = {} as LoyaltyTierSettings;
+
+  for (const key of TIER_ORDER) {
+    const tier = state[key];
+    const threshold = parseDollarInput(tier.spendThresholdDollars);
+    if (threshold === null) return null;
+    payload[key] = {
+      key,
+      label: tier.label.trim() || tier.key[0].toUpperCase() + tier.key.slice(1),
+      spendThresholdCents: threshold,
+      gradient: [tier.gradient[0].trim() || '#1493FF', tier.gradient[1].trim() || '#0C63D8'],
+      accent: tier.accent.trim() || '#1493FF',
+      progressColor: tier.progressColor.trim() || '#7FD3FF',
+      benefits: tier.benefitsText
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean),
+      rewardSettings: tier.rewardSettings.trim(),
+    };
+  }
+
+  if (
+    payload.silver.spendThresholdCents < payload.blue.spendThresholdCents ||
+    payload.gold.spendThresholdCents < payload.silver.spendThresholdCents ||
+    payload.black.spendThresholdCents < payload.gold.spendThresholdCents
+  ) {
+    return null;
+  }
+
+  return payload;
+}
+
+function formatCurrency(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU')}`;
 }
 
-function TierCard({ tier }: { tier: (typeof TIERS_ORDERED)[number] }) {
-  const benefits = TIER_BENEFITS[tier.key];
-  const upgradeCopy =
-    tier.key === 'blue'
-      ? 'Base member tier. Customers enter here and upgrade automatically as spend grows.'
-      : `Customers upgrade into ${tier.label} automatically once lifetime spend reaches ${formatSpend(tier.spendThreshold)}.`;
-
+function TierEditor({
+  tier,
+  onChange,
+}: {
+  tier: EditableTierState;
+  onChange: (patch: Partial<EditableTierState>) => void;
+}) {
   return (
     <View style={styles.card}>
-      <View style={styles.cardTop}>
-        <View style={[styles.swatch, { backgroundColor: tier.gradient[0] }]}>
-          <View style={[styles.swatchInner, { backgroundColor: tier.gradient[1] }]} />
+      <View style={styles.cardHeader}>
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.tierTitle}>{tier.label}</Text>
+          <Text style={styles.tierHint}>
+            {tier.key === 'blue'
+              ? 'Base member tier. The spend figure here is the visible Blue milestone.'
+              : `Customers auto-upgrade to ${tier.label} when lifetime spend reaches ${formatCurrency(tier.spendThresholdCents)}.`}
+          </Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.tierTitleRow}>
-            <Text style={styles.tierName}>{tier.label}</Text>
-            <View style={[styles.thresholdPill, { backgroundColor: tier.key === 'black' ? BLACK_ACCENT + '14' : tier.accent + '22' }]}>
-              <Text style={[styles.thresholdText, { color: tier.key === 'black' ? BLACK_ACCENT : tier.key === 'silver' ? '#374151' : tier.key === 'gold' ? '#92400E' : BLUE }]}>
-                Spend {formatSpend(tier.spendThreshold)}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.tierSub}>{upgradeCopy}</Text>
+        <View style={styles.swatchRow}>
+          <View style={[styles.swatch, { backgroundColor: tier.gradient[0] }]} />
+          <View style={[styles.swatch, { backgroundColor: tier.gradient[1] }]} />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tier design</Text>
-        <View style={styles.designRow}>
-          {tier.gradient.map((color, idx) => (
-            <View key={idx} style={[styles.designChip, { backgroundColor: color }]} />
-          ))}
+      <View style={styles.fieldGrid}>
+        <View style={styles.field}>
+          <Text style={styles.label}>Tier name</Text>
+          <TextInput
+            value={tier.label}
+            onChangeText={(label) => onChange({ label })}
+            style={styles.input}
+            placeholder="Tier name"
+            placeholderTextColor={MUTED}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Spend threshold (AUD)</Text>
+          <TextInput
+            value={tier.spendThresholdDollars}
+            onChangeText={(spendThresholdDollars) => onChange({ spendThresholdDollars })}
+            style={styles.input}
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={MUTED}
+          />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tier benefits</Text>
-        <View style={{ gap: 8 }}>
-          {benefits.map((benefit) => (
-            <View key={benefit} style={styles.benefitRow}>
-              <Feather name="check-circle" size={15} color={GREEN} />
-              <Text style={styles.benefitText}>{benefit}</Text>
-            </View>
-          ))}
+      <View style={styles.fieldGrid}>
+        <View style={styles.field}>
+          <Text style={styles.label}>Gradient start</Text>
+          <TextInput
+            value={tier.gradient[0]}
+            onChangeText={(value) => onChange({ gradient: [value, tier.gradient[1]] as [string, string] })}
+            style={styles.input}
+            autoCapitalize="characters"
+            placeholder="#1493FF"
+            placeholderTextColor={MUTED}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.label}>Gradient end</Text>
+          <TextInput
+            value={tier.gradient[1]}
+            onChangeText={(value) => onChange({ gradient: [tier.gradient[0], value] as [string, string] })}
+            style={styles.input}
+            autoCapitalize="characters"
+            placeholder="#0C63D8"
+            placeholderTextColor={MUTED}
+          />
         </View>
       </View>
 
-      <View style={styles.detailGrid}>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Reward settings</Text>
-          <Text style={styles.detailValue}>Tier-based perks & redemptions</Text>
+      <View style={styles.fieldGrid}>
+        <View style={styles.field}>
+          <Text style={styles.label}>Accent colour</Text>
+          <TextInput
+            value={tier.accent}
+            onChangeText={(accent) => onChange({ accent })}
+            style={styles.input}
+            autoCapitalize="characters"
+            placeholder="#1493FF"
+            placeholderTextColor={MUTED}
+          />
         </View>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Upgrade logic</Text>
-          <Text style={styles.detailValue}>Automatic by lifetime spend</Text>
+        <View style={styles.field}>
+          <Text style={styles.label}>Progress colour</Text>
+          <TextInput
+            value={tier.progressColor}
+            onChangeText={(progressColor) => onChange({ progressColor })}
+            style={styles.input}
+            autoCapitalize="characters"
+            placeholder="#7FD3FF"
+            placeholderTextColor={MUTED}
+          />
         </View>
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Tier benefits</Text>
+        <TextInput
+          value={tier.benefitsText}
+          onChangeText={(benefitsText) => onChange({ benefitsText })}
+          style={[styles.input, styles.textarea]}
+          multiline
+          textAlignVertical="top"
+          placeholder="One benefit per line"
+          placeholderTextColor={MUTED}
+        />
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Tier reward settings</Text>
+        <TextInput
+          value={tier.rewardSettings}
+          onChangeText={(rewardSettings) => onChange({ rewardSettings })}
+          style={[styles.input, styles.textareaSmall]}
+          multiline
+          textAlignVertical="top"
+          placeholder="Describe the reward setup for this tier"
+          placeholderTextColor={MUTED}
+        />
       </View>
     </View>
   );
 }
 
 export default function DirectorLoyaltyTiersPage() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ['director-loyalty-tier-settings'],
+    queryFn: () => api.director.loyaltyTierSettings(),
+  });
+
+  const [draft, setDraft] = useState<Record<LoyaltyTierKey, EditableTierState> | null>(null);
+
+  useEffect(() => {
+    if (data?.data) setDraft(toEditableState(data.data));
+  }, [data]);
+
+  const mutation = useMutation({
+    mutationFn: (settings: LoyaltyTierSettings) => api.director.updateLoyaltyTierSettings(settings),
+    onSuccess: (res) => {
+      qc.setQueryData(['director-loyalty-tier-settings'], res);
+      qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+      Alert.alert('Saved', 'Loyalty tier settings have been updated.');
+    },
+    onError: (error: any) => {
+      Alert.alert('Could not save', error?.message ?? 'Please try again.');
+    },
+  });
+
+  const canSave = useMemo(() => {
+    if (!draft) return false;
+    return buildPayload(draft) !== null;
+  }, [draft]);
+
+  const handleSave = () => {
+    if (!draft) return;
+    const payload = buildPayload(draft);
+    if (!payload) {
+      Alert.alert(
+        'Check tier thresholds',
+        'Please keep the tier thresholds in order so Blue is lowest, then Silver, Gold, and Black.',
+      );
+      return;
+    }
+    mutation.mutate(payload);
+  };
+
   return (
     <DirectorStandaloneScreen
       title="Loyalty Tiers"
-      subtitle="Blue, Silver, Gold and Black tier setup"
+      subtitle="Tier names, thresholds, design, benefits and upgrade rules"
     >
       <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.introCard}>
           <Text style={styles.introTitle}>Tier setup only</Text>
           <Text style={styles.introText}>
-            This screen is for loyalty tier names, spend thresholds, tier colours/design, tier benefits,
-            reward settings and customer upgrade logic. Reward items and vouchers belong in Reward Catalogue.
+            Use this screen to manage Blue, Silver, Gold and Black tier names, spend thresholds, colours,
+            benefits and reward notes. Reward items and vouchers stay in Reward Catalogue.
           </Text>
         </View>
 
-        {TIERS_ORDERED.map((tier) => (
-          <TierCard key={tier.key} tier={tier} />
-        ))}
+        <View style={styles.logicCard}>
+          <Feather name="trending-up" size={18} color={BLUE} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.logicTitle}>Customer upgrade logic</Text>
+            <Text style={styles.logicText}>
+              Customers move up automatically based on lifetime spend. Blue stays the base member tier,
+              then Silver, Gold and Black unlock in that order as thresholds are reached.
+            </Text>
+          </View>
+        </View>
+
+        {isLoading || !draft ? (
+          <View style={styles.loadingCard}>
+            <Text style={styles.loadingText}>Loading tier settings…</Text>
+          </View>
+        ) : (
+          TIER_ORDER.map((key) => (
+            <TierEditor
+              key={key}
+              tier={draft[key]}
+              onChange={(patch) => setDraft((current) => current ? ({ ...current, [key]: { ...current[key], ...patch } }) : current)}
+            />
+          ))
+        )}
+
+        <Pressable
+          onPress={handleSave}
+          disabled={!canSave || mutation.isPending}
+          style={[styles.saveButton, (!canSave || mutation.isPending) && styles.saveButtonDisabled]}
+        >
+          <Feather name="save" size={18} color="#FFFFFF" />
+          <Text style={styles.saveButtonText}>{mutation.isPending ? 'Saving…' : 'Save Loyalty Tiers'}</Text>
+        </Pressable>
       </ScrollView>
     </DirectorStandaloneScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 14, paddingBottom: 36 },
+  content: { padding: 20, gap: 14, paddingBottom: 40 },
   introCard: {
     backgroundColor: CARD,
     borderRadius: 18,
@@ -141,6 +321,27 @@ const styles = StyleSheet.create({
   },
   introTitle: { fontSize: 16, fontWeight: '700', color: TEXT },
   introText: { fontSize: 13, lineHeight: 19, color: MUTED },
+  logicCard: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  logicTitle: { fontSize: 15, fontWeight: '700', color: TEXT },
+  logicText: { marginTop: 4, fontSize: 13, lineHeight: 18, color: '#475569' },
+  loadingCard: {
+    backgroundColor: CARD,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 22,
+    alignItems: 'center',
+  },
+  loadingText: { fontSize: 14, color: MUTED, fontWeight: '600' },
   card: {
     backgroundColor: CARD,
     borderRadius: 20,
@@ -149,37 +350,37 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14,
   },
-  cardTop: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  swatch: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  swatchInner: { width: 28, height: 28, borderRadius: 10, opacity: 0.9 },
-  tierTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  tierName: { fontSize: 20, fontWeight: '700', color: TEXT },
-  thresholdPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  thresholdText: { fontSize: 12, fontWeight: '700' },
-  tierSub: { marginTop: 4, fontSize: 13, lineHeight: 18, color: MUTED },
-  section: { gap: 8 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 1.1, textTransform: 'uppercase' },
-  designRow: { flexDirection: 'row', gap: 8 },
-  designChip: { width: 42, height: 24, borderRadius: 999 },
-  benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  benefitText: { flex: 1, fontSize: 13, color: TEXT },
-  detailGrid: { flexDirection: 'row', gap: 10 },
-  detailItem: {
-    flex: 1,
-    backgroundColor: BG,
-    borderRadius: 14,
+  cardHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  headerTextWrap: { flex: 1 },
+  tierTitle: { fontSize: 20, fontWeight: '700', color: TEXT },
+  tierHint: { marginTop: 4, fontSize: 13, lineHeight: 18, color: MUTED },
+  swatchRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  swatch: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, borderColor: BORDER },
+  fieldGrid: { flexDirection: 'row', gap: 10 },
+  field: { flex: 1, gap: 6 },
+  label: { fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.7, textTransform: 'uppercase' },
+  input: {
     borderWidth: 1,
     borderColor: BORDER,
-    padding: 12,
-    gap: 5,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FBFDFF',
+    color: TEXT,
+    fontSize: 15,
   },
-  detailLabel: { fontSize: 11, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.9 },
-  detailValue: { fontSize: 13, fontWeight: '600', color: TEXT, lineHeight: 18 },
+  textarea: { minHeight: 112 },
+  textareaSmall: { minHeight: 84 },
+  saveButton: {
+    marginTop: 4,
+    backgroundColor: BLUE,
+    borderRadius: 16,
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  saveButtonDisabled: { backgroundColor: '#93C5FD' },
+  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

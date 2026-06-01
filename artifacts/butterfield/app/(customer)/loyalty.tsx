@@ -201,8 +201,8 @@ function getDisplayTierByServerTier(serverTier?: string | null): DisplayTier {
   return DISPLAY_TIERS.find((tier) => tier.serverKey === serverTier) ?? DISPLAY_TIERS[0];
 }
 
-function getNextDisplayTier(spentCents: number): DisplayTier | null {
-  const nextServerTier = getNextTierBySpend(spentCents);
+function getNextDisplayTier(spentCents: number, loyaltyTierSettings?: import('@/lib/api').LoyaltyTierSettings | null): DisplayTier | null {
+  const nextServerTier = getNextTierBySpend(spentCents, loyaltyTierSettings);
   return nextServerTier ? getDisplayTierByServerTier(nextServerTier.key) : null;
 }
 
@@ -311,9 +311,9 @@ function LoyaltyContent() {
   const stampCount = Math.min(profile?.coffeeStampCount ?? profile?.stampCount ?? 0, STAMP_COUNT);
   const stampsRemaining = Math.max(0, STAMP_COUNT - stampCount);
   const freeCoffeeRewards = profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0;
-  const serverTier = profile?.loyaltyTier || getTierBySpendCents(spendCents).key;
+  const serverTier = profile?.loyaltyTier || getTierBySpendCents(spendCents, profile?.loyaltyTierSettings).key;
   const displayTier = getDisplayTierByServerTier(serverTier);
-  const nextTier = getNextDisplayTier(spendCents);
+  const nextTier = getNextDisplayTier(spendCents, profile?.loyaltyTierSettings);
   const spendProgress = nextTier
     ? Math.max(0, Math.min((spendCents - displayTier.spendThreshold) / (nextTier.spendThreshold - displayTier.spendThreshold || 1), 1))
     : 1;

@@ -7,12 +7,12 @@ import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import {
   applyCoffeeStamps,
   buildLoyaltyQrPayload,
-  computeLoyaltyTier,
   ensureLoyaltySchemaReady,
   getOrCreateCustomerLoyaltyProfile,
   parseLoyaltyQrPayload,
   recordLoyaltyPoints,
 } from '../lib/loyaltyIdentity.js';
+import { computeLoyaltyTierFromSpend, getLoyaltyTierSettings } from '../lib/loyaltyTierSettings.js';
 
 // Infer the Drizzle transaction type from the db object so helper functions
 // can be typed without depending on internal Drizzle generic parameters.
@@ -27,7 +27,8 @@ router.get('/profile', requireAuth, async (req, res) => {
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
 
   // Always recompute tier from totalSpentCents so it is the single source of truth.
-  const correctTier = computeLoyaltyTier(profile.totalSpentCents);
+  const correctTier = await computeLoyaltyTierFromSpend(profile.totalSpentCents);
+  const loyaltyTierSettings = await getLoyaltyTierSettings();
 
   if (correctTier !== profile.loyaltyTier) {
     await db.update(customerProfilesTable)
@@ -50,6 +51,7 @@ router.get('/profile', requireAuth, async (req, res) => {
         freeCoffeesEarned: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
         loyaltyQrToken: profile.loyaltyQrToken ?? null,
         qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
+        loyaltyTierSettings,
         recentActivity,
       },
     });
@@ -72,6 +74,7 @@ router.get('/profile', requireAuth, async (req, res) => {
       freeCoffeesEarned: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
       loyaltyQrToken: profile.loyaltyQrToken ?? null,
       qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
+      loyaltyTierSettings,
       recentActivity,
     },
   });

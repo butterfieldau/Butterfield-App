@@ -406,6 +406,21 @@ export const api = {
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    loyaltyTierSettings: async () => {
+      const res = await request<{ data: Record<string, string> }>('/director/settings');
+      return {
+        data: parseLoyaltyTierSettingsValue(res.data.loyalty_tier_settings),
+      };
+    },
+    updateLoyaltyTierSettings: async (settings: LoyaltyTierSettings) => {
+      const res = await request<{ data: Record<string, string> }>('/director/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ loyalty_tier_settings: JSON.stringify(settings) }),
+      });
+      return {
+        data: parseLoyaltyTierSettingsValue(res.data.loyalty_tier_settings),
+      };
+    },
     printerBytes:        (job?: PrinterJob) =>
       request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
@@ -788,6 +803,125 @@ export interface LoyaltyProfile {
   qrPayload?: string | null;
   recentActivity?: LoyaltyActivity[];
   freeCoffeesEarned?: number;
+  loyaltyTierSettings?: LoyaltyTierSettings;
+}
+
+export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
+
+export interface LoyaltyTierSetting {
+  key: LoyaltyTierKey;
+  label: string;
+  spendThresholdCents: number;
+  gradient: [string, string];
+  accent: string;
+  progressColor: string;
+  benefits: string[];
+  rewardSettings: string;
+}
+
+export type LoyaltyTierSettings = Record<LoyaltyTierKey, LoyaltyTierSetting>;
+
+const DEFAULT_LOYALTY_TIER_SETTINGS: LoyaltyTierSettings = {
+  blue: {
+    key: 'blue',
+    label: 'Blue',
+    spendThresholdCents: 20000,
+    gradient: ['#1493FF', '#0C63D8'],
+    accent: '#1493FF',
+    progressColor: '#7FD3FF',
+    benefits: [
+      'Base tier entry experience',
+      'Birthday reward eligibility',
+      'App-only member offers',
+      'Standard points earning',
+    ],
+    rewardSettings: 'Standard member rewards and app offers.',
+  },
+  silver: {
+    key: 'silver',
+    label: 'Silver',
+    spendThresholdCents: 50000,
+    gradient: ['#B7C0CD', '#747F90'],
+    accent: '#D6DEE8',
+    progressColor: '#EEF3F9',
+    benefits: [
+      'Everything in Blue',
+      'Higher-value monthly rewards',
+      'Earlier drop access',
+      'Stronger loyalty reward settings',
+    ],
+    rewardSettings: 'Improved monthly rewards and priority access.',
+  },
+  gold: {
+    key: 'gold',
+    label: 'Gold',
+    spendThresholdCents: 100000,
+    gradient: ['#E3B55F', '#A77516'],
+    accent: '#F4D48C',
+    progressColor: '#FFF2CC',
+    benefits: [
+      'Everything in Silver',
+      'Priority member treatment',
+      'Richer ongoing benefits',
+      'Premium reward unlocks',
+    ],
+    rewardSettings: 'Premium monthly rewards and priority treatment.',
+  },
+  black: {
+    key: 'black',
+    label: 'Black',
+    spendThresholdCents: 200000,
+    gradient: ['#1A1E27', '#05070B'],
+    accent: '#51A9FF',
+    progressColor: '#93C5FD',
+    benefits: [
+      'Everything in Gold',
+      'Top-tier exclusive benefits',
+      'Best reward settings',
+      'Highest-value member treatment',
+    ],
+    rewardSettings: 'Top-tier exclusives, highest-value rewards and VIP treatment.',
+  },
+};
+
+function parseLoyaltyTierSettingsValue(raw: string | null | undefined): LoyaltyTierSettings {
+  try {
+    const parsed = raw ? JSON.parse(raw) : null;
+    const source = parsed && typeof parsed === 'object' ? parsed as Record<string, any> : {};
+    const pick = (key: LoyaltyTierKey): LoyaltyTierSetting => {
+      const defaults = DEFAULT_LOYALTY_TIER_SETTINGS[key];
+      const input = source[key] ?? {};
+      return {
+        key,
+        label: typeof input.label === 'string' && input.label.trim() ? input.label.trim() : defaults.label,
+        spendThresholdCents: Number.isFinite(Number(input.spendThresholdCents)) ? Math.max(0, Math.round(Number(input.spendThresholdCents))) : defaults.spendThresholdCents,
+        gradient: [
+          typeof input.gradient?.[0] === 'string' && input.gradient[0].trim() ? input.gradient[0].trim() : defaults.gradient[0],
+          typeof input.gradient?.[1] === 'string' && input.gradient[1].trim() ? input.gradient[1].trim() : defaults.gradient[1],
+        ],
+        accent: typeof input.accent === 'string' && input.accent.trim() ? input.accent.trim() : defaults.accent,
+        progressColor: typeof input.progressColor === 'string' && input.progressColor.trim() ? input.progressColor.trim() : defaults.progressColor,
+        benefits: Array.isArray(input.benefits) && input.benefits.length > 0
+          ? input.benefits.map((item: unknown) => String(item).trim()).filter(Boolean)
+          : defaults.benefits,
+        rewardSettings: typeof input.rewardSettings === 'string' && input.rewardSettings.trim()
+          ? input.rewardSettings.trim()
+          : defaults.rewardSettings,
+      };
+    };
+    const normalized: LoyaltyTierSettings = {
+      blue: pick('blue'),
+      silver: pick('silver'),
+      gold: pick('gold'),
+      black: pick('black'),
+    };
+    normalized.silver.spendThresholdCents = Math.max(normalized.silver.spendThresholdCents, normalized.blue.spendThresholdCents);
+    normalized.gold.spendThresholdCents = Math.max(normalized.gold.spendThresholdCents, normalized.silver.spendThresholdCents);
+    normalized.black.spendThresholdCents = Math.max(normalized.black.spendThresholdCents, normalized.gold.spendThresholdCents);
+    return normalized;
+  } catch {
+    return DEFAULT_LOYALTY_TIER_SETTINGS;
+  }
 }
 
 export interface LoyaltyTransaction {
