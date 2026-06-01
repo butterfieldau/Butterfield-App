@@ -69,16 +69,6 @@ function toYMD(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const CHUNK = 8192;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return btoa(binary);
-}
-
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.max(4, (value / max) * 100) : 4;
   return (
@@ -163,24 +153,19 @@ function DownloadReportModal({ visible, onClose }: DownloadModalProps) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onClose();
       } else {
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${token ?? ''}` } });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `Server error ${res.status}`);
-        }
-        const ab     = await res.arrayBuffer();
-        const base64 = arrayBufferToBase64(ab);
         const fileUri = (FileSystem.cacheDirectory ?? '') + filename;
-        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const result = await FileSystem.downloadAsync(url, fileUri, {
+          headers: { Authorization: `Bearer ${token ?? ''}` },
+        });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(fileUri, {
+          await Sharing.shareAsync(result.uri, {
             mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             dialogTitle: 'Save Butterfield Report',
             UTI: 'com.microsoft.excel.xlsx',
           });
         } else {
-          Alert.alert('File Saved', `Saved to: ${fileUri}`);
+          Alert.alert('File Saved', `Saved to: ${result.uri}`);
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onClose();
