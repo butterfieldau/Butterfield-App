@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
@@ -87,6 +88,12 @@ export default function WholesaleAccount() {
 
   const { data: accountData, refetch: refetchAccount } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
   const { data: ordersData }  = useQuery({ queryKey: ['wholesale-orders'],  queryFn: () => api.wholesale.orders(),  retry: 1 });
+  const { data: stripeConfigData } = useQuery({
+    queryKey: ['stripe-config'],
+    queryFn: () => api.payment.config(),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
 
   const account       = accountData?.data;
   const orders        = ordersData?.data ?? [];
@@ -164,6 +171,7 @@ export default function WholesaleAccount() {
   const statusLabel = account?.status === 'approved' ? 'Approved' : account?.status === 'pending' ? 'Pending' : account?.status ?? '—';
 
   const acctEmail = account?.accountsEmail ?? '';
+  const stripePublishableKey = stripeConfigData?.data?.publishableKey ?? null;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -260,7 +268,17 @@ export default function WholesaleAccount() {
         {/* ── PAYMENT METHODS ─────────────────────────────────────────────── */}
         <View style={{ gap: 6 }}>
           <SectionLabel>Payment Methods</SectionLabel>
-          <PaymentMethods />
+          {stripePublishableKey ? (
+            <StripeProvider publishableKey={stripePublishableKey}>
+              <PaymentMethods />
+            </StripeProvider>
+          ) : (
+            <Group>
+              <Text style={{ color: MUTED, fontSize: 13, padding: 14 }}>
+                Payment methods are temporarily unavailable.
+              </Text>
+            </Group>
+          )}
         </View>
 
         {/* ── PAY TO (bank details) ────────────────────────────────────────── */}

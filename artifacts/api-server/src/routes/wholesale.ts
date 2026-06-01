@@ -3,10 +3,12 @@ import { randomUUID } from 'crypto';
 import {
   db, wholesaleOrdersTable, wholesaleAccountsTable, productsTable, pricingTiersTable,
   wholesaleCardsTable, quantityPriceBreaksTable, customerPricingTable,
+  usersTable,
 } from '@workspace/db';
 import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
+import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
 import {
   calculateWholesalePrice,
   canCustomerAccessProduct,
@@ -16,6 +18,36 @@ import {
 
 const router = Router();
 router.use(requireRole('wholesale'));
+
+async function getOrCreateStripeCustomer(userId: string, email: string, name: string) {
+  const [user] = await db
+    .select({
+      id: usersTable.id,
+      stripeCustomerId: usersTable.stripeCustomerId,
+      email: usersTable.email,
+      name: usersTable.name,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+
+  if (!user) throw new Error('User not found');
+  if (user.stripeCustomerId) return user.stripeCustomerId;
+
+  const { getUncachableStripeClient } = await import('../stripeClient.js');
+  const stripe = await getUncachableStripeClient();
+  const customer = await stripe.customers.create({
+    email,
+    name,
+    metadata: { userId },
+  });
+
+  await db
+    .update(usersTable)
+    .set({ stripeCustomerId: customer.id, updatedAt: new Date() })
+    .where(eq(usersTable.id, userId));
+
+  return customer.id;
+}
 
 function getPublicBaseUrl(): string {
   const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
@@ -38,6 +70,7 @@ function absolutizeUrl(url: string | null | undefined): string | null {
 }
 
 router.get('/account', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
   let tier: any = null;
@@ -129,6 +162,7 @@ router.get('/catalog', async (req, res) => {
 router.get('/products', (req, res) => res.redirect(307, '/api/wholesale/catalog'));
 
 router.get('/orders', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Account not found' });
   const orders = await db.select().from(wholesaleOrdersTable)
@@ -138,6 +172,7 @@ router.get('/orders', async (req, res) => {
 });
 
 router.get('/orders/:id', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const [order] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, req.params.id));
   if (!order) return res.status(404).json({ error: 'Order not found' });
   // Customers can only see their own orders
@@ -147,6 +182,7 @@ router.get('/orders/:id', async (req, res) => {
 });
 
 router.get('/invoices', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Account not found' });
   const orders = await db.select().from(wholesaleOrdersTable)
@@ -157,12 +193,14 @@ router.get('/invoices', async (req, res) => {
 
 // SECURE order placement — server prices everything from scratch, ignores client totals.
 router.post('/orders', async (req, res) => {
-  const { items, poReference, notes, deliveryType, scheduledDate } = req.body ?? {};
+  await ensureWholesalePaymentSchemaReady();
+  const { items, poReference, notes, deliveryType, scheduledDate, stripePaymentIntentId, paymentMethodType } = req.body ?? {};
   try {
     // Prices ENTIRELY computed on server — never trust client totals.
     const priced = await priceAndValidateOrder(req.user!.id, items, { allowOverrides: false });
     const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
     if (!account) return res.status(404).json({ error: 'Account not found' });
+    const isNetAccount = Boolean(account.creditEnabled) && (account.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
 
     const itemsWithNames = await Promise.all(priced.lines.map(async (l) => {
       const [product] = await db.select({ name: productsTable.name }).from(productsTable).where(eq(productsTable.id, l.productId));
@@ -181,6 +219,32 @@ router.post('/orders', async (req, res) => {
     const deliveryFeeCents = (deliveryType === 'delivery') ? (account.deliveryFeeCents ?? 0) : 0;
     const finalTotalCents  = priced.totalCents + deliveryFeeCents;
 
+    let stripePaymentStatus: 'pending' | 'paid' = isNetAccount ? 'pending' : 'paid';
+    let isPaid = isNetAccount ? false : true;
+    if (!isNetAccount) {
+      if (!stripePaymentIntentId) {
+        return res.status(400).json({ error: 'Payment is required for this wholesale order.' });
+      }
+      const { getUncachableStripeClient } = await import('../stripeClient.js');
+      const stripe = await getUncachableStripeClient();
+      const pi = await stripe.paymentIntents.retrieve(String(stripePaymentIntentId));
+      const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+      if (pi.customer !== customerId) {
+        return res.status(403).json({ error: 'Payment intent does not belong to this wholesale account.' });
+      }
+      if (pi.status !== 'succeeded') {
+        return res.status(400).json({ error: `Payment has not been completed (status: ${pi.status})` });
+      }
+      if (pi.currency !== 'aud') {
+        return res.status(400).json({ error: 'Payment currency is not AUD.' });
+      }
+      if (Math.abs(pi.amount - finalTotalCents) > 1) {
+        return res.status(400).json({ error: 'Payment amount does not match the wholesale order total.' });
+      }
+      stripePaymentStatus = 'paid';
+      isPaid = true;
+    }
+
     const [order] = await db.insert(wholesaleOrdersTable).values({
       id: randomUUID(),
       accountId: account.id,
@@ -190,8 +254,14 @@ router.post('/orders', async (req, res) => {
       items: itemsWithNames as any,
       notes: notes ?? null,
       totalCents: finalTotalCents,
+      originalTotalCents: finalTotalCents,
       deliveryType: deliveryType ?? 'pickup',
       scheduledDate: scheduledDate ?? null,
+      isPaid,
+      paidAt: isPaid ? new Date() : null,
+      stripePaymentIntentId: stripePaymentIntentId ?? null,
+      stripePaymentStatus,
+      paymentMethodType: paymentMethodType ?? (isNetAccount ? 'net_terms' : 'credit_card'),
     }).returning();
 
     const itemCount = Array.isArray(itemsWithNames) ? itemsWithNames.reduce((sum, item) => sum + Math.max(1, Number(item.qty ?? 1) || 1), 0) : 1;
@@ -206,6 +276,120 @@ router.post('/orders', async (req, res) => {
     return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, finalTotalCents } } });
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Order validation failed' });
+  }
+});
+
+router.post('/payment-intent', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
+  const { items, deliveryType, savePaymentMethod } = req.body ?? {};
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
+  if (!account) return res.status(404).json({ error: 'Account not found' });
+  const isNetAccount = Boolean(account.creditEnabled) && (account.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
+  if (isNetAccount) {
+    return res.json({ paymentRequired: false, clientSecret: null, paymentIntentId: null, amountCents: 0 });
+  }
+
+  try {
+    const priced = await priceAndValidateOrder(req.user!.id, items, { allowOverrides: false });
+    const deliveryFeeCents = deliveryType === 'delivery' ? (account.deliveryFeeCents ?? 0) : 0;
+    const totalCents = priced.totalCents + deliveryFeeCents;
+    if (totalCents < 50) return res.status(400).json({ error: 'Amount must be at least 50 cents.' });
+
+    const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const intent = await stripe.paymentIntents.create({
+      amount: totalCents,
+      currency: 'aud',
+      customer: customerId,
+      payment_method_types: ['card'],
+      setup_future_usage: savePaymentMethod ? 'off_session' : undefined,
+      metadata: {
+        userId: req.user!.id,
+        accountId: account.id,
+        orderSource: 'wholesale',
+        computedAmountCents: String(totalCents),
+      },
+    });
+    return res.json({
+      paymentRequired: true,
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      amountCents: totalCents,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'Wholesale payment intent creation failed');
+    return res.status(400).json({ error: err?.message ?? 'Could not prepare wholesale payment' });
+  }
+});
+
+router.post('/confirm-saved-method', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
+  const { items, deliveryType, paymentMethodId } = req.body ?? {};
+  if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId is required.' });
+
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
+  if (!account) return res.status(404).json({ error: 'Account not found' });
+  const isNetAccount = Boolean(account.creditEnabled) && (account.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
+  if (isNetAccount) {
+    return res.json({ paymentRequired: false, paymentIntentId: null, clientSecret: null, amountCents: 0 });
+  }
+
+  try {
+    const priced = await priceAndValidateOrder(req.user!.id, items, { allowOverrides: false });
+    const deliveryFeeCents = deliveryType === 'delivery' ? (account.deliveryFeeCents ?? 0) : 0;
+    const totalCents = priced.totalCents + deliveryFeeCents;
+    const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const intent = await stripe.paymentIntents.create({
+      amount: totalCents,
+      currency: 'aud',
+      customer: customerId,
+      payment_method: paymentMethodId,
+      payment_method_types: ['card'],
+      confirmation_method: 'manual',
+      confirm: true,
+      metadata: {
+        userId: req.user!.id,
+        accountId: account.id,
+        orderSource: 'wholesale',
+        computedAmountCents: String(totalCents),
+      },
+    });
+    return res.json({
+      paymentRequired: true,
+      paymentIntentId: intent.id,
+      clientSecret: intent.client_secret,
+      amountCents: totalCents,
+      requiresAction: intent.status === 'requires_action',
+      success: intent.status === 'succeeded',
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'Wholesale saved-card confirmation failed');
+    return res.status(400).json({ error: err?.message ?? 'Could not charge saved wholesale card' });
+  }
+});
+
+router.post('/confirm-intent', async (req, res) => {
+  const { paymentIntentId } = req.body ?? {};
+  if (!paymentIntentId) return res.status(400).json({ error: 'paymentIntentId is required.' });
+  try {
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    let intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (intent.status === 'requires_confirmation') {
+      intent = await stripe.paymentIntents.confirm(paymentIntentId);
+    }
+    return res.json({
+      success: intent.status === 'succeeded',
+      requiresAction: intent.status === 'requires_action',
+      paymentIntentId: intent.id,
+      clientSecret: intent.client_secret,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'Wholesale final payment confirmation failed');
+    return res.status(400).json({ error: err?.message ?? 'Could not finalize wholesale payment' });
   }
 });
 
@@ -276,64 +460,174 @@ async function getAccountForUser(userId: string) {
 }
 
 router.get('/cards', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const account = await getAccountForUser(req.user!.id);
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
-  const cards = await db.select().from(wholesaleCardsTable)
-    .where(eq(wholesaleCardsTable.accountId, account.id))
-    .orderBy(wholesaleCardsTable.createdAt);
-  return res.json({ data: cards });
+  const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+  const { getUncachableStripeClient } = await import('../stripeClient.js');
+  const stripe = await getUncachableStripeClient();
+  const [customer, methods, records] = await Promise.all([
+    stripe.customers.retrieve(customerId),
+    stripe.paymentMethods.list({ customer: customerId, type: 'card' }),
+    db.select().from(wholesaleCardsTable).where(eq(wholesaleCardsTable.accountId, account.id)),
+  ]);
+  const defaultPaymentMethodId =
+    !('deleted' in customer) && typeof customer.invoice_settings.default_payment_method === 'string'
+      ? customer.invoice_settings.default_payment_method
+      : null;
+  const recordMap = new Map(records.map((record) => [record.stripePaymentMethodId ?? record.id, record]));
+
+  const data = methods.data.map((method) => {
+    const record = recordMap.get(method.id);
+    return {
+      id: method.id,
+      stripePaymentMethodId: method.id,
+      nameOnCard: record?.nameOnCard ?? req.user!.name,
+      cardBrand: method.card?.brand ?? 'card',
+      brand: method.card?.brand ?? 'card',
+      last4: method.card?.last4 ?? '0000',
+      expiry: `${String(method.card?.exp_month ?? '').padStart(2, '0')}/${String(method.card?.exp_year ?? '').slice(-2)}`,
+      expMonth: method.card?.exp_month ?? null,
+      expYear: method.card?.exp_year ?? null,
+      isDefault: method.id === defaultPaymentMethodId,
+      createdAt: record?.createdAt,
+      updatedAt: record?.updatedAt ?? record?.createdAt,
+    };
+  });
+
+  return res.json({ data });
 });
 
 router.post('/cards', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const account = await getAccountForUser(req.user!.id);
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
-  const { nameOnCard, cardBrand, last4, expiry, isDefault } = req.body;
-  if (!nameOnCard || !last4 || !expiry) return res.status(400).json({ error: 'nameOnCard, last4 and expiry are required.' });
-  if (isDefault) {
-    await db.update(wholesaleCardsTable).set({ isDefault: false }).where(eq(wholesaleCardsTable.accountId, account.id));
+  const { paymentMethodId, nameOnCard, cardBrand, last4, expiry, isDefault } = req.body ?? {};
+  if (paymentMethodId) {
+    const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const attached = await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+    const existing = await db.select().from(wholesaleCardsTable).where(eq(wholesaleCardsTable.accountId, account.id));
+    const makeDefault = Boolean(isDefault) || existing.length === 0;
+    if (makeDefault) {
+      await stripe.customers.update(customerId, {
+        invoice_settings: { default_payment_method: paymentMethodId },
+      });
+      await db.update(wholesaleCardsTable).set({ isDefault: false, updatedAt: new Date() }).where(eq(wholesaleCardsTable.accountId, account.id));
+    }
+    const [card] = await db.insert(wholesaleCardsTable).values({
+      id: paymentMethodId,
+      accountId: account.id,
+      stripePaymentMethodId: paymentMethodId,
+      nameOnCard: nameOnCard?.trim() || req.user!.name,
+      cardBrand: attached.card?.brand ?? 'card',
+      last4: attached.card?.last4 ?? '0000',
+      expiry: `${String(attached.card?.exp_month ?? '').padStart(2, '0')}/${String(attached.card?.exp_year ?? '').slice(-2)}`,
+      expMonth: attached.card?.exp_month ?? null,
+      expYear: attached.card?.exp_year ?? null,
+      isDefault: makeDefault,
+      updatedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: wholesaleCardsTable.id,
+      set: {
+        stripePaymentMethodId: paymentMethodId,
+        nameOnCard: nameOnCard?.trim() || req.user!.name,
+        cardBrand: attached.card?.brand ?? 'card',
+        last4: attached.card?.last4 ?? '0000',
+        expiry: `${String(attached.card?.exp_month ?? '').padStart(2, '0')}/${String(attached.card?.exp_year ?? '').slice(-2)}`,
+        expMonth: attached.card?.exp_month ?? null,
+        expYear: attached.card?.exp_year ?? null,
+        isDefault: makeDefault,
+        updatedAt: new Date(),
+      },
+    }).returning();
+    return res.status(201).json({
+      data: {
+        id: card.id,
+        stripePaymentMethodId: paymentMethodId,
+        nameOnCard: card.nameOnCard,
+        cardBrand: card.cardBrand,
+        brand: card.cardBrand,
+        last4: card.last4,
+        expiry: card.expiry,
+        expMonth: card.expMonth,
+        expYear: card.expYear,
+        isDefault: card.isDefault,
+      },
+    });
   }
-  // If first card, make it default
-  const existing = await db.select().from(wholesaleCardsTable).where(eq(wholesaleCardsTable.accountId, account.id));
-  const makeDefault = isDefault || existing.length === 0;
+
+  if (!nameOnCard || !last4 || !expiry) return res.status(400).json({ error: 'paymentMethodId is required for secure card saving.' });
   const [card] = await db.insert(wholesaleCardsTable).values({
-    id: randomUUID(), accountId: account.id,
-    nameOnCard, cardBrand: cardBrand ?? 'Visa', last4, expiry, isDefault: makeDefault,
+    id: randomUUID(),
+    accountId: account.id,
+    nameOnCard,
+    cardBrand: cardBrand ?? 'Visa',
+    last4,
+    expiry,
+    isDefault: Boolean(isDefault),
+    updatedAt: new Date(),
   }).returning();
   return res.status(201).json({ data: card });
 });
 
 router.patch('/cards/:id', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const account = await getAccountForUser(req.user!.id);
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
-  const { nameOnCard, cardBrand, last4, expiry, isDefault } = req.body;
+  const { nameOnCard, isDefault } = req.body ?? {};
+  const paymentMethodId = req.params.id;
+  const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+  const { getUncachableStripeClient } = await import('../stripeClient.js');
+  const stripe = await getUncachableStripeClient();
   const updates: Record<string, any> = {};
   if (nameOnCard !== undefined) updates.nameOnCard = nameOnCard;
-  if (cardBrand   !== undefined) updates.cardBrand  = cardBrand;
-  if (last4       !== undefined) updates.last4       = last4;
-  if (expiry      !== undefined) updates.expiry      = expiry;
   if (isDefault) {
-    await db.update(wholesaleCardsTable).set({ isDefault: false }).where(eq(wholesaleCardsTable.accountId, account.id));
+    await stripe.customers.update(customerId, {
+      invoice_settings: { default_payment_method: paymentMethodId },
+    });
+    await db.update(wholesaleCardsTable).set({ isDefault: false, updatedAt: new Date() }).where(eq(wholesaleCardsTable.accountId, account.id));
     updates.isDefault = true;
   }
+  updates.updatedAt = new Date();
   const [updated] = await db.update(wholesaleCardsTable).set(updates)
-    .where(and(eq(wholesaleCardsTable.id, req.params.id), eq(wholesaleCardsTable.accountId, account.id)))
+    .where(and(eq(wholesaleCardsTable.id, paymentMethodId), eq(wholesaleCardsTable.accountId, account.id)))
     .returning();
   if (!updated) return res.status(404).json({ error: 'Card not found' });
   return res.json({ data: updated });
 });
 
 router.delete('/cards/:id', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
   const account = await getAccountForUser(req.user!.id);
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
+  const paymentMethodId = req.params.id;
+  const { getUncachableStripeClient } = await import('../stripeClient.js');
+  const stripe = await getUncachableStripeClient();
+  try {
+    await stripe.paymentMethods.detach(paymentMethodId);
+  } catch {}
   const [deleted] = await db.delete(wholesaleCardsTable)
-    .where(and(eq(wholesaleCardsTable.id, req.params.id), eq(wholesaleCardsTable.accountId, account.id)))
+    .where(and(eq(wholesaleCardsTable.id, paymentMethodId), eq(wholesaleCardsTable.accountId, account.id)))
     .returning();
   if (!deleted) return res.status(404).json({ error: 'Card not found' });
-  // If deleted was default and there are remaining cards, make newest default
+  const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
   if (deleted.isDefault) {
     const [remaining] = await db.select().from(wholesaleCardsTable)
       .where(eq(wholesaleCardsTable.accountId, account.id)).orderBy(desc(wholesaleCardsTable.createdAt)).limit(1);
-    if (remaining) await db.update(wholesaleCardsTable).set({ isDefault: true }).where(eq(wholesaleCardsTable.id, remaining.id));
+    if (remaining) {
+      await db.update(wholesaleCardsTable).set({ isDefault: true, updatedAt: new Date() }).where(eq(wholesaleCardsTable.id, remaining.id));
+      if (remaining.stripePaymentMethodId) {
+        await stripe.customers.update(customerId, {
+          invoice_settings: { default_payment_method: remaining.stripePaymentMethodId },
+        });
+      }
+    } else {
+      await stripe.customers.update(customerId, {
+        invoice_settings: { default_payment_method: null },
+      });
+    }
   }
   return res.json({ success: true });
 });
