@@ -164,9 +164,9 @@ export function FloatingInternalTabBar({
 }) {
   const insets = useSafeAreaInsets();
 
-  const visibleRoutes = state.routes.filter((r: any) =>
-    visibleRouteNames.includes(r.name),
-  );
+  const visibleRoutes = visibleRouteNames
+    .map((name) => state.routes.find((r: any) => r.name === name))
+    .filter(Boolean);
 
   return (
     <View
