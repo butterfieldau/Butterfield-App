@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
@@ -622,6 +622,7 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const didInitialQueueAlign = React.useRef(false);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-orders'],
     queryFn: () => api.director.orders(),
@@ -681,6 +682,14 @@ export default function DirectorOrdersScreen() {
     return allOrders.filter((o) => o.status === filter);
   }, [allOrders, filter]);
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const activeTodayOrders = useMemo(
+    () =>
+      allOrders.filter((order) =>
+        ['received', 'being_prepared', 'ready_for_pickup', 'pending', 'processing', 'dispatched'].includes(order.status)
+        && isSameDay(getOrderTimelineDate(order), today)
+      ),
+    [allOrders, today],
+  );
   const todayOrders = useMemo(() =>
     statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)),
     [statusFiltered, today]
@@ -701,6 +710,16 @@ export default function DirectorOrdersScreen() {
     }
     return map;
   }, [statusFiltered]);
+  useEffect(() => {
+    if (didInitialQueueAlign.current || isLoading) return;
+    didInitialQueueAlign.current = true;
+    const hidesLiveQueue = !['all', 'active', 'received', 'being_prepared', 'ready_for_pickup'].includes(filter);
+    if (activeTodayOrders.length > 0 && (viewMode !== 'today' || hidesLiveQueue)) {
+      setFilter('active');
+      setViewMode('today');
+      setSelectedDate(new Date());
+    }
+  }, [activeTodayOrders.length, filter, isLoading, viewMode]);
   const handleStatusChange = async (orderId: string, status: string) => {
     try {
       await api.director.updateOrderStatus(orderId, status);
