@@ -10,6 +10,7 @@ import { and, desc, eq, inArray, isNull, lte, notInArray, or, sql } from 'drizzl
 import { sendNotification } from './notificationService.js';
 import { logger } from './logger.js';
 import { ensureScheduledNotificationSchemaReady } from './ensureScheduledNotificationSchemaReady.js';
+import { ObjectStorageService } from './objectStorage.js';
 
 export type ScheduledNotificationAudienceType =
   | 'all_customers'
@@ -41,6 +42,7 @@ const SUPPORTED_AUDIENCES: ScheduledNotificationAudienceType[] = [
 let processPromise: Promise<void> | null = null;
 let started = false;
 let intervalHandle: NodeJS.Timeout | null = null;
+const objectStorageService = new ObjectStorageService();
 
 export function isSupportedScheduledAudience(audienceType: string): audienceType is ScheduledNotificationAudienceType {
   return SUPPORTED_AUDIENCES.includes(audienceType as ScheduledNotificationAudienceType);
@@ -147,6 +149,49 @@ async function sendScheduledNotificationRow(
   });
 }
 
+async function cleanupScheduledNotificationImages(): Promise<void> {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      id: scheduledNotificationsTable.id,
+      imageUrl: scheduledNotificationsTable.imageUrl,
+      imageObjectPath: scheduledNotificationsTable.imageObjectPath,
+    })
+    .from(scheduledNotificationsTable)
+    .where(
+      and(
+        sql`${scheduledNotificationsTable.imageUrl} IS NOT NULL`,
+        sql`${scheduledNotificationsTable.status} IN ('sent', 'cancelled', 'failed')`,
+        or(
+          and(eq(scheduledNotificationsTable.status, 'sent'), lte(scheduledNotificationsTable.sentAt, cutoff)),
+          and(
+            inArray(scheduledNotificationsTable.status, ['cancelled', 'failed']),
+            lte(scheduledNotificationsTable.updatedAt, cutoff),
+          ),
+        ),
+      ),
+    );
+
+  for (const row of rows) {
+    try {
+      if (row.imageObjectPath) {
+        await objectStorageService.deleteObjectByPath(row.imageObjectPath);
+      }
+    } catch (error) {
+      logger.warn({ err: error, id: row.id }, 'Scheduled notification image storage cleanup failed');
+    }
+
+    await db
+      .update(scheduledNotificationsTable)
+      .set({
+        imageUrl: null,
+        imageObjectPath: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(scheduledNotificationsTable.id, row.id));
+  }
+}
+
 export async function processDueScheduledNotifications(): Promise<void> {
   await ensureScheduledNotificationSchemaReady();
 
@@ -156,6 +201,8 @@ export async function processDueScheduledNotifications(): Promise<void> {
 
   processPromise = (async () => {
     try {
+      await cleanupScheduledNotificationImages();
+
       const due = await db
         .select()
         .from(scheduledNotificationsTable)

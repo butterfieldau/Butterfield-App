@@ -1,9 +1,11 @@
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -77,11 +79,15 @@ type FormState = {
   audienceType: ScheduledNotificationAudienceType;
   loyaltyTier: 'blue' | 'silver' | 'gold' | 'black';
   imageUrl: string;
+  imageObjectPath: string;
   actionValue: string;
 };
 
 function toDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function toTimeInput(date: Date) {
@@ -117,8 +123,34 @@ function formatSchedule(dateString: string) {
   };
 }
 
+function parseDateInput(value: string) {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, dayText, monthText, yearText] = match;
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const parsed = new Date(year, month - 1, day);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+  return parsed;
+}
+
 function buildScheduledAt(sendDate: string, sendTime: string) {
-  const value = new Date(`${sendDate}T${sendTime}:00`);
+  const date = parseDateInput(sendDate);
+  if (!date) return null;
+  const timeMatch = sendTime.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!timeMatch) return null;
+  const [, hourText, minuteText] = timeMatch;
+  const value = new Date(date);
+  value.setHours(Number(hourText), Number(minuteText), 0, 0);
   return Number.isNaN(value.getTime()) ? null : value;
 }
 
@@ -140,6 +172,7 @@ function emptyFormState(): FormState {
     audienceType: 'all_customers',
     loyaltyTier: 'blue',
     imageUrl: '',
+    imageObjectPath: '',
     actionValue: '',
   };
 }
@@ -225,6 +258,7 @@ function ScheduleNotificationModal({
     title: string;
     message: string;
     imageUrl?: string | null;
+    imageObjectPath?: string | null;
     actionType?: string | null;
     actionValue?: string | null;
     audienceType: ScheduledNotificationAudienceType;
@@ -235,6 +269,7 @@ function ScheduleNotificationModal({
 }) {
   const [form, setForm] = useState<FormState>(emptyFormState());
   const [savingStatus, setSavingStatus] = useState<'draft' | 'scheduled' | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -261,9 +296,46 @@ function ScheduleNotificationModal({
       audienceType: editing.audienceType,
       loyaltyTier: filters.loyaltyTier ?? 'blue',
       imageUrl: editing.imageUrl ?? '',
+      imageObjectPath: editing.imageObjectPath ?? '',
       actionValue: editing.actionValue ?? '',
     });
   }, [editing, visible]);
+
+  const pickImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Photos needed', 'Please allow photo access to upload a notification image.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+        allowsEditing: true,
+        aspect: [16, 9],
+      });
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const ext = mimeType.split('/')[1] || 'jpg';
+      const filename = `scheduled-notification-${Date.now()}.${ext}`;
+
+      setUploadingImage(true);
+      const uploaded = await api.storage.uploadFile(asset.uri, filename, mimeType);
+      setForm((current) => ({
+        ...current,
+        imageUrl: uploaded.servingUrl,
+        imageObjectPath: uploaded.objectPath,
+      }));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Alert.alert('Upload failed', getErrorMessage(error, 'Could not upload this image.'));
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const submit = async (status: 'draft' | 'scheduled') => {
     const scheduledAt = buildScheduledAt(form.sendDate, form.sendTime);
@@ -280,6 +352,7 @@ function ScheduleNotificationModal({
         title: form.title.trim(),
         message: form.message.trim(),
         imageUrl: form.imageUrl.trim() || null,
+        imageObjectPath: form.imageObjectPath.trim() || null,
         actionType: form.actionValue.trim() ? 'link' : null,
         actionValue: form.actionValue.trim() || null,
         audienceType: form.audienceType,
@@ -340,7 +413,7 @@ function ScheduleNotificationModal({
                 <TextInput
                   value={form.sendDate}
                   onChangeText={(sendDate) => setForm((current) => ({ ...current, sendDate }))}
-                  placeholder="YYYY-MM-DD"
+                  placeholder="DD/MM/YYYY"
                   placeholderTextColor={MUTED}
                   style={styles.input}
                 />
@@ -412,15 +485,25 @@ function ScheduleNotificationModal({
             ) : null}
 
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>Image URL (optional)</Text>
-              <TextInput
-                value={form.imageUrl}
-                onChangeText={(imageUrl) => setForm((current) => ({ ...current, imageUrl }))}
-                placeholder="https://..."
-                placeholderTextColor={MUTED}
-                autoCapitalize="none"
-                style={styles.input}
-              />
+              <Text style={styles.fieldLabel}>Image (optional)</Text>
+              <Pressable style={styles.uploadBtn} onPress={pickImage} disabled={uploadingImage}>
+                {uploadingImage ? <ActivityIndicator color={BLUE} /> : <Feather name="upload" size={16} color={BLUE} />}
+                <Text style={styles.uploadBtnText}>
+                  {form.imageUrl ? 'Replace image' : 'Upload image'}
+                </Text>
+              </Pressable>
+              {form.imageUrl ? (
+                <View style={styles.imagePreviewCard}>
+                  <Image source={{ uri: form.imageUrl }} style={styles.imagePreview} resizeMode="cover" />
+                  <Pressable
+                    onPress={() => setForm((current) => ({ ...current, imageUrl: '', imageObjectPath: '' }))}
+                    style={styles.removeImageBtn}
+                  >
+                    <Feather name="trash-2" size={14} color={RED} />
+                    <Text style={styles.removeImageText}>Remove image</Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.fieldWrap}>
@@ -505,6 +588,7 @@ export default function ScheduledNotificationsSettingsPage() {
         title: string;
         message: string;
         imageUrl?: string | null;
+        imageObjectPath?: string | null;
         actionType?: string | null;
         actionValue?: string | null;
         audienceType: ScheduledNotificationAudienceType;
@@ -851,6 +935,50 @@ const styles = StyleSheet.create({
   textarea: {
     minHeight: 96,
     textAlignVertical: 'top',
+  },
+  uploadBtn: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${BLUE}30`,
+    backgroundColor: '#EBF8FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+  },
+  uploadBtnText: {
+    color: BLUE,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  imagePreviewCard: {
+    gap: 10,
+    marginTop: 4,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 140,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+  },
+  removeImageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  removeImageText: {
+    color: RED,
+    fontSize: 13,
+    fontWeight: '700',
   },
   rowFields: {
     flexDirection: 'row',

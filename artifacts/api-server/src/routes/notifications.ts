@@ -129,6 +129,7 @@ router.post('/scheduled', requireRole('director', 'manager', 'master'), requireM
     title,
     message,
     imageUrl,
+    imageObjectPath,
     actionType,
     actionValue,
     audienceType,
@@ -157,6 +158,7 @@ router.post('/scheduled', requireRole('director', 'manager', 'master'), requireM
       title: title.trim(),
       message: message.trim(),
       imageUrl: imageUrl?.trim() || null,
+      imageObjectPath: imageObjectPath?.trim() || null,
       actionType: actionType?.trim() || null,
       actionValue: actionValue?.trim() || null,
       audienceType,
@@ -188,6 +190,7 @@ router.patch('/scheduled/:id', requireRole('director', 'manager', 'master'), req
     title,
     message,
     imageUrl,
+    imageObjectPath,
     actionType,
     actionValue,
     audienceType,
@@ -207,6 +210,7 @@ router.patch('/scheduled/:id', requireRole('director', 'manager', 'master'), req
     updates.message = String(message).trim();
   }
   if (imageUrl !== undefined) updates.imageUrl = String(imageUrl || '').trim() || null;
+  if (imageObjectPath !== undefined) updates.imageObjectPath = String(imageObjectPath || '').trim() || null;
   if (actionType !== undefined) updates.actionType = String(actionType || '').trim() || null;
   if (actionValue !== undefined) updates.actionValue = String(actionValue || '').trim() || null;
   if (audienceType !== undefined) {

@@ -19,6 +19,7 @@ export async function ensureScheduledNotificationSchemaReady() {
             title text NOT NULL,
             message text NOT NULL,
             image_url text,
+            image_object_path text,
             action_type text,
             action_value text,
             audience_type text NOT NULL,
@@ -33,6 +34,7 @@ export async function ensureScheduledNotificationSchemaReady() {
             updated_at timestamp NOT NULL DEFAULT now()
           )`,
           `ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS image_url text`,
+          `ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS image_object_path text`,
           `ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS action_type text`,
           `ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS action_value text`,
           `ALTER TABLE scheduled_notifications ADD COLUMN IF NOT EXISTS audience_filters text`,

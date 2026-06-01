@@ -291,6 +291,7 @@ export const api = {
       title: string;
       message: string;
       imageUrl?: string | null;
+      imageObjectPath?: string | null;
       actionType?: string | null;
       actionValue?: string | null;
       audienceType: ScheduledNotificationAudienceType;
@@ -303,6 +304,7 @@ export const api = {
       title: string;
       message: string;
       imageUrl: string | null;
+      imageObjectPath: string | null;
       actionType: string | null;
       actionValue: string | null;
       audienceType: ScheduledNotificationAudienceType;
@@ -1170,6 +1172,7 @@ export interface ScheduledNotificationRecord {
   title: string;
   message: string;
   imageUrl?: string | null;
+  imageObjectPath?: string | null;
   actionType?: string | null;
   actionValue?: string | null;
   audienceType: ScheduledNotificationAudienceType;

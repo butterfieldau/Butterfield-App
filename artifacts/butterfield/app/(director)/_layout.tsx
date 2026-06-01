@@ -128,8 +128,10 @@ export default function DirectorLayout() {
           <Tabs.Screen name="stores"           options={{ href: mgrHref('settings')  }} />
           <Tabs.Screen name="settings"         options={{ href: (isStaff ? null : (hasPerm('settings') || hasPerm('announcements') || hasPerm('rewards') || hasPerm('banners') ? undefined : null)) }} />
           <Tabs.Screen name="settings-banner"  options={{ href: null }} />
+          <Tabs.Screen name="settings-loyalty-tiers" options={{ href: null }} />
           <Tabs.Screen name="settings-rewards" options={{ href: null }} />
           <Tabs.Screen name="settings-notify"  options={{ href: null }} />
+          <Tabs.Screen name="settings-scheduled-notifications" options={{ href: null }} />
           <Tabs.Screen name="settings-managers" options={{ href: null }} />
           <Tabs.Screen name="settings-directors" options={{ href: null }} />
 
@@ -189,8 +191,10 @@ export default function DirectorLayout() {
         <Tabs.Screen name="timesheets"       options={{ href: null }} />
         <Tabs.Screen name="settings"         options={{ href: null }} />
         <Tabs.Screen name="settings-banner"  options={{ href: null }} />
+        <Tabs.Screen name="settings-loyalty-tiers" options={{ href: null }} />
         <Tabs.Screen name="settings-rewards" options={{ href: null }} />
         <Tabs.Screen name="settings-notify"  options={{ href: null }} />
+        <Tabs.Screen name="settings-scheduled-notifications" options={{ href: null }} />
         <Tabs.Screen name="settings-managers" options={{ href: null }} />
         <Tabs.Screen name="settings-directors" options={{ href: null }} />
         <Tabs.Screen name="stores"           options={{ href: null }} />

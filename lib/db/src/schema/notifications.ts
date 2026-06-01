@@ -43,6 +43,7 @@ export const scheduledNotificationsTable = pgTable("scheduled_notifications", {
   title: text("title").notNull(),
   message: text("message").notNull(),
   imageUrl: text("image_url"),
+  imageObjectPath: text("image_object_path"),
   actionType: text("action_type"),
   actionValue: text("action_value"),
   audienceType: text("audience_type").notNull(),

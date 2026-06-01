@@ -93,6 +93,14 @@ function isThisWeek(d: Date | string) {
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
 }
+
+function getOrderTimelineDate(order: ApiOrder) {
+  if (order.orderSource !== 'wholesale' && order.scheduledFor) {
+    return new Date(order.scheduledFor);
+  }
+  return new Date(order.createdAt);
+}
+
 function fmtDateChip(d: Date) {
   const today = new Date();
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
@@ -665,20 +673,20 @@ export default function DirectorOrdersScreen() {
   }, [allOrders, filter]);
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const todayOrders = useMemo(() =>
-    statusFiltered.filter((o) => isSameDay(o.createdAt, today)),
+    statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)),
     [statusFiltered, today]
   );
   const thisWeekOrders = useMemo(() =>
-    statusFiltered.filter((o) => isThisWeek(o.createdAt) && !isSameDay(o.createdAt, today)),
+    statusFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && !isSameDay(getOrderTimelineDate(o), today)),
     [statusFiltered, today]);
   const dateOrders = useMemo(() =>
-    statusFiltered.filter((o) => isSameDay(o.createdAt, selectedDate)),
+    statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), selectedDate)),
     [statusFiltered, selectedDate]
   );
   const ordersByDate = useMemo(() => {
     const map: Record<string, number> = {};
     for (const o of statusFiltered) {
-      const d = new Date(o.createdAt);
+      const d = getOrderTimelineDate(o);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       map[key] = (map[key] ?? 0) + 1;
     }
@@ -700,7 +708,7 @@ export default function DirectorOrdersScreen() {
       Alert.alert('Error', getErrorMessage(error));
     }
   };
-  const totalToday = statusFiltered.filter((o) => isSameDay(o.createdAt, today)).length;
+  const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page heading */}
