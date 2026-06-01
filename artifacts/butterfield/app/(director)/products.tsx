@@ -1408,6 +1408,7 @@ function OptionsTab() {
 }
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorProductsScreen() {
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const requestedTab: 'products' | 'catalog' | 'options' =
@@ -1417,6 +1418,7 @@ export default function DirectorProductsScreen() {
   const [catFilter, setCatFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('Name A → Z');
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any>(null);
   const { data, isLoading, refetch } = useQuery({
@@ -1505,6 +1507,9 @@ export default function DirectorProductsScreen() {
   useEffect(() => {
     setActiveTab((prev) => (prev === requestedTab ? prev : requestedTab));
   }, [requestedTab]);
+  useEffect(() => {
+    if (search.trim()) setSearchOpen(true);
+  }, [search]);
   const openProductActions = (product: any) => {
     const actions = [
       { text: 'Edit product', onPress: () => openEdit(product) },
@@ -1537,18 +1542,30 @@ export default function DirectorProductsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, backgroundColor: BG }}>
+      <View style={styles.pageHeader}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Products</Text>
+        <Pressable
+          onPress={() => {
+            setSearchOpen((prev) => !prev);
+            Haptics.selectionAsync();
+          }}
+          style={[styles.headerSearchBtn, searchOpen && styles.headerSearchBtnActive]}
+        >
+          <Feather name="search" size={18} color={searchOpen ? BLUE : NAVY} />
+        </Pressable>
       </View>
       {/* Top tab bar */}
-      <View style={{ flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+      <View style={styles.tileTabRow}>
         {TAB_ITEMS.map(t => {
           const active = activeTab === t.id;
           return (
-            <Pressable key={t.id} onPress={() => { setActiveTab(t.id); Haptics.selectionAsync(); }}
-              style={{ flex: 1, alignItems: 'center', paddingVertical: 12, gap: 3, borderBottomWidth: 2.5, borderBottomColor: active ? NAVY : 'transparent' }}>
-              <Feather name={t.icon as any} size={16} color={active ? NAVY : MUTED} />
-              <Text style={{ fontSize: 11, fontWeight: active ? '700' : '500', color: active ? NAVY : MUTED }}>{t.label}</Text>
+            <Pressable
+              key={t.id}
+              onPress={() => { setActiveTab(t.id); Haptics.selectionAsync(); }}
+              style={[styles.tileTabBtn, active && styles.tileTabBtnActive]}
+            >
+              <Feather name={t.icon as any} size={15} color={active ? NAVY : MUTED} />
+              <Text style={[styles.tileTabText, active && styles.tileTabTextActive]}>{t.label}</Text>
             </Pressable>
           );
         })}
@@ -1560,26 +1577,27 @@ export default function DirectorProductsScreen() {
       {activeTab !== 'catalog' && activeTab !== 'options' && (
       <>
       <View style={styles.productsShell}>
-        <View style={styles.productsHeroRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.productsHeroTitle}>Product library</Text>
-            <Text style={styles.productsHeroSub}>{counts.all} items across your live catalog</Text>
+        {(searchOpen || search.trim()) && (
+          <View style={[styles.searchBar, { borderColor: BORDER, margin: 0 }]}>
+            <Feather name="search" size={16} color={MUTED} />
+            <TextInput
+              value={search} onChangeText={setSearch}
+              placeholder="Search products, SKU, category…"
+              placeholderTextColor={MUTED}
+              style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
+              clearButtonMode="while-editing"
+            />
+            <Pressable
+              onPress={() => {
+                setSearch('');
+                setSearchOpen(false);
+              }}
+              hitSlop={8}
+            >
+              <Feather name="x" size={16} color={MUTED} />
+            </Pressable>
           </View>
-          <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }} style={styles.addTopBtn}>
-            <Feather name="plus-circle" size={16} color="#fff" />
-            <Text style={styles.addTopBtnText}>New product</Text>
-          </Pressable>
-        </View>
-        <View style={[styles.searchBar, { borderColor: BORDER, margin: 0 }]}>
-          <Feather name="search" size={16} color={MUTED} />
-          <TextInput
-            value={search} onChangeText={setSearch}
-            placeholder="Search products, SKU, category…"
-            placeholderTextColor={MUTED}
-            style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
-            clearButtonMode="while-editing"
-          />
-        </View>
+        )}
         <View style={styles.productsFilterHeader}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChipRow}>
             {STATUS_OPTIONS.map(opt => {
@@ -1686,7 +1704,7 @@ export default function DirectorProductsScreen() {
           data={products}
           keyExtractor={p => p.id}
           refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 170 }}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View style={styles.listSummaryRow}>
@@ -1794,18 +1812,29 @@ export default function DirectorProductsScreen() {
         editing={!!editTarget}
         categories={dbCategories}
       />
+      {activeTab === 'products' && (
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
+          style={[styles.fab, { backgroundColor: NAVY, bottom: Math.max(insets.bottom + 88, 108) }]}
+        >
+          <Feather name="plus" size={24} color="#fff" />
+        </Pressable>
+      )}
       </>
       )}
     </View>
   );
 }
 const styles = StyleSheet.create({
+  pageHeader: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10, backgroundColor: BG, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerSearchBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
+  headerSearchBtnActive: { borderColor: BLUE, backgroundColor: BLUE + '10' },
+  tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: BG },
+  tileTabBtn: { flex: 1, minHeight: 58, borderRadius: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
+  tileTabBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '0D' },
+  tileTabText: { fontSize: 12, fontWeight: '600', color: MUTED },
+  tileTabTextActive: { color: NAVY },
   productsShell: { paddingHorizontal: 16, paddingBottom: 10, gap: 14 },
-  productsHeroRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  productsHeroTitle: { fontSize: 22, fontWeight: '700', color: TEXT },
-  productsHeroSub: { fontSize: 13, color: MUTED, marginTop: 2 },
-  addTopBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14 },
-  addTopBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, height: 50 },
   searchInput:   { flex: 1, fontSize: 14, height: 44 },
   productsFilterHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -1864,7 +1893,7 @@ const styles = StyleSheet.create({
   actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10 },
   actionText:    { fontSize: 12 },
   emptyAddBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
-  fab:           { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: NAVY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+  fab:           { position: 'absolute', right: 20, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: NAVY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
 });
 const modal = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
