@@ -83,6 +83,7 @@ function RootLayoutNav() {
       <Stack.Screen name="director-settings-loyalty-tiers" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-rewards" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-notify" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-settings-scheduled-notifications" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-managers" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-directors" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-accounts" options={directorStandaloneScreenOptions} />

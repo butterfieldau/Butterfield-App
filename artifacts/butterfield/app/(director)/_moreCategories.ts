@@ -74,7 +74,7 @@ const ALL_CATEGORIES: Category[] = [
         label: 'Announcements',
         items: [
           { icon: 'bell',        label: 'Push Notifications',    sub: 'Send to all or segmented customers',     color: TEAL,   perm: 'announcements', onPress: () => router.push('/director-settings-notify' as any) },
-          { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',             color: BLUE,   perm: 'announcements', soon: true },
+          { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',             color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-scheduled-notifications' as any) },
           { icon: 'users',       label: 'Customer Segments',     sub: 'Target by tier, location or behaviour',  color: PURPLE, perm: 'announcements', soon: true },
           { icon: 'list',        label: 'Announcement History',  sub: 'Past sends & open rates',                color: NAVY,   perm: 'announcements', soon: true },
         ],

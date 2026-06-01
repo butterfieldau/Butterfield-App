@@ -11,6 +11,8 @@ const NOTIFICATION_CHANNEL_ID = 'butterfield-staff';
 export interface SendNotificationOptions {
   /** Target a single user by ID */
   userId?: string;
+  /** Target an explicit list of users */
+  userIds?: string[];
   /** Target all users with this role */
   role?: string;
   /** Target multiple roles at once */
@@ -22,6 +24,8 @@ export interface SendNotificationOptions {
   data?: Record<string, unknown>;
   /** ID of the user (director/manager/system) who triggered this */
   sentBy?: string;
+  /** Optional custom label stored in the notification log */
+  logTargetLabel?: string | null;
 }
 
 /**
@@ -33,6 +37,8 @@ async function resolveTokens(opts: SendNotificationOptions): Promise<string[]> {
 
   if (opts.userId) {
     userIds = [opts.userId];
+  } else if (opts.userIds?.length) {
+    userIds = opts.userIds;
   } else {
     const targetRoles = opts.roles ?? (opts.role ? [opts.role] : []);
     if (targetRoles.length === 0) return [];
@@ -63,7 +69,7 @@ async function resolveTokens(opts: SendNotificationOptions): Promise<string[]> {
  * Failures are soft — a log entry is always written.
  */
 export async function sendNotification(opts: SendNotificationOptions): Promise<void> {
-  const targetRole = opts.roles?.join(',') ?? opts.role ?? null;
+  const targetRole = opts.logTargetLabel ?? opts.roles?.join(',') ?? opts.role ?? null;
 
   let successCount = 0;
   let failureCount = 0;

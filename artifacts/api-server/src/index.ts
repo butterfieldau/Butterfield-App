@@ -2,6 +2,8 @@ import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { ensureLoyaltySchemaReady } from "./lib/loyaltyIdentity.js";
 import { ensureShopDisplaySchemaReady } from "./lib/ensureShopDisplaySchemaReady.js";
+import { ensureScheduledNotificationSchemaReady } from "./lib/ensureScheduledNotificationSchemaReady.js";
+import { startScheduledNotificationsService } from "./lib/scheduledNotifications.js";
 import { startShiftReminderService } from "./lib/shiftReminderService.js";
 import { db, productCategoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -93,8 +95,10 @@ app.listen(port, (err) => {
 Promise.resolve()
   .then(() => ensureLoyaltySchemaReady())
   .then(() => ensureShopDisplaySchemaReady())
+  .then(() => ensureScheduledNotificationSchemaReady())
   .then(() => ensureDefaultCategories())
   .then(() => initStripe())
+  .then(() => startScheduledNotificationsService())
   .then(() => startShiftReminderService())
   .catch((err: any) => {
     logger.warn({ err: err?.message }, 'Background startup task failed');

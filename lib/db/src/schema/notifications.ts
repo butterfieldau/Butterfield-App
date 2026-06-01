@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, boolean, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -38,6 +38,25 @@ export const notificationLogsTable = pgTable("notification_logs", {
   sentAt: timestamp("sent_at").notNull().defaultNow(),
 });
 
+export const scheduledNotificationsTable = pgTable("scheduled_notifications", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  imageUrl: text("image_url"),
+  actionType: text("action_type"),
+  actionValue: text("action_value"),
+  audienceType: text("audience_type").notNull(),
+  audienceFilters: text("audience_filters"),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  sentAt: timestamp("sent_at"),
+  status: text("status").notNull().default("draft"),
+  createdBy: text("created_by").notNull(),
+  processingStartedAt: timestamp("processing_started_at"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertPushTokenSchema = createInsertSchema(pushTokensTable).omit({
   createdAt: true,
   updatedAt: true,
@@ -45,8 +64,17 @@ export const insertPushTokenSchema = createInsertSchema(pushTokensTable).omit({
 export const insertNotificationLogSchema = createInsertSchema(notificationLogsTable).omit({
   sentAt: true,
 });
+export const insertScheduledNotificationSchema = createInsertSchema(scheduledNotificationsTable).omit({
+  sentAt: true,
+  processingStartedAt: true,
+  lastError: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 export type PushToken = typeof pushTokensTable.$inferSelect;
 export type NotificationLog = typeof notificationLogsTable.$inferSelect;
+export type ScheduledNotification = typeof scheduledNotificationsTable.$inferSelect;
 export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+export type InsertScheduledNotification = z.infer<typeof insertScheduledNotificationSchema>;

@@ -275,9 +275,44 @@ export const api = {
     context: () => request<{ data: LiveContext }>('/context'),
   },
   notifications: {
-    getPreferences:    () => request<{ data: Record<string, boolean> }>('/notifications/preferences'),
+    registerToken: (data: { token: string; platform?: string; deviceName?: string }) =>
+      request<{ ok: true }>('/notifications/register-token', { method: 'POST', body: JSON.stringify(data) }),
+    unregisterToken: (data: { token: string }) =>
+      request<{ ok: true }>('/notifications/register-token', { method: 'DELETE', body: JSON.stringify(data) }),
+    getPreferences: () => request<{ data: Record<string, boolean> }>('/notifications/preferences'),
+    preferences: () => request<{ data: Record<string, boolean> }>('/notifications/preferences'),
     updatePreferences: (prefs: Record<string, boolean>) =>
       request<{ ok: boolean; data: Record<string, boolean> }>('/notifications/preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),
+    logs: () => request<{ data: NotificationLogRecord[] }>('/notifications/logs'),
+    send: (data: { type: string; title: string; body: string; targetRole?: string; targetUserId?: string; data?: Record<string, unknown> }) =>
+      request<{ ok: true }>('/notifications/send', { method: 'POST', body: JSON.stringify(data) }),
+    scheduled: () => request<{ data: ScheduledNotificationRecord[] }>('/notifications/scheduled'),
+    createScheduled: (data: {
+      title: string;
+      message: string;
+      imageUrl?: string | null;
+      actionType?: string | null;
+      actionValue?: string | null;
+      audienceType: ScheduledNotificationAudienceType;
+      audienceFilters?: ScheduledNotificationFilters | null;
+      scheduledAt: string;
+      status?: 'draft' | 'scheduled';
+    }) =>
+      request<{ data: ScheduledNotificationRecord }>('/notifications/scheduled', { method: 'POST', body: JSON.stringify(data) }),
+    updateScheduled: (id: string, data: Partial<{
+      title: string;
+      message: string;
+      imageUrl: string | null;
+      actionType: string | null;
+      actionValue: string | null;
+      audienceType: ScheduledNotificationAudienceType;
+      audienceFilters: ScheduledNotificationFilters | null;
+      scheduledAt: string;
+      status: ScheduledNotificationStatus;
+    }>) =>
+      request<{ data: ScheduledNotificationRecord }>(`/notifications/scheduled/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    cancelScheduled: (id: string) =>
+      request<{ data: ScheduledNotificationRecord }>(`/notifications/scheduled/${id}/cancel`, { method: 'POST' }),
   },
   welcomeConfig: () => request<{ data: { welcomeBackground: string | null } }>('/welcome-config'),
   payment: {
@@ -1114,6 +1149,52 @@ export interface DirectorAnnouncement {
   imageUrl?: string | null;
   expiresAt?: string | null;
   createdAt: string;
+}
+
+export type ScheduledNotificationStatus = 'draft' | 'scheduled' | 'sent' | 'cancelled' | 'failed';
+export type ScheduledNotificationAudienceType =
+  | 'all_customers'
+  | 'loyalty_tier'
+  | 'active_rewards'
+  | 'inactive_customers'
+  | 'customer_segment'
+  | 'custom_selected_customers';
+
+export interface ScheduledNotificationFilters {
+  loyaltyTier?: 'blue' | 'silver' | 'gold' | 'black';
+  inactiveDays?: number;
+}
+
+export interface ScheduledNotificationRecord {
+  id: string;
+  title: string;
+  message: string;
+  imageUrl?: string | null;
+  actionType?: string | null;
+  actionValue?: string | null;
+  audienceType: ScheduledNotificationAudienceType;
+  audienceFilters?: string | ScheduledNotificationFilters | null;
+  scheduledAt: string;
+  sentAt?: string | null;
+  status: ScheduledNotificationStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastError?: string | null;
+}
+
+export interface NotificationLogRecord {
+  id: string;
+  targetUserId?: string | null;
+  targetRole?: string | null;
+  type: string;
+  title: string;
+  body: string;
+  data?: string | null;
+  sentBy?: string | null;
+  successCount: number;
+  failureCount: number;
+  sentAt: string;
 }
 
 export interface DirectorReports {
