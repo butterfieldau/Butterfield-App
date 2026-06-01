@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
 import {
@@ -615,7 +616,7 @@ export default function DirectorOrdersScreen() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const canCancelRefund = user?.role === 'director' || user?.role === 'master';
-  const [filter, setFilter]         = useState('all');
+  const [filter, setFilter]         = useState('active');
   const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
@@ -626,6 +627,14 @@ export default function DirectorOrdersScreen() {
     queryFn: () => api.director.orders(),
     refetchInterval: 20000,
   });
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setFilter('active');
+      setViewMode('today');
+      setSelectedDate(new Date());
+    }, []),
+  );
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
