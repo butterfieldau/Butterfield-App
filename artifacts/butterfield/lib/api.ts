@@ -327,7 +327,7 @@ export const api = {
     orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
     updateOrderStatus:   (id: string, status: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
-    staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>('/director/staff/${userId}'),
+    staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`),
     updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
       request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     staffClockIn:        (userId: string) => request<{ data: StaffShift }>(`/director/staff/${userId}/clock-in`, { method: 'POST' }),
