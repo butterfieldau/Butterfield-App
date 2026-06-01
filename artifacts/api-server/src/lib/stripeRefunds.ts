@@ -73,3 +73,32 @@ export async function refundOrderStripePayment({
   log?.info?.({ orderId, paymentIntentId: stripePaymentIntentId }, 'Stripe refund issued for order');
   return 'refunded';
 }
+
+export async function refundStripePaymentIntentAmount({
+  paymentIntentId,
+  amountCents,
+  log,
+}: {
+  paymentIntentId: string;
+  amountCents: number;
+  log?: RefundLogger;
+}) {
+  if (!paymentIntentId || amountCents <= 0) return 'skipped' as const;
+
+  const stripe = await getUncachableStripeClient();
+  const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  if (paymentIntent.status !== 'succeeded') {
+    log?.warn?.(
+      { paymentIntentId, paymentIntentStatus: paymentIntent.status, amountCents },
+      'Skipping partial refund because payment intent is not refundable',
+    );
+    return 'skipped' as const;
+  }
+
+  await stripe.refunds.create({
+    payment_intent: paymentIntentId,
+    amount: amountCents,
+  });
+  log?.info?.({ paymentIntentId, amountCents }, 'Issued partial Stripe refund');
+  return 'refunded' as const;
+}

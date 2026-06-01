@@ -3,14 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput,
+  Pressable, ScrollView, StyleSheet, Switch, Text, TextInput,
   useWindowDimensions, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CardField, StripeProvider, useStripe } from '@stripe/stripe-react-native';
 import { getPalette } from '@/constants/categoryColors';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { api, type ApiProduct } from '@/lib/api';
@@ -66,11 +67,12 @@ function baseCentsFor(p: ApiProduct): number {
 }
 interface CartEntry { product: ApiProduct; quantity: number }
 
-export default function WholesaleCartScreen() {
+function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const insets  = useSafeAreaInsets();
   const qc      = useQueryClient();
   const { width: SCREEN_W } = useWindowDimensions();
   const pagerRef = useRef<ScrollView>(null);
+  const { createPaymentMethod, confirmPayment, handleNextAction } = useStripe();
 
   const [cart, setCart]       = useState<CartEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +106,16 @@ export default function WholesaleCartScreen() {
     staleTime: 60_000, retry: false,
   });
   const pricingCtx = (pricingData?.data ?? null) as PricingContext | null;
+  const { data: savedMethodsData } = useQuery({
+    queryKey: ['payment-methods'],
+    queryFn: () => api.payment.methods(),
+    enabled: stripeReady,
+    staleTime: 60_000,
+  });
+  const savedPaymentMethods = savedMethodsData?.data ?? [];
+  const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
+  const [showAddCardForm, setShowAddCardForm] = useState(false);
+  const [saveCardForNextTime, setSaveCardForNextTime] = useState(true);
 
   useFocusEffect(useCallback(() => {
     setLoading(true);
@@ -144,6 +156,7 @@ export default function WholesaleCartScreen() {
   const totalCents = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
   const belowMin   = minOrderCents > 0 && subtotalCents < minOrderCents;
+  const isNetAccount = Boolean(account?.creditEnabled) && (account?.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
 
   const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
@@ -201,6 +214,84 @@ export default function WholesaleCartScreen() {
       }
       const deliveryAddress = orderType === 'delivery' && street.trim()
         ? `${street.trim()}, ${suburb.trim()} NSW ${postcode.trim()}` : undefined;
+      let stripePaymentIntentId: string | undefined;
+      let paymentMethodType = isNetAccount ? 'net_terms' : 'credit_card';
+
+      if (!isNetAccount) {
+        if (!stripeReady) {
+          throw new Error('Payment processing is not available right now.');
+        }
+
+        if (selectedSavedPaymentMethodId && !showAddCardForm) {
+          const savedPayment = await api.wholesale.confirmSavedMethod({
+            items: cart.map((e) => ({ productId: e.product.id, qty: e.quantity })),
+            deliveryType: orderType,
+            paymentMethodId: selectedSavedPaymentMethodId,
+          });
+          if (savedPayment.requiresAction && savedPayment.clientSecret && savedPayment.paymentIntentId) {
+            const { error } = await handleNextAction(savedPayment.clientSecret);
+            if (error) throw new Error(error.message);
+            const finalized = await api.wholesale.confirmIntent(savedPayment.paymentIntentId);
+            if (!finalized.success) {
+              throw new Error('We could not finalize that saved-card payment. Please try again.');
+            }
+          } else if (!savedPayment.success) {
+            throw new Error('We could not charge that saved card. Please try another card.');
+          }
+          stripePaymentIntentId = savedPayment.paymentIntentId ?? undefined;
+          paymentMethodType = 'saved_card';
+        } else {
+          if (saveCardForNextTime) {
+            const { paymentMethod, error: paymentMethodError } = await createPaymentMethod({
+              paymentMethodType: 'Card',
+            });
+            if (paymentMethodError) throw new Error(paymentMethodError.message);
+            if (!paymentMethod?.id) throw new Error('We could not save that card. Please try again.');
+
+            await api.wholesale.addCard({
+              paymentMethodId: paymentMethod.id,
+              isDefault: savedPaymentMethods.length === 0,
+            });
+            await qc.invalidateQueries({ queryKey: ['payment-methods'] });
+            await qc.invalidateQueries({ queryKey: ['wholesale-cards'] });
+
+            const savedPayment = await api.wholesale.confirmSavedMethod({
+              items: cart.map((e) => ({ productId: e.product.id, qty: e.quantity })),
+              deliveryType: orderType,
+              paymentMethodId: paymentMethod.id,
+            });
+            if (savedPayment.requiresAction && savedPayment.clientSecret && savedPayment.paymentIntentId) {
+              const { error } = await handleNextAction(savedPayment.clientSecret);
+              if (error) throw new Error(error.message);
+              const finalized = await api.wholesale.confirmIntent(savedPayment.paymentIntentId);
+              if (!finalized.success) {
+                throw new Error('We could not finalize your saved wholesale card. Please try again.');
+              }
+            } else if (!savedPayment.success) {
+              throw new Error('We could not charge that card. Please try again.');
+            }
+            stripePaymentIntentId = savedPayment.paymentIntentId ?? undefined;
+            paymentMethodType = 'saved_card';
+          } else {
+            const intent = await api.wholesale.createPaymentIntent({
+              items: cart.map((e) => ({ productId: e.product.id, qty: e.quantity })),
+              deliveryType: orderType,
+              savePaymentMethod: false,
+            });
+            if (!intent.clientSecret) throw new Error('We could not prepare that payment.');
+            const { error, paymentIntent } = await confirmPayment(intent.clientSecret, {
+              paymentMethodType: 'Card',
+            });
+            if (error) throw new Error(error.message);
+            if (!paymentIntent || paymentIntent.status !== 'Succeeded') {
+              throw new Error('We could not complete your payment. Please try again.');
+            }
+            stripePaymentIntentId = paymentIntent.id;
+            paymentMethodType = 'credit_card';
+          }
+        }
+      }
+
       await api.wholesale.createOrder({
         items: cart.map(e => ({ productId: e.product.id, qty: e.quantity })),
         poReference:   poRef.trim() || undefined,
@@ -208,13 +299,20 @@ export default function WholesaleCartScreen() {
         deliveryType:  orderType,
         scheduledDate: scheduledForDate?.toISOString(),
         deliveryAddress,
+        stripePaymentIntentId,
+        paymentMethodType,
       });
       qc.invalidateQueries({ queryKey: ['wholesale-orders'] });
       await saveCart([]);
       setPoRef(''); setNotes(''); setSelectedDate(null); setSelectedTimeMins(null);
       setStreet(''); setSuburb(''); setPostcode('');
       setShowCheckout(false); setCheckoutStep(0);
-      Alert.alert('Order Submitted!', 'Your order has been submitted. Our team will confirm and send your invoice shortly.');
+      Alert.alert(
+        'Order Submitted!',
+        isNetAccount
+          ? 'Your order has been placed on account and will appear on your monthly statement.'
+          : 'Your wholesale order has been paid and submitted successfully.',
+      );
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setSubmitting(false); }
   };
@@ -223,8 +321,21 @@ export default function WholesaleCartScreen() {
     if (submitting) return '…';
     if (checkoutStep === 0) return 'Continue to Shipping';
     if (checkoutStep === 1) return 'Continue to Order';
-    return 'Place Order';
+    return isNetAccount ? 'Place Order on Account' : 'Pay & Place Order';
   };
+
+  useEffect(() => {
+    if (savedPaymentMethods.length === 0) {
+      setSelectedSavedPaymentMethodId(null);
+      setShowAddCardForm(true);
+      return;
+    }
+    if (!selectedSavedPaymentMethodId) {
+      setSelectedSavedPaymentMethodId(
+        savedPaymentMethods.find((savedMethod) => savedMethod.isDefault)?.id ?? savedPaymentMethods[0]?.id ?? null,
+      );
+    }
+  }, [savedPaymentMethods, selectedSavedPaymentMethodId]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -608,10 +719,115 @@ export default function WholesaleCartScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Feather name="file-text" size={14} color="#22C55E" />
                     <Text style={{ flex: 1, fontSize: 12, fontWeight: '400', color: '#166534' }}>
-                      Your order will be confirmed within 1 business day. An invoice will be issued on approval.
+                      {isNetAccount
+                        ? 'This account can place wholesale orders on statement terms. The balance will be settled through your invoice cycle.'
+                        : 'Pay now to confirm this wholesale order immediately. Saved cards stay available for faster checkout next time.'}
                     </Text>
                   </View>
                 </View>
+                <Text style={cs.secLabel}>PAYMENT METHOD</Text>
+                {isNetAccount ? (
+                  <View style={cs.formCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Feather name="file-text" size={16} color={BLUE} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>Net account</Text>
+                        <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
+                          {account?.paymentTerms ? `${account.paymentTerms} terms` : 'Monthly statement'} · no card required for this order
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={cs.formCard}>
+                    {savedPaymentMethods.length > 0 && (
+                      <View style={{ gap: 8 }}>
+                        {savedPaymentMethods.map((savedMethod) => {
+                          const selected = selectedSavedPaymentMethodId === savedMethod.id && !showAddCardForm;
+                          return (
+                            <Pressable
+                              key={savedMethod.id}
+                              onPress={() => {
+                                setSelectedSavedPaymentMethodId(savedMethod.id);
+                                setShowAddCardForm(false);
+                              }}
+                              style={[
+                                cs.savedMethodRow,
+                                selected
+                                  ? { borderColor: BLUE, backgroundColor: LIGHT_BLUE }
+                                  : { borderColor: BORDER, backgroundColor: CARD },
+                              ]}
+                            >
+                              <View style={cs.savedMethodIcon}>
+                                <Feather name="credit-card" size={18} color={selected ? BLUE : MUTED} />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <View style={cs.savedMethodHeader}>
+                                  <Text style={[cs.savedMethodBrand, selected && { color: BLUE }]}>
+                                    {(savedMethod.brand ?? savedMethod.cardBrand).toUpperCase()} ending in {savedMethod.last4}
+                                  </Text>
+                                  {savedMethod.isDefault && (
+                                    <View style={cs.defaultBadge}>
+                                      <Text style={cs.defaultBadgeText}>Default</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={cs.savedMethodMeta}>
+                                  Expires {`${String(savedMethod.expMonth ?? '').padStart(2, '0')}/${String(savedMethod.expYear ?? '').slice(-2)}`}
+                                </Text>
+                              </View>
+                              <View style={[cs.radioOuter, selected ? { borderColor: BLUE } : { borderColor: BORDER }]}>
+                                {selected && <View style={[cs.radioInner, { backgroundColor: BLUE }]} />}
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                        <Pressable
+                          onPress={() => {
+                            setShowAddCardForm((current) => {
+                              const next = !current;
+                              if (next) setSelectedSavedPaymentMethodId(null);
+                              else setSelectedSavedPaymentMethodId(
+                                savedPaymentMethods.find((savedMethod) => savedMethod.isDefault)?.id ?? savedPaymentMethods[0]?.id ?? null,
+                              );
+                              return next;
+                            });
+                          }}
+                          style={cs.addCardToggle}
+                        >
+                          <Feather name={showAddCardForm ? 'check-circle' : 'plus-circle'} size={16} color={BLUE} />
+                          <Text style={cs.addCardToggleText}>
+                            {showAddCardForm ? 'Use saved card instead' : 'Use a different card'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    {(showAddCardForm || savedPaymentMethods.length === 0) && (
+                      <>
+                        <CardField
+                          postalCodeEnabled={false}
+                          style={{ height: 50, width: '100%' }}
+                          cardStyle={{ backgroundColor: '#FFFFFF', textColor: TEXT, borderWidth: 0 }}
+                          placeholders={{ number: '1234 1234 1234 1234' }}
+                        />
+                        <View style={cs.saveCardRowCompact}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={cs.saveCardLabel}>Remember card for next time</Text>
+                            <Text style={cs.saveCardSub}>
+                              Stored securely by Stripe for quicker wholesale checkout next time.
+                            </Text>
+                          </View>
+                          <Switch
+                            value={saveCardForNextTime}
+                            onValueChange={setSaveCardForNextTime}
+                            trackColor={{ false: '#D1D5DB', true: '#BFDBFE' }}
+                            thumbColor={saveCardForNextTime ? BLUE : '#FFFFFF'}
+                          />
+                        </View>
+                      </>
+                    )}
+                  </View>
+                )}
               </ScrollView>
             </ScrollView>
 
@@ -637,6 +853,26 @@ export default function WholesaleCartScreen() {
       </Modal>
     </View>
   );
+}
+
+export default function WholesaleCartScreen() {
+  const { data: stripeConfigData } = useQuery({
+    queryKey: ['stripe-config'],
+    queryFn: () => api.payment.config(),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  const stripePublishableKey = stripeConfigData?.data?.publishableKey ?? null;
+
+  if (stripePublishableKey) {
+    return (
+      <StripeProvider publishableKey={stripePublishableKey}>
+        <WholesaleCartScreenInner stripeReady />
+      </StripeProvider>
+    );
+  }
+
+  return <WholesaleCartScreenInner stripeReady={false} />;
 }
 
 const s = StyleSheet.create({
@@ -697,6 +933,20 @@ const cs = StyleSheet.create({
   formCard:     { borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, padding: 16, gap: 10 },
   fieldLabel:   { fontSize: 13, fontWeight: '500', color: MUTED },
   input:        { borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: BG, color: TEXT },
+  savedMethodRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, padding: 14 },
+  savedMethodIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  savedMethodHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  savedMethodBrand: { fontSize: 13, fontWeight: '700', color: TEXT },
+  savedMethodMeta: { fontSize: 12, color: MUTED, marginTop: 2 },
+  defaultBadge: { backgroundColor: '#DBEAFE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  defaultBadgeText: { color: BLUE, fontSize: 10, fontWeight: '700' },
+  radioOuter: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  radioInner: { width: 10, height: 10, borderRadius: 5 },
+  addCardToggle: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  addCardToggleText: { color: BLUE, fontWeight: '600', fontSize: 13 },
+  saveCardRowCompact: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
+  saveCardLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
+  saveCardSub: { fontSize: 12, color: MUTED, marginTop: 2 },
   bottomBar:    { borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD, paddingHorizontal: 16, paddingTop: 14, gap: 10 },
   continueBtn:  { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
 });

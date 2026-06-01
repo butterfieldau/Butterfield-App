@@ -214,18 +214,42 @@ export const api = {
     account:     () => request<{ data: WholesaleAccount }>('/wholesale/account'),
     orders:      () => request<{ data: WholesaleOrderRecord[] }>('/wholesale/orders'),
     order:       (id: string) => request<{ data: WholesaleOrderRecord }>(`/wholesale/orders/${id}`),
-    createOrder: (data: { items: { productId: string; qty: number }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string; deliveryAddress?: string }) =>
+    createOrder: (data: {
+      items: { productId: string; qty: number }[];
+      poReference?: string;
+      notes?: string;
+      deliveryType?: string;
+      scheduledDate?: string;
+      deliveryAddress?: string;
+      stripePaymentIntentId?: string;
+      paymentMethodType?: string;
+    }) =>
       request<{ data: WholesaleOrderRecord }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
     invoices:    () => request<{ data: WholesaleInvoice[] }>('/wholesale/invoices'),
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
     pricingContext: () => request<{ data: WholesalePricingContext }>('/wholesale/pricing-context'),
     // Cards on file
     cards:       () => request<{ data: WholesaleCard[] }>('/wholesale/cards'),
-    addCard:     (data: { nameOnCard: string; cardBrand: string; last4: string; expiry: string; isDefault?: boolean }) =>
+    addCard:     (data: { paymentMethodId?: string; nameOnCard?: string; cardBrand?: string; last4?: string; expiry?: string; isDefault?: boolean }) =>
       request<{ data: WholesaleCard }>('/wholesale/cards', { method: 'POST', body: JSON.stringify(data) }),
-    updateCard:  (id: string, data: { nameOnCard?: string; cardBrand?: string; last4?: string; expiry?: string; isDefault?: boolean }) =>
+    updateCard:  (id: string, data: { nameOnCard?: string; isDefault?: boolean }) =>
       request<{ data: WholesaleCard }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCard:  (id: string) => request<{ success: boolean }>(`/wholesale/cards/${id}`, { method: 'DELETE' }),
+    createPaymentIntent: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; savePaymentMethod?: boolean }) =>
+      request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; amountCents: number }>(
+        '/wholesale/payment-intent',
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
+    confirmSavedMethod: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; paymentMethodId: string }) =>
+      request<{ paymentRequired?: boolean; paymentIntentId: string | null; clientSecret: string | null; amountCents: number; requiresAction?: boolean; success?: boolean }>(
+        '/wholesale/confirm-saved-method',
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
+    confirmIntent: (paymentIntentId: string) =>
+      request<{ success?: boolean; requiresAction?: boolean; paymentIntentId: string; clientSecret: string | null }>(
+        '/wholesale/confirm-intent',
+        { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
+      ),
     updateAccountsEmail: (accountsEmail: string | null) =>
       request<{ data: WholesaleAccount }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
   },
@@ -1340,6 +1364,12 @@ export interface WholesaleOrderRecord {
   deliveryAddress?: string | null;
   invoiceNumber?: string | null;
   invoiceStatus?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripePaymentStatus?: string | null;
+  paymentMethodType?: string | null;
+  refundedCents?: number;
+  originalTotalCents?: number | null;
+  isPaid?: boolean;
 }
 
 export interface WholesaleInvoice {
@@ -1363,10 +1393,14 @@ export interface WholesalePricingContext {
 
 export interface WholesaleCard {
   id: string;
+  stripePaymentMethodId?: string | null;
   nameOnCard: string;
   cardBrand: string;
+  brand?: string;
   last4: string;
   expiry: string;
+  expMonth?: number | null;
+  expYear?: number | null;
   isDefault?: boolean;
   createdAt?: string;
   updatedAt?: string;
