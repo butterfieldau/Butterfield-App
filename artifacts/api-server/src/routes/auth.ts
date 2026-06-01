@@ -933,19 +933,31 @@ router.get('/validate-staff-invite', async (req, res) => {
 
 // ── Staff register with invite token (public) ───────────────────────────────
 router.post('/staff-register', async (req, res) => {
-  const { token, name, email, password, phone, position, department, address, dateOfBirth, taxFileNumber, emergencyContact } = req.body;
+  const { token, name, email, password, phone, position, department, address, dateOfBirth, taxFileNumber, emergencyContact, storeId } = req.body;
   if (!token || !name?.trim() || !email?.trim() || !password?.trim()) {
     return res.status(400).json({ error: 'Invite code, name, email and password are required.' });
   }
   if (!phone?.trim()) return res.status(400).json({ error: 'Phone number is required.' });
   if (!address?.trim()) return res.status(400).json({ error: 'Address is required.' });
   if (!dateOfBirth?.trim()) return res.status(400).json({ error: 'Date of birth is required.' });
+  if (!storeId?.trim()) return res.status(400).json({ error: 'Please select the store this team member will work in.' });
   // Validate token
   const [invite] = await db.select().from(staffInviteTokensTable)
     .where(eq(staffInviteTokensTable.token, String(token).trim().toUpperCase()));
   if (!invite) return res.status(404).json({ error: 'Invalid invite code.' });
   if (invite.usedAt) return res.status(410).json({ error: 'This invite has already been used.' });
   if (new Date() > invite.expiresAt) return res.status(410).json({ error: 'This invite has expired.' });
+
+  const [store] = await db.select({
+    id: storesTable.id,
+    name: storesTable.name,
+  }).from(storesTable).where(and(
+    eq(storesTable.id, String(storeId).trim()),
+    isNull(storesTable.deletedAt),
+  ));
+  if (!store) {
+    return res.status(400).json({ error: 'The selected store could not be found.' });
+  }
 
   // Check email uniqueness
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim()));
@@ -954,37 +966,44 @@ router.post('/staff-register', async (req, res) => {
   // Create user + staff profile
   const hash = await bcrypt.hash(password, 12);
   const userId = randomUUID();
-  await db.insert(usersTable).values({
-    id: userId,
-    email: email.toLowerCase().trim(),
-    passwordHash: hash,
-    role: 'staff' as any,
-    name: name.trim(),
-    phone: phone?.trim() ?? null,
-  });
   const empId = `EMP-${Date.now().toString(36).toUpperCase()}`;
-  await db.insert(staffProfilesTable).values({
-    userId,
-    employeeId: empId,
-    position: position?.trim() ?? 'Crew',
-    department: department?.trim() ?? 'floor',
-    isManager: false,
-    approvedByAdmin: false,
-    hourlyRateCents: 0,
-    address: address?.trim() ?? null,
-    dateOfBirth: dateOfBirth?.trim() ?? null,
-    taxFileNumber: taxFileNumber?.trim() ?? null,
-    emergencyContact: emergencyContact ? JSON.stringify(emergencyContact) : null,
+  await db.transaction(async (tx) => {
+    await tx.insert(usersTable).values({
+      id: userId,
+      email: email.toLowerCase().trim(),
+      passwordHash: hash,
+      role: 'staff' as any,
+      name: name.trim(),
+      phone: phone?.trim() ?? null,
+    });
+    await tx.insert(staffProfilesTable).values({
+      userId,
+      employeeId: empId,
+      position: position?.trim() ?? 'Crew',
+      department: department?.trim() ?? 'floor',
+      isManager: false,
+      approvedByAdmin: false,
+      hourlyRateCents: 0,
+      address: address?.trim() ?? null,
+      dateOfBirth: dateOfBirth?.trim() ?? null,
+      taxFileNumber: taxFileNumber?.trim() ?? null,
+      emergencyContact: emergencyContact ? JSON.stringify(emergencyContact) : null,
+    });
+    await tx.insert(staffStoreAssignmentsTable).values({
+      id: randomUUID(),
+      staffId: userId,
+      storeId: store.id,
+      isPrimary: true,
+      isActive: true,
+    });
+    await tx.update(staffInviteTokensTable)
+      .set({ usedAt: new Date(), usedByUserId: userId })
+      .where(eq(staffInviteTokensTable.id, invite.id));
   });
-
-  // Mark invite as used
-  await db.update(staffInviteTokensTable)
-    .set({ usedAt: new Date(), usedByUserId: userId })
-    .where(eq(staffInviteTokensTable.id, invite.id));
 
   return res.status(201).json({
     success: true,
-    message: 'Application submitted. You will be able to log in once a director approves your account.',
+    message: `Application submitted for ${store.name}. You will be able to log in once a director approves your account.`,
     employeeId: empId,
   });
 });

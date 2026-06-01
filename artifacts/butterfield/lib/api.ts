@@ -87,6 +87,7 @@ export const api = {
       phone: string;
       address: string;
       dateOfBirth: string;
+      storeId: string;
       position?: string;
       department?: string;
       taxFileNumber?: string;
@@ -1528,6 +1529,8 @@ export interface DirectorStaffMember extends DirectorUserSummary {
   department?: string | null;
   hourlyRateCents?: number | null;
   employmentStatus?: string | null;
+  dateOfBirth?: string | null;
+  emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null;
   approvedByAdmin?: boolean;
   canViewOrders?: boolean;
   createdAt?: string;
@@ -1539,6 +1542,8 @@ export interface DirectorStaffMember extends DirectorUserSummary {
     department?: string | null;
     employmentStatus?: string | null;
     hourlyRateCents?: number | null;
+    dateOfBirth?: string | null;
+    emergencyContact?: { name?: string | null; phone?: string | null; relationship?: string | null } | null;
     canViewOrders?: boolean;
   } | null;
   recentShifts?: StaffShift[];

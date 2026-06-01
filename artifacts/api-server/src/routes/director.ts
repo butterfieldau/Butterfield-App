@@ -665,12 +665,31 @@ router.get('/staff/:userId', async (req, res) => {
     .orderBy(desc(staffShiftsTable.clockIn))
     .limit(10);
   const { passwordHash: _, ...safeUser } = user;
-  return res.json({ data: { ...safeUser, staffProfile: profile ?? null, recentShifts } });
+  let parsedEmergencyContact: { name?: string | null; phone?: string | null; relationship?: string | null } | null = null;
+  if (profile?.emergencyContact) {
+    try {
+      parsedEmergencyContact = JSON.parse(profile.emergencyContact);
+    } catch {
+      parsedEmergencyContact = null;
+    }
+  }
+  return res.json({
+    data: {
+      ...safeUser,
+      staffProfile: profile
+        ? {
+            ...profile,
+            emergencyContact: parsedEmergencyContact,
+          }
+        : null,
+      recentShifts,
+    },
+  });
 });
 
 router.patch('/staff/:userId', async (req, res) => {
   const { userId } = req.params;
-  const { name, email, phone, address, taxFileNumber, position, department, hourlyRateCents, employmentStatus } = req.body;
+  const { name, email, phone, address, taxFileNumber, position, department, hourlyRateCents, employmentStatus, dateOfBirth, emergencyContact } = req.body;
 
   const userUpdates: Record<string, any> = { updatedAt: new Date() };
   if (name  !== undefined) userUpdates.name  = String(name).trim();
@@ -687,6 +706,8 @@ router.patch('/staff/:userId', async (req, res) => {
   if (department      !== undefined) profileUpdates.department      = String(department).trim();
   if (hourlyRateCents !== undefined) profileUpdates.hourlyRateCents = Number(hourlyRateCents);
   if (employmentStatus !== undefined) profileUpdates.employmentStatus = String(employmentStatus);
+  if (dateOfBirth     !== undefined) profileUpdates.dateOfBirth     = String(dateOfBirth).trim() || null;
+  if (emergencyContact !== undefined) profileUpdates.emergencyContact = emergencyContact ? JSON.stringify(emergencyContact) : null;
   if (Object.keys(profileUpdates).length > 1) {
     await db.update(staffProfilesTable).set(profileUpdates).where(eq(staffProfilesTable.userId, userId));
   }
@@ -694,7 +715,25 @@ router.patch('/staff/:userId', async (req, res) => {
   const [updatedUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   const [updatedProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, userId));
   const { passwordHash: _, ...safeUser } = updatedUser;
-  return res.json({ data: { ...safeUser, staffProfile: updatedProfile ?? null } });
+  let parsedEmergencyContact: { name?: string | null; phone?: string | null; relationship?: string | null } | null = null;
+  if (updatedProfile?.emergencyContact) {
+    try {
+      parsedEmergencyContact = JSON.parse(updatedProfile.emergencyContact);
+    } catch {
+      parsedEmergencyContact = null;
+    }
+  }
+  return res.json({
+    data: {
+      ...safeUser,
+      staffProfile: updatedProfile
+        ? {
+            ...updatedProfile,
+            emergencyContact: parsedEmergencyContact,
+          }
+        : null,
+    },
+  });
 });
 
 // ── Director clock-in/out on behalf of a staff member ────────────────────────

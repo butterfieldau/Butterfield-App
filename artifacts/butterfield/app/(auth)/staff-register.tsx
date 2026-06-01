@@ -8,7 +8,9 @@ import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { StoreSummary } from '@/lib/api';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 
 const BG     = '#EFF6FF';
@@ -81,6 +83,7 @@ export default function StaffRegisterScreen() {
 
   // ── Employment ────────────────────────────────────────────────────────────
   const [position, setPosition] = useState('Crew');
+  const [storeId,  setStoreId]  = useState('');
 
   // ── Optional ─────────────────────────────────────────────────────────────
   const [tfn,      setTfn]      = useState('');
@@ -103,6 +106,12 @@ export default function StaffRegisterScreen() {
   const ecNameRef  = useRef<TextInput>(null);
   const ecPhoneRef = useRef<TextInput>(null);
   const ecRelRef   = useRef<TextInput>(null);
+  const { data: storesData } = useQuery({
+    queryKey: ['staff-register-stores'],
+    queryFn: () => api.stores.list(),
+    staleTime: 60_000,
+  });
+  const signupStores: StoreSummary[] = (storesData?.data ?? []).filter((store) => store.status !== 'closed');
 
   useEffect(() => {
     if (params.token && !codeValid) handleValidateCode(params.token);
@@ -139,6 +148,7 @@ export default function StaffRegisterScreen() {
     if (!phone.trim())   { Alert.alert('Missing field', 'Phone number is required.'); return; }
     if (!address.trim()) { Alert.alert('Missing field', 'Home address is required.'); return; }
     if (dob.length < 10) { Alert.alert('Missing field', 'Date of birth is required (DD/MM/YYYY).'); return; }
+    if (!storeId)        { Alert.alert('Missing field', 'Please select the store this team member will work in.'); return; }
 
     // Build emergency contact only if any field is filled
     const hasEc = ecName.trim() || ecPhone.trim() || ecRel.trim();
@@ -157,6 +167,7 @@ export default function StaffRegisterScreen() {
         phone:            phone.trim(),
         address:          address.trim(),
         dateOfBirth:      dob,
+        storeId,
         position,
         department:       'floor',
         taxFileNumber:    tfn.trim() || undefined,
@@ -401,6 +412,32 @@ export default function StaffRegisterScreen() {
                     </Pressable>
                   ))}
                 </View>
+
+                <Label text="Assigned store" required />
+                <Text style={styles.hint}>Select the main store this team member will work in.</Text>
+                <View style={styles.positionRow}>
+                  {signupStores.map((store) => {
+                    const selected = storeId === store.id;
+                    return (
+                      <Pressable
+                        key={store.id}
+                        onPress={() => {
+                          setStoreId(store.id);
+                          Haptics.selectionAsync();
+                        }}
+                        style={[
+                          styles.storeChip,
+                          { backgroundColor: selected ? BLUE : '#F2F2F7', borderColor: selected ? BLUE : BORDER },
+                        ]}
+                      >
+                        <Text style={[styles.posChipText, { color: selected ? '#fff' : TEXT }]}>{store.name}</Text>
+                        {!!store.suburb && (
+                          <Text style={[styles.storeChipSub, { color: selected ? 'rgba(255,255,255,0.82)' : MUTED }]}>{store.suburb}</Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Tax / ABN */}
@@ -506,6 +543,8 @@ const styles = StyleSheet.create({
   positionRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   posChip:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   posChipText:      { fontSize: 13, fontWeight: '600' },
+  storeChip:        { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, borderWidth: 1, minWidth: '48%' },
+  storeChipSub:     { fontSize: 11, fontWeight: '500', marginTop: 2 },
   hint:             { fontSize: 12, color: MUTED, marginTop: 6, lineHeight: 17 },
   primaryBtn:       { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   primaryBtnText:   { color: '#fff', fontSize: 16, fontWeight: '700' },

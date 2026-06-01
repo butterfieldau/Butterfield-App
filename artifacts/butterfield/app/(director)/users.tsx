@@ -422,11 +422,18 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     { label: 'Email',    value: u?.email },
                     { label: 'Phone',    value: u?.phone  || '—' },
                     { label: 'Address',  value: sp?.address || '—' },
+                    { label: 'Date of birth', value: sp?.dateOfBirth || '—' },
                     { label: 'Position', value: sp?.position },
                     { label: 'Dept',     value: sp?.department },
                     { label: 'Status',   value: sp?.employmentStatus },
                     { label: 'Rate',     value: sp?.hourlyRateCents ? `$${(sp.hourlyRateCents / 100).toFixed(2)}/hr` : '—' },
                     { label: 'TFN',      value: sp?.taxFileNumber ? '••• ••• •••' : 'Not set' },
+                    {
+                      label: 'Emergency contact',
+                      value: sp?.emergencyContact?.name
+                        ? `${sp.emergencyContact.name}${sp.emergencyContact.relationship ? ` · ${sp.emergencyContact.relationship}` : ''}${sp.emergencyContact.phone ? ` · ${sp.emergencyContact.phone}` : ''}`
+                        : '—',
+                    },
                   ].map(({ label, value }) => (
                     <View key={label} style={sp_s.infoRow}>
                       <Text style={sp_s.infoLabel}>{label}</Text>
