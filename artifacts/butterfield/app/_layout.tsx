@@ -80,6 +80,7 @@ function RootLayoutNav() {
       <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="director-more-category" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-banner" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-settings-loyalty-tiers" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-rewards" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-notify" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-managers" options={directorStandaloneScreenOptions} />

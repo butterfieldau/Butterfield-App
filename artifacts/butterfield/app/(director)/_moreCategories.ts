@@ -54,8 +54,8 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Rewards & Loyalty',
         items: [
-          { icon: 'gift',        label: 'Loyalty Tiers',         sub: 'Bronze, Silver, Gold & Platinum',        color: GREEN,  perm: 'rewards', onPress: () => router.push('/director-settings-rewards' as any) },
-          { icon: 'star',        label: 'Reward Catalogue',      sub: 'Points redemption catalog',              color: AMBER,  perm: 'rewards', soon: true },
+          { icon: 'gift',        label: 'Loyalty Tiers',         sub: 'Blue, Silver, Gold & Black tiers',       color: GREEN,  perm: 'rewards', onPress: () => router.push('/director-settings-loyalty-tiers' as any) },
+          { icon: 'star',        label: 'Reward Catalogue',      sub: 'Points redemption rewards & vouchers',   color: AMBER,  perm: 'rewards', onPress: () => router.push('/director-settings-rewards' as any) },
           { icon: 'coffee',      label: 'Coffee Stamp Settings', sub: 'Stamp card thresholds & rewards',        color: '#92400E', perm: 'rewards', soon: true },
           { icon: 'share-2',     label: 'Referral Program',      sub: 'Referral codes & incentives',            color: ROSE,   perm: 'rewards', soon: true },
           { icon: 'zap',         label: 'Points Rules',          sub: 'Earn rates, bonuses & expiry rules',     color: PURPLE, perm: 'rewards', soon: true },
