@@ -255,24 +255,60 @@ router.post('/orders', async (req, res) => {
       isPaid = true;
     }
 
-    const [order] = await db.insert(wholesaleOrdersTable).values({
-      id: randomUUID(),
-      accountId: account.id,
-      userId: req.user!.id,
-      status: 'pending',
-      poReference: poReference ?? null,
-      items: itemsWithNames as any,
-      notes: notes ?? null,
-      totalCents: finalTotalCents,
-      originalTotalCents: finalTotalCents,
-      deliveryType: deliveryType ?? 'pickup',
-      scheduledDate: scheduledDate ?? null,
-      isPaid,
-      paidAt: isPaid ? new Date() : null,
-      stripePaymentIntentId: stripePaymentIntentId ?? null,
-      stripePaymentStatus,
-      paymentMethodType: paymentMethodType ?? (isNetAccount ? 'net_terms' : 'credit_card'),
-    }).returning();
+    let order;
+    try {
+      [order] = await db.insert(wholesaleOrdersTable).values({
+        id: randomUUID(),
+        accountId: account.id,
+        userId: req.user!.id,
+        status: 'pending',
+        poReference: poReference ?? null,
+        items: itemsWithNames as any,
+        notes: notes ?? null,
+        totalCents: finalTotalCents,
+        originalTotalCents: finalTotalCents,
+        deliveryType: deliveryType ?? 'pickup',
+        scheduledDate: scheduledDate ?? null,
+        isPaid,
+        paidAt: isPaid ? new Date() : null,
+        stripePaymentIntentId: stripePaymentIntentId ?? null,
+        stripePaymentStatus,
+        paymentMethodType: paymentMethodType ?? (isNetAccount ? 'net_terms' : 'credit_card'),
+      }).returning();
+    } catch (insertError: any) {
+      if (!isNetAccount && isPaid && stripePaymentIntentId) {
+        try {
+          const { getUncachableStripeClient } = await import('../stripeClient.js');
+          const stripe = await getUncachableStripeClient();
+          await stripe.refunds.create({
+            payment_intent: String(stripePaymentIntentId),
+            reason: 'requested_by_customer',
+            metadata: {
+              orderSource: 'wholesale',
+              rollback: 'order_insert_failed',
+              accountId: account.id,
+              userId: req.user!.id,
+            },
+          });
+          req.log.error(
+            { err: insertError, stripePaymentIntentId, accountId: account.id, userId: req.user!.id },
+            'Wholesale order insert failed after payment success; payment was automatically refunded',
+          );
+          return res.status(500).json({
+            error: 'The payment was received but the order could not be saved. We automatically refunded it, so please try again.',
+          });
+        } catch (refundError) {
+          req.log.error(
+            { err: insertError, refundError, stripePaymentIntentId, accountId: account.id, userId: req.user!.id },
+            'Wholesale order insert failed after payment success; automatic refund also failed',
+          );
+          return res.status(500).json({
+            error: 'The payment was received but the order could not be saved. Please contact Butterfield support before retrying.',
+          });
+        }
+      }
+      throw insertError;
+    }
 
     const itemCount = Array.isArray(itemsWithNames) ? itemsWithNames.reduce((sum, item) => sum + Math.max(1, Number(item.qty ?? 1) || 1), 0) : 1;
     void sendNotification({
