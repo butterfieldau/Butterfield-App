@@ -73,6 +73,8 @@ function mapOrderToInvoice(order: any): Invoice {
   const normalizedInvoiceStatus = String(order.invoiceStatus ?? '').toLowerCase();
   if (normalizedInvoiceStatus === 'paid' || order.status === 'delivered' || order.status === 'cancelled') {
     status = 'paid';
+  } else if (normalizedInvoiceStatus === 'voided' || normalizedInvoiceStatus === 'failed') {
+    status = 'paid';
   } else if (normalizedInvoiceStatus === 'overdue') {
     status = 'overdue';
   } else if (dueAt < now) {
@@ -82,7 +84,7 @@ function mapOrderToInvoice(order: any): Invoice {
   }
   return {
     id:      order.id,
-    number:  order.invoiceNumber ?? order.xeroInvoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
+    number:  order.invoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
     date:    createdAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
     dueDate: dueAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
     amount:  (order.totalCents ?? 0) / 100,
@@ -372,9 +374,8 @@ export default function WholesaleOrdersScreen() {
     setLoadingId(invoice.id);
     try {
       const sourceOrder = orderMap[invoice.id];
-      if (sourceOrder?.xeroInvoiceId) {
-        const response = await api.wholesale.invoiceLink(invoice.id);
-        await WebBrowser.openBrowserAsync(response.data.url);
+      if (sourceOrder?.invoicePdfUrl || sourceOrder?.invoiceUrl) {
+        await WebBrowser.openBrowserAsync(sourceOrder.invoicePdfUrl || sourceOrder.invoiceUrl);
         return;
       }
       const lines = getOrderLines(orderMap[invoice.id]);
@@ -396,17 +397,18 @@ export default function WholesaleOrdersScreen() {
     finally { setLoadingId(null); }
   };
   const handlePay = (invoice: Invoice) => {
-    if (!defCard) {
-      Alert.alert('No Card on File', 'Add a payment card from the Account tab to pay invoices directly.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Go to Account', onPress: () => { setSelectedInvoice(null); router.push('/(wholesale)/profile' as any); } },
-      ]);
+    const sourceOrder = orderMap[invoice.id];
+    if (sourceOrder?.invoiceUrl) {
+      WebBrowser.openBrowserAsync(sourceOrder.invoiceUrl).catch(() => {
+        Alert.alert('Invoice unavailable', 'We could not open this invoice right now.');
+      });
       return;
     }
-    Alert.alert(`Pay ${invoice.number}`, `Charge $${invoice.amount.toFixed(2)} to ${defCard.cardBrand} •••• ${defCard.last4}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Pay Now', onPress: () => Alert.alert('Payment Submitted', 'Your payment has been submitted for processing.') },
-    ]);
+    if (!defCard) {
+      Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
+      return;
+    }
+    Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>

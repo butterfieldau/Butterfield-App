@@ -9,12 +9,10 @@ import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
 import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
-import { ensureXeroIntegrationSchemaReady } from '../lib/ensureXeroIntegrationSchemaReady.js';
 import {
-  createXeroInvoiceForWholesaleOrder,
-  getWholesaleOrderWithInvoice,
+  createStripeInvoiceForWholesaleOrder,
   syncWholesaleInvoiceStatuses,
-} from '../lib/xero.js';
+} from '../lib/stripeWholesaleInvoices.js';
 import {
   calculateWholesalePrice,
   canCustomerAccessProduct,
@@ -77,7 +75,6 @@ function absolutizeUrl(url: string | null | undefined): string | null {
 
 router.get('/account', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  await ensureXeroIntegrationSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
   let tier: any = null;
@@ -170,7 +167,6 @@ router.get('/products', (req, res) => res.redirect(307, '/api/wholesale/catalog'
 
 router.get('/orders', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  await ensureXeroIntegrationSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Account not found' });
   const orders = await db.select().from(wholesaleOrdersTable)
@@ -183,19 +179,18 @@ router.get('/orders', async (req, res) => {
 
 router.get('/orders/:id', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  await ensureXeroIntegrationSchemaReady();
   const [rawOrder] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, req.params.id));
   if (!rawOrder) return res.status(404).json({ error: 'Order not found' });
   // Customers can only see their own orders
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account || rawOrder.accountId !== account.id) return res.status(403).json({ error: 'Forbidden' });
-  const order = await getWholesaleOrderWithInvoice(req.params.id).catch(() => rawOrder);
+  const synced = await syncWholesaleInvoiceStatuses([req.params.id]).catch(() => ({}));
+  const order = synced[req.params.id] ?? rawOrder;
   return res.json({ data: order });
 });
 
 router.get('/invoices', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  await ensureXeroIntegrationSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Account not found' });
   const orders = await db.select().from(wholesaleOrdersTable)
@@ -209,7 +204,6 @@ router.get('/invoices', async (req, res) => {
 // SECURE order placement — server prices everything from scratch, ignores client totals.
 router.post('/orders', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  await ensureXeroIntegrationSchemaReady();
   const { items, poReference, notes, deliveryType, scheduledDate, stripePaymentIntentId, paymentMethodType } = req.body ?? {};
   try {
     // Prices ENTIRELY computed on server — never trust client totals.
@@ -289,8 +283,8 @@ router.post('/orders', async (req, res) => {
       data: { orderId: order.id, screen: '/(wholesale)/orders' },
     }).catch(() => {});
 
-    void createXeroInvoiceForWholesaleOrder(order.id).catch((xeroError) => {
-      req.log.error({ err: xeroError, orderId: order.id }, 'Wholesale order was created but Xero invoice creation failed');
+    void createStripeInvoiceForWholesaleOrder(order.id).catch((invoiceError) => {
+      req.log.error({ err: invoiceError, orderId: order.id }, 'Wholesale order was created but Stripe invoice creation failed');
     });
 
     return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, finalTotalCents } } });

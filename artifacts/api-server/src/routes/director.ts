@@ -20,6 +20,7 @@ import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
+import { syncWholesaleInvoiceStatuses } from '../lib/stripeWholesaleInvoices.js';
 import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
@@ -292,6 +293,7 @@ router.get('/orders', async (req, res) => {
     db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone }).from(usersTable),
     db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName, abn: wholesaleAccountsTable.abn }).from(wholesaleAccountsTable),
   ]);
+  const syncedWholesaleOrders = await syncWholesaleInvoiceStatuses(wholesaleOrders.map((order) => order.id)).catch(() => ({}));
   const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
   const wsMap   = Object.fromEntries(wsAccounts.map(w => [w.userId, w]));
   const all = [
@@ -302,15 +304,18 @@ router.get('/orders', async (req, res) => {
       customerEmail: userMap[o.userId]?.email ?? null,
       customerPhone: userMap[o.userId]?.phone ?? null,
     })),
-    ...wholesaleOrders.map(wo => ({
-      ...wo,
+    ...wholesaleOrders.map(wo => {
+      const liveOrder = syncedWholesaleOrders[wo.id] ?? wo;
+      return ({
+      ...liveOrder,
       type:          'wholesale',
       orderSource:   'wholesale' as const,
-      customerName:  wsMap[wo.userId]?.companyName ?? userMap[wo.userId]?.name ?? null,
-      customerEmail: userMap[wo.userId]?.email ?? null,
-      customerPhone: userMap[wo.userId]?.phone ?? null,
-      companyAbn:    wsMap[wo.userId]?.abn ?? null,
-    })),
+      customerName:  wsMap[liveOrder.userId]?.companyName ?? userMap[liveOrder.userId]?.name ?? null,
+      customerEmail: userMap[liveOrder.userId]?.email ?? null,
+      customerPhone: userMap[liveOrder.userId]?.phone ?? null,
+      companyAbn:    wsMap[liveOrder.userId]?.abn ?? null,
+    });
+    }),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 300);
   return res.json({ data: all });
 });

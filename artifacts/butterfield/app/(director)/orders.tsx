@@ -217,12 +217,12 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               </>
             )}
           </Pressable>
-          {isWholesale && order.xeroInvoiceId ? (
+          {isWholesale && (order.invoicePdfUrl || order.invoiceUrl || order.stripeInvoiceId) ? (
             <Pressable onPress={onViewInvoice} style={[styles.printBtn, { backgroundColor: NAVY }]}>
               <>
                 <Feather name="file-text" size={13} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
-                  View invoice {order.invoiceNumber ?? order.xeroInvoiceNumber ?? ''}
+                  View invoice {order.invoiceNumber ?? ''}
                 </Text>
               </>
             </Pressable>
@@ -720,18 +720,6 @@ export default function DirectorOrdersScreen() {
     }
     return map;
   }, [statusFiltered]);
-  useEffect(() => {
-    if (isLoading || activeTodayOrders.length === 0) return;
-    const hidesLiveQueue = !['all', 'active', 'received', 'being_prepared', 'ready_for_pickup'].includes(filter);
-    if (viewMode === 'today' && hidesLiveQueue) {
-      setFilter('active');
-      return;
-    }
-    if (viewMode !== 'today' && filter === 'active') {
-      setViewMode('today');
-      setSelectedDate(new Date());
-    }
-  }, [activeTodayOrders.length, filter, isLoading, viewMode]);
   const handleStatusChange = async (orderId: string, status: string) => {
     try {
       await api.director.updateOrderStatus(orderId, status);
@@ -750,8 +738,12 @@ export default function DirectorOrdersScreen() {
   };
   const handleViewInvoice = async (order: ApiOrder) => {
     try {
-      const response = await api.director.xero.invoiceLink(order.id);
-      await Linking.openURL(response.data.url);
+      const invoiceUrl = order.invoicePdfUrl || order.invoiceUrl;
+      if (!invoiceUrl) {
+        Alert.alert('Invoice Unavailable', 'This invoice is still being prepared.');
+        return;
+      }
+      await Linking.openURL(invoiceUrl);
     } catch (error) {
       Alert.alert('Invoice Unavailable', getErrorMessage(error, 'Could not open the invoice right now.'));
     }

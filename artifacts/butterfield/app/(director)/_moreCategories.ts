@@ -210,7 +210,6 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Integrations',
         items: [
-          { icon: 'file-text',    label: 'Xero',                sub: 'Accounting & invoice sync',             color: '#00B4D8', perm: 'settings', onPress: () => router.push('/director-settings-xero' as any) },
           { icon: 'shopping-bag', label: 'Shopify',             sub: 'Product & order sync',                  color: '#96BF48', directorOnly: true, soon: true },
           { icon: 'credit-card',  label: 'Square',              sub: 'POS & payment terminal',                color: '#000000', directorOnly: true, soon: true },
           { icon: 'globe',        label: 'Google Login',         sub: 'Sign in with Google for customers',    color: RED,       soon: true },
