@@ -8,11 +8,12 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
+import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import type { Invoice } from '@/types';
@@ -270,17 +271,18 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
 export default function WholesaleInvoices() {
   const insets = useSafeAreaInsets();
 
-  const { data: ordersData, isLoading } = useQuery({
+  const { data: ordersData, isLoading, refetch: refetchInvoices } = useQuery({
     queryKey: ['wholesale-invoices'],
     queryFn:  api.wholesale.invoices,
     retry: 1,
   });
-  const { data: accountData } = useQuery({
+  const { data: accountData, refetch: refetchAccount } = useQuery({
     queryKey: ['wholesale-account'],
     queryFn:  api.wholesale.account,
     retry: 1,
   });
-  const { data: cardsData } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
+  const { data: cardsData, refetch: refetchCards } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
+  const { refreshing, onRefresh } = useRefreshControl(refetchInvoices, refetchAccount, refetchCards);
 
   const rawOrders: any[] = ordersData?.data ?? [];
   const invoices: Invoice[] = rawOrders.map(mapOrderToInvoice);
@@ -395,6 +397,7 @@ export default function WholesaleInvoices() {
         keyExtractor={(i) => i.id}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         ListEmptyComponent={
           isLoading
             ? <ActivityIndicator color={BLUE} style={{ marginTop: 60 }} />
