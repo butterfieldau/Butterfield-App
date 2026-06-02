@@ -31,6 +31,8 @@ const TEXT       = '#1C1C1E';
 const MUTED      = '#8E8E93';
 const BORDER     = '#E5E7EB';
 const RED        = '#EF4444';
+const STRIPE_CARD_RATE = 0.017;
+const STRIPE_CARD_FIXED_FEE_CENTS = 30;
 const GLASS_BG     = 'rgba(255,255,255,0.72)';
 const GLASS_BORDER = 'rgba(255,255,255,0.9)';
 const GLASS_SHADOW = {
@@ -66,6 +68,10 @@ function baseCentsFor(p: ApiProduct): number {
   return (p as any).unitPriceCents ?? (p.prices?.[0]?.unit_amount ?? 0);
 }
 interface CartEntry { product: ApiProduct; quantity: number }
+
+function estimateStripeFeeCents(amountCents: number) {
+  return amountCents > 0 ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS) : 0;
+}
 
 function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const insets  = useSafeAreaInsets();
@@ -153,10 +159,12 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
     const bc = baseCentsFor(e.product);
     return s + computePriceInfo(e.product.id, e.quantity, bc, pricingCtx).unitCents * e.quantity;
   }, 0);
-  const totalCents = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
   const belowMin   = minOrderCents > 0 && subtotalCents < minOrderCents;
   const isNetAccount = Boolean(account?.creditEnabled) && (account?.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
+  const baseTotalCents = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
+  const stripeFeeCents = isNetAccount ? 0 : estimateStripeFeeCents(baseTotalCents);
+  const totalCents = baseTotalCents + stripeFeeCents;
 
   const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
@@ -418,6 +426,15 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                     </View>
                   </>
                 )}
+                {!isNetAccount && stripeFeeCents > 0 && (
+                  <>
+                    <View style={s.sumDivider} />
+                    <View style={s.sumRow}>
+                      <Text style={s.sumLabel}>Card processing fee</Text>
+                      <Text style={s.sumValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
+                    </View>
+                  </>
+                )}
                 <View style={s.sumDivider} />
                 <View style={s.sumRow}>
                   <Text style={[s.sumLabel, { fontWeight: '700', color: TEXT, fontSize: 15 }]}>Order Total</Text>
@@ -533,6 +550,9 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                   </View>
                   {orderType === 'delivery' && deliveryFeeCents > 0 && (
                     <><View style={cs.sumDivider} /><View style={cs.sumRow}><Text style={cs.sumLabel}>Delivery fee</Text><Text style={cs.sumValue}>AUD {(deliveryFeeCents / 100).toFixed(2)}</Text></View></>
+                  )}
+                  {!isNetAccount && stripeFeeCents > 0 && (
+                    <><View style={cs.sumDivider} /><View style={cs.sumRow}><Text style={cs.sumLabel}>Card processing fee</Text><Text style={cs.sumValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text></View></>
                   )}
                   <View style={cs.sumDivider} />
                   <View style={cs.sumRow}>
@@ -721,7 +741,7 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                     <Text style={{ flex: 1, fontSize: 12, fontWeight: '400', color: '#166534' }}>
                       {isNetAccount
                         ? 'This account can place wholesale orders on statement terms. The balance will be settled through your invoice cycle.'
-                        : 'Pay now to confirm this wholesale order immediately. Saved cards stay available for faster checkout next time.'}
+                        : `Pay now to confirm this wholesale order immediately. Saved cards stay available for faster checkout next time. Card payments include a processing fee of AUD ${(stripeFeeCents / 100).toFixed(2)}.`}
                     </Text>
                   </View>
                 </View>
@@ -833,6 +853,12 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
 
             {/* Bottom bar */}
             <View style={[cs.bottomBar, { paddingBottom: Math.max(insets.bottom + 8, 20) }]}>
+              {!isNetAccount && stripeFeeCents > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: MUTED }}>Card processing fee</Text>
+                  <Text style={{ fontSize: 12, color: MUTED }}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT, letterSpacing: 1 }}>TOTAL</Text>
                 <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>AUD {(totalCents / 100).toFixed(2)}</Text>

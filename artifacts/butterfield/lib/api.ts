@@ -240,12 +240,12 @@ export const api = {
       request<{ data: WholesaleCard }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCard:  (id: string) => request<{ success: boolean }>(`/wholesale/cards/${id}`, { method: 'DELETE' }),
     createPaymentIntent: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; savePaymentMethod?: boolean }) =>
-      request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; amountCents: number }>(
+      request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; baseAmountCents?: number; stripeFeeCents?: number; amountCents: number }>(
         '/wholesale/payment-intent',
         { method: 'POST', body: JSON.stringify(data) },
       ),
     confirmSavedMethod: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; paymentMethodId: string }) =>
-      request<{ paymentRequired?: boolean; paymentIntentId: string | null; clientSecret: string | null; amountCents: number; requiresAction?: boolean; success?: boolean }>(
+      request<{ paymentRequired?: boolean; paymentIntentId: string | null; clientSecret: string | null; baseAmountCents?: number; stripeFeeCents?: number; amountCents: number; requiresAction?: boolean; success?: boolean }>(
         '/wholesale/confirm-saved-method',
         { method: 'POST', body: JSON.stringify(data) },
       ),

@@ -9,6 +9,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { getUncachableStripeClient } from '../stripeClient.js';
 import { ensureWholesalePaymentSchemaReady } from './ensureWholesalePaymentSchemaReady.js';
+import { calculateCardProcessingFeeCents } from './stripeFees.js';
 
 function parseNetDays(paymentTerms: string | null | undefined) {
   if (!paymentTerms || paymentTerms === 'pay_on_order') return 0;
@@ -145,22 +146,45 @@ function getLineItems(order: WholesaleOrder) {
     .filter((item) => item.unitPriceCents > 0);
 
   const lineSubtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitPriceCents, 0);
-  const remainder = Math.max(0, (order.totalCents ?? 0) - lineSubtotal);
+  const originalTotalCents = order.originalTotalCents ?? order.totalCents ?? 0;
+  const baseRemainder = Math.max(0, originalTotalCents - lineSubtotal);
+  const cardFeeCents = (order.paymentMethodType === 'credit_card' || order.paymentMethodType === 'saved_card')
+    ? Math.max(0, (order.totalCents ?? 0) - originalTotalCents)
+    : 0;
 
-  if (remainder > 0) {
+  if (baseRemainder > 0) {
     lines.push({
       quantity: 1,
-      unitPriceCents: remainder,
+      unitPriceCents: baseRemainder,
       description: order.deliveryType === 'delivery' ? 'Delivery fee' : 'Order adjustment',
     });
   }
 
-  if (lines.length === 0) {
+  if (cardFeeCents > 0) {
     lines.push({
       quantity: 1,
-      unitPriceCents: Math.max(0, order.totalCents ?? 0),
+      unitPriceCents: cardFeeCents,
+      description: 'Card processing fee',
+    });
+  }
+
+  if (lines.length === 0) {
+    const fallbackFeeCents = (order.paymentMethodType === 'credit_card' || order.paymentMethodType === 'saved_card')
+      ? calculateCardProcessingFeeCents(Math.max(0, order.totalCents ?? 0))
+      : 0;
+    const fallbackBaseTotal = Math.max(0, (order.totalCents ?? 0) - fallbackFeeCents);
+    lines.push({
+      quantity: 1,
+      unitPriceCents: fallbackBaseTotal,
       description: 'Wholesale order',
     });
+    if (fallbackFeeCents > 0) {
+      lines.push({
+        quantity: 1,
+        unitPriceCents: fallbackFeeCents,
+        description: 'Card processing fee',
+      });
+    }
   }
 
   return lines;

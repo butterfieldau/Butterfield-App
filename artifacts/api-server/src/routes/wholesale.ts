@@ -20,6 +20,7 @@ import {
   loadPriceContextForAccount,
   priceAndValidateOrder,
 } from '../lib/wholesalePricing.js';
+import { calculateCardProcessingFeeCents } from '../lib/stripeFees.js';
 
 const router = Router();
 router.use(requireRole('wholesale'));
@@ -286,7 +287,9 @@ router.post('/orders', async (req, res) => {
 
     // Add the account's delivery fee if this is a delivery order
     const deliveryFeeCents = (deliveryType === 'delivery') ? (account.deliveryFeeCents ?? 0) : 0;
-    const finalTotalCents  = priced.totalCents + deliveryFeeCents;
+    const originalTotalCents = priced.totalCents + deliveryFeeCents;
+    const stripeFeeCents = isNetAccount ? 0 : calculateCardProcessingFeeCents(originalTotalCents);
+    const finalTotalCents  = originalTotalCents + stripeFeeCents;
 
     let stripePaymentStatus: 'pending' | 'paid' = isNetAccount ? 'pending' : 'paid';
     let isPaid = isNetAccount ? false : true;
@@ -325,7 +328,7 @@ router.post('/orders', async (req, res) => {
         items: itemsWithNames as any,
         notes: notes ?? null,
         totalCents: finalTotalCents,
-        originalTotalCents: finalTotalCents,
+        originalTotalCents,
         deliveryType: deliveryType ?? 'pickup',
         scheduledDate: scheduledDate ?? null,
         isPaid,
@@ -382,7 +385,7 @@ router.post('/orders', async (req, res) => {
       req.log.error({ err: invoiceError, orderId: order.id }, 'Wholesale order was created but Stripe invoice creation failed');
     });
 
-    return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, finalTotalCents } } });
+    return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, stripeFeeCents, finalTotalCents } } });
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Order validation failed' });
   }
@@ -401,7 +404,9 @@ router.post('/payment-intent', async (req, res) => {
   try {
     const priced = await priceAndValidateOrder(req.user!.id, items, { allowOverrides: false });
     const deliveryFeeCents = deliveryType === 'delivery' ? (account.deliveryFeeCents ?? 0) : 0;
-    const totalCents = priced.totalCents + deliveryFeeCents;
+    const baseAmountCents = priced.totalCents + deliveryFeeCents;
+    const stripeFeeCents = calculateCardProcessingFeeCents(baseAmountCents);
+    const totalCents = baseAmountCents + stripeFeeCents;
     if (totalCents < 50) return res.status(400).json({ error: 'Amount must be at least 50 cents.' });
 
     const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
@@ -431,6 +436,8 @@ router.post('/payment-intent', async (req, res) => {
       paymentRequired: true,
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
+      baseAmountCents,
+      stripeFeeCents,
       amountCents: totalCents,
     });
   } catch (err: any) {
@@ -454,7 +461,9 @@ router.post('/confirm-saved-method', async (req, res) => {
   try {
     const priced = await priceAndValidateOrder(req.user!.id, items, { allowOverrides: false });
     const deliveryFeeCents = deliveryType === 'delivery' ? (account.deliveryFeeCents ?? 0) : 0;
-    const totalCents = priced.totalCents + deliveryFeeCents;
+    const baseAmountCents = priced.totalCents + deliveryFeeCents;
+    const stripeFeeCents = calculateCardProcessingFeeCents(baseAmountCents);
+    const totalCents = baseAmountCents + stripeFeeCents;
     const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
     const { getUncachableStripeClient } = await import('../stripeClient.js');
     const stripe = await getUncachableStripeClient();
@@ -484,6 +493,8 @@ router.post('/confirm-saved-method', async (req, res) => {
       paymentRequired: true,
       paymentIntentId: intent.id,
       clientSecret: intent.client_secret,
+      baseAmountCents,
+      stripeFeeCents,
       amountCents: totalCents,
       requiresAction: intent.status === 'requires_action',
       success: intent.status === 'succeeded',
