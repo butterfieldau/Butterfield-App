@@ -166,10 +166,26 @@ export async function createStripeInvoiceForWholesaleOrder(orderId: string) {
   const netDays = parseNetDays(account.paymentTerms);
   const isNetAccount = Boolean(account.creditEnabled) && netDays > 0;
 
+  for (const line of getLineItems(order)) {
+    await stripe.invoiceItems.create({
+      customer: customerId,
+      currency: 'aud',
+      quantity: line.quantity,
+      unit_amount: line.unitPriceCents,
+      description: line.description,
+      metadata: {
+        orderId: order.id,
+        wholesaleAccountId: account.id,
+        orderSource: 'wholesale',
+      },
+    });
+  }
+
   const invoice = await stripe.invoices.create({
     customer: customerId,
     auto_advance: false,
     collection_method: 'send_invoice',
+    pending_invoice_items_behavior: 'include',
     ...(isNetAccount ? { days_until_due: netDays } : { due_date: Math.floor(Date.now() / 1000) }),
     description: `Wholesale order ${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`,
     metadata: {
@@ -179,26 +195,17 @@ export async function createStripeInvoiceForWholesaleOrder(orderId: string) {
     },
   });
 
-  for (const line of getLineItems(order)) {
-    await stripe.invoiceItems.create({
-      customer: customerId,
-      invoice: invoice.id,
-      currency: 'aud',
-      quantity: line.quantity,
-      unit_amount: line.unitPriceCents,
-      description: line.description,
-    });
-  }
-
   let finalized = await stripe.invoices.finalizeInvoice(invoice.id);
 
   if (isNetAccount) {
     finalized = await stripe.invoices.sendInvoice(finalized.id);
   } else if (order.isPaid || order.stripePaymentStatus === 'paid') {
+    finalized = await stripe.invoices.sendInvoice(finalized.id);
     finalized = await stripe.invoices.pay(finalized.id, { paid_out_of_band: true });
   }
 
-  return persistInvoiceFields(order.id, finalized);
+  const refreshed = await stripe.invoices.retrieve(finalized.id);
+  return persistInvoiceFields(order.id, refreshed);
 }
 
 export async function syncWholesaleInvoiceStatus(orderId: string) {

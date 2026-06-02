@@ -19,7 +19,7 @@ import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaRead
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
-import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
+import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { syncWholesaleInvoiceStatuses } from '../lib/stripeWholesaleInvoices.js';
 import { claimedRewardsTable } from '@workspace/db';
 
@@ -422,11 +422,25 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 
   const [wholesaleOrder] = await db
-    .select({ id: wholesaleOrdersTable.id, userId: wholesaleOrdersTable.userId })
+    .select({ id: wholesaleOrdersTable.id, userId: wholesaleOrdersTable.userId, status: wholesaleOrdersTable.status })
     .from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
   if (wholesaleOrder) {
     if (!WHOLESALE_VALID.includes(status)) return res.status(400).json({ error: 'Invalid wholesale order status.' });
     const [updated] = await db.update(wholesaleOrdersTable).set({ status, updatedAt: new Date() }).where(eq(wholesaleOrdersTable.id, id)).returning();
+    const isCancelOrRefund = status === 'cancelled' || status === 'refunded';
+    const wasAlreadyCancelledOrRefunded = wholesaleOrder.status === 'cancelled' || wholesaleOrder.status === 'refunded';
+    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded) {
+      try {
+        await refundWholesaleOrderStripePayment({
+          orderId: updated.id,
+          stripePaymentIntentId: updated.stripePaymentIntentId ?? null,
+          stripePaymentStatus: updated.stripePaymentStatus ?? null,
+          log: req.log,
+        });
+      } catch (err: any) {
+        req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on wholesale cancellation');
+      }
+    }
     const msg = WHOLESALE_STATUS_MSG[status];
     if (msg) {
       notifyUser(wholesaleOrder.userId, 'order_status', 'Butterfield Wholesale', msg,
