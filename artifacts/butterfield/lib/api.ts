@@ -226,6 +226,8 @@ export const api = {
     }) =>
       request<{ data: WholesaleOrderRecord }>('/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
     invoices:    () => request<{ data: WholesaleInvoice[] }>('/wholesale/invoices'),
+    invoiceLink: (orderId: string) =>
+      request<{ data: { url: string; invoiceNumber?: string | null; invoiceStatus?: string | null } }>(`/xero/my-orders/${orderId}/invoice-link`),
     catalog:     () => request<{ data: ApiProduct[] }>('/wholesale/catalog'),
     pricingContext: () => request<{ data: WholesalePricingContext }>('/wholesale/pricing-context'),
     // Cards on file
@@ -643,6 +645,25 @@ export const api = {
       delete: (id: string) =>
         request<{ success: boolean }>(`/director/directors/${id}`, { method: 'DELETE' }),
     },
+    xero: {
+      status: () => request<{ data: XeroIntegrationStatus }>('/xero/status'),
+      connectUrl: (returnUrl?: string) =>
+        request<{ data: { authUrl: string } }>('/xero/connect-url', {
+          method: 'POST',
+          body: JSON.stringify(returnUrl ? { returnUrl } : {}),
+        }),
+      updateSettings: (data: {
+        defaultAccountCode?: string | null;
+        defaultTaxType?: string | null;
+        defaultInvoiceStatus?: string | null;
+        brandingThemeId?: string | null;
+        brandingThemeName?: string | null;
+      }) => request<{ data: XeroIntegrationStatus }>('/xero/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+      disconnect: () => request<{ success: boolean; data: XeroIntegrationStatus | null }>('/xero/disconnect', { method: 'POST' }),
+      test: () => request<{ success: boolean; data: { tenantName?: string | null; tenantId?: string | null; connected: boolean } }>('/xero/test', { method: 'POST' }),
+      invoiceLink: (orderId: string) =>
+        request<{ data: { url: string; invoiceNumber?: string | null; invoiceStatus?: string | null } }>(`/xero/orders/${orderId}/invoice-link`),
+    },
   },
 
   // Manager's own profile endpoint
@@ -793,6 +814,14 @@ export interface ApiOrder {
   loyaltyPointsUsed?: number;
   discountCents?: number;
   deliveryAddress?: string;
+  invoiceUrl?: string | null;
+  invoiceNumber?: string | null;
+  invoiceStatus?: string | null;
+  invoiceDueDate?: string | null;
+  xeroInvoiceId?: string | null;
+  xeroInvoiceNumber?: string | null;
+  xeroInvoiceStatus?: string | null;
+  xeroInvoicePdfUrl?: string | null;
 }
 
 export interface LiveContext {
@@ -1582,6 +1611,12 @@ export interface WholesaleOrderRecord {
   deliveryAddress?: string | null;
   invoiceNumber?: string | null;
   invoiceStatus?: string | null;
+  invoiceDueDate?: string | null;
+  invoiceUrl?: string | null;
+  xeroInvoiceId?: string | null;
+  xeroInvoiceNumber?: string | null;
+  xeroInvoiceStatus?: string | null;
+  xeroInvoicePdfUrl?: string | null;
   stripePaymentIntentId?: string | null;
   stripePaymentStatus?: string | null;
   paymentMethodType?: string | null;
@@ -1600,6 +1635,31 @@ export interface WholesaleInvoice {
   paidAt?: string | null;
   orderId?: string | null;
   pdfUrl?: string | null;
+}
+
+export interface XeroBrandingThemeOption {
+  BrandingThemeID: string;
+  Name?: string;
+}
+
+export interface XeroIntegrationStatus {
+  available: boolean;
+  clientConfigured: boolean;
+  secretConfigured: boolean;
+  status: 'connected' | 'disconnected' | 'error';
+  connected: boolean;
+  tenantId?: string | null;
+  tenantName?: string | null;
+  defaultAccountCode?: string | null;
+  defaultTaxType?: string | null;
+  defaultInvoiceStatus?: string | null;
+  brandingThemeId?: string | null;
+  brandingThemeName?: string | null;
+  connectedAt?: string | null;
+  disconnectedAt?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
+  brandingThemes?: XeroBrandingThemeOption[];
 }
 
 export interface WholesalePricingContext {

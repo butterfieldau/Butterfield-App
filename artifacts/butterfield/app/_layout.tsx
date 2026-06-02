@@ -86,6 +86,7 @@ function RootLayoutNav() {
       <Stack.Screen name="director-settings-scheduled-notifications" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-managers" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-directors" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-settings-xero" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-accounts" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-staff-accounts" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-pos-screens" options={directorStandaloneScreenOptions} />

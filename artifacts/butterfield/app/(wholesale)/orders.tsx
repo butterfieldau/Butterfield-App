@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
@@ -66,11 +67,14 @@ function isOverdue(order: any): boolean {
 // ── Invoice helpers ───────────────────────────────────────────────────────────
 function mapOrderToInvoice(order: any): Invoice {
   const createdAt = new Date(order.createdAt);
-  const dueAt     = new Date(createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const dueAt     = order.invoiceDueDate ? new Date(order.invoiceDueDate) : new Date(createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
   const now       = new Date();
   let status: Invoice['status'];
-  if (order.status === 'delivered' || order.status === 'cancelled') {
+  const normalizedInvoiceStatus = String(order.invoiceStatus ?? '').toLowerCase();
+  if (normalizedInvoiceStatus === 'paid' || order.status === 'delivered' || order.status === 'cancelled') {
     status = 'paid';
+  } else if (normalizedInvoiceStatus === 'overdue') {
+    status = 'overdue';
   } else if (dueAt < now) {
     status = 'overdue';
   } else {
@@ -78,7 +82,7 @@ function mapOrderToInvoice(order: any): Invoice {
   }
   return {
     id:      order.id,
-    number:  order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
+    number:  order.invoiceNumber ?? order.xeroInvoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`,
     date:    createdAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
     dueDate: dueAt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
     amount:  (order.totalCents ?? 0) / 100,
@@ -367,6 +371,12 @@ export default function WholesaleOrdersScreen() {
   const handleDownload = async (invoice: Invoice) => {
     setLoadingId(invoice.id);
     try {
+      const sourceOrder = orderMap[invoice.id];
+      if (sourceOrder?.xeroInvoiceId) {
+        const response = await api.wholesale.invoiceLink(invoice.id);
+        await WebBrowser.openBrowserAsync(response.data.url);
+        return;
+      }
       const lines = getOrderLines(orderMap[invoice.id]);
       if (Platform.OS === 'web') {
         const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
