@@ -24,6 +24,7 @@ import discountsRouter from "./discounts.js";
 import adminSeedRouter from "./admin-seed.js";
 import directorReportsExportRouter from "./director-reports-export.js";
 import placesRouter from "./places.js";
+import invoicesRouter from "./invoices.js";
 
 const router: IRouter = Router();
 
@@ -50,6 +51,7 @@ router.use("/stock", stockRouter);
 router.use("/discounts", discountsRouter);
 router.use(storageRouter);
 router.use("/places", placesRouter);
+router.use("/invoices", invoicesRouter);
 router.use(adminSeedRouter);
 router.use(miscRouter);
 

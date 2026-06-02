@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import type { ApiOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
@@ -738,7 +738,8 @@ export default function DirectorOrdersScreen() {
   };
   const handleViewInvoice = async (order: ApiOrder) => {
     try {
-      const invoiceUrl = order.invoicePdfUrl || order.invoiceUrl;
+      const customUrl = order.id ? getWholesaleInvoiceUrl(order.id) : null;
+      const invoiceUrl = customUrl ?? order.invoicePdfUrl ?? order.invoiceUrl;
       if (!invoiceUrl) {
         Alert.alert('Invoice Unavailable', 'This invoice is still being prepared.');
         return;

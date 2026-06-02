@@ -15,7 +15,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
-import { api } from '@/lib/api';
+import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import type { Invoice } from '@/types';
 import { normalizeOrderItems } from '@/lib/orderItems';
 
@@ -374,6 +374,11 @@ export default function WholesaleOrdersScreen() {
     setLoadingId(invoice.id);
     try {
       const sourceOrder = orderMap[invoice.id];
+      const customUrl = sourceOrder?.id ? getWholesaleInvoiceUrl(sourceOrder.id) : null;
+      if (customUrl) {
+        await WebBrowser.openBrowserAsync(customUrl);
+        return;
+      }
       if (sourceOrder?.invoicePdfUrl || sourceOrder?.invoiceUrl) {
         await WebBrowser.openBrowserAsync(sourceOrder.invoicePdfUrl || sourceOrder.invoiceUrl);
         return;

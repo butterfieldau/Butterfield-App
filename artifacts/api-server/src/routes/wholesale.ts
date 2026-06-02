@@ -13,6 +13,7 @@ import {
   createStripeInvoiceForWholesaleOrder,
   syncWholesaleInvoiceStatuses,
 } from '../lib/stripeWholesaleInvoices.js';
+import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import {
   calculateWholesalePrice,
   canCustomerAccessProduct,
@@ -203,6 +204,60 @@ router.get('/invoices', async (req, res) => {
   const synced = await syncWholesaleInvoiceStatuses(orders.map((order) => order.id)).catch(() => ({}));
   const data = orders.map((order) => synced[order.id] ?? order);
   return res.json({ data });
+});
+
+// ── Custom HTML invoice (wholesale customer can view their own order invoice) ──
+router.get('/orders/:id/invoice', async (req, res) => {
+  await ensureWholesalePaymentSchemaReady();
+  const { id } = req.params;
+
+  const [rawOrder] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  if (!rawOrder) return res.status(404).send('Invoice not found');
+
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
+  if (!account || rawOrder.accountId !== account.id) return res.status(403).send('Forbidden');
+
+  const [user] = await db.select({ name: usersTable.name, email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.id, req.user!.id));
+
+  const items = Array.isArray(rawOrder.items) ? (rawOrder.items as any[]).map((i: any) => ({
+    description: i.productName ?? i.name ?? i.description ?? 'Item',
+    qty:         Number(i.quantity ?? i.qty ?? 1),
+    unitCents:   Number(i.unitPriceCents ?? i.unitPrice ?? i.unit_price ?? i.unitCents ?? 0),
+  })) : [];
+
+  const paymentTermsMap: Record<string, string> = {
+    pay_on_order: 'Pay on order',
+    net_7:  '7 days from invoice date',
+    net_14: '14 days from invoice date',
+    net_30: '30 days from invoice date',
+    net_60: '60 days from invoice date',
+  };
+  const paymentTerms = paymentTermsMap[(account as any).paymentTerms ?? ''] ?? (account as any).paymentTerms ?? '30 days from invoice date';
+
+  const invoiceNumber = (rawOrder as any).invoiceNumber
+    ? `INV-${(rawOrder as any).invoiceNumber}`
+    : `INV-${rawOrder.id.slice(0, 8).toUpperCase()}`;
+
+  const html = buildInvoiceHtml({
+    invoiceNumber,
+    invoiceDate:  rawOrder.createdAt,
+    dueDate:      (rawOrder as any).dueDate ?? rawOrder.createdAt,
+    status:       (rawOrder as any).invoiceStatus ?? rawOrder.status,
+    companyName:  account.companyName ?? user?.name ?? 'Customer',
+    abn:          account.abn ?? null,
+    email:        user?.email ?? null,
+    address:      (account as any).deliveryAddress ?? null,
+    accountRef:   account.id?.slice(0, 8).toUpperCase() ?? null,
+    items,
+    totalCents:   rawOrder.totalCents ?? 0,
+    poReference:  rawOrder.poReference ?? null,
+    notes:        rawOrder.notes ?? null,
+    paymentTerms,
+  });
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(html);
 });
 
 // SECURE order placement — server prices everything from scratch, ignores client totals.

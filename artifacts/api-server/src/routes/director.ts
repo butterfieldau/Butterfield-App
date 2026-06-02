@@ -21,6 +21,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { syncWholesaleInvoiceStatuses } from '../lib/stripeWholesaleInvoices.js';
+import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
 
 const router = Router();
@@ -451,6 +452,57 @@ router.patch('/orders/:id/status', async (req, res) => {
 
   return res.status(404).json({ error: 'Order not found.' });
 });
+
+// ── Custom HTML invoice for a wholesale order (director/manager view) ─────────
+router.get('/wholesale/orders/:id/invoice', async (req, res) => {
+  const { id } = req.params;
+
+  const [order] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  if (!order) return res.status(404).send('Order not found');
+
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.id, order.accountId));
+  const [user]    = account ? await db.select({ name: usersTable.name, email: usersTable.email }).from(usersTable).where(eq(usersTable.id, account.userId)) : [null];
+
+  const items = Array.isArray(order.items) ? (order.items as any[]).map((i: any) => ({
+    description: i.productName ?? i.name ?? i.description ?? 'Item',
+    qty:         Number(i.quantity ?? i.qty ?? 1),
+    unitCents:   Number(i.unitPriceCents ?? i.unitPrice ?? i.unit_price ?? i.unitCents ?? 0),
+  })) : [];
+
+  const paymentTermsMap: Record<string, string> = {
+    pay_on_order: 'Pay on order',
+    net_7:  '7 days from invoice date',
+    net_14: '14 days from invoice date',
+    net_30: '30 days from invoice date',
+    net_60: '60 days from invoice date',
+  };
+  const paymentTerms = paymentTermsMap[(account as any)?.paymentTerms ?? ''] ?? (account as any)?.paymentTerms ?? '30 days from invoice date';
+
+  const invoiceNumber = (order as any).invoiceNumber
+    ? `INV-${(order as any).invoiceNumber}`
+    : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+
+  const html = buildInvoiceHtml({
+    invoiceNumber,
+    invoiceDate:  order.createdAt,
+    dueDate:      (order as any).dueDate ?? order.createdAt,
+    status:       (order as any).invoiceStatus ?? order.status,
+    companyName:  account?.companyName ?? user?.name ?? 'Customer',
+    abn:          account?.abn ?? null,
+    email:        user?.email ?? null,
+    address:      (account as any)?.deliveryAddress ?? null,
+    accountRef:   account?.id?.slice(0, 8).toUpperCase() ?? null,
+    items,
+    totalCents:   order.totalCents ?? 0,
+    poReference:  order.poReference ?? null,
+    notes:        order.notes ?? null,
+    paymentTerms,
+  });
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(html);
+});
+
 
 // ── All users ────────────────────────────────────────────────────────────────
 router.get('/users', async (req, res) => {

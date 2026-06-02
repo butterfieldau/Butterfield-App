@@ -19,6 +19,10 @@ function normalizeServingUrl(url: string): string {
   return url;
 }
 
+export function getWholesaleInvoiceUrl(orderId: string): string {
+  return `${BASE}/invoices/w/${orderId}`;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
