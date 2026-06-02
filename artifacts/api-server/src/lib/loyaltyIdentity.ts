@@ -13,13 +13,6 @@ export const LOYALTY_POINT_VALUE_CENTS = 5;
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
 
-export function computeLoyaltyTier(totalSpentCents: number): LoyaltyTierKey {
-  if (totalSpentCents >= 200000) return 'black';
-  if (totalSpentCents >= 100000) return 'gold';
-  if (totalSpentCents >= 50000) return 'silver';
-  return 'blue';
-}
-
 type LoyaltyProfileRow = typeof customerProfilesTable.$inferSelect;
 
 type LoyaltyActivityInput = {
