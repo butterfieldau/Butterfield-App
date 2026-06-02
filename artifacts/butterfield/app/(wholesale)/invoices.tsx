@@ -301,23 +301,28 @@ export default function WholesaleInvoices() {
     setLoadingId(invoice.id);
     try {
       const sourceOrder = orderMap[invoice.id];
-      const customUrl = sourceOrder?.id ? getWholesaleInvoiceUrl(sourceOrder.id) : null;
-      if (customUrl) {
-        await WebBrowser.openBrowserAsync(customUrl);
-        return;
+
+      // Fetch HTML from custom invoice endpoint (has logos + professional layout),
+      // then convert to PDF locally using expo-print — no browser URL shown.
+      let html: string | null = null;
+      if (sourceOrder?.id) {
+        try {
+          const resp = await fetch(getWholesaleInvoiceUrl(sourceOrder.id));
+          if (resp.ok) html = await resp.text();
+        } catch { /* fall through to legacy template */ }
       }
-      if (sourceOrder?.invoicePdfUrl || sourceOrder?.invoiceUrl) {
-        await WebBrowser.openBrowserAsync(sourceOrder.invoicePdfUrl || sourceOrder.invoiceUrl);
-        return;
+
+      if (!html) {
+        const lines = getOrderLines(orderMap[invoice.id]);
+        html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
       }
-      const lines = getOrderLines(orderMap[invoice.id]);
+
       if (Platform.OS === 'web') {
-        const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
         const win = window.open('', '_blank');
         if (win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(() => win.print(), 500); }
         return;
       }
-      const html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
+
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {

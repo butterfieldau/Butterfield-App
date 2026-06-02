@@ -1,6 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
@@ -738,15 +740,34 @@ export default function DirectorOrdersScreen() {
   };
   const handleViewInvoice = async (order: ApiOrder) => {
     try {
-      const customUrl = order.id ? getWholesaleInvoiceUrl(order.id) : null;
-      const invoiceUrl = customUrl ?? order.invoicePdfUrl ?? order.invoiceUrl;
-      if (!invoiceUrl) {
-        Alert.alert('Invoice Unavailable', 'This invoice is still being prepared.');
+      // Fetch HTML from custom endpoint → convert to PDF via expo-print (no browser URL).
+      let html: string | null = null;
+      if (order.id) {
+        try {
+          const resp = await fetch(getWholesaleInvoiceUrl(order.id));
+          if (resp.ok) html = await resp.text();
+        } catch { /* fall through */ }
+      }
+
+      if (!html) {
+        const fallbackUrl = order.invoicePdfUrl ?? order.invoiceUrl;
+        if (!fallbackUrl) {
+          Alert.alert('Invoice Unavailable', 'This invoice is still being prepared.');
+          return;
+        }
+        await Linking.openURL(fallbackUrl);
         return;
       }
-      await Linking.openURL(invoiceUrl);
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Invoice ${order.id?.slice(0,8).toUpperCase() ?? ''}`, UTI: 'com.adobe.pdf' });
+      } else {
+        await Print.printAsync({ uri });
+      }
     } catch (error) {
-      Alert.alert('Invoice Unavailable', getErrorMessage(error, 'Could not open the invoice right now.'));
+      Alert.alert('Invoice Unavailable', getErrorMessage(error, 'Could not generate the invoice right now.'));
     }
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
