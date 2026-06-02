@@ -122,10 +122,11 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Something went wrong.';
 }
 // ── Order Detail Modal ────────────────────────────────────────────────────────
-function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, printing, canCancelRefund }: {
+function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, onViewInvoice, printing, canCancelRefund }: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string) => Promise<void>;
   onPrintReceipt: () => Promise<void>;
+  onViewInvoice: () => Promise<void>;
   printing: boolean;
   canCancelRefund: boolean;
 }) {
@@ -216,6 +217,16 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               </>
             )}
           </Pressable>
+          {isWholesale && order.xeroInvoiceId ? (
+            <Pressable onPress={onViewInvoice} style={[styles.printBtn, { backgroundColor: NAVY }]}>
+              <>
+                <Feather name="file-text" size={13} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
+                  View invoice {order.invoiceNumber ?? order.xeroInvoiceNumber ?? ''}
+                </Text>
+              </>
+            </Pressable>
+          ) : null}
           {/* Customer / Account */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{isWholesale ? 'Account' : 'Customer'}</Text>
@@ -622,7 +633,6 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
-  const didInitialQueueAlign = React.useRef(false);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-orders'],
     queryFn: () => api.director.orders(),
@@ -711,11 +721,13 @@ export default function DirectorOrdersScreen() {
     return map;
   }, [statusFiltered]);
   useEffect(() => {
-    if (didInitialQueueAlign.current || isLoading) return;
-    didInitialQueueAlign.current = true;
+    if (isLoading || activeTodayOrders.length === 0) return;
     const hidesLiveQueue = !['all', 'active', 'received', 'being_prepared', 'ready_for_pickup'].includes(filter);
-    if (activeTodayOrders.length > 0 && (viewMode !== 'today' || hidesLiveQueue)) {
+    if (viewMode === 'today' && hidesLiveQueue) {
       setFilter('active');
+      return;
+    }
+    if (viewMode !== 'today' && filter === 'active') {
       setViewMode('today');
       setSelectedDate(new Date());
     }
@@ -734,6 +746,14 @@ export default function DirectorOrdersScreen() {
       }
     } catch (error) {
       Alert.alert('Error', getErrorMessage(error));
+    }
+  };
+  const handleViewInvoice = async (order: ApiOrder) => {
+    try {
+      const response = await api.director.xero.invoiceLink(order.id);
+      await Linking.openURL(response.data.url);
+    } catch (error) {
+      Alert.alert('Invoice Unavailable', getErrorMessage(error, 'Could not open the invoice right now.'));
     }
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
@@ -886,6 +906,7 @@ export default function DirectorOrdersScreen() {
         onClose={() => setSelectedOrder(null)}
         onStatusChange={handleStatusChange}
         onPrintReceipt={() => selectedOrder ? printOrder(selectedOrder) : Promise.resolve()}
+        onViewInvoice={() => selectedOrder ? handleViewInvoice(selectedOrder) : Promise.resolve()}
         printing={printingOrderId === selectedOrder?.id}
         canCancelRefund={canCancelRefund}
       />
