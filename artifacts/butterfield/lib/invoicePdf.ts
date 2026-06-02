@@ -1,3 +1,5 @@
+import { WHOLESALE_BILLING } from '@/constants/wholesaleBilling';
+
 export interface InvoiceLine {
   description: string;
   qty: number;
@@ -143,10 +145,10 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
         <span class="logo-c">Cookies</span>
         <span class="logo-dot"></span>
       </div>
-      <div class="logo-sub">PTY LTD &nbsp;·&nbsp; ABN 12 345 678 901</div>
+      <div class="logo-sub">PTY LTD &nbsp;·&nbsp; ABN ${WHOLESALE_BILLING.abn}</div>
       <div class="logo-addr">
-        2 Main Lane, Merrylands NSW 2160<br/>
-        0480 769 995 &nbsp;·&nbsp; accounts@butterfieldcookies.com.au
+        ${WHOLESALE_BILLING.address}<br/>
+        ${WHOLESALE_BILLING.phone} &nbsp;·&nbsp; ${WHOLESALE_BILLING.email}
       </div>
     </div>
     <div class="invoice-box">
@@ -161,12 +163,12 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
   <div class="addresses">
     <div class="addr">
       <div class="addr-label">From</div>
-      <div class="addr-company">Butterfield Cookies PTY LTD</div>
+      <div class="addr-company">${WHOLESALE_BILLING.companyName}</div>
       <div class="addr-line">
-        2 Main Lane, Merrylands NSW 2160<br/>
-        ABN: 12 345 678 901<br/>
-        accounts@butterfieldcookies.com.au<br/>
-        0480 769 995
+        ${WHOLESALE_BILLING.address}<br/>
+        ABN: ${WHOLESALE_BILLING.abn}<br/>
+        ${WHOLESALE_BILLING.email}<br/>
+        ${WHOLESALE_BILLING.phone}
       </div>
     </div>
     <div class="addr">
@@ -229,10 +231,10 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
   <div class="pay-box">
     <div class="pay-title">Bank Transfer Details</div>
     <div class="pay-grid">
-      <div><div class="pay-lbl">Bank</div><div class="pay-val">Commonwealth Bank</div></div>
-      <div><div class="pay-lbl">Account Name</div><div class="pay-val">Butterfield Cookies Pty Ltd</div></div>
-      <div><div class="pay-lbl">BSB</div><div class="pay-val">062-000</div></div>
-      <div><div class="pay-lbl">Account Number</div><div class="pay-val">1234 5678</div></div>
+      <div><div class="pay-lbl">Account Name</div><div class="pay-val">${WHOLESALE_BILLING.companyName}</div></div>
+      <div><div class="pay-lbl">ABN</div><div class="pay-val">${WHOLESALE_BILLING.abn}</div></div>
+      <div><div class="pay-lbl">BSB</div><div class="pay-val">${WHOLESALE_BILLING.bsb}</div></div>
+      <div><div class="pay-lbl">Account Number</div><div class="pay-val">${WHOLESALE_BILLING.accountNumber}</div></div>
       <div><div class="pay-lbl">Reference</div><div class="pay-val">${inv.number}</div></div>
       <div><div class="pay-lbl">Payment Terms</div><div class="pay-val">30 days from invoice date</div></div>
     </div>
@@ -244,13 +246,13 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
       <div class="footer-logo">Butterfield<span style="color:#1C1C1E;"> Cookies</span></div>
       <div class="footer-note">
         Thank you for your continued partnership.<br/>
-        Queries: accounts@butterfieldcookies.com.au · 0480 769 995
+        Queries: ${WHOLESALE_BILLING.email} · ${WHOLESALE_BILLING.phone}
       </div>
     </div>
     <div class="footer-right">
-      Butterfield Cookies PTY LTD<br/>
-      ABN: 12 345 678 901<br/>
-      2 Main Lane, Merrylands NSW 2160
+      ${WHOLESALE_BILLING.companyName}<br/>
+      ABN: ${WHOLESALE_BILLING.abn}<br/>
+      ${WHOLESALE_BILLING.address}
     </div>
   </div>
 

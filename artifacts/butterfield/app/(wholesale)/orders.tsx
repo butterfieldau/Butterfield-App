@@ -71,10 +71,10 @@ function mapOrderToInvoice(order: any): Invoice {
   const now       = new Date();
   let status: Invoice['status'];
   const normalizedInvoiceStatus = String(order.invoiceStatus ?? '').toLowerCase();
-  if (normalizedInvoiceStatus === 'paid' || order.status === 'delivered' || order.status === 'cancelled') {
+  if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' || normalizedInvoiceStatus === 'paid' || order.status === 'delivered') {
     status = 'paid';
-  } else if (normalizedInvoiceStatus === 'voided' || normalizedInvoiceStatus === 'failed') {
-    status = 'paid';
+  } else if (normalizedInvoiceStatus === 'voided' || normalizedInvoiceStatus === 'failed' || order.status === 'cancelled') {
+    status = 'pending';
   } else if (normalizedInvoiceStatus === 'overdue') {
     status = 'overdue';
   } else if (dueAt < now) {
@@ -110,7 +110,7 @@ function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any):
     status:          invoice.status,
     companyName:     account?.companyName ?? 'Wholesale Customer',
     abn:             account?.abn ?? '',
-    contactEmail:    '',
+    contactEmail:    account?.accountsEmail ?? account?.email ?? '',
     deliveryAddress: account?.deliveryAddress ?? '',
     accountNumber:   account?.id?.slice(0, 8).toUpperCase() ?? '',
     lines,
@@ -398,6 +398,10 @@ export default function WholesaleOrdersScreen() {
   };
   const handlePay = (invoice: Invoice) => {
     const sourceOrder = orderMap[invoice.id];
+    if (sourceOrder?.isPaid || String(sourceOrder?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
+      Alert.alert('Already paid', 'This invoice has already been paid.');
+      return;
+    }
     if (sourceOrder?.invoiceUrl) {
       WebBrowser.openBrowserAsync(sourceOrder.invoiceUrl).catch(() => {
         Alert.alert('Invoice unavailable', 'We could not open this invoice right now.');

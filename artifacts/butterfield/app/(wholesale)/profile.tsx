@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
 import { WS_DELIVERY_SCHEDULE, WS_LEAD_TIME_LABEL } from '@/constants/wholesaleConfig';
+import { WHOLESALE_BILLING } from '@/constants/wholesaleBilling';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -29,10 +30,10 @@ const GLASS_SHADOW = {
 } as const;
 
 const PAY_TO = {
-  name:    'Butterfield Cookies PTY LTD',
-  bsb:     '067 873',
-  account: '1465 8181',
-  abn:     '24 680 761 166',
+  name: WHOLESALE_BILLING.companyName,
+  bsb: WHOLESALE_BILLING.bsb,
+  account: WHOLESALE_BILLING.accountNumber,
+  abn: WHOLESALE_BILLING.abn,
 };
 
 function SectionLabel({ children }: { children: string }) {

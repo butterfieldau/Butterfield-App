@@ -53,6 +53,10 @@ async function getOrCreateStripeCustomer(userId: string, email: string, name: st
   return customer.id;
 }
 
+function getWholesaleBillingEmail(account: { accountsEmail?: string | null; email?: string | null }, fallbackEmail: string) {
+  return account.accountsEmail?.trim() || account.email?.trim() || fallbackEmail;
+}
+
 function getPublicBaseUrl(): string {
   const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
     .split(',')
@@ -348,10 +352,17 @@ router.post('/payment-intent', async (req, res) => {
     const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
     const { getUncachableStripeClient } = await import('../stripeClient.js');
     const stripe = await getUncachableStripeClient();
+    const billingEmail = getWholesaleBillingEmail(account, req.user!.email);
+    await stripe.customers.update(customerId, {
+      email: billingEmail,
+      name: account.companyName || req.user!.name,
+      phone: account.phone ?? undefined,
+    });
     const intent = await stripe.paymentIntents.create({
       amount: totalCents,
       currency: 'aud',
       customer: customerId,
+      receipt_email: billingEmail,
       payment_method_types: ['card'],
       setup_future_usage: savePaymentMethod ? 'off_session' : undefined,
       metadata: {
@@ -392,10 +403,17 @@ router.post('/confirm-saved-method', async (req, res) => {
     const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
     const { getUncachableStripeClient } = await import('../stripeClient.js');
     const stripe = await getUncachableStripeClient();
+    const billingEmail = getWholesaleBillingEmail(account, req.user!.email);
+    await stripe.customers.update(customerId, {
+      email: billingEmail,
+      name: account.companyName || req.user!.name,
+      phone: account.phone ?? undefined,
+    });
     const intent = await stripe.paymentIntents.create({
       amount: totalCents,
       currency: 'aud',
       customer: customerId,
+      receipt_email: billingEmail,
       payment_method: paymentMethodId,
       payment_method_types: ['card'],
       confirmation_method: 'manual',

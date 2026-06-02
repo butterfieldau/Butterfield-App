@@ -66,11 +66,25 @@ async function getOrderWithRelations(orderId: string) {
 }
 
 async function getOrCreateStripeCustomer(user: { id: string; email: string; name: string; stripeCustomerId?: string | null }, account: WholesaleAccount) {
-  if (user.stripeCustomerId) return user.stripeCustomerId;
-
   const stripe = await getUncachableStripeClient();
+  const billingEmail = account.accountsEmail?.trim() || account.email?.trim() || user.email;
+  if (user.stripeCustomerId) {
+    await stripe.customers.update(user.stripeCustomerId, {
+      email: billingEmail,
+      name: account.companyName || user.name,
+      phone: account.phone ?? undefined,
+      address: account.deliveryAddress ? { line1: account.deliveryAddress } : undefined,
+      metadata: {
+        userId: user.id,
+        wholesaleAccountId: account.id,
+        companyName: account.companyName,
+      },
+    });
+    return user.stripeCustomerId;
+  }
+
   const customer = await stripe.customers.create({
-    email: user.email,
+    email: billingEmail,
     name: account.companyName || user.name,
     phone: account.phone ?? undefined,
     address: account.deliveryAddress ? { line1: account.deliveryAddress } : undefined,
@@ -200,7 +214,6 @@ export async function createStripeInvoiceForWholesaleOrder(orderId: string) {
   if (isNetAccount) {
     finalized = await stripe.invoices.sendInvoice(finalized.id);
   } else if (order.isPaid || order.stripePaymentStatus === 'paid') {
-    finalized = await stripe.invoices.sendInvoice(finalized.id);
     finalized = await stripe.invoices.pay(finalized.id, { paid_out_of_band: true });
   }
 

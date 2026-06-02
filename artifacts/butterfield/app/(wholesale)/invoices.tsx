@@ -47,7 +47,7 @@ function mapOrderToInvoice(order: any): Invoice {
   if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' || normalizedInvoiceStatus === 'paid' || order.status === 'delivered') {
     status = 'paid';
   } else if (normalizedInvoiceStatus === 'voided' || normalizedInvoiceStatus === 'failed' || order.status === 'cancelled') {
-    status = 'paid';
+    status = 'pending';
   } else if (normalizedInvoiceStatus === 'overdue') {
     status = 'overdue';
   } else if (dueAt < now) {
@@ -85,7 +85,7 @@ function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any):
     status:          invoice.status,
     companyName:     account?.companyName ?? 'Wholesale Customer',
     abn:             account?.abn ?? '',
-    contactEmail:    '',
+    contactEmail:    account?.accountsEmail ?? account?.email ?? '',
     deliveryAddress: account?.deliveryAddress ?? '',
     accountNumber:   account?.id?.slice(0, 8).toUpperCase() ?? '',
     lines,
