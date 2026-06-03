@@ -101,11 +101,11 @@ export function buildInvoiceHtml(data: InvoiceData): string {
       border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 4px 32px rgba(0,0,0,0.10);
-      display: flex;
-      flex-direction: column;
-      min-height: 277mm;
     }
-    .spacer { flex: 1; }
+    /* In print: fix the bottom block to the page bottom so it
+       always sits flush, regardless of content length.
+       padding-bottom on content-body reserves space so the
+       table never slides behind the fixed block. */
     @media print {
       body { background: #fff; margin: 0; }
       .page {
@@ -113,7 +113,16 @@ export function buildInvoiceHtml(data: InvoiceData): string {
         border-radius: 0;
         box-shadow: none;
         max-width: 100%;
-        min-height: 100vh;
+        overflow: visible;
+      }
+      .invoice-bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+      .content-body {
+        padding-bottom: 195px;
       }
     }
   </style>
@@ -136,9 +145,8 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     </div>
   </div>
 
-  <!-- FROM / BILL TO / DATES — single compact row -->
+  <!-- FROM / BILL TO / DATES -->
   <div style="display:flex;border-bottom:1px solid #E5E7EB;">
-    <!-- From -->
     <div style="flex:1;padding:12px 20px;border-right:1px solid #E5E7EB;">
       <div style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px;">From</div>
       <div style="font-size:12px;font-weight:700;color:#1A2B4A;margin-bottom:3px;">Butterfield Cookies PTY LTD</div>
@@ -148,7 +156,6 @@ export function buildInvoiceHtml(data: InvoiceData): string {
         accounts@butterfieldcookies.com.au · 0480 769 995
       </div>
     </div>
-    <!-- Bill To -->
     <div style="flex:1;padding:12px 20px;border-right:1px solid #E5E7EB;">
       <div style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px;">Bill To</div>
       <div style="font-size:12px;font-weight:700;color:#1A2B4A;margin-bottom:3px;">${data.companyName}</div>
@@ -156,7 +163,6 @@ export function buildInvoiceHtml(data: InvoiceData): string {
         ${data.abn ? `ABN: ${data.abn}<br>` : ''}${data.email ? `${data.email}<br>` : ''}${data.address ? `${data.address}<br>` : ''}${data.accountRef ? `Ref: ${data.accountRef}` : ''}
       </div>
     </div>
-    <!-- Invoice details -->
     <div style="flex:1;padding:12px 20px;">
       <div style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px;">Invoice Details</div>
       <table style="width:100%;border-collapse:collapse;">
@@ -180,8 +186,8 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     </div>
   </div>
 
-  <!-- LINE ITEMS TABLE -->
-  <div style="padding:14px 20px 0;">
+  <!-- LINE ITEMS + NOTES (content body — gets padding-bottom in print to clear the fixed bottom) -->
+  <div class="content-body" style="padding:14px 20px 0;">
     <table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
       <thead>
         <tr style="background:linear-gradient(135deg,#1A2B4A,#0D1A2E);">
@@ -193,72 +199,73 @@ export function buildInvoiceHtml(data: InvoiceData): string {
       </thead>
       <tbody>${lineRows}</tbody>
     </table>
+    ${data.notes ? `<div style="margin-top:12px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;">Notes: </span><span style="font-size:11px;color:#78350F;">${data.notes}</span></div>` : ''}
   </div>
 
-  ${data.notes ? `<div style="margin:12px 20px 0;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;">Notes: </span><span style="font-size:11px;color:#78350F;">${data.notes}</span></div>` : ''}
+  <!-- BOTTOM BLOCK — normal flow on screen, fixed to page bottom in print -->
+  <div class="invoice-bottom">
 
-  <!-- SPACER — pushes bank transfer + footer to bottom -->
-  <div class="spacer"></div>
+    <!-- Totals + Bank Transfer -->
+    <div style="display:flex;padding:14px 20px;gap:16px;align-items:flex-start;border-top:1px solid #E5E7EB;background:#fff;">
 
-  <!-- TOTALS + BANK — pinned above footer -->
-  <div style="display:flex;padding:14px 20px;gap:16px;align-items:flex-start;border-top:1px solid #E5E7EB;">
-
-    <!-- Bank Transfer (left) -->
-    <div style="flex:1;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
-      <div style="background:#F8FAFC;padding:7px 12px;border-bottom:1px solid #E5E7EB;">
-        <span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#6B7280;text-transform:uppercase;">Bank Transfer</span>
+      <!-- Bank Transfer -->
+      <div style="flex:1;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+        <div style="background:#F8FAFC;padding:7px 12px;border-bottom:1px solid #E5E7EB;">
+          <span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#6B7280;text-transform:uppercase;">Bank Transfer</span>
+        </div>
+        <div style="padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">
+          <div>
+            <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Account Name</div>
+            <div style="font-size:11px;font-weight:700;color:#1A2B4A;">Butterfield Cookies PTY LTD</div>
+          </div>
+          <div>
+            <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">ABN</div>
+            <div style="font-size:11px;font-weight:700;color:#1A2B4A;">24 680 761 166</div>
+          </div>
+          <div>
+            <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">BSB</div>
+            <div style="font-size:11px;font-weight:700;color:#1A2B4A;">067 873</div>
+          </div>
+          <div>
+            <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Account Number</div>
+            <div style="font-size:11px;font-weight:700;color:#1A2B4A;">1465 8181</div>
+          </div>
+          <div style="grid-column:1/-1;">
+            <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Payment Reference</div>
+            <div style="font-size:13px;font-weight:800;color:#1493FF;">${invNum}</div>
+          </div>
+        </div>
       </div>
-      <div style="padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">
-        <div>
-          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Account Name</div>
-          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">Butterfield Cookies PTY LTD</div>
+
+      <!-- Totals -->
+      <div style="width:240px;">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
+          <span style="font-size:11px;color:#6B7280;">Subtotal (excl. GST)</span>
+          <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(exclGstCents)}</span>
         </div>
-        <div>
-          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">ABN</div>
-          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">24 680 761 166</div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
+          <span style="font-size:11px;color:#6B7280;">GST (10%)</span>
+          <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(gstCents)}</span>
         </div>
-        <div>
-          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">BSB</div>
-          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">067 873</div>
-        </div>
-        <div>
-          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Account Number</div>
-          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">1465 8181</div>
-        </div>
-        <div style="grid-column:1/-1;">
-          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Payment Reference</div>
-          <div style="font-size:13px;font-weight:800;color:#1493FF;">${invNum}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-top:8px;background:linear-gradient(135deg,#1A2B4A,#0D1A2E);border-radius:8px;">
+          <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">Total Due (AUD)</span>
+          <span style="font-size:20px;font-weight:800;color:#fff;">${fmt(totalCents)}</span>
         </div>
       </div>
     </div>
 
-    <!-- Totals (right) -->
-    <div style="width:240px;">
-      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
-        <span style="font-size:11px;color:#6B7280;">Subtotal (excl. GST)</span>
-        <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(exclGstCents)}</span>
+    <!-- Footer -->
+    <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <img src="${LOGO_WHITE}" alt="Butterfield" style="height:26px;display:block;max-width:140px;object-fit:contain;">
+        <span style="color:rgba(255,255,255,0.45);font-size:10px;">Thank you for your continued partnership.</span>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
-        <span style="font-size:11px;color:#6B7280;">GST (10%)</span>
-        <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(gstCents)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-top:8px;background:linear-gradient(135deg,#1A2B4A,#0D1A2E);border-radius:8px;">
-        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">Total Due (AUD)</span>
-        <span style="font-size:20px;font-weight:800;color:#fff;">${fmt(totalCents)}</span>
+      <div style="color:rgba(255,255,255,0.4);font-size:10px;white-space:nowrap;">
+        ABN: 24 680 761 166 · accounts@butterfieldcookies.com.au · 0480 769 995
       </div>
     </div>
-  </div>
 
-  <!-- FOOTER — always at very bottom -->
-  <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
-    <div style="display:flex;align-items:center;gap:14px;">
-      <img src="${LOGO_WHITE}" alt="Butterfield" style="height:26px;display:block;max-width:140px;object-fit:contain;">
-      <span style="color:rgba(255,255,255,0.45);font-size:10px;">Thank you for your continued partnership.</span>
-    </div>
-    <div style="text-align:right;color:rgba(255,255,255,0.4);font-size:10px;line-height:1.6;">
-      ABN: 24 680 761 166 · accounts@butterfieldcookies.com.au · 0480 769 995
-    </div>
-  </div>
+  </div><!-- /invoice-bottom -->
 
 </div>
 </body>
