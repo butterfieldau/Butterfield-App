@@ -1,25 +1,20 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, KeyboardAvoidingView, Linking, Modal,
-  Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
-  Text, TextInput, View,
+  ActivityIndicator, Alert, Dimensions, FlatList, Linking, Modal, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   api,
   type CrmCustomer, type CrmCustomerDetail, type CrmInsights,
   type CrmNote, type CrmBadge, type CrmTimelineEvent,
-  type CrmSegment, type ApiOrder, type LoyaltyTransaction,
+  type LoyaltyTransaction,
 } from '@/lib/api';
-import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-import { normalizeOrderItems } from '@/lib/orderItems';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
@@ -83,11 +78,6 @@ const SEGMENT_LABEL: Record<string, string> = {
   delivery: 'Delivery', pickup: 'Pickup', wholesale: 'Wholesale',
 };
 
-const STATUS_ORDER_COLOR: Record<string, string> = {
-  received: '#3B82F6', being_prepared: AMBER, ready_for_pickup: GREEN,
-  out_for_delivery: PURPLE, completed: MUTED, cancelled: RED, refunded: RED,
-};
-
 const TIMELINE_ICON: Record<string, { icon: string; color: string }> = {
   order:        { icon: 'shopping-bag', color: BLUE },
   loyalty:      { icon: 'star',         color: AMBER },
@@ -97,7 +87,6 @@ const TIMELINE_ICON: Record<string, { icon: string; color: string }> = {
   note:         { icon: 'file-text',    color: NAVY },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
@@ -110,9 +99,6 @@ function fmtDate(iso: string | null | undefined) {
 }
 function fmtDateTime(iso: string | null | undefined) {
   return new Date(iso ?? '').toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-}
-function statusLabel(s: string) {
-  return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 function isoToDdMmYyyy(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -129,333 +115,6 @@ function autoFormatBd(v: string): string {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD TAB
-// ═══════════════════════════════════════════════════════════════════════════════
-function MetricCard({ label, value, icon, color, sub, onPress, style }: {
-  label: string; value: string | number; icon: string; color: string;
-  sub?: string; onPress?: () => void; style?: object;
-}) {
-  return (
-    <Pressable
-      onPress={() => { if (onPress) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[ds.metricCard, style]}
-    >
-      <View style={[ds.metricIcon, { backgroundColor: color + '18' }]}>
-        <Feather name={icon as any} size={18} color={color} />
-      </View>
-      <Text style={ds.metricValue}>{value}</Text>
-      <Text style={ds.metricLabel}>{label}</Text>
-      {sub ? <Text style={ds.metricSub}>{sub}</Text> : null}
-      {onPress ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6 }}>
-          <Text style={{ fontSize: 11, color: BLUE, fontWeight: '600' }}>View</Text>
-          <Feather name="chevron-right" size={10} color={BLUE} />
-        </View>
-      ) : null}
-    </Pressable>
-  );
-}
-
-function DashboardTab({
-  insights, isLoading, onRefresh, refreshing,
-  onSegmentPress,
-}: {
-  insights: CrmInsights | null;
-  isLoading: boolean;
-  onRefresh: () => void;
-  refreshing: boolean;
-  onSegmentPress: (segment: string) => void;
-}) {
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={BLUE} size="large" />
-      </View>
-    );
-  }
-
-  const metrics = [
-    { label: 'Total Customers',    value: insights?.totalCustomers ?? 0,         icon: 'users',       color: BLUE,   segment: '' },
-    { label: 'New This Month',     value: insights?.newThisMonth ?? 0,            icon: 'user-plus',   color: GREEN,  segment: 'new' },
-    { label: 'Repeat Customers',   value: insights?.repeatCustomers ?? 0,         icon: 'refresh-cw',  color: PURPLE, segment: '' },
-    { label: 'Inactive',           value: insights?.inactiveCount ?? 0,           icon: 'clock',       color: RED,    segment: 'inactive' },
-    { label: 'VIP Customers',      value: insights?.vipCount ?? 0,                icon: 'star',        color: '#7C3AED', segment: 'vip' },
-    { label: 'Rewards Members',    value: insights?.rewardsMemberCount ?? 0,      icon: 'gift',        color: '#059669', segment: 'rewards_member' },
-    { label: 'Coffee Stamp Users', value: insights?.coffeeStampUserCount ?? 0,    icon: 'coffee',      color: '#92400E', segment: 'coffee_regular' },
-    { label: 'Avg Customer Spend', value: fmtAUD(insights?.avgSpendCents ?? 0),   icon: 'trending-up', color: '#D97706', segment: '' },
-  ];
-
-  return (
-    <ScrollView
-      contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-    >
-      <Text style={ds.sectionHeading}>Customer Overview</Text>
-      <View style={{ gap: 10 }}>
-        {Array.from({ length: Math.ceil(metrics.length / 2) }, (_, rowIdx) => (
-          <View key={rowIdx} style={{ flexDirection: 'row', gap: 10 }}>
-            {metrics.slice(rowIdx * 2, rowIdx * 2 + 2).map(m => (
-              <MetricCard
-                key={m.label}
-                label={m.label}
-                value={m.value}
-                icon={m.icon}
-                color={m.color}
-                onPress={m.segment !== undefined ? () => onSegmentPress(m.segment) : undefined}
-                style={{ flex: 1 }}
-              />
-            ))}
-          </View>
-        ))}
-      </View>
-
-      {(insights?.topSpenders?.length ?? 0) > 0 && (
-        <>
-          <Text style={[ds.sectionHeading, { marginTop: 24 }]}>Top Spenders</Text>
-          <View style={ds.card}>
-            {insights!.topSpenders.map((sp, i, arr) => (
-              <Pressable
-                key={sp.userId}
-                onPress={() => onSegmentPress('high_spend')}
-                style={[ds.spenderRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}
-              >
-                <View style={ds.spenderRank}><Text style={ds.spenderRankText}>{i + 1}</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>{sp.name}</Text>
-                  <Text style={{ fontSize: 12, color: MUTED }}>{sp.totalVisits} visit{sp.totalVisits !== 1 ? 's' : ''}</Text>
-                </View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: NAVY }}>{fmtAUD(sp.totalSpentCents)}</Text>
-                <Feather name="chevron-right" size={14} color={MUTED} />
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-
-      <Pressable
-        onPress={() => onSegmentPress('')}
-        style={[ds.viewAllBtn, { marginTop: 20 }]}
-      >
-        <Feather name="users" size={16} color={BLUE} />
-        <Text style={{ color: BLUE, fontSize: 14, fontWeight: '700' }}>View All Customers</Text>
-        <Feather name="arrow-right" size={16} color={BLUE} />
-      </Pressable>
-    </ScrollView>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SEGMENTS TAB
-// ═══════════════════════════════════════════════════════════════════════════════
-function SegmentNotifyModal({ segment, onClose }: { segment: CrmSegment; onClose: () => void }) {
-  const insets = useSafeAreaInsets();
-  const [title, setTitle]   = useState('');
-  const [body, setBody]     = useState('');
-  const [sending, setSending] = useState(false);
-
-  const send = async () => {
-    if (!title.trim() || !body.trim()) {
-      Alert.alert('Missing fields', 'Please enter a title and message.');
-      return;
-    }
-    setSending(true);
-    try {
-      const res = await api.director.customers.segmentNotify(segment.key, title.trim(), body.trim());
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Sent!', `Notification sent to ${res.sent} customer${res.sent !== 1 ? 's' : ''} in ${segment.label}.`);
-      onClose();
-    } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Something went wrong');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={[ds.modalHeader, { paddingTop: insets.top > 0 ? insets.top + 4 : 20 }]}>
-          <Pressable onPress={onClose} style={ds.headerBtn} hitSlop={10}>
-            <Feather name="x" size={20} color={TEXT} />
-          </Pressable>
-          <Text style={ds.modalTitle}>Notify Segment</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }}>
-          <View style={[ds.card, { backgroundColor: segment.color + '12', borderColor: segment.color + '30', padding: 14 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: segment.color + '20', alignItems: 'center', justifyContent: 'center' }}>
-                <Feather name={segment.icon as any} size={16} color={segment.color} />
-              </View>
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{segment.label}</Text>
-                <Text style={{ fontSize: 12, color: MUTED }}>{segment.count} customer{segment.count !== 1 ? 's' : ''}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={ds.fieldLabel}>Notification title</Text>
-            <TextInput
-              style={ds.input}
-              placeholder="e.g. Special offer for VIP members"
-              placeholderTextColor={MUTED}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={80}
-            />
-          </View>
-
-          <View style={{ gap: 6 }}>
-            <Text style={ds.fieldLabel}>Message</Text>
-            <TextInput
-              style={[ds.input, { minHeight: 100, textAlignVertical: 'top', paddingTop: 12 }]}
-              placeholder="Write your message here…"
-              placeholderTextColor={MUTED}
-              value={body}
-              onChangeText={setBody}
-              multiline
-              maxLength={300}
-            />
-            <Text style={{ fontSize: 11, color: MUTED, textAlign: 'right' }}>{body.length}/300</Text>
-          </View>
-
-          <Pressable
-            onPress={send}
-            disabled={sending || !title.trim() || !body.trim()}
-            style={[ds.sendBtn, { opacity: sending || !title.trim() || !body.trim() ? 0.5 : 1 }]}
-          >
-            {sending ? <ActivityIndicator size="small" color="#fff" /> : (
-              <>
-                <Feather name="send" size={16} color="#fff" />
-                <Text style={ds.sendBtnText}>Send to {segment.count} customer{segment.count !== 1 ? 's' : ''}</Text>
-              </>
-            )}
-          </Pressable>
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-}
-
-function SegmentsTab({ segments, isLoading, onRefresh, refreshing, onViewSegment }: {
-  segments: CrmSegment[];
-  isLoading: boolean;
-  onRefresh: () => void;
-  refreshing: boolean;
-  onViewSegment: (segment: string) => void;
-}) {
-  const [notifyTarget, setNotifyTarget] = useState<CrmSegment | null>(null);
-
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={BLUE} size="large" />
-      </View>
-    );
-  }
-
-  return (
-    <>
-      <FlatList
-        data={segments}
-        keyExtractor={seg => seg.key}
-        contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-        ListHeaderComponent={
-          <Text style={[ds.sectionHeading, { marginBottom: 12 }]}>Customer Segments</Text>
-        }
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        renderItem={({ item: seg }) => (
-          <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onViewSegment(seg.key); }}
-            style={ds.segCard}
-          >
-            <View style={[ds.segIcon, { backgroundColor: seg.color + '18' }]}>
-              <Feather name={seg.icon as any} size={20} color={seg.color} />
-            </View>
-            <View style={{ flex: 1, gap: 2 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={ds.segLabel}>{seg.label}</Text>
-                <View style={[ds.segCountBadge, { backgroundColor: seg.color + '18' }]}>
-                  <Text style={[ds.segCountText, { color: seg.color }]}>{seg.count}</Text>
-                </View>
-              </View>
-              <Text style={ds.segDesc}>{seg.description}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={[ds.segAction, { backgroundColor: '#EAF3FF', borderColor: '#DBEAFE' }]}>
-                <Feather name="users" size={14} color={BLUE} />
-              </View>
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setNotifyTarget(seg);
-                }}
-                style={[ds.segAction, { backgroundColor: seg.color + '15', borderColor: seg.color + '40' }]}
-              >
-                <Feather name="bell" size={14} color={seg.color} />
-              </Pressable>
-            </View>
-          </Pressable>
-        )}
-      />
-      {notifyTarget && (
-        <SegmentNotifyModal segment={notifyTarget} onClose={() => setNotifyTarget(null)} />
-      )}
-    </>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CUSTOMERS TAB — customer list + profile modal
-// ═══════════════════════════════════════════════════════════════════════════════
-function CustomerRow({ item, onPress, isLast }: { item: CrmCustomer; onPress: () => void; isLast: boolean }) {
-  return (
-    <Pressable
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
-      style={[row.wrap, !isLast && row.border]}
-    >
-      {item.profileImage ? (
-        <Image source={{ uri: item.profileImage }} style={row.avatarImage} contentFit="cover" />
-      ) : (
-        <View style={row.avatarFallback}>
-          <Text style={row.avatarText}>{initials(item.name)}</Text>
-        </View>
-      )}
-      <View style={{ flex: 1, gap: 3 }}>
-        <Text style={row.name}>{item.name}</Text>
-        <Text style={row.meta}>{item.email}</Text>
-        <Text style={row.meta}>
-          {fmtAUD(item.totalSpentCents)}
-          <Text style={{ color: MUTED }}> · </Text>
-          {item.orderCount} {item.orderCount === 1 ? 'order' : 'orders'}
-          {item.lastOrderAt ? <Text style={{ color: MUTED }}> · last {fmtDate(item.lastOrderAt)}</Text> : null}
-        </Text>
-        {item.badges.length > 0 && (
-          <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
-            {item.badges.slice(0, 3).map(b => {
-              const cfg = BADGE_CFG[b];
-              if (!cfg) return null;
-              return (
-                <View key={b} style={{ backgroundColor: cfg.bg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: cfg.text }}>{cfg.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
-      <Feather name="chevron-right" size={16} color={MUTED} />
-    </Pressable>
-  );
 }
 
 // ── Timeline ──────────────────────────────────────────────────────────────────
@@ -681,7 +340,7 @@ function CrmActionsSection({ customerId, customerName, onRefresh }: {
 }
 
 // ── Customer detail modal ─────────────────────────────────────────────────────
-function CustomerDetailModal({ customerId, onClose, onDelete }: {
+export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
   customerId: string; onClose: () => void; onDelete?: () => void;
 }) {
   const insets  = useSafeAreaInsets();
@@ -785,7 +444,6 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
-        {/* Header */}
         <View style={[det.header, { paddingTop: insets.top > 0 ? insets.top + 4 : 20 }]}>
           <Pressable onPress={onClose} style={det.headerBtn} hitSlop={10}>
             <Feather name="arrow-left" size={20} color={TEXT} />
@@ -821,7 +479,6 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
           </Pressable>
         </View>
 
-        {/* Tab bar */}
         <View style={det.tabBar}>
           {([
             { key: 'profile',  label: 'Profile'  },
@@ -847,7 +504,6 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
         ) : (
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
 
-            {/* ── PROFILE TAB ── */}
             {activeTab === 'profile' && (
               <>
                 <View style={[det.heroSection, { borderBottomColor: BORDER }]}>
@@ -871,7 +527,21 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
                   </View>
                 </View>
 
-                {/* Insights */}
+                <View style={[det.section, { borderBottomColor: BORDER }]}>
+                  <Text style={det.sectionTitle}>Contact</Text>
+                  {[
+                    { label: 'Email',        value: customer.email ?? '—' },
+                    { label: 'Verified',     value: (customer as any).isEmailVerified ? '✓ Verified' : '✗ Not verified' },
+                    { label: 'Phone',        value: customer.phone ?? '—' },
+                    { label: 'Account status', value: customer.status ?? 'active' },
+                  ].map((r, i, arr) => (
+                    <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                      <Text style={det.infoLabel}>{r.label}</Text>
+                      <Text style={[det.infoValue, r.label === 'Verified' && { color: (customer as any).isEmailVerified ? GREEN : RED }]}>{r.value}</Text>
+                    </View>
+                  ))}
+                </View>
+
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
                   <Text style={det.sectionTitle}>Insights</Text>
                   {[
@@ -879,8 +549,8 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
                     { label: 'Last order',      value: orderStats?.lastOrderAt ? fmtDate(orderStats.lastOrderAt) : 'Never' },
                     { label: 'Total orders',    value: String(orderStats?.orderCount ?? 0) },
                     { label: 'Avg order',       value: orderStats?.avgOrderCents ? fmtAUD(orderStats.avgOrderCents) : '—' },
-                    { label: 'Stamps',          value: `${(customer as any).profile?.stampCount ?? 0} / 6` },
-                    { label: 'Coffee stamps',   value: String((customer as any).profile?.coffeeStampCount ?? 0) },
+                    { label: 'Loyalty points',  value: String((customer as any).profile?.loyaltyPoints ?? 0) },
+                    { label: 'Coffee stamps',   value: `${(customer as any).profile?.stampCount ?? 0} / 6` },
                     { label: 'Preference',      value: totalOrders === 0 ? 'No orders yet' : preferDelivery ? `Delivery (${deliveryCount}/${totalOrders})` : `Pickup (${pickupCount}/${totalOrders})` },
                   ].map((r, i, arr) => (
                     <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
@@ -890,7 +560,6 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
                   ))}
                 </View>
 
-                {/* Favourite products */}
                 {topProducts.length > 0 && (
                   <View style={[det.section, { borderBottomColor: BORDER }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -911,7 +580,6 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
                   </View>
                 )}
 
-                {/* Wholesale sub-section */}
                 {wa && (() => {
                   const wsStats = (wa as any).orderStats ?? null;
                   const creditEnabled = (wa as any).creditEnabled ?? false;
@@ -953,17 +621,15 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
                           {mgr && <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, marginBottom: 4 }}>{mgr}</Text>}
                           <View style={{ flexDirection: 'row', gap: 8 }}>
                             {mgrPhone && (
-                              <Pressable onPress={() => Linking.openURL(`tel:${mgrPhone}`)}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EAF7FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-                                <Feather name="phone" size={12} color={BLUE} />
-                                <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>{mgrPhone}</Text>
+                              <Pressable onPress={() => Linking.openURL(`tel:${mgrPhone.replace(/\s/g,'')}`)} style={det.contactBtn}>
+                                <Feather name="phone" size={13} color={BLUE} />
+                                <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Call</Text>
                               </Pressable>
                             )}
                             {mgrEmail && (
-                              <Pressable onPress={() => Linking.openURL(`mailto:${mgrEmail}`)}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EAF7FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-                                <Feather name="mail" size={12} color={BLUE} />
-                                <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>Email</Text>
+                              <Pressable onPress={() => Linking.openURL(`mailto:${mgrEmail}`)} style={det.contactBtn}>
+                                <Feather name="mail" size={13} color={BLUE} />
+                                <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Email</Text>
                               </Pressable>
                             )}
                           </View>
@@ -973,219 +639,148 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
                   );
                 })()}
 
-                {/* Loyalty */}
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
-                  <Text style={det.sectionTitle}>Loyalty</Text>
-                  {[
-                    { label: 'Current points',  value: String((customer as any).profile?.loyaltyPoints ?? 0) },
-                    { label: 'Tier',            value: TIER_CFG[(customer as any).profile?.loyaltyTier ?? '']?.label ?? 'Blue' },
-                    { label: 'Points earned',   value: String((customer as any).loyaltyStats?.totalEarnedPoints ?? 0) },
-                    { label: 'Points redeemed', value: String((customer as any).loyaltyStats?.totalRedeemedPoints ?? 0) },
-                  ].map((r, i, arr) => (
-                    <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                      <Text style={det.infoLabel}>{r.label}</Text>
-                      <Text style={det.infoValue}>{r.value}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Tags */}
-                <View style={[det.section, { borderBottomColor: BORDER }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <Feather name="tag" size={16} color={MUTED} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <Text style={det.sectionTitle}>Tags</Text>
+                    <Pressable
+                      onPress={() => Alert.alert('Add tag', 'Select a tag to add', [
+                        ...ALL_MANUAL_BADGES.filter(b => !allBadges.some((ab: any) => (ab.badge ?? ab) === b)).map(b => ({
+                          text: BADGE_CFG[b]?.label ?? b,
+                          onPress: () => addBadge(b),
+                        })),
+                        { text: 'Cancel', style: 'cancel' as const },
+                      ])}
+                      style={[det.contactBtn, { paddingHorizontal: 10 }]}
+                    >
+                      <Feather name="plus" size={13} color={BLUE} />
+                      <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Add tag</Text>
+                    </Pressable>
                   </View>
-                  {allBadges.length > 0 ? (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                      {allBadges.map(b => {
-                        const cfg = BADGE_CFG[b] ?? { label: b, bg: BG, text: MUTED };
-                        const mb  = customer.manualBadges.find((m: CrmBadge) => m.badge === b);
-                        if (mb) {
-                          return (
-                            <Pressable key={b} onPress={() => removeBadge(mb.id, b)}
-                              style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: cfg.bg, paddingLeft: 8, paddingRight: 5, paddingVertical: 4, borderRadius: 20 }}>
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: cfg.text }}>{cfg.label}</Text>
-                              <Feather name="x" size={11} color={cfg.text} />
-                            </Pressable>
-                          );
-                        }
+                  {allBadges.length === 0 ? (
+                    <Text style={{ color: MUTED, fontSize: 13 }}>No tags yet</Text>
+                  ) : (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {allBadges.map((b: any) => {
+                        const badge = b.badge ?? b;
+                        const cfg = BADGE_CFG[badge];
+                        if (!cfg) return null;
                         return (
-                          <View key={b} style={{ backgroundColor: cfg.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: cfg.text }}>{cfg.label}</Text>
-                          </View>
+                          <Pressable
+                            key={b.id ?? badge}
+                            onLongPress={() => b.id && removeBadge(b.id, badge)}
+                            style={[det.tag, { backgroundColor: cfg.bg }]}
+                          >
+                            <Text style={[det.tagTx, { color: cfg.text }]}>{cfg.label}</Text>
+                          </Pressable>
                         );
                       })}
                     </View>
-                  ) : <Text style={{ fontSize: 13, color: MUTED, marginBottom: 8 }}>No tags yet.</Text>}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
-                    <Text style={[det.infoLabel, { width: '100%', marginBottom: 4 }]}>Add tag:</Text>
-                    {ALL_MANUAL_BADGES.filter(b => !allBadges.includes(b)).map(b => (
-                      <Pressable key={b} onPress={() => addBadge(b)}
-                        style={{ backgroundColor: BADGE_CFG[b]?.bg ?? BG, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: BORDER }}>
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: BADGE_CFG[b]?.text ?? MUTED }}>+ {BADGE_CFG[b]?.label ?? b}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  )}
                 </View>
 
-                {/* Notes */}
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
-                  <Text style={[det.sectionTitle, { marginBottom: 12 }]}>Internal Notes</Text>
-                  {(customer.notes?.length ?? 0) === 0 && !isNoteComposerOpen && (
-                    <Pressable onPress={() => setIsNoteComposerOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Feather name="plus-circle" size={16} color={BLUE} />
-                      <Text style={{ fontSize: 14, color: BLUE, fontWeight: '500' }}>Add note</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <Text style={det.sectionTitle}>Notes</Text>
+                    <Pressable onPress={() => setIsNoteComposerOpen(n => !n)} style={[det.contactBtn, { paddingHorizontal: 10 }]}>
+                      <Feather name="edit-2" size={13} color={BLUE} />
+                      <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Add note</Text>
                     </Pressable>
-                  )}
-                  {(isNoteComposerOpen || (customer.notes?.length ?? 0) > 0) && (
-                    <View style={{ gap: 10 }}>
-                      {customer.notes?.map((note: CrmNote) => (
-                        <View key={note.id} style={[det.noteCard, { borderColor: BORDER }]}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <View>
-                              <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT }}>{note.authorName}</Text>
-                              <Text style={{ fontSize: 11, color: MUTED }}>{fmtDateTime(note.createdAt)}</Text>
-                            </View>
-                            <Pressable onPress={() => deleteNote(note.id)} hitSlop={8}>
-                              <Feather name="trash-2" size={14} color={RED} />
-                            </Pressable>
-                          </View>
-                          <Text style={{ fontSize: 14, color: TEXT, lineHeight: 20 }}>{note.content}</Text>
-                        </View>
-                      ))}
-                      {isNoteComposerOpen && (
-                        <>
-                          <TextInput
-                            style={[det.noteInput, { borderColor: BORDER, color: TEXT }]}
-                            placeholder="Write a note…"
-                            placeholderTextColor={MUTED}
-                            value={noteText}
-                            onChangeText={setNoteText}
-                            multiline numberOfLines={3}
-                          />
-                          <View style={{ flexDirection: 'row', gap: 10 }}>
-                            <Pressable onPress={() => { setIsNoteComposerOpen(false); setNoteText(''); }} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
-                              <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
-                            </Pressable>
-                            <Pressable onPress={addNote} disabled={isSavingNote || !noteText.trim()} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY, opacity: !noteText.trim() ? 0.4 : 1 }]}>
-                              {isSavingNote ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save Note</Text>}
-                            </Pressable>
-                          </View>
-                        </>
-                      )}
-                      {(customer.notes?.length ?? 0) > 0 && !isNoteComposerOpen && (
-                        <Pressable onPress={() => setIsNoteComposerOpen(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Feather name="plus-circle" size={15} color={BLUE} />
-                          <Text style={{ fontSize: 13, color: BLUE, fontWeight: '500' }}>Add another note</Text>
+                  </View>
+                  {isNoteComposerOpen && (
+                    <View style={{ gap: 8, marginBottom: 12 }}>
+                      <TextInput
+                        style={[det.input, { minHeight: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+                        placeholder="Write your note…"
+                        placeholderTextColor={MUTED}
+                        value={noteText}
+                        onChangeText={setNoteText}
+                        multiline
+                        autoFocus
+                      />
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable onPress={() => { setIsNoteComposerOpen(false); setNoteText(''); }} style={[det.contactBtn, { flex: 1, justifyContent: 'center' }]}>
+                          <Text style={{ color: MUTED, fontSize: 13, fontWeight: '600' }}>Cancel</Text>
                         </Pressable>
-                      )}
+                        <Pressable
+                          onPress={addNote}
+                          disabled={isSavingNote || !noteText.trim()}
+                          style={[det.actionBtn, { flex: 2, opacity: isSavingNote || !noteText.trim() ? 0.5 : 1, paddingVertical: 10 }]}
+                        >
+                          {isSavingNote ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Save Note</Text>}
+                        </Pressable>
+                      </View>
                     </View>
                   )}
-                </View>
-
-                {/* Contact info */}
-                <View style={[det.section, { borderBottomColor: BORDER }]}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <Text style={det.sectionTitle}>Contact</Text>
-                    <Pressable onPress={() => startEdit(customer)} hitSlop={8}>
-                      <Feather name="edit-2" size={16} color={BLUE} />
-                    </Pressable>
-                  </View>
-                  {editingContact ? (
-                    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-                      <View style={{ gap: 10 }}>
-                        {[
-                          { label: 'Name',   value: eName,     set: setEName,     kb: 'default' as const },
-                          { label: 'Email',  value: eEmail,    set: setEEmail,    kb: 'email-address' as const },
-                          { label: 'Phone',  value: ePhone,    set: setEPhone,    kb: 'phone-pad' as const },
-                          { label: 'Birthday DD/MM/YYYY', value: eBirthday, set: (v: string) => setEBirthday(autoFormatBd(v)), kb: 'number-pad' as const },
-                        ].map(f => (
-                          <View key={f.label}>
-                            <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500', marginBottom: 4 }}>{f.label}</Text>
-                            <TextInput
-                              style={[det.input, { borderColor: BORDER, color: TEXT }]}
-                              value={f.value} onChangeText={f.set}
-                              keyboardType={f.kb} autoCapitalize="none" placeholderTextColor={MUTED} placeholder={f.label}
-                            />
-                          </View>
-                        ))}
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                          <Pressable onPress={() => setEditingContact(false)} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
-                            <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
-                          </Pressable>
-                          <Pressable onPress={saveContact} disabled={savingContact} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY }]}>
-                            {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save</Text>}
-                          </Pressable>
-                        </View>
-                      </View>
-                    </KeyboardAvoidingView>
+                  {(customer.notes?.length ?? 0) === 0 && !isNoteComposerOpen ? (
+                    <Text style={{ color: MUTED, fontSize: 13 }}>No internal notes yet</Text>
                   ) : (
-                    <>
-                      {[
-                        { label: 'Email',        value: customer.email },
-                        { label: 'Phone',        value: customer.phone ?? '—' },
-                        { label: 'Birthday',     value: isoToDdMmYyyy((customer as any).profile?.birthday) || '—' },
-                        { label: 'Member since', value: fmtDate(customer.createdAt) },
-                      ].map((r, i, arr) => (
-                        <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                          <Text style={det.infoLabel}>{r.label}</Text>
-                          <Text style={det.infoValue} numberOfLines={1}>{r.value}</Text>
+                    <View style={{ gap: 10 }}>
+                      {(customer.notes ?? []).map((n: any) => (
+                        <View key={n.id} style={{ backgroundColor: '#FAFAFA', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+                          <Text style={{ fontSize: 13, color: TEXT, lineHeight: 18 }}>{n.content}</Text>
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                            <Text style={{ fontSize: 11, color: MUTED }}>{fmtDateTime(n.createdAt)}</Text>
+                            <Pressable onPress={() => deleteNote(n.id)}>
+                              <Feather name="trash-2" size={13} color={RED} />
+                            </Pressable>
+                          </View>
                         </View>
                       ))}
-                    </>
+                    </View>
                   )}
                 </View>
 
-                {/* Order history preview */}
-                <View style={det.section}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <Text style={det.sectionTitle}>Order History</Text>
-                    <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>{customer.orders?.length ?? 0} orders</Text>
-                  </View>
-                  {(customer.orders?.length ?? 0) === 0 ? (
-                    <View style={{ alignItems: 'center', paddingVertical: 24, gap: 8 }}>
-                      <Feather name="shopping-bag" size={28} color={MUTED} />
-                      <Text style={{ color: MUTED }}>No orders yet.</Text>
-                    </View>
-                  ) : (
-                    customer.orders?.slice(0, 10).map((order: ApiOrder, i: number, arr) => {
-                      const statusColor = STATUS_ORDER_COLOR[order.status] ?? MUTED;
-                      const items = normalizeOrderItems(order.items);
-                      return (
-                        <View key={order.id} style={[det.orderRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>#{order.id.slice(0, 8).toUpperCase()}</Text>
-                            <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{fmtAUD(order.totalCents)}</Text>
-                          </View>
-                          <Text style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>{items.length} item{items.length !== 1 ? 's' : ''} · {fmtDateTime(order.createdAt)}</Text>
-                          <View style={[det.statusPill, { backgroundColor: statusColor + '20', alignSelf: 'flex-start' }]}>
-                            <Text style={{ fontSize: 11, fontWeight: '600', color: statusColor }}>{statusLabel(order.status)}</Text>
-                          </View>
+                {editingContact && (
+                  <View style={[det.section, { borderBottomColor: BORDER }]}>
+                    <Text style={det.sectionTitle}>Edit Contact Info</Text>
+                    <View style={{ gap: 10, marginTop: 12 }}>
+                      {[
+                        { label: 'Name', value: eName, setter: setEName, kb: 'default' as const },
+                        { label: 'Email', value: eEmail, setter: setEEmail, kb: 'email-address' as const },
+                        { label: 'Phone', value: ePhone, setter: setEPhone, kb: 'phone-pad' as const },
+                      ].map(f => (
+                        <View key={f.label}>
+                          <Text style={[det.fieldLabel, { marginBottom: 4 }]}>{f.label}</Text>
+                          <TextInput style={det.input} value={f.value} onChangeText={f.setter} keyboardType={f.kb} placeholderTextColor={MUTED} autoCapitalize="none" />
                         </View>
-                      );
-                    })
-                  )}
-                </View>
+                      ))}
+                      <View>
+                        <Text style={[det.fieldLabel, { marginBottom: 4 }]}>Birthday (DD/MM/YYYY)</Text>
+                        <TextInput
+                          style={det.input}
+                          value={eBirthday}
+                          onChangeText={v => setEBirthday(autoFormatBd(v))}
+                          placeholder="DD/MM/YYYY"
+                          placeholderTextColor={MUTED}
+                          keyboardType="numeric"
+                          maxLength={10}
+                        />
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable onPress={() => setEditingContact(false)} style={[det.contactBtn, { flex: 1, justifyContent: 'center' }]}>
+                          <Text style={{ color: MUTED, fontSize: 13, fontWeight: '600' }}>Cancel</Text>
+                        </Pressable>
+                        <Pressable onPress={saveContact} disabled={savingContact} style={[det.actionBtn, { flex: 2 }]}>
+                          {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save</Text>}
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                )}
               </>
             )}
 
-            {/* ── TIMELINE TAB ── */}
             {activeTab === 'timeline' && (
-              <View style={[det.section, { borderBottomColor: BORDER }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                  <Feather name="clock" size={16} color={MUTED} />
-                  <Text style={det.sectionTitle}>Activity Timeline</Text>
-                </View>
+              <View style={{ padding: 16 }}>
                 <TimelineSection customerId={customerId} />
               </View>
             )}
 
-            {/* ── ACTIONS TAB ── */}
             {activeTab === 'actions' && (
               <CrmActionsSection
                 customerId={customerId}
-                customerName={customer.name}
-                onRefresh={refetch}
+                customerName={customer?.name ?? 'Customer'}
+                onRefresh={() => refetch()}
               />
             )}
           </ScrollView>
@@ -1195,13 +790,55 @@ function CustomerDetailModal({ customerId, onClose, onDelete }: {
   );
 }
 
-// ─── Filter types ─────────────────────────────────────────────────────────────
+// ── Customer row ───────────────────────────────────────────────────────────────
+function CustomerRow({ item, onPress, isLast }: { item: CrmCustomer; onPress: () => void; isLast: boolean }) {
+  return (
+    <Pressable
+      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+      style={[row.wrap, !isLast && row.border]}
+    >
+      {item.profileImage ? (
+        <Image source={{ uri: item.profileImage }} style={row.avatarImage} contentFit="cover" />
+      ) : (
+        <View style={row.avatarFallback}>
+          <Text style={row.avatarText}>{initials(item.name)}</Text>
+        </View>
+      )}
+      <View style={{ flex: 1, gap: 3 }}>
+        <Text style={row.name}>{item.name}</Text>
+        <Text style={row.meta}>{item.email}</Text>
+        <Text style={row.meta}>
+          {fmtAUD(item.totalSpentCents)}
+          <Text style={{ color: MUTED }}> · </Text>
+          {item.orderCount} {item.orderCount === 1 ? 'order' : 'orders'}
+          {item.lastOrderAt ? <Text style={{ color: MUTED }}> · last {fmtDate(item.lastOrderAt)}</Text> : null}
+        </Text>
+        {item.badges.length > 0 && (
+          <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+            {item.badges.slice(0, 3).map(b => {
+              const cfg = BADGE_CFG[b];
+              if (!cfg) return null;
+              return (
+                <View key={b} style={{ backgroundColor: cfg.bg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: cfg.text }}>{cfg.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+      <Feather name="chevron-right" size={16} color={MUTED} />
+    </Pressable>
+  );
+}
+
+// ── Filter panel ──────────────────────────────────────────────────────────────
 type DatePreset = '' | '7d' | '30d' | '90d';
 type SpendPreset = '' | '50' | '200' | '500';
 type OrderPreset = '' | '1' | '5' | '10';
 type LastOrderPreset = '' | 'active7' | 'active30' | 'inactive30';
 
-interface FilterState {
+export interface CrmFilterState {
   dateFrom?: string; dateTo?: string;
   minSpendCents?: number; maxSpendCents?: number;
   minOrders?: number; maxOrders?: number;
@@ -1209,28 +846,10 @@ interface FilterState {
   searchOrders?: string;
 }
 
-function datePresetToRange(preset: DatePreset): { dateFrom?: string; dateTo?: string } {
-  if (!preset) return {};
-  const now = new Date();
-  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
-  const from = new Date(now.getTime() - days * 86400000);
-  return { dateFrom: from.toISOString().slice(0, 10) };
-}
-
-function lastOrderPresetToRange(preset: LastOrderPreset): { lastOrderFrom?: string; lastOrderTo?: string } {
-  if (!preset) return {};
-  const now = new Date();
-  if (preset === 'active7')    return { lastOrderFrom: new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10) };
-  if (preset === 'active30')   return { lastOrderFrom: new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10) };
-  if (preset === 'inactive30') return { lastOrderTo:   new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10) };
-  return {};
-}
-
-// ── Filter panel ──────────────────────────────────────────────────────────────
 function FilterPanel({ visible, onClose, onApply }: {
   visible: boolean;
   onClose: () => void;
-  onApply: (filters: FilterState) => void;
+  onApply: (filters: CrmFilterState) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [datePreset, setDatePreset]           = useState<DatePreset>('');
@@ -1242,11 +861,23 @@ function FilterPanel({ visible, onClose, onApply }: {
   const anyActive = !!(datePreset || spendPreset || orderPreset || lastOrderPreset || searchOrders.trim());
 
   const apply = () => {
-    const dateRange = datePresetToRange(datePreset);
-    const spendMin  = spendPreset ? parseInt(spendPreset, 10) * 100 : undefined;
-    const orderMin  = orderPreset ? parseInt(orderPreset, 10) : undefined;
-    const lastRange = lastOrderPresetToRange(lastOrderPreset);
-    onApply({ dateFrom: dateRange.dateFrom, dateTo: dateRange.dateTo, minSpendCents: spendMin, minOrders: orderMin, lastOrderFrom: lastRange.lastOrderFrom, lastOrderTo: lastRange.lastOrderTo, searchOrders: searchOrders.trim() || undefined });
+    const dateRange = (() => {
+      if (!datePreset) return {};
+      const days = datePreset === '7d' ? 7 : datePreset === '30d' ? 30 : 90;
+      const from = new Date(Date.now() - days * 86400000);
+      return { dateFrom: from.toISOString().slice(0, 10) };
+    })();
+    const spendMin = spendPreset ? parseInt(spendPreset, 10) * 100 : undefined;
+    const orderMin = orderPreset ? parseInt(orderPreset, 10) : undefined;
+    const lastRange = (() => {
+      if (!lastOrderPreset) return {};
+      const now = new Date();
+      if (lastOrderPreset === 'active7')    return { lastOrderFrom: new Date(now.getTime() - 7 * 86400000).toISOString().slice(0, 10) };
+      if (lastOrderPreset === 'active30')   return { lastOrderFrom: new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10) };
+      if (lastOrderPreset === 'inactive30') return { lastOrderTo:   new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10) };
+      return {};
+    })();
+    onApply({ ...dateRange, minSpendCents: spendMin, minOrders: orderMin, ...lastRange, searchOrders: searchOrders.trim() || undefined });
     onClose();
   };
 
@@ -1321,16 +952,51 @@ function FilterPanel({ visible, onClose, onApply }: {
   );
 }
 
-// ── Customers tab (list + profile modal) ──────────────────────────────────────
-function CustomersTab({ initialSegment }: { initialSegment: string }) {
+// ── CRM Insights strip ────────────────────────────────────────────────────────
+function InsightsStrip({ insights }: { insights: CrmInsights | null }) {
+  if (!insights) return null;
+  const metrics = [
+    { label: 'Total',    value: insights.totalCustomers ?? 0,   color: BLUE   },
+    { label: 'New',      value: insights.newThisMonth ?? 0,     color: GREEN  },
+    { label: 'Repeat',   value: insights.repeatCustomers ?? 0,  color: PURPLE },
+    { label: 'Inactive', value: insights.inactiveCount ?? 0,    color: RED    },
+  ];
+  const topSpenders = (insights.topSpenders ?? []).slice(0, 3);
+  return (
+    <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+      <View style={{ flexDirection: 'row' }}>
+        {metrics.map((m, i) => (
+          <View key={m.label} style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderLeftWidth: i > 0 ? 1 : 0, borderLeftColor: BORDER }}>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: m.color }}>{m.value}</Text>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 }}>{m.label}</Text>
+          </View>
+        ))}
+      </View>
+      {topSpenders.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, gap: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
+          <Feather name="trending-up" size={13} color={AMBER} />
+          <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER, textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 4 }}>Top spenders:</Text>
+          {topSpenders.map((s, i) => (
+            <View key={s.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {i > 0 && <Text style={{ color: BORDER, fontSize: 11 }}>·</Text>}
+              <Text style={{ fontSize: 11, color: TEXT, fontWeight: '600' }}>{s.name}</Text>
+              <Text style={{ fontSize: 11, color: MUTED }}>({fmtAUD(s.totalSpentCents)})</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Main Customers tab ─────────────────────────────────────────────────────────
+export function CrmCustomersTab() {
   const [search, setSearch]           = useState('');
-  const [segment, setSegment]         = useState(initialSegment);
+  const [segment, setSegment]         = useState('');
   const [selectedId, setSelectedId]   = useState<string | null>(null);
   const [refreshing, setRefreshing]   = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters]         = useState<FilterState>({});
-
-  useEffect(() => { setSegment(initialSegment); }, [initialSegment]);
+  const [filters, setFilters]         = useState<CrmFilterState>({});
 
   const activeFilterCount = Object.values(filters).filter(v => v !== undefined && v !== '').length;
   const hasActiveFilter   = !!(search || segment || activeFilterCount > 0);
@@ -1341,12 +1007,20 @@ function CustomersTab({ initialSegment }: { initialSegment: string }) {
     staleTime: 30_000,
   });
 
+  const { data: insightsData } = useQuery({
+    queryKey: ['crm-insights'],
+    queryFn:  () => api.director.customers.insights(),
+    staleTime: 120_000,
+  });
+
   const customers: CrmCustomer[] = data?.data ?? [];
+  const insights: CrmInsights | null = (insightsData?.data as any) ?? null;
   const onRefresh = useCallback(async () => { setRefreshing(true); await refetch(); setRefreshing(false); }, [refetch]);
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Search + filter */}
+      <InsightsStrip insights={insights} />
+
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <View style={scr.searchBar}>
           <View style={[scr.searchInput, { borderColor: BORDER }]}>
@@ -1376,7 +1050,6 @@ function CustomersTab({ initialSegment }: { initialSegment: string }) {
           </Pressable>
         </View>
 
-        {/* Segment chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 10, gap: 8, flexDirection: 'row' }}>
           {SEGMENT_CHIPS.map(chip => (
@@ -1427,7 +1100,7 @@ function CustomersTab({ initialSegment }: { initialSegment: string }) {
                 </Text>
                 {hasActiveFilter && (
                   <Pressable onPress={() => { setSearch(''); setSegment(''); setFilters({}); }} hitSlop={8}>
-                    <Text style={{ fontSize: 12, color: RED, fontWeight: '600' }}>Clear filters</Text>
+                    <Text style={{ fontSize: 12, color: RED, fontWeight: '600' }}>Clear</Text>
                   </Pressable>
                 )}
               </View>
@@ -1450,208 +1123,15 @@ function CustomersTab({ initialSegment }: { initialSegment: string }) {
       />
 
       {selectedId && (
-        <CustomerDetailModal
+        <CrmCustomerDetailModal
           customerId={selectedId}
           onClose={() => setSelectedId(null)}
-          onDelete={() => refetch()}
+          onDelete={() => { setSelectedId(null); refetch(); }}
         />
       )}
     </View>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN SCREEN
-// ═══════════════════════════════════════════════════════════════════════════════
-type TabKey = 'dashboard' | 'customers' | 'segments';
-
-const TAB_KEYS: TabKey[] = ['dashboard', 'customers', 'segments'];
-
-export default function DirectorCrmScreen() {
-  const [activeTab, setActiveTab]         = useState<TabKey>('dashboard');
-  const [customerSegment, setCustomerSegment] = useState('');
-  const [refreshingDash, setRefreshingDash]   = useState(false);
-  const [refreshingSeg, setRefreshingSeg]     = useState(false);
-  const pagerRef = useRef<ScrollView>(null);
-
-  const { data: insightsData, isLoading: loadingInsights, refetch: refetchInsights } = useQuery({
-    queryKey: ['crm-insights'],
-    queryFn:  () => api.director.customers.insights(),
-    staleTime: 60_000,
-  });
-
-  const { data: segmentsData, isLoading: loadingSegments, refetch: refetchSegments } = useQuery({
-    queryKey: ['crm-segments'],
-    queryFn:  () => api.director.customers.segments(),
-    staleTime: 60_000,
-  });
-
-  const insights: CrmInsights | null = (insightsData?.data as any) ?? null;
-  const segments: CrmSegment[]       = segmentsData?.data ?? [];
-
-  const onRefreshDash = async () => { setRefreshingDash(true); await refetchInsights(); setRefreshingDash(false); };
-  const onRefreshSeg  = async () => { setRefreshingSeg(true);  await refetchSegments();  setRefreshingSeg(false); };
-
-  const scrollToTab = useCallback((key: TabKey) => {
-    const idx = TAB_KEYS.indexOf(key);
-    pagerRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
-  }, []);
-
-  const handleSegmentPress = useCallback((segment: string) => {
-    setCustomerSegment(segment);
-    setActiveTab('customers');
-    scrollToTab('customers');
-  }, [scrollToTab]);
-
-  const tabs: { key: TabKey; label: string; icon: string }[] = [
-    { key: 'dashboard', label: 'Dashboard', icon: 'bar-chart-2' },
-    { key: 'customers', label: 'Customers', icon: 'users' },
-    { key: 'segments',  label: 'Segments',  icon: 'layers' },
-  ];
-
-  return (
-    <DirectorStandaloneScreen title="CRM">
-      {/* Tab bar */}
-      <View style={ds.tabBar}>
-        {tabs.map((tab, idx) => (
-          <Pressable
-            key={tab.key}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setActiveTab(tab.key);
-              pagerRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
-            }}
-            style={[ds.tab, activeTab === tab.key && ds.tabActive]}
-          >
-            <Feather name={tab.icon as any} size={15} color={activeTab === tab.key ? BLUE : MUTED} />
-            <Text style={[ds.tabText, activeTab === tab.key && ds.tabTextActive]}>{tab.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Swipeable pager */}
-      <ScrollView
-        ref={pagerRef}
-        horizontal
-        pagingEnabled
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onMomentumScrollEnd={(e) => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-          const key = TAB_KEYS[idx];
-          if (key && key !== activeTab) setActiveTab(key);
-        }}
-        style={{ flex: 1 }}
-      >
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <DashboardTab
-            insights={insights}
-            isLoading={loadingInsights}
-            onRefresh={onRefreshDash}
-            refreshing={refreshingDash}
-            onSegmentPress={handleSegmentPress}
-          />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <CustomersTab initialSegment={customerSegment} />
-        </View>
-        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
-          <SegmentsTab
-            segments={segments}
-            isLoading={loadingSegments}
-            onRefresh={onRefreshSeg}
-            refreshing={refreshingSeg}
-            onViewSegment={handleSegmentPress}
-          />
-        </View>
-      </ScrollView>
-    </DirectorStandaloneScreen>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════════════════════════════════════
-const ds = StyleSheet.create({
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: CARD,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    paddingHorizontal: 8,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 11,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive:     { borderBottomColor: BLUE },
-  tabText:       { fontSize: 13, fontWeight: '600', color: MUTED },
-  tabTextActive: { color: BLUE },
-
-  sectionHeading: { fontSize: 13, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
-
-  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metricCard: {
-    width: '47.5%', backgroundColor: CARD, borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: BORDER,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1, gap: 4,
-  },
-  metricIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  metricValue: { fontSize: 22, fontWeight: '800', color: TEXT, letterSpacing: -0.5 },
-  metricLabel: { fontSize: 12, color: MUTED, fontWeight: '500', lineHeight: 16 },
-  metricSub:   { fontSize: 11, color: MUTED, fontWeight: '400' },
-
-  card: { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
-  spenderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  spenderRank: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
-  spenderRankText: { fontSize: 12, fontWeight: '700', color: BLUE },
-
-  viewAllBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#EAF3FF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#DBEAFE',
-  },
-
-  segCard: {
-    backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER,
-    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
-  },
-  segIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  segLabel:      { fontSize: 15, fontWeight: '700', color: TEXT },
-  segDesc:       { fontSize: 12, color: MUTED },
-  segCountBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  segCountText:  { fontSize: 12, fontWeight: '700' },
-  segAction: {
-    width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1,
-  },
-
-  // Notify modal
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: BORDER,
-    backgroundColor: CARD,
-  },
-  headerBtn:   { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  modalTitle:  { fontSize: 16, fontWeight: '700', color: TEXT },
-  fieldLabel:  { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
-  input: {
-    backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT,
-  },
-  sendBtn: {
-    backgroundColor: NAVY, borderRadius: 12, height: 50,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-  },
-  sendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-});
 
 const row = StyleSheet.create({
   wrap:           { paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD },
@@ -1693,28 +1173,25 @@ const det = StyleSheet.create({
   tabActive:          { borderBottomColor: BLUE },
   tabText:            { fontSize: 13, fontWeight: '600', color: MUTED },
   tabTextActive:      { color: BLUE },
-  heroSection:        { backgroundColor: CARD, paddingHorizontal: 20, paddingVertical: 20, borderBottomWidth: 1, gap: 2 },
-  heroAvatarRow:      { marginBottom: 14 },
-  heroAvatarImage:    { width: 64, height: 64, borderRadius: 32, backgroundColor: '#EAF3FF' },
-  heroAvatarFallback: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
-  heroAvatarText:     { fontSize: 22, fontWeight: '700', color: BLUE },
-  heroName:           { fontSize: 24, fontWeight: '700', color: TEXT },
+  heroSection:        { backgroundColor: CARD, paddingHorizontal: 20, paddingVertical: 24, alignItems: 'center', borderBottomWidth: 1, gap: 4 },
+  heroAvatarRow:      { marginBottom: 12 },
+  heroAvatarImage:    { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EAF3FF' },
+  heroAvatarFallback: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
+  heroAvatarText:     { fontSize: 28, fontWeight: '700', color: BLUE },
+  heroName:           { fontSize: 22, fontWeight: '700', color: TEXT },
   heroSub:            { fontSize: 13, color: MUTED },
   tag:                { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   tagTx:              { fontSize: 12, fontWeight: '600' },
   section:            { backgroundColor: CARD, marginTop: 8, paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1 },
-  sectionTitle:       { fontSize: 15, fontWeight: '700', color: TEXT },
-  infoRow:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-  infoLabel:          { fontSize: 13, color: MUTED },
-  infoValue:          { fontSize: 14, color: TEXT, fontWeight: '600', maxWidth: '55%', textAlign: 'right' },
-  noteCard:           { borderWidth: 1, borderRadius: 10, padding: 12 },
-  noteInput:          { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top' },
-  actionBtn:          { height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  input:              { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, backgroundColor: BG },
-  fieldLabel:         { fontSize: 11, color: MUTED, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
-  orderRow:           { paddingVertical: 14 },
-  statusPill:         { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  timelineRow:        { flexDirection: 'row', gap: 14, paddingTop: 16 },
-  timelineIcon:       { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  timelineLine:       { width: 2, flex: 1, backgroundColor: BORDER, alignSelf: 'center', marginTop: 4 },
+  sectionTitle:       { fontSize: 15, fontWeight: '700', color: TEXT, marginBottom: 12 },
+  infoRow:            { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  infoLabel:          { fontSize: 13, color: MUTED, flex: 1 },
+  infoValue:          { fontSize: 13, color: TEXT, fontWeight: '600', textAlign: 'right', maxWidth: '55%' },
+  timelineRow:        { flexDirection: 'row', gap: 12, paddingTop: 16, paddingHorizontal: 16 },
+  timelineIcon:       { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  timelineLine:       { width: 2, flex: 1, backgroundColor: BORDER, marginTop: 4, minHeight: 16, alignSelf: 'center' },
+  fieldLabel:         { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
+  input:              { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT },
+  actionBtn:          { backgroundColor: NAVY, borderRadius: 12, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  contactBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EAF3FF' },
 });

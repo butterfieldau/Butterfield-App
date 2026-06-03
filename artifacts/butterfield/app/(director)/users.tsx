@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { ShopifyCustomerDetailModal } from './customers';
+import { CrmCustomersTab } from './_crmCustomersTab';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -32,7 +32,7 @@ const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 type InputKeyboardType = ComponentProps<typeof TextInput>['keyboardType'];
-const TABS = ['Customers', 'Staff', 'POS Screens', 'Deleted'] as const;
+const TABS = ['Customers', 'Staff', 'Wholesale'] as const;
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
   staff:     { bg: '#EDE9FE', text: '#5B21B6' },
@@ -1838,11 +1838,9 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const qc = useQueryClient();
   const initialTab = ((): (typeof TABS)[number] => {
     if (params.tab === 'Staff') return 'Staff';
-    if (params.tab === 'POS Screens') return 'POS Screens';
-    if (params.tab === 'Deleted') return 'Deleted';
-    if (params.tab === 'Wholesale') return 'Customers';
-    if (wholesaleMode || staffMode) return 'Staff';
-    if (posMode) return 'POS Screens';
+    if (params.tab === 'Wholesale') return 'Wholesale';
+    if (wholesaleMode) return 'Wholesale';
+    if (staffMode || posMode) return 'Staff';
     return 'Customers';
   })();
   const [tab, setTab] = useState<(typeof TABS)[number]>(initialTab);
@@ -1851,7 +1849,6 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedShopDisplayUser, setSelectedShopDisplayUser] = useState<ShopDisplayUser | null>(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
@@ -1860,19 +1857,17 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const allUsers: DirectorUserSummary[] = data?.data ?? [];
   const filtered = allUsers.filter((u) => {
     if (wholesaleMode) return u.role === 'wholesale';
-    if (staffMode) return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
-    if (posMode) return u.role === 'shop_display';
-    if (tab === 'Customers')   return u.role === 'customer' || u.role === 'wholesale';
-    if (tab === 'Staff')       return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
-    if (tab === 'POS Screens') return u.role === 'shop_display';
-    if (tab === 'Deleted')     return false;
+    if (staffMode)     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (posMode)       return u.role === 'shop_display';
+    if (tab === 'Staff')     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (tab === 'Wholesale') return u.role === 'wholesale';
     return false;
   });
   // ── Deleted accounts ───────────────────────────────────────────────────────
   const { data: deletedData, isLoading: deletedLoading, refetch: refetchDeleted } = useQuery({
     queryKey: ['director-deleted-accounts'],
     queryFn:  () => api.director.deletedAccounts(),
-    enabled:  !dedicatedMode && tab === 'Deleted',
+    enabled:  false,
   });
   const deletedAccounts: DeletedAccount[] = deletedData?.data ?? [];
   const restoreMut = useMutation({
@@ -1968,106 +1963,46 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           </ScrollView>
         )}
         {/* Quick-add strip */}
-        {(dedicatedMode || tab !== 'Deleted') && (
-          <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
-            <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
-            {(wholesaleMode || (!dedicatedMode && tab === 'Customers')) && (
-              <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
-                <Feather name="briefcase" size={13} color="#166534" />
-                <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
+        <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
+          <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
+          {(wholesaleMode || (!dedicatedMode && tab === 'Wholesale')) && (
+            <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
+              <Feather name="briefcase" size={13} color="#166534" />
+              <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
+            </Pressable>
+          )}
+          {(staffMode || (!dedicatedMode && tab === 'Staff')) && (
+            <>
+              <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
+                <Feather name="user-plus" size={13} color="#5B21B6" />
+                <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
               </Pressable>
-            )}
-            {(staffMode || (!dedicatedMode && tab === 'Staff')) && (
-              <>
-                <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
-                  <Feather name="user-plus" size={13} color="#5B21B6" />
-                  <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => { setShowInviteModal(true); setGeneratedInvite(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                  style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}
-                >
-                  <Feather name="link" size={13} color="#1D4ED8" />
-                  <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => { Haptics.selectionAsync(); router.push('/director-settings-managers' as any); }}
-                  style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
-                >
-                  <Feather name="shield" size={13} color={NAVY} />
-                  <Text style={[styles.addBtnText, { color: NAVY }]}>Roles & Permissions</Text>
-                </Pressable>
-              </>
-            )}
-            {(posMode || (!dedicatedMode && tab === 'POS Screens')) && (
-              <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}> 
-                <Feather name="monitor" size={13} color="#1D4ED8" />
-                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
+              <Pressable
+                onPress={() => { setShowInviteModal(true); setGeneratedInvite(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}
+              >
+                <Feather name="link" size={13} color="#1D4ED8" />
+                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
               </Pressable>
-            )}
-          </View>
-        )}
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); router.push('/director-settings-managers' as any); }}
+                style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
+              >
+                <Feather name="shield" size={13} color={NAVY} />
+                <Text style={[styles.addBtnText, { color: NAVY }]}>Roles & Permissions</Text>
+              </Pressable>
+            </>
+          )}
+          {posMode && (
+            <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
+              <Feather name="monitor" size={13} color="#1D4ED8" />
+              <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
-      {/* Deleted accounts tab */}
-      {!dedicatedMode && tab === 'Deleted' ? (
-        deletedLoading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator color={BLUE} />
-          </View>
-        ) : (
-          <FlatList
-            data={deletedAccounts}
-            keyExtractor={(d) => d.id}
-            contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={{ alignItems: 'center', marginTop: 80, gap: 14 }}>
-                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' }}>
-                  <Feather name="trash-2" size={28} color={RED} />
-                </View>
-                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 16 }}>No deleted accounts</Text>
-                <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', maxWidth: 240, lineHeight: 19 }}>
-                  Deleted accounts appear here and are recoverable for 30 days
-                </Text>
-              </View>
-            }
-            renderItem={({ item: d }) => {
-              const roleColors = ROLE_COLORS[d.role] ?? { bg: '#FEF2F2', text: RED };
-              return (
-                <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
-                  <View style={styles.userTop}>
-                    <View style={[styles.avatar, { backgroundColor: '#FEF2F2' }]}>
-                      <Text style={[styles.avatarText, { color: RED }]}>{initials(d.name)}</Text>
-                    </View>
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.userName}>{d.name}</Text>
-                        <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
-                          <Text style={[styles.rolePillText, { color: roleColors.text }]}>{d.role}</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.userEmail}>{d.email}</Text>
-                      <Text style={styles.userDate}>Deleted {fmtDateTime(d.deletedAt)}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.subRow, { borderTopColor: BORDER, justifyContent: 'space-between' }]}>
-                    <Text style={[styles.subSub, { color: AMBER }]}>⏳ Recoverable for 30 days</Text>
-                    <Pressable
-                      onPress={() => Alert.alert('Restore Account', `Restore ${d.name}'s account? They will be able to log in again.`, [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Restore', onPress: () => restoreMut.mutate(d.id) },
-                      ])}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                    >
-                      <Text style={{ color: GREEN, fontSize: 12, fontWeight: '600' }}>Restore</Text>
-                      <Feather name="refresh-cw" size={12} color={GREEN} />
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            }}
-          />
-        )
+      {!dedicatedMode && tab === 'Customers' ? (
+        <CrmCustomersTab />
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
@@ -2091,7 +2026,6 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
             const sp = u.staffProfile;
             const wa = u.wholesaleAccount;
             const canOpenStaffProfile = u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
-            const canOpenCustomerProfile = u.role === 'customer';
             return (
               <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
                 <Pressable
@@ -2099,9 +2033,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                   onPress={
                     canOpenStaffProfile
                       ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); }
-                      : canOpenCustomerProfile
-                        ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedCustomerId(u.id); }
-                        : undefined
+                      : undefined
                   }
                 >
                   {u.profileImage ? (
@@ -2121,7 +2053,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                       <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
                         <Text style={[styles.rolePillText, { color: roleColors.text }]}>{roleLabel}</Text>
                       </View>
-                      {(canOpenStaffProfile || canOpenCustomerProfile) && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
+                      {canOpenStaffProfile && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
                     </View>
                     <Text style={styles.userEmail}>{u.email}</Text>
                     <Text style={styles.userDate}>Joined {fmtDateTime(u.createdAt)}</Text>
@@ -2222,14 +2154,6 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
         onClose={() => setSelectedShopDisplayUser(null)}
         onRefresh={handleRefreshUsers}
       />
-      {selectedCustomerId && (
-        <ShopifyCustomerDetailModal
-          customerId={selectedCustomerId}
-          onClose={() => setSelectedCustomerId(null)}
-          onDelete={() => { setSelectedCustomerId(null); handleRefreshUsers(); }}
-        />
-      )}
-
       {/* ── Staff Invite Modal ──────────────────────────────────────────── */}
       <Modal
         visible={showInviteModal}

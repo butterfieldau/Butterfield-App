@@ -75,7 +75,7 @@ const ALL_CATEGORIES: Category[] = [
         items: [
           { icon: 'bell',        label: 'Push Notifications',    sub: 'Send to all or segmented customers',     color: TEAL,   perm: 'announcements', onPress: () => router.push('/director-settings-notify' as any) },
           { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',             color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-scheduled-notifications' as any) },
-          { icon: 'users',       label: 'Customer Segments',     sub: 'Target by tier, location or behaviour',  color: PURPLE, perm: 'announcements', soon: true },
+          { icon: 'users',       label: 'Customer Segments',     sub: 'Target by tier, location or behaviour',  color: PURPLE, perm: 'announcements', onPress: () => router.push('/customer-segments' as any) },
           { icon: 'list',        label: 'Announcement History',  sub: 'Past sends & open rates',                color: NAVY,   perm: 'announcements', soon: true },
         ],
       },
@@ -143,8 +143,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Customers',
         items: [
-          { icon: 'activity',   label: 'CRM',                sub: 'Insights, segments, notes, tags, timeline & actions', color: BLUE,   perm: 'users', onPress: () => router.push('/director-crm' as any) },
-          { icon: 'user-check', label: 'Customer Accounts',  sub: 'Search & view customer account details',              color: PURPLE, perm: 'users', onPress: () => router.push('/director-customer-profiles' as any) },
+          { icon: 'users',      label: 'All Customers',      sub: 'Search, filter, CRM notes, tags & timeline',          color: BLUE,   perm: 'users', onPress: () => router.push({ pathname: '/(director)/users', params: { tab: 'Customers' } } as any) },
           { icon: 'award',      label: 'Loyalty History',    sub: 'Points, stamps & redemptions per user',               color: AMBER,  perm: 'users', soon: true },
         ],
       },
