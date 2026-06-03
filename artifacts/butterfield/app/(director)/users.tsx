@@ -1962,8 +1962,8 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
             })}
           </ScrollView>
         )}
-        {/* Quick-add strip */}
-        <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
+        {/* Quick-add strip — hidden on Customers tab (CRM handles its own controls) */}
+        {(dedicatedMode || tab !== 'Customers') && <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
           <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
           {(wholesaleMode || (!dedicatedMode && tab === 'Wholesale')) && (
             <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
@@ -1999,7 +1999,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
               <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
             </Pressable>
           )}
-        </View>
+        </View>}
       </View>
       {!dedicatedMode && tab === 'Customers' ? (
         <CrmCustomersTab />

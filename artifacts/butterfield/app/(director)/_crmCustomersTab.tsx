@@ -991,12 +991,14 @@ function InsightsStrip({ insights }: { insights: CrmInsights | null }) {
 
 // ── Main Customers tab ─────────────────────────────────────────────────────────
 export function CrmCustomersTab() {
-  const [search, setSearch]           = useState('');
-  const [segment, setSegment]         = useState('');
-  const [selectedId, setSelectedId]   = useState<string | null>(null);
-  const [refreshing, setRefreshing]   = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters]         = useState<CrmFilterState>({});
+  const [search, setSearch]             = useState('');
+  const [segment, setSegment]           = useState('');
+  const [selectedId, setSelectedId]     = useState<string | null>(null);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [showFilters, setShowFilters]   = useState(false);
+  const [filters, setFilters]           = useState<CrmFilterState>({});
+  const [showSearch, setShowSearch]     = useState(false);
+  const [showSegments, setShowSegments] = useState(false);
 
   const activeFilterCount = Object.values(filters).filter(v => v !== undefined && v !== '').length;
   const hasActiveFilter   = !!(search || segment || activeFilterCount > 0);
@@ -1022,46 +1024,73 @@ export function CrmCustomersTab() {
       <InsightsStrip insights={insights} />
 
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <View style={scr.searchBar}>
-          <View style={[scr.searchInput, { borderColor: BORDER }]}>
-            <Feather name="search" size={16} color={MUTED} />
-            <TextInput
-              style={{ flex: 1, fontSize: 15, color: TEXT }}
-              placeholder="Search name, email, phone…"
-              placeholderTextColor={MUTED}
-              value={search}
-              onChangeText={setSearch}
-              autoCapitalize="none"
-            />
-            {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')}>
-                <Feather name="x-circle" size={16} color={MUTED} />
-              </Pressable>
-            )}
-          </View>
+        {/* Compact 3-button toolbar */}
+        <View style={{ flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 9, gap: 8 }}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setShowSearch(s => !s); }}
+            style={[scr.toolBtn, (showSearch || search.length > 0) && scr.toolBtnActive]}
+          >
+            <Feather name="search" size={14} color={(showSearch || search.length > 0) ? '#fff' : MUTED} />
+            <Text style={[scr.toolBtnText, (showSearch || search.length > 0) && scr.toolBtnTextActive]}>Search</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setShowSegments(s => !s); }}
+            style={[scr.toolBtn, (showSegments || !!segment) && scr.toolBtnActive]}
+          >
+            <Feather name="layers" size={14} color={(showSegments || !!segment) ? '#fff' : MUTED} />
+            <Text style={[scr.toolBtnText, (showSegments || !!segment) && scr.toolBtnTextActive]}>
+              {segment ? (SEGMENT_LABEL[segment] ?? 'Segment') : 'Segments'}
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowFilters(true); }}
-            style={[scr.filterBtn, activeFilterCount > 0 && { backgroundColor: NAVY, borderColor: NAVY }]}
+            style={[scr.toolBtn, activeFilterCount > 0 && scr.toolBtnActive]}
           >
-            <Feather name="sliders" size={16} color={activeFilterCount > 0 ? '#fff' : MUTED} />
-            {activeFilterCount > 0 && (
-              <View style={scr.filterBadge}><Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{activeFilterCount}</Text></View>
-            )}
+            <Feather name="sliders" size={14} color={activeFilterCount > 0 ? '#fff' : MUTED} />
+            <Text style={[scr.toolBtnText, activeFilterCount > 0 && scr.toolBtnTextActive]}>
+              {activeFilterCount > 0 ? `Filter · ${activeFilterCount}` : 'Filter'}
+            </Text>
           </Pressable>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 10, gap: 8, flexDirection: 'row' }}>
-          {SEGMENT_CHIPS.map(chip => (
-            <Pressable
-              key={chip.key}
-              onPress={() => { Haptics.selectionAsync(); setSegment(chip.key); }}
-              style={[scr.chip, segment === chip.key && scr.chipActive]}
-            >
-              <Text style={[scr.chipText, segment === chip.key && scr.chipTextActive]}>{chip.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        {/* Expandable search input */}
+        {showSearch && (
+          <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
+            <View style={[scr.searchInput, { borderColor: BORDER }]}>
+              <Feather name="search" size={16} color={MUTED} />
+              <TextInput
+                style={{ flex: 1, fontSize: 15, color: TEXT }}
+                placeholder="Search name, email, phone…"
+                placeholderTextColor={MUTED}
+                value={search}
+                onChangeText={setSearch}
+                autoCapitalize="none"
+                autoFocus
+              />
+              {search.length > 0 && (
+                <Pressable onPress={() => setSearch('')}>
+                  <Feather name="x-circle" size={16} color={MUTED} />
+                </Pressable>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Expandable segment chips */}
+        {showSegments && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 10, gap: 8, flexDirection: 'row' }}>
+            {SEGMENT_CHIPS.map(chip => (
+              <Pressable
+                key={chip.key}
+                onPress={() => { Haptics.selectionAsync(); setSegment(chip.key); if (chip.key) setShowSegments(false); }}
+                style={[scr.chip, segment === chip.key && scr.chipActive]}
+              >
+                <Text style={[scr.chipText, segment === chip.key && scr.chipTextActive]}>{chip.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {isLoading ? (
@@ -1144,10 +1173,14 @@ const row = StyleSheet.create({
 });
 
 const scr = StyleSheet.create({
-  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  searchInput: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  filterBtn:   { width: 44, height: 44, borderRadius: 12, backgroundColor: BG, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  filterBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: RED, alignItems: 'center', justifyContent: 'center' },
+  searchBar:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  searchInput:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, height: 42 },
+  filterBtn:      { width: 44, height: 44, borderRadius: 12, backgroundColor: BG, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  filterBadge:    { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: RED, alignItems: 'center', justifyContent: 'center' },
+  toolBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 36, borderRadius: 10, backgroundColor: BG, borderWidth: 1, borderColor: BORDER },
+  toolBtnActive:  { backgroundColor: NAVY, borderColor: NAVY },
+  toolBtnText:    { fontSize: 13, fontWeight: '600', color: MUTED },
+  toolBtnTextActive: { color: '#fff' },
   chip:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: BG, borderWidth: 1, borderColor: BORDER },
   chipActive:  { backgroundColor: BLUE, borderColor: BLUE },
   chipText:    { fontSize: 13, fontWeight: '600', color: MUTED },
