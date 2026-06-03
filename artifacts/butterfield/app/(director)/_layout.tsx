@@ -154,9 +154,10 @@ export default function DirectorLayout() {
           <Tabs.Screen name="settings-directors" options={{ href: null }} />
 
           {/* Always hidden for staff/manager */}
-          <Tabs.Screen name="_staff-dashboard"  options={{ href: null }} />
-          <Tabs.Screen name="more-category"     options={{ href: null }} />
-          <Tabs.Screen name="_moreCategories"   options={{ href: null }} />
+          <Tabs.Screen name="_staff-dashboard"    options={{ href: null }} />
+          <Tabs.Screen name="_crmCustomersTab"    options={{ href: null }} />
+          <Tabs.Screen name="more-category"       options={{ href: null }} />
+          <Tabs.Screen name="_moreCategories"     options={{ href: null }} />
         </Tabs>
       </View>
     );
@@ -206,8 +207,9 @@ export default function DirectorLayout() {
         <Tabs.Screen name="staffhub"         options={{ href: null }} />
         <Tabs.Screen name="profile"          options={{ href: null }} />
         <Tabs.Screen name="stock"            options={{ href: null }} />
-        <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
-        <Tabs.Screen name="customers"           options={{ href: null }} />
+        <Tabs.Screen name="_staff-dashboard"  options={{ href: null }} />
+        <Tabs.Screen name="_crmCustomersTab"  options={{ href: null }} />
+        <Tabs.Screen name="customers"         options={{ href: null }} />
         <Tabs.Screen name="customer-segments"   options={{ href: null }} />
         <Tabs.Screen name="pricing"                    options={{ href: null }} />
         <Tabs.Screen name="discounts"        options={{ href: null }} />
