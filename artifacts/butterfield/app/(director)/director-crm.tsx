@@ -1,12 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal,
+  ActivityIndicator, Alert, Dimensions, FlatList, KeyboardAvoidingView, Linking, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from 'react-native';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -30,6 +31,7 @@ const GREEN  = '#22C55E';
 const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const PURPLE = '#8B5CF6';
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const TIER_CFG: Record<string, { label: string; color: string; bg: string }> = {
   blue:     { label: 'Blue',     color: '#0C4DA2', bg: '#DBECFF' },
@@ -132,14 +134,14 @@ function autoFormatBd(v: string): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD TAB
 // ═══════════════════════════════════════════════════════════════════════════════
-function MetricCard({ label, value, icon, color, sub, onPress }: {
+function MetricCard({ label, value, icon, color, sub, onPress, style }: {
   label: string; value: string | number; icon: string; color: string;
-  sub?: string; onPress?: () => void;
+  sub?: string; onPress?: () => void; style?: object;
 }) {
   return (
     <Pressable
       onPress={() => { if (onPress) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={ds.metricCard}
+      style={[ds.metricCard, style]}
     >
       <View style={[ds.metricIcon, { backgroundColor: color + '18' }]}>
         <Feather name={icon as any} size={18} color={color} />
@@ -193,16 +195,21 @@ function DashboardTab({
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       <Text style={ds.sectionHeading}>Customer Overview</Text>
-      <View style={ds.metricsGrid}>
-        {metrics.map(m => (
-          <MetricCard
-            key={m.label}
-            label={m.label}
-            value={m.value}
-            icon={m.icon}
-            color={m.color}
-            onPress={m.segment !== undefined ? () => onSegmentPress(m.segment) : undefined}
-          />
+      <View style={{ gap: 10 }}>
+        {Array.from({ length: Math.ceil(metrics.length / 2) }, (_, rowIdx) => (
+          <View key={rowIdx} style={{ flexDirection: 'row', gap: 10 }}>
+            {metrics.slice(rowIdx * 2, rowIdx * 2 + 2).map(m => (
+              <MetricCard
+                key={m.label}
+                label={m.label}
+                value={m.value}
+                icon={m.icon}
+                color={m.color}
+                onPress={m.segment !== undefined ? () => onSegmentPress(m.segment) : undefined}
+                style={{ flex: 1 }}
+              />
+            ))}
+          </View>
         ))}
       </View>
 
@@ -1458,11 +1465,14 @@ function CustomersTab({ initialSegment }: { initialSegment: string }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 type TabKey = 'dashboard' | 'customers' | 'segments';
 
+const TAB_KEYS: TabKey[] = ['dashboard', 'customers', 'segments'];
+
 export default function DirectorCrmScreen() {
   const [activeTab, setActiveTab]         = useState<TabKey>('dashboard');
   const [customerSegment, setCustomerSegment] = useState('');
   const [refreshingDash, setRefreshingDash]   = useState(false);
   const [refreshingSeg, setRefreshingSeg]     = useState(false);
+  const pagerRef = useRef<ScrollView>(null);
 
   const { data: insightsData, isLoading: loadingInsights, refetch: refetchInsights } = useQuery({
     queryKey: ['crm-insights'],
@@ -1482,10 +1492,16 @@ export default function DirectorCrmScreen() {
   const onRefreshDash = async () => { setRefreshingDash(true); await refetchInsights(); setRefreshingDash(false); };
   const onRefreshSeg  = async () => { setRefreshingSeg(true);  await refetchSegments();  setRefreshingSeg(false); };
 
+  const scrollToTab = useCallback((key: TabKey) => {
+    const idx = TAB_KEYS.indexOf(key);
+    pagerRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
+  }, []);
+
   const handleSegmentPress = useCallback((segment: string) => {
     setCustomerSegment(segment);
     setActiveTab('customers');
-  }, []);
+    scrollToTab('customers');
+  }, [scrollToTab]);
 
   const tabs: { key: TabKey; label: string; icon: string }[] = [
     { key: 'dashboard', label: 'Dashboard', icon: 'bar-chart-2' },
@@ -1497,10 +1513,14 @@ export default function DirectorCrmScreen() {
     <DirectorStandaloneScreen title="CRM">
       {/* Tab bar */}
       <View style={ds.tabBar}>
-        {tabs.map(tab => (
+        {tabs.map((tab, idx) => (
           <Pressable
             key={tab.key}
-            onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setActiveTab(tab.key);
+              pagerRef.current?.scrollTo({ x: idx * SCREEN_WIDTH, animated: true });
+            }}
             style={[ds.tab, activeTab === tab.key && ds.tabActive]}
           >
             <Feather name={tab.icon as any} size={15} color={activeTab === tab.key ? BLUE : MUTED} />
@@ -1509,29 +1529,43 @@ export default function DirectorCrmScreen() {
         ))}
       </View>
 
-      {activeTab === 'dashboard' && (
-        <DashboardTab
-          insights={insights}
-          isLoading={loadingInsights}
-          onRefresh={onRefreshDash}
-          refreshing={refreshingDash}
-          onSegmentPress={handleSegmentPress}
-        />
-      )}
-
-      {activeTab === 'customers' && (
-        <CustomersTab initialSegment={customerSegment} />
-      )}
-
-      {activeTab === 'segments' && (
-        <SegmentsTab
-          segments={segments}
-          isLoading={loadingSegments}
-          onRefresh={onRefreshSeg}
-          refreshing={refreshingSeg}
-          onViewSegment={handleSegmentPress}
-        />
-      )}
+      {/* Swipeable pager */}
+      <ScrollView
+        ref={pagerRef}
+        horizontal
+        pagingEnabled
+        bounces={false}
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+          const key = TAB_KEYS[idx];
+          if (key && key !== activeTab) setActiveTab(key);
+        }}
+        style={{ flex: 1 }}
+      >
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <DashboardTab
+            insights={insights}
+            isLoading={loadingInsights}
+            onRefresh={onRefreshDash}
+            refreshing={refreshingDash}
+            onSegmentPress={handleSegmentPress}
+          />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <CustomersTab initialSegment={customerSegment} />
+        </View>
+        <View style={{ width: SCREEN_WIDTH, flex: 1 }}>
+          <SegmentsTab
+            segments={segments}
+            isLoading={loadingSegments}
+            onRefresh={onRefreshSeg}
+            refreshing={refreshingSeg}
+            onViewSegment={handleSegmentPress}
+          />
+        </View>
+      </ScrollView>
     </DirectorStandaloneScreen>
   );
 }
