@@ -101,20 +101,10 @@ export function buildInvoiceHtml(data: InvoiceData): string {
       border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 4px 32px rgba(0,0,0,0.10);
-      display: flex;
-      flex-direction: column;
-      min-height: 277mm;
     }
-    .spacer { flex: 1; }
     @media print {
       body { background: #fff; margin: 0; }
-      .page {
-        margin: 0;
-        border-radius: 0;
-        box-shadow: none;
-        max-width: 100%;
-        min-height: 100vh;
-      }
+      .page { margin: 0; border-radius: 0; box-shadow: none; max-width: 100%; }
     }
   </style>
 </head>
@@ -195,13 +185,8 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     </table>
   </div>
 
-  ${data.notes ? `<div style="margin:12px 20px 0;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;">Notes: </span><span style="font-size:11px;color:#78350F;">${data.notes}</span></div>` : ''}
-
-  <!-- SPACER — pushes bank transfer + footer to bottom -->
-  <div class="spacer"></div>
-
-  <!-- TOTALS + BANK — pinned above footer -->
-  <div style="display:flex;padding:14px 20px;gap:16px;align-items:flex-start;border-top:1px solid #E5E7EB;">
+  <!-- TOTALS + BANK — side by side -->
+  <div style="display:flex;padding:14px 20px;gap:16px;align-items:flex-start;">
 
     <!-- Bank Transfer (left) -->
     <div style="flex:1;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
@@ -249,7 +234,9 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     </div>
   </div>
 
-  <!-- FOOTER — always at very bottom -->
+  ${data.notes ? `<div style="margin:0 20px 12px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;">Notes: </span><span style="font-size:11px;color:#78350F;">${data.notes}</span></div>` : ''}
+
+  <!-- FOOTER -->
   <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
     <div style="display:flex;align-items:center;gap:14px;">
       <img src="${LOGO_WHITE}" alt="Butterfield" style="height:26px;display:block;max-width:140px;object-fit:contain;">
