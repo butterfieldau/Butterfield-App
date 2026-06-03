@@ -1017,14 +1017,20 @@ router.patch('/wholesale/:accountId', async (req, res) => {
     updates.minimumOrderCents = Number(req.body.minimumOrderCents);
     updates.minOrderCents     = Number(req.body.minimumOrderCents);
   }
+  // Business details (director/master can edit on behalf of customer)
+  if (req.body.companyName         !== undefined) updates.companyName         = req.body.companyName ? String(req.body.companyName).trim() : null;
+  if (req.body.abn                 !== undefined) updates.abn                 = req.body.abn ? String(req.body.abn).trim() : null;
+  if (req.body.contactName         !== undefined) updates.contactName         = req.body.contactName ? String(req.body.contactName).trim() : null;
+  if (req.body.phone               !== undefined) updates.phone               = req.body.phone ? String(req.body.phone).trim() : null;
+  if (req.body.email               !== undefined) updates.email               = req.body.email ? String(req.body.email).trim() : null;
+  if (req.body.pricingTier         !== undefined) updates.pricingTier         = req.body.pricingTier ? String(req.body.pricingTier).trim() : null;
+  if (req.body.businessHours       !== undefined) updates.businessHours       = req.body.businessHours ? String(req.body.businessHours).trim() : null;
   // Account manager details (director/master only)
   if (req.body.accountManagerName  !== undefined) updates.accountManager      = req.body.accountManagerName ? String(req.body.accountManagerName) : null;
   if (req.body.accountManagerPhone !== undefined) updates.accountManagerPhone = req.body.accountManagerPhone ? String(req.body.accountManagerPhone) : null;
   if (req.body.accountManagerEmail !== undefined) updates.accountManagerEmail = req.body.accountManagerEmail ? String(req.body.accountManagerEmail) : null;
   // Accounts team email (for invoice delivery)
   if (req.body.accountsEmail       !== undefined) updates.accountsEmail       = req.body.accountsEmail ? String(req.body.accountsEmail) : null;
-  // Business hours (set by wholesale customer; director can also view/override)
-  if (req.body.businessHours       !== undefined) updates.businessHours       = req.body.businessHours ? String(req.body.businessHours).trim() : null;
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No updatable fields provided.' });
   updates.updatedAt = new Date();
   const [updated] = await db.update(wholesaleAccountsTable).set(updates).where(eq(wholesaleAccountsTable.id, accountId)).returning();

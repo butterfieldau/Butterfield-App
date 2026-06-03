@@ -833,6 +833,13 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   user: DirectorUserSummary | null; wa: WholesaleAccount | null; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const [bizCompany, setBizCompany]         = useState('');
+  const [bizAbn, setBizAbn]                 = useState('');
+  const [bizContact, setBizContact]         = useState('');
+  const [bizPhone, setBizPhone]             = useState('');
+  const [bizEmail, setBizEmail]             = useState('');
+  const [bizTier, setBizTier]               = useState('');
+  const [bizHours, setBizHours]             = useState('');
   const [creditEnabled, setCreditEnabled]   = useState(false);
   const [creditAud, setCreditAud]           = useState('');
   const [creditNotes, setCreditNotes]       = useState('');
@@ -856,6 +863,13 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   const cards: WholesaleCard[] = cardsData?.data ?? [];
   useEffect(() => {
     if (wa) {
+      setBizCompany(wa.companyName ?? '');
+      setBizAbn(wa.abn ?? '');
+      setBizContact(wa.contactName ?? user?.name ?? '');
+      setBizPhone(wa.phone ?? (user as any)?.phone ?? '');
+      setBizEmail(wa.email ?? user?.email ?? '');
+      setBizTier(wa.pricingTier ?? '');
+      setBizHours(wa.businessHours ?? '');
       setCreditEnabled(wa.creditEnabled ?? false);
       setCreditAud(wa.creditLimitCents ? String(wa.creditLimitCents / 100) : '');
       setCreditNotes(wa.creditNotes ?? '');
@@ -904,6 +918,13 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       const deliveryCents = deliveryFeeAud  ? Math.round(parseFloat(deliveryFeeAud)  * 100) : 0;
       const minOrderCents = minOrderAud     ? Math.round(parseFloat(minOrderAud)     * 100) : undefined;
       await api.director.updateWholesale(wa.id, {
+        companyName:         bizCompany.trim()  || null,
+        abn:                 bizAbn.trim()      || null,
+        contactName:         bizContact.trim()  || null,
+        phone:               bizPhone.trim()    || null,
+        email:               bizEmail.trim()    || null,
+        pricingTier:         bizTier.trim()     || null,
+        businessHours:       bizHours.trim()    || null,
         creditEnabled,
         creditLimitCents:    isNaN(creditCents) ? 0 : creditCents,
         creditNotes:         creditNotes.trim() || null,
@@ -938,27 +959,84 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
           <View style={{ width: 36 }} />
         </View>
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Company info */}
+          {/* Business Details — editable by director/master */}
           <View style={wdl.card}>
-            <Text style={wdl.sectionLabel}>ACCOUNT INFO</Text>
-            {[
-              { label: 'Company',  value: wa.companyName },
-              { label: 'ABN',      value: wa.abn ?? '—' },
-              { label: 'Contact',  value: wa.contactName ?? user.name },
-              { label: 'Email',    value: wa.email ?? user.email },
-              { label: 'Phone',    value: wa.phone ?? user.phone ?? '—' },
-              { label: 'Address',  value: wa.deliveryAddress ?? '—' },
-              { label: 'Referred via', value: wa.howDidYouHear ?? '—' },
-              { label: 'Tier',     value: wa.tier?.name ?? wa.pricingTier ?? 'Standard' },
-              { label: 'Registered', value: fmtDateTime(user.createdAt) },
-              { label: 'Credit Used', value: wa.creditUsedCents ? `$${(wa.creditUsedCents / 100).toFixed(2)}` : '$0.00' },
-              ...(wa.businessHours ? [{ label: 'Business Hours', value: wa.businessHours }] : []),
-            ].map((row) => (
-              <View key={row.label} style={wdl.infoRow}>
-                <Text style={wdl.infoLabel}>{row.label}</Text>
-                <Text style={wdl.infoValue}>{row.value}</Text>
-              </View>
-            ))}
+            <Text style={wdl.sectionLabel}>BUSINESS DETAILS</Text>
+            <Text style={wdl.fieldNote}>Edit on behalf of the wholesale customer when details change.</Text>
+
+            <Text style={wdl.fieldLabel}>Company Name</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. Acme Hospitality Pty Ltd"
+                value={bizCompany} onChangeText={setBizCompany}
+              />
+            </View>
+
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>ABN</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. 12 345 678 901"
+                value={bizAbn} onChangeText={setBizAbn}
+                keyboardType="numbers-and-punctuation"
+              />
+            </View>
+
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Name</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. Jane Smith"
+                value={bizContact} onChangeText={setBizContact}
+              />
+            </View>
+
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Email</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. jane@company.com.au"
+                value={bizEmail} onChangeText={setBizEmail}
+                keyboardType="email-address" autoCapitalize="none"
+              />
+            </View>
+
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Phone</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. 0400 000 000"
+                value={bizPhone} onChangeText={setBizPhone}
+                keyboardType="phone-pad"
+              />
+            </View>
+
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Pricing Tier</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. standard, bronze, silver, gold"
+                value={bizTier} onChangeText={setBizTier}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Business Hours</Text>
+            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                placeholder="e.g. Mon–Fri 8am–4pm, closed weekends"
+                value={bizHours} onChangeText={setBizHours}
+              />
+            </View>
+
+            {/* Read-only reference rows */}
+            <View style={[wdl.infoRow, { marginTop: 16 }]}>
+              <Text style={wdl.infoLabel}>Referred via</Text>
+              <Text style={wdl.infoValue}>{wa.howDidYouHear ?? '—'}</Text>
+            </View>
+            <View style={wdl.infoRow}>
+              <Text style={wdl.infoLabel}>Registered</Text>
+              <Text style={wdl.infoValue}>{fmtDateTime(user.createdAt)}</Text>
+            </View>
+            <View style={wdl.infoRow}>
+              <Text style={wdl.infoLabel}>Credit Used</Text>
+              <Text style={wdl.infoValue}>{wa.creditUsedCents ? `$${(wa.creditUsedCents / 100).toFixed(2)}` : '$0.00'}</Text>
+            </View>
           </View>
           {/* Status controls */}
           <View style={wdl.card}>

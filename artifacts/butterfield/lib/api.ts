@@ -529,6 +529,13 @@ export const api = {
     suspendWholesale:    (accountId: string, data: { isSuspended: boolean; suspendedReason?: string }) =>
       request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}/suspend`, { method: 'PATCH', body: JSON.stringify(data) }),
     updateWholesale:     (accountId: string, data: {
+      companyName?: string | null;
+      abn?: string | null;
+      contactName?: string | null;
+      phone?: string | null;
+      email?: string | null;
+      pricingTier?: string | null;
+      businessHours?: string | null;
       creditEnabled?: boolean;
       creditLimitCents?: number;
       creditNotes?: string | null;
