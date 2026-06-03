@@ -166,11 +166,13 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     CMD_BOLD_OFF,
     Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
     divider('='),
-    lf(3),
+    // Feed enough paper to clear the cutter head before issuing the cut.
+    // lf(5) + CMD_FEED_5MM ensures the last line is well past the blade.
+    lf(5),
     CMD_FEED_5MM,
-    lf(1),
+    // Single partial-cut command (GS V 0x41 n): widely supported on Epson-
+    // compatible 80mm printers. n=3 = feed 3 extra lines then partial cut.
     CMD_CUT,
-    CMD_FULL_CUT,
   );
 
   return Buffer.concat(parts);
@@ -195,7 +197,10 @@ export function printReceipt(
     const finish = (err?: Error) => {
       if (done) return;
       done = true;
-      socket.destroy();
+      // Destroy only if not already closed — do NOT call destroy() before the
+      // socket has fully flushed, or the cut command bytes at the end of the
+      // receipt buffer will be dropped mid-stream.
+      try { socket.destroy(); } catch {}
       if (err) reject(err); else resolve();
     };
 
@@ -205,11 +210,19 @@ export function printReceipt(
     );
 
     socket.connect(printerPort, printerIp, () => {
-      socket.write(receipt, (err) => {
+      socket.write(receipt, (writeErr) => {
         clearTimeout(timer);
-        finish(err ?? undefined);
+        if (writeErr) { finish(writeErr); return; }
+        // Graceful half-close: signals end-of-data to the printer and waits
+        // for the OS to flush the send buffer before tearing down the socket.
+        // This is critical — destroy() here would abort before the cut command
+        // bytes are transmitted.
+        socket.end();
       });
     });
+
+    // Resolve once the printer closes its end (receipt fully processed).
+    socket.on('close', () => finish());
 
     socket.on('error', (err) => {
       clearTimeout(timer);
