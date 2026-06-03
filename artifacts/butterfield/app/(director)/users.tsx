@@ -1938,16 +1938,13 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
-      {/* Page title */}
-      <View style={{ paddingHorizontal: 20, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 12, backgroundColor: BG }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>
+      {/* Page title + tab chips on same row */}
+      <View style={{ paddingHorizontal: 16, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 10, backgroundColor: BG, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 26, fontWeight: '700', color: TEXT }}>
           {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
         </Text>
-      </View>
-      {/* Tab bar + Add buttons */}
-      <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         {!dedicatedMode && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
             {TABS.map((t) => {
               const active = tab === t;
               return (
@@ -1960,10 +1957,13 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
         )}
-        {/* Quick-add strip — hidden on Customers tab (CRM handles its own controls) */}
-        {(dedicatedMode || tab !== 'Customers') && <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
+      </View>
+      {/* Add strip — only shown for Staff/Wholesale/POS, not Customers */}
+      {(dedicatedMode || tab !== 'Customers') && (
+      <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
           <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
           {(wholesaleMode || (!dedicatedMode && tab === 'Wholesale')) && (
             <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
@@ -1999,8 +1999,9 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
               <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
             </Pressable>
           )}
-        </View>}
+        </View>
       </View>
+      )}
       {!dedicatedMode && tab === 'Customers' ? (
         <CrmCustomersTab />
       ) : isLoading ? (
