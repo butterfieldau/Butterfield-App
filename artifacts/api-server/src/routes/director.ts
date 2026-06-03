@@ -328,7 +328,7 @@ router.get('/orders', async (req, res) => {
 
 router.patch('/orders/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, cancelReason } = req.body;
   const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
   const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
 
@@ -359,7 +359,11 @@ router.patch('/orders/:id/status', async (req, res) => {
   if (customerOrder) {
     if (!CUSTOMER_VALID.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
     const previousStatus = customerOrder.status;
-    const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() }).where(eq(ordersTable.id, id)).returning();
+    const setFields: Record<string, any> = { status, updatedAt: new Date() };
+    if ((status === 'cancelled' || status === 'refunded') && cancelReason) {
+      setFields.cancelReason = String(cancelReason).trim();
+    }
+    const [updated] = await db.update(ordersTable).set(setFields).where(eq(ordersTable.id, id)).returning();
     const msg = CUSTOMER_STATUS_MSG[status];
     if (msg) {
       notifyUser(customerOrder.userId, 'order_status', 'Butterfield Cookies', msg,
@@ -432,7 +436,11 @@ router.patch('/orders/:id/status', async (req, res) => {
     .from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
   if (wholesaleOrder) {
     if (!WHOLESALE_VALID.includes(status)) return res.status(400).json({ error: 'Invalid wholesale order status.' });
-    const [updated] = await db.update(wholesaleOrdersTable).set({ status, updatedAt: new Date() }).where(eq(wholesaleOrdersTable.id, id)).returning();
+    const wsSetFields: Record<string, any> = { status, updatedAt: new Date() };
+    if (status === 'cancelled' && cancelReason) {
+      wsSetFields.cancelReason = String(cancelReason).trim();
+    }
+    const [updated] = await db.update(wholesaleOrdersTable).set(wsSetFields).where(eq(wholesaleOrdersTable.id, id)).returning();
     const isCancelOrRefund = status === 'cancelled' || status === 'refunded';
     const wasAlreadyCancelledOrRefunded = wholesaleOrder.status === 'cancelled' || wholesaleOrder.status === 'refunded';
     if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded) {

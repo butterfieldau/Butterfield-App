@@ -394,7 +394,7 @@ export const api = {
     deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),
     restoreAccount:      (id: string) => request<{ success: boolean; data: DeletedAccount }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
     orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
-    updateOrderStatus:   (id: string, status: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
     staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`),
     updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
@@ -811,6 +811,21 @@ export interface ApiOrder {
   invoiceStatus?: string | null;
   invoiceDueDate?: string | null;
   stripeInvoiceId?: string | null;
+  cancelReason?: string | null;
+  orderSource?: string | null;
+  poReference?: string | null;
+  scheduledDate?: string | null;
+  deliveryType?: string | null;
+  street?: string | null;
+  suburb?: string | null;
+  postcode?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  companyAbn?: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  isPaid?: boolean | null;
 }
 
 export interface LiveContext {

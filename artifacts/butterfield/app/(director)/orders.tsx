@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -26,6 +26,8 @@ const BORDER      = '#E5E7EB';
 const GLASS_BG    = 'rgba(255,255,255,0.6)';
 const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
+const NAVY   = '#1A2B4A';
+const RED_CONST = '#DC2626';
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   received:         { bg: '#FEF9C3', text: '#854D0E' },
@@ -49,17 +51,18 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const CUSTOMER_NEXT: Record<string, string[]> = {
   received:         ['being_prepared', 'cancelled'],
-  being_prepared:   ['ready_for_pickup', 'cancelled'],
-  ready_for_pickup: ['completed', 'out_for_delivery'],
-  out_for_delivery: ['completed'],
+  being_prepared:   ['received', 'ready_for_pickup', 'cancelled'],
+  ready_for_pickup: ['being_prepared', 'out_for_delivery', 'completed', 'cancelled'],
+  out_for_delivery: ['ready_for_pickup', 'completed', 'cancelled'],
   completed: [], cancelled: [], refunded: [],
 };
 const WHOLESALE_NEXT: Record<string, string[]> = {
   pending:    ['processing', 'cancelled'],
-  processing: ['dispatched', 'cancelled'],
-  dispatched: ['delivered'],
+  processing: ['pending', 'dispatched', 'cancelled'],
+  dispatched: ['processing', 'delivered', 'cancelled'],
   delivered: [], cancelled: [],
 };
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const FILTER_TABS = [
   { key: 'all',              label: 'All' },
   { key: 'active',           label: 'Active' },
@@ -126,7 +129,7 @@ function getErrorMessage(error: unknown) {
 // ── Order Detail Modal ────────────────────────────────────────────────────────
 function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, onViewInvoice, printing, canCancelRefund }: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
-  onStatusChange: (id: string, status: string) => Promise<void>;
+  onStatusChange: (id: string, status: string, cancelReason?: string) => Promise<void>;
   onPrintReceipt: () => Promise<void>;
   onViewInvoice: () => Promise<void>;
   printing: boolean;
@@ -134,30 +137,63 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReasonText, setCancelReasonText] = useState('');
+  const [pendingStatus, setPendingStatus] = useState('');
+
   if (!order) return null;
   const isWholesale = order.orderSource === 'wholesale';
   const items = normalizeOrderItems(order.items);
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
-  // Filter cancel/refund from action list for non-directors (managers cannot cancel or refund)
+  const RED = '#DC2626';
+  const AMBER = '#F59E0B';
+
+  // 2-week cancellation window for completed/delivered orders
+  const withinCancelWindow = (Date.now() - new Date(order.updatedAt).getTime()) < TWO_WEEKS_MS;
   const rawNext = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
-  const next = canCancelRefund ? rawNext : rawNext.filter((s: string) => s !== 'cancelled' && s !== 'refunded');
+  const nextWithWindow = (
+    canCancelRefund &&
+    (order.status === 'completed' || order.status === 'delivered') &&
+    withinCancelWindow
+  ) ? ['cancelled'] : rawNext;
+  const next = canCancelRefund
+    ? nextWithWindow
+    : nextWithWindow.filter((s: string) => s !== 'cancelled' && s !== 'refunded');
+
+  const triggerCancel = (status: string) => {
+    setPendingStatus(status);
+    setCancelReasonText('');
+    setShowCancelModal(true);
+  };
+
   const handleChangeStatus = () => {
     if (next.length === 0) {
-      Alert.alert('Status', `This order is ${label} and cannot be advanced further.`); return;
+      Alert.alert('No Changes Available', `This order is ${label} and has no further status options.`); return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('Update Status', 'Move to:', [
       ...next.map(s => ({
         text: STATUS_LABEL[s] ?? s,
-        onPress: async () => {
-          setUpdating(true);
-          await onStatusChange(order.id, s);
-          setUpdating(false);
+        onPress: () => {
+          if (s === 'cancelled' || s === 'refunded') {
+            triggerCancel(s);
+          } else {
+            setUpdating(true);
+            onStatusChange(order.id, s).finally(() => setUpdating(false));
+          }
         },
       })),
-      { text: 'Cancel', style: 'cancel' as const },
+      { text: 'Dismiss', style: 'cancel' as const },
     ]);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelReasonText.trim()) return;
+    setShowCancelModal(false);
+    setUpdating(true);
+    await onStatusChange(order.id, pendingStatus, cancelReasonText.trim());
+    setUpdating(false);
   };
   const discountCents = order.discountCents ?? 0;
   const loyaltyUsed  = order.loyaltyPointsUsed ?? 0;
@@ -399,7 +435,79 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               </Text>
             </View>
           ) : null}
+          {order.cancelReason ? (
+            <View style={[styles.section, { backgroundColor: '#FEF2F2', borderRadius: 12, borderWidth: 1, borderColor: '#FECACA' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <Feather name="x-circle" size={14} color={RED} />
+                <Text style={[styles.sectionLabel, { color: RED }]}>Cancellation Reason</Text>
+              </View>
+              <Text style={{ color: '#7F1D1D', fontWeight: '400', fontSize: 14, lineHeight: 20 }}>
+                {order.cancelReason}
+              </Text>
+            </View>
+          ) : null}
         </ScrollView>
+
+        {/* ── Cancel Reason Modal ─────────────────────────────────────────── */}
+        <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="x-circle" size={18} color={RED} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
+                    {pendingStatus === 'refunded' ? 'Confirm Refund' : 'Cancel Order'}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>
+                    A reason is required before continuing.
+                  </Text>
+                </View>
+              </View>
+              <View>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.6, marginBottom: 8 }}>
+                  REASON FOR CANCELLATION *
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: cancelReasonText.trim() ? BORDER : '#FECACA',
+                    borderRadius: 12, padding: 14, fontSize: 15, color: TEXT,
+                    minHeight: 90, textAlignVertical: 'top',
+                  }}
+                  placeholder="e.g. Customer requested cancellation, item out of stock, duplicate order…"
+                  placeholderTextColor={MUTED}
+                  value={cancelReasonText}
+                  onChangeText={setCancelReasonText}
+                  multiline
+                  autoFocus
+                />
+                {!cancelReasonText.trim() && (
+                  <Text style={{ color: RED, fontSize: 12, marginTop: 4 }}>
+                    Please enter a reason to continue.
+                  </Text>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <Pressable
+                  style={{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER }}
+                  onPress={() => setShowCancelModal(false)}
+                >
+                  <Text style={{ color: TEXT, fontWeight: '600', fontSize: 15 }}>Go Back</Text>
+                </Pressable>
+                <Pressable
+                  style={[{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, { backgroundColor: cancelReasonText.trim() ? RED : '#FCA5A5' }]}
+                  onPress={handleConfirmCancel}
+                  disabled={!cancelReasonText.trim()}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>
+                    {pendingStatus === 'refunded' ? 'Confirm Refund' : 'Confirm Cancel'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -722,12 +830,12 @@ export default function DirectorOrdersScreen() {
     }
     return map;
   }, [statusFiltered]);
-  const handleStatusChange = async (orderId: string, status: string) => {
+  const handleStatusChange = async (orderId: string, status: string, cancelReason?: string) => {
     try {
-      await api.director.updateOrderStatus(orderId, status);
+      await api.director.updateOrderStatus(orderId, status, cancelReason);
       await qc.invalidateQueries({ queryKey: ['director-orders'] });
       await qc.invalidateQueries({ queryKey: ['director-stats'] });
-      setSelectedOrder((prev) => prev ? { ...prev, status } : null);
+      setSelectedOrder((prev) => prev ? { ...prev, status, ...(cancelReason ? { cancelReason } : {}) } : null);
       if (status === 'ready_for_pickup') {
         const order = allOrders.find((o) => o.id === orderId) ?? selectedOrder;
         if (order) {
@@ -767,7 +875,7 @@ export default function DirectorOrdersScreen() {
         await Print.printAsync({ uri });
       }
     } catch (error) {
-      Alert.alert('Invoice Unavailable', getErrorMessage(error, 'Could not generate the invoice right now.'));
+      Alert.alert('Invoice Unavailable', getErrorMessage(error));
     }
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
