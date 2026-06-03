@@ -139,7 +139,7 @@ function MetricCard({ label, value, icon, color, sub, onPress }: {
   return (
     <Pressable
       onPress={() => { if (onPress) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); } }}
-      style={[ds.metricCard, { borderLeftColor: color }]}
+      style={ds.metricCard}
     >
       <View style={[ds.metricIcon, { backgroundColor: color + '18' }]}>
         <Feather name={icon as any} size={18} color={color} />
@@ -368,7 +368,7 @@ function SegmentsTab({ segments, isLoading, onRefresh, refreshing, onViewSegment
         renderItem={({ item: seg }) => (
           <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onViewSegment(seg.key); }}
-            style={[ds.segCard, { borderLeftColor: seg.color }]}
+            style={ds.segCard}
           >
             <View style={[ds.segIcon, { backgroundColor: seg.color + '18' }]}>
               <Feather name={seg.icon as any} size={20} color={seg.color} />
@@ -1566,7 +1566,8 @@ const ds = StyleSheet.create({
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metricCard: {
     width: '47.5%', backgroundColor: CARD, borderRadius: 14, padding: 14,
-    borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 1, gap: 4,
   },
   metricIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
@@ -1586,7 +1587,7 @@ const ds = StyleSheet.create({
 
   segCard: {
     backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER,
-    borderLeftWidth: 3, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
   },
   segIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   segLabel:      { fontSize: 15, fontWeight: '700', color: TEXT },
