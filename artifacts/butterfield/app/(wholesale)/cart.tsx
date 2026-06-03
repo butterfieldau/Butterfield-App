@@ -837,7 +837,7 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                               <View style={{ flex: 1 }}>
                                 <View style={cs.savedMethodHeader}>
                                   <Text style={[cs.savedMethodBrand, selected && { color: BLUE }]}>
-                                    {(savedMethod.brand ?? savedMethod.cardBrand).toUpperCase()} ending in {savedMethod.last4}
+                                    {(savedMethod.brand).toUpperCase()} ending in {savedMethod.last4}
                                   </Text>
                                   {savedMethod.isDefault && (
                                     <View style={cs.defaultBadge}>

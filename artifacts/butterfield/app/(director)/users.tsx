@@ -177,7 +177,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   const handleAddAssignment = () => {
     const activeStores = allStores.filter(s => s.status !== 'closed');
     const assigned = staffAssignments.map(a => a.storeId);
-    const available = activeStores.filter(s => !assigned.includes(s.storeId ?? s.id));
+    const available = activeStores.filter(s => !assigned.includes(s.id));
     if (available.length === 0) {
       Alert.alert('No stores', 'All active stores are already assigned, or no stores are configured.');
       return;
@@ -555,7 +555,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                       {leaveRequests.map((lr, idx) => {
                         const sc = LEAVE_STATUS_COLORS[lr.status] ?? { bg: '#F3F4F6', text: MUTED };
                         const isPending = lr.status === 'pending';
-                        const leaveType = lr.leaveType?.replace('_', ' ') ?? 'leave';
+                        const leaveType = lr.type?.replace('_', ' ') ?? 'leave';
                         return (
                           <View key={lr.id} style={[sp_s.leaveRow, idx < leaveRequests.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                             <View style={{ flex: 1, gap: 2 }}>
@@ -876,7 +876,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       setPayTerms(wa.paymentTerms ?? '');
       setDeliveryAddr(wa.deliveryAddress ?? '');
       setDeliveryFeeAud(wa.deliveryFeeCents ? String(wa.deliveryFeeCents / 100) : '');
-      setMinOrderAud((wa.minimumOrderCents ?? wa.minOrderCents) ? String((wa.minimumOrderCents ?? wa.minOrderCents) / 100) : '');
+      setMinOrderAud((wa.minimumOrderCents ?? wa.minOrderCents) ? String((wa.minimumOrderCents ?? wa.minOrderCents ?? 0) / 100) : '');
       setAccountMgrName(wa.accountManager ?? '');
       setAccountMgrPhone(wa.accountManagerPhone ?? '');
       setAccountMgrEmail(wa.accountManagerEmail ?? '');
@@ -1511,7 +1511,7 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
 
   const { data: assignData, refetch: refetchAssignments } = useQuery({
     queryKey: ['director-shop-display-assignments', user?.id],
-    queryFn: () => api.director.staffAssignments(user.id),
+    queryFn: () => api.director.staffAssignments(user!.id),
     enabled: visible && !!user?.id,
   });
   const { data: storesData } = useQuery({
@@ -1655,7 +1655,7 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
               </Pressable>
             ))}
           </View>
-          <View style={[styles.card, { gap: 10 }]}>
+          <View style={[wdl.card, { gap: 10 }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>Assigned Stores</Text>
               <Pressable onPress={handleAddAssignment} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
@@ -2032,7 +2032,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                 )}
                 {u.role === 'shop_display' && (
                   <Pressable
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedShopDisplayUser(u); }}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedShopDisplayUser(u as unknown as ShopDisplayUser); }}
                     style={[styles.subRow, { borderTopColor: BORDER }]}
                   >
                     <View style={{ flex: 1, gap: 2 }}>

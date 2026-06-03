@@ -695,7 +695,7 @@ function PaymentStepWithStripe({
               <View style={psStyles.saveCardRowCompact}>
                 <View style={{ flex: 1 }}>
                   <Text style={psStyles.saveCardLabel}>Remember card for next time</Text>
-                  <Text style={psStyles.saveCardSub}>
+                  <Text style={psStyles.savedCardSub}>
                     Stored securely by Stripe for quicker checkout next time.
                   </Text>
                 </View>
@@ -1456,7 +1456,7 @@ function CartContent() {
                       onPress={() => {
                         clearCart();
                         router.dismissAll();
-                        router.replace('/(tabs)/profile');
+                        router.replace('/(tabs)/profile' as any);
                         setTimeout(() => {
                           router.push('/orders');
                         }, 0);

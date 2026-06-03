@@ -214,7 +214,7 @@ export default function DirectorPricing() {
   const openNewBreak  = () => { setBreakForm(EMPTY_BREAK);  setBreakModal(true); };
   const openEditBreak = (b: QuantityPriceBreak) => {
     setBreakForm({
-      id: b.id, productId: b.productId, scope: b.scope ?? 'tier',
+      id: b.id, productId: b.productId, scope: (b.scope ?? 'tier') as 'tier' | 'customer',
       tierId: b.tierId ?? '', customerId: b.customerId ?? '',
       minQty: String(b.minQty),
       unitPrice: b.unitPriceCents ? (b.unitPriceCents / 100).toFixed(2) : '',
@@ -281,7 +281,7 @@ export default function DirectorPricing() {
                 <View style={{ flex: 1, gap: 4 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Text style={styles.cardTitle}>{t.name}</Text>
-                    <StatusBadge status={t.status} />
+                    <StatusBadge status={t.status ?? ''} />
                   </View>
                   {!!t.description && <Text style={styles.cardSub} numberOfLines={2}>{t.description}</Text>}
                   <Text style={styles.cardMeta}>
@@ -327,7 +327,7 @@ export default function DirectorPricing() {
                     {b.minQty}+ units → ${(b.unitPriceCents / 100).toFixed(2)} each
                   </Text>
                   <Text style={styles.cardMeta}>
-                    {b.scope === 'tier' ? `Tier: ${tierName(b.tierId)}` : `Customer: ${userLabel(b.customerId)}`}
+                    {b.scope === 'tier' ? `Tier: ${tierName(b.tierId ?? null)}` : `Customer: ${userLabel(b.customerId ?? '')}`}
                     {!b.isActive && ' · Inactive'}
                   </Text>
                 </View>
@@ -410,7 +410,7 @@ export default function DirectorPricing() {
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 <Pressable
-                  onPress={() => handleAssignTier(wa.id, null)}
+                  onPress={() => handleAssignTier(wa?.id ?? '', null)}
                   style={[styles.assignChip, {
                     backgroundColor: !currentTier ? NAVY : '#F3F4F6',
                     borderColor:     !currentTier ? NAVY : BORDER,
@@ -422,7 +422,7 @@ export default function DirectorPricing() {
                   const active = currentTier === t.id;
                   return (
                     <Pressable key={t.id}
-                      onPress={() => handleAssignTier(wa.id, t.id)}
+                      onPress={() => handleAssignTier(wa?.id ?? '', t.id)}
                       style={[styles.assignChip, {
                         backgroundColor: active ? BLUE : '#F3F4F6',
                         borderColor:     active ? BLUE : BORDER,

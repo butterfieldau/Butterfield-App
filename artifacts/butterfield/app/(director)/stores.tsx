@@ -33,14 +33,14 @@ const PURPLE = '#8B5CF6';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const STATUS_OPTIONS = [
+type StoreStatus = 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';
+const STATUS_OPTIONS: Array<{ value: StoreStatus; label: string; color: string }> = [
   { value: 'open',               label: 'Open',               color: GREEN  },
   { value: 'coming_soon',        label: 'Coming Soon',        color: BLUE   },
   { value: 'temporarily_closed', label: 'Temporarily Closed', color: AMBER  },
   { value: 'closed',             label: 'Closed',             color: RED    },
 ];
 const STORE_EDITOR_TABS = ['Details', 'Hours', 'Geofence', 'Printer', 'Notes'] as const;
-type StoreStatus = 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';
 
 function statusColor(status: string) {
   return STATUS_OPTIONS.find(s => s.value === status)?.color ?? MUTED;
@@ -92,7 +92,7 @@ function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
 // ── StoreCard ────────────────────────────────────────────────────────────────
 function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => void }) {
   const isPendingDeletion = !!store.deletedAt;
-  const sc = isPendingDeletion ? RED : statusColor(store.status);
+  const sc = isPendingDeletion ? RED : statusColor(store.status ?? '');
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -106,7 +106,7 @@ function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => voi
           </Text>
         </View>
         <View style={[s.badge, { backgroundColor: sc + '18' }]}>
-          <Text style={[s.badgeText, { color: sc }]}>{isPendingDeletion ? 'Pending Delete' : statusLabel(store.status)}</Text>
+          <Text style={[s.badgeText, { color: sc }]}>{isPendingDeletion ? 'Pending Delete' : statusLabel(store.status ?? '')}</Text>
         </View>
         <Feather name="chevron-right" size={16} color={MUTED} />
       </View>
@@ -205,7 +205,7 @@ function StoreEditorModal({
       setEmail(store.email ?? '');
       setWebsite(store.website ?? '');
       setImageUrl(store.imageUrl ?? '');
-      setStatus(store.status ?? 'open');
+      setStatus((store.status ?? 'open') as StoreStatus);
       setPickupAvailable(store.pickupAvailable ?? true);
       setDeliveryAvailable(store.deliveryAvailable ?? false);
       setPublicNotes(store.publicNotes ?? '');

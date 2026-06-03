@@ -1527,7 +1527,7 @@ export default function DirectorProductsScreen() {
       },
       {
         text: product.isActive ? 'Archive' : 'Restore',
-        style: product.isActive ? 'destructive' : 'default',
+        style: (product.isActive ? 'destructive' : 'default') as 'destructive' | 'default',
         onPress: () => product.isActive ? handleArchive(product) : handleRestore(product),
       },
       { text: 'Cancel', style: 'cancel' as const },

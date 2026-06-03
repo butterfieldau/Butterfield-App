@@ -193,10 +193,10 @@ export default function ShopDisplayOrdersScreen() {
 
   const filteredRows = useMemo(() => {
     if (queueMode === 'completed') {
-      return dateFilteredRows.filter((order) => COMPLETED_STATUSES.includes(order.status));
+      return dateFilteredRows.filter((order) => COMPLETED_STATUSES.includes(order.status as (typeof COMPLETED_STATUSES)[number]));
     }
     if (queueMode === 'cancelled') {
-      return dateFilteredRows.filter((order) => CANCELLED_STATUSES.includes(order.status));
+      return dateFilteredRows.filter((order) => CANCELLED_STATUSES.includes(order.status as (typeof CANCELLED_STATUSES)[number]));
     }
     return dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number]));
   }, [dateFilteredRows, queueMode]);
@@ -216,8 +216,8 @@ export default function ShopDisplayOrdersScreen() {
 
   const queueCounts = useMemo(() => ({
     active: dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number])).length,
-    completed: dateFilteredRows.filter((order) => COMPLETED_STATUSES.includes(order.status)).length,
-    cancelled: dateFilteredRows.filter((order) => CANCELLED_STATUSES.includes(order.status)).length,
+    completed: dateFilteredRows.filter((order) => COMPLETED_STATUSES.includes(order.status as (typeof COMPLETED_STATUSES)[number])).length,
+    cancelled: dateFilteredRows.filter((order) => CANCELLED_STATUSES.includes(order.status as (typeof CANCELLED_STATUSES)[number])).length,
   }), [dateFilteredRows]);
 
   const ordersByDate = useMemo(() => {

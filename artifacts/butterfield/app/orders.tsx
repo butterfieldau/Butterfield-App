@@ -424,7 +424,7 @@ function CustomerOrdersContent() {
       router.back();
       return;
     }
-    router.replace('/(tabs)/profile');
+    router.replace('/(tabs)/profile' as any);
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>

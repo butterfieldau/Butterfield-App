@@ -80,7 +80,7 @@ export function normalizeOrderItems(value: unknown): NormalizedOrderItem[] {
         isFreeReward: Boolean(item.isFreeReward),
       } satisfies NormalizedOrderItem;
     })
-    .filter((item): item is NormalizedOrderItem => item !== null);
+    .filter((item) => item !== null) as NormalizedOrderItem[];
 }
 
 export function summarizeOrderItems(items: NormalizedOrderItem[], limit = 3): string {

@@ -427,7 +427,7 @@ export const api = {
     storesList:      () => request<{ data: StoreSummary[] }>('/director/stores'),
     storeDetail:     (id: string) => request<{ data: StoreDetail }>(`/director/stores/${id}`),
     createStore:     (data: StoreInput) => request<{ data: StoreDetail }>('/director/stores', { method: 'POST', body: JSON.stringify(data) }),
-    updateStore:     (id: string, data: StoreInput) => request<{ data: StoreDetail }>(`/director/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    updateStore:     (id: string, data: Partial<StoreInput>) => request<{ data: StoreDetail }>(`/director/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteStore:     (id: string) => request<{ success: boolean }>(`/director/stores/${id}`, { method: 'DELETE' }),
     restoreStore:    (id: string) => request<{ success: boolean; data: StoreDetail }>(`/director/stores/${id}/restore`, { method: 'POST' }),
     storeHours:      (id: string) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`),
@@ -451,7 +451,7 @@ export const api = {
       request<{ success: boolean }>('/director/wholesale-delivery-settings', { method: 'PATCH', body: JSON.stringify(data) }),
     products:            () => request<{ data: DirectorCatalogProduct[] }>('/director/products'),
     createProduct:       (data: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
-    updateProduct:       (id: string, updates: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+    updateProduct:       (id: string, updates: Partial<DirectorProductInput>) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
@@ -783,7 +783,7 @@ export interface ApiProduct {
   description: string;
   active?: boolean;
   images?: string[];
-  galleryUrls?: string[];
+  galleryUrls?: string[] | string | null;
   productUrl?: string | null;
   shortDescription?: string | null;
   ingredients?: string | null;
@@ -868,6 +868,7 @@ export interface LoyaltyProfile {
   preferredStoreId?: string | null;
   customerName?: string;
   customerEmail?: string;
+  birthday?: string | null;
   loyaltyPoints: number;
   loyaltyTier: string;
   stampCount: number;
@@ -1185,6 +1186,7 @@ export interface DirectorAnnouncement {
   id: string;
   title: string;
   body: string;
+  message?: string | null;
   targetRoles: string[];
   isActive: boolean;
   isPinned: boolean;
@@ -1420,6 +1422,7 @@ export interface ApiOrderItem {
   category?: string | null;
   metadata?: Record<string, string | null | undefined> | null;
   variantName?: string | null;
+  basePriceCents?: number | null;
   unitPriceCents?: number;
   totalPriceCents?: number;
   imageUrl?: string | null;
@@ -1444,6 +1447,7 @@ export interface StaffStoreAssignment {
   isPrimary: boolean;
   isActive?: boolean;
   storeName?: string | null;
+  storeSuburb?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1614,6 +1618,7 @@ export interface WholesaleAccount {
   suspendedReason?: string | null;
   customPricingEnabled?: boolean;
   businessHours?: string | null;
+  creditUsedCents?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1826,7 +1831,17 @@ export interface DirectorUserSummary {
   role: string;
   phone?: string | null;
   status?: string | null;
+  createdAt?: string;
+  lastLogin?: string | null;
+  profileImage?: string | null;
+  notes?: string | null;
+  permissions?: string[] | null;
   wholesaleAccount?: WholesaleAccount | null;
+  staffProfile?: {
+    position?: string | null;
+    department?: string | null;
+    approvedByAdmin?: boolean;
+  } | null;
 }
 
 export interface DirectorStaffMember extends DirectorUserSummary {
@@ -1974,6 +1989,7 @@ export interface DirectorProductInput {
   wholesalePriceCents?: number | null;
   sku?: string | null;
   isActive?: boolean;
+  isAvailable?: boolean;
   isFeatured?: boolean;
   isSoldOut?: boolean;
 }

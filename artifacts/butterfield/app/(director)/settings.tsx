@@ -78,7 +78,7 @@ export function BannerTab() {
     queryKey: ['director-home-banner'],
     queryFn:  () => api.director.homeBanner(),
   });
-  const banner: HomeBannerConfig | undefined = data?.data;
+  const banner: HomeBannerConfig | null | undefined = data?.data;
 
   const [isActive,        setIsActive]        = useState(false);
   const [imageUrl,        setImageUrl]        = useState('');

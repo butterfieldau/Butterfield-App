@@ -303,8 +303,8 @@ export default function ProductDetailScreen() {
           groupId: g.id, groupName: g.name,
           optionId: o.id, optionName: o.name,
           priceAdjustmentCents: o.priceAdjustmentCents ?? 0,
-        } : null;
-      }).filter((value): value is SelectedCartOption => value !== null));
+        } as SelectedCartOption : null;
+      }).filter(v => v !== null) as SelectedCartOption[]);
 
     addItemToCart({
       productId:      product.id,
@@ -515,7 +515,7 @@ export default function ProductDetailScreen() {
                           return (
                             <Pressable
                               key={opt.id}
-                              onPress={() => toggleOption(g.id, opt.id, g.selectionType)}
+                              onPress={() => toggleOption(g.id, opt.id ?? '', g.selectionType ?? '')}
                               style={[s.optionCard,
                                 isSize && { flexBasis: '30%' },
                                 active
