@@ -53,6 +53,8 @@ const directorStandaloneScreenOptions = {
   headerShown: false,
   animation: "slide_from_right" as const,
   gestureEnabled: true,
+  fullScreenGestureEnabled: false,
+  gestureDirection: "horizontal" as const,
 };
 
 function RootLayoutNav() {
@@ -62,6 +64,8 @@ function RootLayoutNav() {
         headerShown: false,
         animation: "slide_from_right",
         gestureEnabled: true,
+        fullScreenGestureEnabled: false,
+        gestureDirection: "horizontal",
       }}
     >
       <Stack.Screen name="welcome" options={{ headerShown: false, animation: "fade" }} />

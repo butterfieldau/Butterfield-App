@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Redirect, router, Tabs } from 'expo-router';
+import { Href, Redirect, router, Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +23,23 @@ const STAFF_TAB_CONFIG = {
   profile:  { icon: 'user',         title: 'Profile'   },
   more:     { icon: 'grid',         title: 'More'      },
 } as const;
+
+const DIRECTOR_ROOT_TAB_PATHS = {
+  index: '/(director)',
+  orders: '/(director)/orders',
+  users: '/(director)/users',
+  products: '/(director)/products',
+  more: '/(director)/more',
+} satisfies Record<string, Href>;
+
+function rootTabListeners(path: Href) {
+  return {
+    tabPress: (event: { preventDefault: () => void }) => {
+      event.preventDefault();
+      router.replace(path);
+    },
+  };
+}
 
 export default function DirectorLayout() {
   const { logout, user } = useAuth();
@@ -168,15 +185,20 @@ export default function DirectorLayout() {
         }}
       >
         <Tabs.Screen name="index"
-          options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
+          listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.index)}
+          options={{ title: 'Home', href: DIRECTOR_ROOT_TAB_PATHS.index, tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
         <Tabs.Screen name="orders"
-          options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
+          listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.orders)}
+          options={{ title: 'Orders', href: DIRECTOR_ROOT_TAB_PATHS.orders,  tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
         <Tabs.Screen name="users"
-          options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
+          listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.users)}
+          options={{ title: 'People', href: DIRECTOR_ROOT_TAB_PATHS.users,  tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
         <Tabs.Screen name="products"
-          options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"       size={size} color={color} /> }} />
+          listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.products)}
+          options={{ title: 'Products', href: DIRECTOR_ROOT_TAB_PATHS.products, tabBarIcon: ({ color, size }) => <Feather name="package"       size={size} color={color} /> }} />
         <Tabs.Screen name="more"
-          options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
+          listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.more)}
+          options={{ title: 'More', href: DIRECTOR_ROOT_TAB_PATHS.more,    tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
         <Tabs.Screen name="scan"             options={{ href: null }} />
         <Tabs.Screen name="tasks"            options={{ href: null }} />
