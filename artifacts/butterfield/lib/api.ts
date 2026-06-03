@@ -617,14 +617,44 @@ export const api = {
 
     // CRM — Customer profiles
     customers: {
-      list:         (params?: { search?: string; filter?: string }) => {
+      list:         (params?: {
+        search?: string; filter?: string; segment?: string;
+        searchOrders?: string;
+        dateFrom?: string; dateTo?: string;
+        minSpendCents?: number; maxSpendCents?: number;
+        minOrders?: number; maxOrders?: number;
+        lastOrderFrom?: string; lastOrderTo?: string;
+      }) => {
         const qs = new URLSearchParams();
-        if (params?.search) qs.set('search', params.search);
-        if (params?.filter) qs.set('filter', params.filter);
+        if (params?.search)          qs.set('search', params.search);
+        if (params?.filter)          qs.set('filter', params.filter);
+        if (params?.segment)         qs.set('segment', params.segment);
+        if (params?.searchOrders)    qs.set('searchOrders', params.searchOrders);
+        if (params?.dateFrom)        qs.set('dateFrom', params.dateFrom);
+        if (params?.dateTo)          qs.set('dateTo', params.dateTo);
+        if (params?.minSpendCents != null) qs.set('minSpendCents', String(params.minSpendCents));
+        if (params?.maxSpendCents != null) qs.set('maxSpendCents', String(params.maxSpendCents));
+        if (params?.minOrders != null)     qs.set('minOrders', String(params.minOrders));
+        if (params?.maxOrders != null)     qs.set('maxOrders', String(params.maxOrders));
+        if (params?.lastOrderFrom)   qs.set('lastOrderFrom', params.lastOrderFrom);
+        if (params?.lastOrderTo)     qs.set('lastOrderTo', params.lastOrderTo);
         return request<{ data: CrmCustomer[] }>(`/director/customers${qs.toString() ? `?${qs}` : ''}`);
       },
       insights:     () => request<{ data: CrmInsights }>('/director/customers/insights'),
+      segments:     () => request<{ data: CrmSegment[] }>('/director/customers/segments'),
       get:          (id: string) => request<{ data: CrmCustomerDetail }>(`/director/customers/${id}`),
+      timeline:     (id: string, params?: { limit?: number; offset?: number }) => {
+        const qs = new URLSearchParams();
+        if (params?.limit  != null) qs.set('limit',  String(params.limit));
+        if (params?.offset != null) qs.set('offset', String(params.offset));
+        return request<{ data: CrmTimelineEvent[]; total: number; offset: number; limit: number }>(
+          `/director/customers/${id}/timeline${qs.toString() ? `?${qs}` : ''}`
+        );
+      },
+      adjustStamps: (id: string, amount: number, reason: string) =>
+        request<{ ok: boolean; newStampCount: number }>(`/director/customers/${id}/stamps/adjust`, { method: 'POST', body: JSON.stringify({ amount, reason }) }),
+      notify:       (id: string, title: string, body: string) =>
+        request<{ ok: boolean }>(`/director/customers/${id}/notify`, { method: 'POST', body: JSON.stringify({ title, body }) }),
       update:           (id: string, data: { name?: string; phone?: string | null; email?: string; status?: string; birthday?: string | null; payAtPickupEnabled?: boolean }) =>
         request<{ data: CrmCustomer }>(`/director/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
       promote:          (id: string, role: 'staff' | 'manager' | 'director' | 'master', accessRole?: AccessRole) =>
@@ -641,6 +671,8 @@ export const api = {
         request<{ data: CrmBadge }>(`/director/customers/${id}/badges`, { method: 'POST', body: JSON.stringify({ badge, note }) }),
       deleteBadge:  (id: string, badgeId: string) =>
         request<{ ok: boolean }>(`/director/customers/${id}/badges/${badgeId}`, { method: 'DELETE' }),
+      segmentNotify: (segment: string, title: string, body: string) =>
+        request<{ ok: boolean; sent: number }>(`/director/customers/segments/${segment}/notify`, { method: 'POST', body: JSON.stringify({ title, body }) }),
     },
 
     // Manager management (director/master)
@@ -1295,9 +1327,32 @@ export interface CrmCustomer {
 
 export interface CrmInsights {
   totalCustomers: number;
+  newThisMonth: number;
   newThisWeek: number;
   totalWholesale: number;
+  repeatCustomers: number;
+  inactiveCount: number;
+  vipCount: number;
+  rewardsMemberCount: number;
+  coffeeStampUserCount: number;
+  avgSpendCents: number;
   topSpenders: { userId: string; name: string; totalSpentCents: number; totalVisits: number }[];
+}
+
+export interface CrmSegment {
+  key: string;
+  label: string;
+  count: number;
+  icon: string;
+  color: string;
+  description: string;
+}
+
+export interface CrmTimelineEvent {
+  type: 'order' | 'loyalty' | 'stamp' | 'notification' | 'note';
+  date: string;
+  summary: string;
+  meta: Record<string, any>;
 }
 
 export interface CrmNote {

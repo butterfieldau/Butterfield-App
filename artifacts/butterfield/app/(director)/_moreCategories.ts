@@ -143,10 +143,9 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Customers',
         items: [
+          { icon: 'user-check', label: 'Customers / CRM',    sub: 'Profiles, notes, tags, timeline & actions', color: BLUE,   perm: 'users', onPress: () => router.push('/director-crm' as any) },
           { icon: 'user-check', label: 'Customer Profiles',  sub: 'Search, view & manage customers',        color: BLUE,   perm: 'users', onPress: () => router.push('/director-customer-profiles' as any) },
-          { icon: 'book',       label: 'CRM',                sub: 'Notes, tags & customer history',         color: PURPLE, perm: 'users', soon: true },
           { icon: 'award',      label: 'Loyalty History',    sub: 'Points, stamps & redemptions per user',  color: AMBER,  perm: 'users', soon: true },
-          { icon: 'edit-3',     label: 'Customer Notes',     sub: 'Internal notes on customer accounts',    color: TEAL,   perm: 'users', soon: true },
         ],
       },
       {

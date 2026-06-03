@@ -136,8 +136,10 @@ export default function DirectorLayout() {
           {/* Permission-gated screens: accessible for managers with the right perm, always blocked for staff */}
           <Tabs.Screen name="products"         options={{ href: mgrHref('products')  }} />
           <Tabs.Screen name="users"            options={{ href: mgrHref('users')     }} />
-          <Tabs.Screen name="customers"        options={{ href: mgrHref('users')     }} />
-          <Tabs.Screen name="reports"          options={{ href: mgrHref('reports')   }} />
+          <Tabs.Screen name="customers"                  options={{ href: mgrHref('users')     }} />
+          <Tabs.Screen name="director-crm"             options={{ href: mgrHref('users')     }} />
+          <Tabs.Screen name="director-customer-profiles" options={{ href: mgrHref('users')   }} />
+          <Tabs.Screen name="reports"                  options={{ href: mgrHref('reports')   }} />
           <Tabs.Screen name="timesheets"       options={{ href: mgrHref('timesheets') }} />
           <Tabs.Screen name="stock"            options={{ href: mgrHref('stock')     }} />
           <Tabs.Screen name="pricing"          options={{ href: mgrHref('pricing')   }} />
@@ -206,8 +208,10 @@ export default function DirectorLayout() {
         <Tabs.Screen name="profile"          options={{ href: null }} />
         <Tabs.Screen name="stock"            options={{ href: null }} />
         <Tabs.Screen name="_staff-dashboard" options={{ href: null }} />
-        <Tabs.Screen name="customers"        options={{ href: null }} />
-        <Tabs.Screen name="pricing"          options={{ href: null }} />
+        <Tabs.Screen name="customers"                    options={{ href: null }} />
+        <Tabs.Screen name="director-crm"               options={{ href: null }} />
+        <Tabs.Screen name="director-customer-profiles" options={{ href: null }} />
+        <Tabs.Screen name="pricing"                    options={{ href: null }} />
         <Tabs.Screen name="discounts"        options={{ href: null }} />
         <Tabs.Screen name="reports"          options={{ href: null }} />
         <Tabs.Screen name="timesheets"       options={{ href: null }} />
