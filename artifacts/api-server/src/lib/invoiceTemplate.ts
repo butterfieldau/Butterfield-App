@@ -64,184 +64,186 @@ export function buildInvoiceHtml(data: InvoiceData): string {
   const gstCents      = Math.round(subtotalCents / 11);
   const exclGstCents  = subtotalCents - gstCents;
   const totalCents    = data.totalCents || subtotalCents;
+  const invNum        = data.invoiceNumber ?? 'DRAFT';
+  const terms         = data.paymentTerms ?? 'Net 30 days';
 
-  const invNum = data.invoiceNumber ?? 'DRAFT';
-
-  const lineRows = data.items.map(item => `
-    <tr>
-      <td style="padding:14px 18px;color:#1C1C1E;font-size:14px;border-bottom:1px solid #F3F4F6;">${item.description}</td>
-      <td style="padding:14px 18px;color:#6B7280;font-size:14px;text-align:center;border-bottom:1px solid #F3F4F6;">${item.qty}</td>
-      <td style="padding:14px 18px;color:#6B7280;font-size:14px;text-align:right;border-bottom:1px solid #F3F4F6;">${fmt(item.unitCents)}</td>
-      <td style="padding:14px 18px;color:#1C1C1E;font-size:14px;text-align:right;font-weight:600;border-bottom:1px solid #F3F4F6;">${fmt(item.qty * item.unitCents)}</td>
-    </tr>
-  `).join('');
+  const lineRows = data.items.map((item, idx) => {
+    const isLast = idx === data.items.length - 1;
+    const border = isLast ? '' : 'border-bottom:1px solid #F0F2F5;';
+    return `<tr>
+      <td style="padding:8px 12px;font-size:12px;color:#1C1C1E;${border}">${item.description}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#6B7280;text-align:center;${border}">${item.qty}</td>
+      <td style="padding:8px 12px;font-size:12px;color:#6B7280;text-align:right;${border}">${fmt(item.unitCents)}</td>
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#1C1C1E;text-align:right;${border}">${fmt(item.qty * item.unitCents)}</td>
+    </tr>`;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Tax Invoice ${invNum}</title>
   <style>
+    @page { margin: 0.6cm; size: A4; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: #EAEFF5;
       font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 12px;
       color: #1C1C1E;
+      background: #EAEFF5;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     .page {
-      max-width: 800px;
-      margin: 32px auto;
+      max-width: 780px;
+      margin: 20px auto;
       background: #fff;
-      border-radius: 16px;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 4px 40px rgba(0,0,0,0.12);
+      box-shadow: 0 4px 32px rgba(0,0,0,0.10);
     }
     @media print {
-      body { background: #fff; }
+      body { background: #fff; margin: 0; }
       .page { margin: 0; border-radius: 0; box-shadow: none; max-width: 100%; }
     }
-    @media (max-width: 600px) { .page { margin: 0; border-radius: 0; } }
   </style>
 </head>
 <body>
 <div class="page">
 
   <!-- HEADER -->
-  <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:32px 40px 28px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;">
+  <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:16px 24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <div>
-        <img src="${LOGO_WHITE}" alt="Butterfield" style="height:48px;display:block;max-width:260px;object-fit:contain;">
-        <div style="color:rgba(255,255,255,0.45);font-size:11px;letter-spacing:2px;margin-top:8px;text-transform:uppercase;font-weight:500;">Cookies · Coffee · Desserts</div>
+        <img src="${LOGO_WHITE}" alt="Butterfield" style="height:34px;display:block;max-width:200px;object-fit:contain;">
+        <div style="color:rgba(255,255,255,0.4);font-size:9px;letter-spacing:1.8px;margin-top:5px;text-transform:uppercase;font-weight:500;">Cookies · Coffee · Desserts</div>
       </div>
       <div style="text-align:right;">
-        <div style="color:rgba(255,255,255,0.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;font-weight:600;">Tax Invoice</div>
-        <div style="color:#fff;font-size:28px;font-weight:800;letter-spacing:-0.5px;line-height:1;">${invNum}</div>
-        <div style="margin-top:10px;">${statusBadge(data.status)}</div>
+        <div style="color:rgba(255,255,255,0.45);font-size:9px;letter-spacing:1.8px;text-transform:uppercase;font-weight:600;margin-bottom:3px;">Tax Invoice</div>
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px;line-height:1;">${invNum}</div>
+        <div style="margin-top:6px;">${statusBadge(data.status)}</div>
       </div>
     </div>
   </div>
 
-  <!-- FROM / BILL TO -->
-  <div style="display:flex;border-bottom:1px solid #E5E7EB;flex-wrap:wrap;">
-    <div style="flex:1;min-width:220px;padding:28px 40px;border-right:1px solid #E5E7EB;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.8px;color:#9CA3AF;text-transform:uppercase;margin-bottom:12px;">From</div>
-      <div style="font-size:15px;font-weight:700;color:#1A2B4A;margin-bottom:6px;">Butterfield Cookies PTY LTD</div>
-      <div style="font-size:13px;color:#6B7280;line-height:1.8;">
+  <!-- FROM / BILL TO / DATES — single compact row -->
+  <div style="display:flex;border-bottom:1px solid #E5E7EB;">
+    <!-- From -->
+    <div style="flex:1;padding:12px 20px;border-right:1px solid #E5E7EB;">
+      <div style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px;">From</div>
+      <div style="font-size:12px;font-weight:700;color:#1A2B4A;margin-bottom:3px;">Butterfield Cookies PTY LTD</div>
+      <div style="font-size:11px;color:#6B7280;line-height:1.7;">
         2 Main Lane, Merrylands NSW 2160<br>
         ABN: 24 680 761 166<br>
-        accounts@butterfieldcookies.com.au<br>
-        0480 769 995
+        accounts@butterfieldcookies.com.au · 0480 769 995
       </div>
     </div>
-    <div style="flex:1;min-width:220px;padding:28px 40px;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.8px;color:#9CA3AF;text-transform:uppercase;margin-bottom:12px;">Bill To</div>
-      <div style="font-size:15px;font-weight:700;color:#1A2B4A;margin-bottom:6px;">${data.companyName}</div>
-      <div style="font-size:13px;color:#6B7280;line-height:1.8;">
-        ${data.abn ? `ABN: ${data.abn}<br>` : ''}${data.email ? `${data.email}<br>` : ''}${data.address ? `${data.address}<br>` : ''}${data.accountRef ? `<span style="color:#9CA3AF;font-size:12px;">Account ref: ${data.accountRef}</span>` : ''}
+    <!-- Bill To -->
+    <div style="flex:1;padding:12px 20px;border-right:1px solid #E5E7EB;">
+      <div style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px;">Bill To</div>
+      <div style="font-size:12px;font-weight:700;color:#1A2B4A;margin-bottom:3px;">${data.companyName}</div>
+      <div style="font-size:11px;color:#6B7280;line-height:1.7;">
+        ${data.abn ? `ABN: ${data.abn}<br>` : ''}${data.email ? `${data.email}<br>` : ''}${data.address ? `${data.address}<br>` : ''}${data.accountRef ? `Ref: ${data.accountRef}` : ''}
       </div>
+    </div>
+    <!-- Invoice details -->
+    <div style="flex:1;padding:12px 20px;">
+      <div style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:6px;">Invoice Details</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="font-size:10px;color:#9CA3AF;padding:1.5px 0;">Date</td>
+          <td style="font-size:11px;font-weight:600;color:#1C1C1E;text-align:right;padding:1.5px 0;">${fmtDate(data.invoiceDate)}</td>
+        </tr>
+        <tr>
+          <td style="font-size:10px;color:#9CA3AF;padding:1.5px 0;">Due</td>
+          <td style="font-size:11px;font-weight:600;color:#1C1C1E;text-align:right;padding:1.5px 0;">${fmtDate(data.dueDate)}</td>
+        </tr>
+        ${data.poReference ? `<tr>
+          <td style="font-size:10px;color:#9CA3AF;padding:1.5px 0;">PO&nbsp;Ref</td>
+          <td style="font-size:11px;font-weight:600;color:#1C1C1E;text-align:right;padding:1.5px 0;">${data.poReference}</td>
+        </tr>` : ''}
+        <tr>
+          <td style="font-size:10px;color:#9CA3AF;padding:1.5px 0;">Terms</td>
+          <td style="font-size:11px;font-weight:600;color:#1C1C1E;text-align:right;padding:1.5px 0;">${terms}</td>
+        </tr>
+      </table>
     </div>
   </div>
 
-  <!-- DATES -->
-  <div style="display:flex;background:#F8FAFC;border-bottom:1px solid #E5E7EB;flex-wrap:wrap;">
-    <div style="flex:1;min-width:140px;padding:16px 40px;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:4px;">Invoice Date</div>
-      <div style="font-size:14px;font-weight:600;color:#1C1C1E;">${fmtDate(data.invoiceDate)}</div>
-    </div>
-    <div style="flex:1;min-width:140px;padding:16px 40px;border-left:1px solid #E5E7EB;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:4px;">Due Date</div>
-      <div style="font-size:14px;font-weight:600;color:#1C1C1E;">${fmtDate(data.dueDate)}</div>
-    </div>
-    ${data.poReference ? `<div style="flex:1;min-width:140px;padding:16px 40px;border-left:1px solid #E5E7EB;"><div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:4px;">PO Reference</div><div style="font-size:14px;font-weight:600;color:#1C1C1E;">${data.poReference}</div></div>` : ''}
-    <div style="flex:1;min-width:180px;padding:16px 40px;border-left:1px solid #E5E7EB;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#9CA3AF;text-transform:uppercase;margin-bottom:4px;">Payment Terms</div>
-      <div style="font-size:14px;font-weight:600;color:#1C1C1E;">${data.paymentTerms ?? '30 days from invoice date'}</div>
-    </div>
-  </div>
-
-  <!-- LINE ITEMS -->
-  <div style="padding:28px 40px 0;">
-    <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #E5E7EB;">
+  <!-- LINE ITEMS TABLE -->
+  <div style="padding:14px 20px 0;">
+    <table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
       <thead>
         <tr style="background:linear-gradient(135deg,#1A2B4A,#0D1A2E);">
-          <th style="padding:13px 18px;text-align:left;color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;">Item Description</th>
-          <th style="padding:13px 18px;text-align:center;color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;width:70px;">Qty</th>
-          <th style="padding:13px 18px;text-align:right;color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;width:120px;">Unit Price</th>
-          <th style="padding:13px 18px;text-align:right;color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;width:150px;">Amount (incl. GST)</th>
+          <th style="padding:9px 12px;text-align:left;color:rgba(255,255,255,0.65);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Description</th>
+          <th style="padding:9px 12px;text-align:center;color:rgba(255,255,255,0.65);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;width:60px;">Qty</th>
+          <th style="padding:9px 12px;text-align:right;color:rgba(255,255,255,0.65);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;width:100px;">Unit Price</th>
+          <th style="padding:9px 12px;text-align:right;color:rgba(255,255,255,0.65);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;width:120px;">Amount (GST inc.)</th>
         </tr>
       </thead>
       <tbody>${lineRows}</tbody>
     </table>
   </div>
 
-  <!-- TOTALS -->
-  <div style="padding:20px 40px 28px;display:flex;justify-content:flex-end;">
-    <div style="width:300px;">
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F3F4F6;">
-        <span style="color:#6B7280;font-size:13px;">Subtotal (excl. GST)</span>
-        <span style="color:#1C1C1E;font-size:13px;font-weight:600;">${fmt(exclGstCents)}</span>
+  <!-- TOTALS + BANK — side by side -->
+  <div style="display:flex;padding:14px 20px;gap:16px;align-items:flex-start;">
+
+    <!-- Bank Transfer (left) -->
+    <div style="flex:1;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+      <div style="background:#F8FAFC;padding:7px 12px;border-bottom:1px solid #E5E7EB;">
+        <span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#6B7280;text-transform:uppercase;">Bank Transfer</span>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F3F4F6;">
-        <span style="color:#6B7280;font-size:13px;">GST (10%)</span>
-        <span style="color:#1C1C1E;font-size:13px;font-weight:600;">${fmt(gstCents)}</span>
+      <div style="padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;">
+        <div>
+          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Account Name</div>
+          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">Butterfield Cookies PTY LTD</div>
+        </div>
+        <div>
+          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">ABN</div>
+          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">24 680 761 166</div>
+        </div>
+        <div>
+          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">BSB</div>
+          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">067 873</div>
+        </div>
+        <div>
+          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Account Number</div>
+          <div style="font-size:11px;font-weight:700;color:#1A2B4A;">1465 8181</div>
+        </div>
+        <div style="grid-column:1/-1;">
+          <div style="font-size:8.5px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px;">Payment Reference</div>
+          <div style="font-size:13px;font-weight:800;color:#1493FF;">${invNum}</div>
+        </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;margin-top:8px;background:linear-gradient(135deg,#1A2B4A,#0D1A2E);border-radius:10px;">
-        <span style="color:rgba(255,255,255,0.8);font-size:13px;font-weight:600;">Total Due (AUD)</span>
-        <span style="color:#fff;font-size:24px;font-weight:800;">${fmt(totalCents)}</span>
+    </div>
+
+    <!-- Totals (right) -->
+    <div style="width:240px;">
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
+        <span style="font-size:11px;color:#6B7280;">Subtotal (excl. GST)</span>
+        <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(exclGstCents)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
+        <span style="font-size:11px;color:#6B7280;">GST (10%)</span>
+        <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(gstCents)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-top:8px;background:linear-gradient(135deg,#1A2B4A,#0D1A2E);border-radius:8px;">
+        <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">Total Due (AUD)</span>
+        <span style="font-size:20px;font-weight:800;color:#fff;">${fmt(totalCents)}</span>
       </div>
     </div>
   </div>
 
-  ${data.notes ? `<div style="margin:0 40px 28px;padding:16px 20px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;"><div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;margin-bottom:6px;">Notes</div><div style="font-size:13px;color:#78350F;line-height:1.6;">${data.notes}</div></div>` : ''}
-
-  <!-- BANK TRANSFER -->
-  <div style="margin:0 40px 32px;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;">
-    <div style="background:#F8FAFC;padding:14px 20px;border-bottom:1px solid #E5E7EB;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:1.8px;color:#6B7280;text-transform:uppercase;">Bank Transfer Details</div>
-    </div>
-    <div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:3px;">Account Name</div>
-        <div style="font-size:13px;font-weight:700;color:#1A2B4A;">Butterfield Cookies PTY LTD</div>
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:3px;">ABN</div>
-        <div style="font-size:13px;font-weight:700;color:#1A2B4A;">24 680 761 166</div>
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:3px;">BSB</div>
-        <div style="font-size:13px;font-weight:700;color:#1A2B4A;">067 873</div>
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:3px;">Account Number</div>
-        <div style="font-size:13px;font-weight:700;color:#1A2B4A;">1465 8181</div>
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:3px;">Reference</div>
-        <div style="font-size:14px;font-weight:800;color:#1493FF;">${invNum}</div>
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:#9CA3AF;text-transform:uppercase;margin-bottom:3px;">Payment Terms</div>
-        <div style="font-size:13px;font-weight:700;color:#1A2B4A;">${data.paymentTerms ?? '30 days from invoice date'}</div>
-      </div>
-    </div>
-  </div>
+  ${data.notes ? `<div style="margin:0 20px 12px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;">Notes: </span><span style="font-size:11px;color:#78350F;">${data.notes}</span></div>` : ''}
 
   <!-- FOOTER -->
-  <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:24px 40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
-    <div>
-      <img src="${LOGO_WHITE}" alt="Butterfield" style="height:34px;display:block;max-width:180px;object-fit:contain;margin-bottom:8px;">
-      <div style="color:rgba(255,255,255,0.5);font-size:12px;line-height:1.6;">Thank you for your continued partnership.<br>Queries: accounts@butterfieldcookies.com.au · 0480 769 995</div>
+  <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <div style="display:flex;align-items:center;gap:14px;">
+      <img src="${LOGO_WHITE}" alt="Butterfield" style="height:26px;display:block;max-width:140px;object-fit:contain;">
+      <span style="color:rgba(255,255,255,0.45);font-size:10px;">Thank you for your continued partnership.</span>
     </div>
-    <div style="text-align:right;">
-      <div style="color:rgba(255,255,255,0.45);font-size:11px;line-height:1.8;">
-        Butterfield Cookies PTY LTD<br>
-        ABN: 24 680 761 166<br>
-        2 Main Lane, Merrylands NSW 2160
-      </div>
+    <div style="text-align:right;color:rgba(255,255,255,0.4);font-size:10px;line-height:1.6;">
+      ABN: 24 680 761 166 · accounts@butterfieldcookies.com.au · 0480 769 995
     </div>
   </div>
 
