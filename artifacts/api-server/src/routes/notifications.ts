@@ -287,6 +287,7 @@ router.get('/preferences', requireAuth, async (req, res) => {
     shiftAlerts: true,
     staffAlerts: true,
     wholesaleAlerts: true,
+    wholesaleCutoffReminder: true,
   };
 
   try {

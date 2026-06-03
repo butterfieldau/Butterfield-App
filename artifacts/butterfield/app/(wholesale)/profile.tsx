@@ -3,7 +3,7 @@ import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -89,6 +89,12 @@ export default function WholesaleAccount() {
 
   const { data: accountData, refetch: refetchAccount } = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
   const { data: ordersData }  = useQuery({ queryKey: ['wholesale-orders'],  queryFn: () => api.wholesale.orders(),  retry: 1 });
+  const { data: notificationPrefsData } = useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: () => api.notifications.preferences(),
+    staleTime: 60_000,
+    retry: 1,
+  });
   const { data: stripeConfigData } = useQuery({
     queryKey: ['stripe-config'],
     queryFn: () => api.payment.config(),
@@ -126,6 +132,11 @@ export default function WholesaleAccount() {
     mutationFn: (email: string | null) => api.wholesale.updateAccountsEmail(email),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['wholesale-account'] }); setEditingAcctEmail(false); },
     onError: (e: any) => Alert.alert('Error', e.message),
+  });
+  const updateNotificationPrefsMutation = useMutation({
+    mutationFn: (prefs: Record<string, boolean>) => api.notifications.updatePreferences(prefs),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['notification-preferences'] }); },
+    onError: (e: any) => Alert.alert('Error', e.message ?? 'Could not update reminder settings.'),
   });
 
   const minOrderCents = account?.minimumOrderCents || account?.minOrderCents || 0;
@@ -173,6 +184,8 @@ export default function WholesaleAccount() {
 
   const acctEmail = account?.accountsEmail ?? '';
   const stripePublishableKey = stripeConfigData?.data?.publishableKey ?? null;
+  const notificationPrefs = notificationPrefsData?.data ?? {};
+  const wholesaleCutoffReminderEnabled = notificationPrefs.wholesaleCutoffReminder !== false;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -425,6 +438,26 @@ export default function WholesaleAccount() {
 
         {/* ── ACCOUNT ─────────────────────────────────────────────────────── */}
         <Group title="Account">
+          <Row
+            icon="clock"
+            iconBg="#DBEAFE"
+            label="Cutoff reminders"
+            value="3 hours before cutoff"
+            chevron={false}
+            rightSlot={
+              <Switch
+                value={wholesaleCutoffReminderEnabled}
+                onValueChange={(value) => {
+                  Haptics.selectionAsync();
+                  updateNotificationPrefsMutation.mutate({ wholesaleCutoffReminder: value });
+                }}
+                disabled={updateNotificationPrefsMutation.isPending}
+                trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
+                thumbColor={wholesaleCutoffReminderEnabled ? BLUE : '#FFFFFF'}
+                ios_backgroundColor="#D1D5DB"
+              />
+            }
+          />
           <Row
             icon="bell"
             iconBg="#EDE9FE"
