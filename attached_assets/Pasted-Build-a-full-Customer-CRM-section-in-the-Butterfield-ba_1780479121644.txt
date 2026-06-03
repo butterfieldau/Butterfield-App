@@ -1,0 +1,105 @@
+Build a full Customer CRM section in the Butterfield backend.
+
+This should be separate from normal customer profiles and should be used by directors/managers to manage, understand and grow the customer base.
+
+Add a new backend menu item called “Customers / CRM”.
+
+The CRM should include:
+
+1. Customer Overview
+- Search customers by name, phone, email or order history
+- View total customers
+- New customers this week/month
+- Returning customers
+- Inactive customers
+- Top spending customers
+- Coffee stamp customers
+- Rewards members
+- Wholesale customers
+
+2. Customer Profile Detail
+Each customer should have a detailed CRM profile showing:
+- Name
+- Phone
+- Email
+- Account status
+- Date joined
+- Last order date
+- Total orders
+- Total spend
+- Average order value
+- Favourite products
+- Pickup vs delivery preference
+- Rewards tier
+- Coffee stamps balance
+- Order history
+- Notes section for staff/admin
+- Tags such as VIP, inactive, issue, wholesale, regular, birthday offer
+
+3. Customer Segments
+Add automatic segments:
+- VIP Customers
+- High Spenders
+- Inactive Customers
+- New Customers
+- Coffee Regulars
+- Rewards Members
+- Delivery Customers
+- Pickup Customers
+- Wholesale Customers
+
+Allow filtering by segment, date range, total spend, order count and last order date.
+
+4. Customer Activity Timeline
+Inside each customer profile, show a timeline of:
+- Orders placed
+- Rewards earned/redeemed
+- Coffee stamps added/redeemed
+- Push notifications sent
+- Abandoned carts if available
+- Refunds/cancellations if available
+- Admin notes
+
+5. CRM Actions
+Allow admin/manager to:
+- Add internal notes
+- Add/remove tags
+- Manually adjust coffee stamps if needed
+- View order history
+- Send targeted push notification to one customer
+- Send push notification to a customer segment
+- Mark customer as VIP, inactive, wholesale or issue
+
+6. Wholesale CRM
+If the customer is wholesale, show:
+- Business name
+- Contact person
+- NET account terms
+- Xero invoice status if available
+- Total wholesale orders
+- Last wholesale order
+- Outstanding invoices if available
+- Wholesale pricing tier
+
+7. CRM Dashboard Cards
+Create clean dashboard cards showing:
+- Total customers
+- New customers this month
+- Repeat customers
+- Inactive customers
+- VIP customers
+- Rewards members
+- Coffee stamp users
+- Average customer spend
+
+Design requirements:
+- Keep the design very clean, modern and easy to use.
+- Match the current Butterfield backend style.
+- Use tables, cards, filters and clear profile pages.
+- Make it mobile/tablet friendly but mainly designed for directors/managers on desktop or iPad.
+- Do not break any existing customer profile, orders, rewards, coffee stamp or notification functionality.
+- Reuse existing customer/order/rewards data where possible instead of creating duplicate data.
+- Make sure all CRM data updates live from real customer orders, rewards, coffee stamps and app activity.
+
+Important:
+This CRM should help Butterfield understand who the customers are, what they buy, how often they order and how to bring them back with better service, rewards and targeted promotions.
