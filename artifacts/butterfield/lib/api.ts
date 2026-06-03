@@ -256,8 +256,6 @@ export const api = {
       ),
     updateAccountsEmail: (accountsEmail: string | null) =>
       request<{ data: WholesaleAccount }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
-    updateBusinessHours: (data: { businessHoursOpen: string | null; businessHoursClose: string | null }) =>
-      request<{ data: WholesaleAccount }>('/wholesale/account/business-hours', { method: 'PATCH', body: JSON.stringify(data) }),
     deliverySchedule: () =>
       request<{ data: { slots: WholesaleDeliverySlot[] } }>('/wholesale/delivery-schedule'),
   },
@@ -1583,8 +1581,6 @@ export interface WholesaleAccount {
   accountManagerEmail?: string | null;
   accountManager?: string | null;
   accountsEmail?: string | null;
-  businessHoursOpen?: string | null;
-  businessHoursClose?: string | null;
   contactName?: string | null;
   howDidYouHear?: string | null;
   suburb?: string | null;

@@ -110,23 +110,6 @@ router.patch('/account/accounts-email', async (req, res) => {
   return res.json({ data: updated });
 });
 
-// Wholesale customer updates their own business hours (for delivery scheduling)
-router.patch('/account/business-hours', async (req, res) => {
-  const { businessHoursOpen, businessHoursClose } = req.body ?? {};
-  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
-  if (!account) return res.status(404).json({ error: 'Wholesale account not found.' });
-  const [updated] = await db
-    .update(wholesaleAccountsTable)
-    .set({
-      businessHoursOpen:  businessHoursOpen  ? String(businessHoursOpen).trim()  : null,
-      businessHoursClose: businessHoursClose ? String(businessHoursClose).trim() : null,
-      updatedAt: new Date(),
-    })
-    .where(eq(wholesaleAccountsTable.id, account.id))
-    .returning();
-  return res.json({ data: updated });
-});
-
 // Tier-aware catalog: returns only products this customer can access,
 // with the secure unit price computed for qty=1.
 router.get('/catalog', async (req, res) => {

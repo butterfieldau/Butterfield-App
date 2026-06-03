@@ -128,24 +128,6 @@ export default function WholesaleAccount() {
   const accountMgrPhone = account?.accountManagerPhone;
   const accountMgrEmail = account?.accountManagerEmail;
 
-  // Business hours (editable by wholesale customer)
-  const [showHours,      setShowHours]      = useState(false);
-  const [hoursOpenDraft, setHoursOpenDraft] = useState('');
-  const [hoursCloseDraft,setHoursCloseDraft]= useState('');
-
-  const updateHoursMutation = useMutation({
-    mutationFn: () => api.wholesale.updateBusinessHours({
-      businessHoursOpen:  hoursOpenDraft  || null,
-      businessHoursClose: hoursCloseDraft || null,
-    }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['wholesale-account'] });
-      setShowHours(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    },
-    onError: (e: any) => Alert.alert('Error', e.message),
-  });
-
   // Accounts team email (editable)
   const [editingAcctEmail, setEditingAcctEmail] = useState(false);
   const [acctEmailDraft, setAcctEmailDraft]     = useState('');
@@ -391,6 +373,7 @@ export default function WholesaleAccount() {
             onPress={() => { Haptics.selectionAsync(); setShowBusiness(v => !v); }}
             rightSlot={<Feather name={showBusiness ? 'chevron-up' : 'chevron-down'} size={15} color={MUTED} />}
             chevron={false}
+            last={!showBusiness}
           />
           {showBusiness && (
             <View style={s.expand}>
@@ -400,92 +383,6 @@ export default function WholesaleAccount() {
               <Detail label="Phone"          value={account?.phone ?? '—'} />
               {account?.howDidYouHear ? <Detail label="Referred via" value={account.howDidYouHear} /> : null}
               <Detail label="Account Status" value={statusLabel} valueColor={statusColor} last />
-            </View>
-          )}
-          {/* ── BUSINESS HOURS ─────────────────────────────────────────────── */}
-          <Row
-            icon="clock"
-            iconBg="#EDE9FE"
-            label="Business Hours"
-            value={
-              account?.businessHoursOpen && account?.businessHoursClose
-                ? `${account.businessHoursOpen} – ${account.businessHoursClose}`
-                : showHours ? '' : 'Tap to set'
-            }
-            onPress={() => {
-              Haptics.selectionAsync();
-              if (!showHours) {
-                setHoursOpenDraft(account?.businessHoursOpen ?? '');
-                setHoursCloseDraft(account?.businessHoursClose ?? '');
-              }
-              setShowHours(v => !v);
-            }}
-            rightSlot={<Feather name={showHours ? 'chevron-up' : 'chevron-down'} size={15} color={MUTED} />}
-            chevron={false}
-            last={!showHours}
-          />
-          {showHours && (
-            <View style={[s.expand, { gap: 12 }]}>
-              {(['open', 'close'] as const).map((which) => {
-                const draft   = which === 'open' ? hoursOpenDraft : hoursCloseDraft;
-                const setDraft= which === 'open' ? setHoursOpenDraft : setHoursCloseDraft;
-                const label   = which === 'open' ? 'Opens at' : 'Closes at';
-                return (
-                  <View key={which}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, marginBottom: 7, letterSpacing: 0.4 }}>{label.toUpperCase()}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={{ flexDirection: 'row', gap: 6, paddingBottom: 2 }}>
-                        {['5:00am','6:00am','7:00am','8:00am','9:00am','10:00am','11:00am',
-                          '12:00pm','1:00pm','2:00pm','3:00pm','4:00pm','5:00pm','6:00pm',
-                          '7:00pm','8:00pm','9:00pm','10:00pm'].map((t) => {
-                          const active = draft === t;
-                          return (
-                            <Pressable
-                              key={t}
-                              onPress={() => { Haptics.selectionAsync(); setDraft(t); }}
-                              style={{
-                                paddingHorizontal: 11, paddingVertical: 7,
-                                borderRadius: 8, borderWidth: 1.5,
-                                borderColor: active ? BLUE : BORDER,
-                                backgroundColor: active ? BLUE : '#F9FAFB',
-                              }}
-                            >
-                              <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#FFF' : TEXT }}>{t}</Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </ScrollView>
-                  </View>
-                );
-              })}
-              {/* Save / Cancel */}
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                <Pressable
-                  onPress={() => { Haptics.selectionAsync(); setShowHours(false); }}
-                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, alignItems: 'center' }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: MUTED }}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => updateHoursMutation.mutate()}
-                  disabled={updateHoursMutation.isPending || !hoursOpenDraft || !hoursCloseDraft}
-                  style={{
-                    flex: 2, paddingVertical: 11, borderRadius: 10,
-                    backgroundColor: (!hoursOpenDraft || !hoursCloseDraft) ? BORDER : BLUE,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: (!hoursOpenDraft || !hoursCloseDraft) ? MUTED : '#FFF' }}>
-                    {updateHoursMutation.isPending ? 'Saving…' : 'Save Hours'}
-                  </Text>
-                </Pressable>
-              </View>
-              {(!hoursOpenDraft || !hoursCloseDraft) && (
-                <Text style={{ fontSize: 11.5, color: MUTED, textAlign: 'center', marginTop: -4 }}>
-                  Select both an opening and closing time
-                </Text>
-              )}
             </View>
           )}
           <Row
