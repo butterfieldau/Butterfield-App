@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CardField, StripeProvider, useStripe } from '@stripe/stripe-react-native';
 import { getPalette } from '@/constants/categoryColors';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
+import { useAuth } from '@/context/AuthContext';
 import { api, type ApiProduct } from '@/lib/api';
 import {
   formatDateChip, formatTime, getDeliveryDates, getPickupDates,
@@ -73,12 +74,44 @@ function estimateStripeFeeCents(amountCents: number) {
   return amountCents > 0 ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS) : 0;
 }
 
+function prefillWholesaleAddress(
+  account: {
+    deliveryAddress?: string | null;
+    suburb?: string | null;
+    postcode?: string | null;
+  } | null | undefined,
+) {
+  const rawStreet = account?.deliveryAddress?.trim() ?? '';
+  const suburb = account?.suburb?.trim() ?? '';
+  const postcode = account?.postcode?.trim() ?? '';
+
+  if (suburb || postcode) {
+    return { street: rawStreet, suburb, postcode };
+  }
+
+  if (!rawStreet) {
+    return { street: '', suburb: '', postcode: '' };
+  }
+
+  const match = rawStreet.match(/^(.*?)(?:,\s*|\s+)([^,]+?)\s+(\d{4})$/);
+  if (!match) {
+    return { street: rawStreet, suburb: '', postcode: '' };
+  }
+
+  return {
+    street: match[1].trim(),
+    suburb: match[2].trim(),
+    postcode: match[3].trim(),
+  };
+}
+
 function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const insets  = useSafeAreaInsets();
   const qc      = useQueryClient();
   const { width: SCREEN_W } = useWindowDimensions();
   const pagerRef = useRef<ScrollView>(null);
   const { createPaymentMethod, confirmPayment, handleNextAction } = useStripe();
+  const { user } = useAuth();
 
   const [cart, setCart]       = useState<CartEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -344,6 +377,26 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
       );
     }
   }, [savedPaymentMethods, selectedSavedPaymentMethodId]);
+
+  useEffect(() => {
+    if (!account) return;
+
+    const address = prefillWholesaleAddress(account);
+    const profileContactName = account.contactName?.trim() || user?.name?.trim() || '';
+    const profileContactPhone = account.phone?.trim() || '';
+    const profileContactEmail =
+      account.accountsEmail?.trim() ||
+      account.email?.trim() ||
+      user?.email?.trim() ||
+      '';
+
+    setStreet((current) => current.trim() || !address.street ? current : address.street);
+    setSuburb((current) => current.trim() || !address.suburb ? current : address.suburb);
+    setPostcode((current) => current.trim() || !address.postcode ? current : address.postcode);
+    setContactName((current) => current.trim() || !profileContactName ? current : profileContactName);
+    setContactPhone((current) => current.trim() || !profileContactPhone ? current : profileContactPhone);
+    setContactEmail((current) => current.trim() || !profileContactEmail ? current : profileContactEmail);
+  }, [account, user?.email, user?.name]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
