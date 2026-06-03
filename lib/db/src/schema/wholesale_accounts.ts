@@ -40,6 +40,9 @@ export const wholesaleAccountsTable = pgTable("wholesale_accounts", {
   accountsEmail: text("accounts_email"),
   status: text("status").notNull().default("pending"),
   approvedAt: timestamp("approved_at"),
+  // Business trading hours — used to ensure deliveries arrive while they're open
+  businessHoursOpen: text("business_hours_open"),
+  businessHoursClose: text("business_hours_close"),
   // customer-visible notes (e.g. delivery instructions)
   notes: text("notes"),
   // internal staff notes (not visible to wholesale customer)
