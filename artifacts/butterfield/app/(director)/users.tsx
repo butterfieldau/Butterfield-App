@@ -854,6 +854,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   const [suspended, setSuspended]           = useState(false);
   const [suspendReason, setSuspendReason]   = useState('');
   const [saving, setSaving]                 = useState(false);
+  const [editMode, setEditMode]             = useState(false);
   const [localStatus, setLocalStatus]       = useState(wa?.status ?? 'pending');
   const { data: cardsData, isLoading: cardsLoading, refetch: refetchCards } = useQuery({
     queryKey: ['director-ws-cards', wa?.id],
@@ -884,6 +885,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       setSuspended(wa.isSuspended ?? false);
       setSuspendReason(wa.suspendedReason ?? '');
       setLocalStatus(wa.status ?? 'pending');
+      setEditMode(false);
     }
   }, [wa]);
   if (!wa || !user) return null;
@@ -938,6 +940,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
         accountsEmail:       acctEmail.trim()       || null,
       });
       Alert.alert('Saved', 'Wholesale account updated.');
+      setEditMode(false);
       onRefresh();
       onClose();
     } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
@@ -956,76 +959,108 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
               <Text style={[wdl.statusBadgeText, { color: cfg.color }]}>{cfg.label}</Text>
             </View>
           </View>
-          <View style={{ width: 36 }} />
+          <Pressable
+            onPress={() => { setEditMode(e => !e); Haptics.selectionAsync(); }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6 }}
+          >
+            <Feather name={editMode ? 'x' : 'edit-2'} size={15} color={editMode ? RED : BLUE} />
+            <Text style={{ fontSize: 14, fontWeight: '600', color: editMode ? RED : BLUE }}>{editMode ? 'Cancel' : 'Edit'}</Text>
+          </Pressable>
         </View>
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Business Details — editable by director/master */}
+          {/* Business Details */}
           <View style={wdl.card}>
             <Text style={wdl.sectionLabel}>BUSINESS DETAILS</Text>
-            <Text style={wdl.fieldNote}>Edit on behalf of the wholesale customer when details change.</Text>
-
-            <Text style={wdl.fieldLabel}>Company Name</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. Acme Hospitality Pty Ltd"
-                value={bizCompany} onChangeText={setBizCompany}
-              />
-            </View>
-
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>ABN</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. 12 345 678 901"
-                value={bizAbn} onChangeText={setBizAbn}
-                keyboardType="numbers-and-punctuation"
-              />
-            </View>
-
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Name</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. Jane Smith"
-                value={bizContact} onChangeText={setBizContact}
-              />
-            </View>
-
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Email</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. jane@company.com.au"
-                value={bizEmail} onChangeText={setBizEmail}
-                keyboardType="email-address" autoCapitalize="none"
-              />
-            </View>
-
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Phone</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. 0400 000 000"
-                value={bizPhone} onChangeText={setBizPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Pricing Tier</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. standard, bronze, silver, gold"
-                value={bizTier} onChangeText={setBizTier}
-                autoCapitalize="none"
-              />
-            </View>
-
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Business Hours</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. Mon–Fri 8am–4pm, closed weekends"
-                value={bizHours} onChangeText={setBizHours}
-              />
-            </View>
-
-            {/* Read-only reference rows */}
-            <View style={[wdl.infoRow, { marginTop: 16 }]}>
+            {editMode ? (
+              <>
+                <Text style={wdl.fieldLabel}>Company Name</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. Acme Hospitality Pty Ltd"
+                    value={bizCompany} onChangeText={setBizCompany}
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>ABN</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. 12 345 678 901"
+                    value={bizAbn} onChangeText={setBizAbn}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Name</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. Jane Smith"
+                    value={bizContact} onChangeText={setBizContact}
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Email</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. jane@company.com.au"
+                    value={bizEmail} onChangeText={setBizEmail}
+                    keyboardType="email-address" autoCapitalize="none"
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Contact Phone</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. 0400 000 000"
+                    value={bizPhone} onChangeText={setBizPhone}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Pricing Tier</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. standard, bronze, silver, gold"
+                    value={bizTier} onChangeText={setBizTier}
+                    autoCapitalize="none"
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Business Hours</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. Mon–Fri 8am–4pm, closed weekends"
+                    value={bizHours} onChangeText={setBizHours}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Company Name</Text>
+                  <Text style={wdl.infoValue}>{bizCompany || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>ABN</Text>
+                  <Text style={wdl.infoValue}>{bizAbn || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Contact Name</Text>
+                  <Text style={wdl.infoValue}>{bizContact || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Contact Email</Text>
+                  <Text style={wdl.infoValue}>{bizEmail || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Contact Phone</Text>
+                  <Text style={wdl.infoValue}>{bizPhone || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Pricing Tier</Text>
+                  <Text style={wdl.infoValue}>{bizTier || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Business Hours</Text>
+                  <Text style={wdl.infoValue}>{bizHours || '—'}</Text>
+                </View>
+              </>
+            )}
+            {/* Always-visible reference rows */}
+            <View style={[wdl.infoRow, { marginTop: editMode ? 16 : 0 }]}>
               <Text style={wdl.infoLabel}>Referred via</Text>
               <Text style={wdl.infoValue}>{wa.howDidYouHear ?? '—'}</Text>
             </View>
@@ -1063,141 +1098,219 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
           {/* Account Manager */}
           <View style={wdl.card}>
             <Text style={wdl.sectionLabel}>ACCOUNT MANAGER</Text>
-            <Text style={wdl.fieldNote}>Assigned rep visible to this wholesale customer (read-only for them).</Text>
-            <Text style={wdl.fieldLabel}>Manager Name</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. Sarah Thompson"
-                value={accountMgrName}
-                onChangeText={setAccountMgrName}
-              />
-            </View>
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Manager Phone</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. 0400 000 000"
-                value={accountMgrPhone}
-                onChangeText={setAccountMgrPhone}
-                keyboardType="phone-pad"
-              />
-            </View>
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Manager Email</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. sarah@butterfield.com.au"
-                value={accountMgrEmail}
-                onChangeText={setAccountMgrEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+            {editMode ? (
+              <>
+                <Text style={wdl.fieldNote}>Assigned rep visible to this wholesale customer (read-only for them).</Text>
+                <Text style={wdl.fieldLabel}>Manager Name</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. Sarah Thompson"
+                    value={accountMgrName}
+                    onChangeText={setAccountMgrName}
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Manager Phone</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. 0400 000 000"
+                    value={accountMgrPhone}
+                    onChangeText={setAccountMgrPhone}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Manager Email</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. sarah@butterfield.com.au"
+                    value={accountMgrEmail}
+                    onChangeText={setAccountMgrEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Manager Name</Text>
+                  <Text style={wdl.infoValue}>{accountMgrName || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Manager Phone</Text>
+                  <Text style={wdl.infoValue}>{accountMgrPhone || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Manager Email</Text>
+                  <Text style={wdl.infoValue}>{accountMgrEmail || '—'}</Text>
+                </View>
+              </>
+            )}
           </View>
           {/* Credit Management */}
           <View style={wdl.card}>
             <Text style={wdl.sectionLabel}>CREDIT MANAGEMENT</Text>
-            <Text style={wdl.fieldNote}>No credit is issued by default. Enable manually to grant credit terms.</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Credit Account</Text>
-                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>
-                  {creditEnabled ? 'Credit enabled — customer can order on account' : 'Disabled — pay on order'}
-                </Text>
-              </View>
-              <Switch
-                value={creditEnabled}
-                onValueChange={setCreditEnabled}
-                trackColor={{ false: '#D1D5DB', true: GREEN }}
-                thumbColor="#fff"
-                ios_backgroundColor="#D1D5DB"
-              />
-            </View>
-            {creditEnabled && (
+            {editMode ? (
               <>
-                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Credit Limit (AUD)</Text>
-                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
-                  <TextInput
-                    style={[wdl.input, { color: TEXT }]}
-                    placeholder="e.g. 5000"
-                    placeholderTextColor={MUTED}
-                    value={creditAud}
-                    onChangeText={setCreditAud}
-                    keyboardType="decimal-pad"
+                <Text style={wdl.fieldNote}>No credit is issued by default. Enable manually to grant credit terms.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Credit Account</Text>
+                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>
+                      {creditEnabled ? 'Credit enabled — customer can order on account' : 'Disabled — pay on order'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={creditEnabled}
+                    onValueChange={setCreditEnabled}
+                    trackColor={{ false: '#D1D5DB', true: GREEN }}
+                    thumbColor="#fff"
+                    ios_backgroundColor="#D1D5DB"
                   />
                 </View>
-                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Payment Terms</Text>
-                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                    placeholder="e.g. Net 30, Net 14, EOM"
-                    value={payTerms}
-                    onChangeText={setPayTerms}
-                  />
+                {creditEnabled && (
+                  <>
+                    <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Credit Limit (AUD)</Text>
+                    <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                      <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
+                      <TextInput
+                        style={[wdl.input, { color: TEXT }]}
+                        placeholder="e.g. 5000"
+                        placeholderTextColor={MUTED}
+                        value={creditAud}
+                        onChangeText={setCreditAud}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Payment Terms</Text>
+                    <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                      <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                        placeholder="e.g. Net 30, Net 14, EOM"
+                        value={payTerms}
+                        onChangeText={setPayTerms}
+                      />
+                    </View>
+                    <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Credit Notes (internal)</Text>
+                    <View style={[wdl.inputRow, { borderColor: BORDER, height: 64, alignItems: 'flex-start', paddingTop: 10 }]}>
+                      <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                        placeholder="Internal notes about credit terms..."
+                        value={creditNotes}
+                        onChangeText={setCreditNotes}
+                        multiline
+                      />
+                    </View>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Credit Account</Text>
+                  <Text style={[wdl.infoValue, { color: creditEnabled ? GREEN : MUTED }]}>
+                    {creditEnabled ? 'Enabled' : 'Disabled'}
+                  </Text>
                 </View>
-                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Credit Notes (internal)</Text>
-                <View style={[wdl.inputRow, { borderColor: BORDER, height: 64, alignItems: 'flex-start', paddingTop: 10 }]}>
-                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                    placeholder="Internal notes about credit terms..."
-                    value={creditNotes}
-                    onChangeText={setCreditNotes}
-                    multiline
-                  />
-                </View>
+                {creditEnabled && (
+                  <>
+                    <View style={wdl.infoRow}>
+                      <Text style={wdl.infoLabel}>Credit Limit</Text>
+                      <Text style={wdl.infoValue}>{creditAud ? `$${creditAud}` : '—'}</Text>
+                    </View>
+                    <View style={wdl.infoRow}>
+                      <Text style={wdl.infoLabel}>Payment Terms</Text>
+                      <Text style={wdl.infoValue}>{payTerms || '—'}</Text>
+                    </View>
+                    {!!creditNotes && (
+                      <View style={wdl.infoRow}>
+                        <Text style={wdl.infoLabel}>Credit Notes</Text>
+                        <Text style={wdl.infoValue}>{creditNotes}</Text>
+                      </View>
+                    )}
+                  </>
+                )}
               </>
             )}
           </View>
           {/* Invoice email */}
           <View style={wdl.card}>
             <Text style={wdl.sectionLabel}>INVOICE DELIVERY</Text>
-            <Text style={wdl.fieldNote}>Invoices are sent to this email. The customer can also set this themselves.</Text>
-            <Text style={wdl.fieldLabel}>Accounts Team Email</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="e.g. accounts@company.com.au"
-                value={acctEmail}
-                onChangeText={setAcctEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+            {editMode ? (
+              <>
+                <Text style={wdl.fieldNote}>Invoices are sent to this email. The customer can also set this themselves.</Text>
+                <Text style={wdl.fieldLabel}>Accounts Team Email</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="e.g. accounts@company.com.au"
+                    value={acctEmail}
+                    onChangeText={setAcctEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </>
+            ) : (
+              <View style={wdl.infoRow}>
+                <Text style={wdl.infoLabel}>Accounts Email</Text>
+                <Text style={wdl.infoValue}>{acctEmail || '—'}</Text>
+              </View>
+            )}
           </View>
           {/* Delivery settings */}
           <View style={wdl.card}>
             <Text style={wdl.sectionLabel}>DELIVERY SETTINGS</Text>
-            <Text style={wdl.fieldLabel}>Delivery Address</Text>
-            <AddressSearchInput
-              currentValue={deliveryAddr || undefined}
-              placeholder="Search delivery address…"
-              onSelect={(r) => {
-                const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
-                setDeliveryAddr(parts.join(', '));
-              }}
-            />
-            <View style={[wdl.inputRow, { borderColor: BORDER, height: 72, alignItems: 'flex-start', paddingTop: 12, marginTop: 8 }]}>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                placeholder="Street, suburb, postcode"
-                value={deliveryAddr}
-                onChangeText={setDeliveryAddr}
-                multiline
-              />
-            </View>
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Delivery Fee (AUD)</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED} keyboardType="decimal-pad"
-                placeholder="0.00 — free delivery"
-                value={deliveryFeeAud}
-                onChangeText={setDeliveryFeeAud}
-              />
-            </View>
-            <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Minimum Order (AUD)</Text>
-            <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
-              <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED} keyboardType="decimal-pad"
-                placeholder="e.g. 200.00"
-                value={minOrderAud}
-                onChangeText={setMinOrderAud}
-              />
-            </View>
+            {editMode ? (
+              <>
+                <Text style={wdl.fieldLabel}>Delivery Address</Text>
+                <AddressSearchInput
+                  currentValue={deliveryAddr || undefined}
+                  placeholder="Search delivery address…"
+                  onSelect={(r) => {
+                    const parts = [r.street, r.suburb, r.state, r.postcode].filter(Boolean);
+                    setDeliveryAddr(parts.join(', '));
+                  }}
+                />
+                <View style={[wdl.inputRow, { borderColor: BORDER, height: 72, alignItems: 'flex-start', paddingTop: 12, marginTop: 8 }]}>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
+                    placeholder="Street, suburb, postcode"
+                    value={deliveryAddr}
+                    onChangeText={setDeliveryAddr}
+                    multiline
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Delivery Fee (AUD)</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED} keyboardType="decimal-pad"
+                    placeholder="0.00 — free delivery"
+                    value={deliveryFeeAud}
+                    onChangeText={setDeliveryFeeAud}
+                  />
+                </View>
+                <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Minimum Order (AUD)</Text>
+                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>$</Text>
+                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED} keyboardType="decimal-pad"
+                    placeholder="e.g. 200.00"
+                    value={minOrderAud}
+                    onChangeText={setMinOrderAud}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Delivery Address</Text>
+                  <Text style={wdl.infoValue}>{deliveryAddr || '—'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Delivery Fee</Text>
+                  <Text style={wdl.infoValue}>{deliveryFeeAud ? `$${deliveryFeeAud}` : 'Free'}</Text>
+                </View>
+                <View style={wdl.infoRow}>
+                  <Text style={wdl.infoLabel}>Minimum Order</Text>
+                  <Text style={wdl.infoValue}>{minOrderAud ? `$${minOrderAud}` : '—'}</Text>
+                </View>
+              </>
+            )}
           </View>
           {/* Suspend */}
           <View style={wdl.card}>
@@ -1262,16 +1375,18 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
               );
             })}
           </View>
-          {/* Save button */}
-          <Pressable
-            onPress={handleSave}
-            disabled={saving}
-            style={[wdl.saveBtn, { opacity: saving ? 0.8 : 1 }]}
-          >
-            {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-              <Text style={wdl.saveBtnText}>Save Changes</Text>
-            )}
-          </Pressable>
+          {/* Save button — only in edit mode */}
+          {editMode && (
+            <Pressable
+              onPress={handleSave}
+              disabled={saving}
+              style={[wdl.saveBtn, { opacity: saving ? 0.8 : 1 }]}
+            >
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+                <Text style={wdl.saveBtnText}>Save Changes</Text>
+              )}
+            </Pressable>
+          )}
           {/* Delete account */}
           <Pressable
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, paddingVertical: 16 }}
