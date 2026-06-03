@@ -7,8 +7,13 @@ import {
   staffShiftsTable, staffIssuesTable, staffWastageTable, staffLeaveRequestsTable, staffTasksTable, staffTaskHistoryTable,
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
-  staffInviteTokensTable, storesTable,
+  staffInviteTokensTable, storesTable, wholesaleDeliverySettingsTable,
 } from '@workspace/db';
+import {
+  getOrCreateWholesaleDeliverySettings,
+  DEFAULT_DELIVERY_SLOTS,
+  type WholesaleDeliverySlot,
+} from '../lib/wholesaleCutoffReminder.js';
 import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
@@ -2267,6 +2272,49 @@ function generateInviteToken(): string {
   }
   return result;
 }
+
+// ── Wholesale delivery settings ───────────────────────────────────────────────
+router.get('/wholesale-delivery-settings', async (_req, res) => {
+  const settings = await getOrCreateWholesaleDeliverySettings();
+  const slots: WholesaleDeliverySlot[] = JSON.parse(settings.slotsJson || '[]');
+  return res.json({
+    data: {
+      slots: slots.length ? slots : DEFAULT_DELIVERY_SLOTS,
+      cutoffReminderEnabled: settings.cutoffReminderEnabled,
+    },
+  });
+});
+
+router.patch('/wholesale-delivery-settings', async (req, res) => {
+  const callerId = (req as any).user?.id ?? null;
+  const { slots, cutoffReminderEnabled } = req.body ?? {};
+
+  if (!Array.isArray(slots) || slots.length === 0) {
+    return res.status(400).json({ error: 'slots must be a non-empty array.' });
+  }
+  for (const s of slots) {
+    if (typeof s.deliveryDow !== 'number' || typeof s.cutoffDow !== 'number' || typeof s.cutoffHour !== 'number') {
+      return res.status(400).json({ error: 'Each slot must have deliveryDow, cutoffDow, and cutoffHour.' });
+    }
+    if (s.cutoffHour < 0 || s.cutoffHour > 23) {
+      return res.status(400).json({ error: 'cutoffHour must be 0–23.' });
+    }
+  }
+
+  await getOrCreateWholesaleDeliverySettings();
+
+  await db
+    .update(wholesaleDeliverySettingsTable)
+    .set({
+      slotsJson: JSON.stringify(slots),
+      cutoffReminderEnabled: typeof cutoffReminderEnabled === 'boolean' ? cutoffReminderEnabled : true,
+      updatedAt: new Date(),
+      updatedBy: callerId,
+    })
+    .where(eq(wholesaleDeliverySettingsTable.id, 'default'));
+
+  return res.json({ success: true });
+});
 
 router.post('/staff-invites', async (req, res) => {
   const callerId = (req as any).user.id;

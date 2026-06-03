@@ -91,6 +91,7 @@ function RootLayoutNav() {
       <Stack.Screen name="director-settings-managers" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-directors" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-accounts" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-wholesale-delivery" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-staff-accounts" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-pos-screens" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-customer-profiles" options={directorStandaloneScreenOptions} />

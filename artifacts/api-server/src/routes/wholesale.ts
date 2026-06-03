@@ -5,6 +5,10 @@ import {
   wholesaleCardsTable, quantityPriceBreaksTable, customerPricingTable,
   usersTable,
 } from '@workspace/db';
+import {
+  getOrCreateWholesaleDeliverySettings,
+  DEFAULT_DELIVERY_SLOTS,
+} from '../lib/wholesaleCutoffReminder.js';
 import { eq, desc, asc, and } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
@@ -764,6 +768,17 @@ router.delete('/cards/:id', async (req, res) => {
     }
   }
   return res.json({ success: true });
+});
+
+// ── Wholesale delivery schedule (for display in the mobile app) ───────────────
+router.get('/delivery-schedule', async (_req, res) => {
+  const settings = await getOrCreateWholesaleDeliverySettings();
+  const slots = JSON.parse(settings.slotsJson || '[]');
+  return res.json({
+    data: {
+      slots: slots.length ? slots : DEFAULT_DELIVERY_SLOTS,
+    },
+  });
 });
 
 export default router;

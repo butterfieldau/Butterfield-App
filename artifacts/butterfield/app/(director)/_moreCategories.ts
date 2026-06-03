@@ -189,6 +189,12 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'phone',        label: 'Account Managers',    sub: 'Assign account managers to wholesale customers',    color: BLUE,     perm: 'users',   onPress: () => router.push('/director-wholesale-accounts' as any) },
         ],
       },
+      {
+        label: 'Delivery',
+        items: [
+          { icon: 'truck',  label: 'Delivery Settings',  sub: 'Cutoff times, delivery windows & order reminders', color: '#0284C7', directorOnly: true, onPress: () => router.push('/director-wholesale-delivery' as any) },
+        ],
+      },
     ],
   },
 

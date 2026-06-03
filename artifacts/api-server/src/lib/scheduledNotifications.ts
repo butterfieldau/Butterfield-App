@@ -259,6 +259,8 @@ export async function startScheduledNotificationsService() {
   if (started) return;
   started = true;
 
+  const { checkWholesaleCutoffReminders } = await import('./wholesaleCutoffReminder.js');
+
   await processDueScheduledNotifications().catch((error) => {
     logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'Initial scheduled notification processing failed');
   });
@@ -266,6 +268,9 @@ export async function startScheduledNotificationsService() {
   intervalHandle = setInterval(() => {
     processDueScheduledNotifications().catch((error) => {
       logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'Scheduled notification processing loop failed');
+    });
+    checkWholesaleCutoffReminders().catch((error) => {
+      logger.warn({ err: error instanceof Error ? error.message : String(error) }, 'Wholesale cutoff reminder check failed');
     });
   }, 30_000);
 }

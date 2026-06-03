@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { PaymentMethods } from '@/components/wholesale/PaymentMethods';
 import { WS_DELIVERY_SCHEDULE, WS_LEAD_TIME_LABEL } from '@/constants/wholesaleConfig';
+import type { WholesaleDeliverySlot } from '@/lib/api';
 import { WHOLESALE_BILLING } from '@/constants/wholesaleBilling';
 
 const BG     = '#EFF6FF';
@@ -95,6 +96,15 @@ export default function WholesaleAccount() {
     staleTime: 60 * 60 * 1000,
     retry: 1,
   });
+  const { data: deliveryScheduleData } = useQuery({
+    queryKey: ['wholesale-delivery-schedule'],
+    queryFn: () => api.wholesale.deliverySchedule(),
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+  const deliverySlots: WholesaleDeliverySlot[] =
+    (deliveryScheduleData?.data?.slots as WholesaleDeliverySlot[] | undefined) ??
+    (WS_DELIVERY_SCHEDULE as unknown as WholesaleDeliverySlot[]);
 
   const account       = accountData?.data;
   const orders        = ordersData?.data ?? [];
@@ -158,12 +168,17 @@ export default function WholesaleAccount() {
     );
   };
   const openFaqs = () => {
-    const scheduleLines = WS_DELIVERY_SCHEDULE
-      .map(s => `  ${s.deliveryLabel} delivery → ${s.cutoffFull}`)
-      .join('\n');
+    const scheduleLines = deliverySlots
+      .map(s => {
+        const cutoffHour = s.cutoffHour ?? 17;
+        const h12 = cutoffHour > 12 ? cutoffHour - 12 : cutoffHour;
+        const ampm = cutoffHour >= 12 ? 'pm' : 'am';
+        return `  ${s.deliveryLabel} delivery\n  Order by ${s.cutoffDayLabel} at ${h12}:00${ampm} AEST\n  Window: ${s.windowOpen ?? '8:00am'} – ${s.windowClose ?? '5:00pm'}`;
+      })
+      .join('\n\n');
     Alert.alert(
       'Wholesale FAQs',
-      `Cut-off times:\n${scheduleLines}\n\nMinimum order: ${minOrderDisplay}\nLead time: ${WS_LEAD_TIME_LABEL}\nPayment terms: ${paymentTerms}`
+      `Delivery schedule:\n\n${scheduleLines}\n\nMinimum order: ${minOrderDisplay}\nLead time: ${WS_LEAD_TIME_LABEL}\nPayment terms: ${paymentTerms}`
     );
   };
 
@@ -400,13 +415,23 @@ export default function WholesaleAccount() {
           />
           {showSchedule && (
             <View style={s.expand}>
-              {WS_DELIVERY_SCHEDULE.map((slot) => (
-                <Detail
-                  key={slot.deliveryLabel}
-                  label={`${slot.deliveryLabel} delivery`}
-                  value={`Order by ${slot.cutoffLabel}`}
-                />
-              ))}
+              {deliverySlots.map((slot) => {
+                const cutoffHour = slot.cutoffHour ?? 17;
+                const h12 = cutoffHour > 12 ? cutoffHour - 12 : cutoffHour;
+                const ampm = cutoffHour >= 12 ? 'pm' : 'am';
+                return (
+                  <React.Fragment key={slot.deliveryLabel}>
+                    <Detail
+                      label={`${slot.deliveryLabel} delivery`}
+                      value={`Order by ${slot.cutoffDayLabel} ${h12}:00${ampm} AEST`}
+                    />
+                    <Detail
+                      label={`${slot.deliveryLabel} window`}
+                      value={`${slot.windowOpen ?? '8:00am'} – ${slot.windowClose ?? '5:00pm'}`}
+                    />
+                  </React.Fragment>
+                );
+              })}
               <Detail label="Minimum order" value={minOrderDisplay} />
               <Detail label="Lead time"     value={WS_LEAD_TIME_LABEL} last />
             </View>

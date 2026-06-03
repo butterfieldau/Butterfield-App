@@ -256,6 +256,8 @@ export const api = {
       ),
     updateAccountsEmail: (accountsEmail: string | null) =>
       request<{ data: WholesaleAccount }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
+    deliverySchedule: () =>
+      request<{ data: { slots: WholesaleDeliverySlot[] } }>('/wholesale/delivery-schedule'),
   },
   addresses: {
     list: () => request<{ data: SavedAddress[] }>('/addresses'),
@@ -441,6 +443,10 @@ export const api = {
     clockEvents:     () => request<{ data: StaffShift[] }>('/director/clock-events'),
     deleteUser:          (userId: string) => request<{ success: boolean }>(`/director/users/${userId}`, { method: 'DELETE' }),
     setWholesaleStatus:  (accountId: string, status: string) => request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    wholesaleDeliverySettings: () =>
+      request<{ data: { slots: WholesaleDeliverySlot[]; cutoffReminderEnabled: boolean } }>('/director/wholesale-delivery-settings'),
+    updateWholesaleDeliverySettings: (data: { slots: WholesaleDeliverySlot[]; cutoffReminderEnabled: boolean }) =>
+      request<{ success: boolean }>('/director/wholesale-delivery-settings', { method: 'PATCH', body: JSON.stringify(data) }),
     products:            () => request<{ data: DirectorCatalogProduct[] }>('/director/products'),
     createProduct:       (data: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
     updateProduct:       (id: string, updates: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
@@ -1528,6 +1534,16 @@ export interface ShopDisplayOrder extends ApiOrder {
   customerPhone?: string | null;
   pickupTime?: string | null;
   paymentStatus?: string | null;
+}
+
+export interface WholesaleDeliverySlot {
+  deliveryDow: number;
+  deliveryLabel: string;
+  cutoffDow: number;
+  cutoffDayLabel: string;
+  cutoffHour: number;
+  windowOpen: string;
+  windowClose: string;
 }
 
 export interface WholesaleProfile {
