@@ -417,13 +417,7 @@ export default function WholesaleAccount() {
         <Group title="Quick Links">
           <Row
             icon="file-text"
-            label="Invoices"
-            onPress={() => { Haptics.selectionAsync(); router.push('/(wholesale)/invoices' as any); }}
-          />
-          <Row
-            icon="package"
-            iconBg="#FEF3C7"
-            label="Order History"
+            label="Orders & Invoices"
             onPress={() => { Haptics.selectionAsync(); router.push('/(wholesale)/orders' as any); }}
             last
           />
