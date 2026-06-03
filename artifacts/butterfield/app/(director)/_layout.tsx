@@ -186,19 +186,19 @@ export default function DirectorLayout() {
       >
         <Tabs.Screen name="index"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.index)}
-          options={{ title: 'Home', href: DIRECTOR_ROOT_TAB_PATHS.index, tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
+          options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
         <Tabs.Screen name="orders"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.orders)}
-          options={{ title: 'Orders', href: DIRECTOR_ROOT_TAB_PATHS.orders,  tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
+          options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
         <Tabs.Screen name="users"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.users)}
-          options={{ title: 'People', href: DIRECTOR_ROOT_TAB_PATHS.users,  tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
+          options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
         <Tabs.Screen name="products"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.products)}
-          options={{ title: 'Products', href: DIRECTOR_ROOT_TAB_PATHS.products, tabBarIcon: ({ color, size }) => <Feather name="package"       size={size} color={color} /> }} />
+          options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"       size={size} color={color} /> }} />
         <Tabs.Screen name="more"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.more)}
-          options={{ title: 'More', href: DIRECTOR_ROOT_TAB_PATHS.more,    tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
+          options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
         <Tabs.Screen name="scan"             options={{ href: null }} />
         <Tabs.Screen name="tasks"            options={{ href: null }} />
