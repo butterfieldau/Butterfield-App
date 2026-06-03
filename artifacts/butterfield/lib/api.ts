@@ -256,6 +256,8 @@ export const api = {
       ),
     updateAccountsEmail: (accountsEmail: string | null) =>
       request<{ data: WholesaleAccount }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),
+    updateBusinessHours: (businessHours: string | null) =>
+      request<{ data: WholesaleAccount }>('/wholesale/account/business-hours', { method: 'PATCH', body: JSON.stringify({ businessHours }) }),
     deliverySchedule: () =>
       request<{ data: { slots: WholesaleDeliverySlot[] } }>('/wholesale/delivery-schedule'),
   },
@@ -1589,6 +1591,7 @@ export interface WholesaleAccount {
   isSuspended?: boolean;
   suspendedReason?: string | null;
   customPricingEnabled?: boolean;
+  businessHours?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

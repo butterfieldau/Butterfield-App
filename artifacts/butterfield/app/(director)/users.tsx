@@ -847,6 +847,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   const [suspended, setSuspended]           = useState(false);
   const [suspendReason, setSuspendReason]   = useState('');
   const [saving, setSaving]                 = useState(false);
+  const [localStatus, setLocalStatus]       = useState(wa?.status ?? 'pending');
   const { data: cardsData, isLoading: cardsLoading, refetch: refetchCards } = useQuery({
     queryKey: ['director-ws-cards', wa?.id],
     queryFn: () => api.director.wholesaleCards(wa!.id),
@@ -868,6 +869,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       setAcctEmail(wa.accountsEmail ?? '');
       setSuspended(wa.isSuspended ?? false);
       setSuspendReason(wa.suspendedReason ?? '');
+      setLocalStatus(wa.status ?? 'pending');
     }
   }, [wa]);
   if (!wa || !user) return null;
@@ -876,13 +878,18 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
     pending:  { color: AMBER,  bg: '#FEF3C7', label: 'Pending' },
     rejected: { color: RED,    bg: '#FEE2E2', label: 'Rejected' },
   };
-  const cfg = STATUS_CFG[wa.status] ?? STATUS_CFG.pending;
+  const cfg = STATUS_CFG[localStatus] ?? STATUS_CFG.pending;
   const handleStatus = async (status: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const prev = localStatus;
+    setLocalStatus(status);
     try {
       await api.director.setWholesaleStatus(wa.id, status);
       onRefresh();
-    } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
+    } catch (error) {
+      setLocalStatus(prev);
+      Alert.alert('Error', getErrorMessage(error));
+    }
   };
   const handleSuspend = async (val: boolean) => {
     setSuspended(val);
@@ -945,6 +952,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
               { label: 'Tier',     value: wa.tier?.name ?? wa.pricingTier ?? 'Standard' },
               { label: 'Registered', value: fmtDateTime(user.createdAt) },
               { label: 'Credit Used', value: wa.creditUsedCents ? `$${(wa.creditUsedCents / 100).toFixed(2)}` : '$0.00' },
+              ...(wa.businessHours ? [{ label: 'Business Hours', value: wa.businessHours }] : []),
             ].map((row) => (
               <View key={row.label} style={wdl.infoRow}>
                 <Text style={wdl.infoLabel}>{row.label}</Text>
@@ -961,7 +969,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                 { key: 'pending',  label: 'Pending',  color: AMBER,  bg: '#FEF3C7' },
                 { key: 'rejected', label: 'Reject',   color: RED,    bg: '#FEE2E2' },
               ].map((s) => {
-                const active = wa.status === s.key;
+                const active = localStatus === s.key;
                 return (
                   <Pressable
                     key={s.key}

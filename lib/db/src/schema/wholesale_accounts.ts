@@ -49,6 +49,8 @@ export const wholesaleAccountsTable = pgTable("wholesale_accounts", {
   minOrderCents: integer("min_order_cents").notNull().default(20000),
   leadTimeDays: integer("lead_time_days").notNull().default(2),
   howDidYouHear: text("how_did_you_hear"),
+  // Business hours — set by the wholesale customer, visible to director
+  businessHours: text("business_hours"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

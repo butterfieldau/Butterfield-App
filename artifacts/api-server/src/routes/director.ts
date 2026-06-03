@@ -1015,6 +1015,8 @@ router.patch('/wholesale/:accountId', async (req, res) => {
   if (req.body.accountManagerEmail !== undefined) updates.accountManagerEmail = req.body.accountManagerEmail ? String(req.body.accountManagerEmail) : null;
   // Accounts team email (for invoice delivery)
   if (req.body.accountsEmail       !== undefined) updates.accountsEmail       = req.body.accountsEmail ? String(req.body.accountsEmail) : null;
+  // Business hours (set by wholesale customer; director can also view/override)
+  if (req.body.businessHours       !== undefined) updates.businessHours       = req.body.businessHours ? String(req.body.businessHours).trim() : null;
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No updatable fields provided.' });
   updates.updatedAt = new Date();
   const [updated] = await db.update(wholesaleAccountsTable).set(updates).where(eq(wholesaleAccountsTable.id, accountId)).returning();

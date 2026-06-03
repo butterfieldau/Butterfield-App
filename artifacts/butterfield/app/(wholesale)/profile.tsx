@@ -138,6 +138,16 @@ export default function WholesaleAccount() {
     onError: (e: any) => Alert.alert('Error', e.message),
   });
 
+  // Business hours (editable)
+  const [editingBusinessHours, setEditingBusinessHours] = useState(false);
+  const [businessHoursDraft, setBusinessHoursDraft]     = useState('');
+
+  const updateBusinessHoursMutation = useMutation({
+    mutationFn: (hours: string | null) => api.wholesale.updateBusinessHours(hours),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['wholesale-account'] }); setEditingBusinessHours(false); },
+    onError: (e: any) => Alert.alert('Error', e.message),
+  });
+
   const minOrderCents = account?.minimumOrderCents || account?.minOrderCents || 0;
   const minOrderDisplay = minOrderCents > 0 ? `$${(minOrderCents / 100).toFixed(2)} AUD` : '—';
   const fullAddress   = [account?.deliveryAddress, [account?.suburb, account?.state, account?.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
@@ -382,7 +392,53 @@ export default function WholesaleAccount() {
               <Detail label="Contact"        value={account?.contactName ?? user?.name ?? '—'} />
               <Detail label="Phone"          value={account?.phone ?? '—'} />
               {account?.howDidYouHear ? <Detail label="Referred via" value={account.howDidYouHear} /> : null}
-              <Detail label="Account Status" value={statusLabel} valueColor={statusColor} last />
+              <Detail label="Account Status" value={statusLabel} valueColor={statusColor} />
+              {/* ── Business hours (editable inline) ── */}
+              {editingBusinessHours ? (
+                <View style={[s.detailBorder, { paddingVertical: 12, gap: 8 }]}>
+                  <Text style={s.detailLabel}>Business Hours</Text>
+                  <TextInput
+                    style={[s.acctEmailInput, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+                    placeholder={'e.g. Mon–Fri 8am–5pm, Sat 9am–1pm'}
+                    placeholderTextColor={MUTED}
+                    value={businessHoursDraft}
+                    onChangeText={setBusinessHoursDraft}
+                    multiline
+                    autoFocus
+                  />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Pressable
+                      style={[s.acctEmailBtn, { backgroundColor: BLUE }]}
+                      onPress={() => updateBusinessHoursMutation.mutate(businessHoursDraft.trim() || null)}
+                      disabled={updateBusinessHoursMutation.isPending}
+                    >
+                      <Text style={[s.acctEmailBtnText, { color: '#fff' }]}>
+                        {updateBusinessHoursMutation.isPending ? 'Saving…' : 'Save'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[s.acctEmailBtn, { backgroundColor: '#F3F4F6' }]}
+                      onPress={() => setEditingBusinessHours(false)}
+                    >
+                      <Text style={[s.acctEmailBtnText, { color: TEXT }]}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  style={[s.detail, s.detailBorder]}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setBusinessHoursDraft(account?.businessHours ?? '');
+                    setEditingBusinessHours(true);
+                  }}
+                >
+                  <Text style={s.detailLabel}>Business Hours</Text>
+                  <Text style={[s.detailValue, !account?.businessHours && { color: BLUE, fontSize: 12 }]}>
+                    {account?.businessHours || 'Tap to add'}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
           <Row

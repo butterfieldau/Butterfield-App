@@ -98,6 +98,18 @@ router.get('/account', async (req, res) => {
 // Alias kept for client compatibility
 router.get('/profile', (_req, res) => res.redirect(307, '/api/wholesale/account'));
 
+// Wholesale customer updates their own business hours
+router.patch('/account/business-hours', async (req, res) => {
+  const { businessHours } = req.body;
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found.' });
+  const [updated] = await db.update(wholesaleAccountsTable)
+    .set({ businessHours: businessHours ? String(businessHours).trim() : null, updatedAt: new Date() })
+    .where(eq(wholesaleAccountsTable.id, account.id))
+    .returning();
+  return res.json({ data: updated });
+});
+
 // Wholesale customer updates their own accounts team email (for invoice delivery)
 router.patch('/account/accounts-email', async (req, res) => {
   const { accountsEmail } = req.body;
