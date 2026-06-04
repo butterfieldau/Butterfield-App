@@ -274,7 +274,6 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
 const FILTER_TABS: FilterTab[] = ['All', 'Unpaid', 'Overdue', 'Paid'];
 
 export default function DirectorWholesaleInvoices() {
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery({
@@ -330,8 +329,11 @@ export default function DirectorWholesaleInvoices() {
       />
 
       {/* ── Compact white header ── */}
-      <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={() => router.back()} style={ss.backBtn}>
+      <View style={ss.header}>
+        <Pressable
+          onPress={() => router.canGoBack() ? router.back() : router.navigate('/(director)/more' as any)}
+          style={ss.backBtn}
+        >
           <Feather name="arrow-left" size={20} color={NAVY} />
         </Pressable>
         <Text style={ss.headerTitle}>Invoice Management</Text>
@@ -470,7 +472,7 @@ export default function DirectorWholesaleInvoices() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const ss = StyleSheet.create({
   // Header
-  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   backBtn:      { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   headerTitle:  { flex: 1, textAlign: 'center', color: NAVY, fontSize: 16, fontWeight: '700' },
   // Stats strip
