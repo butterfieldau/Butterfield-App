@@ -3,7 +3,7 @@ import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 
-const HEADER_BG  = '#FFFFFF';
+const HEADER_BG  = '#EFF6FF';
 const CONTENT_BG = '#EFF6FF';
 const BORDER     = '#E5E7EB';
 const NAVY       = '#1A2B4A';
@@ -70,8 +70,6 @@ const ss = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: HEADER_BG,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: BORDER,
   },
   sideLeft:  { flex: 1, alignItems: 'flex-start' },
   sideRight: { flex: 1, alignItems: 'flex-end' },
