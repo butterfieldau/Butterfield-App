@@ -231,8 +231,9 @@ export default function ShopDisplayClockScreen() {
     void qc.invalidateQueries({ queryKey: ['shop-display-staff-assigned'] });
   }, [qc]);
 
-  const renderStaffCard = ({ item }: { item: ShopDisplayStaffMember }) => (
+  const renderStaffCard = (item: ShopDisplayStaffMember) => (
     <Pressable
+      key={item.userId}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaff(item); }}
       style={({ pressed }) => [s.staffCard, isWide && s.staffCardWide, pressed && { opacity: 0.85 }]}
     >
@@ -282,11 +283,29 @@ export default function ShopDisplayClockScreen() {
     );
   }
 
-  const allSections = [
-    ...(clockedIn.length > 0 ? [{ type: 'header', label: `On shift (${clockedIn.length})`, color: GREEN } as const] : []),
-    ...clockedIn.map((s) => ({ type: 'staff', item: s } as const)),
-    ...(clockedOut.length > 0 ? [{ type: 'header', label: `Off shift (${clockedOut.length})`, color: MUTED } as const] : []),
-    ...clockedOut.map((s) => ({ type: 'staff', item: s } as const)),
+  // Build flat list data: headers always full-width, staff grouped into
+  // pairs for landscape so numColumns is never needed (avoids the
+  // FlatList mixed-type multi-column layout bug).
+  type ListRow =
+    | { type: 'header'; label: string; color: string; key: string }
+    | { type: 'row'; items: ShopDisplayStaffMember[]; key: string };
+
+  const buildRows = (label: string, color: string, members: ShopDisplayStaffMember[]): ListRow[] => {
+    if (members.length === 0) return [];
+    const rows: ListRow[] = [{ type: 'header', label, color, key: `h-${label}` }];
+    if (isWide) {
+      for (let i = 0; i < members.length; i += 2) {
+        rows.push({ type: 'row', items: members.slice(i, i + 2), key: `r-${members[i].userId}` });
+      }
+    } else {
+      members.forEach((m) => rows.push({ type: 'row', items: [m], key: `r-${m.userId}` }));
+    }
+    return rows;
+  };
+
+  const listData: ListRow[] = [
+    ...buildRows(`On shift (${clockedIn.length})`, GREEN, clockedIn),
+    ...buildRows(`Off shift (${clockedOut.length})`, MUTED, clockedOut),
   ];
 
   return (
@@ -303,21 +322,22 @@ export default function ShopDisplayClockScreen() {
       </View>
 
       <FlatList
-        data={allSections}
-        keyExtractor={(item, i) => item.type === 'header' ? `header-${i}` : item.item.userId}
+        data={listData}
+        keyExtractor={(item) => item.key}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor={BLUE} />}
         contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 8 }}
-        numColumns={isWide ? 2 : 1}
-        columnWrapperStyle={isWide ? { gap: 12 } : undefined}
         renderItem={({ item }) => {
           if (item.type === 'header') {
-            return (
-              <View style={isWide ? { width: '100%' } : undefined}>
-                <Text style={[s.sectionHeader, { color: item.color }]}>{item.label}</Text>
-              </View>
-            );
+            return <Text style={[s.sectionHeader, { color: item.color }]}>{item.label}</Text>;
           }
-          return renderStaffCard({ item: item.item });
+          // Row: 1 card (portrait) or up to 2 cards (landscape)
+          return (
+            <View style={isWide ? s.cardRow : undefined}>
+              {item.items.map((m) => renderStaffCard(m))}
+              {/* Spacer so a lone card in a wide row doesn't stretch to fill */}
+              {isWide && item.items.length === 1 && <View style={s.staffCardWide} />}
+            </View>
+          );
         }}
       />
 
@@ -346,6 +366,7 @@ const s = StyleSheet.create({
   statPill:         { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 99, paddingHorizontal: 14, paddingVertical: 8 },
   statPillText:     { fontSize: 13, fontWeight: '800' },
   sectionHeader:    { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 8, marginBottom: 2, marginLeft: 2 },
+  cardRow:          { flexDirection: 'row', gap: 12 },
   staffCard:        { backgroundColor: CARD, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', gap: 12 },
   staffCardWide:    { flex: 1 },
   staffAvatar:      { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
