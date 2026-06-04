@@ -772,9 +772,9 @@ export default function DirectorOrdersScreen() {
   useFocusEffect(
     React.useCallback(() => {
       setFilter('active');
-      setViewMode('today');
+      setViewMode(isStaff ? 'week' : 'today');
       setSelectedDate(new Date());
-    }, []),
+    }, [isStaff]),
   );
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
@@ -783,6 +783,7 @@ export default function DirectorOrdersScreen() {
     queryKey: ['director-settings'],
     queryFn: () => api.director.settings(),
     retry: 1,
+    enabled: !isStaff,
   });
   const { data: storesData } = useQuery({
     queryKey: isStaff ? ['staff-stores'] : ['director-stores'],
@@ -836,8 +837,8 @@ export default function DirectorOrdersScreen() {
     [statusFiltered, today]
   );
   const thisWeekOrders = useMemo(() =>
-    statusFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && !isSameDay(getOrderTimelineDate(o), today)),
-    [statusFiltered, today]);
+    statusFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && (isStaff || !isSameDay(getOrderTimelineDate(o), today))),
+    [statusFiltered, today, isStaff]);
   const dateOrders = useMemo(() =>
     statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), selectedDate)),
     [statusFiltered, selectedDate]
@@ -1001,7 +1002,7 @@ export default function DirectorOrdersScreen() {
           {viewMode === 'week' && (
             <>
               <View style={{ height: 8 }} />
-              <SectionHeader title="Earlier This Week" count={thisWeekOrders.length} />
+              <SectionHeader title={isStaff ? 'This Week' : 'Earlier This Week'} count={thisWeekOrders.length} />
               {thisWeekOrders.length === 0 ? (
                 <View style={styles.emptySection}>
                   <Text style={styles.emptyText}>No other orders this week</Text>
