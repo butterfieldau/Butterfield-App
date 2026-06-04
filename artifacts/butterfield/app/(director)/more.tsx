@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { buildCategories, type Category } from './_moreCategories';
 
@@ -52,6 +53,7 @@ function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) 
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
+  const layoutHandledSA = useLayoutHandledSafeArea();
   const { user, logout } = useAuth();
   const isManager  = user?.role === 'manager';
   const isDirector = !isManager;
@@ -82,7 +84,7 @@ export default function MoreScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-      <View style={[s.homeHeader, { paddingTop: insets.top + 16 }]}>
+      <View style={[s.homeHeader, { paddingTop: layoutHandledSA ? 16 : insets.top + 16 }]}>
         <Text style={s.homeTitle}>More</Text>
         <Text style={s.homeSub}>Tools, settings & configuration</Text>
       </View>

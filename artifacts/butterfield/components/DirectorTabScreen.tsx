@@ -1,6 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 
 const HEADER_BG  = '#FFFFFF';
 const CONTENT_BG = '#F8F9FB';
@@ -26,13 +27,16 @@ export function DirectorTabScreen({
   backgroundColor = CONTENT_BG,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const layoutHandledSA = useLayoutHandledSafeArea();
 
   return (
     <View style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Fills the status-bar height so the header row starts below the camera */}
-      <View style={{ height: insets.top, backgroundColor: HEADER_BG }} />
+      {/* Fills the status-bar height — skipped when the layout wrapper already did it */}
+      {!layoutHandledSA && (
+        <View style={{ height: insets.top, backgroundColor: HEADER_BG }} />
+      )}
 
       {/* Three-column header row — title is always screen-centred */}
       <View style={ss.header}>

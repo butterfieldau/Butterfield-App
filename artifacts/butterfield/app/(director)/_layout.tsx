@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { getHomeRouteForRole, isInternalRole } from '@/lib/roleRoutes';
 import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
+import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 
 const BLUE = '#1493FF';
 const NAVY = '#1A2B4A';
@@ -107,6 +108,7 @@ export default function DirectorLayout() {
       <View style={{ flex: 1, backgroundColor: BG_STAFF }}>
         <StatusBar barStyle="dark-content" backgroundColor={BG_STAFF} translucent={false} />
         <View style={{ height: insets.top, backgroundColor: BG_STAFF }} />
+        <LayoutSafeAreaContext.Provider value={true}>
         <Tabs
           tabBar={(props) => (
             <FloatingInternalTabBar
@@ -158,6 +160,7 @@ export default function DirectorLayout() {
           <Tabs.Screen name="more-category"                  options={{ href: null }} />
           <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
         </Tabs>
+        </LayoutSafeAreaContext.Provider>
       </View>
     );
   }
