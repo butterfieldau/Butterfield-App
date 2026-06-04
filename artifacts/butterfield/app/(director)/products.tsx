@@ -1827,7 +1827,7 @@ const styles = StyleSheet.create({
   pageHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   headerSearchBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
   headerSearchBtnActive: { borderColor: BLUE, backgroundColor: BLUE + '10' },
-  tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: BG },
+  tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: BG },
   tileTabBtn: { flex: 1, minHeight: 58, borderRadius: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
   tileTabBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '0D' },
   tileTabText: { fontSize: 12, fontWeight: '600', color: MUTED },
