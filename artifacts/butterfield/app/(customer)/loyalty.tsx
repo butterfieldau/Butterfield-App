@@ -657,8 +657,8 @@ function LoyaltyContent() {
               </LinearGradient>
             ) : (
               <Pressable style={styles.birthdayEmptyCard} onPress={() => router.push('/edit-details')}>
-                <Text style={[styles.sectionTitle, { color: '#20131C' }]}>Birthday reward</Text>
-                <Text style={styles.birthdayHeroText}>Add your birthday</Text>
+                <Text style={styles.sectionTitle}>Birthday reward</Text>
+                <Text style={[styles.birthdayHeroText, { color: '#FFFFFF' }]}>Add your birthday</Text>
                 <Text style={styles.birthdayBody}>Tell us your date so we can line up your Butterfield birthday reward.</Text>
                 <Text style={styles.birthdayEditLink}>Add birthday</Text>
               </Pressable>
@@ -1067,9 +1067,9 @@ const styles = StyleSheet.create({
   birthdayEmptyCard: {
     borderRadius: 24,
     padding: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SURFACE,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+    borderColor: BORDER,
   },
   birthdayHeroText: { marginTop: 4, color: '#22111C', fontSize: 28, lineHeight: 32, fontWeight: '700' },
   birthdayBody: { marginTop: 8, color: '#6B5567', fontSize: 14, lineHeight: 20, fontWeight: '500' },
