@@ -1,15 +1,15 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View,
+  RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { normalizeOrderItems } from '@/lib/orderItems';
 
 const NAVY   = '#1A2B4A';
@@ -305,7 +305,6 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
 const FILTER_TABS: FilterTab[] = ['All', 'Unpaid', 'Overdue', 'Paid'];
 
 export default function DirectorWholesaleInvoices() {
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery({
@@ -360,8 +359,7 @@ export default function DirectorWholesaleInvoices() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="dark-content" />
+    <DirectorStandaloneScreen title="Invoice Management" backgroundColor={BG}>
       {/* Detail Modal */}
       <DetailModal
         order={selectedOrder}
@@ -371,18 +369,6 @@ export default function DirectorWholesaleInvoices() {
         onSendReminder={(id) => sendReminderMutation.mutate(id)}
         sendingReminder={sendReminderMutation.isPending}
       />
-
-      {/* ── Compact white header ── */}
-      <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
-        <Pressable
-          onPress={() => router.canGoBack() ? router.back() : router.navigate('/(director)/more' as any)}
-          style={ss.backBtn}
-        >
-          <Feather name="arrow-left" size={20} color={NAVY} />
-        </Pressable>
-        <Text style={ss.headerTitle}>Invoice Management</Text>
-        <View style={{ width: 36 }} />
-      </View>
 
       {/* ── Stats strip ── */}
       <View style={ss.statsStrip}>
@@ -509,16 +495,12 @@ export default function DirectorWholesaleInvoices() {
           );
         }}
       />
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const ss = StyleSheet.create({
-  // Header
-  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  backBtn:      { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  headerTitle:  { flex: 1, textAlign: 'center', color: NAVY, fontSize: 16, fontWeight: '700' },
   // Stats strip
   statsStrip:   { flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingVertical: 10 },
   statItem:     { flex: 1, alignItems: 'center', gap: 2 },

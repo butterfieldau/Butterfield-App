@@ -5,10 +5,11 @@ import React, { type ReactNode } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BG    = '#EFF6FF';
-const BLUE  = '#1493FF';
-const DARK  = '#1C1C1E';
-const MUTED = '#8E8E93';
+const HEADER_BG  = '#FFFFFF';
+const CONTENT_BG = '#F8F9FB';
+const BORDER     = '#E5E7EB';
+const NAVY       = '#1A2B4A';
+const MUTED      = '#6B7280';
 
 interface Props {
   title: string;
@@ -17,6 +18,7 @@ interface Props {
   headerBottom?: ReactNode;
   children: ReactNode;
   backgroundColor?: string;
+  onBack?: () => void;
 }
 
 export function DirectorStandaloneScreen({
@@ -25,39 +27,60 @@ export function DirectorStandaloneScreen({
   headerRight,
   headerBottom,
   children,
-  backgroundColor = BG,
+  backgroundColor = CONTENT_BG,
+  onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
+
+  const handleBack = () => {
+    Haptics.selectionAsync();
+    if (onBack) { onBack(); return; }
+    if (router.canGoBack()) { router.back(); return; }
+    router.navigate('/(director)/more' as any);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor }}>
-      <StatusBar barStyle="dark-content" backgroundColor={backgroundColor} />
-      <View style={{ paddingTop: insets.top, backgroundColor }}>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); router.back(); }}
-          style={ss.backRow}
-          hitSlop={12}
-        >
-          <Feather name="chevron-left" size={20} color={BLUE} />
-          <Text style={ss.backText}>More</Text>
+      <StatusBar barStyle="dark-content" />
+
+      {/* ── Nav bar ── */}
+      <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
+        <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={10}>
+          <Feather name="arrow-left" size={20} color={NAVY} />
         </Pressable>
-        <View style={ss.titleRow}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={ss.title} numberOfLines={1}>{title}</Text>
-            {subtitle ? <Text style={ss.subtitle}>{subtitle}</Text> : null}
-          </View>
+
+        <View style={ss.titleBlock}>
+          <Text style={ss.title} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
+        </View>
+
+        {/* Right slot — matches back-button width to keep title visually centred */}
+        <View style={ss.rightSlot}>
           {headerRight ?? null}
         </View>
-        {headerBottom ?? null}
       </View>
+
+      {/* Optional sub-header row (search bar, filter chips, etc.) */}
+      {headerBottom ?? null}
+
       <View style={{ flex: 1 }}>{children}</View>
     </View>
   );
 }
 
 const ss = StyleSheet.create({
-  backRow:  { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  backText: { fontSize: 15, fontWeight: '600', color: BLUE },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, gap: 12 },
-  title:    { fontSize: 28, fontWeight: '700', color: DARK },
-  subtitle: { fontSize: 13, color: MUTED, marginTop: 2 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    backgroundColor: HEADER_BG,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORDER,
+  },
+  backBtn:    { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  titleBlock: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  title:      { fontSize: 16, fontWeight: '700', color: NAVY },
+  subtitle:   { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
+  rightSlot:  { width: 36, alignItems: 'flex-end', justifyContent: 'center' },
 });
