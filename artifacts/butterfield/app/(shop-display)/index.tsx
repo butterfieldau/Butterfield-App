@@ -754,7 +754,7 @@ const s = StyleSheet.create({
   emptyText:       { textAlign: 'center', color: MUTED, fontSize: 16, fontWeight: '500' },
   controlCard:     { marginHorizontal: 16, marginTop: 10, marginBottom: 8, padding: 8, borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   tileGrid:        { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  tileButton:      { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, paddingHorizontal: 8, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  tileButton:      { flex: 1, height: 56, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: 2 },
   tileButtonActive:{ backgroundColor: BLUE, borderColor: BLUE },
   tileButtonSecondaryActive: { backgroundColor: NAVY, borderColor: NAVY },
   tileButtonText:  { color: NAVY, fontSize: 12, fontWeight: '800', textAlign: 'center' },
