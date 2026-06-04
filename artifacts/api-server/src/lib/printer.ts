@@ -89,10 +89,7 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     // ── Header ───────────────────────────────────────────────────────────────
     CMD_ALIGN_CTR,
     CMD_BOLD_ON,
-    CMD_DBL_SIZE,
-    Buffer.from('BUTTERFIELD\n', 'utf-8'),
-    CMD_NORMAL_SIZE,
-    Buffer.from('COOKIES\n', 'utf-8'),
+    Buffer.from('BUTTERFIELD COOKIES\n', 'utf-8'),
     CMD_BOLD_OFF,
     Buffer.from('Merrylands, NSW\n', 'utf-8'),
     divider('='),
