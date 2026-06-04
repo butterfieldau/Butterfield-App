@@ -508,7 +508,13 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
         ) : !customer ? (
           <Text style={{ color: MUTED, padding: 20 }}>Customer not found.</Text>
         ) : (
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 60 }}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+          >
 
             {activeTab === 'profile' && (
               <>
