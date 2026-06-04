@@ -13,8 +13,8 @@ const CMD_BOLD_OFF    = Buffer.from([ESC, 0x45, 0x00]);
 const CMD_DBL_SIZE    = Buffer.from([ESC, 0x21, 0x30]);
 const CMD_NORMAL_SIZE = Buffer.from([ESC, 0x21, 0x00]);
 const CMD_FEED_5MM    = Buffer.from([ESC, 0x4A, 0x28]); // 40 dots ≈ 5mm on 203dpi printers
-const CMD_CUT         = Buffer.from([GS,  0x56, 0x41, 0x05]); // feed + partial cut
-const CMD_FULL_CUT    = Buffer.from([GS,  0x56, 0x00]);       // Star-friendly fallback
+const CMD_CUT         = Buffer.from([GS,  0x56, 0x00]);        // GS V 0 — full cut (universally supported on Epson-compatible printers)
+const CMD_FULL_CUT    = Buffer.from([GS,  0x56, 0x00]);        // alias kept for reference
 
 const COL = 42; // chars per line on 80mm paper
 
@@ -52,6 +52,7 @@ export interface PrintItem {
   quantity:      number;
   unitPriceCents: number;
   variantName?:  string;
+  options?:      string[];
 }
 
 export interface PrintJob {
@@ -131,6 +132,12 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
       : item.name;
     const safeName  = itemName.slice(0, maxName).padEnd(maxName, ' ');
     parts.push(Buffer.from(`${qty}${safeName} ${price}\n`, 'utf-8'));
+    // Print each selected option indented below the item line
+    if (item.options && item.options.length > 0) {
+      for (const opt of item.options) {
+        parts.push(Buffer.from(`   + ${opt.slice(0, COL - 5)}\n`, 'utf-8'));
+      }
+    }
   }
 
   parts.push(divider());
