@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import type { ApiOrder } from '@/lib/api';
@@ -880,11 +881,7 @@ export default function DirectorOrdersScreen() {
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
-    <View style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
-      {/* Page heading */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, alignItems: 'center' }}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: NAVY }}>Orders</Text>
-      </View>
+    <DirectorTabScreen title="Orders">
       {/* Status filter chips */}
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
@@ -1041,7 +1038,7 @@ export default function DirectorOrdersScreen() {
         onSelectDate={(d) => setSelectedDate(d)}
         ordersByDate={ordersByDate}
       />
-    </View>
+    </DirectorTabScreen>
   );
 }
 const styles = StyleSheet.create({

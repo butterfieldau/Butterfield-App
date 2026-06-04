@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole, isInternalRole } from '@/lib/roleRoutes';
 import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
 
@@ -42,7 +41,7 @@ function rootTabListeners(path: Href) {
 }
 
 export default function DirectorLayout() {
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   if (!user) return <Redirect href="/(customer)" />;
@@ -163,16 +162,9 @@ export default function DirectorLayout() {
     );
   }
 
-  // ── Director / Master: navy header + standard tab bar ────────────────────────
+  // ── Director / Master: standard tab bar ──────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: NAVY }}>
-      <StatusBar barStyle="light-content" backgroundColor={NAVY} translucent={false} />
-      <PortalHeader
-        badge={badgeLabel}
-        badgeColor={badgeColor}
-        backgroundColor={NAVY}
-        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
-      />
+    <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
           headerShown: false,

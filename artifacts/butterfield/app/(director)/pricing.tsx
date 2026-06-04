@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { api } from '@/lib/api';
 import type { DirectorProduct, DirectorUserSummary, CustomerPricingRule, PricingTier, QuantityPriceBreak } from '@/lib/api';
 
@@ -447,11 +448,7 @@ export default function DirectorPricing() {
   const customFormValid = !!customForm.customerId && !!customForm.productId && !!customForm.unitPrice;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
-        <Text style={styles.headerTitle}>Pricing Management</Text>
-        <Text style={styles.headerSub}>Tiers · quantity breaks · custom pricing</Text>
-      </View>
+    <DirectorTabScreen title="Pricing Management" subtitle="Tiers · quantity breaks · custom pricing">
 
       <View style={[styles.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {TABS.map((t) => {
@@ -678,7 +675,7 @@ export default function DirectorPricing() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </DirectorTabScreen>
   );
 }
 

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -1540,24 +1541,17 @@ export default function DirectorProductsScreen() {
     { id: 'options'  as const, label: 'Options', icon: 'sliders' },
   ] as const;
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Page title */}
-      <View style={styles.pageHeader}>
-        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
-          <Text style={{ fontSize: 16, fontWeight: '700', color: NAVY }}>Products</Text>
-        </View>
-        <View style={{ width: 36 }} />
-        <View style={{ flex: 1 }} />
+    <DirectorTabScreen
+      title="Products"
+      headerRight={
         <Pressable
-          onPress={() => {
-            setSearchOpen((prev) => !prev);
-            Haptics.selectionAsync();
-          }}
+          onPress={() => { setSearchOpen((prev) => !prev); Haptics.selectionAsync(); }}
           style={[styles.headerSearchBtn, searchOpen && styles.headerSearchBtnActive]}
         >
           <Feather name="search" size={18} color={searchOpen ? BLUE : NAVY} />
         </Pressable>
-      </View>
+      }
+    >
       {/* Top tab bar */}
       <View style={styles.tileTabRow}>
         {TAB_ITEMS.map(t => {
@@ -1826,7 +1820,7 @@ export default function DirectorProductsScreen() {
       )}
       </>
       )}
-    </View>
+    </DirectorTabScreen>
   );
 }
 const styles = StyleSheet.create({

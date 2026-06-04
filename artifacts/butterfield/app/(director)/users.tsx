@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
@@ -1936,35 +1937,25 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     await qc.invalidateQueries({ queryKey: ['director-users'] });
   };
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor={BG} />
-      {/* Page title + tab chips on same row */}
-      <View style={{ paddingHorizontal: 14, paddingTop: dedicatedMode ? insets.top + 6 : 12, paddingBottom: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
-        {/* Absolutely centred title */}
-        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
-          <Text style={{ fontSize: 16, fontWeight: '700', color: NAVY }}>
-            {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
-          </Text>
+    <DirectorTabScreen
+      title={wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
+      headerRight={!dedicatedMode ? (
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {TABS.map((t) => {
+            const active = tab === t;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => { setTab(t); Haptics.selectionAsync(); }}
+                style={[styles.tabChip, { backgroundColor: active ? BLUE : '#F3F4F6', borderColor: active ? BLUE : BORDER }]}
+              >
+                <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
+              </Pressable>
+            );
+          })}
         </View>
-        <View style={{ width: 36 }} />
-        <View style={{ flex: 1 }} />
-        {!dedicatedMode && (
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {TABS.map((t) => {
-              const active = tab === t;
-              return (
-                <Pressable
-                  key={t}
-                  onPress={() => { setTab(t); Haptics.selectionAsync(); }}
-                  style={[styles.tabChip, { backgroundColor: active ? BLUE : '#F3F4F6', borderColor: active ? BLUE : BORDER }]}
-                >
-                  <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </View>
+      ) : undefined}
+    >
       {/* Add strip — only shown for Staff/Wholesale/POS, not Customers */}
       {(dedicatedMode || tab !== 'Customers') && (
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -2287,7 +2278,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           </ScrollView>
         </View>
       </Modal>
-    </View>
+    </DirectorTabScreen>
   );
 }
 
