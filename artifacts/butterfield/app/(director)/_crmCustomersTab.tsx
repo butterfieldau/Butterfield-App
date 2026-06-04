@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, Dimensions, FlatList, KeyboardAvoidingView,
   Linking, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -688,6 +688,31 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
                       })}
                     </View>
                   )}
+                </View>
+
+                <View style={[det.section, { borderBottomColor: BORDER }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Feather name="shield" size={16} color={MUTED} />
+                    <Text style={det.sectionTitle}>Permissions</Text>
+                  </View>
+                  <View style={[det.infoRow, { alignItems: 'center' }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={det.infoLabel}>Pay at pickup</Text>
+                      <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>Allow this customer to pay in store on arrival</Text>
+                    </View>
+                    <Switch
+                      value={Boolean((customer as any)?.profile?.payAtPickupEnabled)}
+                      onValueChange={async (val) => {
+                        try {
+                          await api.director.customers.update(customerId, { payAtPickupEnabled: val });
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          refetch();
+                        } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Could not update permission'); }
+                      }}
+                      trackColor={{ false: BORDER, true: BLUE }}
+                      thumbColor="#fff"
+                    />
+                  </View>
                 </View>
 
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
