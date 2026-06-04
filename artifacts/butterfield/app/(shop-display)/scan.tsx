@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TextInput } from 'react-native';
+import { View, TextInput } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { StampScanScreen } from '@/components/StampScanScreen';
 
 export default function ShopDisplayScanScreen() {
+  const isFocused = useIsFocused();
   const hidInputRef = useRef<TextInput>(null);
   const hidBuffer = useRef('');
   const [externalScanData, setExternalScanData] = useState<string | null>(null);
@@ -14,8 +16,8 @@ export default function ShopDisplayScanScreen() {
   }, []);
 
   useEffect(() => {
-    refocusHid();
-  }, [refocusHid]);
+    if (isFocused) refocusHid();
+  }, [isFocused, refocusHid]);
 
   // Once we pass the scan data in, clear it so StampScanScreen can reset
   const handleScanHandled = useCallback(() => {
@@ -23,6 +25,10 @@ export default function ShopDisplayScanScreen() {
     hidBuffer.current = '';
     refocusHid();
   }, [refocusHid]);
+
+  // Unmount the camera entirely when this tab is not visible.
+  // This releases the camera hardware and stops the preview on other tabs.
+  if (!isFocused) return <View style={{ flex: 1 }} />;
 
   return (
     <>
@@ -46,7 +52,6 @@ export default function ShopDisplayScanScreen() {
           const val = hidBuffer.current.trim();
           if (val.length > 0) setExternalScanData(val);
           hidBuffer.current = '';
-          // Re-focus after the stamp screen has a moment to handle it
           setTimeout(() => hidInputRef.current?.focus(), 600);
         }}
         onBlur={refocusHid}

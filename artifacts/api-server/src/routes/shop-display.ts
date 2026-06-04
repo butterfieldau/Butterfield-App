@@ -373,30 +373,10 @@ router.get('/customers', async (req, res) => {
 router.get('/staff-assigned', async (req, res) => {
   await ensureShopDisplaySchemaReady();
 
-  // Determine which store(s) this shop display is assigned to
-  const myAssignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
-    .from(staffStoreAssignmentsTable)
-    .where(and(
-      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
-      eq(staffStoreAssignmentsTable.isActive, true),
-    ));
-  const storeIds = myAssignments.map((a) => a.storeId);
-
-  // When the shop display has store assignment(s), filter staff by those stores.
-  // When unassigned, fall back to all eligible PIN-enabled staff (e.g. during setup).
-  let staffIds: string[] = [];
-  if (storeIds.length > 0) {
-    const staffAssignments = await db.select({ staffId: staffStoreAssignmentsTable.staffId })
-      .from(staffStoreAssignmentsTable)
-      .where(and(
-        inArray(staffStoreAssignmentsTable.storeId, storeIds),
-        eq(staffStoreAssignmentsTable.isActive, true),
-      ));
-    staffIds = [...new Set(staffAssignments.map((a) => a.staffId))];
-  }
-
-  // Fetch profiles that have a PIN set (all profiles when unassigned, scoped when assigned)
-  const profileQuery = db.select({
+  // Return all organisation-wide staff that have a PIN set and are approved.
+  // Store-based filtering is intentionally omitted — any PIN-enabled staff member
+  // should be able to clock in at any shop display.
+  const profiles = await db.select({
     userId: staffProfilesTable.userId,
     employeeId: staffProfilesTable.employeeId,
     position: staffProfilesTable.position,
@@ -404,10 +384,6 @@ router.get('/staff-assigned', async (req, res) => {
     approvedByAdmin: staffProfilesTable.approvedByAdmin,
     isManager: staffProfilesTable.isManager,
   }).from(staffProfilesTable);
-
-  const profiles = staffIds.length > 0
-    ? await profileQuery.where(inArray(staffProfilesTable.userId, staffIds))
-    : await profileQuery;
 
   // Only keep staff with a PIN and that are approved (approvedByAdmin OR isManager)
   const eligibleProfiles = profiles.filter((p) => p.clockPin && (p.approvedByAdmin || p.isManager));
