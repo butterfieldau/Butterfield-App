@@ -238,7 +238,7 @@ function SuccessOverlay({
   const isIn = result.clocked === 'in';
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
+    <Modal visible transparent animationType="fade" onRequestClose={onDismiss} supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}>
       <Pressable style={s.successBackdrop} onPress={onDismiss}>
         <View style={[s.successCard, { borderColor: isIn ? GREEN : RED }]}>
           <View style={[s.successIcon, { backgroundColor: isIn ? '#DCFCE7' : '#FEE2E2' }]}>
