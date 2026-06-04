@@ -3,7 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Linking, Modal, Pressable,
+  ActivityIndicator, Alert, Dimensions, FlatList, KeyboardAvoidingView,
+  Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -443,6 +444,11 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <View style={{ flex: 1, backgroundColor: BG }}>
         <View style={[det.header, { paddingTop: insets.top > 0 ? insets.top + 4 : 20 }]}>
           <Pressable onPress={onClose} style={det.headerBtn} hitSlop={10}>
@@ -786,6 +792,7 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
           </ScrollView>
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
