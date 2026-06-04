@@ -3,7 +3,6 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -11,7 +10,8 @@ import {
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
@@ -103,6 +103,7 @@ function InvoiceDetailModal({
   onPdf,
   onPay,
   pdfLoading,
+  payLoading,
 }: {
   invoice: Invoice | null;
   lines: InvoiceLine[];
@@ -112,6 +113,7 @@ function InvoiceDetailModal({
   onPdf: (inv: Invoice) => void;
   onPay: (inv: Invoice) => void;
   pdfLoading: boolean;
+  payLoading: boolean;
 }) {
   const insets = useSafeAreaInsets();
   if (!invoice) return null;
@@ -244,10 +246,13 @@ function InvoiceDetailModal({
             </Pressable>
 
             {invoice.status !== 'paid' && (
-              <Pressable onPress={() => onPay(invoice)} style={[mdl.actionBtn, mdl.solidBtn]}>
-                <Feather name="credit-card" size={15} color="#fff" />
+              <Pressable onPress={() => onPay(invoice)} disabled={payLoading} style={[mdl.actionBtn, mdl.solidBtn, { opacity: payLoading ? 0.7 : 1 }]}>
+                {payLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Feather name="credit-card" size={15} color="#fff" />
+                }
                 <Text style={mdl.solidBtnText}>
-                  {defCard ? `Pay •${defCard.last4}` : 'Pay Invoice'}
+                  {payLoading ? 'Processing…' : defCard ? `Pay •${defCard.last4}` : 'Pay Invoice'}
                 </Text>
               </Pressable>
             )}
@@ -268,8 +273,10 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
 }
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
-export default function WholesaleInvoices() {
+function WholesaleInvoicesInner({ stripeReady }: { stripeReady: boolean }) {
   const insets = useSafeAreaInsets();
+  const { handleNextAction } = useStripe();
+  const qc = useQueryClient();
 
   const { data: ordersData, isLoading, refetch: refetchInvoices } = useQuery({
     queryKey: ['wholesale-invoices'],
@@ -293,6 +300,7 @@ export default function WholesaleInvoices() {
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loadingId, setLoadingId]             = useState<string | null>(null);
+  const [payingId, setPayingId]               = useState<string | null>(null);
 
   const totalPending = invoices.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
   const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
@@ -336,23 +344,64 @@ export default function WholesaleInvoices() {
     finally { setLoadingId(null); }
   };
 
-  const handlePay = (invoice: Invoice) => {
+  const handlePay = async (invoice: Invoice) => {
     const sourceOrder = orderMap[invoice.id];
     if (sourceOrder?.isPaid || String(sourceOrder?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
       Alert.alert('Already paid', 'This invoice has already been paid.');
       return;
     }
-    if (sourceOrder?.invoiceUrl) {
-      WebBrowser.openBrowserAsync(sourceOrder.invoiceUrl).catch(() => {
-        Alert.alert('Invoice unavailable', 'We could not open this invoice right now.');
-      });
-      return;
-    }
     if (!defCard) {
-      Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
+      Alert.alert(
+        'No payment method',
+        'Please add a saved card to your account before paying invoices.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Add card', onPress: () => router.push('/(wholesale)/profile' as any) },
+        ],
+      );
       return;
     }
-    Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
+    if (!stripeReady) {
+      Alert.alert('Payment unavailable', 'Payment processing is not available right now. Please try again later.');
+      return;
+    }
+
+    const amountDisplay = `$${invoice.amount.toLocaleString('en-AU', { minimumFractionDigits: 2 })} AUD`;
+    Alert.alert(
+      'Pay invoice',
+      `Charge ${amountDisplay} + card processing fee to ${defCard.cardBrand ?? ''} •••• ${defCard.last4}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Pay now',
+          onPress: async () => {
+            setPayingId(invoice.id);
+            try {
+              const result = await api.wholesale.payInvoice(invoice.id, { paymentMethodId: defCard.stripePaymentMethodId ?? defCard.id });
+
+              if (result.requiresAction && result.clientSecret && result.paymentIntentId) {
+                const { error } = await handleNextAction(result.clientSecret);
+                if (error) { Alert.alert('Payment failed', error.message); return; }
+                const confirmed = await api.wholesale.confirmInvoicePayment(invoice.id, { paymentIntentId: result.paymentIntentId });
+                if (!confirmed.success) { Alert.alert('Payment failed', 'Could not finalize payment. Please try again.'); return; }
+              } else if (!result.success) {
+                Alert.alert('Payment failed', 'The card could not be charged. Please try another card.');
+                return;
+              }
+
+              await qc.invalidateQueries({ queryKey: ['wholesale-invoices'] });
+              await qc.invalidateQueries({ queryKey: ['wholesale-account'] });
+              setSelectedInvoice(null);
+              Alert.alert('Payment successful', `Invoice ${invoice.number} has been paid.`);
+            } catch (e: any) {
+              Alert.alert('Payment failed', e?.message ?? 'Could not process payment. Please try again.');
+            } finally {
+              setPayingId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const goManageCards = () => router.push('/(wholesale)/profile' as any);
@@ -369,6 +418,7 @@ export default function WholesaleInvoices() {
         onPdf={handleDownload}
         onPay={handlePay}
         pdfLoading={loadingId === selectedInvoice?.id}
+        payLoading={payingId === selectedInvoice?.id}
       />
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
@@ -483,10 +533,16 @@ export default function WholesaleInvoices() {
                 {invoice.status !== 'paid' && (
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); handlePay(invoice); }}
-                    style={[ss.actionBtn, ss.actionPrimary]}
+                    disabled={payingId === invoice.id}
+                    style={[ss.actionBtn, ss.actionPrimary, { opacity: payingId === invoice.id ? 0.7 : 1 }]}
                   >
-                    <Feather name="credit-card" size={13} color="#fff" />
-                    <Text style={ss.actionPrimaryText}>{defCard ? `Pay •${defCard.last4}` : 'Pay'}</Text>
+                    {payingId === invoice.id
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Feather name="credit-card" size={13} color="#fff" />
+                    }
+                    <Text style={ss.actionPrimaryText}>
+                      {payingId === invoice.id ? '…' : defCard ? `Pay •${defCard.last4}` : 'Pay'}
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -496,6 +552,25 @@ export default function WholesaleInvoices() {
       />
     </View>
   );
+}
+
+export default function WholesaleInvoices() {
+  const { data: stripeConfigData } = useQuery({
+    queryKey: ['stripe-config'],
+    queryFn:  () => api.payment.config(),
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  const stripePublishableKey = stripeConfigData?.data?.publishableKey ?? null;
+
+  if (stripePublishableKey) {
+    return (
+      <StripeProvider publishableKey={stripePublishableKey}>
+        <WholesaleInvoicesInner stripeReady />
+      </StripeProvider>
+    );
+  }
+  return <WholesaleInvoicesInner stripeReady={false} />;
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
