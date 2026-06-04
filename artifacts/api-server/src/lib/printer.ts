@@ -13,8 +13,11 @@ const CMD_BOLD_OFF    = Buffer.from([ESC, 0x45, 0x00]);
 const CMD_DBL_SIZE    = Buffer.from([ESC, 0x21, 0x30]);
 const CMD_NORMAL_SIZE = Buffer.from([ESC, 0x21, 0x00]);
 const CMD_FEED_5MM    = Buffer.from([ESC, 0x4A, 0x28]); // 40 dots ≈ 5mm on 203dpi printers
-const CMD_CUT         = Buffer.from([GS,  0x56, 0x00]);        // GS V 0 — full cut (universally supported on Epson-compatible printers)
-const CMD_FULL_CUT    = Buffer.from([GS,  0x56, 0x00]);        // alias kept for reference
+// Epson / ESC-POS: GS V 0 — full cut
+const CMD_EPSON_CUT   = Buffer.from([GS,  0x56, 0x00]);
+// Star Micronics (StarPRNT): ESC d 5 (feed 5 lines) then ESC m (full cut)
+const CMD_STAR_FEED   = Buffer.from([ESC, 0x64, 0x05]);
+const CMD_STAR_CUT    = Buffer.from([ESC, 0x6D]);
 
 const COL = 42; // chars per line on 80mm paper
 
@@ -65,6 +68,7 @@ export interface PrintJob {
   loyaltyPointsEarned?: number;
   notes?:              string;
   scheduledFor?:       Date | null;
+  printerBrand?:       'epson' | 'star';
 }
 
 export function buildReceiptBytes(job: PrintJob): Buffer {
@@ -164,6 +168,7 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
   }
 
   // ── Footer ────────────────────────────────────────────────────────────────
+  const isStar = job.printerBrand === 'star';
   parts.push(
     lf(1),
     CMD_ALIGN_CTR,
@@ -173,13 +178,14 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     CMD_BOLD_OFF,
     Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
     divider('='),
-    // Feed enough paper to clear the cutter head before issuing the cut.
-    // lf(5) + CMD_FEED_5MM ensures the last line is well past the blade.
-    lf(5),
+    lf(3),
     CMD_FEED_5MM,
-    // Single partial-cut command (GS V 0x41 n): widely supported on Epson-
-    // compatible 80mm printers. n=3 = feed 3 extra lines then partial cut.
-    CMD_CUT,
+    // Star Micronics (StarPRNT): ESC d 5 + ESC m
+    // Epson / ESC-POS compatible: GS V 0x00
+    ...(isStar
+      ? [CMD_STAR_FEED, CMD_STAR_CUT]
+      : [CMD_EPSON_CUT]
+    ),
   );
 
   return Buffer.concat(parts);

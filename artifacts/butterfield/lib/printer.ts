@@ -15,6 +15,7 @@ export interface PrintJob {
   discountCents?: number;
   loyaltyPointsEarned?: number;
   notes?: string;
+  printerBrand?: 'epson' | 'star';
   scheduledFor?: Date | null;
 }
 
@@ -36,7 +37,7 @@ function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
   return { name, quantity, unitPriceCents, variantName, options: options.length > 0 ? options : undefined };
 }
 
-export function orderToPrintJob(order: PrintableOrder): PrintJob {
+export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 'star'): PrintJob {
   const items = Array.isArray(order?.items) ? order.items : [];
   return {
     orderId: order?.id ?? 'unknown-order',
@@ -48,6 +49,7 @@ export function orderToPrintJob(order: PrintableOrder): PrintJob {
     loyaltyPointsEarned: Number(order?.loyaltyPointsEarned ?? 0) || 0,
     notes: order?.notes ?? '',
     scheduledFor: order?.scheduledFor ? new Date(order.scheduledFor) : null,
+    printerBrand: printerBrand ?? 'epson',
   };
 }
 

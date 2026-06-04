@@ -1762,6 +1762,7 @@ export interface StoreSummary {
   imageUrl?: string | null;
   printerIp?: string | null;
   printerPort?: number | null;
+  printerBrand?: 'epson' | 'star' | null;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: string;
@@ -1808,6 +1809,7 @@ export interface StoreInput {
   geofenceRadius?: number | null;
   printerIp?: string | null;
   printerPort?: number | null;
+  printerBrand?: 'epson' | 'star' | null;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';

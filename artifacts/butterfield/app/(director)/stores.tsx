@@ -182,6 +182,7 @@ function StoreEditorModal({
   const [internalNotes,    setInternalNotes]     = useState('');
   const [printerIp,        setPrinterIp]         = useState('');
   const [printerPort,      setPrinterPort]       = useState('9100');
+  const [printerBrand,     setPrinterBrand]      = useState<'epson' | 'star'>('epson');
   const [orderCutoffTime,  setOrderCutoffTime]   = useState('');
   const [dailySpecial,     setDailySpecial]      = useState('');
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
@@ -212,6 +213,7 @@ function StoreEditorModal({
       setInternalNotes(store.internalNotes ?? '');
       setPrinterIp(store.printerIp ?? '');
       setPrinterPort(store.printerPort != null ? String(store.printerPort) : '9100');
+      setPrinterBrand((store.printerBrand as 'epson' | 'star') ?? 'epson');
       setOrderCutoffTime(store.orderCutoffTime ?? '');
       setDailySpecial(store.dailySpecial ?? '');
     } else {
@@ -219,7 +221,7 @@ function StoreEditorModal({
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
       setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
-      setPrinterIp(''); setPrinterPort('9100'); setOrderCutoffTime(''); setDailySpecial('');
+      setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setOrderCutoffTime(''); setDailySpecial('');
     }
     setActiveTab('Details');
   }, [visible, store]);
@@ -282,6 +284,7 @@ function StoreEditorModal({
         imageUrl: imageUrl.trim() || null,
         printerIp: printerIp.trim() || null,
         printerPort: parseInt(printerPort, 10) || 9100,
+        printerBrand,
         orderCutoffTime: orderCutoffTime.trim() || null,
         dailySpecial: dailySpecial.trim() || null,
         status,
@@ -672,8 +675,34 @@ function StoreEditorModal({
               <View style={{ borderTopWidth: 1, borderTopColor: BORDER }}>
                 <StoreField label="Printer Port" value={printerPort} onChangeText={v => setPrinterPort(v.replace(/[^\d]/g, ''))} placeholder="9100" keyboardType="number-pad" autoCapitalize="none" />
               </View>
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 12 }}>
+                <Text style={[s.fieldLabel, { marginBottom: 8 }]}>Printer Brand</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {(['epson', 'star'] as const).map(brand => (
+                    <Pressable
+                      key={brand}
+                      onPress={() => setPrinterBrand(brand)}
+                      style={{
+                        flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+                        borderWidth: 1.5,
+                        borderColor: printerBrand === brand ? BLUE : BORDER,
+                        backgroundColor: printerBrand === brand ? '#EFF6FF' : CARD,
+                      }}
+                    >
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: printerBrand === brand ? BLUE : TEXT }}>
+                        {brand === 'epson' ? 'Epson / ESC-POS' : 'Star Micronics'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+                  {printerBrand === 'star'
+                    ? 'Uses StarPRNT cut commands (ESC m). For Star mC-Print, TSP, and SP series.'
+                    : 'Uses ESC/POS cut commands (GS V). For Epson TM series and compatible printers.'}
+                </Text>
+              </View>
               <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 12 }}>
-                Orders for this store should print to this network printer.
+                Orders for this store will print to this network printer.
               </Text>
             </View>
           </View>

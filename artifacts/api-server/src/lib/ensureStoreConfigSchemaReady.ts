@@ -16,6 +16,7 @@ export async function ensureStoreConfigSchemaReady() {
         await execute([
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS printer_ip text`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS printer_port integer NOT NULL DEFAULT 9100`,
+          `ALTER TABLE stores ADD COLUMN IF NOT EXISTS printer_brand text NOT NULL DEFAULT 'epson'`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS order_cutoff_time text`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS daily_special text`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS pre_delete_status text`,
