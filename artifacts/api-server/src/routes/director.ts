@@ -715,12 +715,20 @@ router.patch('/staff/:id/clock-pin', async (req, res) => {
       return res.status(400).json({ error: 'PIN must be exactly 4 digits.' });
     }
     const hashed = await bcrypt.hash(String(pin), 10);
-    // UPSERT — creates the row if no staff_profiles entry exists yet (e.g. manager-only accounts)
-    await db.execute(sql`
-      INSERT INTO staff_profiles (user_id, clock_pin)
-      VALUES (${id}, ${hashed})
-      ON CONFLICT (user_id) DO UPDATE SET clock_pin = ${hashed}
-    `);
+    const [existingProfile] = await db.select({ userId: staffProfilesTable.userId })
+      .from(staffProfilesTable).where(eq(staffProfilesTable.userId, id)).limit(1);
+    if (existingProfile) {
+      await db.update(staffProfilesTable).set({ clockPin: hashed }).where(eq(staffProfilesTable.userId, id));
+    } else {
+      // No staff_profiles row yet (e.g. manager accounts) — create a minimal one
+      await db.insert(staffProfilesTable).values({
+        userId: id,
+        employeeId: `EMP-${id.slice(0, 8).toUpperCase()}`,
+        clockPin: hashed,
+        isManager: true,
+        approvedByAdmin: false,
+      });
+    }
     await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_set' });
   } else {
     // Only update if a row exists (safe no-op otherwise)
