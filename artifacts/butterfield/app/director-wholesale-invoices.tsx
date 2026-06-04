@@ -305,6 +305,7 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
 const FILTER_TABS: FilterTab[] = ['All', 'Unpaid', 'Overdue', 'Paid'];
 
 export default function DirectorWholesaleInvoices() {
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery({
@@ -371,7 +372,7 @@ export default function DirectorWholesaleInvoices() {
       />
 
       {/* ── Compact white header ── */}
-      <View style={ss.header}>
+      <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
         <Pressable
           onPress={() => router.canGoBack() ? router.back() : router.navigate('/(director)/more' as any)}
           style={ss.backBtn}
