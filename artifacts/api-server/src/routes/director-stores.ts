@@ -82,7 +82,7 @@ router.post('/stores', async (req, res) => {
   const {
     name, slug, address, suburb, state, postcode, country = 'Australia',
     latitude, longitude, geofenceRadius = 100, phone, email, website, imageUrl,
-    printerIp, printerPort = 9100, printerBrand = 'epson', orderCutoffTime, dailySpecial,
+    printerIp, printerPort = 9100, printerBrand = 'epson', autoPrint = true, orderCutoffTime, dailySpecial,
     status = 'open', pickupAvailable = true, deliveryAvailable = false,
     publicNotes, internalNotes, sortOrder = 0,
   } = req.body;
@@ -91,7 +91,7 @@ router.post('/stores', async (req, res) => {
   const [store] = await db.insert(storesTable).values({
     id: randomUUID(), name, slug: finalSlug, address, suburb, state, postcode, country,
     latitude, longitude, geofenceRadius, phone, email, website, imageUrl,
-    printerIp, printerPort, printerBrand, orderCutoffTime, dailySpecial, status,
+    printerIp, printerPort, printerBrand, autoPrint, orderCutoffTime, dailySpecial, status,
     pickupAvailable, deliveryAvailable, publicNotes, internalNotes, sortOrder,
   }).returning();
   return res.status(201).json({ data: store });
@@ -102,7 +102,7 @@ router.patch('/stores/:id', requireManagerPermission('settings'), async (req, re
   const allowed = [
     'name','slug','address','suburb','state','postcode','country',
     'latitude','longitude','geofenceRadius','phone','email','website','imageUrl',
-    'printerIp','printerPort','printerBrand','orderCutoffTime','dailySpecial',
+    'printerIp','printerPort','printerBrand','autoPrint','orderCutoffTime','dailySpecial',
     'status','pickupAvailable','deliveryAvailable','publicNotes','internalNotes','sortOrder',
   ];
   const updates: Record<string, any> = { updatedAt: new Date() };

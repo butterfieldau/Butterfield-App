@@ -862,10 +862,14 @@ export default function DirectorOrdersScreen() {
       await qc.invalidateQueries({ queryKey: isStaff ? ['staff-orders'] : ['director-orders'] });
       if (!isStaff) await qc.invalidateQueries({ queryKey: ['director-stats'] });
       setSelectedOrder((prev) => prev ? { ...prev, status, ...(cancelReason ? { cancelReason } : {}) } : null);
-      if (status === 'ready_for_pickup') {
+      if (status === 'being_prepared') {
         const order = allOrders.find((o) => o.id === orderId) ?? selectedOrder;
         if (order) {
-          await printOrder({ ...order, status });
+          const orderStore = stores.find((s) => s.id === order.storeId);
+          const shouldAutoPrint = orderStore ? (orderStore.autoPrint !== false) : true;
+          if (shouldAutoPrint) {
+            await printOrder({ ...order, status });
+          }
         }
       }
     } catch (error) {

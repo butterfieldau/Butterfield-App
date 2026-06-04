@@ -183,6 +183,7 @@ function StoreEditorModal({
   const [printerIp,        setPrinterIp]         = useState('');
   const [printerPort,      setPrinterPort]       = useState('9100');
   const [printerBrand,     setPrinterBrand]      = useState<'epson' | 'star'>('epson');
+  const [autoPrint,        setAutoPrint]         = useState(true);
   const [orderCutoffTime,  setOrderCutoffTime]   = useState('');
   const [dailySpecial,     setDailySpecial]      = useState('');
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
@@ -214,6 +215,7 @@ function StoreEditorModal({
       setPrinterIp(store.printerIp ?? '');
       setPrinterPort(store.printerPort != null ? String(store.printerPort) : '9100');
       setPrinterBrand((store.printerBrand as 'epson' | 'star') ?? 'epson');
+      setAutoPrint(store.autoPrint !== false);
       setOrderCutoffTime(store.orderCutoffTime ?? '');
       setDailySpecial(store.dailySpecial ?? '');
     } else {
@@ -221,7 +223,7 @@ function StoreEditorModal({
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
       setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
-      setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setOrderCutoffTime(''); setDailySpecial('');
+      setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setAutoPrint(true); setOrderCutoffTime(''); setDailySpecial('');
     }
     setActiveTab('Details');
   }, [visible, store]);
@@ -285,6 +287,7 @@ function StoreEditorModal({
         printerIp: printerIp.trim() || null,
         printerPort: parseInt(printerPort, 10) || 9100,
         printerBrand,
+        autoPrint,
         orderCutoffTime: orderCutoffTime.trim() || null,
         dailySpecial: dailySpecial.trim() || null,
         status,
@@ -700,6 +703,15 @@ function StoreEditorModal({
                     ? 'Uses StarPRNT cut commands (ESC m). For Star mC-Print, TSP, and SP series.'
                     : 'Uses ESC/POS cut commands (GS V). For Epson TM series and compatible printers.'}
                 </Text>
+              </View>
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[s.fieldLabel, { marginBottom: 2 }]}>Print Automatically?</Text>
+                  <Text style={{ fontSize: 12, color: MUTED }}>
+                    Auto-print receipt when an order is accepted (moved to Preparing)
+                  </Text>
+                </View>
+                <Switch value={autoPrint} onValueChange={setAutoPrint} />
               </View>
               <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 12 }}>
                 Orders for this store will print to this network printer.

@@ -1767,6 +1767,7 @@ export interface StoreSummary {
   printerIp?: string | null;
   printerPort?: number | null;
   printerBrand?: 'epson' | 'star' | null;
+  autoPrint?: boolean;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: string;
@@ -1814,6 +1815,7 @@ export interface StoreInput {
   printerIp?: string | null;
   printerPort?: number | null;
   printerBrand?: 'epson' | 'star' | null;
+  autoPrint?: boolean;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';
