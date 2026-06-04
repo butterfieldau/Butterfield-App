@@ -475,6 +475,9 @@ export const api = {
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
     updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
+    wholesaleInvoicesList: () => request<{ data: any[] }>('/director/wholesale/invoices'),
+    markWholesaleInvoicePaid: (orderId: string) =>
+      request<{ data: any }>(`/director/wholesale/invoices/${orderId}/mark-paid`, { method: 'PATCH' }),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
       request<{ data: DirectorStaffMember }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     generateStaffInvite: (data: { note?: string; expiryDays?: number }) =>

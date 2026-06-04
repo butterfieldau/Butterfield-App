@@ -174,6 +174,7 @@ const ALL_CATEGORIES: Category[] = [
         label: 'Accounts',
         items: [
           { icon: 'briefcase',    label: 'Wholesale Accounts',  sub: 'B2B customers, account status & credit setup', color: GREEN, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
+          { icon: 'file-text',    label: 'Invoice Management',  sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE,  perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
         ],
       },
       {

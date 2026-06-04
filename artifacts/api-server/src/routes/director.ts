@@ -1038,6 +1038,61 @@ router.patch('/wholesale/:accountId', async (req, res) => {
   return res.json({ data: updated });
 });
 
+// ── Director: wholesale invoice management ────────────────────────────────────
+// List all invoices for NET-term accounts (paymentTerms !== 'pay_on_order')
+router.get('/wholesale/invoices', async (req, res) => {
+  const allAccounts = await db.select().from(wholesaleAccountsTable);
+  const netAccounts = allAccounts.filter(
+    (a) => a.paymentTerms && a.paymentTerms !== 'pay_on_order',
+  );
+  if (netAccounts.length === 0) return res.json({ data: [] });
+
+  const netAccountIds = netAccounts.map((a) => a.id);
+  const orders = await db
+    .select()
+    .from(wholesaleOrdersTable)
+    .where(inArray(wholesaleOrdersTable.accountId, netAccountIds))
+    .orderBy(desc(wholesaleOrdersTable.createdAt));
+
+  // Optionally sync invoice statuses from Stripe (best-effort)
+  const synced = await syncWholesaleInvoiceStatuses(orders.map((o) => o.id)).catch(() => ({}));
+
+  const accountMap = Object.fromEntries(netAccounts.map((a) => [a.id, a]));
+
+  const data = orders.map((order) => {
+    const syncdOrder = (synced as Record<string, any>)[order.id] ?? order;
+    const account = accountMap[order.accountId];
+    return {
+      ...syncdOrder,
+      companyName:  account?.companyName  ?? 'Unknown',
+      abn:          account?.abn          ?? null,
+      paymentTerms: account?.paymentTerms ?? null,
+      accountsEmail: account?.accountsEmail ?? null,
+      deliveryAddress: account?.deliveryAddress ?? null,
+    };
+  });
+
+  return res.json({ data });
+});
+
+// Mark a wholesale order invoice as manually paid
+router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
+  const { orderId } = req.params;
+  const [updated] = await db
+    .update(wholesaleOrdersTable)
+    .set({
+      isPaid:              true,
+      paidAt:              new Date(),
+      invoiceStatus:       'paid',
+      stripePaymentStatus: 'paid',
+      updatedAt:           new Date(),
+    })
+    .where(eq(wholesaleOrdersTable.id, orderId))
+    .returning();
+  if (!updated) return res.status(404).json({ error: 'Order not found.' });
+  return res.json({ data: updated });
+});
+
 // ── Products CRUD ─────────────────────────────────────────────────────────────
 router.get('/products', async (req, res) => {
   const products = await db.select().from(productsTable).orderBy(productsTable.sortOrder, productsTable.name);
