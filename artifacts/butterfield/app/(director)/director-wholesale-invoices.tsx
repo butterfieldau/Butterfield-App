@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -15,7 +14,7 @@ import { normalizeOrderItems } from '@/lib/orderItems';
 
 const NAVY   = '#1A2B4A';
 const BLUE   = '#1493FF';
-const BG     = '#EFF6FF';
+const BG     = '#F8F9FB';
 const CARD   = '#FFFFFF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
@@ -129,7 +128,7 @@ function DetailModal({
           <View style={{ width: 36 }} />
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
           {/* Overdue banner */}
           {status === 'overdue' && (
             <View style={mdl.overdueBanner}>
@@ -211,7 +210,7 @@ function DetailModal({
             </View>
           </View>
 
-          {/* PO / order info */}
+          {/* Order details */}
           <View style={mdl.card}>
             <Text style={[mdl.sectionTitle, { marginBottom: 4 }]}>Order Details</Text>
             <InfoRow label="Invoice #"  value={invoiceNumber(order)} />
@@ -220,7 +219,7 @@ function DetailModal({
             <InfoRow label="Order #"    value={String(order.id).slice(0, 8).toUpperCase()} last />
           </View>
 
-          {/* Mark as Paid button */}
+          {/* Mark as Paid */}
           {status !== 'paid' && (
             <Pressable
               onPress={() => {
@@ -295,14 +294,13 @@ export default function DirectorWholesaleInvoices() {
     onError: () => Alert.alert('Error', 'Could not mark invoice as paid. Please try again.'),
   });
 
-  const [filter, setFilter]             = useState<FilterTab>('All');
+  const [filter, setFilter]               = useState<FilterTab>('All');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
   const rawOrders: any[] = data?.data ?? [];
 
-  // Compute derived stats
-  const unpaidOrders  = rawOrders.filter((o) => deriveStatus(o) !== 'paid');
-  const overdueOrders = rawOrders.filter((o) => deriveStatus(o) === 'overdue');
+  const unpaidOrders   = rawOrders.filter((o) => deriveStatus(o) !== 'paid');
+  const overdueOrders  = rawOrders.filter((o) => deriveStatus(o) === 'overdue');
   const outstandingCents = unpaidOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
 
   const filtered = rawOrders.filter((o) => {
@@ -314,6 +312,13 @@ export default function DirectorWholesaleInvoices() {
     return true;
   });
 
+  const countFor = (tab: FilterTab) => {
+    if (tab === 'All')    return rawOrders.length;
+    if (tab === 'Unpaid') return rawOrders.filter((o) => deriveStatus(o) === 'unpaid').length;
+    if (tab === 'Overdue') return overdueOrders.length;
+    return rawOrders.filter((o) => deriveStatus(o) === 'paid').length;
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Detail Modal */}
@@ -324,64 +329,63 @@ export default function DirectorWholesaleInvoices() {
         marking={markPaidMutation.isPending}
       />
 
-      {/* ── Header ── */}
-      <LinearGradient
-        colors={[NAVY, '#253B5E']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[ss.header, { paddingTop: insets.top + 10 }]}
-      >
-        <View style={ss.headerTop}>
-          <Pressable onPress={() => router.back()} style={ss.backBtn}>
-            <Feather name="arrow-left" size={20} color="#fff" />
-          </Pressable>
-          <Text style={ss.headerTitle}>Invoice Management</Text>
-          <View style={{ width: 36 }} />
-        </View>
+      {/* ── Compact white header ── */}
+      <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
+        <Pressable onPress={() => router.back()} style={ss.backBtn}>
+          <Feather name="arrow-left" size={20} color={NAVY} />
+        </Pressable>
+        <Text style={ss.headerTitle}>Invoice Management</Text>
+        <View style={{ width: 36 }} />
+      </View>
 
-        <View style={ss.summaryRow}>
-          <View style={ss.summaryCard}>
-            <Text style={ss.summaryLabel}>OUTSTANDING</Text>
-            <Text style={ss.summaryValue}>{formatAUD(outstandingCents)}</Text>
-          </View>
-          {overdueOrders.length > 0 && (
-            <View style={[ss.summaryCard, { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
-              <Text style={[ss.summaryLabel, { color: '#991B1B' }]}>OVERDUE</Text>
-              <Text style={[ss.summaryValue, { color: '#991B1B' }]}>
-                {overdueOrders.length} invoice{overdueOrders.length !== 1 ? 's' : ''}
+      {/* ── Stats strip ── */}
+      <View style={ss.statsStrip}>
+        <View style={ss.statItem}>
+          <Text style={ss.statLabel}>Outstanding</Text>
+          <Text style={[ss.statValue, { color: outstandingCents > 0 ? NAVY : MUTED }]}>
+            {formatAUD(outstandingCents)}
+          </Text>
+        </View>
+        <View style={ss.statDivider} />
+        <View style={ss.statItem}>
+          <Text style={ss.statLabel}>Unpaid</Text>
+          <Text style={[ss.statValue, { color: unpaidOrders.length > 0 ? AMBER : MUTED }]}>
+            {unpaidOrders.length}
+          </Text>
+        </View>
+        <View style={ss.statDivider} />
+        <View style={ss.statItem}>
+          <Text style={ss.statLabel}>Overdue</Text>
+          <Text style={[ss.statValue, { color: overdueOrders.length > 0 ? RED : MUTED }]}>
+            {overdueOrders.length}
+          </Text>
+        </View>
+      </View>
+
+      {/* ── Filter chips ── */}
+      <View style={ss.filterRow}>
+        {FILTER_TABS.map((tab) => {
+          const count  = countFor(tab);
+          const active = filter === tab;
+          return (
+            <Pressable
+              key={tab}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilter(tab); }}
+              style={[ss.filterChip, active && ss.filterChipActive]}
+            >
+              <Text style={[ss.filterChipText, active && ss.filterChipTextActive]}>
+                {tab}{count > 0 ? ` (${count})` : ''}
               </Text>
-            </View>
-          )}
-        </View>
+            </Pressable>
+          );
+        })}
+      </View>
 
-        {/* Filter tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ss.filterRow}>
-          {FILTER_TABS.map((tab) => {
-            const count =
-              tab === 'All'    ? rawOrders.length :
-              tab === 'Unpaid' ? unpaidOrders.filter((o) => deriveStatus(o) === 'unpaid').length :
-              tab === 'Overdue' ? overdueOrders.length :
-              rawOrders.filter((o) => deriveStatus(o) === 'paid').length;
-            const active = filter === tab;
-            return (
-              <Pressable
-                key={tab}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilter(tab); }}
-                style={[ss.filterChip, active && ss.filterChipActive]}
-              >
-                <Text style={[ss.filterChipText, active && ss.filterChipTextActive]}>
-                  {tab} {count > 0 ? `(${count})` : ''}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </LinearGradient>
-
-      {/* ── List ── */}
+      {/* ── Invoice list ── */}
       <FlatList
         data={filtered}
         keyExtractor={(o) => o.id}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         ListEmptyComponent={
@@ -389,13 +393,13 @@ export default function DirectorWholesaleInvoices() {
             <ActivityIndicator color={BLUE} style={{ marginTop: 60 }} />
           ) : (
             <View style={{ alignItems: 'center', paddingTop: 60, gap: 8 }}>
-              <Feather name="file-text" size={40} color={MUTED} />
+              <Feather name="file-text" size={38} color={MUTED} />
               <Text style={{ color: MUTED, fontSize: 14 }}>
                 {filter === 'All' ? 'No NET-account invoices found' : `No ${filter.toLowerCase()} invoices`}
               </Text>
               {filter === 'All' && (
                 <Text style={{ color: MUTED, fontSize: 12, textAlign: 'center', paddingHorizontal: 32 }}>
-                  Invoices appear here when wholesale accounts have NET payment terms (NET 7 / 14 / 30 / 60)
+                  Invoices appear here when wholesale accounts have NET payment terms
                 </Text>
               )}
             </View>
@@ -411,35 +415,38 @@ export default function DirectorWholesaleInvoices() {
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedOrder(order); }}
               style={({ pressed }) => [ss.card, { borderLeftColor: accentColor, opacity: pressed ? 0.92 : 1 }]}
             >
-              {/* Top row */}
+              {/* Main row */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={ss.companyName}>{order.companyName}</Text>
+                  <Text style={ss.companyName} numberOfLines={1}>{order.companyName}</Text>
                   <Text style={ss.invoiceNum}>{invoiceNumber(order)}</Text>
-                  <Text style={[ss.dueDate, isOverdue && { color: RED }]}>
-                    Due {formatDate(order.invoiceDueDate)}
-                  </Text>
-                  {order.paymentTerms && (
-                    <Text style={ss.terms}>
-                      {PAYMENT_TERMS_LABELS[order.paymentTerms] ?? order.paymentTerms}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <Text style={[ss.dueDate, isOverdue && { color: RED }]}>
+                      Due {formatDate(order.invoiceDueDate)}
                     </Text>
-                  )}
+                    {order.paymentTerms && (
+                      <View style={ss.termsBadge}>
+                        <Text style={ss.termsText}>
+                          {PAYMENT_TERMS_LABELS[order.paymentTerms] ?? order.paymentTerms}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                <View style={{ alignItems: 'flex-end', gap: 5 }}>
                   <StatusBadge status={status} />
                   <Text style={ss.amount}>{formatAUD(order.totalCents ?? 0)}</Text>
-                  <Text style={ss.dateSmall}>{formatDate(order.createdAt)}</Text>
                 </View>
               </View>
 
-              {/* Mark as Paid quick action (unpaid/overdue only) */}
+              {/* Mark as Paid quick action */}
               {status !== 'paid' && (
                 <Pressable
                   onPress={(e) => {
                     e.stopPropagation?.();
                     Alert.alert(
                       'Mark as Paid',
-                      `Mark ${invoiceNumber(order)} for ${order.companyName} as paid?\n\n${formatAUD(order.totalCents ?? 0)} — ${PAYMENT_TERMS_LABELS[order.paymentTerms] ?? order.paymentTerms ?? ''}`,
+                      `Mark ${invoiceNumber(order)} for ${order.companyName} as paid?\n${formatAUD(order.totalCents ?? 0)}`,
                       [
                         { text: 'Cancel', style: 'cancel' },
                         { text: 'Mark Paid', style: 'default', onPress: () => markPaidMutation.mutate(order.id) },
@@ -448,7 +455,7 @@ export default function DirectorWholesaleInvoices() {
                   }}
                   style={ss.markBtn}
                 >
-                  <Feather name="check-circle" size={13} color={GREEN} />
+                  <Feather name="check-circle" size={12} color={GREEN} />
                   <Text style={ss.markBtnText}>Mark as Paid</Text>
                 </Pressable>
               )}
@@ -462,30 +469,34 @@ export default function DirectorWholesaleInvoices() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const ss = StyleSheet.create({
-  header:          { paddingHorizontal: 16, paddingBottom: 12 },
-  headerTop:       { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  backBtn:         { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle:     { flex: 1, textAlign: 'center', color: '#fff', fontSize: 17, fontWeight: '700' },
-  summaryRow:      { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  summaryCard:     { flex: 1, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  summaryLabel:    { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
-  summaryValue:    { color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 2 },
-  filterRow:       { flexDirection: 'row', gap: 8, paddingVertical: 2 },
-  filterChip:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
-  filterChipActive:{ backgroundColor: '#fff' },
-  filterChipText:  { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '500' },
-  filterChipTextActive: { color: NAVY, fontWeight: '600' },
-  card:            { backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 4, gap: 10 },
-  companyName:     { color: TEXT, fontSize: 15, fontWeight: '700' },
-  invoiceNum:      { color: MUTED, fontSize: 12, fontWeight: '500' },
-  dueDate:         { color: MUTED, fontSize: 12 },
-  terms:           { color: BLUE, fontSize: 11, fontWeight: '600' },
-  amount:          { color: TEXT, fontSize: 16, fontWeight: '700' },
-  dateSmall:       { color: MUTED, fontSize: 11 },
-  badge:           { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
-  badgeText:       { fontSize: 11, fontWeight: '600' },
-  markBtn:         { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: '#DCFCE7', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: '#86EFAC' },
-  markBtnText:     { color: GREEN, fontSize: 12, fontWeight: '600' },
+  // Header
+  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  backBtn:      { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerTitle:  { flex: 1, textAlign: 'center', color: NAVY, fontSize: 16, fontWeight: '700' },
+  // Stats strip
+  statsStrip:   { flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingVertical: 10 },
+  statItem:     { flex: 1, alignItems: 'center', gap: 2 },
+  statLabel:    { color: MUTED, fontSize: 10, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4 },
+  statValue:    { fontSize: 17, fontWeight: '700' },
+  statDivider:  { width: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginVertical: 4 },
+  // Filters
+  filterRow:    { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 6, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  filterChip:   { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
+  filterChipActive: { backgroundColor: NAVY, borderColor: NAVY },
+  filterChipText:   { color: MUTED, fontSize: 12, fontWeight: '500' },
+  filterChipTextActive: { color: '#fff', fontWeight: '600' },
+  // Cards
+  card:         { backgroundColor: CARD, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 4, gap: 8 },
+  companyName:  { color: TEXT, fontSize: 14, fontWeight: '700' },
+  invoiceNum:   { color: MUTED, fontSize: 11, fontWeight: '500' },
+  dueDate:      { color: MUTED, fontSize: 11 },
+  amount:       { color: TEXT, fontSize: 15, fontWeight: '700' },
+  termsBadge:   { backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  termsText:    { color: BLUE, fontSize: 10, fontWeight: '600' },
+  badge:        { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
+  badgeText:    { fontSize: 10, fontWeight: '600' },
+  markBtn:      { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#86EFAC' },
+  markBtnText:  { color: GREEN, fontSize: 11, fontWeight: '600' },
 });
 
 const mdl = StyleSheet.create({
@@ -494,10 +505,10 @@ const mdl = StyleSheet.create({
   title:         { fontSize: 16, fontWeight: '700', color: TEXT },
   subtitle:      { fontSize: 12, color: MUTED, marginTop: 2 },
   card:          { backgroundColor: CARD, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER },
-  sectionTitle:  { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  sectionTitle:  { fontSize: 11, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
   sub:           { fontSize: 12, color: MUTED, marginTop: 3 },
   overdueBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' },
-  qtyBadge:      { width: 32, height: 32, borderRadius: 8, backgroundColor: '#E0F5FE', alignItems: 'center', justifyContent: 'center' },
+  qtyBadge:      { width: 30, height: 30, borderRadius: 8, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   qtyText:       { color: BLUE, fontWeight: '700', fontSize: 12 },
   markPaidBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: GREEN, borderRadius: 12, padding: 15 },
   markPaidText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
