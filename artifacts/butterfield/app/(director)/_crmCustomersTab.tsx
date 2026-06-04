@@ -968,7 +968,7 @@ function InsightsStrip({ insights }: { insights: CrmInsights | null }) {
     { label: 'Repeat',   value: insights.repeatCustomers ?? 0,  color: PURPLE },
     { label: 'Inactive', value: insights.inactiveCount ?? 0,    color: RED    },
   ];
-  const topSpenders = (insights.topSpenders ?? []).slice(0, 3);
+  const topSpenders = (insights.topSpenders ?? []).slice(0, 5);
   return (
     <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
       <View style={{ flexDirection: 'row' }}>
@@ -980,16 +980,20 @@ function InsightsStrip({ insights }: { insights: CrmInsights | null }) {
         ))}
       </View>
       {topSpenders.length > 0 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, gap: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
-          <Feather name="trending-up" size={13} color={AMBER} />
-          <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER, textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 4 }}>Top spenders:</Text>
-          {topSpenders.map((s, i) => (
-            <View key={s.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              {i > 0 && <Text style={{ color: BORDER, fontSize: 11 }}>·</Text>}
-              <Text style={{ fontSize: 11, color: TEXT, fontWeight: '600' }}>{s.name}</Text>
-              <Text style={{ fontSize: 11, color: MUTED }}>({fmtAUD(s.totalSpentCents)})</Text>
-            </View>
-          ))}
+        <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: BORDER }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingVertical: 8, gap: 6 }}>
+            <Feather name="trending-up" size={13} color={AMBER} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER, textTransform: 'uppercase', letterSpacing: 0.4 }}>Top spenders:</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 8 }}>
+            {topSpenders.map((s, i) => (
+              <View key={s.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                {i > 0 && <Text style={{ color: BORDER, fontSize: 11 }}>·</Text>}
+                <Text style={{ fontSize: 11, color: TEXT, fontWeight: '600' }}>{s.name}</Text>
+                <Text style={{ fontSize: 11, color: MUTED }}>({fmtAUD(s.totalSpentCents)})</Text>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       )}
     </View>
