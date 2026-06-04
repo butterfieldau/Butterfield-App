@@ -83,7 +83,13 @@ function NumPad({
   const actionColor = staff?.isClockedIn ? RED : GREEN;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+    >
       <Pressable style={s.backdrop} onPress={onClose}>
         <Pressable style={s.numpadSheet} onPress={(e) => e.stopPropagation()}>
           <View style={s.numpadHeader}>
@@ -117,11 +123,11 @@ function NumPad({
           ) : (
             <View style={s.keyGrid}>
               {KEYS.map((key, i) => {
-                if (key === '') return <View key={i} style={s.keyEmpty} />;
+                if (key === '') return <View key={`empty-${i}`} style={s.keyEmpty} />;
                 const isDel = key === 'DEL';
                 return (
                   <Pressable
-                    key={key}
+                    key={`key-${i}`}
                     onPress={() => pressKey(key)}
                     style={({ pressed }) => [
                       s.key,
