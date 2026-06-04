@@ -78,9 +78,48 @@ function NumPad({
     }
   }, [staff, onSuccess]);
 
+  const { width: winW, height: winH } = useWindowDimensions();
+  const isLandscape = winW > winH;
+
   const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'DEL'] as const;
   const action = staff?.isClockedIn ? 'Clock Out' : 'Clock In';
   const actionColor = staff?.isClockedIn ? RED : GREEN;
+
+  // In landscape: smaller keys so the grid fits in half the sheet width
+  const keySize = isLandscape ? 62 : 80;
+  const keyFontSize = isLandscape ? 22 : 28;
+  const keyGap = isLandscape ? 8 : 12;
+
+  const keyGrid = loading ? (
+    <View style={[s.loadingWrap, isLandscape && { paddingVertical: 12 }]}>
+      <ActivityIndicator color={BLUE} size="large" />
+      <Text style={s.loadingText}>Verifying PIN…</Text>
+    </View>
+  ) : (
+    <View style={[s.keyGrid, { gap: keyGap }]}>
+      {KEYS.map((key, i) => {
+        if (key === '') return <View key={`empty-${i}`} style={{ width: keySize, height: keySize }} />;
+        const isDel = key === 'DEL';
+        return (
+          <Pressable
+            key={`key-${i}`}
+            onPress={() => pressKey(key)}
+            style={({ pressed }) => [
+              s.key,
+              { width: keySize, height: keySize, borderRadius: isLandscape ? 16 : 20 },
+              isDel ? s.keyDel : s.keyNum,
+              pressed && s.keyPressed,
+            ]}
+          >
+            {isDel
+              ? <Feather name="delete" size={isLandscape ? 18 : 22} color={TEXT} />
+              : <Text style={[s.keyText, { fontSize: keyFontSize }]}>{key}</Text>
+            }
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 
   return (
     <Modal
@@ -91,74 +130,89 @@ function NumPad({
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
     >
       <Pressable style={s.backdrop} onPress={onClose}>
-        <Pressable style={s.numpadSheet} onPress={(e) => e.stopPropagation()}>
-          <View style={s.numpadHeader}>
-            <View>
-              <Text style={s.numpadTitle}>{staff?.name ?? ''}</Text>
-              <Text style={s.numpadSub}>{staff?.position ?? ''} · {action}</Text>
-            </View>
-            <Pressable onPress={onClose} style={s.closeBtn}>
-              <Feather name="x" size={18} color={TEXT} />
-            </Pressable>
-          </View>
-
-          <View style={s.dotsRow}>
-            {[0, 1, 2, 3].map((i) => (
-              <View
-                key={i}
-                style={[
-                  s.dot,
-                  i < pin.length && s.dotFilled,
-                  error && s.dotError,
-                ]}
-              />
-            ))}
-          </View>
-
-          {loading ? (
-            <View style={s.loadingWrap}>
-              <ActivityIndicator color={BLUE} size="large" />
-              <Text style={s.loadingText}>Verifying PIN…</Text>
-            </View>
-          ) : (
-            <View style={s.keyGrid}>
-              {KEYS.map((key, i) => {
-                if (key === '') return <View key={`empty-${i}`} style={s.keyEmpty} />;
-                const isDel = key === 'DEL';
-                return (
-                  <Pressable
-                    key={`key-${i}`}
-                    onPress={() => pressKey(key)}
-                    style={({ pressed }) => [
-                      s.key,
-                      isDel ? s.keyDel : s.keyNum,
-                      pressed && s.keyPressed,
-                    ]}
-                  >
-                    {isDel
-                      ? <Feather name="delete" size={22} color={TEXT} />
-                      : <Text style={s.keyText}>{key}</Text>
-                    }
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-
-          {error && (
-            <View style={s.errorRow}>
-              <Feather name="alert-circle" size={14} color={RED} />
-              <Text style={s.errorText}>{error}</Text>
-            </View>
-          )}
-
+        {isLandscape ? (
+          // ── Landscape: two-column sheet (info left, keypad right) ──────────
           <Pressable
-            onPress={onClose}
-            style={[s.cancelBtn, { borderColor: BORDER }]}
+            style={[s.numpadSheet, s.numpadSheetLandscape]}
+            onPress={(e) => e.stopPropagation()}
           >
-            <Text style={s.cancelText}>Cancel</Text>
+            {/* Left: staff info + dots + cancel */}
+            <View style={s.numpadLeft}>
+              <View style={{ flex: 1, justifyContent: 'center', gap: 12 }}>
+                <View>
+                  <Text style={s.numpadTitle}>{staff?.name ?? ''}</Text>
+                  <Text style={s.numpadSub}>{staff?.position ?? ''}</Text>
+                  <Text style={[s.numpadSub, { color: actionColor, fontWeight: '700', marginTop: 4 }]}>
+                    {action}
+                  </Text>
+                </View>
+                <View style={s.dotsRow}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <View
+                      key={i}
+                      style={[s.dot, i < pin.length && s.dotFilled, error && s.dotError]}
+                    />
+                  ))}
+                </View>
+                {error && (
+                  <View style={s.errorRow}>
+                    <Feather name="alert-circle" size={13} color={RED} />
+                    <Text style={s.errorText}>{error}</Text>
+                  </View>
+                )}
+              </View>
+              <Pressable onPress={onClose} style={[s.cancelBtn, { borderColor: BORDER }]}>
+                <Text style={s.cancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+
+            {/* Divider */}
+            <View style={s.numpadDivider} />
+
+            {/* Right: keypad */}
+            <View style={s.numpadRight}>
+              <Pressable onPress={onClose} style={[s.closeBtn, { alignSelf: 'flex-end', marginBottom: 8 }]}>
+                <Feather name="x" size={16} color={TEXT} />
+              </Pressable>
+              {keyGrid}
+            </View>
           </Pressable>
-        </Pressable>
+        ) : (
+          // ── Portrait: stacked sheet ────────────────────────────────────────
+          <Pressable style={s.numpadSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={s.numpadHeader}>
+              <View>
+                <Text style={s.numpadTitle}>{staff?.name ?? ''}</Text>
+                <Text style={s.numpadSub}>{staff?.position ?? ''} · {action}</Text>
+              </View>
+              <Pressable onPress={onClose} style={s.closeBtn}>
+                <Feather name="x" size={18} color={TEXT} />
+              </Pressable>
+            </View>
+
+            <View style={s.dotsRow}>
+              {[0, 1, 2, 3].map((i) => (
+                <View
+                  key={i}
+                  style={[s.dot, i < pin.length && s.dotFilled, error && s.dotError]}
+                />
+              ))}
+            </View>
+
+            {keyGrid}
+
+            {error && (
+              <View style={s.errorRow}>
+                <Feather name="alert-circle" size={14} color={RED} />
+                <Text style={s.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <Pressable onPress={onClose} style={[s.cancelBtn, { borderColor: BORDER }]}>
+              <Text style={s.cancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        )}
       </Pressable>
     </Modal>
   );
@@ -382,9 +436,13 @@ const s = StyleSheet.create({
   staffStatus:      { fontSize: 12, fontWeight: '600', marginTop: 2 },
   clockBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   clockBadgeText:   { fontSize: 13, fontWeight: '800' },
-  backdrop:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  numpadSheet:      { backgroundColor: CARD, borderRadius: 28, padding: 24, width: '100%', maxWidth: 360, gap: 20 },
-  numpadHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  backdrop:             { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  numpadSheet:          { backgroundColor: CARD, borderRadius: 28, padding: 24, width: '100%', maxWidth: 360, gap: 20 },
+  numpadSheetLandscape: { flexDirection: 'row', maxWidth: 620, gap: 0, padding: 0, overflow: 'hidden' },
+  numpadLeft:           { flex: 1, padding: 24, gap: 16, justifyContent: 'space-between' },
+  numpadDivider:        { width: 1, backgroundColor: BORDER },
+  numpadRight:          { padding: 20, alignItems: 'center', justifyContent: 'center' },
+  numpadHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   numpadTitle:      { fontSize: 20, fontWeight: '800', color: TEXT },
   numpadSub:        { fontSize: 14, color: MUTED, fontWeight: '500', marginTop: 2 },
   closeBtn:         { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
