@@ -465,10 +465,11 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <Pressable
-              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }}
               onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
-            />
-            <View style={{ backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 16 }}>
+            >
+            {/* Inner Pressable swallows taps so touching the card doesn't close the modal */}
+            <Pressable onPress={() => {}} style={{ backgroundColor: CARD, borderRadius: 20, padding: 24, gap: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
                   <Feather name="x-circle" size={18} color={RED} />
@@ -522,7 +523,8 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                   </Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
+            </Pressable>
           </KeyboardAvoidingView>
         </Modal>
       </View>
