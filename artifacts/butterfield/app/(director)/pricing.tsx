@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
@@ -449,11 +448,10 @@ export default function DirectorPricing() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <LinearGradient colors={[NAVY, '#2A3F6F']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
         <Text style={styles.headerTitle}>Pricing Management</Text>
-        <Text style={styles.headerSub}>Director-only · tiers, quantity breaks, custom pricing</Text>
-      </LinearGradient>
+        <Text style={styles.headerSub}>Tiers · quantity breaks · custom pricing</Text>
+      </View>
 
       <View style={[styles.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {TABS.map((t) => {
@@ -740,9 +738,9 @@ function ErrBanner({ msg }: { msg: string }) {
 }
 
 const styles = StyleSheet.create({
-  header:        { paddingHorizontal: 20, paddingBottom: 16, gap: 4 },
-  headerTitle:   { color: '#fff', fontSize: 28, fontWeight: '700' },
-  headerSub:     { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '400' },
+  header:        { paddingHorizontal: 20, paddingBottom: 12, gap: 3, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB', alignItems: 'center' },
+  headerTitle:   { color: '#1A2B4A', fontSize: 16, fontWeight: '700' },
+  headerSub:     { color: '#6B7280', fontSize: 11, fontWeight: '400' },
   tabBar:        { flexDirection: 'row', borderBottomWidth: 1 },
   tabItem:       { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, position: 'relative' },
   tabLabel:      { fontSize: 11, letterSpacing: 0.3 },

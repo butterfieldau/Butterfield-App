@@ -1543,7 +1543,11 @@ export default function DirectorProductsScreen() {
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Page title */}
       <View style={styles.pageHeader}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Products</Text>
+        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
+          <Text style={{ fontSize: 16, fontWeight: '700', color: NAVY }}>Products</Text>
+        </View>
+        <View style={{ width: 36 }} />
+        <View style={{ flex: 1 }} />
         <Pressable
           onPress={() => {
             setSearchOpen((prev) => !prev);
@@ -1826,7 +1830,7 @@ export default function DirectorProductsScreen() {
   );
 }
 const styles = StyleSheet.create({
-  pageHeader: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10, backgroundColor: BG, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  pageHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   headerSearchBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
   headerSearchBtnActive: { borderColor: BLUE, backgroundColor: BLUE + '10' },
   tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: BG },

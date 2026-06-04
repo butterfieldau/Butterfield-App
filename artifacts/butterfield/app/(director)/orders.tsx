@@ -880,10 +880,10 @@ export default function DirectorOrdersScreen() {
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
       {/* Page heading */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Orders</Text>
+      <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, alignItems: 'center' }}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: NAVY }}>Orders</Text>
       </View>
       {/* Status filter chips */}
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>

@@ -1939,10 +1939,15 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     <View style={{ flex: 1, backgroundColor: BG }}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
       {/* Page title + tab chips on same row */}
-      <View style={{ paddingHorizontal: 16, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 10, backgroundColor: BG, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontSize: 26, fontWeight: '700', color: TEXT }}>
-          {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
-        </Text>
+      <View style={{ paddingHorizontal: 14, paddingTop: dedicatedMode ? insets.top + 6 : 12, paddingBottom: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+        {/* Absolutely centred title */}
+        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }} pointerEvents="none">
+          <Text style={{ fontSize: 16, fontWeight: '700', color: NAVY }}>
+            {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
+          </Text>
+        </View>
+        <View style={{ width: 36 }} />
+        <View style={{ flex: 1 }} />
         {!dedicatedMode && (
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {TABS.map((t) => {
@@ -1951,7 +1956,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                 <Pressable
                   key={t}
                   onPress={() => { setTab(t); Haptics.selectionAsync(); }}
-                  style={[styles.tabChip, { backgroundColor: active ? BLUE : BG, borderColor: active ? BLUE : BORDER }]}
+                  style={[styles.tabChip, { backgroundColor: active ? BLUE : '#F3F4F6', borderColor: active ? BLUE : BORDER }]}
                 >
                   <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
                 </Pressable>

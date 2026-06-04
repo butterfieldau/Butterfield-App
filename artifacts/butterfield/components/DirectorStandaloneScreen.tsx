@@ -45,19 +45,22 @@ export function DirectorStandaloneScreen({
 
       {/* ── Nav bar ── */}
       <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
-        <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={10}>
-          <Feather name="arrow-left" size={20} color={NAVY} />
-        </Pressable>
-
-        <View style={ss.titleBlock}>
+        {/* Title: absolutely centred so button widths don't affect it */}
+        <View style={ss.titleAbs} pointerEvents="none">
           <Text style={ss.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
         </View>
 
-        {/* Right slot — matches back-button width to keep title visually centred */}
-        <View style={ss.rightSlot}>
-          {headerRight ?? null}
-        </View>
+        {/* Back arrow (left) */}
+        <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={10}>
+          <Feather name="arrow-left" size={20} color={NAVY} />
+        </Pressable>
+
+        {/* Spacer pushes right slot to the far right */}
+        <View style={{ flex: 1 }} />
+
+        {/* Right slot — unconstrained, naturally sized */}
+        {headerRight ?? <View style={{ width: 36 }} />}
       </View>
 
       {/* Optional sub-header row (search bar, filter chips, etc.) */}
@@ -78,9 +81,8 @@ const ss = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: BORDER,
   },
-  backBtn:    { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  titleBlock: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
-  title:      { fontSize: 16, fontWeight: '700', color: NAVY },
-  subtitle:   { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
-  rightSlot:  { width: 36, alignItems: 'flex-end', justifyContent: 'center' },
+  backBtn:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  titleAbs: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  title:    { fontSize: 16, fontWeight: '700', color: NAVY },
+  subtitle: { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
 });
