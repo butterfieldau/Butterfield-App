@@ -31,11 +31,14 @@ export default function ShopDisplayScanScreen() {
         onExternalScanHandled={handleScanHandled}
       />
 
-      {/* Hidden TextInput that captures Bluetooth HID scanner keystrokes */}
+      {/* Hidden TextInput that captures Bluetooth HID scanner keystrokes.
+          showSoftInputOnFocus={false} suppresses the iOS software keyboard
+          while still allowing Bluetooth HID (hardware) keyboard input. */}
       <TextInput
         ref={hidInputRef}
         style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
         autoFocus
+        showSoftInputOnFocus={false}
         blurOnSubmit={false}
         caretHidden
         onChangeText={(t) => { hidBuffer.current = t; }}

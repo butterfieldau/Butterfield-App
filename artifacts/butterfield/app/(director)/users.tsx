@@ -477,63 +477,65 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                 </View>
               </View>
               {/* ── Clock-In PIN ──────────────────────────────────────── */}
-              <View style={[sp_s.menuSection, { marginBottom: 12, gap: 10 }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <Feather name="hash" size={17} color={BLUE} />
+              <View style={[sp_s.menuSection, { marginBottom: 12 }]}>
+                <View style={[sp_s.menuRow, { paddingVertical: 12 }]}>
+                  <Feather name="hash" size={17} color={BLUE} style={{ marginRight: 14 }} />
                   <View style={{ flex: 1 }}>
                     <Text style={sp_s.menuLabel}>Clock-In PIN</Text>
                     <Text style={sp_s.menuSub}>4-digit PIN for Shop Display iPad clock in/out</Text>
                   </View>
                 </View>
-                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
-                    <TextInput
-                      style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '600', letterSpacing: 4 }}
-                      value={pinInput}
-                      onChangeText={(t) => { setPinInput(t.replace(/\D/g, '').slice(0, 4)); setPinMsg(null); }}
-                      placeholder="New PIN"
-                      placeholderTextColor={MUTED}
-                      keyboardType="number-pad"
-                      secureTextEntry
-                      maxLength={4}
-                    />
-                    <Text style={{ color: MUTED, fontSize: 12, fontWeight: '700' }}>{pinInput.length}/4</Text>
+                <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
+                      <TextInput
+                        style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '600', letterSpacing: 4 }}
+                        value={pinInput}
+                        onChangeText={(t) => { setPinInput(t.replace(/\D/g, '').slice(0, 4)); setPinMsg(null); }}
+                        placeholder="New PIN"
+                        placeholderTextColor={MUTED}
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={4}
+                      />
+                      <Text style={{ color: MUTED, fontSize: 12, fontWeight: '700' }}>{pinInput.length}/4</Text>
+                    </View>
+                    <Pressable
+                      disabled={pinInput.length !== 4 || pinSaving}
+                      onPress={async () => {
+                        if (!userId || pinInput.length !== 4) return;
+                        setPinSaving(true);
+                        try {
+                          await api.director.setStaffClockPin(userId, pinInput);
+                          setPinInput(''); setPinMsg('PIN saved ✓');
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to save PIN')); }
+                        finally { setPinSaving(false); }
+                      }}
+                      style={[modal.chip, { backgroundColor: pinInput.length === 4 ? BLUE : BG, borderColor: pinInput.length === 4 ? BLUE : BORDER, paddingVertical: 10, paddingHorizontal: 14 }]}
+                    >
+                      {pinSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[modal.chipText, { color: pinInput.length === 4 ? '#fff' : MUTED }]}>Set PIN</Text>}
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        if (!userId) return;
+                        Alert.alert('Clear PIN', 'Remove the clock-in PIN for this staff member?', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Clear', style: 'destructive', onPress: async () => {
+                            try {
+                              await api.director.setStaffClockPin(userId, null);
+                              setPinMsg('PIN cleared');
+                            } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to clear PIN')); }
+                          }},
+                        ]);
+                      }}
+                      style={[modal.chip, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', paddingVertical: 10, paddingHorizontal: 14 }]}
+                    >
+                      <Text style={[modal.chipText, { color: RED }]}>Clear</Text>
+                    </Pressable>
                   </View>
-                  <Pressable
-                    disabled={pinInput.length !== 4 || pinSaving}
-                    onPress={async () => {
-                      if (!userId || pinInput.length !== 4) return;
-                      setPinSaving(true);
-                      try {
-                        await api.director.setStaffClockPin(userId, pinInput);
-                        setPinInput(''); setPinMsg('PIN saved ✓');
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to save PIN')); }
-                      finally { setPinSaving(false); }
-                    }}
-                    style={[modal.chip, { backgroundColor: pinInput.length === 4 ? BLUE : BG, borderColor: pinInput.length === 4 ? BLUE : BORDER, paddingVertical: 10, paddingHorizontal: 14 }]}
-                  >
-                    {pinSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[modal.chipText, { color: pinInput.length === 4 ? '#fff' : MUTED }]}>Set PIN</Text>}
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      if (!userId) return;
-                      Alert.alert('Clear PIN', 'Remove the clock-in PIN for this staff member?', [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Clear', style: 'destructive', onPress: async () => {
-                          try {
-                            await api.director.setStaffClockPin(userId, null);
-                            setPinMsg('PIN cleared');
-                          } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to clear PIN')); }
-                        }},
-                      ]);
-                    }}
-                    style={[modal.chip, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', paddingVertical: 10, paddingHorizontal: 14 }]}
-                  >
-                    <Text style={[modal.chipText, { color: RED }]}>Clear</Text>
-                  </Pressable>
+                  {pinMsg ? <Text style={{ fontSize: 12, fontWeight: '700', color: pinMsg.includes('✓') || pinMsg.includes('cleared') ? '#16A34A' : RED }}>{pinMsg}</Text> : null}
                 </View>
-                {pinMsg ? <Text style={{ fontSize: 12, fontWeight: '700', color: pinMsg.includes('✓') || pinMsg.includes('cleared') ? '#16A34A' : RED }}>{pinMsg}</Text> : null}
               </View>
               {/* ── Menu rows ────────────────────────────────────────── */}
               <View style={sp_s.menuSection}>

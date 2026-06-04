@@ -372,24 +372,49 @@ router.get('/customers', async (req, res) => {
 // ── Staff assigned to same store (for PIN clock screen) ───────────────────
 router.get('/staff-assigned', async (req, res) => {
   await ensureShopDisplaySchemaReady();
+
+  // Determine which store(s) this shop display is assigned to
   const myAssignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
     .from(staffStoreAssignmentsTable)
     .where(and(
       eq(staffStoreAssignmentsTable.staffId, req.user!.id),
       eq(staffStoreAssignmentsTable.isActive, true),
     ));
-  if (myAssignments.length === 0) return res.json({ data: [] });
   const storeIds = myAssignments.map((a) => a.storeId);
 
-  const staffAssignments = await db.select({ staffId: staffStoreAssignmentsTable.staffId })
-    .from(staffStoreAssignmentsTable)
-    .where(and(
-      inArray(staffStoreAssignmentsTable.storeId, storeIds),
-      eq(staffStoreAssignmentsTable.isActive, true),
-    ));
+  // When the shop display has store assignment(s), filter staff by those stores.
+  // When unassigned, fall back to all eligible PIN-enabled staff (e.g. during setup).
+  let staffIds: string[] = [];
+  if (storeIds.length > 0) {
+    const staffAssignments = await db.select({ staffId: staffStoreAssignmentsTable.staffId })
+      .from(staffStoreAssignmentsTable)
+      .where(and(
+        inArray(staffStoreAssignmentsTable.storeId, storeIds),
+        eq(staffStoreAssignmentsTable.isActive, true),
+      ));
+    staffIds = [...new Set(staffAssignments.map((a) => a.staffId))];
+  }
 
-  const staffIds = [...new Set(staffAssignments.map((a) => a.staffId))];
-  if (staffIds.length === 0) return res.json({ data: [] });
+  // Fetch profiles that have a PIN set (all profiles when unassigned, scoped when assigned)
+  const profileQuery = db.select({
+    userId: staffProfilesTable.userId,
+    employeeId: staffProfilesTable.employeeId,
+    position: staffProfilesTable.position,
+    clockPin: staffProfilesTable.clockPin,
+    approvedByAdmin: staffProfilesTable.approvedByAdmin,
+    isManager: staffProfilesTable.isManager,
+  }).from(staffProfilesTable);
+
+  const profiles = staffIds.length > 0
+    ? await profileQuery.where(inArray(staffProfilesTable.userId, staffIds))
+    : await profileQuery;
+
+  // Only keep staff with a PIN and that are approved (approvedByAdmin OR isManager)
+  const eligibleProfiles = profiles.filter((p) => p.clockPin && (p.approvedByAdmin || p.isManager));
+  if (eligibleProfiles.length === 0) return res.json({ data: [] });
+
+  const eligibleIds = eligibleProfiles.map((p) => p.userId);
+  const profileMap = Object.fromEntries(eligibleProfiles.map((p) => [p.userId, p]));
 
   const staffUsers = await db.select({
     id: usersTable.id,
@@ -397,20 +422,9 @@ router.get('/staff-assigned', async (req, res) => {
     role: usersTable.role,
   }).from(usersTable)
     .where(and(
-      inArray(usersTable.id, staffIds),
+      inArray(usersTable.id, eligibleIds),
       or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')),
     ));
-
-  const profiles = await db.select({
-    userId: staffProfilesTable.userId,
-    employeeId: staffProfilesTable.employeeId,
-    position: staffProfilesTable.position,
-    clockPin: staffProfilesTable.clockPin,
-    approvedByAdmin: staffProfilesTable.approvedByAdmin,
-  }).from(staffProfilesTable)
-    .where(inArray(staffProfilesTable.userId, staffIds));
-
-  const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
 
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -420,17 +434,13 @@ router.get('/staff-assigned', async (req, res) => {
     clockIn: staffShiftsTable.clockIn,
   }).from(staffShiftsTable)
     .where(and(
-      inArray(staffShiftsTable.userId, staffIds),
+      inArray(staffShiftsTable.userId, eligibleIds),
       isNull(staffShiftsTable.clockOut),
       gte(staffShiftsTable.clockIn, dayStart),
     ));
   const shiftMap = Object.fromEntries(activeShifts.map((s) => [s.userId, s]));
 
   const data = staffUsers
-    .filter((u) => {
-      const p = profileMap[u.id];
-      return p?.clockPin && p.approvedByAdmin;
-    })
     .map((u) => {
       const p = profileMap[u.id];
       const shift = shiftMap[u.id];
@@ -438,13 +448,13 @@ router.get('/staff-assigned', async (req, res) => {
         userId: u.id,
         name: u.name,
         employeeId: p?.employeeId ?? '',
-        position: p?.position ?? 'crew',
+        position: p?.position ?? (u.role === 'manager' ? 'manager' : 'crew'),
         isClockedIn: Boolean(shift),
         shiftId: shift?.id ?? null,
         shiftStart: shift?.clockIn?.toISOString() ?? null,
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
 
   return res.json({ data });
 });
