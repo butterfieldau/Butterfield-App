@@ -203,8 +203,8 @@ export const api = {
   shopDisplay: {
     me: () => request<{ data: ShopDisplayMe }>('/shop-display/me'),
     orders: () => request<{ data: ShopDisplayOrder[] }>('/shop-display/orders'),
-    updateOrderStatus: (id: string, status: string) =>
-      request<{ data: ShopDisplayOrder }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    updateOrderStatus: (id: string, status: string, cancelReason?: string) =>
+      request<{ data: ShopDisplayOrder }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     tasks: (category?: string) =>
       request<{ data: StaffTask[] }>(`/shop-display/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
     completeTask: (taskId: string, isCompleted: boolean, notes?: string) =>

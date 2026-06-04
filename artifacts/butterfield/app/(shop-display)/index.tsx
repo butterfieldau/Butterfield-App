@@ -6,12 +6,15 @@ import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -159,6 +162,8 @@ export default function ShopDisplayOrdersScreen() {
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<ShopDisplayOrder | null>(null);
+  const [cancelReasonText, setCancelReasonText] = useState('');
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
 
@@ -318,18 +323,30 @@ export default function ShopDisplayOrdersScreen() {
     setCalMonth((month) => month + 1);
   };
 
-  const updateStatus = async (id: string, status: string) => {
+  const updateStatus = async (id: string, status: string, cancelReason?: string) => {
     if (updatingOrderId) return;
     setUpdatingOrderId(id);
     Haptics.selectionAsync();
     try {
-      await api.shopDisplay.updateOrderStatus(id, status);
+      await api.shopDisplay.updateOrderStatus(id, status, cancelReason);
       setAlertOrderId(cur => cur === id ? null : cur);
       await qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
       setQueueMode('active');
     } finally {
       setUpdatingOrderId(null);
     }
+  };
+
+  const openCancelModal = (order: ShopDisplayOrder) => {
+    setCancellingOrder(order);
+    setCancelReasonText('');
+  };
+
+  const confirmCancel = async () => {
+    if (!cancellingOrder || !cancelReasonText.trim()) return;
+    const reason = cancelReasonText.trim();
+    setCancellingOrder(null);
+    await updateStatus(cancellingOrder.id, 'cancelled', reason);
   };
 
   if (isLoading) {
@@ -420,11 +437,11 @@ export default function ShopDisplayOrdersScreen() {
           {secondaryAction ? (
             <Pressable
               disabled={isUpdating}
-              onPress={() => void updateStatus(item.id, secondaryAction.id)}
+              onPress={() => openCancelModal(item)}
               style={[s.secondaryActionTile, isUpdating && s.actionBtnDisabled]}
             >
               <Feather name={secondaryAction.icon} size={16} color={RED} />
-              <Text style={s.secondaryActionText}>Cancel</Text>
+              <Text style={s.secondaryActionText}>Cancel Order</Text>
             </Pressable>
           ) : null}
         </View>
@@ -537,6 +554,82 @@ export default function ShopDisplayOrdersScreen() {
         renderItem={renderCard}
       />
 
+      {/* ── Cancel reason modal ─────────────────────────────────── */}
+      <Modal
+        visible={!!cancellingOrder}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCancellingOrder(null)}
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <Pressable style={s.cancelModalBackdrop} onPress={() => setCancellingOrder(null)}>
+            <Pressable style={s.cancelModalSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={s.cancelModalHeader}>
+                <View style={s.cancelModalIconWrap}>
+                  <Feather name="x-circle" size={22} color={RED} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.cancelModalTitle}>Cancel Order</Text>
+                  <Text style={s.cancelModalSub} numberOfLines={1}>
+                    #{cancellingOrder?.id.slice(0, 6).toUpperCase()} · {cancellingOrder?.customerName ?? 'Customer'}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setCancellingOrder(null)} style={s.cancelModalClose}>
+                  <Feather name="x" size={18} color={MUTED} />
+                </Pressable>
+              </View>
+
+              <Text style={s.cancelModalLabel}>Reason for cancellation</Text>
+              <TextInput
+                style={[
+                  s.cancelModalInput,
+                  { borderColor: cancelReasonText.trim() ? BORDER : '#FECACA' },
+                ]}
+                placeholder="e.g. Customer requested cancellation, item out of stock…"
+                placeholderTextColor={MUTED}
+                value={cancelReasonText}
+                onChangeText={setCancelReasonText}
+                multiline
+                numberOfLines={3}
+                autoFocus
+              />
+              {!cancelReasonText.trim() && (
+                <Text style={s.cancelModalHint}>A reason is required before cancelling.</Text>
+              )}
+
+              <Text style={s.cancelModalRefundNote}>
+                <Feather name="refresh-ccw" size={12} color={MUTED} /> A refund will be automatically initiated if a Stripe payment was taken.
+              </Text>
+
+              <View style={s.cancelModalActions}>
+                <Pressable
+                  onPress={() => setCancellingOrder(null)}
+                  style={[s.cancelModalBtn, s.cancelModalBtnSecondary]}
+                >
+                  <Text style={s.cancelModalBtnSecondaryText}>Keep Order</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void confirmCancel()}
+                  disabled={!cancelReasonText.trim() || !!updatingOrderId}
+                  style={[
+                    s.cancelModalBtn,
+                    { backgroundColor: cancelReasonText.trim() ? RED : '#FCA5A5' },
+                  ]}
+                >
+                  <Text style={s.cancelModalBtnPrimaryText}>
+                    {updatingOrderId ? 'Cancelling…' : 'Confirm Cancel'}
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={pickerOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPickerOpen(false)}>
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={s.sheetHeader}>
@@ -635,34 +728,51 @@ const s = StyleSheet.create({
   summaryValue:    { color: TEXT, fontSize: 24, fontWeight: '800', marginTop: 2 },
   summaryCaption:  { color: MUTED, fontSize: 12, fontWeight: '600', marginTop: 2 },
 
-  card:            { backgroundColor: CARD, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: BORDER, gap: 12 },
+  card:            { backgroundColor: CARD, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: BORDER, gap: 8 },
   cardWide:        { flex: 1 },
   cardAlert:       { borderColor: BLUE, shadowColor: BLUE, shadowOpacity: 0.18, shadowRadius: 12, elevation: 4 },
 
-  cardHeader:      { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  orderNum:        { color: BLUE, fontSize: 12, fontWeight: '800', letterSpacing: 0.8, marginBottom: 2 },
-  customerName:    { color: TEXT, fontSize: 20, fontWeight: '800', lineHeight: 24 },
-  orderMeta:       { color: MUTED, fontSize: 13, fontWeight: '500', marginTop: 2, lineHeight: 18 },
-  orderTotal:      { color: TEXT, fontSize: 22, fontWeight: '800' },
+  cardHeader:      { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  orderNum:        { color: BLUE, fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 1 },
+  customerName:    { color: TEXT, fontSize: 15, fontWeight: '800', lineHeight: 19 },
+  orderMeta:       { color: MUTED, fontSize: 12, fontWeight: '500', marginTop: 1, lineHeight: 16 },
+  orderTotal:      { color: TEXT, fontSize: 17, fontWeight: '800' },
 
-  statusPill:      { borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText:      { fontSize: 11, fontWeight: '800', textTransform: 'capitalize' },
+  statusPill:      { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
+  statusText:      { fontSize: 10, fontWeight: '800', textTransform: 'capitalize' },
 
-  sectionLabel:    { color: NAVY, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  lineItem:        { backgroundColor: BG, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 3 },
-  lineMain:        { color: TEXT, fontSize: 15, fontWeight: '700' },
-  lineSub:         { color: MUTED, fontSize: 13, fontWeight: '500', lineHeight: 18 },
-  noteText:        { color: TEXT, fontSize: 14, lineHeight: 20 },
+  sectionLabel:    { color: NAVY, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  lineItem:        { backgroundColor: BG, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10, gap: 2 },
+  lineMain:        { color: TEXT, fontSize: 13, fontWeight: '700' },
+  lineSub:         { color: MUTED, fontSize: 12, fontWeight: '500', lineHeight: 16 },
+  noteText:        { color: TEXT, fontSize: 13, lineHeight: 18 },
 
   actionBtnDisabled: { opacity: 0.55 },
-  actionRail:      { gap: 10, marginTop: 2 },
-  primaryActionTile: { minHeight: 74, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  primaryActionText: { color: '#fff', fontSize: 19, fontWeight: '800' },
-  primaryActionHint: { color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
-  secondaryActionTile: { minHeight: 48, borderRadius: 16, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFF5F5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  secondaryActionText: { color: RED, fontSize: 14, fontWeight: '800' },
-  archivedNotice:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-  archivedNoticeText: { color: MUTED, fontSize: 13, fontWeight: '600' },
+  actionRail:      { gap: 8, marginTop: 2 },
+  primaryActionTile: { minHeight: 54, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  primaryActionText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  primaryActionHint: { color: 'rgba(255,255,255,0.82)', fontSize: 11, fontWeight: '600' },
+  secondaryActionTile: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFF5F5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  secondaryActionText: { color: RED, fontSize: 13, fontWeight: '800' },
+  archivedNotice:  { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  archivedNoticeText: { color: MUTED, fontSize: 12, fontWeight: '600' },
+
+  cancelModalBackdrop:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  cancelModalSheet:          { backgroundColor: CARD, borderRadius: 24, padding: 20, width: '100%', maxWidth: 480, gap: 12 },
+  cancelModalHeader:         { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cancelModalIconWrap:       { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' },
+  cancelModalTitle:          { fontSize: 17, fontWeight: '800', color: TEXT },
+  cancelModalSub:            { fontSize: 13, color: MUTED, fontWeight: '500', marginTop: 2 },
+  cancelModalClose:          { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  cancelModalLabel:          { fontSize: 13, fontWeight: '700', color: TEXT },
+  cancelModalInput:          { backgroundColor: '#F9FAFB', borderRadius: 14, borderWidth: 1.5, padding: 12, fontSize: 14, color: TEXT, minHeight: 80, textAlignVertical: 'top' },
+  cancelModalHint:           { fontSize: 12, color: RED, fontWeight: '600', marginTop: -4 },
+  cancelModalRefundNote:     { fontSize: 12, color: MUTED, fontWeight: '500', lineHeight: 18 },
+  cancelModalActions:        { flexDirection: 'row', gap: 10, marginTop: 4 },
+  cancelModalBtn:            { flex: 1, borderRadius: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
+  cancelModalBtnSecondary:   { backgroundColor: BG, borderWidth: 1, borderColor: BORDER },
+  cancelModalBtnSecondaryText: { color: TEXT, fontSize: 14, fontWeight: '700' },
+  cancelModalBtnPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 
   emptyWrap:       { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText:       { textAlign: 'center', color: MUTED, fontSize: 16, fontWeight: '500' },

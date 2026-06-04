@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
@@ -116,6 +116,11 @@ export default function ShopDisplayLayout() {
         {/* ── Sidebar ─────────────────────────────────────────────── */}
         <View style={styles.sidebar}>
           <View style={styles.sidebarBrand}>
+            <Image
+              source={require('@/assets/images/logo-white.png')}
+              style={styles.sidebarLogo}
+              resizeMode="contain"
+            />
             <View style={styles.brandBadge}>
               <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
             </View>
@@ -174,8 +179,9 @@ export default function ShopDisplayLayout() {
 }
 
 const styles = StyleSheet.create({
-  sidebar:           { width: 220, backgroundColor: NAVY, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(255,255,255,0.12)', paddingTop: 52 },
-  sidebarBrand:      { paddingHorizontal: 16, paddingBottom: 20, gap: 5, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)', marginBottom: 10 },
+  sidebar:           { width: 220, backgroundColor: NAVY, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(255,255,255,0.12)', paddingTop: 40 },
+  sidebarBrand:      { paddingHorizontal: 16, paddingBottom: 20, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)', marginBottom: 10 },
+  sidebarLogo:       { width: 130, height: 38, marginBottom: 4 },
   brandBadge:        { backgroundColor: 'rgba(20,147,255,0.25)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' },
   brandBadgeText:    { color: BLUE, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
   brandSub:          { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
