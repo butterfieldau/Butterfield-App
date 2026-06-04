@@ -287,8 +287,6 @@ router.post('/orders', async (req, res) => {
     const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
     if (!account) return res.status(404).json({ error: 'Account not found' });
     const isNetAccount = Boolean(account.creditEnabled) && (account.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
-    // NET accounts can opt to pay by card upfront — detected by presence of a stripePaymentIntentId
-    const payingByCard = !isNetAccount || Boolean(stripePaymentIntentId);
 
     const itemsWithNames = await Promise.all(priced.lines.map(async (l) => {
       const [product] = await db.select({ name: productsTable.name }).from(productsTable).where(eq(productsTable.id, l.productId));
@@ -306,12 +304,12 @@ router.post('/orders', async (req, res) => {
     // Add the account's delivery fee if this is a delivery order
     const deliveryFeeCents = (deliveryType === 'delivery') ? (account.deliveryFeeCents ?? 0) : 0;
     const originalTotalCents = priced.totalCents + deliveryFeeCents;
-    const stripeFeeCents = payingByCard ? calculateCardProcessingFeeCents(originalTotalCents) : 0;
+    const stripeFeeCents = isNetAccount ? 0 : calculateCardProcessingFeeCents(originalTotalCents);
     const finalTotalCents  = originalTotalCents + stripeFeeCents;
 
-    let stripePaymentStatus: 'pending' | 'paid' = 'pending';
-    let isPaid = false;
-    if (payingByCard) {
+    let stripePaymentStatus: 'pending' | 'paid' = isNetAccount ? 'pending' : 'paid';
+    let isPaid = isNetAccount ? false : true;
+    if (!isNetAccount) {
       if (!stripePaymentIntentId) {
         return res.status(400).json({ error: 'Payment is required for this wholesale order.' });
       }
@@ -353,10 +351,10 @@ router.post('/orders', async (req, res) => {
         paidAt: isPaid ? new Date() : null,
         stripePaymentIntentId: stripePaymentIntentId ?? null,
         stripePaymentStatus,
-        paymentMethodType: paymentMethodType ?? (payingByCard ? 'credit_card' : 'net_terms'),
+        paymentMethodType: paymentMethodType ?? (isNetAccount ? 'net_terms' : 'credit_card'),
       }).returning();
     } catch (insertError: any) {
-      if (isPaid && stripePaymentIntentId) {
+      if (!isNetAccount && isPaid && stripePaymentIntentId) {
         try {
           const { getUncachableStripeClient } = await import('../stripeClient.js');
           const stripe = await getUncachableStripeClient();
@@ -411,11 +409,11 @@ router.post('/orders', async (req, res) => {
 
 router.post('/payment-intent', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  const { items, deliveryType, savePaymentMethod, payNow } = req.body ?? {};
+  const { items, deliveryType, savePaymentMethod } = req.body ?? {};
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Account not found' });
   const isNetAccount = Boolean(account.creditEnabled) && (account.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
-  if (isNetAccount && !payNow) {
+  if (isNetAccount) {
     return res.json({ paymentRequired: false, clientSecret: null, paymentIntentId: null, amountCents: 0 });
   }
 
@@ -466,13 +464,13 @@ router.post('/payment-intent', async (req, res) => {
 
 router.post('/confirm-saved-method', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
-  const { items, deliveryType, paymentMethodId, payNow } = req.body ?? {};
+  const { items, deliveryType, paymentMethodId } = req.body ?? {};
   if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId is required.' });
 
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Account not found' });
   const isNetAccount = Boolean(account.creditEnabled) && (account.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
-  if (isNetAccount && !payNow) {
+  if (isNetAccount) {
     return res.json({ paymentRequired: false, paymentIntentId: null, clientSecret: null, amountCents: 0 });
   }
 
@@ -542,129 +540,6 @@ router.post('/confirm-intent', async (req, res) => {
   } catch (err: any) {
     req.log.error({ err }, 'Wholesale final payment confirmation failed');
     return res.status(400).json({ error: err?.message ?? 'Could not finalize wholesale payment' });
-  }
-});
-
-// ── Pay an existing NET invoice with a saved card ─────────────────────────────
-router.post('/invoices/:orderId/pay', async (req, res) => {
-  const { orderId } = req.params;
-  const { paymentMethodId } = req.body ?? {};
-  if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId is required.' });
-
-  const [order] = await db
-    .select()
-    .from(wholesaleOrdersTable)
-    .where(
-      and(
-        eq(wholesaleOrdersTable.id, orderId),
-        eq(wholesaleOrdersTable.userId, req.user!.id),
-      ),
-    );
-  if (!order) return res.status(404).json({ error: 'Invoice not found.' });
-  if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
-    return res.status(400).json({ error: 'This invoice has already been paid.' });
-  }
-
-  try {
-    const feeCents   = calculateCardProcessingFeeCents(order.totalCents);
-    const totalCents = order.totalCents + feeCents;
-
-    const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
-    const { getUncachableStripeClient } = await import('../stripeClient.js');
-    const stripe = await getUncachableStripeClient();
-
-    const intent = await stripe.paymentIntents.create({
-      amount:               totalCents,
-      currency:             'aud',
-      customer:             customerId,
-      payment_method:       paymentMethodId,
-      payment_method_types: ['card'],
-      confirm:              true,
-      off_session:          true,
-      metadata: {
-        userId:      req.user!.id,
-        accountId:   order.accountId,
-        orderId:     order.id,
-        orderSource: 'wholesale_invoice_payment',
-        feeCents:    String(feeCents),
-        baseCents:   String(order.totalCents),
-      },
-    });
-
-    if (intent.status === 'succeeded') {
-      await db
-        .update(wholesaleOrdersTable)
-        .set({
-          isPaid:                 true,
-          paidAt:                 new Date(),
-          stripePaymentStatus:    'paid',
-          stripePaymentIntentId:  intent.id,
-          paymentMethodType:      'credit_card',
-        })
-        .where(eq(wholesaleOrdersTable.id, orderId));
-      return res.json({ success: true, requiresAction: false, amountCents: totalCents, feeCents });
-    }
-
-    if (intent.status === 'requires_action') {
-      return res.json({
-        success:        false,
-        requiresAction: true,
-        clientSecret:   intent.client_secret,
-        paymentIntentId: intent.id,
-        amountCents:    totalCents,
-        feeCents,
-      });
-    }
-
-    return res.status(400).json({ error: `Payment failed (status: ${intent.status}). Please try again or contact support.` });
-  } catch (err: any) {
-    req.log.error({ err, orderId }, 'Invoice payment failed');
-    const msg: string = err?.raw?.message ?? err?.message ?? 'Could not charge card';
-    return res.status(400).json({ error: msg });
-  }
-});
-
-// ── Confirm invoice payment after 3DS ─────────────────────────────────────────
-router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
-  const { orderId } = req.params;
-  const { paymentIntentId } = req.body ?? {};
-  if (!paymentIntentId) return res.status(400).json({ error: 'paymentIntentId is required.' });
-
-  const [order] = await db
-    .select()
-    .from(wholesaleOrdersTable)
-    .where(
-      and(
-        eq(wholesaleOrdersTable.id, orderId),
-        eq(wholesaleOrdersTable.userId, req.user!.id),
-      ),
-    );
-  if (!order) return res.status(404).json({ error: 'Invoice not found.' });
-
-  try {
-    const { getUncachableStripeClient } = await import('../stripeClient.js');
-    const stripe = await getUncachableStripeClient();
-    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
-
-    if (intent.status !== 'succeeded') {
-      return res.status(400).json({ error: `Payment has not succeeded (status: ${intent.status}).` });
-    }
-
-    await db
-      .update(wholesaleOrdersTable)
-      .set({
-        isPaid:                true,
-        paidAt:                new Date(),
-        stripePaymentStatus:   'paid',
-        stripePaymentIntentId: intent.id,
-        paymentMethodType:     'credit_card',
-      })
-      .where(eq(wholesaleOrdersTable.id, orderId));
-
-    return res.json({ success: true });
-  } catch (err: any) {
-    req.log.error({ err, orderId }, 'Invoice payment confirmation failed');
-    return res.status(400).json({ error: err?.message ?? 'Could not confirm invoice payment' });
   }
 });
 

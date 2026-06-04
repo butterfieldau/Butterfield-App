@@ -239,30 +239,20 @@ export const api = {
     updateCard:  (id: string, data: { nameOnCard?: string; isDefault?: boolean }) =>
       request<{ data: WholesaleCard }>(`/wholesale/cards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteCard:  (id: string) => request<{ success: boolean }>(`/wholesale/cards/${id}`, { method: 'DELETE' }),
-    confirmIntent: (paymentIntentId: string) =>
-      request<{ success?: boolean; requiresAction?: boolean; paymentIntentId: string; clientSecret: string | null }>(
-        '/wholesale/confirm-intent',
-        { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
-      ),
-    payInvoice: (orderId: string, data: { paymentMethodId: string }) =>
-      request<{ success: boolean; requiresAction?: boolean; clientSecret?: string | null; paymentIntentId?: string | null; amountCents?: number; feeCents?: number }>(
-        `/wholesale/invoices/${orderId}/pay`,
-        { method: 'POST', body: JSON.stringify(data) },
-      ),
-    confirmInvoicePayment: (orderId: string, data: { paymentIntentId: string }) =>
-      request<{ success: boolean }>(
-        `/wholesale/invoices/${orderId}/confirm-payment`,
-        { method: 'POST', body: JSON.stringify(data) },
-      ),
-    createPaymentIntent: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; savePaymentMethod?: boolean; payNow?: boolean }) =>
+    createPaymentIntent: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; savePaymentMethod?: boolean }) =>
       request<{ paymentRequired?: boolean; clientSecret: string | null; paymentIntentId: string | null; baseAmountCents?: number; stripeFeeCents?: number; amountCents: number }>(
         '/wholesale/payment-intent',
         { method: 'POST', body: JSON.stringify(data) },
       ),
-    confirmSavedMethod: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; paymentMethodId: string; payNow?: boolean }) =>
+    confirmSavedMethod: (data: { items: { productId: string; qty: number }[]; deliveryType?: 'pickup' | 'delivery'; paymentMethodId: string }) =>
       request<{ paymentRequired?: boolean; paymentIntentId: string | null; clientSecret: string | null; baseAmountCents?: number; stripeFeeCents?: number; amountCents: number; requiresAction?: boolean; success?: boolean }>(
         '/wholesale/confirm-saved-method',
         { method: 'POST', body: JSON.stringify(data) },
+      ),
+    confirmIntent: (paymentIntentId: string) =>
+      request<{ success?: boolean; requiresAction?: boolean; paymentIntentId: string; clientSecret: string | null }>(
+        '/wholesale/confirm-intent',
+        { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
       ),
     updateAccountsEmail: (accountsEmail: string | null) =>
       request<{ data: WholesaleAccount }>('/wholesale/account/accounts-email', { method: 'PATCH', body: JSON.stringify({ accountsEmail }) }),

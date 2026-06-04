@@ -130,7 +130,6 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const [poRef, setPoRef]                       = useState('');
   const [notes, setNotes]                       = useState('');
   const [submitting, setSubmitting]             = useState(false);
-  const [payNow, setPayNow]                     = useState(false);
 
   const { data: accountData } = useQuery({
     queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), staleTime: 60_000,
@@ -196,9 +195,8 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
   const belowMin   = minOrderCents > 0 && subtotalCents < minOrderCents;
   const isNetAccount = Boolean(account?.creditEnabled) && (account?.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
-  const effectiveNet = isNetAccount && !payNow;
   const baseTotalCents = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
-  const stripeFeeCents = effectiveNet ? 0 : estimateStripeFeeCents(baseTotalCents);
+  const stripeFeeCents = isNetAccount ? 0 : estimateStripeFeeCents(baseTotalCents);
   const totalCents = baseTotalCents + stripeFeeCents;
 
   const sydNow        = getSydneyNow();
@@ -258,9 +256,9 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
       const deliveryAddress = orderType === 'delivery' && street.trim()
         ? `${street.trim()}, ${suburb.trim()} NSW ${postcode.trim()}` : undefined;
       let stripePaymentIntentId: string | undefined;
-      let paymentMethodType = effectiveNet ? 'net_terms' : 'credit_card';
+      let paymentMethodType = isNetAccount ? 'net_terms' : 'credit_card';
 
-      if (!effectiveNet) {
+      if (!isNetAccount) {
         if (!stripeReady) {
           throw new Error('Payment processing is not available right now.');
         }
@@ -270,7 +268,6 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
             items: cart.map((e) => ({ productId: e.product.id, qty: e.quantity })),
             deliveryType: orderType,
             paymentMethodId: selectedSavedPaymentMethodId,
-            payNow: isNetAccount ? true : undefined,
           });
           if (savedPayment.requiresAction && savedPayment.clientSecret && savedPayment.paymentIntentId) {
             const { error } = await handleNextAction(savedPayment.clientSecret);
@@ -303,7 +300,6 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
               items: cart.map((e) => ({ productId: e.product.id, qty: e.quantity })),
               deliveryType: orderType,
               paymentMethodId: paymentMethod.id,
-              payNow: isNetAccount ? true : undefined,
             });
             if (savedPayment.requiresAction && savedPayment.clientSecret && savedPayment.paymentIntentId) {
               const { error } = await handleNextAction(savedPayment.clientSecret);
@@ -322,7 +318,6 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
               items: cart.map((e) => ({ productId: e.product.id, qty: e.quantity })),
               deliveryType: orderType,
               savePaymentMethod: false,
-              payNow: isNetAccount ? true : undefined,
             });
             if (!intent.clientSecret) throw new Error('We could not prepare that payment.');
             const { error, paymentIntent } = await confirmPayment(intent.clientSecret, {
@@ -353,12 +348,11 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
       setPoRef(''); setNotes(''); setSelectedDate(null); setSelectedTimeMins(null);
       setStreet(''); setSuburb(''); setPostcode('');
       setShowCheckout(false); setCheckoutStep(0);
-      qc.invalidateQueries({ queryKey: ['wholesale-invoices'] });
       Alert.alert(
         'Order Submitted!',
-        effectiveNet
-          ? 'Your order has been placed on account and will appear on your next statement.'
-          : 'Your wholesale order has been paid and confirmed.',
+        isNetAccount
+          ? 'Your order has been placed on account and will appear on your monthly statement.'
+          : 'Your wholesale order has been paid and submitted successfully.',
       );
     } catch (e: any) { Alert.alert('Error', e.message); }
     finally { setSubmitting(false); }
@@ -368,7 +362,7 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
     if (submitting) return '…';
     if (checkoutStep === 0) return 'Continue to Shipping';
     if (checkoutStep === 1) return 'Continue to Order';
-    return effectiveNet ? 'Place Order on Account' : 'Pay & Place Order';
+    return isNetAccount ? 'Place Order on Account' : 'Pay & Place Order';
   };
 
   useEffect(() => {
@@ -610,7 +604,7 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                   {orderType === 'delivery' && deliveryFeeCents > 0 && (
                     <><View style={cs.sumDivider} /><View style={cs.sumRow}><Text style={cs.sumLabel}>Delivery fee</Text><Text style={cs.sumValue}>AUD {(deliveryFeeCents / 100).toFixed(2)}</Text></View></>
                   )}
-                  {!effectiveNet && stripeFeeCents > 0 && (
+                  {!isNetAccount && stripeFeeCents > 0 && (
                     <><View style={cs.sumDivider} /><View style={cs.sumRow}><Text style={cs.sumLabel}>Card processing fee</Text><Text style={cs.sumValue}>AUD {(stripeFeeCents / 100).toFixed(2)}</Text></View></>
                   )}
                   <View style={cs.sumDivider} />
@@ -794,51 +788,18 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                     </View>
                   )}
                 </View>
-                {isNetAccount && (
-                  <>
-                    <Text style={cs.secLabel}>HOW WOULD YOU LIKE TO PAY?</Text>
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <Pressable
-                        onPress={() => { setPayNow(false); Haptics.selectionAsync(); }}
-                        style={[cs.typeCard, { backgroundColor: !payNow ? LIGHT_BLUE : CARD, borderColor: !payNow ? BLUE : BORDER, borderWidth: !payNow ? 2 : 1 }]}
-                      >
-                        <View style={[cs.typeIcon, { backgroundColor: !payNow ? BLUE : BG }]}>
-                          <Feather name="file-text" size={18} color={!payNow ? '#fff' : MUTED} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>Bill to account</Text>
-                          <Text style={{ fontSize: 11, fontWeight: '400', marginTop: 2, color: !payNow ? BLUE : MUTED }}>
-                            {account?.paymentTerms ?? 'Net terms'}
-                          </Text>
-                        </View>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => { setPayNow(true); Haptics.selectionAsync(); }}
-                        style={[cs.typeCard, { backgroundColor: payNow ? LIGHT_BLUE : CARD, borderColor: payNow ? BLUE : BORDER, borderWidth: payNow ? 2 : 1 }]}
-                      >
-                        <View style={[cs.typeIcon, { backgroundColor: payNow ? BLUE : BG }]}>
-                          <Feather name="credit-card" size={18} color={payNow ? '#fff' : MUTED} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>Pay by card</Text>
-                          <Text style={{ fontSize: 11, fontWeight: '400', marginTop: 2, color: payNow ? BLUE : MUTED }}>Pay now · card fee applies</Text>
-                        </View>
-                      </Pressable>
-                    </View>
-                  </>
-                )}
                 <View style={[cs.formCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Feather name="file-text" size={14} color="#22C55E" />
                     <Text style={{ flex: 1, fontSize: 12, fontWeight: '400', color: '#166534' }}>
-                      {effectiveNet
-                        ? 'This order will be billed to your account and settled through your invoice cycle.'
-                        : `Pay now to confirm this order immediately. Card payments include a processing fee of AUD ${(stripeFeeCents / 100).toFixed(2)}.`}
+                      {isNetAccount
+                        ? 'This account can place wholesale orders on statement terms. The balance will be settled through your invoice cycle.'
+                        : `Pay now to confirm this wholesale order immediately. Saved cards stay available for faster checkout next time. Card payments include a processing fee of AUD ${(stripeFeeCents / 100).toFixed(2)}.`}
                     </Text>
                   </View>
                 </View>
                 <Text style={cs.secLabel}>PAYMENT METHOD</Text>
-                {effectiveNet ? (
+                {isNetAccount ? (
                   <View style={cs.formCard}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                       <Feather name="file-text" size={16} color={BLUE} />
