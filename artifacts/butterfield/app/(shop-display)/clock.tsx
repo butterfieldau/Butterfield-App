@@ -441,7 +441,7 @@ const s = StyleSheet.create({
   numpadSheetLandscape: { flexDirection: 'row', maxWidth: 620, gap: 0, padding: 0, overflow: 'hidden' },
   numpadLeft:           { flex: 1, padding: 24, gap: 16, justifyContent: 'space-between' },
   numpadDivider:        { width: 1, backgroundColor: BORDER },
-  numpadRight:          { padding: 20, alignItems: 'center', justifyContent: 'center' },
+  numpadRight:          { width: 242, padding: 20, alignItems: 'center', justifyContent: 'center' },
   numpadHeader:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   numpadTitle:      { fontSize: 20, fontWeight: '800', color: TEXT },
   numpadSub:        { fontSize: 14, color: MUTED, fontWeight: '500', marginTop: 2 },
