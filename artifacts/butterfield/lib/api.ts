@@ -216,6 +216,15 @@ export const api = {
       const qs = params.toString();
       return request<{ data: ShopDisplayTaskHistory[] }>(`/shop-display/tasks/history${qs ? `?${qs}` : ''}`);
     },
+    store:         () => request<{ data: ShopDisplayStore[] }>('/shop-display/store'),
+    products:      () => request<{ data: ApiProduct[] }>('/shop-display/products'),
+    customers:     (search: string) =>
+      request<{ data: ShopDisplayCustomer[] }>(`/shop-display/customers?search=${encodeURIComponent(search)}`),
+    staffAssigned: () => request<{ data: ShopDisplayStaffMember[] }>('/shop-display/staff-assigned'),
+    staffClock:    (staffId: string, pin: string) =>
+      request<{ data: { clocked: 'in' | 'out'; name: string; shiftId: string; hoursWorked?: string } }>(
+        '/shop-display/staff-clock', { method: 'POST', body: JSON.stringify({ staffId, pin }) },
+      ),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
@@ -495,11 +504,13 @@ export const api = {
     shopDisplays:        () => request<{ data: ShopDisplayUser[] }>('/director/shop-displays'),
     createShopDisplay:   (data: { name: string; email: string; password: string; phone?: string }) =>
       request<{ data: ShopDisplayUser }>('/director/shop-displays', { method: 'POST', body: JSON.stringify(data) }),
-    updateShopDisplay:   (id: string, data: { name?: string; email?: string; phone?: string; status?: 'active' | 'inactive' | 'suspended' }) =>
+    updateShopDisplay:   (id: string, data: { name?: string; email?: string; phone?: string; status?: 'active' | 'inactive' | 'suspended'; permissions?: string[] }) =>
       request<{ data: ShopDisplayUser }>(`/director/shop-displays/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     resetShopDisplayPassword: (id: string, password: string) =>
       request<{ success: boolean }>(`/director/shop-displays/${id}/password`, { method: 'PATCH', body: JSON.stringify({ password }) }),
     deleteShopDisplay:   (id: string) => request<{ success: boolean }>(`/director/shop-displays/${id}`, { method: 'DELETE' }),
+    setStaffClockPin:    (staffId: string, pin: string | null) =>
+      request<{ success: boolean }>(`/director/staff/${staffId}/clock-pin`, { method: 'PATCH', body: JSON.stringify({ pin }) }),
 
     // Pricing tiers
     tiers:               () => request<{ data: PricingTier[] }>('/director/tiers'),
@@ -1162,6 +1173,7 @@ export interface ShopDisplayUser {
   role: 'shop_display';
   phone?: string | null;
   status: string;
+  permissions?: string[];
   createdAt?: string;
   lastLogin?: string | null;
 }
@@ -1617,6 +1629,47 @@ export interface ShopDisplayMe {
   role: 'shop_display';
   permissions?: string[];
   storeIds?: string[];
+}
+
+export interface ShopDisplayStore {
+  id: string;
+  name: string;
+  address?: string | null;
+  suburb?: string | null;
+  status?: string | null;
+  printerIp?: string | null;
+  printerPort?: number | null;
+  printerBrand?: string | null;
+  autoPrint?: boolean | null;
+  geofenceRadius?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  phone?: string | null;
+  dailySpecial?: string | null;
+}
+
+export interface ShopDisplayStaffMember {
+  userId: string;
+  name: string;
+  employeeId: string;
+  position: string;
+  isClockedIn: boolean;
+  shiftId?: string | null;
+  shiftStart?: string | null;
+}
+
+export interface ShopDisplayCustomer {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  loyaltyPoints: number;
+  loyaltyTier: string;
+  stampCount: number;
+  freeCoffeeRewards: number;
+  totalVisits: number;
+  totalSpentCents: number;
+  createdAt: string;
 }
 
 export interface ShopDisplayOrder extends ApiOrder {

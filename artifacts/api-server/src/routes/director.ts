@@ -547,7 +547,18 @@ router.get('/shop-displays', async (req, res) => {
   }).from(usersTable)
     .where(eq(usersTable.role, 'shop_display' as any))
     .orderBy(desc(usersTable.createdAt));
-  return res.json({ data: rows });
+
+  if (rows.length === 0) return res.json({ data: [] });
+
+  const allProfiles = await db.execute(sql`SELECT user_id, permissions FROM shop_display_profiles`);
+  const profileRows: Array<{ user_id: string; permissions: string }> =
+    ((allProfiles as any).rows ?? allProfiles) as any;
+  const permMap: Record<string, string[]> = {};
+  for (const p of profileRows) {
+    try { permMap[p.user_id] = JSON.parse(p.permissions || '[]'); } catch { permMap[p.user_id] = []; }
+  }
+
+  return res.json({ data: rows.map((r) => ({ ...r, permissions: permMap[r.id] ?? [] })) });
 });
 
 router.post('/shop-displays', async (req, res) => {
@@ -641,6 +652,15 @@ router.patch('/shop-displays/:id', async (req, res) => {
     after: updated,
   });
 
+  if (req.body.permissions !== undefined && Array.isArray(req.body.permissions)) {
+    const perms = JSON.stringify(req.body.permissions);
+    await db.execute(sql`
+      INSERT INTO shop_display_profiles (user_id, permissions, updated_at)
+      VALUES (${id}, ${perms}, now())
+      ON CONFLICT (user_id) DO UPDATE SET permissions = ${perms}, updated_at = now()
+    `);
+    (updated as any).permissions = req.body.permissions;
+  }
   return res.json({ data: updated });
 });
 
@@ -684,6 +704,23 @@ router.delete('/shop-displays/:id', async (req, res) => {
     action: 'shop_display_deleted',
     before: existing,
   });
+  return res.json({ success: true });
+});
+
+router.patch('/staff/:id/clock-pin', async (req, res) => {
+  const { id } = req.params;
+  const { pin } = req.body ?? {};
+  if (pin !== null && pin !== undefined) {
+    if (!/^\d{4}$/.test(String(pin))) {
+      return res.status(400).json({ error: 'PIN must be exactly 4 digits.' });
+    }
+    const hashed = await bcrypt.hash(String(pin), 10);
+    await db.update(staffProfilesTable).set({ clockPin: hashed }).where(eq(staffProfilesTable.userId, id));
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_set' });
+  } else {
+    await db.update(staffProfilesTable).set({ clockPin: null }).where(eq(staffProfilesTable.userId, id));
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_cleared' });
+  }
   return res.json({ success: true });
 });
 

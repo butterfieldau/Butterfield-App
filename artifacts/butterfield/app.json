@@ -3,7 +3,7 @@
     "name": "Butterfield",
     "slug": "butterfield",
     "version": "1.2.8",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "butterfield",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
       "backgroundColor": "#1481ff"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "au.com.butterfieldcookies.app",
       "buildNumber": "3",
       "infoPlist": {

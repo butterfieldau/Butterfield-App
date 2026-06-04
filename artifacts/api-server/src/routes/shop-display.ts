@@ -1,15 +1,21 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
+import bcrypt from 'bcryptjs';
 import {
   claimedRewardsTable,
+  customerProfilesTable,
   db,
   ordersTable,
+  productsTable,
+  staffProfilesTable,
+  staffShiftsTable,
+  staffStoreAssignmentsTable,
   staffTaskHistoryTable,
   staffTasksTable,
-  staffStoreAssignmentsTable,
+  storesTable,
   usersTable,
 } from '@workspace/db';
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
@@ -39,6 +45,13 @@ const ACTIVE_ORDER_RANK: Record<string, number> = {
   refunded: 6,
 };
 
+async function getDisplayPermissions(userId: string): Promise<string[]> {
+  const rows = await db.execute(sql`SELECT permissions FROM shop_display_profiles WHERE user_id = ${userId}`);
+  const row = (rows as any)[0] ?? (rows as any).rows?.[0];
+  if (!row) return [];
+  try { return JSON.parse(row.permissions ?? '[]'); } catch { return []; }
+}
+
 router.get('/me', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const [user] = await db.select({
@@ -57,12 +70,44 @@ router.get('/me', async (req, res) => {
       eq(staffStoreAssignmentsTable.isActive, true),
     ));
 
+  const permissions = await getDisplayPermissions(req.user!.id);
+
   return res.json({
     data: {
       ...user,
-      storeIds: assignments.map((assignment) => assignment.storeId),
+      storeIds: assignments.map((a) => a.storeId),
+      permissions,
     },
   });
+});
+
+router.get('/store', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  if (assignments.length === 0) return res.json({ data: [] });
+  const storeIds = assignments.map((a) => a.storeId);
+  const stores = await db.select({
+    id: storesTable.id,
+    name: storesTable.name,
+    address: storesTable.address,
+    suburb: storesTable.suburb,
+    status: storesTable.status,
+    printerIp: storesTable.printerIp,
+    printerPort: storesTable.printerPort,
+    printerBrand: storesTable.printerBrand,
+    autoPrint: storesTable.autoPrint,
+    geofenceRadius: storesTable.geofenceRadius,
+    latitude: storesTable.latitude,
+    longitude: storesTable.longitude,
+    phone: storesTable.phone,
+    dailySpecial: storesTable.dailySpecial,
+  }).from(storesTable).where(inArray(storesTable.id, storeIds));
+  return res.json({ data: stores });
 });
 
 router.get('/orders', async (req, res) => {
@@ -257,6 +302,211 @@ router.get('/tasks/history', async (req, res) => {
     ? await db.select().from(staffTaskHistoryTable).where(and(...conditions)).orderBy(desc(staffTaskHistoryTable.createdAt)).limit(200)
     : await db.select().from(staffTaskHistoryTable).orderBy(desc(staffTaskHistoryTable.createdAt)).limit(200);
   return res.json({ data: history });
+});
+
+// ── Products (permission-gated) ───────────────────────────────────────────
+router.get('/products', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const permissions = await getDisplayPermissions(req.user!.id);
+  if (!permissions.includes('products')) {
+    return res.status(403).json({ error: 'Products access not enabled for this display.' });
+  }
+  const products = await db.select().from(productsTable).orderBy((productsTable as any).name);
+  return res.json({ data: products });
+});
+
+// ── Customer lookup (permission-gated) ────────────────────────────────────
+router.get('/customers', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const permissions = await getDisplayPermissions(req.user!.id);
+  if (!permissions.includes('customers')) {
+    return res.status(403).json({ error: 'Customer lookup not enabled for this display.' });
+  }
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  if (search.length < 2) return res.json({ data: [] });
+
+  const term = `%${search}%`;
+  const users = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    email: usersTable.email,
+    phone: usersTable.phone,
+    createdAt: usersTable.createdAt,
+  }).from(usersTable)
+    .where(and(
+      eq(usersTable.role, 'customer'),
+      or(
+        ilike(usersTable.name, term),
+        ilike(usersTable.email, term),
+        ilike(usersTable.phone, term),
+      ),
+    ))
+    .limit(30);
+
+  if (users.length === 0) return res.json({ data: [] });
+
+  const userIds = users.map((u) => u.id);
+  const profiles = await db.select().from(customerProfilesTable).where(inArray(customerProfilesTable.userId, userIds));
+  const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
+
+  const data = users.map((u) => {
+    const p = profileMap[u.id];
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      loyaltyPoints: p?.loyaltyPoints ?? 0,
+      loyaltyTier: p?.loyaltyTier ?? 'bronze',
+      stampCount: p?.coffeeStampCount ?? p?.stampCount ?? 0,
+      freeCoffeeRewards: p?.freeCoffeeRewards ?? 0,
+      totalVisits: p?.totalVisits ?? 0,
+      totalSpentCents: p?.totalSpentCents ?? 0,
+      createdAt: u.createdAt,
+    };
+  });
+
+  return res.json({ data });
+});
+
+// ── Staff assigned to same store (for PIN clock screen) ───────────────────
+router.get('/staff-assigned', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const myAssignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  if (myAssignments.length === 0) return res.json({ data: [] });
+  const storeIds = myAssignments.map((a) => a.storeId);
+
+  const staffAssignments = await db.select({ staffId: staffStoreAssignmentsTable.staffId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      inArray(staffStoreAssignmentsTable.storeId, storeIds),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+
+  const staffIds = [...new Set(staffAssignments.map((a) => a.staffId))];
+  if (staffIds.length === 0) return res.json({ data: [] });
+
+  const staffUsers = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    role: usersTable.role,
+  }).from(usersTable)
+    .where(and(
+      inArray(usersTable.id, staffIds),
+      or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')),
+    ));
+
+  const profiles = await db.select({
+    userId: staffProfilesTable.userId,
+    employeeId: staffProfilesTable.employeeId,
+    position: staffProfilesTable.position,
+    clockPin: staffProfilesTable.clockPin,
+    approvedByAdmin: staffProfilesTable.approvedByAdmin,
+  }).from(staffProfilesTable)
+    .where(inArray(staffProfilesTable.userId, staffIds));
+
+  const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
+
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const activeShifts = await db.select({
+    userId: staffShiftsTable.userId,
+    id: staffShiftsTable.id,
+    clockIn: staffShiftsTable.clockIn,
+  }).from(staffShiftsTable)
+    .where(and(
+      inArray(staffShiftsTable.userId, staffIds),
+      isNull(staffShiftsTable.clockOut),
+      gte(staffShiftsTable.clockIn, dayStart),
+    ));
+  const shiftMap = Object.fromEntries(activeShifts.map((s) => [s.userId, s]));
+
+  const data = staffUsers
+    .filter((u) => {
+      const p = profileMap[u.id];
+      return p?.clockPin && p.approvedByAdmin;
+    })
+    .map((u) => {
+      const p = profileMap[u.id];
+      const shift = shiftMap[u.id];
+      return {
+        userId: u.id,
+        name: u.name,
+        employeeId: p?.employeeId ?? '',
+        position: p?.position ?? 'crew',
+        isClockedIn: Boolean(shift),
+        shiftId: shift?.id ?? null,
+        shiftStart: shift?.clockIn?.toISOString() ?? null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return res.json({ data });
+});
+
+// ── PIN-based clock in / out ───────────────────────────────────────────────
+router.post('/staff-clock', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { staffId, pin } = req.body ?? {};
+  if (!staffId || !pin) {
+    return res.status(400).json({ error: 'staffId and pin are required.' });
+  }
+
+  const [staffUser] = await db.select({ id: usersTable.id, name: usersTable.name })
+    .from(usersTable)
+    .where(and(eq(usersTable.id, staffId), or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager'))));
+  if (!staffUser) return res.status(404).json({ error: 'Staff member not found.' });
+
+  const [profile] = await db.select({ clockPin: staffProfilesTable.clockPin, approvedByAdmin: staffProfilesTable.approvedByAdmin })
+    .from(staffProfilesTable)
+    .where(eq(staffProfilesTable.userId, staffId));
+
+  if (!profile?.clockPin) {
+    return res.status(403).json({ error: 'No PIN set for this staff member.' });
+  }
+  if (!profile.approvedByAdmin) {
+    return res.status(403).json({ error: 'Staff account not approved.' });
+  }
+
+  const valid = await bcrypt.compare(String(pin), profile.clockPin);
+  if (!valid) {
+    return res.status(401).json({ error: 'Incorrect PIN.' });
+  }
+
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const [openShift] = await db.select()
+    .from(staffShiftsTable)
+    .where(and(
+      eq(staffShiftsTable.userId, staffId),
+      isNull(staffShiftsTable.clockOut),
+      gte(staffShiftsTable.clockIn, dayStart),
+    ));
+
+  if (openShift) {
+    const clockOut = new Date();
+    const msWorked = clockOut.getTime() - openShift.clockIn.getTime();
+    const hoursWorked = (msWorked / 3600000).toFixed(2);
+    await db.update(staffShiftsTable)
+      .set({ clockOut, hoursWorked })
+      .where(eq(staffShiftsTable.id, openShift.id));
+
+    return res.json({ data: { clocked: 'out', name: staffUser.name, shiftId: openShift.id, hoursWorked } });
+  } else {
+    const shiftId = randomUUID();
+    await db.insert(staffShiftsTable).values({
+      id: shiftId,
+      userId: staffId,
+      clockIn: now,
+    });
+    return res.json({ data: { clocked: 'in', name: staffUser.name, shiftId } });
+  }
 });
 
 export default router;
