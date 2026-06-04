@@ -373,10 +373,32 @@ router.get('/customers', async (req, res) => {
 router.get('/staff-assigned', async (req, res) => {
   await ensureShopDisplaySchemaReady();
 
-  // Return all organisation-wide staff that have a PIN set and are approved.
-  // Store-based filtering is intentionally omitted — any PIN-enabled staff member
-  // should be able to clock in at any shop display.
-  const profiles = await db.select({
+  // Determine which store(s) this shop display is assigned to
+  const myAssignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  const storeIds = myAssignments.map((a) => a.storeId);
+
+  let eligibleIds: string[] = [];
+
+  if (storeIds.length > 0) {
+    // Store-based: only show staff assigned to the same store(s) as this display
+    const staffAssignments = await db.select({ staffId: staffStoreAssignmentsTable.staffId })
+      .from(staffStoreAssignmentsTable)
+      .where(and(
+        inArray(staffStoreAssignmentsTable.storeId, storeIds),
+        eq(staffStoreAssignmentsTable.isActive, true),
+      ));
+    eligibleIds = [...new Set(staffAssignments.map((a) => a.staffId))];
+    if (eligibleIds.length === 0) return res.json({ data: [] });
+  }
+  // If no store assigned to this display, fall through with eligibleIds = []
+  // and the profile query below will fetch all staff (setup / unassigned fallback)
+
+  const profileQuery = db.select({
     userId: staffProfilesTable.userId,
     employeeId: staffProfilesTable.employeeId,
     position: staffProfilesTable.position,
@@ -385,11 +407,15 @@ router.get('/staff-assigned', async (req, res) => {
     isManager: staffProfilesTable.isManager,
   }).from(staffProfilesTable);
 
+  const rawProfiles = eligibleIds.length > 0
+    ? await profileQuery.where(inArray(staffProfilesTable.userId, eligibleIds))
+    : await profileQuery;
+
   // Only keep staff with a PIN and that are approved (approvedByAdmin OR isManager)
-  const eligibleProfiles = profiles.filter((p) => p.clockPin && (p.approvedByAdmin || p.isManager));
+  const eligibleProfiles = rawProfiles.filter((p) => p.clockPin && (p.approvedByAdmin || p.isManager));
   if (eligibleProfiles.length === 0) return res.json({ data: [] });
 
-  const eligibleIds = eligibleProfiles.map((p) => p.userId);
+  const finalIds = eligibleProfiles.map((p) => p.userId);
   const profileMap = Object.fromEntries(eligibleProfiles.map((p) => [p.userId, p]));
 
   const staffUsers = await db.select({
@@ -398,7 +424,7 @@ router.get('/staff-assigned', async (req, res) => {
     role: usersTable.role,
   }).from(usersTable)
     .where(and(
-      inArray(usersTable.id, eligibleIds),
+      inArray(usersTable.id, finalIds),
       or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')),
     ));
 
@@ -410,7 +436,7 @@ router.get('/staff-assigned', async (req, res) => {
     clockIn: staffShiftsTable.clockIn,
   }).from(staffShiftsTable)
     .where(and(
-      inArray(staffShiftsTable.userId, eligibleIds),
+      inArray(staffShiftsTable.userId, finalIds),
       isNull(staffShiftsTable.clockOut),
       gte(staffShiftsTable.clockIn, dayStart),
     ));
