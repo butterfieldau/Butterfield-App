@@ -24,6 +24,9 @@ export async function ensureStoreConfigSchemaReady() {
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS purge_at timestamp`,
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS preferred_store_id text`,
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS store_id text`,
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_name text`,
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_phone text`,
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_email text`,
         ]);
       } catch (error) {
         schemaReadyPromise = null;

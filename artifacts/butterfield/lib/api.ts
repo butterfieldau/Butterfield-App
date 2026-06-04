@@ -113,6 +113,7 @@ export const api = {
     get: (id: string) => request<{ data: ApiOrder }>(`/orders/${id}`),
     create: (data: {
       items: ApiOrderItem[]; type: string; scheduledFor?: string; notes?: string;
+      contactName?: string; contactPhone?: string; contactEmail?: string;
       totalCents: number; stripePaymentIntentId?: string;
       loyaltyPointsUsed?: number; discountCents?: number; deliveryAddress?: string;
       deliveryPostcode?: string; deliveryState?: string;
