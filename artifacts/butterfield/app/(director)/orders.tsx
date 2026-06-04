@@ -762,9 +762,10 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const isStaff = user?.role === 'staff';
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['director-orders'],
-    queryFn: () => api.director.orders(),
+    queryKey: isStaff ? ['staff-orders'] : ['director-orders'],
+    queryFn: () => isStaff ? api.staff.allOrders() : api.director.orders(),
     refetchInterval: 20000,
   });
 
@@ -784,8 +785,8 @@ export default function DirectorOrdersScreen() {
     retry: 1,
   });
   const { data: storesData } = useQuery({
-    queryKey: ['director-stores'],
-    queryFn: () => api.director.storesList(),
+    queryKey: isStaff ? ['staff-stores'] : ['director-stores'],
+    queryFn: () => isStaff ? api.staff.stores() : api.director.storesList(),
     staleTime: 60000,
   });
   const allOrders: ApiOrder[] = data?.data ?? [];
@@ -852,9 +853,13 @@ export default function DirectorOrdersScreen() {
   }, [statusFiltered]);
   const handleStatusChange = async (orderId: string, status: string, cancelReason?: string) => {
     try {
-      await api.director.updateOrderStatus(orderId, status, cancelReason);
-      await qc.invalidateQueries({ queryKey: ['director-orders'] });
-      await qc.invalidateQueries({ queryKey: ['director-stats'] });
+      if (isStaff) {
+        await api.staff.updateOrderStatus(orderId, status);
+      } else {
+        await api.director.updateOrderStatus(orderId, status, cancelReason);
+      }
+      await qc.invalidateQueries({ queryKey: isStaff ? ['staff-orders'] : ['director-orders'] });
+      if (!isStaff) await qc.invalidateQueries({ queryKey: ['director-stats'] });
       setSelectedOrder((prev) => prev ? { ...prev, status, ...(cancelReason ? { cancelReason } : {}) } : null);
       if (status === 'ready_for_pickup') {
         const order = allOrders.find((o) => o.id === orderId) ?? selectedOrder;

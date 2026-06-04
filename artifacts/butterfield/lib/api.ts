@@ -171,6 +171,9 @@ export const api = {
     completeTask: (taskId: string, isCompleted: boolean) =>
       request<{ data: StaffTask }>(`/staff/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
     allOrders:    () => request<{ data: ApiOrder[] }>('/staff/orders'),
+    updateOrderStatus: (orderId: string, status: string) =>
+      request<{ data: ApiOrder }>(`/staff/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    stores:       () => request<{ data: StoreSummary[] }>('/staff/stores'),
     wastage:      () => request<{ data: StaffWastageEntry[] }>('/staff/wastage'),
     submitWastage:(data: StaffWastageInput) =>
       request<{ data: StaffWastageEntry }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
