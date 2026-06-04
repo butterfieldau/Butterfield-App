@@ -657,7 +657,7 @@ function LoyaltyContent() {
               </LinearGradient>
             ) : (
               <Pressable style={styles.birthdayEmptyCard} onPress={() => router.push('/edit-details')}>
-                <Text style={styles.sectionTitle}>Birthday reward</Text>
+                <Text style={[styles.sectionTitle, { color: '#20131C' }]}>Birthday reward</Text>
                 <Text style={styles.birthdayHeroText}>Add your birthday</Text>
                 <Text style={styles.birthdayBody}>Tell us your date so we can line up your Butterfield birthday reward.</Text>
                 <Text style={styles.birthdayEditLink}>Add birthday</Text>
@@ -984,15 +984,14 @@ const styles = StyleSheet.create({
   walletRow: { flexDirection: 'row', gap: 10 },
   infoCard: {
     flex: 1,
-    aspectRatio: 1,
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'space-between',
   },
-  infoCardLarge: { flex: 1 },
-  infoCardSmall: { flex: 1, paddingBottom: 16, justifyContent: 'flex-start' },
+  infoCardLarge: { flex: 1, aspectRatio: 1 },
+  infoCardSmall: { flex: 1, paddingBottom: 16, justifyContent: 'flex-start', minHeight: 200, overflow: 'hidden' },
   infoCardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '700' },
   infoCardValue: { marginTop: 8, color: WHITE, fontSize: 32, lineHeight: 36, fontWeight: '700' },
   infoCardSub: { marginTop: 4, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
@@ -1068,9 +1067,9 @@ const styles = StyleSheet.create({
   birthdayEmptyCard: {
     borderRadius: 24,
     padding: 18,
-    backgroundColor: SURFACE,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
   birthdayHeroText: { marginTop: 4, color: '#22111C', fontSize: 28, lineHeight: 32, fontWeight: '700' },
   birthdayBody: { marginTop: 8, color: '#6B5567', fontSize: 14, lineHeight: 20, fontWeight: '500' },
