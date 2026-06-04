@@ -1939,8 +1939,8 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   return (
     <DirectorTabScreen
       title={wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
-      headerRight={!dedicatedMode ? (
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+      headerBottom={!dedicatedMode ? (
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
           {TABS.map((t) => {
             const active = tab === t;
             return (

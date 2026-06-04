@@ -43,24 +43,28 @@ export function DirectorStandaloneScreen({
     <View style={{ flex: 1, backgroundColor }}>
       <StatusBar barStyle="dark-content" />
 
-      {/* ── Nav bar ── */}
-      <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
-        {/* Title: absolutely centred — paddingTop must match header so it aligns with the normal-flow buttons */}
-        <View style={[ss.titleAbs, { paddingTop: insets.top + 6 }]} pointerEvents="none">
+      {/* Fills the status-bar height so the header row starts below the camera */}
+      <View style={{ height: insets.top, backgroundColor: HEADER_BG }} />
+
+      {/* Three-column header row — title is always screen-centred */}
+      <View style={ss.header}>
+        {/* Left side: back button, flex:1 mirrors the right side */}
+        <View style={ss.sideLeft}>
+          <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={12}>
+            <Feather name="arrow-left" size={20} color={NAVY} />
+          </Pressable>
+        </View>
+
+        {/* Centre: title + optional subtitle */}
+        <View style={ss.center}>
           <Text style={ss.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
         </View>
 
-        {/* Back arrow (left) */}
-        <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={10}>
-          <Feather name="arrow-left" size={20} color={NAVY} />
-        </Pressable>
-
-        {/* Spacer pushes right slot to the far right */}
-        <View style={{ flex: 1 }} />
-
-        {/* Right slot — unconstrained, naturally sized */}
-        {headerRight ?? <View style={{ width: 36 }} />}
+        {/* Right side: flex:1, content aligned to the trailing edge */}
+        <View style={ss.sideRight}>
+          {headerRight ?? null}
+        </View>
       </View>
 
       {/* Optional sub-header row (search bar, filter chips, etc.) */}
@@ -75,14 +79,16 @@ const ss = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     backgroundColor: HEADER_BG,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: BORDER,
   },
-  backBtn:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  titleAbs: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  title:    { fontSize: 16, fontWeight: '700', color: NAVY },
-  subtitle: { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
+  sideLeft:  { flex: 1, alignItems: 'flex-start' },
+  sideRight: { flex: 1, alignItems: 'flex-end' },
+  center:    { alignItems: 'center', paddingHorizontal: 4 },
+  backBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  title:     { fontSize: 16, fontWeight: '700', color: NAVY },
+  subtitle:  { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
 });
