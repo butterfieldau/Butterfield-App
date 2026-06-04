@@ -5,7 +5,8 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView,
+  Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -191,9 +192,12 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
 
   const handleConfirmCancel = async () => {
     if (!cancelReasonText.trim()) return;
+    Keyboard.dismiss();
+    const reason = cancelReasonText.trim();
     setShowCancelModal(false);
+    setCancelReasonText('');
     setUpdating(true);
-    await onStatusChange(order.id, pendingStatus, cancelReasonText.trim());
+    await onStatusChange(order.id, pendingStatus, reason);
     setUpdating(false);
   };
   const discountCents = order.discountCents ?? 0;
@@ -450,8 +454,20 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
         </ScrollView>
 
         {/* ── Cancel Reason Modal ─────────────────────────────────────────── */}
-        <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <Modal
+          visible={showCancelModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
+        >
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}
+              onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
+            />
             <View style={{ backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
@@ -492,7 +508,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <Pressable
                   style={{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER }}
-                  onPress={() => setShowCancelModal(false)}
+                  onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
                 >
                   <Text style={{ color: TEXT, fontWeight: '600', fontSize: 15 }}>Go Back</Text>
                 </Pressable>
@@ -507,7 +523,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                 </Pressable>
               </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </Modal>
