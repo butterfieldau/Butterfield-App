@@ -33,8 +33,8 @@ export function DirectorTabScreen({
 
       {/* ── White compact header ── */}
       <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
-        {/* Title: absolutely centred — unaffected by right slot width */}
-        <View style={ss.titleAbs} pointerEvents="none">
+        {/* Title: absolutely centred — paddingTop must match header so it aligns with the normal-flow slots */}
+        <View style={[ss.titleAbs, { paddingTop: insets.top + 6 }]} pointerEvents="none">
           <Text style={ss.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
         </View>

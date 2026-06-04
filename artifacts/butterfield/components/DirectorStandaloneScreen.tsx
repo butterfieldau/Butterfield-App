@@ -45,8 +45,8 @@ export function DirectorStandaloneScreen({
 
       {/* ── Nav bar ── */}
       <View style={[ss.header, { paddingTop: insets.top + 6 }]}>
-        {/* Title: absolutely centred so button widths don't affect it */}
-        <View style={ss.titleAbs} pointerEvents="none">
+        {/* Title: absolutely centred — paddingTop must match header so it aligns with the normal-flow buttons */}
+        <View style={[ss.titleAbs, { paddingTop: insets.top + 6 }]} pointerEvents="none">
           <Text style={ss.title} numberOfLines={1}>{title}</Text>
           {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
         </View>
