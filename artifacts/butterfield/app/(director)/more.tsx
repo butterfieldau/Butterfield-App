@@ -12,7 +12,7 @@ import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { buildCategories, type Category } from './_moreCategories';
 
-const BG    = '#F8F9FB';
+const BG    = '#EFF6FF';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORD  = '#E5E7EB';

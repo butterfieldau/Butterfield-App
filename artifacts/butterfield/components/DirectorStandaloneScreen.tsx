@@ -6,7 +6,7 @@ import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const HEADER_BG  = '#FFFFFF';
-const CONTENT_BG = '#F8F9FB';
+const CONTENT_BG = '#EFF6FF';
 const BORDER     = '#E5E7EB';
 const NAVY       = '#1A2B4A';
 const MUTED      = '#6B7280';

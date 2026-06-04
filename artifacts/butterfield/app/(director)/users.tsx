@@ -19,7 +19,7 @@ import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSumma
 import { useAuth } from '@/context/AuthContext';
 import { CrmCustomersTab } from './_crmCustomersTab';
 
-const BG     = '#F8F9FB';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
