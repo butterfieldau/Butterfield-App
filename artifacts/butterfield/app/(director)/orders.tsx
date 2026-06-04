@@ -18,7 +18,7 @@ import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 
-const BG     = '#EFF6FF';
+const BG     = '#F8F9FB';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';

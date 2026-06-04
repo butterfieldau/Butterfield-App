@@ -14,7 +14,7 @@ import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG     = '#EFF6FF';
+const BG     = '#F8F9FB';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';

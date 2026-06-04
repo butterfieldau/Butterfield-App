@@ -4,15 +4,14 @@ import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Alert, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { buildCategories, type Category } from './_moreCategories';
 
-const BG    = '#EFF6FF';
+const BG    = '#F8F9FB';
 const TEXT  = '#1C1C1E';
 const MUTED = '#8E8E93';
 const BORD  = '#E5E7EB';
@@ -76,12 +75,14 @@ export default function MoreScreen() {
   );
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: BG }}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={s.homeHeader}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        showsVerticalScrollIndicator={false}
+      >
+      <View style={[s.homeHeader, { paddingTop: insets.top + 16 }]}>
         <Text style={s.homeTitle}>More</Text>
         <Text style={s.homeSub}>Tools, settings & configuration</Text>
       </View>
@@ -118,6 +119,7 @@ export default function MoreScreen() {
         Butterfield {isManager ? 'Manager' : 'Director'} Portal
       </Text>
     </ScrollView>
+    </View>
   );
 }
 
