@@ -478,6 +478,8 @@ export const api = {
     wholesaleInvoicesList: () => request<{ data: any[] }>('/director/wholesale/invoices'),
     markWholesaleInvoicePaid: (orderId: string) =>
       request<{ data: any }>(`/director/wholesale/invoices/${orderId}/mark-paid`, { method: 'PATCH' }),
+    sendInvoiceReminder: (orderId: string) =>
+      request<{ success: boolean; sentTo: string }>(`/director/wholesale/invoices/${orderId}/send-reminder`, { method: 'POST' }),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
       request<{ data: DirectorStaffMember }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     generateStaffInvite: (data: { note?: string; expiryDays?: number }) =>

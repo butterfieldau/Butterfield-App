@@ -1039,7 +1039,23 @@ router.patch('/wholesale/:accountId', async (req, res) => {
 });
 
 // ── Director: wholesale invoice management ────────────────────────────────────
-// List all invoices for NET-term accounts (paymentTerms !== 'pay_on_order')
+
+/** Parse NET days from paymentTerms string e.g. 'net_14' → 14 */
+function parseNetTermDays(paymentTerms: string | null | undefined): number {
+  if (!paymentTerms || paymentTerms === 'pay_on_order') return 0;
+  const m = paymentTerms.match(/(\d+)/);
+  return m ? Number(m[1]) || 0 : 0;
+}
+
+/** Derive the due date for a NET order (stored date or computed from createdAt + terms) */
+function deriveDueDate(order: { invoiceDueDate?: string | null; createdAt: Date }, netDays: number): Date {
+  if (order.invoiceDueDate) return new Date(order.invoiceDueDate);
+  const d = new Date(order.createdAt);
+  d.setDate(d.getDate() + netDays);
+  return d;
+}
+
+// List all invoices for NET-term accounts — auto-marks overdue on every fetch
 router.get('/wholesale/invoices', async (req, res) => {
   const allAccounts = await db.select().from(wholesaleAccountsTable);
   const netAccounts = allAccounts.filter(
@@ -1054,25 +1070,60 @@ router.get('/wholesale/invoices', async (req, res) => {
     .where(inArray(wholesaleOrdersTable.accountId, netAccountIds))
     .orderBy(desc(wholesaleOrdersTable.createdAt));
 
-  // Optionally sync invoice statuses from Stripe (best-effort)
+  // Best-effort Stripe sync
   const synced = await syncWholesaleInvoiceStatuses(orders.map((o) => o.id)).catch(() => ({}));
 
   const accountMap = Object.fromEntries(netAccounts.map((a) => [a.id, a]));
+  const now = new Date();
 
-  const data = orders.map((order) => {
-    const syncdOrder = (synced as Record<string, any>)[order.id] ?? order;
+  // Auto-mark overdue + fill in missing invoiceDueDate
+  const overdueUpdates: Promise<unknown>[] = [];
+  const updatedOrders = orders.map((rawOrder) => {
+    const order = (synced as Record<string, any>)[rawOrder.id] ?? rawOrder;
     const account = accountMap[order.accountId];
+    const netDays = parseNetTermDays(account?.paymentTerms);
+    const dueDate = netDays > 0 ? deriveDueDate(order, netDays) : null;
+    const alreadyPaid = order.isPaid || ['paid'].includes(String(order.invoiceStatus ?? '').toLowerCase());
+    const alreadyOverdue = String(order.invoiceStatus ?? '').toLowerCase() === 'overdue';
+
+    if (dueDate && !alreadyPaid) {
+      const dueDateStr = dueDate.toISOString().slice(0, 10);
+      if (dueDate < now) {
+        if (!alreadyOverdue || !order.invoiceDueDate) {
+          overdueUpdates.push(
+            db.update(wholesaleOrdersTable)
+              .set({ invoiceStatus: 'overdue', invoiceDueDate: dueDateStr, updatedAt: new Date() })
+              .where(eq(wholesaleOrdersTable.id, rawOrder.id)),
+          );
+          order.invoiceStatus = 'overdue';
+          order.invoiceDueDate = dueDateStr;
+        }
+      } else if (!order.invoiceDueDate) {
+        // Just fill in the missing due date
+        overdueUpdates.push(
+          db.update(wholesaleOrdersTable)
+            .set({ invoiceDueDate: dueDateStr, updatedAt: new Date() })
+            .where(eq(wholesaleOrdersTable.id, rawOrder.id)),
+        );
+        order.invoiceDueDate = dueDateStr;
+      }
+    }
+
     return {
-      ...syncdOrder,
-      companyName:  account?.companyName  ?? 'Unknown',
-      abn:          account?.abn          ?? null,
-      paymentTerms: account?.paymentTerms ?? null,
-      accountsEmail: account?.accountsEmail ?? null,
+      ...order,
+      companyName:     account?.companyName     ?? 'Unknown',
+      abn:             account?.abn             ?? null,
+      paymentTerms:    account?.paymentTerms    ?? null,
+      accountsEmail:   account?.accountsEmail   ?? null,
       deliveryAddress: account?.deliveryAddress ?? null,
+      contactEmail:    account?.email           ?? null,
     };
   });
 
-  return res.json({ data });
+  // Fire-and-forget DB updates (don't block response)
+  await Promise.allSettled(overdueUpdates);
+
+  return res.json({ data: updatedOrders });
 });
 
 // Mark a wholesale order invoice as manually paid
@@ -1091,6 +1142,69 @@ router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
     .returning();
   if (!updated) return res.status(404).json({ error: 'Order not found.' });
   return res.json({ data: updated });
+});
+
+// Send an invoice payment reminder email to the wholesale customer
+router.post('/wholesale/invoices/:orderId/send-reminder', async (req, res) => {
+  const { orderId } = req.params;
+
+  const [order] = await db
+    .select()
+    .from(wholesaleOrdersTable)
+    .where(eq(wholesaleOrdersTable.id, orderId));
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+  const [account] = await db
+    .select()
+    .from(wholesaleAccountsTable)
+    .where(eq(wholesaleAccountsTable.id, order.accountId));
+  if (!account) return res.status(404).json({ error: 'Account not found.' });
+
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, order.userId));
+
+  const recipientEmail = account.accountsEmail?.trim() || account.email?.trim() || user?.email;
+  if (!recipientEmail) return res.status(400).json({ error: 'No email address on file for this account.' });
+
+  const netDays = parseNetTermDays(account.paymentTerms);
+  const dueDate = netDays > 0 ? deriveDueDate(order, netDays) : null;
+  const dueDateStr = dueDate
+    ? dueDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'long', year: 'numeric' })
+    : '—';
+  const totalAUD = ((order.totalCents ?? 0) / 100).toLocaleString('en-AU', {
+    style: 'currency', currency: 'AUD',
+  });
+  const invNum = order.invoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`;
+  const termsLabel: Record<string, string> = {
+    net_7: 'NET 7', net_14: 'NET 14', net_30: 'NET 30', net_60: 'NET 60',
+  };
+  const terms = termsLabel[account.paymentTerms ?? ''] ?? account.paymentTerms ?? '';
+  const isOverdue = dueDate ? dueDate < new Date() : false;
+
+  const { sendEmail, buildInvoiceReminderEmail } = await import('../lib/emailService.js');
+  const html = buildInvoiceReminderEmail({
+    companyName: account.companyName,
+    contactName: account.contactName ?? user?.name ?? account.companyName,
+    invoiceNumber: invNum,
+    totalAUD,
+    dueDate: dueDateStr,
+    terms,
+    isOverdue,
+  });
+
+  const subject = isOverdue
+    ? `Overdue invoice reminder: ${invNum} — ${totalAUD}`
+    : `Invoice reminder: ${invNum} due ${dueDateStr}`;
+
+  const { success } = await sendEmail({ to: recipientEmail, subject, html });
+
+  if (!success) {
+    return res.status(500).json({ error: 'Failed to send email. Check that Resend integration is connected.' });
+  }
+
+  return res.json({ success: true, sentTo: recipientEmail });
 });
 
 // ── Products CRUD ─────────────────────────────────────────────────────────────

@@ -98,11 +98,15 @@ function DetailModal({
   onClose,
   onMarkPaid,
   marking,
+  onSendReminder,
+  sendingReminder,
 }: {
   order: any | null;
   onClose: () => void;
   onMarkPaid: (id: string) => void;
   marking: boolean;
+  onSendReminder: (id: string) => void;
+  sendingReminder: boolean;
 }) {
   const insets = useSafeAreaInsets();
   if (!order) return null;
@@ -219,28 +223,55 @@ function DetailModal({
             <InfoRow label="Order #"    value={String(order.id).slice(0, 8).toUpperCase()} last />
           </View>
 
-          {/* Mark as Paid */}
+          {/* Action buttons */}
           {status !== 'paid' && (
-            <Pressable
-              onPress={() => {
-                Alert.alert(
-                  'Mark as Paid',
-                  `Mark ${invoiceNumber(order)} (${formatAUD(order.totalCents ?? 0)}) as paid? This cannot be undone.`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Mark Paid', style: 'default', onPress: () => onMarkPaid(order.id) },
-                  ],
-                );
-              }}
-              disabled={marking}
-              style={({ pressed }) => [mdl.markPaidBtn, { opacity: pressed || marking ? 0.7 : 1 }]}
-            >
-              {marking
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Feather name="check-circle" size={16} color="#fff" />
-              }
-              <Text style={mdl.markPaidText}>{marking ? 'Marking…' : 'Mark as Paid'}</Text>
-            </Pressable>
+            <View style={{ gap: 10 }}>
+              {/* Send Reminder */}
+              <Pressable
+                onPress={() => {
+                  const email = order.accountsEmail || order.contactEmail;
+                  const emailNote = email ? `\n\nEmail will be sent to: ${email}` : '\n\nNo accounts email on file — add one in account settings first.';
+                  Alert.alert(
+                    'Send Payment Reminder',
+                    `Send a ${status === 'overdue' ? 'overdue notice' : 'payment reminder'} for ${invoiceNumber(order)} (${formatAUD(order.totalCents ?? 0)})?${emailNote}`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Send Email', style: 'default', onPress: () => onSendReminder(order.id) },
+                    ],
+                  );
+                }}
+                disabled={sendingReminder}
+                style={({ pressed }) => [mdl.reminderBtn, { opacity: pressed || sendingReminder ? 0.7 : 1 }]}
+              >
+                {sendingReminder
+                  ? <ActivityIndicator size="small" color={BLUE} />
+                  : <Feather name="send" size={15} color={BLUE} />
+                }
+                <Text style={mdl.reminderText}>{sendingReminder ? 'Sending…' : 'Send Reminder Email'}</Text>
+              </Pressable>
+
+              {/* Mark as Paid */}
+              <Pressable
+                onPress={() => {
+                  Alert.alert(
+                    'Mark as Paid',
+                    `Mark ${invoiceNumber(order)} (${formatAUD(order.totalCents ?? 0)}) as paid? This cannot be undone.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Mark Paid', style: 'default', onPress: () => onMarkPaid(order.id) },
+                    ],
+                  );
+                }}
+                disabled={marking}
+                style={({ pressed }) => [mdl.markPaidBtn, { opacity: pressed || marking ? 0.7 : 1 }]}
+              >
+                {marking
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Feather name="check-circle" size={16} color="#fff" />
+                }
+                <Text style={mdl.markPaidText}>{marking ? 'Marking…' : 'Mark as Paid'}</Text>
+              </Pressable>
+            </View>
           )}
 
           {status === 'paid' && (
@@ -293,6 +324,15 @@ export default function DirectorWholesaleInvoices() {
     onError: () => Alert.alert('Error', 'Could not mark invoice as paid. Please try again.'),
   });
 
+  const sendReminderMutation = useMutation({
+    mutationFn: (orderId: string) => api.director.sendInvoiceReminder(orderId),
+    onSuccess: (res) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Reminder Sent', `Payment reminder email sent to ${res.sentTo}`);
+    },
+    onError: () => Alert.alert('Error', 'Could not send reminder. Check the Resend integration is connected.'),
+  });
+
   const [filter, setFilter]               = useState<FilterTab>('All');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
@@ -326,6 +366,8 @@ export default function DirectorWholesaleInvoices() {
         onClose={() => setSelectedOrder(null)}
         onMarkPaid={(id) => markPaidMutation.mutate(id)}
         marking={markPaidMutation.isPending}
+        onSendReminder={(id) => sendReminderMutation.mutate(id)}
+        sendingReminder={sendReminderMutation.isPending}
       />
 
       {/* ── Compact white header ── */}
@@ -512,6 +554,8 @@ const mdl = StyleSheet.create({
   overdueBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#FECACA' },
   qtyBadge:      { width: 30, height: 30, borderRadius: 8, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   qtyText:       { color: BLUE, fontWeight: '700', fontSize: 12 },
+  reminderBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#EFF6FF', borderRadius: 12, padding: 15, borderWidth: 1, borderColor: '#BFDBFE' },
+  reminderText:  { color: BLUE, fontWeight: '600', fontSize: 15 },
   markPaidBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: GREEN, borderRadius: 12, padding: 15 },
   markPaidText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
   paidConfirm:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 15, borderWidth: 1, borderColor: '#86EFAC' },
