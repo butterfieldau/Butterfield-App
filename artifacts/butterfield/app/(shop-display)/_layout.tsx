@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
@@ -26,8 +26,7 @@ const NAV_ITEMS = [
 
 export default function ShopDisplayLayout() {
   const { user, logout } = useAuth();
-  const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  const isWide = false;
   const pathname = usePathname();
   useShopDisplayAwakeMode(user?.role === 'shop_display');
 
