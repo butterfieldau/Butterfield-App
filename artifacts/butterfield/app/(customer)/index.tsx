@@ -72,8 +72,8 @@ export default function CustomerHome() {
   // Portrait tablet gets extra vertical breathing room between sections
   const sectionGap    = isTablet && !isLandscape ? 42 : isTablet ? 36 : 30;
   const sectionTitleSize = isTablet ? 24 : 22;
-  // Left column width on landscape iPad — kept narrow so content fills top→bottom
-  const LEFT_COL_W = isLandscape ? Math.min(width * 0.27, 290) : 0;
+  // Left column width on landscape iPad — needs ≥340px content for banner layout
+  const LEFT_COL_W = isLandscape ? Math.min(width * 0.38, 420) : 0;
 
   const {
     products,
