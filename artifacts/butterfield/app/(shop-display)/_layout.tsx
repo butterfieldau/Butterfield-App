@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
@@ -12,13 +13,14 @@ const NAVY = '#1A2B4A';
 
 export default function ShopDisplayLayout() {
   const { user, logout } = useAuth();
+  const insets = useSafeAreaInsets();
   useShopDisplayAwakeMode(user?.role === 'shop_display');
 
   if (!user) return <Redirect href="/(auth)/login" />;
   if (user.role !== 'shop_display') return <Redirect href={getHomeRouteForRole(user.role)} />;
 
   return (
-    <View style={{ flex: 1, backgroundColor: NAVY }}>
+    <View style={{ flex: 1, backgroundColor: NAVY, paddingTop: insets.top }}>
       <PortalHeader
         badge="SHOP DISPLAY"
         badgeColor="#1493FF"
