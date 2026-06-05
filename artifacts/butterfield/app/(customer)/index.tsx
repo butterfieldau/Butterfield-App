@@ -72,8 +72,8 @@ export default function CustomerHome() {
   // Portrait tablet gets extra vertical breathing room between sections
   const sectionGap    = isTablet && !isLandscape ? 42 : isTablet ? 36 : 30;
   const sectionTitleSize = isTablet ? 24 : 22;
-  // Left column width on landscape iPad (hero + tiles)
-  const LEFT_COL_W = isLandscape ? Math.min(width * 0.44, 430) : 0;
+  // Left column width on landscape iPad — kept narrow so content fills top→bottom
+  const LEFT_COL_W = isLandscape ? Math.min(width * 0.27, 290) : 0;
 
   const {
     products,
@@ -571,7 +571,7 @@ export default function CustomerHome() {
       {isLandscape ? (
         /* ── iPad LANDSCAPE: two columns, each with independent scroll ── */
         <View style={{ flex: 1, flexDirection: 'row' }}>
-          {/* Left column — hero + store + tiles + usual, scrolls on its own */}
+          {/* Left column — hero + store + tiles, scrolls on its own */}
           <ScrollView
             style={{ width: LEFT_COL_W, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(0,0,0,0.1)' }}
             showsVerticalScrollIndicator={false}
@@ -580,7 +580,6 @@ export default function CustomerHome() {
             {heroBannerSection}
             {storePickupSection}
             {quickTilesSection}
-            {usualSection}
           </ScrollView>
           {/* Right column — product sections, scrolls independently */}
           <ScrollView
@@ -589,6 +588,7 @@ export default function CustomerHome() {
             contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE_TOP} />}
           >
+            {usualSection}
             {topSellersSection}
             {fanFavSection}
             {catProductSections}
