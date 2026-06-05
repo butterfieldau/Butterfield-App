@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -24,6 +25,7 @@ import { api } from '@/lib/api';
 import type { ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
+import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -177,6 +179,13 @@ export default function ShopDisplayOrdersScreen() {
     queryFn: () => api.shopDisplay.orders(),
     refetchInterval: 7000,
   });
+
+  const { data: storeData } = useQuery({
+    queryKey: ['shop-display-store'],
+    queryFn: () => api.shopDisplay.store(),
+    staleTime: 60_000,
+  });
+  const store = storeData?.data?.[0] ?? null;
 
   const rows: ShopDisplayOrder[] = data?.data ?? [];
 
@@ -333,8 +342,27 @@ export default function ShopDisplayOrdersScreen() {
       setAlertOrderId(cur => cur === id ? null : cur);
       await qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
       setQueueMode('active');
+
+      if (status === 'being_prepared') {
+        const order = rows.find(o => o.id === id);
+        if (order) void printOrder(order);
+      }
     } finally {
       setUpdatingOrderId(null);
+    }
+  };
+
+  const printOrder = async (order: ShopDisplayOrder) => {
+    if (!store?.printerIp) {
+      Alert.alert('No printer configured', 'This store does not have a receipt printer IP address set. Ask a director to configure it in Store Settings.');
+      return;
+    }
+    try {
+      const job = orderToPrintJob(order);
+      await sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      Alert.alert('Print failed', msg);
     }
   };
 
