@@ -14,7 +14,7 @@
       "backgroundColor": "#1481ff"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "au.com.butterfieldcookies.app",
       "buildNumber": "3",
       "infoPlist": {
