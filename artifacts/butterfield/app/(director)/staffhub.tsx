@@ -23,7 +23,6 @@ import {
 } from '@/lib/api';
 import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -1447,7 +1446,6 @@ function FeedbackTab() {
 // MAIN SCREEN
 // ══════════════════════════════════════════════════════════════════════════════
 export default function StaffHubScreen() {
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
   const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
@@ -1490,7 +1488,7 @@ export default function StaffHubScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
+      <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View>
             <Text style={s.title}>Staff Hub</Text>

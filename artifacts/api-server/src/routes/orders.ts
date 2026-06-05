@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
     items: rawItems, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed,
     deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
     discountCode, discountCodeId: clientDiscountCodeId, paymentMethodType,
-    claimedRewardId, storeId, contactName, contactPhone, contactEmail,
+    claimedRewardId, storeId,
   } = req.body;
 
   // ── Sydney-only delivery enforcement ─────────────────────────────────────
@@ -230,9 +230,6 @@ router.post('/', async (req, res) => {
         discountCodeId: validatedDiscountCodeId,
         paymentMethodType: paymentMethodType as string ?? null,
         deliveryAddress,
-        contactName: contactName ?? null,
-        contactPhone: contactPhone ?? null,
-        contactEmail: contactEmail ?? null,
       }).returning();
       order = inserted;
 

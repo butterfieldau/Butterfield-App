@@ -113,7 +113,6 @@ export const api = {
     get: (id: string) => request<{ data: ApiOrder }>(`/orders/${id}`),
     create: (data: {
       items: ApiOrderItem[]; type: string; scheduledFor?: string; notes?: string;
-      contactName?: string; contactPhone?: string; contactEmail?: string;
       totalCents: number; stripePaymentIntentId?: string;
       loyaltyPointsUsed?: number; discountCents?: number; deliveryAddress?: string;
       deliveryPostcode?: string; deliveryState?: string;
@@ -172,9 +171,6 @@ export const api = {
     completeTask: (taskId: string, isCompleted: boolean) =>
       request<{ data: StaffTask }>(`/staff/tasks/${taskId}/complete`, { method: 'PATCH', body: JSON.stringify({ isCompleted }) }),
     allOrders:    () => request<{ data: ApiOrder[] }>('/staff/orders'),
-    updateOrderStatus: (orderId: string, status: string) =>
-      request<{ data: ApiOrder }>(`/staff/orders/${orderId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
-    stores:       () => request<{ data: StoreSummary[] }>('/staff/stores'),
     wastage:      () => request<{ data: StaffWastageEntry[] }>('/staff/wastage'),
     submitWastage:(data: StaffWastageInput) =>
       request<{ data: StaffWastageEntry }>('/staff/wastage', { method: 'POST', body: JSON.stringify(data) }),
@@ -203,8 +199,8 @@ export const api = {
   shopDisplay: {
     me: () => request<{ data: ShopDisplayMe }>('/shop-display/me'),
     orders: () => request<{ data: ShopDisplayOrder[] }>('/shop-display/orders'),
-    updateOrderStatus: (id: string, status: string, cancelReason?: string) =>
-      request<{ data: ShopDisplayOrder }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
+    updateOrderStatus: (id: string, status: string) =>
+      request<{ data: ShopDisplayOrder }>(`/shop-display/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     tasks: (category?: string) =>
       request<{ data: StaffTask[] }>(`/shop-display/tasks${category ? `?category=${encodeURIComponent(category)}` : ''}`),
     completeTask: (taskId: string, isCompleted: boolean, notes?: string) =>
@@ -216,15 +212,6 @@ export const api = {
       const qs = params.toString();
       return request<{ data: ShopDisplayTaskHistory[] }>(`/shop-display/tasks/history${qs ? `?${qs}` : ''}`);
     },
-    store:         () => request<{ data: ShopDisplayStore[] }>('/shop-display/store'),
-    products:      () => request<{ data: ApiProduct[] }>('/shop-display/products'),
-    customers:     (search: string) =>
-      request<{ data: ShopDisplayCustomer[] }>(`/shop-display/customers?search=${encodeURIComponent(search)}`),
-    staffAssigned: () => request<{ data: ShopDisplayStaffMember[] }>('/shop-display/staff-assigned'),
-    staffClock:    (staffId: string, pin: string) =>
-      request<{ data: { clocked: 'in' | 'out'; name: string; shiftId: string; hoursWorked?: string } }>(
-        '/shop-display/staff-clock', { method: 'POST', body: JSON.stringify({ staffId, pin }) },
-      ),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
@@ -488,11 +475,6 @@ export const api = {
     homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
     updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
-    wholesaleInvoicesList: () => request<{ data: any[] }>('/director/wholesale/invoices'),
-    markWholesaleInvoicePaid: (orderId: string) =>
-      request<{ data: any }>(`/director/wholesale/invoices/${orderId}/mark-paid`, { method: 'PATCH' }),
-    sendInvoiceReminder: (orderId: string) =>
-      request<{ success: boolean; sentTo: string }>(`/director/wholesale/invoices/${orderId}/send-reminder`, { method: 'POST' }),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>
       request<{ data: DirectorStaffMember }>('/director/create-staff', { method: 'POST', body: JSON.stringify(data) }),
     generateStaffInvite: (data: { note?: string; expiryDays?: number }) =>
@@ -504,13 +486,11 @@ export const api = {
     shopDisplays:        () => request<{ data: ShopDisplayUser[] }>('/director/shop-displays'),
     createShopDisplay:   (data: { name: string; email: string; password: string; phone?: string }) =>
       request<{ data: ShopDisplayUser }>('/director/shop-displays', { method: 'POST', body: JSON.stringify(data) }),
-    updateShopDisplay:   (id: string, data: { name?: string; email?: string; phone?: string; status?: 'active' | 'inactive' | 'suspended'; permissions?: string[] }) =>
+    updateShopDisplay:   (id: string, data: { name?: string; email?: string; phone?: string; status?: 'active' | 'inactive' | 'suspended' }) =>
       request<{ data: ShopDisplayUser }>(`/director/shop-displays/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     resetShopDisplayPassword: (id: string, password: string) =>
       request<{ success: boolean }>(`/director/shop-displays/${id}/password`, { method: 'PATCH', body: JSON.stringify({ password }) }),
     deleteShopDisplay:   (id: string) => request<{ success: boolean }>(`/director/shop-displays/${id}`, { method: 'DELETE' }),
-    setStaffClockPin:    (staffId: string, pin: string | null) =>
-      request<{ success: boolean }>(`/director/staff/${staffId}/clock-pin`, { method: 'PATCH', body: JSON.stringify({ pin }) }),
 
     // Pricing tiers
     tiers:               () => request<{ data: PricingTier[] }>('/director/tiers'),
@@ -1173,7 +1153,6 @@ export interface ShopDisplayUser {
   role: 'shop_display';
   phone?: string | null;
   status: string;
-  permissions?: string[];
   createdAt?: string;
   lastLogin?: string | null;
 }
@@ -1631,47 +1610,6 @@ export interface ShopDisplayMe {
   storeIds?: string[];
 }
 
-export interface ShopDisplayStore {
-  id: string;
-  name: string;
-  address?: string | null;
-  suburb?: string | null;
-  status?: string | null;
-  printerIp?: string | null;
-  printerPort?: number | null;
-  printerBrand?: string | null;
-  autoPrint?: boolean | null;
-  geofenceRadius?: number | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  phone?: string | null;
-  dailySpecial?: string | null;
-}
-
-export interface ShopDisplayStaffMember {
-  userId: string;
-  name: string;
-  employeeId: string;
-  position: string;
-  isClockedIn: boolean;
-  shiftId?: string | null;
-  shiftStart?: string | null;
-}
-
-export interface ShopDisplayCustomer {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string | null;
-  loyaltyPoints: number;
-  loyaltyTier: string;
-  stampCount: number;
-  freeCoffeeRewards: number;
-  totalVisits: number;
-  totalSpentCents: number;
-  createdAt: string;
-}
-
 export interface ShopDisplayOrder extends ApiOrder {
   orderNumber?: string | null;
   customerName?: string | null;
@@ -1819,8 +1757,6 @@ export interface StoreSummary {
   imageUrl?: string | null;
   printerIp?: string | null;
   printerPort?: number | null;
-  printerBrand?: 'epson' | 'star' | null;
-  autoPrint?: boolean;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: string;
@@ -1867,8 +1803,6 @@ export interface StoreInput {
   geofenceRadius?: number | null;
   printerIp?: string | null;
   printerPort?: number | null;
-  printerBrand?: 'epson' | 'star' | null;
-  autoPrint?: boolean;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';

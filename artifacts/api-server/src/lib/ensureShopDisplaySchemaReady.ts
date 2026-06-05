@@ -59,19 +59,5 @@ export async function ensureShopDisplaySchemaReady() {
     ADD COLUMN IF NOT EXISTS cadence text NOT NULL DEFAULT 'daily';
   `);
 
-  await db.execute(sql`
-    ALTER TABLE staff_profiles
-    ADD COLUMN IF NOT EXISTS clock_pin text;
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS shop_display_profiles (
-      user_id text PRIMARY KEY,
-      permissions text NOT NULL DEFAULT '[]',
-      created_at timestamp NOT NULL DEFAULT now(),
-      updated_at timestamp NOT NULL DEFAULT now()
-    );
-  `);
-
   ensured = true;
 }

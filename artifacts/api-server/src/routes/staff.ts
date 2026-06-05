@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
-import { eq, desc, isNull, and, gte, lte, sql, inArray } from 'drizzle-orm';
+import { eq, desc, isNull, and, gte, lte, sql } from 'drizzle-orm';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -446,39 +446,6 @@ router.post('/leave', async (req, res) => {
     type: type ?? 'annual', reason, status: 'pending',
   }).returning();
   return res.status(201).json({ data: leave });
-});
-
-router.patch('/orders/:id/status', async (req, res) => {
-  const [profile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, req.user!.id));
-  if (!profile?.canViewOrders) {
-    return res.status(403).json({ error: 'You do not have permission to update orders.' });
-  }
-  const { status } = req.body ?? {};
-  if (!status) return res.status(400).json({ error: 'status is required.' });
-  const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() })
-    .where(eq(ordersTable.id, req.params.id)).returning();
-  if (!updated) return res.status(404).json({ error: 'Order not found.' });
-  return res.json({ data: updated });
-});
-
-router.get('/stores', async (req, res) => {
-  const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
-    .from(staffStoreAssignmentsTable)
-    .where(and(
-      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
-      eq(staffStoreAssignmentsTable.isActive, true),
-    ));
-  if (!assignments.length) return res.json({ data: [] });
-  const storeIds = assignments.map(a => a.storeId);
-  const stores = await db.select({
-    id: storesTable.id, name: storesTable.name, slug: storesTable.slug,
-    address: storesTable.address, suburb: storesTable.suburb,
-    printerIp: storesTable.printerIp, printerPort: storesTable.printerPort,
-    printerBrand: storesTable.printerBrand,
-    status: storesTable.status,
-  }).from(storesTable)
-    .where(and(inArray(storesTable.id, storeIds), isNull(storesTable.deletedAt)));
-  return res.json({ data: stores });
 });
 
 router.get('/orders', async (req, res) => {

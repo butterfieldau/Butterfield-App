@@ -126,7 +126,7 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'server',      label: 'Kitchen Printers',      sub: 'Kitchen display & order tickets',        color: '#D97706', directorOnly: true, soon: true },
           { icon: 'tag',         label: 'Label Printers',        sub: 'Product label & barcode printers',       color: TEAL,   directorOnly: true, soon: true },
           { icon: 'maximize',    label: 'Scanner Devices',       sub: 'Barcode & QR scanners',                  color: PURPLE, directorOnly: true, soon: true },
-          { icon: 'monitor',     label: 'POS Devices',           sub: 'Counter iPad logins, store assignments & permissions', color: BLUE, directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
+          { icon: 'monitor',     label: 'POS Devices',           sub: 'iPad & terminal management',             color: BLUE,   directorOnly: true, soon: true },
         ],
       },
     ],
@@ -174,7 +174,6 @@ const ALL_CATEGORIES: Category[] = [
         label: 'Accounts',
         items: [
           { icon: 'briefcase',    label: 'Wholesale Accounts',  sub: 'B2B customers, account status & credit setup', color: GREEN, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
-          { icon: 'file-text',    label: 'Invoice Management',  sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE,  perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
         ],
       },
       {

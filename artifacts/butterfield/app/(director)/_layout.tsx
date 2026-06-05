@@ -6,9 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole, isInternalRole } from '@/lib/roleRoutes';
 import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
-import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 
 const BLUE = '#1493FF';
 const NAVY = '#1A2B4A';
@@ -42,7 +42,7 @@ function rootTabListeners(path: Href) {
 }
 
 export default function DirectorLayout() {
-  const { user } = useAuth();
+  const { logout, user } = useAuth();
   const insets = useSafeAreaInsets();
 
   if (!user) return <Redirect href="/(customer)" />;
@@ -108,7 +108,6 @@ export default function DirectorLayout() {
       <View style={{ flex: 1, backgroundColor: BG_STAFF }}>
         <StatusBar barStyle="dark-content" backgroundColor={BG_STAFF} translucent={false} />
         <View style={{ height: insets.top, backgroundColor: BG_STAFF }} />
-        <LayoutSafeAreaContext.Provider value={true}>
         <Tabs
           tabBar={(props) => (
             <FloatingInternalTabBar
@@ -157,17 +156,23 @@ export default function DirectorLayout() {
           {/* Always hidden for staff/manager */}
           <Tabs.Screen name="_staff-dashboard"    options={{ href: null }} />
           <Tabs.Screen name="_crmCustomersTab"    options={{ href: null }} />
-          <Tabs.Screen name="more-category"                  options={{ href: null }} />
-          <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
+          <Tabs.Screen name="more-category"       options={{ href: null }} />
+          <Tabs.Screen name="_moreCategories"     options={{ href: null }} />
         </Tabs>
-        </LayoutSafeAreaContext.Provider>
       </View>
     );
   }
 
-  // ── Director / Master: standard tab bar ──────────────────────────────────────
+  // ── Director / Master: navy header + standard tab bar ────────────────────────
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: NAVY }}>
+      <StatusBar barStyle="light-content" backgroundColor={NAVY} translucent={false} />
+      <PortalHeader
+        badge={badgeLabel}
+        badgeColor={badgeColor}
+        backgroundColor={NAVY}
+        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+      />
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -219,8 +224,8 @@ export default function DirectorLayout() {
         <Tabs.Screen name="settings-managers" options={{ href: null }} />
         <Tabs.Screen name="settings-directors" options={{ href: null }} />
         <Tabs.Screen name="stores"           options={{ href: null }} />
-        <Tabs.Screen name="more-category"                  options={{ href: null }} />
-        <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
+        <Tabs.Screen name="more-category"     options={{ href: null }} />
+        <Tabs.Screen name="_moreCategories"   options={{ href: null }} />
       </Tabs>
     </View>
   );

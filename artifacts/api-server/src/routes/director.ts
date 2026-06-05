@@ -547,18 +547,7 @@ router.get('/shop-displays', async (req, res) => {
   }).from(usersTable)
     .where(eq(usersTable.role, 'shop_display' as any))
     .orderBy(desc(usersTable.createdAt));
-
-  if (rows.length === 0) return res.json({ data: [] });
-
-  const allProfiles = await db.execute(sql`SELECT user_id, permissions FROM shop_display_profiles`);
-  const profileRows: Array<{ user_id: string; permissions: string }> =
-    ((allProfiles as any).rows ?? allProfiles) as any;
-  const permMap: Record<string, string[]> = {};
-  for (const p of profileRows) {
-    try { permMap[p.user_id] = JSON.parse(p.permissions || '[]'); } catch { permMap[p.user_id] = []; }
-  }
-
-  return res.json({ data: rows.map((r) => ({ ...r, permissions: permMap[r.id] ?? [] })) });
+  return res.json({ data: rows });
 });
 
 router.post('/shop-displays', async (req, res) => {
@@ -652,15 +641,6 @@ router.patch('/shop-displays/:id', async (req, res) => {
     after: updated,
   });
 
-  if (req.body.permissions !== undefined && Array.isArray(req.body.permissions)) {
-    const perms = JSON.stringify(req.body.permissions);
-    await db.execute(sql`
-      INSERT INTO shop_display_profiles (user_id, permissions, updated_at)
-      VALUES (${id}, ${perms}, now())
-      ON CONFLICT (user_id) DO UPDATE SET permissions = ${perms}, updated_at = now()
-    `);
-    (updated as any).permissions = req.body.permissions;
-  }
   return res.json({ data: updated });
 });
 
@@ -704,39 +684,6 @@ router.delete('/shop-displays/:id', async (req, res) => {
     action: 'shop_display_deleted',
     before: existing,
   });
-  return res.json({ success: true });
-});
-
-router.patch('/staff/:id/clock-pin', async (req, res) => {
-  const { id } = req.params;
-  const { pin } = req.body ?? {};
-  if (pin !== null && pin !== undefined) {
-    if (!/^\d{4}$/.test(String(pin))) {
-      return res.status(400).json({ error: 'PIN must be exactly 4 digits.' });
-    }
-    const hashed = await bcrypt.hash(String(pin), 10);
-    const [existingProfile] = await db.select({ userId: staffProfilesTable.userId })
-      .from(staffProfilesTable).where(eq(staffProfilesTable.userId, id)).limit(1);
-    if (existingProfile) {
-      await db.update(staffProfilesTable).set({ clockPin: hashed }).where(eq(staffProfilesTable.userId, id));
-    } else {
-      // No staff_profiles row yet (e.g. manager accounts) — create a minimal one
-      await db.insert(staffProfilesTable).values({
-        userId: id,
-        employeeId: `EMP-${id.slice(0, 8).toUpperCase()}`,
-        clockPin: hashed,
-        isManager: true,
-        approvedByAdmin: false,
-      });
-    }
-    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_set' });
-  } else {
-    // Only update if a row exists (safe no-op otherwise)
-    await db.execute(sql`
-      UPDATE staff_profiles SET clock_pin = NULL WHERE user_id = ${id}
-    `);
-    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_cleared' });
-  }
   return res.json({ success: true });
 });
 
@@ -1089,175 +1036,6 @@ router.patch('/wholesale/:accountId', async (req, res) => {
   const [updated] = await db.update(wholesaleAccountsTable).set(updates).where(eq(wholesaleAccountsTable.id, accountId)).returning();
   if (!updated) return res.status(404).json({ error: 'Wholesale account not found.' });
   return res.json({ data: updated });
-});
-
-// ── Director: wholesale invoice management ────────────────────────────────────
-
-/** Parse NET days from paymentTerms string e.g. 'net_14' → 14 */
-function parseNetTermDays(paymentTerms: string | null | undefined): number {
-  if (!paymentTerms || paymentTerms === 'pay_on_order') return 0;
-  const m = paymentTerms.match(/(\d+)/);
-  return m ? Number(m[1]) || 0 : 0;
-}
-
-/** Derive the due date for a NET order (stored date or computed from createdAt + terms) */
-function deriveDueDate(order: { invoiceDueDate?: string | null; createdAt: Date }, netDays: number): Date {
-  if (order.invoiceDueDate) return new Date(order.invoiceDueDate);
-  const d = new Date(order.createdAt);
-  d.setDate(d.getDate() + netDays);
-  return d;
-}
-
-// List all invoices for NET-term accounts — auto-marks overdue on every fetch
-router.get('/wholesale/invoices', async (req, res) => {
-  const allAccounts = await db.select().from(wholesaleAccountsTable);
-  const netAccounts = allAccounts.filter(
-    (a) => a.paymentTerms && a.paymentTerms !== 'pay_on_order',
-  );
-  if (netAccounts.length === 0) return res.json({ data: [] });
-
-  const netAccountIds = netAccounts.map((a) => a.id);
-  const orders = await db
-    .select()
-    .from(wholesaleOrdersTable)
-    .where(inArray(wholesaleOrdersTable.accountId, netAccountIds))
-    .orderBy(desc(wholesaleOrdersTable.createdAt));
-
-  // Best-effort Stripe sync
-  const synced = await syncWholesaleInvoiceStatuses(orders.map((o) => o.id)).catch(() => ({}));
-
-  const accountMap = Object.fromEntries(netAccounts.map((a) => [a.id, a]));
-  const now = new Date();
-
-  // Auto-mark overdue + fill in missing invoiceDueDate
-  const overdueUpdates: Promise<unknown>[] = [];
-  const updatedOrders = orders.map((rawOrder) => {
-    const order = (synced as Record<string, any>)[rawOrder.id] ?? rawOrder;
-    const account = accountMap[order.accountId];
-    const netDays = parseNetTermDays(account?.paymentTerms);
-    const dueDate = netDays > 0 ? deriveDueDate(order, netDays) : null;
-    const alreadyPaid = order.isPaid || ['paid'].includes(String(order.invoiceStatus ?? '').toLowerCase());
-    const alreadyOverdue = String(order.invoiceStatus ?? '').toLowerCase() === 'overdue';
-
-    if (dueDate && !alreadyPaid) {
-      const dueDateStr = dueDate.toISOString().slice(0, 10);
-      if (dueDate < now) {
-        if (!alreadyOverdue || !order.invoiceDueDate) {
-          overdueUpdates.push(
-            db.update(wholesaleOrdersTable)
-              .set({ invoiceStatus: 'overdue', invoiceDueDate: dueDateStr, updatedAt: new Date() })
-              .where(eq(wholesaleOrdersTable.id, rawOrder.id)),
-          );
-          order.invoiceStatus = 'overdue';
-          order.invoiceDueDate = dueDateStr;
-        }
-      } else if (!order.invoiceDueDate) {
-        // Just fill in the missing due date
-        overdueUpdates.push(
-          db.update(wholesaleOrdersTable)
-            .set({ invoiceDueDate: dueDateStr, updatedAt: new Date() })
-            .where(eq(wholesaleOrdersTable.id, rawOrder.id)),
-        );
-        order.invoiceDueDate = dueDateStr;
-      }
-    }
-
-    return {
-      ...order,
-      companyName:     account?.companyName     ?? 'Unknown',
-      abn:             account?.abn             ?? null,
-      paymentTerms:    account?.paymentTerms    ?? null,
-      accountsEmail:   account?.accountsEmail   ?? null,
-      deliveryAddress: account?.deliveryAddress ?? null,
-      contactEmail:    account?.email           ?? null,
-    };
-  });
-
-  // Fire-and-forget DB updates (don't block response)
-  await Promise.allSettled(overdueUpdates);
-
-  return res.json({ data: updatedOrders });
-});
-
-// Mark a wholesale order invoice as manually paid
-router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
-  const { orderId } = req.params;
-  const [updated] = await db
-    .update(wholesaleOrdersTable)
-    .set({
-      isPaid:              true,
-      paidAt:              new Date(),
-      invoiceStatus:       'paid',
-      stripePaymentStatus: 'paid',
-      updatedAt:           new Date(),
-    })
-    .where(eq(wholesaleOrdersTable.id, orderId))
-    .returning();
-  if (!updated) return res.status(404).json({ error: 'Order not found.' });
-  return res.json({ data: updated });
-});
-
-// Send an invoice payment reminder email to the wholesale customer
-router.post('/wholesale/invoices/:orderId/send-reminder', async (req, res) => {
-  const { orderId } = req.params;
-
-  const [order] = await db
-    .select()
-    .from(wholesaleOrdersTable)
-    .where(eq(wholesaleOrdersTable.id, orderId));
-  if (!order) return res.status(404).json({ error: 'Order not found.' });
-
-  const [account] = await db
-    .select()
-    .from(wholesaleAccountsTable)
-    .where(eq(wholesaleAccountsTable.id, order.accountId));
-  if (!account) return res.status(404).json({ error: 'Account not found.' });
-
-  const [user] = await db
-    .select({ id: usersTable.id, email: usersTable.email, name: usersTable.name })
-    .from(usersTable)
-    .where(eq(usersTable.id, order.userId));
-
-  const recipientEmail = account.accountsEmail?.trim() || account.email?.trim() || user?.email;
-  if (!recipientEmail) return res.status(400).json({ error: 'No email address on file for this account.' });
-
-  const netDays = parseNetTermDays(account.paymentTerms);
-  const dueDate = netDays > 0 ? deriveDueDate(order, netDays) : null;
-  const dueDateStr = dueDate
-    ? dueDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'long', year: 'numeric' })
-    : '—';
-  const totalAUD = ((order.totalCents ?? 0) / 100).toLocaleString('en-AU', {
-    style: 'currency', currency: 'AUD',
-  });
-  const invNum = order.invoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`;
-  const termsLabel: Record<string, string> = {
-    net_7: 'NET 7', net_14: 'NET 14', net_30: 'NET 30', net_60: 'NET 60',
-  };
-  const terms = termsLabel[account.paymentTerms ?? ''] ?? account.paymentTerms ?? '';
-  const isOverdue = dueDate ? dueDate < new Date() : false;
-
-  const { sendEmail, buildInvoiceReminderEmail } = await import('../lib/emailService.js');
-  const html = buildInvoiceReminderEmail({
-    companyName: account.companyName,
-    contactName: account.contactName ?? user?.name ?? account.companyName,
-    invoiceNumber: invNum,
-    totalAUD,
-    dueDate: dueDateStr,
-    terms,
-    isOverdue,
-  });
-
-  const subject = isOverdue
-    ? `Overdue invoice reminder: ${invNum} — ${totalAUD}`
-    : `Invoice reminder: ${invNum} due ${dueDateStr}`;
-
-  const { success } = await sendEmail({ to: recipientEmail, subject, html });
-
-  if (!success) {
-    return res.status(500).json({ error: 'Failed to send email. Check that Resend integration is connected.' });
-  }
-
-  return res.json({ success: true, sentTo: recipientEmail });
 });
 
 // ── Products CRUD ─────────────────────────────────────────────────────────────

@@ -4,11 +4,11 @@ import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
+  Alert, Pressable,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { buildCategories, type Category } from './_moreCategories';
 
@@ -53,7 +53,6 @@ function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) 
 
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
-  const layoutHandledSA = useLayoutHandledSafeArea();
   const { user, logout } = useAuth();
   const isManager  = user?.role === 'manager';
   const isDirector = !isManager;
@@ -77,14 +76,12 @@ export default function MoreScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="dark-content" />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
-        showsVerticalScrollIndicator={false}
-      >
-      <View style={[s.homeHeader, { paddingTop: layoutHandledSA ? 16 : insets.top + 16 }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: BG }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={s.homeHeader}>
         <Text style={s.homeTitle}>More</Text>
         <Text style={s.homeSub}>Tools, settings & configuration</Text>
       </View>
@@ -121,7 +118,6 @@ export default function MoreScreen() {
         Butterfield {isManager ? 'Manager' : 'Director'} Portal
       </Text>
     </ScrollView>
-    </View>
   );
 }
 

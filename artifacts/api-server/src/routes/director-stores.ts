@@ -58,7 +58,7 @@ router.get('/stores', async (_req, res) => {
 });
 
 router.get('/stores/:id', async (req, res) => {
-  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id as string));
+  const [store] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
   if (!store) return res.status(404).json({ error: 'Store not found.' });
   const hours = await db.select().from(storeOpeningHoursTable)
     .where(eq(storeOpeningHoursTable.storeId, store.id));
@@ -82,7 +82,7 @@ router.post('/stores', async (req, res) => {
   const {
     name, slug, address, suburb, state, postcode, country = 'Australia',
     latitude, longitude, geofenceRadius = 100, phone, email, website, imageUrl,
-    printerIp, printerPort = 9100, printerBrand = 'epson', autoPrint = true, orderCutoffTime, dailySpecial,
+    printerIp, printerPort = 9100, orderCutoffTime, dailySpecial,
     status = 'open', pickupAvailable = true, deliveryAvailable = false,
     publicNotes, internalNotes, sortOrder = 0,
   } = req.body;
@@ -91,7 +91,7 @@ router.post('/stores', async (req, res) => {
   const [store] = await db.insert(storesTable).values({
     id: randomUUID(), name, slug: finalSlug, address, suburb, state, postcode, country,
     latitude, longitude, geofenceRadius, phone, email, website, imageUrl,
-    printerIp, printerPort, printerBrand, autoPrint, orderCutoffTime, dailySpecial, status,
+    printerIp, printerPort, orderCutoffTime, dailySpecial, status,
     pickupAvailable, deliveryAvailable, publicNotes, internalNotes, sortOrder,
   }).returning();
   return res.status(201).json({ data: store });
@@ -102,21 +102,21 @@ router.patch('/stores/:id', requireManagerPermission('settings'), async (req, re
   const allowed = [
     'name','slug','address','suburb','state','postcode','country',
     'latitude','longitude','geofenceRadius','phone','email','website','imageUrl',
-    'printerIp','printerPort','printerBrand','autoPrint','orderCutoffTime','dailySpecial',
+    'printerIp','printerPort','orderCutoffTime','dailySpecial',
     'status','pickupAvailable','deliveryAvailable','publicNotes','internalNotes','sortOrder',
   ];
   const updates: Record<string, any> = { updatedAt: new Date() };
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
   }
-  const [updated] = await db.update(storesTable).set(updates).where(eq(storesTable.id, req.params.id as string)).returning();
+  const [updated] = await db.update(storesTable).set(updates).where(eq(storesTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Store not found.' });
   return res.json({ data: updated });
 });
 
 router.delete('/stores/:id', requireManagerPermission('settings'), async (req, res) => {
   if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot delete stores.' });
-  const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id as string));
+  const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
   if (!existing) return res.status(404).json({ error: 'Store not found.' });
   const now = new Date();
   const purgeAt = new Date(now.getTime() + STORE_DELETE_GRACE_MS);
@@ -128,13 +128,13 @@ router.delete('/stores/:id', requireManagerPermission('settings'), async (req, r
       purgeAt,
       updatedAt: now,
     })
-    .where(eq(storesTable.id, req.params.id as string)).returning();
+    .where(eq(storesTable.id, req.params.id)).returning();
   return res.json({ success: true, data: updated });
 });
 
 router.post('/stores/:id/restore', requireManagerPermission('settings'), async (req, res) => {
   if (req.user!.role === 'manager') return res.status(403).json({ error: 'Managers cannot restore stores.' });
-  const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id as string));
+  const [existing] = await db.select().from(storesTable).where(eq(storesTable.id, req.params.id));
   if (!existing) return res.status(404).json({ error: 'Store not found.' });
   if (!existing.deletedAt) return res.status(400).json({ error: 'Store is not pending deletion.' });
 
@@ -146,7 +146,7 @@ router.post('/stores/:id/restore', requireManagerPermission('settings'), async (
       purgeAt: null,
       updatedAt: new Date(),
     })
-    .where(eq(storesTable.id, req.params.id as string))
+    .where(eq(storesTable.id, req.params.id))
     .returning();
 
   return res.json({ success: true, data: updated });
@@ -163,7 +163,7 @@ router.get('/stores/:id/hours', async (req, res) => {
 
 // Bulk replace opening hours for a store (7 rows, one per day)
 router.put('/stores/:id/hours', requireManagerPermission('settings'), async (req, res) => {
-  const id = req.params.id as string;
+  const { id } = req.params;
   const { hours } = req.body as { hours: { dayOfWeek: number; openTime?: string; closeTime?: string; isClosed?: boolean; notes?: string }[] };
   if (!Array.isArray(hours)) return res.status(400).json({ error: 'hours must be an array.' });
 
@@ -230,7 +230,7 @@ router.patch('/store-assignments/:id', requireManagerPermission('settings'), asy
 
   // If setting as primary, clear others for same staff member first
   if (isPrimary) {
-    const [existing] = await db.select().from(staffStoreAssignmentsTable).where(eq(staffStoreAssignmentsTable.id, req.params.id as string));
+    const [existing] = await db.select().from(staffStoreAssignmentsTable).where(eq(staffStoreAssignmentsTable.id, req.params.id));
     if (existing) {
       await db.update(staffStoreAssignmentsTable)
         .set({ isPrimary: false })
@@ -239,13 +239,13 @@ router.patch('/store-assignments/:id', requireManagerPermission('settings'), asy
   }
 
   const [updated] = await db.update(staffStoreAssignmentsTable)
-    .set(updates).where(eq(staffStoreAssignmentsTable.id, req.params.id as string)).returning();
+    .set(updates).where(eq(staffStoreAssignmentsTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Assignment not found.' });
   return res.json({ data: updated });
 });
 
 router.delete('/store-assignments/:id', requireManagerPermission('settings'), async (req, res) => {
-  await db.delete(staffStoreAssignmentsTable).where(eq(staffStoreAssignmentsTable.id, req.params.id as string));
+  await db.delete(staffStoreAssignmentsTable).where(eq(staffStoreAssignmentsTable.id, req.params.id));
   return res.json({ success: true });
 });
 

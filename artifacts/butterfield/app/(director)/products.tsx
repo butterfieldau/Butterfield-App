@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
@@ -1541,17 +1540,20 @@ export default function DirectorProductsScreen() {
     { id: 'options'  as const, label: 'Options', icon: 'sliders' },
   ] as const;
   return (
-    <DirectorTabScreen
-      title="Products"
-      headerRight={
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Page title */}
+      <View style={styles.pageHeader}>
+        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Products</Text>
         <Pressable
-          onPress={() => { setSearchOpen((prev) => !prev); Haptics.selectionAsync(); }}
+          onPress={() => {
+            setSearchOpen((prev) => !prev);
+            Haptics.selectionAsync();
+          }}
           style={[styles.headerSearchBtn, searchOpen && styles.headerSearchBtnActive]}
         >
           <Feather name="search" size={18} color={searchOpen ? BLUE : NAVY} />
         </Pressable>
-      }
-    >
+      </View>
       {/* Top tab bar */}
       <View style={styles.tileTabRow}>
         {TAB_ITEMS.map(t => {
@@ -1820,14 +1822,14 @@ export default function DirectorProductsScreen() {
       )}
       </>
       )}
-    </DirectorTabScreen>
+    </View>
   );
 }
 const styles = StyleSheet.create({
-  pageHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
+  pageHeader: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10, backgroundColor: BG, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerSearchBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
   headerSearchBtnActive: { borderColor: BLUE, backgroundColor: BLUE + '10' },
-  tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: BG },
+  tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: BG },
   tileTabBtn: { flex: 1, minHeight: 58, borderRadius: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
   tileTabBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '0D' },
   tileTabText: { fontSize: 12, fontWeight: '600', color: MUTED },

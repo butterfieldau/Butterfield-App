@@ -21,6 +21,7 @@ import {
   type StoreSummary,
 } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { sendTestPrint } from '@/lib/printer';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG     = '#EFF6FF';

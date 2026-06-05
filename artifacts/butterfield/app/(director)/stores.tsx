@@ -182,8 +182,6 @@ function StoreEditorModal({
   const [internalNotes,    setInternalNotes]     = useState('');
   const [printerIp,        setPrinterIp]         = useState('');
   const [printerPort,      setPrinterPort]       = useState('9100');
-  const [printerBrand,     setPrinterBrand]      = useState<'epson' | 'star'>('epson');
-  const [autoPrint,        setAutoPrint]         = useState(true);
   const [orderCutoffTime,  setOrderCutoffTime]   = useState('');
   const [dailySpecial,     setDailySpecial]      = useState('');
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
@@ -214,8 +212,6 @@ function StoreEditorModal({
       setInternalNotes(store.internalNotes ?? '');
       setPrinterIp(store.printerIp ?? '');
       setPrinterPort(store.printerPort != null ? String(store.printerPort) : '9100');
-      setPrinterBrand((store.printerBrand as 'epson' | 'star') ?? 'epson');
-      setAutoPrint(store.autoPrint !== false);
       setOrderCutoffTime(store.orderCutoffTime ?? '');
       setDailySpecial(store.dailySpecial ?? '');
     } else {
@@ -223,7 +219,7 @@ function StoreEditorModal({
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
       setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
-      setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setAutoPrint(true); setOrderCutoffTime(''); setDailySpecial('');
+      setPrinterIp(''); setPrinterPort('9100'); setOrderCutoffTime(''); setDailySpecial('');
     }
     setActiveTab('Details');
   }, [visible, store]);
@@ -286,8 +282,6 @@ function StoreEditorModal({
         imageUrl: imageUrl.trim() || null,
         printerIp: printerIp.trim() || null,
         printerPort: parseInt(printerPort, 10) || 9100,
-        printerBrand,
-        autoPrint,
         orderCutoffTime: orderCutoffTime.trim() || null,
         dailySpecial: dailySpecial.trim() || null,
         status,
@@ -678,43 +672,8 @@ function StoreEditorModal({
               <View style={{ borderTopWidth: 1, borderTopColor: BORDER }}>
                 <StoreField label="Printer Port" value={printerPort} onChangeText={v => setPrinterPort(v.replace(/[^\d]/g, ''))} placeholder="9100" keyboardType="number-pad" autoCapitalize="none" />
               </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 12 }}>
-                <Text style={[s.fieldLabel, { marginBottom: 8 }]}>Printer Brand</Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  {(['epson', 'star'] as const).map(brand => (
-                    <Pressable
-                      key={brand}
-                      onPress={() => setPrinterBrand(brand)}
-                      style={{
-                        flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
-                        borderWidth: 1.5,
-                        borderColor: printerBrand === brand ? BLUE : BORDER,
-                        backgroundColor: printerBrand === brand ? '#EFF6FF' : CARD,
-                      }}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: printerBrand === brand ? BLUE : TEXT }}>
-                        {brand === 'epson' ? 'Epson / ESC-POS' : 'Star Micronics'}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Text style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
-                  {printerBrand === 'star'
-                    ? 'Uses StarPRNT cut commands (ESC m). For Star mC-Print, TSP, and SP series.'
-                    : 'Uses ESC/POS cut commands (GS V). For Epson TM series and compatible printers.'}
-                </Text>
-              </View>
-              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={[s.fieldLabel, { marginBottom: 2 }]}>Print Automatically?</Text>
-                  <Text style={{ fontSize: 12, color: MUTED }}>
-                    Auto-print receipt when an order is accepted (moved to Preparing)
-                  </Text>
-                </View>
-                <Switch value={autoPrint} onValueChange={setAutoPrint} />
-              </View>
               <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 12 }}>
-                Orders for this store will print to this network printer.
+                Orders for this store should print to this network printer.
               </Text>
             </View>
           </View>

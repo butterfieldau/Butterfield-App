@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
@@ -93,9 +92,6 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   const [ePos,          setEPos]          = useState('');
   const [eRate,         setERate]         = useState('');
   const [canViewOrders, setCanViewOrders] = useState(false);
-  const [pinInput, setPinInput]   = useState('');
-  const [pinSaving, setPinSaving] = useState(false);
-  const [pinMsg, setPinMsg]       = useState<string | null>(null);
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
   const { data, isLoading, refetch } = useQuery({
@@ -474,67 +470,6 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     trackColor={{ false: '#E5E7EB', true: '#BBF7D0' }}
                     thumbColor={canViewOrders ? '#16A34A' : '#9CA3AF'}
                   />
-                </View>
-              </View>
-              {/* ── Clock-In PIN ──────────────────────────────────────── */}
-              <View style={[sp_s.menuSection, { marginBottom: 12 }]}>
-                <View style={[sp_s.menuRow, { paddingVertical: 12 }]}>
-                  <Feather name="hash" size={17} color={BLUE} style={{ marginRight: 14 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={sp_s.menuLabel}>Clock-In PIN</Text>
-                    <Text style={sp_s.menuSub}>4-digit PIN for Shop Display iPad clock in/out</Text>
-                  </View>
-                </View>
-                <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
-                      <TextInput
-                        style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '600', letterSpacing: 4 }}
-                        value={pinInput}
-                        onChangeText={(t) => { setPinInput(t.replace(/\D/g, '').slice(0, 4)); setPinMsg(null); }}
-                        placeholder="New PIN"
-                        placeholderTextColor={MUTED}
-                        keyboardType="number-pad"
-                        secureTextEntry
-                        maxLength={4}
-                      />
-                      <Text style={{ color: MUTED, fontSize: 12, fontWeight: '700' }}>{pinInput.length}/4</Text>
-                    </View>
-                    <Pressable
-                      disabled={pinInput.length !== 4 || pinSaving}
-                      onPress={async () => {
-                        if (!userId || pinInput.length !== 4) return;
-                        setPinSaving(true);
-                        try {
-                          await api.director.setStaffClockPin(userId, pinInput);
-                          setPinInput(''); setPinMsg('PIN saved ✓');
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to save PIN')); }
-                        finally { setPinSaving(false); }
-                      }}
-                      style={[modal.chip, { backgroundColor: pinInput.length === 4 ? BLUE : BG, borderColor: pinInput.length === 4 ? BLUE : BORDER, paddingVertical: 10, paddingHorizontal: 14 }]}
-                    >
-                      {pinSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[modal.chipText, { color: pinInput.length === 4 ? '#fff' : MUTED }]}>Set PIN</Text>}
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        if (!userId) return;
-                        Alert.alert('Clear PIN', 'Remove the clock-in PIN for this staff member?', [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Clear', style: 'destructive', onPress: async () => {
-                            try {
-                              await api.director.setStaffClockPin(userId, null);
-                              setPinMsg('PIN cleared');
-                            } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to clear PIN')); }
-                          }},
-                        ]);
-                      }}
-                      style={[modal.chip, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', paddingVertical: 10, paddingHorizontal: 14 }]}
-                    >
-                      <Text style={[modal.chipText, { color: RED }]}>Clear</Text>
-                    </Pressable>
-                  </View>
-                  {pinMsg ? <Text style={{ fontSize: 12, fontWeight: '700', color: pinMsg.includes('✓') || pinMsg.includes('cleared') ? '#16A34A' : RED }}>{pinMsg}</Text> : null}
                 </View>
               </View>
               {/* ── Menu rows ────────────────────────────────────────── */}
@@ -1679,7 +1614,6 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive' | 'suspended'>('active');
   const [password, setPassword] = useState('');
-  const [displayPermissions, setDisplayPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -1688,7 +1622,6 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
     setPhone(user?.phone ?? '');
     setStatus(user?.status === 'inactive' || user?.status === 'suspended' ? user.status : 'active');
     setPassword('');
-    setDisplayPermissions(user?.permissions ?? []);
   }, [user]);
 
   const { data: assignData, refetch: refetchAssignments } = useQuery({
@@ -1771,7 +1704,6 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
         email: email.trim(),
         phone: phone.trim() || undefined,
         status,
-        permissions: displayPermissions,
       });
       if (password.trim()) {
         await api.director.resetShopDisplayPassword(user.id, password);
@@ -1878,31 +1810,6 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
               ))
             )}
           </View>
-          <View style={[wdl.card, { gap: 12 }]}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>Display Permissions</Text>
-            <Text style={{ fontSize: 13, color: MUTED, lineHeight: 18 }}>Enable optional tabs on this Shop Display iPad login.</Text>
-            {([
-              { key: 'products',  label: 'Products tab',  sub: 'View product catalogue & availability', icon: 'package' },
-              { key: 'customers', label: 'Customers tab', sub: 'Loyalty lookup by name, email or phone',  icon: 'users'   },
-            ] as { key: string; label: string; sub: string; icon: React.ComponentProps<typeof Feather>['name'] }[]).map(({ key, label, sub, icon }) => (
-              <View key={key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Feather name={icon} size={16} color={BLUE} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{label}</Text>
-                  <Text style={{ fontSize: 12, color: MUTED }}>{sub}</Text>
-                </View>
-                <Switch
-                  value={displayPermissions.includes(key)}
-                  onValueChange={(val) => {
-                    Haptics.selectionAsync();
-                    setDisplayPermissions((prev) => val ? [...prev.filter((p) => p !== key), key] : prev.filter((p) => p !== key));
-                  }}
-                  trackColor={{ false: '#E5E7EB', true: '#BBF7D0' }}
-                  thumbColor={displayPermissions.includes(key) ? '#16A34A' : '#9CA3AF'}
-                />
-              </View>
-            ))}
-          </View>
           <Pressable onPress={save} disabled={loading} style={[modal.submitBtn, { backgroundColor: BLUE }]}>
             {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={modal.submitBtnText}>Save Changes</Text>}
           </Pressable>
@@ -1952,7 +1859,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     if (wholesaleMode) return u.role === 'wholesale';
     if (staffMode)     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (posMode)       return u.role === 'shop_display';
-    if (tab === 'Staff')     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master' || u.role === 'shop_display';
+    if (tab === 'Staff')     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (tab === 'Wholesale') return u.role === 'wholesale';
     return false;
   });
@@ -2029,25 +1936,30 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     await qc.invalidateQueries({ queryKey: ['director-users'] });
   };
   return (
-    <DirectorTabScreen
-      title={wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
-      headerBottom={!dedicatedMode ? (
-        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
-          {TABS.map((t) => {
-            const active = tab === t;
-            return (
-              <Pressable
-                key={t}
-                onPress={() => { setTab(t); Haptics.selectionAsync(); }}
-                style={[styles.tabChip, { backgroundColor: active ? BLUE : '#F3F4F6', borderColor: active ? BLUE : BORDER }]}
-              >
-                <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : undefined}
-    >
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" backgroundColor={BG} />
+      {/* Page title + tab chips on same row */}
+      <View style={{ paddingHorizontal: 16, paddingTop: dedicatedMode ? insets.top + 16 : 16, paddingBottom: 10, backgroundColor: BG, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 26, fontWeight: '700', color: TEXT }}>
+          {wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
+        </Text>
+        {!dedicatedMode && (
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {TABS.map((t) => {
+              const active = tab === t;
+              return (
+                <Pressable
+                  key={t}
+                  onPress={() => { setTab(t); Haptics.selectionAsync(); }}
+                  style={[styles.tabChip, { backgroundColor: active ? BLUE : BG, borderColor: active ? BLUE : BORDER }]}
+                >
+                  <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </View>
       {/* Add strip — only shown for Staff/Wholesale/POS, not Customers */}
       {(dedicatedMode || tab !== 'Customers') && (
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -2370,7 +2282,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           </ScrollView>
         </View>
       </Modal>
-    </DirectorTabScreen>
+    </View>
   );
 }
 

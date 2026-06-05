@@ -5,14 +5,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
   ActivityIndicator, Alert, Animated, Modal, Pressable, RefreshControl,
-  ScrollView, StatusBar, StyleSheet, Text, View,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import Svg, {
   Defs, LinearGradient, Path, Stop, Line, Text as SvgText,
 } from 'react-native-svg';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { PortalHeader } from '@/components/PortalHeader';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
@@ -726,30 +725,10 @@ const ch = StyleSheet.create({
 });
 
 // ── Role-aware wrapper ─────────────────────────────────────────────────────────
-const BADGE_LABEL: Record<string, string> = {
-  master:   'MASTER',
-  director: 'DIRECTOR',
-};
-const BADGE_COLOR: Record<string, string> = {
-  master:   '#7C3AED',
-  director: '#EF4444',
-};
-
 export default function DirectorHome() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   if (user?.role === 'staff' || user?.role === 'manager') {
     return <StaffDashboard />;
   }
-  return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="light-content" />
-      <PortalHeader
-        badge={BADGE_LABEL[user?.role ?? ''] ?? 'DIRECTOR'}
-        badgeColor={BADGE_COLOR[user?.role ?? ''] ?? '#EF4444'}
-        backgroundColor={NAVY}
-        onLogout={() => logout().then(() => router.replace('/(auth)/login' as any))}
-      />
-      <DirectorDashboardInner />
-    </View>
-  );
+  return <DirectorDashboardInner />;
 }

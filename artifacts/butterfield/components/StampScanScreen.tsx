@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Pressable, StyleSheet, Text, View,
 } from 'react-native';
@@ -32,10 +32,7 @@ type ScanResult = {
   justRedeemed?: boolean;
 };
 
-export function StampScanScreen({ externalScanData = null, onExternalScanHandled }: {
-  externalScanData?: string | null;
-  onExternalScanHandled?: () => void;
-} = {}) {
+export function StampScanScreen() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning]   = useState(false);
@@ -92,14 +89,6 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
       setScanning(false);
     }
   }, []);
-
-  // Process data fed by Bluetooth HID scanner (passed from scan.tsx parent)
-  useEffect(() => {
-    if (!externalScanData) return;
-    void handleBarcode({ data: externalScanData });
-    onExternalScanHandled?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalScanData]);
 
   const reset = () => {
     setResult(null);
