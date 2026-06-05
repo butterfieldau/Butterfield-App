@@ -112,8 +112,18 @@ function RootLayoutNav() {
 
 // JS-layer splash overlay — renders the same image as the native splash so
 // there's no visible jump, holds for 2 s, then fades out at 60 fps.
-function JsSplashOverlay({ onDone }: { onDone: () => void }) {
+// onReady is called once the overlay is committed to screen (onLayout), at which
+// point the native Expo splash is safe to hide with no visible gap.
+function JsSplashOverlay({ onDone, onReady }: { onDone: () => void; onReady: () => void }) {
   const opacity = useRef(new Animated.Value(1)).current;
+  const readyFired = useRef(false);
+
+  const handleLayout = () => {
+    if (!readyFired.current) {
+      readyFired.current = true;
+      onReady();
+    }
+  };
 
   useEffect(() => {
     const holdTimer = setTimeout(() => {
@@ -128,7 +138,7 @@ function JsSplashOverlay({ onDone }: { onDone: () => void }) {
   }, [opacity, onDone]);
 
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
+    <Animated.View onLayout={handleLayout} style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
       <LinearGradient
         colors={['#1481ff', '#3cbbee']}
         start={{ x: 0.5, y: 0 }}
@@ -149,12 +159,6 @@ function JsSplashOverlay({ onDone }: { onDone: () => void }) {
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
-
-  useEffect(() => {
-    // Hide the native Expo splash immediately — the JS overlay takes over
-    // so there's no visible gap between the two layers.
-    SplashScreen.hideAsync();
-  }, []);
 
   useEffect(() => {
     clearAppBadge().catch(() => {});
@@ -202,9 +206,14 @@ export default function RootLayout() {
         </PersistQueryClientProvider>
       </ErrorBoundary>
 
-      {/* JS splash sits above everything until its fade completes */}
+      {/* JS splash sits above everything until its fade completes.
+          onReady fires on first layout — only then do we hide the native splash,
+          guaranteeing zero gap between the two layers. */}
       {!splashDone && (
-        <JsSplashOverlay onDone={() => setSplashDone(true)} />
+        <JsSplashOverlay
+          onReady={() => SplashScreen.hideAsync().catch(() => {})}
+          onDone={() => setSplashDone(true)}
+        />
       )}
     </SafeAreaProvider>
   );
@@ -218,8 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   splashLogo: {
-    width: '100%',
-    maxWidth: 340,
-    height: 92,
+    width: '66%',
+    aspectRatio: 340 / 92,
   },
 });
