@@ -161,6 +161,8 @@ export default function ShopDisplayOrdersScreen() {
   const [queueMode, setQueueMode] = useState<QueueMode>('active');
   const [selectedDate, setSelectedDate] = useState(() => startOfSydneyDay(new Date()));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
@@ -216,6 +218,17 @@ export default function ShopDisplayOrdersScreen() {
     }
     return dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number]));
   }, [dateFilteredRows, queueMode]);
+
+  const searchFilteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return filteredRows;
+    return filteredRows.filter((order) => {
+      const name = (order.customerName ?? '').toLowerCase();
+      const num  = (order.orderNumber ?? '').toLowerCase();
+      const id   = order.id.slice(0, 8).toLowerCase();
+      return name.includes(q) || num.includes(q) || id.includes(q);
+    });
+  }, [filteredRows, searchQuery]);
 
   useEffect(() => {
     const currentMap: Record<string, string> = {};
@@ -545,14 +558,48 @@ export default function ShopDisplayOrdersScreen() {
               </Pressable>
             );
           })}
+          {/* Divider */}
+          <View style={s.tileDivider} />
+          {/* Search button */}
+          <Pressable
+            onPress={() => { setSearchOpen(v => !v); setSearchQuery(''); }}
+            style={[s.tileButton, searchOpen && s.tileButtonSecondaryActive]}
+          >
+            <Feather name="search" size={13} color={searchOpen ? '#fff' : NAVY} />
+            <Text style={[s.tileButtonText, searchOpen && s.tileButtonSecondaryActiveText]}>Search</Text>
+          </Pressable>
         </View>
+
+        {/* Search input row */}
+        {searchOpen && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F8', borderRadius: 10, paddingHorizontal: 10, gap: 8, height: 38 }}>
+              <Feather name="search" size={15} color={MUTED} />
+              <TextInput
+                autoFocus
+                placeholder="Search by name or order number…"
+                placeholderTextColor={MUTED}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={{ flex: 1, fontSize: 14, color: NAVY, paddingVertical: 0 }}
+                clearButtonMode="while-editing"
+                returnKeyType="search"
+              />
+            </View>
+            {searchQuery.length > 0 && (
+              <Text style={{ fontSize: 12, color: MUTED, minWidth: 60 }}>
+                {searchFilteredRows.length} result{searchFilteredRows.length !== 1 ? 's' : ''}
+              </Text>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Orders list */}
       <FlatList
         ref={listRef}
         key={numCols}
-        data={filteredRows}
+        data={searchFilteredRows}
         keyExtractor={item => item.id}
         numColumns={numCols}
         columnWrapperStyle={isWide ? { gap: 14, paddingHorizontal: 16 } : undefined}
