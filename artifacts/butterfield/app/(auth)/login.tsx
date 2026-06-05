@@ -6,9 +6,10 @@ import { router, useLocalSearchParams, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState, type ComponentProps } from 'react';
 import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
-  Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Image, Platform,
+  Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
@@ -280,8 +281,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
         <LinearGradient colors={[BLUE, BLUE_DARK]} style={[s.hero, { paddingTop: insets.top + 28 }]}>
           <Image
             source={require('@/assets/images/logo-white.png')}
@@ -291,10 +291,9 @@ export default function LoginScreen() {
           <Text style={[s.tagline, { fontWeight: '400' }]}>Cookies · Coffee · Desserts</Text>
         </LinearGradient>
 
-        <ScrollView
+        <KeyboardAwareScrollViewCompat
           style={{ flex: 1 }}
           contentContainerStyle={s.scrollContent}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={s.body}>
@@ -428,14 +427,14 @@ export default function LoginScreen() {
               {!submitted && (
                 <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="mail" size={16} color={MUTED} />
-                  <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+                  <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoFocus={false} />
                 </View>
               )}
 
               {!submitted && (
                 <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                   <Feather name="lock" size={16} color={MUTED} />
-                  <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPw} />
+                  <TextInput style={[s.input, { flex: 1, color: TEXT }]} placeholder="Password" placeholderTextColor={MUTED} value={password} onChangeText={setPassword} secureTextEntry={!showPw} autoFocus={false} />
                   <Pressable onPress={() => setShowPw(p => !p)}><Feather name={showPw ? 'eye-off' : 'eye'} size={16} color={MUTED} /></Pressable>
                 </View>
               )}
@@ -556,7 +555,7 @@ export default function LoginScreen() {
 
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Feather name="mail" size={16} color={MUTED} />
-                <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={iEmail} onChangeText={setIEmail} keyboardType="email-address" autoCapitalize="none" autoFocus />
+                <TextInput style={[s.input, { color: TEXT }]} placeholder="Email address" placeholderTextColor={MUTED} value={iEmail} onChangeText={setIEmail} keyboardType="email-address" autoCapitalize="none" autoFocus={false} />
               </View>
 
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
@@ -601,9 +600,8 @@ export default function LoginScreen() {
             </>
           )}
           </View>
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+        </KeyboardAwareScrollViewCompat>
+    </View>
   );
 }
 
