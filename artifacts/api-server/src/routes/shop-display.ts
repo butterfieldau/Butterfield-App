@@ -7,6 +7,7 @@ import {
   staffTaskHistoryTable,
   staffTasksTable,
   staffStoreAssignmentsTable,
+  storesTable,
   usersTable,
 } from '@workspace/db';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
@@ -257,6 +258,38 @@ router.get('/tasks/history', async (req, res) => {
     ? await db.select().from(staffTaskHistoryTable).where(and(...conditions)).orderBy(desc(staffTaskHistoryTable.createdAt)).limit(200)
     : await db.select().from(staffTaskHistoryTable).orderBy(desc(staffTaskHistoryTable.createdAt)).limit(200);
   return res.json({ data: history });
+});
+
+router.get('/store', async (req, res) => {
+  const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  if (assignments.length === 0) return res.json({ data: null });
+  const [store] = await db.select().from(storesTable)
+    .where(and(eq(storesTable.id, assignments[0].storeId), isNull(storesTable.deletedAt)));
+  return res.json({ data: store ?? null });
+});
+
+router.post('/printer/bytes', async (req, res) => {
+  try {
+    const { buildReceiptBytes } = await import('../lib/printer.js');
+    const { job } = req.body as { job?: any };
+    const printJob = (job as import('../lib/printer.js').PrintJob | undefined) ?? {
+      orderId:      'test-0000-0000-0000',
+      customerName: req.user!.name,
+      type:         'pickup' as const,
+      items:        [{ name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 }],
+      totalCents:   1000,
+      notes:        'Test print',
+    };
+    const bytes = buildReceiptBytes(printJob);
+    return res.json({ data: { bytes: bytes.toString('base64') } });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Could not build receipt' });
+  }
 });
 
 export default router;

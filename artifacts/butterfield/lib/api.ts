@@ -212,6 +212,9 @@ export const api = {
       const qs = params.toString();
       return request<{ data: ShopDisplayTaskHistory[] }>(`/shop-display/tasks/history${qs ? `?${qs}` : ''}`);
     },
+    store: () => request<{ data: StoreSummary | null }>('/shop-display/store'),
+    printerBytes: (job?: PrinterJob) =>
+      request<{ data: { bytes: string } }>('/shop-display/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),

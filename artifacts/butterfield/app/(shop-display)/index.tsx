@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -21,6 +22,7 @@ import { api } from '@/lib/api';
 import type { ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
+import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -171,6 +173,13 @@ export default function ShopDisplayOrdersScreen() {
     queryFn: () => api.shopDisplay.orders(),
     refetchInterval: 7000,
   });
+
+  const { data: storeData } = useQuery({
+    queryKey: ['shop-display-store'],
+    queryFn: () => api.shopDisplay.store(),
+    staleTime: 60_000,
+  });
+  const store = storeData?.data ?? null;
 
   const rows: ShopDisplayOrder[] = data?.data ?? [];
 
@@ -332,6 +341,21 @@ export default function ShopDisplayOrdersScreen() {
     }
   };
 
+  const printOrder = async (order: ShopDisplayOrder) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!store?.printerIp) {
+      Alert.alert('No printer configured', 'This store does not have a receipt printer IP address set. Ask a director to configure it in Store Settings.');
+      return;
+    }
+    try {
+      const job = orderToPrintJob(order);
+      await sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      Alert.alert('Print failed', msg);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={s.center}>
@@ -417,23 +441,41 @@ export default function ShopDisplayOrdersScreen() {
             </Pressable>
           ) : null}
 
-          {secondaryAction ? (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {secondaryAction ? (
+              <Pressable
+                disabled={isUpdating}
+                onPress={() => void updateStatus(item.id, secondaryAction.id)}
+                style={[s.secondaryActionTile, { flex: 1 }, isUpdating && s.actionBtnDisabled]}
+              >
+                <Feather name={secondaryAction.icon} size={16} color={RED} />
+                <Text style={s.secondaryActionText}>Cancel</Text>
+              </Pressable>
+            ) : null}
             <Pressable
-              disabled={isUpdating}
-              onPress={() => void updateStatus(item.id, secondaryAction.id)}
-              style={[s.secondaryActionTile, isUpdating && s.actionBtnDisabled]}
+              onPress={() => void printOrder(item)}
+              style={[s.secondaryActionTile, secondaryAction ? { flex: 1 } : { flex: 1 }]}
             >
-              <Feather name={secondaryAction.icon} size={16} color={RED} />
-              <Text style={s.secondaryActionText}>Cancel</Text>
+              <Feather name="printer" size={16} color={NAVY} />
+              <Text style={[s.secondaryActionText, { color: NAVY }]}>Print</Text>
             </Pressable>
-          ) : null}
+          </View>
         </View>
         ) : (
-          <View style={s.archivedNotice}>
-            <Feather name={queueMode === 'completed' ? 'archive' : 'slash'} size={15} color={MUTED} />
-            <Text style={s.archivedNoticeText}>
-              {queueMode === 'completed' ? 'This order has been completed.' : 'This order has been removed from the live queue.'}
-            </Text>
+          <View style={s.actionRailBottom}>
+            <Pressable
+              onPress={() => void printOrder(item)}
+              style={s.secondaryActionTile}
+            >
+              <Feather name="printer" size={16} color={NAVY} />
+              <Text style={[s.secondaryActionText, { color: NAVY }]}>Print receipt</Text>
+            </Pressable>
+            <View style={s.archivedNotice}>
+              <Feather name={queueMode === 'completed' ? 'archive' : 'slash'} size={15} color={MUTED} />
+              <Text style={s.archivedNoticeText}>
+                {queueMode === 'completed' ? 'This order has been completed.' : 'This order has been removed from the live queue.'}
+              </Text>
+            </View>
           </View>
         )}
       </View>
@@ -656,6 +698,7 @@ const s = StyleSheet.create({
 
   actionBtnDisabled: { opacity: 0.55 },
   actionRail:      { gap: 10, marginTop: 2 },
+  actionRailBottom:{ gap: 8, marginTop: 2 },
   primaryActionTile: { minHeight: 74, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   primaryActionText: { color: '#fff', fontSize: 19, fontWeight: '800' },
   primaryActionHint: { color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '600' },
