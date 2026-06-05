@@ -221,14 +221,14 @@ export default function ShopDisplayOrdersScreen() {
 
   const searchFilteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return filteredRows;
-    return filteredRows.filter((order) => {
+    if (!q) return [];
+    return [...rows].sort((a, b) => orderSortTime(b) - orderSortTime(a)).filter((order) => {
       const name = (order.customerName ?? '').toLowerCase();
       const num  = (order.orderNumber ?? '').toLowerCase();
       const id   = order.id.slice(0, 8).toLowerCase();
       return name.includes(q) || num.includes(q) || id.includes(q);
     });
-  }, [filteredRows, searchQuery]);
+  }, [rows, searchQuery]);
 
   useEffect(() => {
     const currentMap: Record<string, string> = {};
@@ -324,7 +324,15 @@ export default function ShopDisplayOrdersScreen() {
   const openDatePicker = () => {
     setCalYear(selectedDate.getFullYear());
     setCalMonth(selectedDate.getMonth());
+    setSearchOpen(false);
+    setSearchQuery('');
     setPickerOpen(true);
+  };
+
+  const closeDatePicker = () => {
+    setPickerOpen(false);
+    setSearchOpen(false);
+    setSearchQuery('');
   };
 
   const prevMonth = () => {
@@ -558,48 +566,14 @@ export default function ShopDisplayOrdersScreen() {
               </Pressable>
             );
           })}
-          {/* Divider */}
-          <View style={s.tileDivider} />
-          {/* Search button */}
-          <Pressable
-            onPress={() => { setSearchOpen(v => !v); setSearchQuery(''); }}
-            style={[s.tileButton, searchOpen && s.tileButtonSecondaryActive]}
-          >
-            <Feather name="search" size={13} color={searchOpen ? '#fff' : NAVY} />
-            <Text style={[s.tileButtonText, searchOpen && s.tileButtonSecondaryActiveText]}>Search</Text>
-          </Pressable>
         </View>
-
-        {/* Search input row */}
-        {searchOpen && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F8', borderRadius: 10, paddingHorizontal: 10, gap: 8, height: 38 }}>
-              <Feather name="search" size={15} color={MUTED} />
-              <TextInput
-                autoFocus
-                placeholder="Search by name or order number…"
-                placeholderTextColor={MUTED}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                style={{ flex: 1, fontSize: 14, color: NAVY, paddingVertical: 0 }}
-                clearButtonMode="while-editing"
-                returnKeyType="search"
-              />
-            </View>
-            {searchQuery.length > 0 && (
-              <Text style={{ fontSize: 12, color: MUTED, minWidth: 60 }}>
-                {searchFilteredRows.length} result{searchFilteredRows.length !== 1 ? 's' : ''}
-              </Text>
-            )}
-          </View>
-        )}
       </View>
 
       {/* Orders list */}
       <FlatList
         ref={listRef}
         key={numCols}
-        data={searchFilteredRows}
+        data={filteredRows}
         keyExtractor={item => item.id}
         numColumns={numCols}
         columnWrapperStyle={isWide ? { gap: 14, paddingHorizontal: 16 } : undefined}
@@ -699,15 +673,86 @@ export default function ShopDisplayOrdersScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={pickerOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPickerOpen(false)}>
+      <Modal visible={pickerOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeDatePicker}>
         <View style={{ flex: 1, backgroundColor: BG }}>
           <View style={s.sheetHeader}>
-            <Pressable onPress={() => setPickerOpen(false)} style={s.sheetCloseBtn}>
+            <Pressable onPress={closeDatePicker} style={s.sheetCloseBtn}>
               <Feather name="x" size={20} color={TEXT} />
             </Pressable>
-            <Text style={s.sheetHeaderTitle}>Pick a Date</Text>
-            <View style={{ width: 36 }} />
+            {searchOpen ? (
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F8', borderRadius: 10, paddingHorizontal: 10, gap: 8, height: 36, marginHorizontal: 8 }}>
+                <Feather name="search" size={15} color={MUTED} />
+                <TextInput
+                  autoFocus
+                  placeholder="Name or order number…"
+                  placeholderTextColor={MUTED}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  style={{ flex: 1, fontSize: 14, color: NAVY, paddingVertical: 0 }}
+                  clearButtonMode="while-editing"
+                  returnKeyType="search"
+                />
+              </View>
+            ) : (
+              <Text style={s.sheetHeaderTitle}>Pick a Date</Text>
+            )}
+            <Pressable
+              onPress={() => { setSearchOpen(v => !v); setSearchQuery(''); }}
+              style={[s.sheetCloseBtn, searchOpen && { backgroundColor: NAVY, borderRadius: 8 }]}
+            >
+              <Feather name="search" size={20} color={searchOpen ? '#fff' : TEXT} />
+            </Pressable>
           </View>
+
+          {/* Search results */}
+          {searchOpen ? (
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 10 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {searchQuery.trim().length === 0 ? (
+                <View style={{ alignItems: 'center', paddingTop: 48, gap: 10 }}>
+                  <Feather name="search" size={36} color={MUTED} />
+                  <Text style={{ color: MUTED, fontSize: 14 }}>Type a customer name or order number</Text>
+                </View>
+              ) : searchFilteredRows.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingTop: 48, gap: 10 }}>
+                  <Feather name="inbox" size={36} color={MUTED} />
+                  <Text style={{ color: MUTED, fontSize: 14 }}>No orders found</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>{searchFilteredRows.length} result{searchFilteredRows.length !== 1 ? 's' : ''}</Text>
+                  {searchFilteredRows.map((order) => {
+                    const meta = STATUS_META[order.status] ?? STATUS_META.received;
+                    const total = `$${((order.totalCents ?? 0) / 100).toFixed(2)}`;
+                    const isDelivery = order.type === 'delivery';
+                    const timeStr = new Date(order.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+                    return (
+                      <Pressable
+                        key={order.id}
+                        onPress={() => { closeDatePicker(); setDetailOrder(order); }}
+                        style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, gap: 6, borderWidth: 1, borderColor: BORDER }}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <View style={{ gap: 2 }}>
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: NAVY }}>{order.orderNumber ?? `#${order.id.slice(0, 6).toUpperCase()}`}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>{order.customerName ?? 'Customer'}</Text>
+                            <Text style={{ fontSize: 12, color: isDelivery ? '#D20001' : MUTED, fontWeight: isDelivery ? '700' : '500' }}>
+                              {isDelivery ? 'Delivery' : 'Pickup'} · {timeStr}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '700', color: NAVY }}>{total}</Text>
+                            <View style={[s.statusPill, { backgroundColor: meta.bg }]}>
+                              <Text style={[s.statusText, { color: meta.fg }]}>{meta.label}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </>
+              )}
+            </ScrollView>
+          ) : (
           <ScrollView contentContainerStyle={s.sheetContent} showsVerticalScrollIndicator={false}>
             <View style={s.monthHeader}>
               <Pressable onPress={prevMonth} style={s.monthStepper} hitSlop={8}>
@@ -742,7 +787,7 @@ export default function ShopDisplayOrdersScreen() {
                         if (future) return;
                         setSelectedDate(new Date(calYear, calMonth, day));
                         setFilterMode('date');
-                        setPickerOpen(false);
+                        closeDatePicker();
                         Haptics.selectionAsync();
                       }}
                       style={s.calendarPressable}
@@ -765,20 +810,21 @@ export default function ShopDisplayOrdersScreen() {
               <Pressable
                 onPress={() => {
                   setFilterMode('today');
-                  setPickerOpen(false);
+                  closeDatePicker();
                 }}
                 style={[s.modalActionBtn, s.modalActionSecondary]}
               >
                 <Text style={s.modalActionSecondaryText}>Today</Text>
               </Pressable>
               <Pressable
-                onPress={() => setPickerOpen(false)}
+                onPress={closeDatePicker}
                 style={[s.modalActionBtn, s.modalActionPrimary]}
               >
                 <Text style={s.modalActionPrimaryText}>Done</Text>
               </Pressable>
             </View>
           </ScrollView>
+          )}
         </View>
       </Modal>
 
