@@ -215,7 +215,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
             <Text style={styles.modalTitle}>
               {isWholesale
                 ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
-                : `#BC-${order.id.slice(-6).toUpperCase()}`}
+                : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
             </Text>
             <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
               {new Date(order.createdAt).toLocaleDateString('en-AU', {
@@ -547,7 +547,7 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onP
               <Text style={styles.orderId}>
                 {isWholesale
                   ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
-                  : `#BC-${order.id.slice(-6).toUpperCase()}`}
+                  : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
               </Text>
               {isWholesale && (
                 <View style={{ backgroundColor: '#DCFCE7', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>

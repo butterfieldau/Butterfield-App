@@ -225,7 +225,7 @@ export default function ShopDisplayOrdersScreen() {
     const fresh = rows.find(o => !prev[o.id] && o.status === 'received');
     if (fresh) {
       setAlertOrderId(fresh.id);
-      playNewOrderAlert(fresh.customerName ?? 'Customer', `#${fresh.id.slice(0, 6).toUpperCase()}`, soundEnabled);
+      playNewOrderAlert(fresh.customerName ?? 'Customer', fresh.orderNumber ?? `#${fresh.id.slice(0, 6).toUpperCase()}`, soundEnabled);
     }
     seenRef.current = currentMap;
   }, [rows, soundEnabled]);
@@ -404,7 +404,7 @@ export default function ShopDisplayOrdersScreen() {
         {/* Header row */}
         <View style={s.cardHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={s.orderNum}>#{item.id.slice(0, 6).toUpperCase()}</Text>
+            <Text style={s.orderNum}>{item.orderNumber ?? `#${item.id.slice(0, 6).toUpperCase()}`}</Text>
             <Text style={s.customerName} numberOfLines={1}>{item.customerName ?? 'Customer'}</Text>
             <Text style={s.orderMeta}>{orderSubtitle(item)}</Text>
           </View>
@@ -589,7 +589,7 @@ export default function ShopDisplayOrdersScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.cancelModalTitle}>Cancel Order</Text>
                   <Text style={s.cancelModalSub} numberOfLines={1}>
-                    #{cancellingOrder?.id.slice(0, 6).toUpperCase()} · {cancellingOrder?.customerName ?? 'Customer'}
+                    {cancellingOrder?.orderNumber ?? `#${cancellingOrder?.id.slice(0, 6).toUpperCase()}`} · {cancellingOrder?.customerName ?? 'Customer'}
                   </Text>
                 </View>
                 <Pressable onPress={() => setCancellingOrder(null)} style={s.cancelModalClose}>
@@ -751,7 +751,7 @@ export default function ShopDisplayOrdersScreen() {
                 {/* ── Header ── */}
                 <View style={s.detailHeader}>
                   <View style={{ flex: 1, gap: 3 }}>
-                    <Text style={s.detailOrderNum}>ORDER #{d.id.slice(0, 8).toUpperCase()}</Text>
+                    <Text style={s.detailOrderNum}>{d.orderNumber ?? `#${d.id.slice(0, 8).toUpperCase()}`}</Text>
                     <Text style={s.detailCustomer}>{d.customerName ?? 'Customer'}</Text>
                     <Text style={s.detailTimestamp}>{orderTime}</Text>
                   </View>

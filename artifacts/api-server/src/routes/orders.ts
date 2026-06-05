@@ -10,6 +10,7 @@ import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
+import { generateOrderNumber } from '../lib/orderNumber.js';
 
 const router = Router();
 
@@ -206,6 +207,7 @@ router.post('/', async (req, res) => {
   // ── Insert order + mark reward redeemed atomically ────────────────────────
   // Both must succeed together: if the claim is already consumed, the order is rolled back.
   const orderId = randomUUID();
+  const orderNumber = await generateOrderNumber();
   const pointsEarned = Math.floor(authorativeTotalCents / 100);
   let order!: typeof ordersTable.$inferSelect;
   const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free' || stripePaymentStatus === 'pay_at_pickup';
@@ -213,6 +215,7 @@ router.post('/', async (req, res) => {
     await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(ordersTable).values({
         id: orderId,
+        orderNumber,
         userId: req.user!.id,
         status: 'received',
         type: resolvedOrderType,

@@ -706,7 +706,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <View key={order.id} style={[det.orderRow, !isLast && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                           <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>
-                            #{order.id.slice(0, 8).toUpperCase()}
+                            {order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`}
                           </Text>
                           <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{fmtAUD(order.totalCents)}</Text>
                         </View>

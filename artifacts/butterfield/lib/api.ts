@@ -848,6 +848,7 @@ export interface ApiProduct {
 
 export interface ApiOrder {
   id: string;
+  orderNumber?: string | null;
   userId: string;
   storeId?: string | null;
   status: string;

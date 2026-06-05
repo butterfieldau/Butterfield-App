@@ -968,6 +968,7 @@ const psStyles = StyleSheet.create({
 
 interface Confirmation {
   orderId: string;
+  orderNumber?: string | null;
   totalCents: number;
   type: string;
   scheduledLabel?: string;
@@ -1375,7 +1376,7 @@ function CartContent() {
       qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const serverTotal = order.data.totalCents ?? totalCents;
-      setConfirmation({ orderId: order.data.id, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType });
+      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
     } finally {
@@ -1392,7 +1393,7 @@ function CartContent() {
   // ── Confirmation screen ──────────────────────────────────────────────────
   if (confirmation) {
     const earnedPoints = Math.max(0, Math.floor(confirmation.totalCents / 100));
-    const orderShortId = `#${confirmation.orderId.slice(0, 8).toUpperCase()}`;
+    const orderShortId = confirmation.orderNumber ?? `#${confirmation.orderId.slice(0, 8).toUpperCase()}`;
     const placedLabel = new Intl.DateTimeFormat('en-AU', {
       day: 'numeric',
       month: 'short',

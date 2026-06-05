@@ -590,7 +590,7 @@ export function StaffDashboard() {
                         style={[styles.scheduleCard, { borderLeftColor: sc }]}>
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <Text style={styles.scheduleOrderId}>#{order.id.slice(0, 6).toUpperCase()}</Text>
+                            <Text style={styles.scheduleOrderId}>{order.orderNumber ?? `#${order.id.slice(0, 6).toUpperCase()}`}</Text>
                             <View style={[styles.scheduleStatusPill, { backgroundColor: `${sc}18` }]}>
                               <Text style={[styles.scheduleStatusText, { color: sc }]}>{order.status.replace(/_/g, ' ')}</Text>
                             </View>

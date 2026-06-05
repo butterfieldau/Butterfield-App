@@ -17,6 +17,7 @@ export const orderTypeEnum = pgEnum("order_type", ["pickup", "delivery"]);
 
 export const ordersTable = pgTable("orders", {
   id: text("id").primaryKey(),
+  orderNumber: text("order_number").unique(),
   userId: text("user_id").notNull(),
   status: orderStatusEnum("status").notNull().default("received"),
   type: orderTypeEnum("type").notNull().default("pickup"),
