@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
-import * as Print from 'expo-print';
+import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
@@ -139,40 +139,6 @@ function orderSubtitle(order: ShopDisplayOrder) {
   ].filter(Boolean).join(' · ');
 }
 
-function buildReceiptHtml(order: ShopDisplayOrder, store?: ShopDisplayStore | null): string {
-  const lines = normalizeOrderItems(order.items);
-  const total = `$${((order.totalCents ?? 0) / 100).toFixed(2)}`;
-  const dateStr = new Date(order.createdAt ?? Date.now()).toLocaleString('en-AU', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-  const itemsHtml = lines.map(l => {
-    const opts = [l.variantName, ...l.notableOptions, l.baristaNote].filter(Boolean).join(', ');
-    return `<tr><td>${l.quantity} × ${l.name}${opts ? `<br><small style="color:#666">${opts}</small>` : ''}</td></tr>`;
-  }).join('');
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, monospace; font-size: 13px; margin: 0; padding: 16px; max-width: 300px; }
-    h1 { font-size: 18px; margin: 0 0 2px; } .sub { color: #666; font-size: 11px; margin-bottom: 12px; }
-    hr { border: none; border-top: 1px dashed #ccc; margin: 10px 0; }
-    table { width: 100%; border-collapse: collapse; } td { padding: 4px 0; vertical-align: top; }
-    .total { font-size: 16px; font-weight: bold; text-align: right; margin-top: 8px; }
-    .footer { color: #888; font-size: 10px; margin-top: 12px; text-align: center; }
-  </style></head><body>
-  <h1>Butterfield Cookies</h1>
-  <div class="sub">${store?.name ?? 'Store'} · ${dateStr}</div>
-  <hr>
-  <strong>Order #${order.id.slice(0, 6).toUpperCase()}</strong><br>
-  ${order.customerName ?? 'Customer'}${order.customerPhone ? ` · ${order.customerPhone}` : ''}<br>
-  <small>${order.type === 'delivery' ? 'Delivery' : 'Pickup'}${order.scheduledFor ? ` · For ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}` : ''}</small>
-  <hr>
-  <table>${itemsHtml}</table>
-  ${order.notes ? `<hr><small><strong>Notes:</strong> ${order.notes}</small>` : ''}
-  <div class="total">Total: ${total}</div>
-  <hr>
-  <div class="footer">Thank you for your order!</div>
-  </body></html>`;
-}
 
 function playNewOrderAlert(name: string, label: string, soundEnabled: boolean) {
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -225,14 +191,17 @@ export default function ShopDisplayOrdersScreen() {
 
   const printOrder = async (order: ShopDisplayOrder) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const html = buildReceiptHtml(order, store);
-    const printerUrl = store?.printerIp
-      ? `ipp://${store.printerIp}:${store.printerPort ?? 9100}/ipp/print`
-      : undefined;
+    if (!store?.printerIp) {
+      Alert.alert('No printer configured', 'This store does not have a receipt printer IP address set. Ask a director to configure it in Store Settings.');
+      return;
+    }
     try {
-      await Print.printAsync({ html, ...(printerUrl ? { printerUrl } : {}) });
-    } catch {
-      Alert.alert('Print failed', 'Could not connect to the printer. Make sure it is on and connected to the network.');
+      const brand = (store.printerBrand === 'star' ? 'star' : 'epson') as 'epson' | 'star';
+      const job = orderToPrintJob(order, brand);
+      await sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      Alert.alert('Print failed', msg);
     }
   };
 

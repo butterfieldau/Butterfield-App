@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import React from 'react';
 import { Image, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
 
 export default function ShopDisplayLayout() {
   const { user, logout } = useAuth();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const pathname = usePathname();
@@ -158,7 +160,7 @@ export default function ShopDisplayLayout() {
         </View>
 
         {/* ── Content ─────────────────────────────────────────────── */}
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingTop: insets.top }}>
           {tabScreens}
         </View>
       </View>
