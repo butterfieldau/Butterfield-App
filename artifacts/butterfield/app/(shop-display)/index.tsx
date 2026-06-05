@@ -166,6 +166,7 @@ export default function ShopDisplayOrdersScreen() {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<ShopDisplayOrder | null>(null);
   const [cancelReasonText, setCancelReasonText] = useState('');
+  const [detailOrder, setDetailOrder] = useState<ShopDisplayOrder | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
@@ -399,6 +400,7 @@ export default function ShopDisplayOrdersScreen() {
     const secondaryAction = STATUS_ACTIONS.find((action) => action.id === 'cancelled' && availableActions.includes('cancelled'));
 
     return (
+      <Pressable onPress={() => setDetailOrder(item)}>
       <View style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
         {/* Header row */}
         <View style={s.cardHeader}>
@@ -483,6 +485,7 @@ export default function ShopDisplayOrdersScreen() {
           </View>
         )}
       </View>
+      </Pressable>
     );
   };
 
@@ -725,6 +728,120 @@ export default function ShopDisplayOrdersScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* ── Order Detail Modal ───────────────────────────────────── */}
+      <Modal
+        visible={!!detailOrder}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailOrder(null)}
+      >
+        {detailOrder ? (() => {
+          const d = detailOrder;
+          const total = `$${((d.totalCents ?? 0) / 100).toFixed(2)}`;
+          const meta = STATUS_META[d.status] ?? STATUS_META.received;
+          const lines = normalizeOrderItems(d.items);
+          const availableActions = NEXT_STATUS_ACTIONS[d.status] ?? [];
+          const isUpdating = updatingOrderId === d.id;
+          const primaryAction = STATUS_ACTIONS.find((a) => availableActions.find((s2) => s2 === a.id && s2 !== 'cancelled'));
+          const secondaryAction = STATUS_ACTIONS.find((a) => a.id === 'cancelled' && availableActions.includes('cancelled'));
+          return (
+            <Pressable style={s.detailBackdrop} onPress={() => setDetailOrder(null)}>
+              <Pressable style={s.detailSheet} onPress={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <View style={s.detailHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.detailOrderNum}>#{d.id.slice(0, 6).toUpperCase()}</Text>
+                    <Text style={s.detailCustomer}>{d.customerName ?? 'Customer'}</Text>
+                    <Text style={s.detailMeta}>{orderSubtitle(d)}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                    <Pressable onPress={() => setDetailOrder(null)} style={s.detailCloseBtn}>
+                      <Feather name="x" size={18} color={TEXT} />
+                    </Pressable>
+                    <View style={[s.statusPill, { backgroundColor: meta.bg }]}>
+                      <Text style={[s.statusText, { color: meta.fg }]}>{meta.label}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={s.detailBody} showsVerticalScrollIndicator={false}>
+                  {/* Items */}
+                  <Text style={s.detailSectionLabel}>Items</Text>
+                  <View style={{ gap: 6 }}>
+                    {lines.map((line, i) => (
+                      <View key={i} style={s.detailLineItem}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Text style={s.detailLineMain}>{line.quantity} × {line.name}</Text>
+                        </View>
+                        {line.variantName ? <Text style={s.detailLineSub}>{line.variantName}</Text> : null}
+                        {line.notableOptions.length > 0 ? <Text style={s.detailLineSub}>{line.notableOptions.join(' · ')}</Text> : null}
+                        {line.baristaNote ? (
+                          <View style={s.detailBaristaNote}>
+                            <Feather name="message-square" size={11} color={BLUE} />
+                            <Text style={s.detailBaristaText}>{line.baristaNote}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Notes */}
+                  {d.notes ? (
+                    <View style={{ marginTop: 14 }}>
+                      <Text style={s.detailSectionLabel}>Order notes</Text>
+                      <View style={s.detailNotesBox}>
+                        <Feather name="file-text" size={13} color={NAVY} />
+                        <Text style={s.detailNotesText}>{d.notes}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* Total */}
+                  <View style={s.detailTotalRow}>
+                    <Text style={s.detailTotalLabel}>Total</Text>
+                    <Text style={s.detailTotalValue}>{total}</Text>
+                  </View>
+                </ScrollView>
+
+                {/* Actions */}
+                <View style={s.detailActions}>
+                  {/* Print */}
+                  <Pressable
+                    onPress={() => void printOrder(d)}
+                    style={s.detailPrintBtn}
+                  >
+                    <Feather name="printer" size={16} color={NAVY} />
+                    <Text style={s.detailPrintText}>Print</Text>
+                  </Pressable>
+
+                  {secondaryAction ? (
+                    <Pressable
+                      disabled={isUpdating}
+                      onPress={() => { setDetailOrder(null); openCancelModal(d); }}
+                      style={[s.detailCancelBtn, isUpdating && s.actionBtnDisabled]}
+                    >
+                      <Feather name="x-circle" size={15} color={RED} />
+                      <Text style={s.detailCancelText}>Cancel</Text>
+                    </Pressable>
+                  ) : null}
+
+                  {primaryAction ? (
+                    <Pressable
+                      disabled={isUpdating}
+                      onPress={() => { void updateStatus(d.id, primaryAction.id); setDetailOrder(null); }}
+                      style={[s.detailPrimaryBtn, { backgroundColor: primaryAction.color }, isUpdating && s.actionBtnDisabled]}
+                    >
+                      <Feather name={primaryAction.icon} size={17} color="#fff" />
+                      <Text style={s.detailPrimaryText}>{isUpdating ? 'Updating…' : primaryAction.label}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </Pressable>
+            </Pressable>
+          );
+        })() : null}
+      </Modal>
     </View>
   );
 }
@@ -817,4 +934,32 @@ const s = StyleSheet.create({
   modalActionPrimary: { backgroundColor: BLUE },
   modalActionSecondaryText: { color: NAVY, fontSize: 14, fontWeight: '800' },
   modalActionPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+
+  detailBackdrop:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  detailSheet:     { backgroundColor: CARD, borderRadius: 24, width: '100%', maxWidth: 560, maxHeight: '88%', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 24, elevation: 12 },
+  detailHeader:    { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
+  detailOrderNum:  { color: BLUE, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, marginBottom: 2 },
+  detailCustomer:  { color: TEXT, fontSize: 20, fontWeight: '800', lineHeight: 24 },
+  detailMeta:      { color: MUTED, fontSize: 13, fontWeight: '500', marginTop: 3 },
+  detailCloseBtn:  { width: 34, height: 34, borderRadius: 17, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  detailBody:      { padding: 20, gap: 6 },
+  detailSectionLabel: { color: NAVY, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  detailLineItem:  { backgroundColor: BG, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 4 },
+  detailLineMain:  { color: TEXT, fontSize: 15, fontWeight: '700', flex: 1 },
+  detailLinePrice: { color: TEXT, fontSize: 14, fontWeight: '700' },
+  detailLineSub:   { color: MUTED, fontSize: 13, fontWeight: '500', lineHeight: 17 },
+  detailBaristaNote: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  detailBaristaText: { color: BLUE, fontSize: 12, fontWeight: '600', flex: 1 },
+  detailNotesBox:  { backgroundColor: '#FFF9E6', borderRadius: 12, borderWidth: 1, borderColor: '#F5D87A', padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  detailNotesText: { color: '#7A5C00', fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
+  detailTotalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: BORDER },
+  detailTotalLabel:{ color: MUTED, fontSize: 14, fontWeight: '700' },
+  detailTotalValue:{ color: TEXT, fontSize: 22, fontWeight: '900' },
+  detailActions:   { flexDirection: 'row', gap: 8, padding: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
+  detailPrintBtn:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, backgroundColor: BG },
+  detailPrintText: { color: NAVY, fontSize: 13, fontWeight: '800' },
+  detailCancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: '#FECACA', backgroundColor: '#FFF5F5' },
+  detailCancelText:{ color: RED, fontSize: 13, fontWeight: '800' },
+  detailPrimaryBtn:{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
+  detailPrimaryText:{ color: '#fff', fontSize: 15, fontWeight: '800' },
 });
