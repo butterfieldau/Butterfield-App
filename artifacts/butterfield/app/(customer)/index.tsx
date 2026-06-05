@@ -74,6 +74,14 @@ export default function CustomerHome() {
   const sectionTitleSize = isTablet ? 24 : 22;
   // Left column width on landscape iPad — needs ≥340px content for banner layout
   const LEFT_COL_W = isLandscape ? Math.min(width * 0.38, 420) : 0;
+  // Quick tile rail height: flex:1 + aspectRatio:1 inside ScrollView reports height=0 to layout
+  // so we must set an explicit height. Tile size = (available width) / 3.
+  const tileGap = 10;
+  const quickRailHeight = isTablet
+    ? (isLandscape
+        ? 176  // fixed for landscape left-column
+        : Math.floor((width - 2 * hPad - 2 * tileGap) / 3))  // exact tile size for portrait
+    : undefined;  // phone: aspectRatio works fine without explicit height
 
   const {
     products,
@@ -217,7 +225,7 @@ export default function CustomerHome() {
     <View style={[s.quickRail, {
       paddingHorizontal: hPad,
       marginTop: isTablet ? 18 : 20,
-      height: isTablet && isLandscape ? 176 : undefined,
+      height: quickRailHeight,
     }]}>
       <FeatureShortcutTile
         title="Cookies"
