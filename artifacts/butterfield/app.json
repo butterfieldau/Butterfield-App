@@ -55,7 +55,8 @@
           "defaultChannel": "butterfield-staff",
           "sounds": ["./assets/sounds/butterfield-push-tone.mp3"]
         }
-      ]
+      ],
+      "./plugins/withGoogleSignInFix"
     ],
     "experiments": {
       "typedRoutes": true,
