@@ -64,15 +64,16 @@ export default function CustomerHome() {
   const { width, height } = useWindowDimensions();
   const isTablet    = width >= 768;
   const isLandscape = isTablet && width > height;
-  const hPad        = isTablet ? (isLandscape ? 28 : 24) : 16;
+  const hPad        = isTablet ? (isLandscape ? 24 : 22) : 16;
   const productTileW  = isTablet ? (isLandscape ? 210 : 190) : 160;
   const favTileW      = isTablet ? (isLandscape ? 170 : 156) : 140;
   const browseCardW   = isTablet ? (isLandscape ? 170 : 156) : 140;
   const usualCardW    = isTablet ? 270 : 200;
-  const sectionGap    = isTablet ? 36 : 30;
+  // Portrait tablet gets extra vertical breathing room between sections
+  const sectionGap    = isTablet && !isLandscape ? 42 : isTablet ? 36 : 30;
   const sectionTitleSize = isTablet ? 24 : 22;
   // Left column width on landscape iPad (hero + tiles)
-  const LEFT_COL_W = isLandscape ? Math.min(width * 0.44, 440) : 0;
+  const LEFT_COL_W = isLandscape ? Math.min(width * 0.44, 430) : 0;
 
   const {
     products,
@@ -181,13 +182,13 @@ export default function CustomerHome() {
 
   // ── Reusable section renderers ─────────────────────────────────────────────
   const heroBannerSection = (
-    <View style={{ paddingHorizontal: hPad, paddingTop: 12, marginTop: -2 }}>
+    <View style={{ paddingHorizontal: hPad, paddingTop: isTablet ? 18 : 12, marginTop: -2 }}>
       <HeroBanner banner={banner} onPress={handleBannerPress} />
     </View>
   );
 
   const storePickupSection = (
-    <View style={{ paddingHorizontal: hPad, marginTop: 14 }}>
+    <View style={{ paddingHorizontal: hPad, marginTop: isTablet ? 20 : 14 }}>
       <Pressable
         style={[s.pickupRow, { backgroundColor: colors.card }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStoreSheetVisible(true); }}
@@ -215,8 +216,8 @@ export default function CustomerHome() {
   const quickTilesSection = (
     <View style={[s.quickRail, {
       paddingHorizontal: hPad,
-      marginTop: isTablet ? 16 : 20,
-      height: isTablet ? (isLandscape ? 180 : 160) : undefined,
+      marginTop: isTablet ? 18 : 20,
+      height: isTablet ? (isLandscape ? 176 : 156) : undefined,
     }]}>
       <FeatureShortcutTile
         title="Cookies"
@@ -357,7 +358,7 @@ export default function CustomerHome() {
                   <Text style={[s.favBannerText, { fontWeight: '500' }]}>Pickup</Text>
                 </View>
               </View>
-              <View style={{ padding: 8, gap: 2 }}>
+              <View style={{ padding: isTablet ? 10 : 8, gap: 2 }}>
                 <Text style={[s.favName, { fontWeight: '600', color: colors.foreground, fontSize: isTablet ? 13 : 12 }]} numberOfLines={1}>{p.name}</Text>
                 <Text style={{ fontWeight: '700', color: pal.banner, fontSize: isTablet ? 14 : 13 }}>
                   ${((p.prices?.[0]?.unit_amount ?? 0) / 100).toFixed(2)}
@@ -435,7 +436,7 @@ export default function CustomerHome() {
             <Pressable
               key={c.id}
               onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(customer)/menu', params: { category: c.slug } } as any); }}
-              style={[s.browseCard, { backgroundColor: imgUrl ? '#1a1a2e' : pal.bg, width: browseCardW, height: isTablet ? 120 : 100 }]}
+              style={[s.browseCard, { backgroundColor: imgUrl ? '#1a1a2e' : pal.bg, width: browseCardW, height: isTablet ? 118 : 100 }]}
             >
               {imgUrl ? (
                 <Image
@@ -490,13 +491,13 @@ export default function CustomerHome() {
         }]}
       >
         {isLandscape ? (
-          /* Landscape iPad: greeting + loyalty in a row */
+          /* Landscape iPad: greeting on left, logo + loyalty on right */
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={[s.greetLine1, { fontWeight: '800', fontSize: isTablet ? 28 : 24 }]} numberOfLines={1}>{greeting.line1}</Text>
-              <Text style={[s.greetLine2, { fontWeight: '500', fontSize: isTablet ? 17 : 16 }]} numberOfLines={1}>{greeting.line2}</Text>
+              <Text style={[s.greetLine1, { fontWeight: '800', fontSize: 28 }]} numberOfLines={1}>{greeting.line1}</Text>
+              <Text style={[s.greetLine2, { fontWeight: '500', fontSize: 17 }]} numberOfLines={1}>{greeting.line2}</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Image
                 source={require('@/assets/images/logo-white.png')}
                 style={{ width: 118, height: 36 }}
@@ -567,46 +568,52 @@ export default function CustomerHome() {
       </LinearGradient>
 
       {/* ── SCROLLABLE CONTENT ──────────────────────────────────────────── */}
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1, backgroundColor: colors.background }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE_TOP} />}
-      >
-        {isLandscape ? (
-          /* ── iPad LANDSCAPE: two-column layout ────────────────────── */
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            {/* Left column: hero + store + tiles + usual */}
-            <View style={{ width: LEFT_COL_W, borderRightWidth: 1, borderRightColor: 'rgba(0,0,0,0.06)' }}>
-              {heroBannerSection}
-              {storePickupSection}
-              {quickTilesSection}
-              {usualSection}
-              <View style={{ height: 40 }} />
-            </View>
-            {/* Right column: product sections */}
-            <View style={{ flex: 1, minWidth: 0 }}>
-              {topSellersSection}
-              {fanFavSection}
-              {catProductSections}
-              {browseCatSection}
-            </View>
-          </View>
-        ) : (
-          /* ── Phone + iPad Portrait: single column layout ─────────── */
-          <>
+      {isLandscape ? (
+        /* ── iPad LANDSCAPE: two columns, each with independent scroll ── */
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          {/* Left column — hero + store + tiles + usual, scrolls on its own */}
+          <ScrollView
+            style={{ width: LEFT_COL_W, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(0,0,0,0.1)' }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          >
             {heroBannerSection}
             {storePickupSection}
             {quickTilesSection}
             {usualSection}
+          </ScrollView>
+          {/* Right column — product sections, scrolls independently */}
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE_TOP} />}
+          >
             {topSellersSection}
             {fanFavSection}
             {catProductSections}
             {browseCatSection}
-          </>
-        )}
-      </ScrollView>
+          </ScrollView>
+        </View>
+      ) : (
+        /* ── Phone + iPad Portrait: single column ───────────────────── */
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1, backgroundColor: colors.background }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE_TOP} />}
+        >
+          {heroBannerSection}
+          {storePickupSection}
+          {quickTilesSection}
+          {usualSection}
+          {topSellersSection}
+          {fanFavSection}
+          {catProductSections}
+          {browseCatSection}
+        </ScrollView>
+      )}
     </View>
   );
 }

@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type DimensionValue,
   type StyleProp,
@@ -42,6 +43,7 @@ import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 
 const BLUE   = '#1493FF';
 const CHERRY = '#D0312D';
+
 // ── Shimmer primitives ────────────────────────────────────────────────────────
 interface ShimmerBoxProps {
   width?: DimensionValue;
@@ -76,13 +78,15 @@ function ShimmerProductCard({ shimmerProgress }: { shimmerProgress: SharedValue<
   );
 }
 const SHIMMER_COUNT = 6;
-function MenuShimmer({ shimmerProgress }: { shimmerProgress: SharedValue<number> }) {
-  const pairs = Array.from({ length: Math.ceil(SHIMMER_COUNT / 2) });
+function MenuShimmer({ shimmerProgress, numColumns, hPad }: { shimmerProgress: SharedValue<number>; numColumns: number; hPad: number }) {
+  const pairs = Array.from({ length: Math.ceil(SHIMMER_COUNT / numColumns) });
   return (
-    <View style={{ padding: 16, gap: 14 }}>
+    <View style={{ padding: hPad, gap: 14 }}>
       {pairs.map((_, i) => (
         <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1 }}><ShimmerProductCard shimmerProgress={shimmerProgress} /></View>
+          {Array.from({ length: numColumns }).map((__, j) => (
+            <View key={j} style={{ flex: 1 }}><ShimmerProductCard shimmerProgress={shimmerProgress} /></View>
+          ))}
         </View>
       ))}
     </View>
@@ -166,6 +170,15 @@ export default function MenuScreen() {
   const [userChangedCategory, setUserChangedCategory] = useState(false);
   const [showLoginRequired, setShowLoginRequired] = useState(false);
   const isSkipQueue = params.skipQueue === '1';
+
+  // ── Responsive values ──────────────────────────────────────────────────────
+  const { width, height } = useWindowDimensions();
+  const isTablet    = width >= 768;
+  const isLandscape = isTablet && width > height;
+  const numColumns  = isLandscape ? 4 : isTablet ? 3 : 2;
+  const hPad        = isTablet ? (isLandscape ? 28 : 24) : 16;
+  const tileGap     = isTablet ? 14 : 12;
+
   useEffect(() => {
     if (params.category) setActiveCategory(params.category);
   }, [params.category]);
@@ -195,7 +208,6 @@ export default function MenuScreen() {
   }, [categoriesData]);
   const listRef = useRef(null);
   useScrollToTop(listRef);
-  // Shimmer animation — runs while products are loading
   const shimmerProgress = useSharedValue(0);
   const contentOpacity  = useSharedValue(isLoading ? 0 : 1);
   useEffect(() => {
@@ -255,9 +267,9 @@ export default function MenuScreen() {
         onCancel={() => setShowLoginRequired(false)}
       />
       {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
+      <View style={[s.header, { paddingTop: insets.top + 16, paddingHorizontal: hPad }]}>
         <View style={s.headerTop}>
-          <Text style={[s.headerTitle, { fontWeight: '700' }]}>Menu</Text>
+          <Text style={[s.headerTitle, { fontWeight: '700', fontSize: isTablet ? 36 : 32 }]}>Menu</Text>
           {isSkipQueue && (
             <View style={s.skipBadge}>
               <Feather name="zap" size={12} color="#E07B00" />
@@ -266,10 +278,10 @@ export default function MenuScreen() {
           )}
         </View>
         {/* Search */}
-        <View style={s.searchBar}>
+        <View style={[s.searchBar, isTablet && { height: 50, borderRadius: 14 }]}>
           <Feather name="search" size={16} color="#8E8E93" />
           <TextInput
-            style={[s.searchInput, { fontWeight: '400' }]}
+            style={[s.searchInput, { fontWeight: '400', fontSize: isTablet ? 16 : 15 }]}
             placeholder="Search cookies, coffee…"
             placeholderTextColor="#8E8E93"
             value={search}
@@ -277,8 +289,8 @@ export default function MenuScreen() {
           />
           {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#8E8E93" /></Pressable> : null}
         </View>
-        {/* Category carousel — Uber Eats style */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 16 }}>
+        {/* Category carousel */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 0 }}>
           {categories.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
             const active = activeCategory === cat.id;
@@ -286,19 +298,24 @@ export default function MenuScreen() {
               <Pressable
                 key={cat.id}
                 onPress={() => { setUserChangedCategory(true); setActiveCategory(cat.id); setSearch(''); Haptics.selectionAsync(); }}
-                style={[s.catTile, { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' }]}
+                style={[
+                  s.catTile,
+                  { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' },
+                  isTablet && { paddingHorizontal: 16, paddingVertical: 13, minWidth: 80 },
+                ]}
               >
-                <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }]}>
+                <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }, isTablet && { width: 48, height: 48, borderRadius: 24 }]}>
                   {cat.icon.startsWith('svg:')
-                    ? <CategorySvgIcon name={cat.icon.slice(4)} size={18} color={active ? '#fff' : '#636366'} />
+                    ? <CategorySvgIcon name={cat.icon.slice(4)} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
                     : cat.icon.startsWith('mc:')
-                    ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={18} color={active ? '#fff' : '#636366'} />
-                    : <Feather name={cat.icon as any} size={18} color={active ? '#fff' : '#636366'} />
+                    ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
+                    : <Feather name={cat.icon as any} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
                   }
                 </View>
                 <Text style={[s.catLabel, {
                   color: active ? pal.banner : '#3C3C43',
                   fontWeight: active ? '700' : '500',
+                  fontSize: isTablet ? 13 : 12,
                 }]}>
                   {cat.label}
                 </Text>
@@ -308,16 +325,22 @@ export default function MenuScreen() {
         </ScrollView>
       </View>
       {isLoading ? (
-        <MenuShimmer shimmerProgress={shimmerProgress} />
+        <MenuShimmer shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} />
       ) : (
         <Reanimated.View style={[{ flex: 1 }, contentAnimStyle]}>
           <FlatList
             ref={listRef}
+            key={numColumns}
             data={filtered}
             keyExtractor={p => p.id}
-            numColumns={2}
-            columnWrapperStyle={{ gap: 12 }}
-            contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 110 }}
+            numColumns={numColumns}
+            columnWrapperStyle={{ gap: tileGap }}
+            contentContainerStyle={{
+              paddingHorizontal: hPad,
+              paddingTop: hPad,
+              gap: tileGap,
+              paddingBottom: insets.bottom + 110,
+            }}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
             ListHeaderComponent={
@@ -377,21 +400,21 @@ const s = StyleSheet.create({
   root:        { flex: 1, backgroundColor: '#fff' },
   // Header
   header:      {
-    paddingHorizontal: 16, paddingBottom: 16, gap: 14, backgroundColor: '#fff',
+    paddingBottom: 16, gap: 14, backgroundColor: '#fff',
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },
   headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 32, color: '#1C1C1E' },
+  headerTitle: { color: '#1C1C1E' },
   skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   skipBadgeText:{ fontSize: 12, color: '#E07B00' },
   // Search
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 12 },
-  searchInput: { flex: 1, fontSize: 15, color: '#1C1C1E' },
-  // Category carousel — Uber Eats style
+  searchInput: { flex: 1, color: '#1C1C1E' },
+  // Category carousel
   catTile:     { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
   catIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  catLabel:    { fontSize: 12, textAlign: 'center' },
+  catLabel:    { textAlign: 'center' },
   // Count row
   count:       { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
   // Frequently ordered section
