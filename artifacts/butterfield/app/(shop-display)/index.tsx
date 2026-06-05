@@ -730,32 +730,34 @@ export default function ShopDisplayOrdersScreen() {
       </Modal>
 
       {/* ── Order Detail Modal ───────────────────────────────────── */}
-      <Modal
-        visible={!!detailOrder}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDetailOrder(null)}
-      >
-        {detailOrder ? (() => {
-          const d = detailOrder;
-          const total = `$${((d.totalCents ?? 0) / 100).toFixed(2)}`;
-          const meta = STATUS_META[d.status] ?? STATUS_META.received;
-          const lines = normalizeOrderItems(d.items);
-          const availableActions = NEXT_STATUS_ACTIONS[d.status] ?? [];
-          const isUpdating = updatingOrderId === d.id;
-          const primaryAction = STATUS_ACTIONS.find((a) => availableActions.find((s2) => s2 === a.id && s2 !== 'cancelled'));
-          const secondaryAction = STATUS_ACTIONS.find((a) => a.id === 'cancelled' && availableActions.includes('cancelled'));
-          return (
-            <Pressable style={s.detailBackdrop} onPress={() => setDetailOrder(null)}>
-              <Pressable style={s.detailSheet} onPress={(e) => e.stopPropagation()}>
-                {/* Header */}
+      {detailOrder ? (() => {
+        const d = detailOrder;
+        const total = `$${((d.totalCents ?? 0) / 100).toFixed(2)}`;
+        const meta = STATUS_META[d.status] ?? STATUS_META.received;
+        const lines = normalizeOrderItems(d.items);
+        const availableActions = NEXT_STATUS_ACTIONS[d.status] ?? [];
+        const isUpdating = updatingOrderId === d.id;
+        const primaryAction = STATUS_ACTIONS.find((a) => availableActions.find((ss) => ss === a.id && ss !== 'cancelled'));
+        const secondaryAction = STATUS_ACTIONS.find((a) => a.id === 'cancelled' && availableActions.includes('cancelled'));
+        const isDelivery = d.type === 'delivery';
+        const deliveryAddr = [d.street, d.suburb, d.postcode].filter(Boolean).join(', ') || d.deliveryAddress || null;
+        const paymentLabel = d.isPaid ? 'Paid' : d.stripePaymentStatus ? d.stripePaymentStatus.replace(/_/g, ' ') : 'Pending';
+        const paymentColour = d.isPaid || d.stripePaymentStatus === 'succeeded' ? '#16A34A' : '#D97706';
+        const orderTime = new Date(d.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+        const scheduledLabel = d.scheduledFor ? new Date(d.scheduledFor).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }) : null;
+        return (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setDetailOrder(null)}>
+            <View style={s.detailBackdrop}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={() => setDetailOrder(null)} />
+              <View style={s.detailSheet}>
+                {/* ── Header ── */}
                 <View style={s.detailHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.detailOrderNum}>#{d.id.slice(0, 6).toUpperCase()}</Text>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={s.detailOrderNum}>ORDER #{d.id.slice(0, 8).toUpperCase()}</Text>
                     <Text style={s.detailCustomer}>{d.customerName ?? 'Customer'}</Text>
-                    <Text style={s.detailMeta}>{orderSubtitle(d)}</Text>
+                    <Text style={s.detailTimestamp}>{orderTime}</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                  <View style={{ alignItems: 'flex-end', gap: 10 }}>
                     <Pressable onPress={() => setDetailOrder(null)} style={s.detailCloseBtn}>
                       <Feather name="x" size={18} color={TEXT} />
                     </Pressable>
@@ -765,17 +767,84 @@ export default function ShopDisplayOrdersScreen() {
                   </View>
                 </View>
 
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={s.detailBody} showsVerticalScrollIndicator={false}>
+                {/* ── Scrollable body ── */}
+                <ScrollView style={s.detailScroll} contentContainerStyle={s.detailBody} showsVerticalScrollIndicator={false}>
+
+                  {/* Customer info */}
+                  <Text style={s.detailSectionLabel}>Customer</Text>
+                  <View style={s.detailInfoCard}>
+                    <View style={s.detailInfoRow}>
+                      <Feather name="user" size={13} color={NAVY} />
+                      <Text style={s.detailInfoText}>{d.customerName ?? '—'}</Text>
+                    </View>
+                    {d.customerEmail ? (
+                      <View style={s.detailInfoRow}>
+                        <Feather name="mail" size={13} color={NAVY} />
+                        <Text style={s.detailInfoText}>{d.customerEmail}</Text>
+                      </View>
+                    ) : null}
+                    {d.customerPhone ? (
+                      <View style={s.detailInfoRow}>
+                        <Feather name="phone" size={13} color={NAVY} />
+                        <Text style={s.detailInfoText}>{d.customerPhone}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Fulfilment */}
+                  <Text style={[s.detailSectionLabel, { marginTop: 14 }]}>{isDelivery ? 'Delivery' : 'Pickup'}</Text>
+                  <View style={s.detailInfoCard}>
+                    <View style={s.detailInfoRow}>
+                      <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={13} color={NAVY} />
+                      <Text style={s.detailInfoText}>{isDelivery ? 'Home delivery' : 'In-store pickup'}</Text>
+                    </View>
+                    {scheduledLabel ? (
+                      <View style={s.detailInfoRow}>
+                        <Feather name="clock" size={13} color={NAVY} />
+                        <Text style={s.detailInfoText}>{scheduledLabel}</Text>
+                      </View>
+                    ) : null}
+                    {isDelivery && deliveryAddr ? (
+                      <View style={s.detailInfoRow}>
+                        <Feather name="map-pin" size={13} color={NAVY} />
+                        <Text style={s.detailInfoText}>{deliveryAddr}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Payment */}
+                  <Text style={[s.detailSectionLabel, { marginTop: 14 }]}>Payment</Text>
+                  <View style={s.detailInfoCard}>
+                    <View style={s.detailInfoRow}>
+                      <Feather name="credit-card" size={13} color={NAVY} />
+                      <Text style={[s.detailInfoText, { color: paymentColour, fontWeight: '700', textTransform: 'capitalize' }]}>{paymentLabel}</Text>
+                    </View>
+                    {d.loyaltyPointsUsed && d.loyaltyPointsUsed > 0 ? (
+                      <View style={s.detailInfoRow}>
+                        <Feather name="star" size={13} color={NAVY} />
+                        <Text style={s.detailInfoText}>{d.loyaltyPointsUsed} loyalty points redeemed</Text>
+                      </View>
+                    ) : null}
+                    {d.discountCents && d.discountCents > 0 ? (
+                      <View style={s.detailInfoRow}>
+                        <Feather name="tag" size={13} color={NAVY} />
+                        <Text style={s.detailInfoText}>Discount −${(d.discountCents / 100).toFixed(2)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
                   {/* Items */}
-                  <Text style={s.detailSectionLabel}>Items</Text>
+                  <Text style={[s.detailSectionLabel, { marginTop: 14 }]}>Items ordered</Text>
                   <View style={{ gap: 6 }}>
                     {lines.map((line, i) => (
                       <View key={i} style={s.detailLineItem}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text style={s.detailLineMain}>{line.quantity} × {line.name}</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <Text style={[s.detailLineMain, { flex: 1 }]}>{line.quantity} × {line.name}</Text>
+                          <Text style={s.detailLinePrice}>${(line.lineTotalCents / 100).toFixed(2)}</Text>
                         </View>
                         {line.variantName ? <Text style={s.detailLineSub}>{line.variantName}</Text> : null}
                         {line.notableOptions.length > 0 ? <Text style={s.detailLineSub}>{line.notableOptions.join(' · ')}</Text> : null}
+                        {line.isFreeReward ? <Text style={[s.detailLineSub, { color: '#16A34A', fontWeight: '700' }]}>Free reward</Text> : null}
                         {line.baristaNote ? (
                           <View style={s.detailBaristaNote}>
                             <Feather name="message-square" size={11} color={BLUE} />
@@ -791,7 +860,7 @@ export default function ShopDisplayOrdersScreen() {
                     <View style={{ marginTop: 14 }}>
                       <Text style={s.detailSectionLabel}>Order notes</Text>
                       <View style={s.detailNotesBox}>
-                        <Feather name="file-text" size={13} color={NAVY} />
+                        <Feather name="file-text" size={13} color="#92400E" />
                         <Text style={s.detailNotesText}>{d.notes}</Text>
                       </View>
                     </View>
@@ -799,22 +868,20 @@ export default function ShopDisplayOrdersScreen() {
 
                   {/* Total */}
                   <View style={s.detailTotalRow}>
-                    <Text style={s.detailTotalLabel}>Total</Text>
+                    <Text style={s.detailTotalLabel}>Order total</Text>
                     <Text style={s.detailTotalValue}>{total}</Text>
                   </View>
+                  {d.loyaltyPointsEarned && d.loyaltyPointsEarned > 0 ? (
+                    <Text style={s.detailPointsNote}>+{d.loyaltyPointsEarned} loyalty points earned</Text>
+                  ) : null}
                 </ScrollView>
 
-                {/* Actions */}
+                {/* ── Actions ── */}
                 <View style={s.detailActions}>
-                  {/* Print */}
-                  <Pressable
-                    onPress={() => void printOrder(d)}
-                    style={s.detailPrintBtn}
-                  >
-                    <Feather name="printer" size={16} color={NAVY} />
+                  <Pressable onPress={() => void printOrder(d)} style={s.detailPrintBtn}>
+                    <Feather name="printer" size={15} color={NAVY} />
                     <Text style={s.detailPrintText}>Print</Text>
                   </Pressable>
-
                   {secondaryAction ? (
                     <Pressable
                       disabled={isUpdating}
@@ -825,7 +892,6 @@ export default function ShopDisplayOrdersScreen() {
                       <Text style={s.detailCancelText}>Cancel</Text>
                     </Pressable>
                   ) : null}
-
                   {primaryAction ? (
                     <Pressable
                       disabled={isUpdating}
@@ -837,11 +903,11 @@ export default function ShopDisplayOrdersScreen() {
                     </Pressable>
                   ) : null}
                 </View>
-              </Pressable>
-            </Pressable>
-          );
-        })() : null}
-      </Modal>
+              </View>
+            </View>
+          </Modal>
+        );
+      })() : null}
     </View>
   );
 }
@@ -935,31 +1001,36 @@ const s = StyleSheet.create({
   modalActionSecondaryText: { color: NAVY, fontSize: 14, fontWeight: '800' },
   modalActionPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 
-  detailBackdrop:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  detailSheet:     { backgroundColor: CARD, borderRadius: 24, width: '100%', maxWidth: 560, maxHeight: '88%', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 24, elevation: 12 },
-  detailHeader:    { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
-  detailOrderNum:  { color: BLUE, fontSize: 12, fontWeight: '800', letterSpacing: 0.6, marginBottom: 2 },
-  detailCustomer:  { color: TEXT, fontSize: 20, fontWeight: '800', lineHeight: 24 },
-  detailMeta:      { color: MUTED, fontSize: 13, fontWeight: '500', marginTop: 3 },
-  detailCloseBtn:  { width: 34, height: 34, borderRadius: 17, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  detailBody:      { padding: 20, gap: 6 },
-  detailSectionLabel: { color: NAVY, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
-  detailLineItem:  { backgroundColor: BG, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 4 },
-  detailLineMain:  { color: TEXT, fontSize: 15, fontWeight: '700', flex: 1 },
-  detailLinePrice: { color: TEXT, fontSize: 14, fontWeight: '700' },
-  detailLineSub:   { color: MUTED, fontSize: 13, fontWeight: '500', lineHeight: 17 },
-  detailBaristaNote: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  detailBaristaText: { color: BLUE, fontSize: 12, fontWeight: '600', flex: 1 },
-  detailNotesBox:  { backgroundColor: '#FFF9E6', borderRadius: 12, borderWidth: 1, borderColor: '#F5D87A', padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  detailNotesText: { color: '#7A5C00', fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
-  detailTotalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: BORDER },
-  detailTotalLabel:{ color: MUTED, fontSize: 14, fontWeight: '700' },
-  detailTotalValue:{ color: TEXT, fontSize: 22, fontWeight: '900' },
-  detailActions:   { flexDirection: 'row', gap: 8, padding: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
-  detailPrintBtn:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, backgroundColor: BG },
-  detailPrintText: { color: NAVY, fontSize: 13, fontWeight: '800' },
-  detailCancelBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: '#FECACA', backgroundColor: '#FFF5F5' },
-  detailCancelText:{ color: RED, fontSize: 13, fontWeight: '800' },
-  detailPrimaryBtn:{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
-  detailPrimaryText:{ color: '#fff', fontSize: 15, fontWeight: '800' },
+  detailBackdrop:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  detailSheet:        { backgroundColor: CARD, borderRadius: 24, width: '100%', maxWidth: 580, maxHeight: '90%', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 30, elevation: 16 },
+  detailHeader:       { flexDirection: 'row', alignItems: 'flex-start', padding: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
+  detailOrderNum:     { color: BLUE, fontSize: 11, fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
+  detailCustomer:     { color: TEXT, fontSize: 21, fontWeight: '800', lineHeight: 25 },
+  detailTimestamp:    { color: MUTED, fontSize: 12, fontWeight: '500', marginTop: 2 },
+  detailCloseBtn:     { width: 34, height: 34, borderRadius: 17, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  detailScroll:       { flexShrink: 1 },
+  detailBody:         { padding: 20, paddingBottom: 8, gap: 6 },
+  detailSectionLabel: { color: NAVY, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  detailInfoCard:     { backgroundColor: BG, borderRadius: 14, borderWidth: 1, borderColor: BORDER, paddingVertical: 8, paddingHorizontal: 12, gap: 8 },
+  detailInfoRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detailInfoText:     { color: TEXT, fontSize: 14, fontWeight: '500', flex: 1 },
+  detailLineItem:     { backgroundColor: BG, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, gap: 3 },
+  detailLineMain:     { color: TEXT, fontSize: 14, fontWeight: '700' },
+  detailLinePrice:    { color: TEXT, fontSize: 14, fontWeight: '700' },
+  detailLineSub:      { color: MUTED, fontSize: 12, fontWeight: '500', lineHeight: 17 },
+  detailBaristaNote:  { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  detailBaristaText:  { color: BLUE, fontSize: 12, fontWeight: '600', flex: 1 },
+  detailNotesBox:     { backgroundColor: '#FFFBEB', borderRadius: 12, borderWidth: 1, borderColor: '#FDE68A', padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  detailNotesText:    { color: '#92400E', fontSize: 13, fontWeight: '500', flex: 1, lineHeight: 18 },
+  detailTotalRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: BORDER },
+  detailTotalLabel:   { color: MUTED, fontSize: 14, fontWeight: '700' },
+  detailTotalValue:   { color: TEXT, fontSize: 24, fontWeight: '900' },
+  detailPointsNote:   { color: '#16A34A', fontSize: 12, fontWeight: '700', textAlign: 'right', marginTop: 4, marginBottom: 8 },
+  detailActions:      { flexDirection: 'row', gap: 8, padding: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
+  detailPrintBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, backgroundColor: BG },
+  detailPrintText:    { color: NAVY, fontSize: 13, fontWeight: '800' },
+  detailCancelBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5, borderColor: '#FECACA', backgroundColor: '#FFF5F5' },
+  detailCancelText:   { color: RED, fontSize: 13, fontWeight: '800' },
+  detailPrimaryBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
+  detailPrimaryText:  { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
