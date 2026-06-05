@@ -571,16 +571,17 @@ export default function CustomerHome() {
       {isLandscape ? (
         /* ── iPad LANDSCAPE: two columns, each with independent scroll ── */
         <View style={{ flex: 1, flexDirection: 'row' }}>
-          {/* Left column — hero + store + tiles, scrolls on its own */}
-          <ScrollView
-            style={{ width: LEFT_COL_W, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(0,0,0,0.1)' }}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-          >
-            {heroBannerSection}
-            {storePickupSection}
-            {quickTilesSection}
-          </ScrollView>
+          {/* Left column wrapper — View enforces width; ScrollView inside */}
+          <View style={{ width: LEFT_COL_W, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(0,0,0,0.1)' }}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+            >
+              {heroBannerSection}
+              {storePickupSection}
+              {quickTilesSection}
+            </ScrollView>
+          </View>
           {/* Right column — product sections, scrolls independently */}
           <ScrollView
             style={{ flex: 1 }}
