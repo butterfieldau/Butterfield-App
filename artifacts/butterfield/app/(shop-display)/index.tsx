@@ -406,7 +406,15 @@ export default function ShopDisplayOrdersScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.orderNum}>{item.orderNumber ?? `#${item.id.slice(0, 6).toUpperCase()}`}</Text>
             <Text style={s.customerName} numberOfLines={1}>{item.customerName ?? 'Customer'}</Text>
-            <Text style={s.orderMeta}>{orderSubtitle(item)}</Text>
+            <Text style={s.orderMeta}>
+              {item.type === 'delivery'
+                ? <Text style={{ color: '#D20001', fontWeight: '700' }}>Delivery</Text>
+                : 'Pickup'}
+              {(item.stripePaymentStatus || item.scheduledFor) ? ' · ' : null}
+              {item.stripePaymentStatus ? `Payment ${item.stripePaymentStatus}` : null}
+              {item.stripePaymentStatus && item.scheduledFor ? ' · ' : null}
+              {item.scheduledFor ? `For ${formatTime(item.scheduledFor)}` : null}
+            </Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 6 }}>
             <Text style={s.orderTotal}>{total}</Text>
