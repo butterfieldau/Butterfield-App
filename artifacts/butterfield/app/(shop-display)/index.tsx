@@ -464,26 +464,7 @@ export default function ShopDisplayOrdersScreen() {
       <View style={s.controlCard}>
         {/* Row 1: queue mode */}
         <View style={s.tileGrid}>
-          {([
-            { key: 'active',    label: 'Live',      count: queueCounts.active },
-            { key: 'completed', label: 'Completed',  count: queueCounts.completed },
-            { key: 'cancelled', label: 'Cancelled',  count: queueCounts.cancelled },
-          ] as const).map((q) => {
-            const active = queueMode === q.key;
-            return (
-              <Pressable
-                key={q.key}
-                onPress={() => setQueueMode(q.key)}
-                style={[s.tileButton, active && s.tileButtonActive]}
-              >
-                <Text style={[s.tileButtonText, active && s.tileButtonTextActive]}>{q.label}</Text>
-                <Text style={[s.tileButtonCount, active && s.tileButtonCountActive]}>{q.count}</Text>
-              </Pressable>
-            );
-          })}
-          {/* Divider */}
-          <View style={s.tileDivider} />
-          {/* Row 2: date filter — inline with queue row */}
+          {/* Date filter — left side */}
           <Pressable
             onPress={() => setFilterMode('today')}
             style={[s.tileButton, filterMode === 'today' && s.tileButtonSecondaryActive]}
@@ -507,6 +488,26 @@ export default function ShopDisplayOrdersScreen() {
                 : 'Date'}
             </Text>
           </Pressable>
+          {/* Divider */}
+          <View style={s.tileDivider} />
+          {/* Queue mode — right side */}
+          {([
+            { key: 'active',    label: 'Live',      count: queueCounts.active },
+            { key: 'completed', label: 'Completed',  count: queueCounts.completed },
+            { key: 'cancelled', label: 'Cancelled',  count: queueCounts.cancelled },
+          ] as const).map((q) => {
+            const active = queueMode === q.key;
+            return (
+              <Pressable
+                key={q.key}
+                onPress={() => setQueueMode(q.key)}
+                style={[s.tileButton, active && s.tileButtonActive]}
+              >
+                <Text style={[s.tileButtonText, active && s.tileButtonTextActive]}>{q.label}</Text>
+                <Text style={[s.tileButtonCount, active && s.tileButtonCountActive]}>{q.count}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
@@ -752,7 +753,7 @@ const s = StyleSheet.create({
 
   emptyWrap:       { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText:       { textAlign: 'center', color: MUTED, fontSize: 16, fontWeight: '500' },
-  controlCard:     { marginHorizontal: 16, marginTop: 10, marginBottom: 8, padding: 8, borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  controlCard:     { marginHorizontal: 16, marginTop: 18, marginBottom: 8, padding: 8, borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   tileGrid:        { flexDirection: 'row', gap: 6, alignItems: 'center' },
   tileButton:      { flex: 1, height: 56, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', gap: 2 },
   tileButtonActive:{ backgroundColor: BLUE, borderColor: BLUE },
