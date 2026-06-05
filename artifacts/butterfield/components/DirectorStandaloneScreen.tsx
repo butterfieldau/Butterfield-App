@@ -5,10 +5,11 @@ import React, { type ReactNode } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BG    = '#EFF6FF';
-const BLUE  = '#1493FF';
-const DARK  = '#1C1C1E';
-const MUTED = '#8E8E93';
+const HEADER_BG  = '#EFF6FF';
+const CONTENT_BG = '#EFF6FF';
+const BORDER     = '#E5E7EB';
+const NAVY       = '#1A2B4A';
+const MUTED      = '#6B7280';
 
 interface Props {
   title: string;
@@ -17,6 +18,7 @@ interface Props {
   headerBottom?: ReactNode;
   children: ReactNode;
   backgroundColor?: string;
+  onBack?: () => void;
 }
 
 export function DirectorStandaloneScreen({
@@ -25,39 +27,66 @@ export function DirectorStandaloneScreen({
   headerRight,
   headerBottom,
   children,
-  backgroundColor = BG,
+  backgroundColor = CONTENT_BG,
+  onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
+
+  const handleBack = () => {
+    Haptics.selectionAsync();
+    if (onBack) { onBack(); return; }
+    if (router.canGoBack()) { router.back(); return; }
+    router.navigate('/(director)/more' as any);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor }}>
-      <StatusBar barStyle="dark-content" backgroundColor={backgroundColor} />
-      <View style={{ paddingTop: insets.top, backgroundColor }}>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); router.back(); }}
-          style={ss.backRow}
-          hitSlop={12}
-        >
-          <Feather name="chevron-left" size={20} color={BLUE} />
-          <Text style={ss.backText}>More</Text>
-        </Pressable>
-        <View style={ss.titleRow}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={ss.title} numberOfLines={1}>{title}</Text>
-            {subtitle ? <Text style={ss.subtitle}>{subtitle}</Text> : null}
-          </View>
+      <StatusBar barStyle="dark-content" />
+
+      {/* Fills the status-bar height so the header row starts below the camera */}
+      <View style={{ height: insets.top, backgroundColor: HEADER_BG }} />
+
+      {/* Three-column header row — title is always screen-centred */}
+      <View style={ss.header}>
+        {/* Left side: back button, flex:1 mirrors the right side */}
+        <View style={ss.sideLeft}>
+          <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={12}>
+            <Feather name="arrow-left" size={20} color={NAVY} />
+          </Pressable>
+        </View>
+
+        {/* Centre: title + optional subtitle */}
+        <View style={ss.center}>
+          <Text style={ss.title} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
+        </View>
+
+        {/* Right side: flex:1, content aligned to the trailing edge */}
+        <View style={ss.sideRight}>
           {headerRight ?? null}
         </View>
-        {headerBottom ?? null}
       </View>
+
+      {/* Optional sub-header row (search bar, filter chips, etc.) */}
+      {headerBottom ?? null}
+
       <View style={{ flex: 1 }}>{children}</View>
     </View>
   );
 }
 
 const ss = StyleSheet.create({
-  backRow:  { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  backText: { fontSize: 15, fontWeight: '600', color: BLUE },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, gap: 12 },
-  title:    { fontSize: 28, fontWeight: '700', color: DARK },
-  subtitle: { fontSize: 13, color: MUTED, marginTop: 2 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: HEADER_BG,
+  },
+  sideLeft:  { flex: 1, alignItems: 'flex-start' },
+  sideRight: { flex: 1, alignItems: 'flex-end' },
+  center:    { alignItems: 'center', paddingHorizontal: 4 },
+  backBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  title:     { fontSize: 16, fontWeight: '700', color: NAVY },
+  subtitle:  { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
 });

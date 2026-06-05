@@ -5,11 +5,13 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Linking, Modal, Platform, Pressable,
+  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView,
+  Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import type { ApiOrder } from '@/lib/api';
@@ -190,9 +192,12 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
 
   const handleConfirmCancel = async () => {
     if (!cancelReasonText.trim()) return;
+    Keyboard.dismiss();
+    const reason = cancelReasonText.trim();
     setShowCancelModal(false);
+    setCancelReasonText('');
     setUpdating(true);
-    await onStatusChange(order.id, pendingStatus, cancelReasonText.trim());
+    await onStatusChange(order.id, pendingStatus, reason);
     setUpdating(false);
   };
   const discountCents = order.discountCents ?? 0;
@@ -449,9 +454,22 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
         </ScrollView>
 
         {/* ── Cancel Reason Modal ─────────────────────────────────────────── */}
-        <Modal visible={showCancelModal} transparent animationType="fade" onRequestClose={() => setShowCancelModal(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 16 }}>
+        <Modal
+          visible={showCancelModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
+        >
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 20 }}
+              onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
+            >
+            {/* Inner Pressable swallows taps so touching the card doesn't close the modal */}
+            <Pressable onPress={() => {}} style={{ backgroundColor: CARD, borderRadius: 20, padding: 24, gap: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
                   <Feather name="x-circle" size={18} color={RED} />
@@ -491,7 +509,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <Pressable
                   style={{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER }}
-                  onPress={() => setShowCancelModal(false)}
+                  onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
                 >
                   <Text style={{ color: TEXT, fontWeight: '600', fontSize: 15 }}>Go Back</Text>
                 </Pressable>
@@ -505,8 +523,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
                   </Text>
                 </Pressable>
               </View>
-            </View>
-          </View>
+            </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </Modal>
@@ -743,18 +762,19 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const isStaff = user?.role === 'staff';
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['director-orders'],
-    queryFn: () => api.director.orders(),
+    queryKey: isStaff ? ['staff-orders'] : ['director-orders'],
+    queryFn: () => isStaff ? api.staff.allOrders() : api.director.orders(),
     refetchInterval: 20000,
   });
 
   useFocusEffect(
     React.useCallback(() => {
       setFilter('active');
-      setViewMode('today');
+      setViewMode(isStaff ? 'week' : 'today');
       setSelectedDate(new Date());
-    }, []),
+    }, [isStaff]),
   );
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
@@ -763,10 +783,11 @@ export default function DirectorOrdersScreen() {
     queryKey: ['director-settings'],
     queryFn: () => api.director.settings(),
     retry: 1,
+    enabled: !isStaff,
   });
   const { data: storesData } = useQuery({
-    queryKey: ['director-stores'],
-    queryFn: () => api.director.storesList(),
+    queryKey: isStaff ? ['staff-stores'] : ['director-stores'],
+    queryFn: () => isStaff ? api.staff.stores() : api.director.storesList(),
     staleTime: 60000,
   });
   const allOrders: ApiOrder[] = data?.data ?? [];
@@ -777,13 +798,14 @@ export default function DirectorOrdersScreen() {
     const orderStore = stores.find((store) => store.id === order.storeId);
     const effectivePrinterIp = (orderStore?.printerIp ?? printerIp ?? '').trim();
     const effectivePrinterPort = orderStore?.printerPort ?? printerPort;
+    const effectivePrinterBrand = (orderStore?.printerBrand ?? 'epson') as 'epson' | 'star';
     if (!effectivePrinterIp) {
       Alert.alert('Printer Not Set', 'Set the printer details inside this store before printing orders for it.');
       return;
     }
     setPrintingOrderId(order.id);
     try {
-      await sendReceiptPrint(orderToPrintJob(order), effectivePrinterIp, effectivePrinterPort);
+      await sendReceiptPrint(orderToPrintJob(order, effectivePrinterBrand), effectivePrinterIp, effectivePrinterPort);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Printed', 'Receipt sent to the printer.');
     } catch (error) {
@@ -815,8 +837,8 @@ export default function DirectorOrdersScreen() {
     [statusFiltered, today]
   );
   const thisWeekOrders = useMemo(() =>
-    statusFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && !isSameDay(getOrderTimelineDate(o), today)),
-    [statusFiltered, today]);
+    statusFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && (isStaff || !isSameDay(getOrderTimelineDate(o), today))),
+    [statusFiltered, today, isStaff]);
   const dateOrders = useMemo(() =>
     statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), selectedDate)),
     [statusFiltered, selectedDate]
@@ -832,14 +854,22 @@ export default function DirectorOrdersScreen() {
   }, [statusFiltered]);
   const handleStatusChange = async (orderId: string, status: string, cancelReason?: string) => {
     try {
-      await api.director.updateOrderStatus(orderId, status, cancelReason);
-      await qc.invalidateQueries({ queryKey: ['director-orders'] });
-      await qc.invalidateQueries({ queryKey: ['director-stats'] });
+      if (isStaff) {
+        await api.staff.updateOrderStatus(orderId, status);
+      } else {
+        await api.director.updateOrderStatus(orderId, status, cancelReason);
+      }
+      await qc.invalidateQueries({ queryKey: isStaff ? ['staff-orders'] : ['director-orders'] });
+      if (!isStaff) await qc.invalidateQueries({ queryKey: ['director-stats'] });
       setSelectedOrder((prev) => prev ? { ...prev, status, ...(cancelReason ? { cancelReason } : {}) } : null);
-      if (status === 'ready_for_pickup') {
+      if (status === 'being_prepared') {
         const order = allOrders.find((o) => o.id === orderId) ?? selectedOrder;
         if (order) {
-          await printOrder({ ...order, status });
+          const orderStore = stores.find((s) => s.id === order.storeId);
+          const shouldAutoPrint = orderStore ? (orderStore.autoPrint !== false) : true;
+          if (shouldAutoPrint) {
+            await printOrder({ ...order, status });
+          }
         }
       }
     } catch (error) {
@@ -880,11 +910,7 @@ export default function DirectorOrdersScreen() {
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Page heading */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Orders</Text>
-      </View>
+    <DirectorTabScreen title="Orders">
       {/* Status filter chips */}
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
@@ -980,7 +1006,7 @@ export default function DirectorOrdersScreen() {
           {viewMode === 'week' && (
             <>
               <View style={{ height: 8 }} />
-              <SectionHeader title="Earlier This Week" count={thisWeekOrders.length} />
+              <SectionHeader title={isStaff ? 'This Week' : 'Earlier This Week'} count={thisWeekOrders.length} />
               {thisWeekOrders.length === 0 ? (
                 <View style={styles.emptySection}>
                   <Text style={styles.emptyText}>No other orders this week</Text>
@@ -1041,7 +1067,7 @@ export default function DirectorOrdersScreen() {
         onSelectDate={(d) => setSelectedDate(d)}
         ordersByDate={ordersByDate}
       />
-    </View>
+    </DirectorTabScreen>
   );
 }
 const styles = StyleSheet.create({

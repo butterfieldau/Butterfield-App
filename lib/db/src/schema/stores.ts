@@ -25,6 +25,8 @@ export const storesTable = pgTable("stores", {
   imageUrl:         text("image_url"),
   printerIp:        text("printer_ip"),
   printerPort:      integer("printer_port").notNull().default(9100),
+  printerBrand:     text("printer_brand").notNull().default("epson"),
+  autoPrint:        boolean("auto_print").notNull().default(true),
   orderCutoffTime:  text("order_cutoff_time"),
   dailySpecial:     text("daily_special"),
   status:           storeStatusEnum("status").notNull().default("open"),

@@ -20,6 +20,7 @@ export const staffProfilesTable = pgTable("staff_profiles", {
   // JSON object: { name, phone, relationship }
   emergencyContact: text("emergency_contact"),
   canViewOrders:    boolean("can_view_orders").notNull().default(false),
+  clockPin:         text("clock_pin"),
   address:          text("address"),
   taxFileNumber:    text("tax_file_number"),
   dateOfBirth:      text("date_of_birth"),

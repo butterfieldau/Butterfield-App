@@ -9,11 +9,13 @@ export interface PrintJob {
     quantity: number;
     unitPriceCents: number;
     variantName?: string;
+    options?: string[];
   }>;
   totalCents: number;
   discountCents?: number;
   loyaltyPointsEarned?: number;
   notes?: string;
+  printerBrand?: 'epson' | 'star';
   scheduledFor?: Date | null;
 }
 
@@ -29,10 +31,13 @@ function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
   const unitPriceCents = Number(item.unitPriceCents ?? item.totalPriceCents ?? 0) || 0;
   const name = item.productName ?? 'Item';
   const variantName = item.variantName ?? undefined;
-  return { name, quantity, unitPriceCents, variantName };
+  const options = (item.selectedOptions ?? [])
+    .map(o => o.optionName ?? o.textValue ?? '')
+    .filter(Boolean) as string[];
+  return { name, quantity, unitPriceCents, variantName, options: options.length > 0 ? options : undefined };
 }
 
-export function orderToPrintJob(order: PrintableOrder): PrintJob {
+export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 'star'): PrintJob {
   const items = Array.isArray(order?.items) ? order.items : [];
   return {
     orderId: order?.id ?? 'unknown-order',
@@ -44,6 +49,7 @@ export function orderToPrintJob(order: PrintableOrder): PrintJob {
     loyaltyPointsEarned: Number(order?.loyaltyPointsEarned ?? 0) || 0,
     notes: order?.notes ?? '',
     scheduledFor: order?.scheduledFor ? new Date(order.scheduledFor) : null,
+    printerBrand: printerBrand ?? 'epson',
   };
 }
 

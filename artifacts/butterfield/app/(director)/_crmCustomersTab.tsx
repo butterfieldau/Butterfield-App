@@ -3,8 +3,9 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Dimensions, FlatList, Linking, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Alert, Dimensions, FlatList, KeyboardAvoidingView,
+  Linking, Modal, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -443,6 +444,11 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <View style={{ flex: 1, backgroundColor: BG }}>
         <View style={[det.header, { paddingTop: insets.top > 0 ? insets.top + 4 : 20 }]}>
           <Pressable onPress={onClose} style={det.headerBtn} hitSlop={10}>
@@ -502,7 +508,13 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
         ) : !customer ? (
           <Text style={{ color: MUTED, padding: 20 }}>Customer not found.</Text>
         ) : (
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 60 }}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+          >
 
             {activeTab === 'profile' && (
               <>
@@ -550,7 +562,7 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
                     { label: 'Total orders',    value: String(orderStats?.orderCount ?? 0) },
                     { label: 'Avg order',       value: orderStats?.avgOrderCents ? fmtAUD(orderStats.avgOrderCents) : '—' },
                     { label: 'Loyalty points',  value: String((customer as any).profile?.loyaltyPoints ?? 0) },
-                    { label: 'Coffee stamps',   value: `${(customer as any).profile?.stampCount ?? 0} / 6` },
+                    { label: 'Coffee stamps',   value: `${(customer as any).profile?.coffeeStampCount ?? (customer as any).profile?.stampCount ?? 0} / 6` },
                     { label: 'Preference',      value: totalOrders === 0 ? 'No orders yet' : preferDelivery ? `Delivery (${deliveryCount}/${totalOrders})` : `Pickup (${pickupCount}/${totalOrders})` },
                   ].map((r, i, arr) => (
                     <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
@@ -679,6 +691,31 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
                 </View>
 
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <Feather name="shield" size={16} color={MUTED} />
+                    <Text style={det.sectionTitle}>Permissions</Text>
+                  </View>
+                  <View style={[det.infoRow, { alignItems: 'center' }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={det.infoLabel}>Pay at pickup</Text>
+                      <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>Allow this customer to pay in store on arrival</Text>
+                    </View>
+                    <Switch
+                      value={Boolean((customer as any)?.profile?.payAtPickupEnabled)}
+                      onValueChange={async (val) => {
+                        try {
+                          await api.director.customers.update(customerId, { payAtPickupEnabled: val });
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          refetch();
+                        } catch (e: unknown) { Alert.alert('Error', e instanceof Error ? e.message : 'Could not update permission'); }
+                      }}
+                      trackColor={{ false: BORDER, true: BLUE }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                </View>
+
+                <View style={[det.section, { borderBottomColor: BORDER }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <Text style={det.sectionTitle}>Notes</Text>
                     <Pressable onPress={() => setIsNoteComposerOpen(n => !n)} style={[det.contactBtn, { paddingHorizontal: 10 }]}>
@@ -786,6 +823,7 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
           </ScrollView>
         )}
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -961,7 +999,7 @@ function InsightsStrip({ insights }: { insights: CrmInsights | null }) {
     { label: 'Repeat',   value: insights.repeatCustomers ?? 0,  color: PURPLE },
     { label: 'Inactive', value: insights.inactiveCount ?? 0,    color: RED    },
   ];
-  const topSpenders = (insights.topSpenders ?? []).slice(0, 3);
+  const topSpenders = (insights.topSpenders ?? []).slice(0, 5);
   return (
     <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
       <View style={{ flexDirection: 'row' }}>
@@ -973,16 +1011,20 @@ function InsightsStrip({ insights }: { insights: CrmInsights | null }) {
         ))}
       </View>
       {topSpenders.length > 0 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, gap: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
-          <Feather name="trending-up" size={13} color={AMBER} />
-          <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER, textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 4 }}>Top spenders:</Text>
-          {topSpenders.map((s, i) => (
-            <View key={s.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              {i > 0 && <Text style={{ color: BORDER, fontSize: 11 }}>·</Text>}
-              <Text style={{ fontSize: 11, color: TEXT, fontWeight: '600' }}>{s.name}</Text>
-              <Text style={{ fontSize: 11, color: MUTED }}>({fmtAUD(s.totalSpentCents)})</Text>
-            </View>
-          ))}
+        <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: BORDER }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 14, paddingVertical: 8, gap: 6 }}>
+            <Feather name="trending-up" size={13} color={AMBER} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER, textTransform: 'uppercase', letterSpacing: 0.4 }}>Top spenders:</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 8 }}>
+            {topSpenders.map((s, i) => (
+              <View key={s.userId} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                {i > 0 && <Text style={{ color: BORDER, fontSize: 11 }}>·</Text>}
+                <Text style={{ fontSize: 11, color: TEXT, fontWeight: '600' }}>{s.name}</Text>
+                <Text style={{ fontSize: 11, color: MUTED }}>({fmtAUD(s.totalSpentCents)})</Text>
+              </View>
+            ))}
+          </ScrollView>
         </View>
       )}
     </View>

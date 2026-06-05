@@ -101,6 +101,7 @@ function RootLayoutNav() {
       <Stack.Screen name="director-reports" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-pricing" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-discounts" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-wholesale-invoices" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="(staff)" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="(shop-display)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
@@ -112,18 +113,8 @@ function RootLayoutNav() {
 
 // JS-layer splash overlay — renders the same image as the native splash so
 // there's no visible jump, holds for 2 s, then fades out at 60 fps.
-// onReady is called once the overlay is committed to screen (onLayout), at which
-// point the native Expo splash is safe to hide with no visible gap.
-function JsSplashOverlay({ onDone, onReady }: { onDone: () => void; onReady: () => void }) {
+function JsSplashOverlay({ onDone }: { onDone: () => void }) {
   const opacity = useRef(new Animated.Value(1)).current;
-  const readyFired = useRef(false);
-
-  const handleLayout = () => {
-    if (!readyFired.current) {
-      readyFired.current = true;
-      onReady();
-    }
-  };
 
   useEffect(() => {
     const holdTimer = setTimeout(() => {
@@ -138,7 +129,7 @@ function JsSplashOverlay({ onDone, onReady }: { onDone: () => void; onReady: () 
   }, [opacity, onDone]);
 
   return (
-    <Animated.View onLayout={handleLayout} style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
       <LinearGradient
         colors={['#1481ff', '#3cbbee']}
         start={{ x: 0.5, y: 0 }}
@@ -159,6 +150,12 @@ function JsSplashOverlay({ onDone, onReady }: { onDone: () => void; onReady: () 
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
+
+  useEffect(() => {
+    // Hide the native Expo splash immediately — the JS overlay takes over
+    // so there's no visible gap between the two layers.
+    SplashScreen.hideAsync();
+  }, []);
 
   useEffect(() => {
     clearAppBadge().catch(() => {});
@@ -206,14 +203,9 @@ export default function RootLayout() {
         </PersistQueryClientProvider>
       </ErrorBoundary>
 
-      {/* JS splash sits above everything until its fade completes.
-          onReady fires on first layout — only then do we hide the native splash,
-          guaranteeing zero gap between the two layers. */}
+      {/* JS splash sits above everything until its fade completes */}
       {!splashDone && (
-        <JsSplashOverlay
-          onReady={() => SplashScreen.hideAsync().catch(() => {})}
-          onDone={() => setSplashDone(true)}
-        />
+        <JsSplashOverlay onDone={() => setSplashDone(true)} />
       )}
     </SafeAreaProvider>
   );
@@ -227,7 +219,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   splashLogo: {
-    width: '66%',
-    aspectRatio: 340 / 92,
+    width: '100%',
+    maxWidth: 340,
+    height: 92,
   },
 });

@@ -221,6 +221,9 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       if (!newIn) { Alert.alert('Invalid time', 'Clock-in time must be in HH:MM format.'); return; }
       if (outTime.trim() && !newOut) { Alert.alert('Invalid time', 'Clock-out time must be in HH:MM format.'); return; }
       await api.director.updateShift(shift.id, { clockIn: newIn, clockOut: newOut, unpaidBreakMins: brkMin });
+      await qc.invalidateQueries({ queryKey: ['director-timesheets'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSaved();
     } catch (error: unknown) {
       Alert.alert('Error', getErrorMessage(error, 'Could not save shift changes.'));
     } finally { setSaving(false); }
