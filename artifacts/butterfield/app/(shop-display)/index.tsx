@@ -134,7 +134,7 @@ function toSydneyDateKey(input: string | Date) {
 function orderSubtitle(order: ShopDisplayOrder) {
   return [
     order.type === 'delivery' ? 'Delivery' : 'Pickup',
-    order.stripePaymentStatus ? `Payment ${order.stripePaymentStatus}` : null,
+    order.stripePaymentStatus ? `Payment ${order.stripePaymentStatus.replace(/_/g, ' ')}` : null,
     order.scheduledFor ? `For ${formatTime(order.scheduledFor)}` : null,
   ].filter(Boolean).join(' · ');
 }
@@ -432,7 +432,7 @@ export default function ShopDisplayOrdersScreen() {
                 ? <Text style={{ color: '#D20001', fontWeight: '700' }}>Delivery</Text>
                 : 'Pickup'}
               {(item.stripePaymentStatus || item.scheduledFor) ? ' · ' : null}
-              {item.stripePaymentStatus ? `Payment ${item.stripePaymentStatus}` : null}
+              {item.stripePaymentStatus ? `Payment ${item.stripePaymentStatus.replace(/_/g, ' ')}` : null}
               {item.stripePaymentStatus && item.scheduledFor ? ' · ' : null}
               {item.scheduledFor ? `For ${formatTime(item.scheduledFor)}` : null}
             </Text>
