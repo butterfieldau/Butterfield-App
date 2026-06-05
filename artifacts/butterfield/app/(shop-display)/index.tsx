@@ -1,10 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
+import * as Print from 'expo-print';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -21,7 +23,7 @@ import {
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { ShopDisplayOrder } from '@/lib/api';
+import type { ShopDisplayOrder, ShopDisplayStore } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 
@@ -137,6 +139,41 @@ function orderSubtitle(order: ShopDisplayOrder) {
   ].filter(Boolean).join(' · ');
 }
 
+function buildReceiptHtml(order: ShopDisplayOrder, store?: ShopDisplayStore | null): string {
+  const lines = normalizeOrderItems(order.items);
+  const total = `$${((order.totalCents ?? 0) / 100).toFixed(2)}`;
+  const dateStr = new Date(order.createdAt ?? Date.now()).toLocaleString('en-AU', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+  const itemsHtml = lines.map(l => {
+    const opts = [l.variantName, ...l.notableOptions, l.baristaNote].filter(Boolean).join(', ');
+    return `<tr><td>${l.quantity} × ${l.name}${opts ? `<br><small style="color:#666">${opts}</small>` : ''}</td></tr>`;
+  }).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, monospace; font-size: 13px; margin: 0; padding: 16px; max-width: 300px; }
+    h1 { font-size: 18px; margin: 0 0 2px; } .sub { color: #666; font-size: 11px; margin-bottom: 12px; }
+    hr { border: none; border-top: 1px dashed #ccc; margin: 10px 0; }
+    table { width: 100%; border-collapse: collapse; } td { padding: 4px 0; vertical-align: top; }
+    .total { font-size: 16px; font-weight: bold; text-align: right; margin-top: 8px; }
+    .footer { color: #888; font-size: 10px; margin-top: 12px; text-align: center; }
+  </style></head><body>
+  <h1>Butterfield Cookies</h1>
+  <div class="sub">${store?.name ?? 'Store'} · ${dateStr}</div>
+  <hr>
+  <strong>Order #${order.id.slice(0, 6).toUpperCase()}</strong><br>
+  ${order.customerName ?? 'Customer'}${order.customerPhone ? ` · ${order.customerPhone}` : ''}<br>
+  <small>${order.type === 'delivery' ? 'Delivery' : 'Pickup'}${order.scheduledFor ? ` · For ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}` : ''}</small>
+  <hr>
+  <table>${itemsHtml}</table>
+  ${order.notes ? `<hr><small><strong>Notes:</strong> ${order.notes}</small>` : ''}
+  <div class="total">Total: ${total}</div>
+  <hr>
+  <div class="footer">Thank you for your order!</div>
+  </body></html>`;
+}
+
 function playNewOrderAlert(name: string, label: string, soundEnabled: boolean) {
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   if (!soundEnabled) return;
@@ -164,6 +201,7 @@ export default function ShopDisplayOrdersScreen() {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<ShopDisplayOrder | null>(null);
   const [cancelReasonText, setCancelReasonText] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState<ShopDisplayOrder | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
@@ -177,6 +215,26 @@ export default function ShopDisplayOrdersScreen() {
     queryFn: () => api.shopDisplay.orders(),
     refetchInterval: 7000,
   });
+
+  const { data: storeData } = useQuery({
+    queryKey: ['shop-display-store'],
+    queryFn: () => api.shopDisplay.store(),
+    staleTime: 60000,
+  });
+  const store: ShopDisplayStore | null = storeData?.data?.[0] ?? null;
+
+  const printOrder = async (order: ShopDisplayOrder) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const html = buildReceiptHtml(order, store);
+    const printerUrl = store?.printerIp
+      ? `ipp://${store.printerIp}:${store.printerPort ?? 9100}/ipp/print`
+      : undefined;
+    try {
+      await Print.printAsync({ html, ...(printerUrl ? { printerUrl } : {}) });
+    } catch {
+      Alert.alert('Print failed', 'Could not connect to the printer. Make sure it is on and connected to the network.');
+    }
+  };
 
   const rows: ShopDisplayOrder[] = data?.data ?? [];
 
@@ -371,7 +429,10 @@ export default function ShopDisplayOrdersScreen() {
     const secondaryAction = STATUS_ACTIONS.find((action) => action.id === 'cancelled' && availableActions.includes('cancelled'));
 
     return (
-      <View style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
+      <Pressable
+        onPress={() => setSelectedOrder(item)}
+        style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}
+      >
         {/* Header row */}
         <View style={s.cardHeader}>
           <View style={{ flex: 1 }}>
@@ -380,7 +441,16 @@ export default function ShopDisplayOrdersScreen() {
             <Text style={s.orderMeta}>{orderSubtitle(item)}</Text>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <Text style={s.orderTotal}>{total}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Pressable
+                onPress={() => void printOrder(item)}
+                style={s.printBtn}
+                hitSlop={8}
+              >
+                <Feather name="printer" size={15} color={MUTED} />
+              </Pressable>
+              <Text style={s.orderTotal}>{total}</Text>
+            </View>
             <View style={[s.statusPill, { backgroundColor: meta.bg }]}>
               <Text style={[s.statusText, { color: meta.fg }]}>{meta.label}</Text>
             </View>
@@ -454,7 +524,7 @@ export default function ShopDisplayOrdersScreen() {
             </Text>
           </View>
         )}
-      </View>
+      </Pressable>
     );
   };
 
@@ -538,6 +608,127 @@ export default function ShopDisplayOrdersScreen() {
         }
         renderItem={renderCard}
       />
+
+      {/* ── Order detail modal ──────────────────────────────────── */}
+      <Modal
+        visible={!!selectedOrder}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedOrder(null)}
+        supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+      >
+        {selectedOrder ? (() => {
+          const o = selectedOrder;
+          const total = `$${((o.totalCents ?? 0) / 100).toFixed(2)}`;
+          const meta = STATUS_META[o.status] ?? STATUS_META.received;
+          const lines = normalizeOrderItems(o.items);
+          const availableActions = NEXT_STATUS_ACTIONS[o.status] ?? [];
+          const isUpdating = updatingOrderId === o.id;
+          const primaryAction = STATUS_ACTIONS.find(a => availableActions.find(s => s === a.id && s !== 'cancelled'));
+          const secondaryAction = STATUS_ACTIONS.find(a => a.id === 'cancelled' && availableActions.includes('cancelled'));
+          const createdAt = o.createdAt ? new Date(o.createdAt).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+          return (
+            <View style={{ flex: 1, backgroundColor: BG }}>
+              {/* Header */}
+              <View style={s.detailHeader}>
+                <Pressable onPress={() => setSelectedOrder(null)} style={s.detailClose}>
+                  <Feather name="x" size={20} color={TEXT} />
+                </Pressable>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={s.detailTitle}>#{o.id.slice(0, 6).toUpperCase()}</Text>
+                  <Text style={s.detailSub}>{o.customerName ?? 'Customer'}</Text>
+                </View>
+                <Pressable onPress={() => void printOrder(o)} style={s.detailPrintBtn}>
+                  <Feather name="printer" size={18} color={BLUE} />
+                </Pressable>
+              </View>
+
+              <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }}>
+                {/* Status + meta */}
+                <View style={[s.detailStatusBanner, { backgroundColor: meta.bg, borderColor: meta.fg + '40' }]}>
+                  <View style={[s.statusPill, { backgroundColor: meta.bg, borderWidth: 0 }]}>
+                    <Text style={[s.statusText, { color: meta.fg, fontSize: 14 }]}>{meta.label}</Text>
+                  </View>
+                  <Text style={[s.detailMetaText, { color: meta.fg }]}>{orderSubtitle(o)}</Text>
+                </View>
+
+                {/* Customer info */}
+                <View style={s.detailCard}>
+                  <Text style={s.sectionLabel}>CUSTOMER</Text>
+                  <Text style={s.detailRow}>{o.customerName ?? '—'}</Text>
+                  {o.customerPhone ? <Text style={s.detailRowSub}>{o.customerPhone}</Text> : null}
+                  {o.customerEmail ? <Text style={s.detailRowSub}>{o.customerEmail}</Text> : null}
+                  {createdAt ? <Text style={[s.detailRowSub, { marginTop: 6 }]}>Ordered {createdAt}</Text> : null}
+                  {o.scheduledFor ? <Text style={s.detailRowSub}>Pickup for {formatTime(o.scheduledFor)}</Text> : null}
+                </View>
+
+                {/* Items */}
+                <View style={s.detailCard}>
+                  <Text style={s.sectionLabel}>ITEMS</Text>
+                  <View style={{ gap: 10 }}>
+                    {lines.map((line, i) => (
+                      <View key={i} style={s.detailLineItem}>
+                        <Text style={s.detailLineQty}>{line.quantity}×</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.detailLineName}>{line.name}</Text>
+                          {line.variantName ? <Text style={s.detailLineSub}>{line.variantName}</Text> : null}
+                          {line.notableOptions.length > 0 ? <Text style={s.detailLineSub}>{line.notableOptions.join(' · ')}</Text> : null}
+                          {line.baristaNote ? <Text style={[s.detailLineSub, { color: BLUE }]}>{line.baristaNote}</Text> : null}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={s.detailTotalRow}>
+                    <Text style={s.detailTotalLabel}>Total</Text>
+                    <Text style={s.detailTotalValue}>{total}</Text>
+                  </View>
+                </View>
+
+                {/* Notes */}
+                {o.notes ? (
+                  <View style={s.detailCard}>
+                    <Text style={s.sectionLabel}>NOTES</Text>
+                    <Text style={s.detailRow}>{o.notes}</Text>
+                  </View>
+                ) : null}
+
+                {/* Actions */}
+                {availableActions.length > 0 ? (
+                  <View style={{ gap: 10 }}>
+                    {primaryAction ? (
+                      <Pressable
+                        disabled={isUpdating}
+                        onPress={() => { void updateStatus(o.id, primaryAction.id); setSelectedOrder(null); }}
+                        style={[s.primaryActionTile, { backgroundColor: primaryAction.color }, isUpdating && s.actionBtnDisabled]}
+                      >
+                        <Feather name={primaryAction.icon} size={20} color="#fff" />
+                        <View style={{ gap: 2 }}>
+                          <Text style={s.primaryActionText}>{isUpdating ? 'Updating…' : primaryAction.label}</Text>
+                          <Text style={s.primaryActionHint}>
+                            {primaryAction.id === 'being_prepared' ? 'Move into prep'
+                              : primaryAction.id === 'ready_for_pickup' ? 'Mark ready for collection'
+                              : 'Finish and remove from queue'}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ) : null}
+                    {secondaryAction ? (
+                      <Pressable
+                        disabled={isUpdating}
+                        onPress={() => { setSelectedOrder(null); openCancelModal(o); }}
+                        style={[s.secondaryActionTile, isUpdating && s.actionBtnDisabled]}
+                      >
+                        <Feather name={secondaryAction.icon} size={16} color={RED} />
+                        <Text style={s.secondaryActionText}>Cancel Order</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+              </ScrollView>
+            </View>
+          );
+        })() : null}
+      </Modal>
 
       {/* ── Cancel reason modal ─────────────────────────────────── */}
       <Modal
@@ -751,6 +942,24 @@ const s = StyleSheet.create({
   cancelModalBtnSecondaryText: { color: TEXT, fontSize: 14, fontWeight: '700' },
   cancelModalBtnPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 
+  printBtn:        { width: 30, height: 30, borderRadius: 15, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: BORDER },
+  detailHeader:    { flexDirection: 'row', alignItems: 'center', padding: 16, paddingTop: 20, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD },
+  detailClose:     { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  detailPrintBtn:  { width: 36, height: 36, borderRadius: 18, backgroundColor: `${BLUE}15`, alignItems: 'center', justifyContent: 'center' },
+  detailTitle:     { fontSize: 16, fontWeight: '800', color: TEXT },
+  detailSub:       { fontSize: 12, color: MUTED, fontWeight: '500', marginTop: 1 },
+  detailStatusBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, borderWidth: 1 },
+  detailMetaText:  { fontSize: 13, fontWeight: '600' },
+  detailCard:      { backgroundColor: CARD, borderRadius: 16, padding: 16, gap: 8, borderWidth: 1, borderColor: BORDER },
+  detailRow:       { fontSize: 15, fontWeight: '600', color: TEXT },
+  detailRowSub:    { fontSize: 13, color: MUTED, fontWeight: '500' },
+  detailLineItem:  { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  detailLineQty:   { fontSize: 15, fontWeight: '700', color: MUTED, width: 28 },
+  detailLineName:  { fontSize: 15, fontWeight: '600', color: TEXT },
+  detailLineSub:   { fontSize: 12, color: MUTED, fontWeight: '500', marginTop: 1 },
+  detailTotalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: BORDER },
+  detailTotalLabel:{ fontSize: 14, fontWeight: '700', color: MUTED },
+  detailTotalValue:{ fontSize: 18, fontWeight: '800', color: TEXT },
   emptyWrap:       { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyText:       { textAlign: 'center', color: MUTED, fontSize: 16, fontWeight: '500' },
   controlCard:     { marginHorizontal: 16, marginTop: 18, marginBottom: 8, padding: 8, borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
