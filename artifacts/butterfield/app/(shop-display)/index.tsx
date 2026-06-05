@@ -400,8 +400,7 @@ export default function ShopDisplayOrdersScreen() {
     const secondaryAction = STATUS_ACTIONS.find((action) => action.id === 'cancelled' && availableActions.includes('cancelled'));
 
     return (
-      <Pressable onPress={() => setDetailOrder(item)}>
-      <View style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
+      <Pressable onPress={() => setDetailOrder(item)} style={[s.card, isAlert && s.cardAlert, isWide && s.cardWide]}>
         {/* Header row */}
         <View style={s.cardHeader}>
           <View style={{ flex: 1 }}>
@@ -484,7 +483,6 @@ export default function ShopDisplayOrdersScreen() {
             </Text>
           </View>
         )}
-      </View>
       </Pressable>
     );
   };
