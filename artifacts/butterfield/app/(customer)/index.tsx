@@ -217,7 +217,7 @@ export default function CustomerHome() {
     <View style={[s.quickRail, {
       paddingHorizontal: hPad,
       marginTop: isTablet ? 18 : 20,
-      height: isTablet ? (isLandscape ? 176 : 156) : undefined,
+      height: isTablet && isLandscape ? 176 : undefined,
     }]}>
       <FeatureShortcutTile
         title="Cookies"
