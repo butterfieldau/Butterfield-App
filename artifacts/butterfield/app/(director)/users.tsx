@@ -1952,7 +1952,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     if (wholesaleMode) return u.role === 'wholesale';
     if (staffMode)     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
     if (posMode)       return u.role === 'shop_display';
-    if (tab === 'Staff')     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (tab === 'Staff')     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master' || u.role === 'shop_display';
     if (tab === 'Wholesale') return u.role === 'wholesale';
     return false;
   });

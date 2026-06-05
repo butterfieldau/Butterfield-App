@@ -1,0 +1,97 @@
+omarismail@Omars-MacBook-Pro Butterfield-App % cd /Users/omarismail/Documents/Codex/2026-05-12/i-want-to-export-my-butterfield/Butterfield-App
+pnpm --filter @workspace/butterfield run ios:build:testflight
+pnpm --filter @workspace/butterfield run ios:submit:testflight
+$ EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform ios --profile production --clear-cache
+★ eas-cli@20.0.0 is now available.
+To upgrade, run:
+npm install -g eas-cli
+Proceeding with outdated version.
+
+Found eas-cli in your project dependencies.
+It's recommended to use the "cli.version" field in eas.json to enforce the eas-cli version for your project.
+Learn more: https://github.com/expo/eas-cli#enforcing-eas-cli-version-for-your-project
+
+
+⚠️ Detected that your app uses Expo Go for development, this is not recommended when building production apps.
+Learn more: https://expo.fyi/why-not-build-expo-go-for-production
+To suppress this warning, set EAS_BUILD_NO_EXPO_GO_WARNING=true.
+
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+Environment variables loaded from the "production" build profile "env" configuration: EXPO_PUBLIC_DOMAIN.
+
+✔ Incremented buildNumber from 55 to 56.
+
+You've used 100% of your included build credits for this month.
+Additional usage beyond your limit will be charged at pay-as-you-go rates. See usage in billing.: https://expo.dev/accounts/butterfieldau/settings/billing
+
+ios.buildNumber field in app config is ignored when version source is set to remote, but this value will still be in the manifest available via expo-constants. It's recommended to remove this value from app config.
+✔ Using remote iOS credentials (Expo server)
+
+If you provide your Apple account credentials we will be able to generate all necessary build credentials and fully validate them.
+This is optional, but without Apple account access you will need to provide all the missing values manually and we can only run minimal validation on them.
+✔ Do you want to log in to your Apple account? … yes
+
+› Log in to your Apple Developer account to continue
+✔ Apple ID: … omar_i1990@hotmail.com
+› Restoring session /Users/omarismail/.app-store/auth/omar_i1990@hotmail.com/cookie
+› Team Omar Ismail (Y4TD2FN7C2)
+› Provider Omar Ismail (128891220)
+✔ Logged in Local session
+✔ Bundle identifier registered au.com.butterfieldcookies.app
+✔ Synced capabilities: No updates
+✔ Synced capability identifiers: No updates
+✔ Fetched Apple distribution certificates
+✔ Fetched Apple provisioning profiles
+
+Project Credentials Configuration
+
+Project                   @butterfieldau/butterfield
+Bundle Identifier         au.com.butterfieldcookies.app
+                          
+App Store Configuration   
+                          
+Distribution Certificate  
+Serial Number             3B595E1E1BF1E8DC73C1419996D7BE1
+Expiration Date           Wed, 12 May 2027 12:14:52 EST
+Apple Team                Y4TD2FN7C2 (Omar Ismail (Individual))
+Updated                   24 days ago
+                          
+Provisioning Profile      
+Developer Portal ID       N3BUMGV53S
+Status                    active
+Expiration                Wed, 12 May 2027 12:14:52 EST
+Apple Team                Y4TD2FN7C2 (Omar Ismail (Individual))
+Updated                   24 days ago
+                          
+All credentials are ready to build @butterfieldau/butterfield (au.com.butterfieldcookies.app)
+
+✔ Push Notifications are set up
+
+Compressing project files and uploading to EAS Build. Learn more: https://expo.fyi/eas-build-archive
+✔ Compressed project files 5s (191 MB)
+Your project archive is 191 MB. You can reduce its size and the time it takes to upload by excluding files that are unnecessary for the build process in .easignore file. Learn more: https://expo.fyi/eas-build-archive
+✔ Uploaded to EAS 1m 24s
+Skipping project fingerprint
+
+See logs: https://expo.dev/accounts/butterfieldau/projects/butterfield/builds/095ecf77-cc9d-4b1c-89a3-452c23f3b175
+
+Waiting for build to complete. You can press Ctrl+C to exit.
+✖ Build failed
+
+🍏 iOS build failed:
+The "Run fastlane" step failed because of an error in the Xcode build process. We automatically detected following errors in your Xcode build logs:
+- enumeration redeclared with different underlying type 'NSInteger' (aka 'long') (was 'NSUInteger' (aka 'unsigned long'))
+Refer to "Xcode Logs" below for additional, more detailed logs.
+/Users/omarismail/Documents/Codex/2026-05-12/i-want-to-export-my-butterfield/Butterfield-App/artifacts/butterfield:
+[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @workspace/butterfield@0.0.0 ios:build:testflight: `EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform ios --profile production --clear-cache`
+Exit status 1
+$ eas submit --platform ios --profile production
+★ eas-cli@20.0.0 is now available.
+To upgrade, run:
+npm install -g eas-cli
+Proceeding with outdated version.
+
+Found eas-cli in your project dependencies.
+It's recommended to use the "cli.version" field in eas.json to enforce the eas-cli version for your project.
+Learn more: https://github.com/expo/eas-cli#enforcing-eas-cli-version-for-your-project
