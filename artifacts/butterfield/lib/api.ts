@@ -24,9 +24,10 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
 }
 
 export function getProductShareUrl(productId: string): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  const base = domain ? `https://${domain}` : '';
-  return `${base}/s/${productId}`;
+  // BASE is 'https://{domain}/api' in production, '/api' in dev without EXPO_PUBLIC_DOMAIN.
+  // Strip the trailing /api to get the root origin for share URLs.
+  const shareBase = BASE.startsWith('https://') ? BASE.replace(/\/api$/, '') : '';
+  return `${shareBase}/s/${productId}`;
 }
 
 export class ApiError extends Error {
