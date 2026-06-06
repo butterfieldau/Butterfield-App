@@ -66,8 +66,8 @@ export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 
  * We use a dynamic import so Expo Go does not crash at module-load time — the
  * error is surfaced only when the user actually taps Send Test Print.
  */
-export async function sendTestPrint(printerIp: string, printerPort = 9100): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await api.director.printerBytes());
+export async function sendTestPrint(printerIp: string, printerPort = 9100, printerBrand: 'epson' | 'star' = 'epson'): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await api.director.printerBytes({ printerBrand }));
 }
 
 export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100): Promise<void> {

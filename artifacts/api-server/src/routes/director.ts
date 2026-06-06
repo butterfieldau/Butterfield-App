@@ -1416,18 +1416,26 @@ router.post('/printer/bytes', async (req, res) => {
   try {
     const { buildReceiptBytes } = await import('../lib/printer.js');
     const { job } = req.body as { job?: any };
-    const printJob = (job as import('../lib/printer.js').PrintJob | undefined) ?? {
-      orderId:             'test-0000-0000-0000',
-      customerName:        req.user!.name,
-      type:                'pickup' as const,
-      items:               [
-        { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
-        { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
-      ],
-      totalCents:          1550,
-      loyaltyPointsEarned: 15,
-      notes:               'Test print — Butterfield POS',
-    };
+    // When job has a real orderId it is a receipt for an actual order; use it as-is.
+    // When job only carries printerBrand (test-print path), apply the brand to the
+    // default test receipt so Epson vs Star cut/feed commands are exercised correctly.
+    const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
+    const isRealJob = job && job.orderId && job.orderId !== 'test-0000-0000-0000' && Array.isArray(job.items) && job.items.length > 0;
+    const printJob = isRealJob
+      ? (job as import('../lib/printer.js').PrintJob)
+      : {
+          orderId:             'test-0000-0000-0000',
+          customerName:        req.user!.name,
+          type:                'pickup' as const,
+          items:               [
+            { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
+            { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
+          ],
+          totalCents:          1550,
+          loyaltyPointsEarned: 15,
+          notes:               'Test print — Butterfield POS',
+          printerBrand:        brand,
+        };
     const bytes = buildReceiptBytes(printJob);
     return res.json({ data: { bytes: bytes.toString('base64') } });
   } catch (err: any) {

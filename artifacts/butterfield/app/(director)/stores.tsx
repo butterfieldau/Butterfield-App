@@ -15,6 +15,7 @@ import type { StoreDetail, StoreHour, StoreSummary } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { sendTestPrint } from '@/lib/printer';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -184,6 +185,8 @@ function StoreEditorModal({
   const [printerPort,      setPrinterPort]       = useState('9100');
   const [printerBrand,     setPrinterBrand]      = useState<'epson' | 'star'>('epson');
   const [autoPrint,        setAutoPrint]         = useState(true);
+  const [testPrinting,     setTestPrinting]      = useState(false);
+  const [testPrintResult,  setTestPrintResult]   = useState<{ ok: boolean; message: string } | null>(null);
   const [orderCutoffTime,  setOrderCutoffTime]   = useState('');
   const [dailySpecial,     setDailySpecial]      = useState('');
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
@@ -225,6 +228,7 @@ function StoreEditorModal({
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
       setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setAutoPrint(true); setOrderCutoffTime(''); setDailySpecial('');
     }
+    setTestPrintResult(null);
     setActiveTab('Details');
   }, [visible, store]);
 
@@ -713,9 +717,63 @@ function StoreEditorModal({
                 </View>
                 <Switch value={autoPrint} onValueChange={setAutoPrint} />
               </View>
-              <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 12 }}>
+              <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 4 }}>
                 Orders for this store will print to this network printer.
               </Text>
+              <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
+                <Pressable
+                  onPress={async () => {
+                    const ip = printerIp.trim();
+                    if (!ip) {
+                      setTestPrintResult({ ok: false, message: 'Enter a printer IP address first.' });
+                      return;
+                    }
+                    setTestPrinting(true);
+                    setTestPrintResult(null);
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try {
+                      await sendTestPrint(ip, parseInt(printerPort, 10) || 9100, printerBrand);
+                      setTestPrintResult({ ok: true, message: 'Test receipt sent successfully.' });
+                    } catch (err: any) {
+                      setTestPrintResult({ ok: false, message: err?.message ?? 'Could not reach the printer.' });
+                    } finally {
+                      setTestPrinting(false);
+                    }
+                  }}
+                  disabled={testPrinting}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                    gap: 8, paddingVertical: 11, borderRadius: 10,
+                    borderWidth: 1.5, borderColor: printerIp.trim() ? BLUE : BORDER,
+                    backgroundColor: printerIp.trim() ? '#EFF6FF' : '#F9FAFB',
+                    opacity: testPrinting ? 0.6 : 1,
+                  }}
+                >
+                  {testPrinting
+                    ? <ActivityIndicator size="small" color={BLUE} />
+                    : <Feather name="printer" size={15} color={printerIp.trim() ? BLUE : MUTED} />
+                  }
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: printerIp.trim() ? BLUE : MUTED }}>
+                    {testPrinting ? 'Sending…' : 'Send Test Print'}
+                  </Text>
+                </Pressable>
+                {testPrintResult && (
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    marginTop: 8, padding: 9, borderRadius: 8,
+                    backgroundColor: testPrintResult.ok ? '#F0FDF4' : '#FEF2F2',
+                  }}>
+                    <Feather
+                      name={testPrintResult.ok ? 'check-circle' : 'alert-circle'}
+                      size={14}
+                      color={testPrintResult.ok ? GREEN : RED}
+                    />
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: testPrintResult.ok ? GREEN : RED, flex: 1 }}>
+                      {testPrintResult.message}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
           )}

@@ -2121,6 +2121,7 @@ export interface PrinterJob {
   title?: string;
   lines?: string[];
   copies?: number;
+  printerBrand?: 'epson' | 'star';
 }
 
 export interface StaffInviteToken {
