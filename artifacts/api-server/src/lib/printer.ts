@@ -88,10 +88,10 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
   const shortId = job.orderId.slice(0, 8).toUpperCase();
 
   const parts: Buffer[] = [
-    // Star MCP30: skip ESC @ (0x1B 0x40) — printer does not recognise the init
-    // command in ESC/POS mode and prints the 0x40 byte literally as "@".
-    ...(isStar ? [] : [CMD_INIT]),
-    lf(1),
+    // Star MCP30: skip ESC @ (0x1B 0x40) and the opening line feed entirely.
+    // The printer does not recognise CMD_INIT in ESC/POS mode and prints the
+    // 0x40 byte literally as "@"; the lf(1) after it creates the blank head.
+    ...(isStar ? [] : [CMD_INIT, lf(1)]),
 
     // ── Header ───────────────────────────────────────────────────────────────
     CMD_ALIGN_CTR,
