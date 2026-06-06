@@ -24,20 +24,9 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
 }
 
 export function getProductShareUrl(productId: string): string {
-  // Priority: EXPO_PUBLIC_DOMAIN → first REPLIT_DOMAINS entry → warn + relative
-  const primary = process.env.EXPO_PUBLIC_DOMAIN;
-  if (primary) {
-    const host = primary.replace(/^https?:\/\//, '');
-    return `https://${host}/s/${productId}`;
-  }
-  const replitDomains = process.env.REPLIT_DOMAINS;
-  if (replitDomains) {
-    const first = replitDomains.split(',').map(d => d.trim().replace(/^https?:\/\//, '')).find(Boolean);
-    if (first) return `https://${first}/s/${productId}`;
-  }
-  // eslint-disable-next-line no-console
-  console.warn('[getProductShareUrl] No domain env var set — share URL will be relative');
-  return `/s/${productId}`;
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  const base = domain ? `https://${domain}` : '';
+  return `${base}/s/${productId}`;
 }
 
 export class ApiError extends Error {

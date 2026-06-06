@@ -1,5 +1,4 @@
 import { Feather } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState, useMemo } from 'react';
@@ -13,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, getProductShareUrl } from '@/lib/api';
+import { api } from '@/lib/api';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -250,7 +249,6 @@ function ProductModal({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [modalTab, setModalTab] = useState<ModalTab>('core');
-  const [copiedLink, setCopiedLink] = useState(false);
   const [f, setF] = useState<FormState>(BLANK());
   const recommendedProductSort = useMemo(
     () => getRecommendedProductSort(f.category, f.name),
@@ -640,39 +638,6 @@ function ProductModal({
                   </View>
                 ))
               )}
-            {/* ── Share Link (editing only) ───────────────────────── */}
-            {editing && initial?.id && (
-              <>
-                <SectionHeader title="Share Link" icon="share-2" color={NAVY} />
-                <View style={{ gap: 6 }}>
-                  <Text style={[form.label, { color: MUTED }]}>
-                    Send this link to share the product — opens the app or shows a download page
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <View style={{ flex: 1, backgroundColor: BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: BORDER }}>
-                      <Text style={{ fontSize: 12, color: TEXT, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }} numberOfLines={1} ellipsizeMode="middle">
-                        {getProductShareUrl(initial.id)}
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={async () => {
-                        const url = getProductShareUrl(initial.id);
-                        await Clipboard.setStringAsync(url);
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        setCopiedLink(true);
-                        setTimeout(() => setCopiedLink(false), 2000);
-                      }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: copiedLink ? '#D1FAE5' : NAVY, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 }}
-                    >
-                      <Feather name={copiedLink ? 'check' : 'copy'} size={14} color={copiedLink ? '#059669' : '#fff'} />
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: copiedLink ? '#059669' : '#fff' }}>
-                        {copiedLink ? 'Copied!' : 'Copy'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </>
-            )}
             </>}
             {/* TAB 2 — STATUS: All visibility / sale toggles */}
             {modalTab === 'status' && <>
