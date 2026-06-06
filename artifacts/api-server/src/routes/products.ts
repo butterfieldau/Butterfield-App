@@ -339,7 +339,7 @@ router.get('/:id', async (req, res) => {
       .from(productsTable)
       .where(eq(productsTable.id, req.params.id));
 
-    if (!product || !isProductOrderableNow(product, sydNow)) {
+    if (!product || !product.isActive) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
