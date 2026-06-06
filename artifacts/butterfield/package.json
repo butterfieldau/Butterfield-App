@@ -8,6 +8,7 @@
     "build": "node scripts/build.js",
     "ios:build:testflight": "EAS_SKIP_AUTO_FINGERPRINT=1 eas build --platform ios --profile production --clear-cache",
     "ios:submit:testflight": "eas submit --platform ios --profile production",
+    "postinstall": "node scripts/patch-stripe-ios.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
