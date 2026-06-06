@@ -5,6 +5,9 @@ import { eq } from 'drizzle-orm';
 const router = Router();
 
 function getPublicBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_DOMAIN) {
+    return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+  }
   const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
     .split(',')
     .map((d) => d.trim())
