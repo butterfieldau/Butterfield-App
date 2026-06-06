@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, productsTable } from '@workspace/db';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 
 const router = Router();
 
@@ -26,10 +26,11 @@ function esc(s: string): string {
 
 router.get('/:productId', async (req, res) => {
   try {
+    const param = req.params.productId;
     const [product] = await db
       .select()
       .from(productsTable)
-      .where(eq(productsTable.id, req.params.productId));
+      .where(or(eq(productsTable.slug, param), eq(productsTable.id, param)));
 
     if (!product) {
       res

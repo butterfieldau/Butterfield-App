@@ -19,6 +19,7 @@ export const productsTable = pgTable("products", {
   gstIncluded:          boolean("gst_included").notNull().default(true),
 
   // Identifiers
+  slug:                 text("slug").unique(),
   sku:                  text("sku"),
   barcode:              text("barcode"),
 

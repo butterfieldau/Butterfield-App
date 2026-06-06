@@ -23,10 +23,10 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
   return `${BASE}/invoices/w/${orderId}`;
 }
 
-export function getProductShareUrl(productId: string): string {
+export function getProductShareUrl(productId: string, slug?: string): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   const base = domain ? `https://${domain}` : '';
-  return `${base}/s/${productId}`;
+  return `${base}/s/${slug ?? productId}`;
 }
 
 export class ApiError extends Error {
@@ -837,6 +837,7 @@ export interface ApiUser {
 
 export interface ApiProduct {
   id: string;
+  slug?: string;
   name: string;
   description: string;
   active?: boolean;

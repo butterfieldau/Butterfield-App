@@ -390,7 +390,7 @@ export default function ProductDetailScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const url = getProductShareUrl(productId);
+              const url = getProductShareUrl(productId, product.slug);
               Share.share({
                 message: `Check out ${product.name} on Butterfield Cookies!${Platform.OS === 'android' ? `\n${url}` : ''}`,
                 url,

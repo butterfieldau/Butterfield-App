@@ -156,6 +156,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
       metadata:    {},
     }],
 
+    slug:                p.slug ?? undefined,
     priceCents:          p.priceCents,
     salePriceCents:      p.salePriceCents,
     costPriceCents:      p.costPriceCents,
