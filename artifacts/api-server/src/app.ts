@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import cookieParser from "cookie-parser";
 import router from "./routes/index.js";
+import shareRouter from "./routes/share.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 
@@ -91,6 +92,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.use("/s", shareRouter);
 app.use("/api", router);
 
 export default app;

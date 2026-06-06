@@ -26,7 +26,7 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
 export function getProductShareUrl(productId: string): string {
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   const base = domain ? `https://${domain}` : '';
-  return `${base}/api/s/${productId}`;
+  return `${base}/s/${productId}`;
 }
 
 export class ApiError extends Error {

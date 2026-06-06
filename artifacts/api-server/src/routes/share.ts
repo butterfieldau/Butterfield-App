@@ -21,7 +21,7 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-router.get('/s/:productId', async (req, res) => {
+router.get('/:productId', async (req, res) => {
   try {
     const [product] = await db
       .select()
@@ -164,14 +164,21 @@ router.get('/s/:productId', async (req, res) => {
   </div>
   <p class="footer">Butterfield Cookies &mdash; Premium cookies, coffee &amp; desserts</p>
   <script>
-    function tryOpen(e) {
-      e.preventDefault();
-      window.location.href = '${deepLink}';
-      setTimeout(function () {
-        document.getElementById('dlBtn').classList.add('show');
-        document.getElementById('openBtn').style.display = 'none';
-      }, 1600);
+    var deepLink = '${deepLink}';
+    var timer;
+    function showFallback() {
+      document.getElementById('dlBtn').classList.add('show');
+      document.getElementById('openBtn').style.display = 'none';
     }
+    function tryOpen(e) {
+      if (e) e.preventDefault();
+      clearTimeout(timer);
+      window.location.href = deepLink;
+      timer = setTimeout(showFallback, 1500);
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+      tryOpen(null);
+    });
   </script>
 </body>
 </html>`;
