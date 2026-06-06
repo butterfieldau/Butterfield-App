@@ -70,6 +70,7 @@ EXPO_PUBLIC_GOOGLE_CLIENT_ID = "119890251041-tsgds8o83po7p4gaeqqfnph67e3fpt46.ap
 EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT_ID = "com.googleusercontent.apps.119890251041-tsgds8o83po7p4gaeqqfnph67e3fpt46"
 EXPO_PUBLIC_GOOGLE_PLACES_API_KEY = "AIzaSyD43XpXH9AI8I0EwuaT_ckb2cOZb0S1M54"
 GOOGLE_PLACES_API_KEY = "AIzaSyD43XpXH9AI8I0EwuaT_ckb2cOZb0S1M54"
+EXPO_PUBLIC_DOMAIN = "butterfieldcookies.com.au"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-56a86ee2-34ca-4cbf-9a68-5597e4ff6953"
