@@ -312,8 +312,8 @@ router.get('/', async (_req, res) => {
     }));
 
     return res.json({ data });
-  } catch (err: unknown) {
-    return res.json({ data: [], _error: String(err) });
+  } catch {
+    return res.json({ data: [] });
   }
 });
 

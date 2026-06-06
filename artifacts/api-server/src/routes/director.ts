@@ -1266,16 +1266,6 @@ router.get('/products', async (req, res) => {
   return res.json({ data: products });
 });
 
-function generateProductSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/[\s]+/g, '-')
-    .replace(/-+/g, '-')
-    .slice(0, 80);
-}
-
 router.post('/products', async (req, res) => {
   const {
     name, description, shortDescription, category, productType,
@@ -1291,12 +1281,8 @@ router.post('/products', async (req, res) => {
   if (!name?.trim()) return res.status(400).json({ error: 'Product name is required.' });
   if (typeof priceCents !== 'number') return res.status(400).json({ error: 'Price is required.' });
 
-  const id = randomUUID();
-  const baseSlug = generateProductSlug(name.trim());
-
   const [product] = await db.insert(productsTable).values({
-    id,
-    slug: baseSlug || id,
+    id: randomUUID(),
     name: name.trim(),
     description:        description        ?? '',
     shortDescription:   shortDescription   ?? null,
@@ -1358,11 +1344,6 @@ router.patch('/products/:id', async (req, res) => {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
   }
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
-  // Regenerate slug when name changes
-  if (updates.name) {
-    const newSlug = generateProductSlug(updates.name);
-    if (newSlug) updates.slug = newSlug;
-  }
   updates.updatedAt = new Date();
   const [updated] = await db.update(productsTable).set(updates).where(eq(productsTable.id, id)).returning();
   return res.json({ data: updated });

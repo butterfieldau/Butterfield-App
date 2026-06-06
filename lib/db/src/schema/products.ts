@@ -18,9 +18,6 @@ export const productsTable = pgTable("products", {
   wholesalePriceCents:  integer("wholesale_price_cents"),
   gstIncluded:          boolean("gst_included").notNull().default(true),
 
-  // Share slug (auto-generated from name, used in /s/:slug URLs)
-  slug:                 text("slug"),
-
   // Identifiers
   sku:                  text("sku"),
   barcode:              text("barcode"),

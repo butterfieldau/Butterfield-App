@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, productsTable } from '@workspace/db';
-import { eq, or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 const router = Router();
 
@@ -21,15 +21,12 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-router.get('/:identifier', async (req, res) => {
+router.get('/:productId', async (req, res) => {
   try {
-    const { identifier } = req.params;
-    // Resolve by slug first, fall back to ID for backwards compatibility
     const [product] = await db
       .select()
       .from(productsTable)
-      .where(or(eq(productsTable.slug, identifier), eq(productsTable.id, identifier)))
-      .limit(1);
+      .where(eq(productsTable.id, req.params.productId));
 
     if (!product) {
       res

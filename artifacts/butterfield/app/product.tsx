@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { Linking, Platform, Share } from 'react-native';
+import { Linking, Share } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -390,14 +390,9 @@ export default function ProductDetailScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const url = getProductShareUrl(product);
+              const url = getProductShareUrl(productId);
               Share.share({
-                // On iOS, passing both message+url causes the URL to appear twice
-                // (once in the text, once as an attachment). Pass URL separately
-                // on iOS so the system composes it correctly.
-                message: Platform.OS === 'android'
-                  ? `Check out ${product.name} on Butterfield Cookies!\n${url}`
-                  : `Check out ${product.name} on Butterfield Cookies!`,
+                message: `Check out ${product.name} on Butterfield Cookies!\n${url}`,
                 url,
                 title: product.name,
               }).catch(() => {});
