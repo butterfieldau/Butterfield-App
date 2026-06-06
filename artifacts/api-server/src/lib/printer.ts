@@ -15,9 +15,11 @@ const CMD_NORMAL_SIZE = Buffer.from([ESC, 0x21, 0x00]);
 const CMD_FEED_5MM    = Buffer.from([ESC, 0x4A, 0x28]); // 40 dots ≈ 5mm on 203dpi printers
 // Epson / ESC-POS: GS V 0 — full cut
 const CMD_EPSON_CUT   = Buffer.from([GS,  0x56, 0x00]);
-// Star Micronics (StarPRNT): ESC d 5 (feed 5 lines) then ESC m (full cut)
-const CMD_STAR_FEED   = Buffer.from([ESC, 0x64, 0x05]);
-const CMD_STAR_CUT    = Buffer.from([ESC, 0x6D]);
+// Star mC-Print3 / MCP30 in ESC/POS mode: ESC d 3 (feed 3 lines) then GS V 0 (full cut)
+// ESC m (0x1B 0x6D) is StarPRNT-only and does NOT cut in ESC/POS mode.
+// GS V 0 (0x1D 0x56 0x00) is the standard ESC/POS full-cut command — confirmed working on MCP30.
+const CMD_STAR_FEED   = Buffer.from([ESC, 0x64, 0x03]);
+const CMD_STAR_CUT    = Buffer.from([GS,  0x56, 0x00]);
 
 const COL = 42; // chars per line on 80mm paper
 
@@ -72,6 +74,9 @@ export interface PrintJob {
 }
 
 export function buildReceiptBytes(job: PrintJob): Buffer {
+  // Resolve brand early — needed both at the top (init) and at the bottom (cut).
+  const isStar = job.printerBrand === 'star';
+
   const sydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
   const dateStr = sydney.toLocaleDateString('en-AU', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
@@ -83,7 +88,9 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
   const shortId = job.orderId.slice(0, 8).toUpperCase();
 
   const parts: Buffer[] = [
-    CMD_INIT,
+    // Star MCP30: skip ESC @ (0x1B 0x40) — printer does not recognise the init
+    // command in ESC/POS mode and prints the 0x40 byte literally as "@".
+    ...(isStar ? [] : [CMD_INIT]),
     lf(1),
 
     // ── Header ───────────────────────────────────────────────────────────────
@@ -165,7 +172,6 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
   }
 
   // ── Footer ────────────────────────────────────────────────────────────────
-  const isStar = job.printerBrand === 'star';
   parts.push(
     lf(1),
     CMD_ALIGN_CTR,
@@ -176,12 +182,12 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
     divider('='),
     lf(3),
-    CMD_FEED_5MM,
-    // Star Micronics (StarPRNT): ESC d 5 + ESC m
-    // Epson / ESC-POS compatible: GS V 0x00
+    // Star MCP30 (ESC/POS mode): ESC d 3 feeds 3 lines then GS V 0 cuts.
+    // The CMD_STAR_FEED already handles paper advance, so CMD_FEED_5MM is skipped.
+    // Epson: CMD_FEED_5MM gives a clean 5mm gap then GS V 0 cuts.
     ...(isStar
       ? [CMD_STAR_FEED, CMD_STAR_CUT]
-      : [CMD_EPSON_CUT]
+      : [CMD_FEED_5MM, CMD_EPSON_CUT]
     ),
   );
 
