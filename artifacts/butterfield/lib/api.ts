@@ -23,6 +23,12 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
   return `${BASE}/invoices/w/${orderId}`;
 }
 
+export function getProductShareUrl(productId: string): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  const base = domain ? `https://${domain}` : '';
+  return `${base}/api/s/${productId}`;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;

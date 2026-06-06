@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { Linking } from 'react-native';
+import { Linking, Share } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
@@ -17,7 +17,7 @@ import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedOptions';
-import { api, type ApiOrderItemOption, type ApiProduct, type DirectorOption, type DirectorOptionGroup } from '@/lib/api';
+import { api, getProductShareUrl, type ApiOrderItemOption, type ApiProduct, type DirectorOption, type DirectorOptionGroup } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -385,6 +385,24 @@ export default function ProductDetailScreen() {
           <Feather name="arrow-left" size={20} color={TEXT} />
         </Pressable>
 
+        {/* Share button */}
+        {product && productId && (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              const url = getProductShareUrl(productId);
+              Share.share({
+                message: `Check out ${product.name} on Butterfield Cookies!\n${url}`,
+                url,
+                title: product.name,
+              }).catch(() => {});
+            }}
+            style={[s.navBtn, { top: insets.top + 10, right: 16 }]}
+            hitSlop={12}
+          >
+            <Feather name="share-2" size={18} color={TEXT} />
+          </Pressable>
+        )}
 
         {/* Status pills */}
         {(isNew || isLimited || isComingSoon || isSoldOut) && (

@@ -90,6 +90,16 @@ export function BannerTab() {
   const [buttonUrl,       setButtonUrl]       = useState('');
   const [saving,          setSaving]          = useState(false);
   const [uploading,       setUploading]       = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch,   setProductSearch]   = useState('');
+
+  const { data: productsData } = useQuery({
+    queryKey: ['director-all-products-banner'],
+    queryFn:  () => api.director.products(),
+    enabled:  showProductPicker,
+    staleTime: 60_000,
+  });
+  const allProducts: DirectorProduct[] = productsData?.data ?? [];
 
   const pickAndUploadBannerImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -127,8 +137,12 @@ export function BannerTab() {
       setHeadlineAccent(banner.headlineAccent ?? '');
       setSubtext(banner.subtext ?? '');
       setButtonText(banner.buttonText ?? 'Order Now');
-      setButtonRoute(banner.buttonRoute ?? 'menu');
+      const route = banner.buttonRoute ?? 'menu';
+      setButtonRoute(route);
       setButtonUrl(banner.buttonUrl ?? '');
+      if (route.startsWith('product:')) {
+        setShowProductPicker(true);
+      }
     }
   }, [data]);
 
@@ -143,7 +157,7 @@ export function BannerTab() {
         headlineAccent: headlineAccent.trim() || undefined,
         subtext:        subtext.trim() || undefined,
         buttonText:     buttonText.trim() || 'Order Now',
-        buttonRoute:    buttonRoute || 'menu',
+        buttonRoute:    (buttonRoute === '__product__' || !buttonRoute) ? 'menu' : buttonRoute,
         buttonUrl:      buttonUrl.trim() || undefined,
       });
       await qc.invalidateQueries({ queryKey: ['director-home-banner'] });
@@ -291,7 +305,7 @@ export function BannerTab() {
           {BANNER_ROUTE_OPTIONS.map(opt => (
             <Pressable
               key={opt.value}
-              onPress={() => { setButtonRoute(opt.value); Haptics.selectionAsync(); }}
+              onPress={() => { setButtonRoute(opt.value); setShowProductPicker(false); setProductSearch(''); Haptics.selectionAsync(); }}
               style={[
                 styles.row,
                 { padding: 10, borderRadius: 10, borderWidth: 1,
@@ -312,13 +326,121 @@ export function BannerTab() {
               </Text>
             </Pressable>
           ))}
+
+          {/* Specific product option */}
+          {(() => {
+            const isProductSelected = buttonRoute.startsWith('product:') || buttonRoute === '__product__';
+            const linkedPid = buttonRoute.startsWith('product:') ? buttonRoute.replace('product:', '').trim() : '';
+            const linkedProduct = linkedPid ? allProducts.find(p => p.id === linkedPid) : null;
+            return (
+              <Pressable
+                onPress={() => {
+                  setShowProductPicker(true);
+                  if (!buttonRoute.startsWith('product:')) setButtonRoute('__product__');
+                  Haptics.selectionAsync();
+                }}
+                style={[
+                  styles.row,
+                  { padding: 10, borderRadius: 10, borderWidth: 1,
+                    borderColor: isProductSelected ? BLUE : BORDER,
+                    backgroundColor: isProductSelected ? '#EBF8FF' : '#FAFAFA',
+                    flexDirection: 'row', alignItems: 'flex-start', gap: 10 }
+                ]}
+              >
+                <View style={{
+                  width: 18, height: 18, borderRadius: 9, borderWidth: 2, marginTop: 2,
+                  borderColor: isProductSelected ? BLUE : BORDER,
+                  backgroundColor: isProductSelected ? BLUE : 'transparent',
+                  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {isProductSelected && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' }} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '500', fontSize: 14, color: isProductSelected ? BLUE : TEXT }}>
+                    Specific product
+                  </Text>
+                  {linkedProduct ? (
+                    <Text style={{ fontSize: 12, color: GREEN, marginTop: 2, fontWeight: '500' }}>
+                      ✓ {linkedProduct.name}
+                    </Text>
+                  ) : linkedPid ? (
+                    <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>ID: {linkedPid}</Text>
+                  ) : isProductSelected ? (
+                    <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Select a product below</Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            );
+          })()}
+
+          {/* Product search picker — shown when Specific product is selected */}
+          {showProductPicker && (
+            <View style={{ gap: 6, paddingTop: 4 }}>
+              <TextInput
+                style={[styles.input, { borderColor: BLUE + '60', color: TEXT }]}
+                value={productSearch}
+                onChangeText={setProductSearch}
+                placeholder="Search products…"
+                placeholderTextColor={MUTED}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {showProductPicker && allProducts.length === 0 && (
+                <ActivityIndicator color={BLUE} size="small" style={{ marginVertical: 6 }} />
+              )}
+              {allProducts
+                .filter(p =>
+                  !productSearch.trim() ||
+                  p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                  (p.category ?? '').toLowerCase().includes(productSearch.toLowerCase()),
+                )
+                .slice(0, 10)
+                .map(p => {
+                  const isSelected = buttonRoute === `product:${p.id}`;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => {
+                        setButtonRoute(`product:${p.id}`);
+                        setProductSearch('');
+                        Haptics.selectionAsync();
+                      }}
+                      style={[
+                        styles.row,
+                        { padding: 10, borderRadius: 8, borderWidth: 1,
+                          borderColor: isSelected ? GREEN : BORDER,
+                          backgroundColor: isSelected ? '#F0FFF4' : '#FAFAFA' }
+                      ]}
+                    >
+                      <Feather name={isSelected ? 'check-circle' : 'circle'} size={15} color={isSelected ? GREEN : BORDER} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: '500', fontSize: 13, color: isSelected ? GREEN : TEXT }} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {p.category ? (
+                          <Text style={{ fontSize: 11, color: MUTED, textTransform: 'capitalize', marginTop: 1 }}>
+                            {p.category}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {p.priceCents ? (
+                        <Text style={{ fontSize: 12, color: MUTED }}>
+                          ${(p.priceCents / 100).toFixed(2)}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+            </View>
+          )}
+
           <Text style={{ fontWeight: '500', fontSize: 12, color: MUTED, marginTop: 2 }}>
-            You can also type a custom destination below, like `category:cookies` or `product:your-product-id`.
+            Advanced: type a custom destination below, e.g. `category:cookies`.
           </Text>
           <TextInput
             style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={buttonRoute}
-            onChangeText={setButtonRoute}
+            value={buttonRoute === '__product__' ? '' : buttonRoute}
+            onChangeText={v => { setButtonRoute(v); setShowProductPicker(v.startsWith('product:')); }}
             placeholder="menu, category:cookies, product:abc123"
             placeholderTextColor={MUTED}
             autoCapitalize="none"
