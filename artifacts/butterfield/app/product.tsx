@@ -390,7 +390,7 @@ export default function ProductDetailScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const url = getProductShareUrl(productId);
+              const url = getProductShareUrl(product);
               Share.share({
                 // On iOS, passing both message+url causes the URL to appear twice
                 // (once in the text, once as an attachment). Pass URL separately

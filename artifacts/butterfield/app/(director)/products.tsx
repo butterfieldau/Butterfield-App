@@ -644,19 +644,25 @@ function ProductModal({
             {editing && initial?.id && (
               <>
                 <SectionHeader title="Share Link" icon="share-2" color={NAVY} />
-                <View style={{ gap: 6 }}>
+                <View style={{ gap: 8 }}>
+                  {initial.slug ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[form.label, { color: MUTED, marginBottom: 0 }]}>Slug:</Text>
+                      <Text style={{ fontSize: 12, color: TEXT, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{initial.slug}</Text>
+                    </View>
+                  ) : null}
                   <Text style={[form.label, { color: MUTED }]}>
                     Send this link to share the product — opens the app or shows a download page
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={{ flex: 1, backgroundColor: BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: BORDER }}>
                       <Text style={{ fontSize: 12, color: TEXT, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }} numberOfLines={1} ellipsizeMode="middle">
-                        {getProductShareUrl(initial.id)}
+                        {getProductShareUrl(initial)}
                       </Text>
                     </View>
                     <Pressable
                       onPress={async () => {
-                        const url = getProductShareUrl(initial.id);
+                        const url = getProductShareUrl(initial);
                         await Clipboard.setStringAsync(url);
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                         setCopiedLink(true);

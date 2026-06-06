@@ -23,21 +23,22 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
   return `${BASE}/invoices/w/${orderId}`;
 }
 
-export function getProductShareUrl(productId: string): string {
+export function getProductShareUrl(product: { id: string; slug?: string | null }): string {
+  const identifier = product.slug || product.id;
   // Priority: EXPO_PUBLIC_DOMAIN → first REPLIT_DOMAINS entry → warn + relative
   const primary = process.env.EXPO_PUBLIC_DOMAIN;
   if (primary) {
     const host = primary.replace(/^https?:\/\//, '');
-    return `https://${host}/s/${productId}`;
+    return `https://${host}/s/${identifier}`;
   }
   const replitDomains = process.env.REPLIT_DOMAINS;
   if (replitDomains) {
     const first = replitDomains.split(',').map(d => d.trim().replace(/^https?:\/\//, '')).find(Boolean);
-    if (first) return `https://${first}/s/${productId}`;
+    if (first) return `https://${first}/s/${identifier}`;
   }
   // eslint-disable-next-line no-console
   console.warn('[getProductShareUrl] No domain env var set — share URL will be relative');
-  return `/s/${productId}`;
+  return `/s/${identifier}`;
 }
 
 export class ApiError extends Error {
@@ -848,6 +849,7 @@ export interface ApiUser {
 
 export interface ApiProduct {
   id: string;
+  slug?: string | null;
   name: string;
   description: string;
   active?: boolean;
