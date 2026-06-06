@@ -1915,17 +1915,18 @@ function ShopDisplayDetailModal({ user, visible, onClose, onRefresh }: {
   );
 }
 
-type UsersMode = 'wholesale' | 'staff' | 'pos';
+type UsersMode = 'wholesale' | 'staff' | 'pos' | 'deleted';
 
 export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode } = {}) {
   const params = useLocalSearchParams<{ mode?: string; tab?: string }>();
-  const routeMode = params.mode === 'wholesale' || params.mode === 'staff' || params.mode === 'pos'
+  const routeMode = params.mode === 'wholesale' || params.mode === 'staff' || params.mode === 'pos' || params.mode === 'deleted'
     ? params.mode
     : undefined;
   const screenMode = modeOverride ?? routeMode;
   const wholesaleMode = screenMode === 'wholesale';
   const staffMode = screenMode === 'staff';
   const posMode = screenMode === 'pos';
+  const deletedMode = screenMode === 'deleted';
   const dedicatedMode = Boolean(screenMode);
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -1960,7 +1961,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const { data: deletedData, isLoading: deletedLoading, refetch: refetchDeleted } = useQuery({
     queryKey: ['director-deleted-accounts'],
     queryFn:  () => api.director.deletedAccounts(),
-    enabled:  false,
+    enabled:  deletedMode,
   });
   const deletedAccounts: DeletedAccount[] = deletedData?.data ?? [];
   const restoreMut = useMutation({
@@ -2030,7 +2031,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   };
   return (
     <DirectorTabScreen
-      title={wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
+      title={deletedMode ? 'Deleted Accounts' : wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
       headerBottom={!dedicatedMode ? (
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
           {TABS.map((t) => {
@@ -2048,8 +2049,8 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
         </View>
       ) : undefined}
     >
-      {/* Add strip — only shown for Staff/Wholesale/POS, not Customers */}
-      {(dedicatedMode || tab !== 'Customers') && (
+      {/* Add strip — only shown for Staff/Wholesale/POS, not Customers or Deleted */}
+      {!deletedMode && (dedicatedMode || tab !== 'Customers') && (
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
           <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
@@ -2090,7 +2091,78 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
         </View>
       </View>
       )}
-      {!dedicatedMode && tab === 'Customers' ? (
+      {deletedMode ? (
+        deletedLoading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={RED} />
+          </View>
+        ) : (
+          <FlatList
+            data={deletedAccounts}
+            keyExtractor={(a) => a.id}
+            refreshControl={<RefreshControl refreshing={false} onRefresh={refetchDeleted} tintColor={RED} />}
+            contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              deletedAccounts.length > 0 ? (
+                <Text style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>
+                  Accounts are permanently removed after 30 days. Restore to reactivate.
+                </Text>
+              ) : null
+            }
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
+                <Feather name="trash-2" size={40} color={MUTED} />
+                <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>No deleted accounts</Text>
+                <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingHorizontal: 32 }}>
+                  Deleted customer and staff accounts will appear here for 30 days.
+                </Text>
+              </View>
+            }
+            renderItem={({ item: a }) => {
+              const roleColors = ROLE_COLORS[a.role] ?? { bg: BG, text: MUTED };
+              return (
+                <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
+                  <View style={styles.userTop}>
+                    <View style={[styles.avatar, { backgroundColor: '#F3F4F6' }]}>
+                      <Text style={[styles.avatarText, { color: MUTED }]}>{initials(a.name)}</Text>
+                    </View>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.userName}>{a.name}</Text>
+                        <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
+                          <Text style={[styles.rolePillText, { color: roleColors.text }]}>{a.role}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.userEmail}>{a.email}</Text>
+                      <Text style={styles.userDate}>Deleted {fmtDateTime(a.deletedAt)}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.subRow, { borderTopColor: BORDER, justifyContent: 'flex-end' }]}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        Alert.alert(
+                          'Restore Account',
+                          `Restore ${a.name}'s account? They will be able to log in again.`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Restore', onPress: () => restoreMut.mutate(a.id) },
+                          ],
+                        );
+                      }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, backgroundColor: '#DCFCE7' }}
+                    >
+                      <Feather name="refresh-cw" size={13} color="#166534" />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534' }}>Restore</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )
+      ) : !dedicatedMode && tab === 'Customers' ? (
         <CrmCustomersTab />
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
