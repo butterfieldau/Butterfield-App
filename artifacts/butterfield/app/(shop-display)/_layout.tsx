@@ -1,14 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
-import React from 'react';
+import * as Haptics from 'expo-haptics';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Image, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { useShopDisplayAwakeMode } from '@/lib/shopDisplayMode';
 import { api } from '@/lib/api';
+import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
 
 const BLUE  = '#1493FF';
 const NAVY  = '#1A2B4A';
@@ -41,6 +43,44 @@ export default function ShopDisplayLayout() {
     staleTime: 60000,
   });
   const permissions: string[] = meData?.data?.permissions ?? [];
+
+  // ── Product sync ──────────────────────────────────────────────────────────
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    getPosLastSyncedAt().then(d => setLastSyncedAt(d));
+  }, []);
+
+  const syncNow = useCallback(async () => {
+    if (syncing) return;
+    setSyncing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await queryClient.refetchQueries({ queryKey: ['pos-products'] });
+      const d = await getPosLastSyncedAt();
+      setLastSyncedAt(d ?? new Date());
+    } finally {
+      setSyncing(false);
+    }
+  }, [syncing, queryClient]);
+
+  // keep a stable ref so the 4 am timer always calls the latest version
+  const syncRef = useRef(syncNow);
+  useEffect(() => { syncRef.current = syncNow; }, [syncNow]);
+
+  // auto-sync every day at 4 am Sydney time
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let intervalId: ReturnType<typeof setInterval>;
+    const doSync = () => syncRef.current();
+    timeoutId = setTimeout(() => {
+      doSync();
+      intervalId = setInterval(doSync, 24 * 60 * 60 * 1000);
+    }, getMsUntil4amSydney());
+    return () => { clearTimeout(timeoutId); clearInterval(intervalId); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!user) return <Redirect href="/(auth)/login" />;
   if (user.role !== 'shop_display') return <Redirect href={getHomeRouteForRole(user.role)} />;
@@ -128,9 +168,21 @@ export default function ShopDisplayLayout() {
               style={styles.sidebarLogo}
               resizeMode="contain"
             />
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.brandBadge}>
+                <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
+              </View>
+              <Pressable
+                onPress={syncing ? undefined : syncNow}
+                hitSlop={8}
+                style={[styles.sidebarSyncBtn, syncing && { opacity: 0.45 }]}
+              >
+                <Feather name="refresh-cw" size={13} color={syncing ? MUTED : BLUE} />
+              </Pressable>
             </View>
+            <Text style={styles.syncTimestamp} numberOfLines={1}>
+              {formatSyncTime(lastSyncedAt)}
+            </Text>
             <Text style={styles.brandSub} numberOfLines={1}>{user.name}</Text>
           </View>
 
@@ -180,6 +232,9 @@ export default function ShopDisplayLayout() {
         badgeColor={BLUE}
         backgroundColor={NAVY}
         onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+        onSync={syncNow}
+        syncing={syncing}
+        syncLabel={syncing ? 'Syncing…' : 'Sync'}
       />
       {tabScreens}
     </View>
@@ -193,6 +248,8 @@ const styles = StyleSheet.create({
   brandBadge:        { backgroundColor: 'rgba(20,147,255,0.25)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' },
   brandBadgeText:    { color: BLUE, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
   brandSub:          { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
+  syncTimestamp:     { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500' },
+  sidebarSyncBtn:    { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(20,147,255,0.18)', borderWidth: 1, borderColor: 'rgba(20,147,255,0.35)', alignItems: 'center', justifyContent: 'center' },
   navList:           { flex: 1, paddingHorizontal: 10, gap: 2 },
   navItem:           { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
   navItemActive:     { backgroundColor: 'rgba(20,147,255,0.18)' },

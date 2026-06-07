@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { loadCachedPosProducts, savePosProductsCache } from '@/lib/posCache';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const BG       = '#F0F3F8';
@@ -178,11 +179,30 @@ export default function PosScreen() {
   const [detailCache, setDetailCache] = useState<Record<string, ProductDetail>>({});
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
 
+  // ── Local product cache ────────────────────────────────────────────────────
+  // Seed React Query from AsyncStorage so products are instant on every open.
+  const [cacheReady, setCacheReady] = useState(false);
+  useEffect(() => {
+    loadCachedPosProducts().then(cached => {
+      if (cached?.length) {
+        queryClient.setQueryData(['pos-products'], { data: cached });
+      }
+      setCacheReady(true);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Data queries ──────────────────────────────────────────────────────────
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['pos-products'],
-    queryFn: () => api.products.list(),
-    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await api.products.list();
+      if ((res as any)?.data?.length) {
+        savePosProductsCache((res as any).data);
+      }
+      return res;
+    },
+    staleTime: Infinity,   // never auto-refetch; only syncs on demand or at 4am
+    enabled: cacheReady,   // wait until AsyncStorage check completes
   });
 
   const { data: summaryData, refetch: refetchSummary } = useQuery({
