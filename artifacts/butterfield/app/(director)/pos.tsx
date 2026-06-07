@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadCachedPosProducts, savePosProductsCache } from '@/lib/posCache';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -38,8 +39,15 @@ const CATEGORY_COLORS: Record<string, string> = {
   merch:      '#F97316',
   specials:   '#EF4444',
 };
-function getCatColor(cat: string): string {
-  return CATEGORY_COLORS[cat.toLowerCase()] ?? '#6B7280';
+const CATEGORY_ORDER = ['cookies', 'coffee'];
+const PRESET_COLORS = [
+  '#EF4444', '#F97316', '#F59E0B', '#10B981',
+  '#06B6D4', '#1493FF', '#8B5CF6', '#EC4899',
+  '#92400E', '#0F766E', '#4F46E5', '#64748B',
+];
+const CAT_COLORS_KEY = 'pos_category_colors';
+function getDefaultCatColor(cat: string): string {
+  return CATEGORY_COLORS[cat.toLowerCase()] ?? '#64748B';
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -172,6 +180,8 @@ export default function PosScreen() {
   // ── Product browsing state ────────────────────────────────────────────────
   const [searchText, setSearchText]       = useState('');
   const [selCategory, setSelCategory]     = useState<string>('all');
+  const [customCatColors, setCustomCatColors] = useState<Record<string, string>>({});
+  const [colorPickerCat, setColorPickerCat]   = useState<string | null>(null);
 
   // ── Modals ────────────────────────────────────────────────────────────────
   const [customiseData, setCustomiseData] = useState<{
@@ -206,6 +216,24 @@ export default function PosScreen() {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load persisted category colours
+  useEffect(() => {
+    AsyncStorage.getItem(CAT_COLORS_KEY).then(v => {
+      if (v) try { setCustomCatColors(JSON.parse(v)); } catch {}
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveCatColor = useCallback((cat: string, color: string | null) => {
+    setCustomCatColors(prev => {
+      const next = { ...prev };
+      if (color === null) delete next[cat.toLowerCase()];
+      else next[cat.toLowerCase()] = color;
+      AsyncStorage.setItem(CAT_COLORS_KEY, JSON.stringify(next));
+      return next;
+    });
+    setColorPickerCat(null);
+  }, []);
+
   // ── Data queries ──────────────────────────────────────────────────────────
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['pos-products'],
@@ -235,7 +263,14 @@ export default function PosScreen() {
 
   const categories = useMemo(() => {
     const cats = [...new Set(allProducts.map((p: any) => p.category ?? 'other').filter(Boolean))] as string[];
-    return cats.sort();
+    return cats.sort((a, b) => {
+      const ai = CATEGORY_ORDER.indexOf(a.toLowerCase());
+      const bi = CATEGORY_ORDER.indexOf(b.toLowerCase());
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.localeCompare(b);
+    });
   }, [allProducts]);
 
   const filteredProducts = useMemo(() => {
@@ -584,28 +619,17 @@ export default function PosScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.categoryScroll}
-              contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 4 }}
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}
             >
-              {/* All tile */}
-              <Pressable
-                onPress={() => setSelCategory('all')}
-                style={[
-                  styles.catTile,
-                  selCategory === 'all'
-                    ? { backgroundColor: BLUE, borderColor: BLUE }
-                    : { backgroundColor: `${BLUE}15`, borderColor: `${BLUE}40` },
-                ]}
-              >
-                <Text style={[styles.catTileLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}>All</Text>
-              </Pressable>
-
               {categories.map(cat => {
                 const active = selCategory === cat;
-                const color  = getCatColor(cat);
+                const color  = customCatColors[cat.toLowerCase()] ?? getDefaultCatColor(cat);
                 return (
                   <Pressable
                     key={cat}
                     onPress={() => setSelCategory(cat)}
+                    onLongPress={() => setColorPickerCat(cat)}
+                    delayLongPress={400}
                     style={[
                       styles.catTile,
                       active
@@ -619,6 +643,19 @@ export default function PosScreen() {
                   </Pressable>
                 );
               })}
+
+              {/* "All" tile always at the end */}
+              <Pressable
+                onPress={() => setSelCategory('all')}
+                style={[
+                  styles.catTile,
+                  selCategory === 'all'
+                    ? { backgroundColor: BLUE, borderColor: BLUE }
+                    : { backgroundColor: `${BLUE}15`, borderColor: `${BLUE}40` },
+                ]}
+              >
+                <Text style={[styles.catTileLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}>All</Text>
+              </Pressable>
             </ScrollView>
 
             {loadingProducts ? (
@@ -739,6 +776,44 @@ export default function PosScreen() {
           }}
         />
       )}
+
+      {/* ── Category colour picker ─────────────────────────────────────────── */}
+      <Modal
+        visible={colorPickerCat !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setColorPickerCat(null)}
+      >
+        <Pressable style={styles.cpOverlay} onPress={() => setColorPickerCat(null)}>
+          <Pressable style={styles.cpSheet} onPress={e => e.stopPropagation()}>
+            <Text style={styles.cpTitle}>
+              Choose colour for{' '}
+              <Text style={{ fontWeight: '700' }}>
+                {colorPickerCat ? colorPickerCat.charAt(0).toUpperCase() + colorPickerCat.slice(1) : ''}
+              </Text>
+            </Text>
+            <View style={styles.cpGrid}>
+              {PRESET_COLORS.map(c => (
+                <Pressable
+                  key={c}
+                  onPress={() => colorPickerCat && saveCatColor(colorPickerCat, c)}
+                  style={[
+                    styles.cpSwatch,
+                    { backgroundColor: c },
+                    colorPickerCat && (customCatColors[colorPickerCat.toLowerCase()] ?? getDefaultCatColor(colorPickerCat)) === c && styles.cpSwatchActive,
+                  ]}
+                />
+              ))}
+            </View>
+            <Pressable
+              onPress={() => colorPickerCat && saveCatColor(colorPickerCat, null)}
+              style={styles.cpReset}
+            >
+              <Text style={styles.cpResetText}>Reset to default</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -2085,8 +2160,8 @@ const styles = StyleSheet.create({
   searchRow:          { padding: 12, paddingBottom: 6 },
   searchInputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput:        { flex: 1, fontSize: 15, color: DARK },
-  categoryScroll: { flexGrow: 0, marginBottom: 4 },
-  catTile:        { width: 72, height: 64, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  categoryScroll: { flexGrow: 0, height: 84, marginBottom: 2 },
+  catTile:        { width: 72, height: 68, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   catTileLabel:   { fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 16 },
 
   productCard:        { backgroundColor: WHITE, borderRadius: 10, overflow: 'hidden', margin: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
@@ -2288,4 +2363,14 @@ const styles = StyleSheet.create({
   payDiscountRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16 },
   payDiscountLabel:     { fontSize: 13, fontWeight: '600', color: '#16A34A', flex: 1 },
   payDiscountSaving:    { fontSize: 13, fontWeight: '800', color: '#16A34A' },
+
+  // Category colour picker
+  cpOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' },
+  cpSheet:      { backgroundColor: WHITE, borderRadius: 20, padding: 20, width: 280, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  cpTitle:      { fontSize: 14, color: MID, marginBottom: 16, textAlign: 'center' },
+  cpGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 16 },
+  cpSwatch:     { width: 44, height: 44, borderRadius: 12, borderWidth: 2, borderColor: 'transparent' },
+  cpSwatchActive: { borderColor: DARK, transform: [{ scale: 1.1 }] },
+  cpReset:      { alignItems: 'center', paddingVertical: 8 },
+  cpResetText:  { fontSize: 13, color: MUTED, fontWeight: '600' },
 });
