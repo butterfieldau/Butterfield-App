@@ -2250,7 +2250,7 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.holdOverlay}>
-        <View style={[styles.holdSheet, { maxHeight: screenH * 0.72 }]}>
+        <View style={[styles.holdSheet, { height: screenH * 0.72 }]}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>
               {held.length > 0 ? `${held.length} Order${held.length > 1 ? 's' : ''} on Hold` : 'Held Orders'}
@@ -2351,7 +2351,7 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.settingsOverlay}>
-        <View style={[styles.settingsSheet, { maxHeight: screenH * 0.65 }]}>
+        <View style={[styles.settingsSheet, { height: screenH * 0.65 }]}>
           <View style={styles.sheetHeader}>
             <Pressable onPress={onClose} hitSlop={8} style={{ width: 28 }}>
               <Feather name="x" size={20} color={MID} />
@@ -2660,7 +2660,7 @@ const styles = StyleSheet.create({
 
   // Hold modal
   holdOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  holdSheet:      { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  holdSheet:      { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
   holdEmptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, paddingVertical: 48 },
   holdEmptyTitle: { fontSize: 16, fontWeight: '700', color: DARK },
   holdEmptyText:  { fontSize: 13, color: MUTED, textAlign: 'center', paddingHorizontal: 32 },
@@ -2675,7 +2675,7 @@ const styles = StyleSheet.create({
 
   // Settings modal
   settingsOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  settingsSheet:         { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  settingsSheet:         { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
   settingsSectionTitle:  { fontSize: 15, fontWeight: '700', color: DARK, marginBottom: 4 },
   settingsSectionDesc:   { fontSize: 13, color: MUTED, lineHeight: 18 },
   settingsPresetChip:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F1F5F9', borderRadius: 20, borderWidth: 1, borderColor: BORDER },
