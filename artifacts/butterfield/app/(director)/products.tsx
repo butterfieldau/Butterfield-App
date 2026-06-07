@@ -653,7 +653,7 @@ function ProductModal({
               <SectionHeader title="Access Restrictions" icon="lock" color={MUTED} />
               <Toggle label="Pickup only"           value={f.isPickupOnly}         onChange={v => upd('isPickupOnly', v)}         color={MUTED}  desc="Cannot be delivered" />
               <Toggle label="Staff only visibility" value={f.isStaffOnly}          onChange={v => upd('isStaffOnly', v)}          color={MUTED}  desc="Hidden from public menu" />
-              <Toggle label="App only"              value={f.isAppOnly}            onChange={v => upd('isAppOnly', v)}            color={MUTED}  desc="Not shown on website" />
+              <Toggle label="App only (not in-store)" value={f.isAppOnly}            onChange={v => upd('isAppOnly', v)}            color={MUTED}  desc="Hidden from Shop Display and POS — app orders only" />
             </>}
             {/* TAB 3 — DETAILS: Allergens, dietary, ingredients, IDs */}
             {modalTab === 'details' && <>

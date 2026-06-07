@@ -177,6 +177,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
     minOrderQty:         p.minOrderQty,
     maxOrderQty:         p.maxOrderQty,
     stockCount:          p.stockCount,
+    isAppOnly:           p.isAppOnly,
     sortOrder:           p.sortOrder,
     availableDays:       parseArr(p.availableDays),
     availableTimes:      p.availableTimes,

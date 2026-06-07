@@ -27,6 +27,21 @@ const MUTED    = '#94A3B8';
 const BORDER   = '#E2E8F0';
 const TICKET   = '#FAFBFF';
 
+const CATEGORY_COLORS: Record<string, string> = {
+  cookies:    '#F59E0B',
+  coffee:     '#92400E',
+  desserts:   '#EC4899',
+  cakes:      '#F43F5E',
+  sandwiches: '#10B981',
+  drinks:     '#06B6D4',
+  bundles:    '#8B5CF6',
+  merch:      '#F97316',
+  specials:   '#EF4444',
+};
+function getCatColor(cat: string): string {
+  return CATEGORY_COLORS[cat.toLowerCase()] ?? '#6B7280';
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface SelectedOption {
   groupId: string;
@@ -214,7 +229,8 @@ export default function PosScreen() {
   // ── Filtered products ─────────────────────────────────────────────────────
   const allProducts = useMemo(() => {
     const raw = (productsData as any)?.data ?? [];
-    return raw as any[];
+    // Exclude app-only products — they can't be purchased in-store
+    return (raw as any[]).filter((p: any) => !p.isAppOnly);
   }, [productsData]);
 
   const categories = useMemo(() => {
@@ -568,25 +584,41 @@ export default function PosScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.categoryScroll}
-              contentContainerStyle={{ gap: 6, paddingHorizontal: 12 }}
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 4 }}
             >
+              {/* All tile */}
               <Pressable
                 onPress={() => setSelCategory('all')}
-                style={[styles.catChip, selCategory === 'all' && styles.catChipActive]}
+                style={[
+                  styles.catTile,
+                  selCategory === 'all'
+                    ? { backgroundColor: BLUE, borderColor: BLUE }
+                    : { backgroundColor: `${BLUE}15`, borderColor: `${BLUE}40` },
+                ]}
               >
-                <Text style={[styles.catChipText, selCategory === 'all' && styles.catChipTextActive]}>All</Text>
+                <Text style={[styles.catTileLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}>All</Text>
               </Pressable>
-              {categories.map(cat => (
-                <Pressable
-                  key={cat}
-                  onPress={() => setSelCategory(cat)}
-                  style={[styles.catChip, selCategory === cat && styles.catChipActive]}
-                >
-                  <Text style={[styles.catChipText, selCategory === cat && styles.catChipTextActive]}>
-                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                  </Text>
-                </Pressable>
-              ))}
+
+              {categories.map(cat => {
+                const active = selCategory === cat;
+                const color  = getCatColor(cat);
+                return (
+                  <Pressable
+                    key={cat}
+                    onPress={() => setSelCategory(cat)}
+                    style={[
+                      styles.catTile,
+                      active
+                        ? { backgroundColor: color, borderColor: color }
+                        : { backgroundColor: `${color}18`, borderColor: `${color}45` },
+                    ]}
+                  >
+                    <Text style={[styles.catTileLabel, { color: active ? '#fff' : color }]} numberOfLines={2}>
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
 
             {loadingProducts ? (
@@ -2053,11 +2085,9 @@ const styles = StyleSheet.create({
   searchRow:          { padding: 12, paddingBottom: 6 },
   searchInputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput:        { flex: 1, fontSize: 15, color: DARK },
-  categoryScroll:     { flexGrow: 0, marginBottom: 8 },
-  catChip:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER },
-  catChipActive:      { backgroundColor: BLUE, borderColor: BLUE },
-  catChipText:        { fontSize: 13, fontWeight: '600', color: MID },
-  catChipTextActive:  { color: WHITE },
+  categoryScroll: { flexGrow: 0, marginBottom: 4 },
+  catTile:        { width: 72, height: 64, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  catTileLabel:   { fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 16 },
 
   productCard:        { backgroundColor: WHITE, borderRadius: 10, overflow: 'hidden', margin: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   productCardImage:   { width: '100%', aspectRatio: 1.2, backgroundColor: '#F8FAFC' },
