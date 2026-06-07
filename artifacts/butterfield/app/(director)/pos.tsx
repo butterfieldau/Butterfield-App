@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadCachedPosProducts, savePosProductsCache } from '@/lib/posCache';
 
@@ -166,6 +167,7 @@ const STAMP_GOAL = 6;
 // ── POS Screen ────────────────────────────────────────────────────────────────
 export default function PosScreen() {
   const insets = useSafeAreaInsets();
+  const layoutHandledSafeArea = useLayoutHandledSafeArea();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { user } = useAuth();
@@ -550,7 +552,7 @@ export default function PosScreen() {
   const itemCount = activeTicket.items.reduce((s, i) => s + i.quantity, 0);
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: layoutHandledSafeArea ? 0 : insets.top }]}>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

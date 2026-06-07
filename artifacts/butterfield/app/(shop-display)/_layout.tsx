@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { useShopDisplayAwakeMode } from '@/lib/shopDisplayMode';
+import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
 
@@ -237,7 +238,9 @@ export default function ShopDisplayLayout() {
             syncLabel={syncing ? 'Syncing…' : 'Sync'}
           />
         )}
-        {tabScreens}
+        <LayoutSafeAreaContext.Provider value={isWide}>
+          {tabScreens}
+        </LayoutSafeAreaContext.Provider>
       </View>
     </View>
   );
