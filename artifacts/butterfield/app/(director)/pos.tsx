@@ -632,6 +632,7 @@ export default function PosScreen() {
         {/* ── Product browser ────────────────────────────────────────────── */}
         {(isWide || paneTab === 'menu') && (
           <View style={[styles.menuPane, isWide && { flex: 3 }]}>
+            <View style={styles.categoryScrollWrap}>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -674,6 +675,7 @@ export default function PosScreen() {
                 <Text style={[styles.catTileLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}>All</Text>
               </Pressable>
             </ScrollView>
+            </View>
 
             {loadingProducts ? (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -2190,7 +2192,8 @@ const styles = StyleSheet.create({
   searchRow:          { padding: 12, paddingBottom: 6 },
   searchInputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput:        { flex: 1, fontSize: 15, color: DARK },
-  categoryScroll: { flexGrow: 0, height: 84, marginBottom: 2 },
+  categoryScrollWrap: { height: 84, flexShrink: 0 },
+  categoryScroll: { flex: 1 },
   catTile:        { width: 72, height: 68, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   catTileLabel:   { fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 16 },
 
