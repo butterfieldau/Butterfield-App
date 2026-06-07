@@ -16,7 +16,8 @@ const WHITE = '#FFFFFF';
 const MUTED = '#9CA3AF';
 
 const NAV_ITEMS = [
-  { segment: 'index',     label: 'Orders',      icon: 'shopping-bag' as const },
+  { segment: 'pos',       label: 'POS',          icon: 'monitor'      as const },
+  { segment: 'index',     label: 'Orders',       icon: 'shopping-bag' as const },
   { segment: 'products',  label: 'Products',     icon: 'package'      as const, perm: 'products'  },
   { segment: 'tasks',     label: 'Tasks',        icon: 'check-square' as const },
   { segment: 'clock',     label: 'Clock In/Out', icon: 'clock'        as const },
@@ -73,6 +74,10 @@ export default function ShopDisplayLayout() {
         tabBarLabelStyle: { fontWeight: '700', fontSize: 12, marginBottom: 2 },
       }}
     >
+      <Tabs.Screen
+        name="pos"
+        options={{ title: 'POS', tabBarIcon: ({ color, size }) => <Feather name="monitor" size={size} color={color} /> }}
+      />
       <Tabs.Screen
         name="index"
         options={{ title: 'Orders', tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }}

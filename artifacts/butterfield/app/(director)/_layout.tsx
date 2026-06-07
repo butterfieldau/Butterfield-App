@@ -15,7 +15,6 @@ const NAVY = '#1A2B4A';
 const BG_STAFF = '#EFF6FF';
 
 const STAFF_TAB_CONFIG = {
-  pos:      { icon: 'monitor',      title: 'POS'       },
   index:    { icon: 'home',         title: 'Dashboard' },
   orders:   { icon: 'shopping-bag', title: 'Orders'    },
   products: { icon: 'package',      title: 'Products'  },
@@ -84,7 +83,6 @@ export default function DirectorLayout() {
 
   const visibleRouteNames: string[] = isManager
     ? [
-        'pos',
         'index',
         ...(hasPerm('orders')    ? ['orders']   : []),
         ...(hasPerm('products')  ? ['products'] : []),
@@ -92,8 +90,8 @@ export default function DirectorLayout() {
         'more',
       ]
     : canViewOrders
-      ? ['pos', 'index', 'orders', 'scan', 'staffhub', 'profile']
-      : ['pos', 'index', 'scan', 'staffhub', 'profile'];
+      ? ['index', 'orders', 'scan', 'staffhub', 'profile']
+      : ['index', 'scan', 'staffhub', 'profile'];
 
   const badgeLabel = isStaff   ? 'STAFF'
                    : isManager ? 'STORE MANAGER'
@@ -128,7 +126,7 @@ export default function DirectorLayout() {
             },
           }}
         >
-          <Tabs.Screen name="pos"      options={{ title: 'POS' }} />
+          <Tabs.Screen name="pos"      options={{ title: 'POS', href: null }} />
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
           <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff ? undefined : null }} />
@@ -184,8 +182,7 @@ export default function DirectorLayout() {
           tabBarLabelStyle: { fontWeight: '500', fontSize: 10, marginBottom: 2 },
         }}
       >
-        <Tabs.Screen name="pos"
-          options={{ title: 'POS', tabBarIcon: ({ color, size }) => <Feather name="monitor" size={size} color={color} /> }} />
+        <Tabs.Screen name="pos" options={{ href: null }} />
         <Tabs.Screen name="index"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.index)}
           options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
