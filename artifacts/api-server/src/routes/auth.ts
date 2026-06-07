@@ -447,6 +447,14 @@ router.post('/seed-demo', async (req, res) => {
           contactName: demo.name, phone: '0400000000', status: 'approved',
         });
       }
+    } else if (demo.role === 'director') {
+      // Ensure director has a staff_profiles row with a known settings PIN (1234)
+      const settingsPinHash = await bcrypt.hash('1234', 10);
+      await db.execute(sql`
+        INSERT INTO staff_profiles (user_id, employee_id, position, department, settings_pin_hash)
+        VALUES (${userId}, ${'EMP-' + userId.slice(0,8).toUpperCase()}, 'Director', 'management', ${settingsPinHash})
+        ON CONFLICT (user_id) DO UPDATE SET settings_pin_hash = ${settingsPinHash}
+      `);
     } else if (demo.role === 'manager') {
       await db.insert(managerProfilesTable)
         .values({

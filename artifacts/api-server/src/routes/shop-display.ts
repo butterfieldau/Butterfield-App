@@ -566,7 +566,7 @@ function decryptText(stored: string): string {
   return dec;
 }
 
-// ── Verify settings PIN (uses clock-in PIN, scoped to stores assigned to device)
+// ── Verify settings PIN (director/manager/master PIN, system-wide)
 router.post('/verify-settings-pin', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const { pin } = req.body ?? {};
@@ -574,34 +574,25 @@ router.post('/verify-settings-pin', async (req, res) => {
     return res.status(400).json({ error: 'A 4-digit PIN is required.' });
   }
 
-  // Require this device to have at least one store assigned via staff_store_assignments —
-  // unassigned displays have no organisational context and cannot be unlocked.
-  const storeRows = await db.execute(sql`
-    SELECT store_id FROM staff_store_assignments
-    WHERE staff_id = ${req.user!.id} AND is_active = true LIMIT 10
-  `);
-  const deviceStoreRows = (storeRows as any).rows ?? (storeRows as any) ?? [];
-  if (deviceStoreRows.length === 0) {
-    return res.json({ granted: false, reason: 'No store assigned to this display.' });
-  }
-  const deviceStoreIds: string[] = deviceStoreRows.map((r: any) => r.store_id);
-
-  // Accept only dedicated settings PINs of manager/director/master accounts
-  // who share at least one store assignment with this device.
+  // Accept any director/manager/master — check settings_pin_hash first,
+  // then fall back to clock_pin so directors can use their existing PIN
+  // without needing a separate settings PIN configured.
   const rows = await db.execute(sql`
-    SELECT sp.settings_pin_hash
+    SELECT sp.settings_pin_hash, sp.clock_pin
     FROM staff_profiles sp
     INNER JOIN users u ON u.id = sp.user_id
-    INNER JOIN staff_store_assignments ssa ON ssa.staff_id = sp.user_id AND ssa.is_active = true
     WHERE u.role IN ('manager', 'director', 'master')
-      AND sp.settings_pin_hash IS NOT NULL
-      AND ssa.store_id = ANY(${deviceStoreIds}::text[])
   `);
   const profiles = (rows as any).rows ?? (rows as any) ?? [];
 
   for (const row of profiles) {
-    const valid = await bcrypt.compare(String(pin), row.settings_pin_hash);
-    if (valid) return res.json({ granted: true });
+    if (row.settings_pin_hash) {
+      const valid = await bcrypt.compare(String(pin), row.settings_pin_hash);
+      if (valid) return res.json({ granted: true });
+    } else if (row.clock_pin) {
+      const valid = await bcrypt.compare(String(pin), row.clock_pin);
+      if (valid) return res.json({ granted: true });
+    }
   }
   return res.json({ granted: false });
 });
