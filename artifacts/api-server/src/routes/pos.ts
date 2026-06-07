@@ -251,6 +251,19 @@ router.post('/customers/:id/stamp', async (req, res) => {
   await ensureLoyaltySchemaReady();
 
   const customerId = req.params.id;
+  const { items: ticketItems } = req.body;
+
+  // Server-side validation: require ticket items and at least one coffee item
+  if (!Array.isArray(ticketItems) || ticketItems.length === 0) {
+    return res.status(400).json({ error: 'Ticket items are required to award a stamp' });
+  }
+  const hasCoffeeInTicket = ticketItems.some(
+    (item: any) => String(item.category ?? '').toLowerCase() === 'coffee',
+  );
+  if (!hasCoffeeInTicket) {
+    return res.status(400).json({ error: 'Stamp can only be awarded when a coffee item is in the ticket' });
+  }
+
   const [user] = await db
     .select({ id: usersTable.id })
     .from(usersTable)
@@ -382,6 +395,7 @@ router.post('/orders', async (req, res) => {
   // Tier multiplier map — applied to points earned (not tip or surcharge)
   function getTierMultiplier(tier: string): number {
     switch ((tier ?? '').toLowerCase()) {
+      case 'black':
       case 'platinum': return 2.0;
       case 'gold':     return 1.5;
       case 'silver':   return 1.25;
@@ -537,19 +551,26 @@ router.post('/orders', async (req, res) => {
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
 
-  // ── Points earned: apply tier multiplier + birthday bonus ────────────────
+  // ── Points earned: server-side tier + birthday verification ─────────────
   let tierMultiplierVal = 1.0;
-  let birthdayMultiplierVal = 1.0;
   let earlyLoyaltyTier = 'blue';
+  let birthdayBonusVerified = false;
   if (customerId) {
     try {
       const earlyProfile = await getOrCreateCustomerLoyaltyProfile(customerId);
       earlyLoyaltyTier = earlyProfile.loyaltyTier ?? 'blue';
       tierMultiplierVal = getTierMultiplier(earlyLoyaltyTier);
-      if (birthdayBonus) birthdayMultiplierVal = 2.0;
+      // Server-side birthday check — ignore any client-supplied flag
+      const profileBirthday = (earlyProfile as any).birthday as string | null | undefined;
+      if (profileBirthday) {
+        const bMonth = parseInt((profileBirthday.split('-')[1] ?? '0'), 10) - 1;
+        birthdayBonusVerified = bMonth === new Date().getMonth();
+      }
     } catch { /* fall back to 1× */ }
   }
-  const pointsEarned = Math.floor(baseTotalCents / 100 * tierMultiplierVal * birthdayMultiplierVal);
+  const basePoints = Math.floor(baseTotalCents / 100 * tierMultiplierVal);
+  const birthdayBonusPoints = birthdayBonusVerified ? basePoints : 0;
+  const pointsEarned = basePoints + birthdayBonusPoints;
 
   // Store a human-readable discount label as discount_code
   // For manual % discounts and free coffee we use a descriptive label
@@ -681,16 +702,24 @@ router.post('/orders', async (req, res) => {
     try {
       const profile = await getOrCreateCustomerLoyaltyProfile(customerId);
 
-      const multiplierParts: string[] = [];
-      if (tierMultiplierVal !== 1.0) multiplierParts.push(`${earlyLoyaltyTier} tier ${tierMultiplierVal}×`);
-      if (birthdayBonus) multiplierParts.push('🎂 birthday 2×');
-      const multiplierNote = multiplierParts.length ? ` (${multiplierParts.join(', ')})` : '';
+      // Base points (includes tier multiplier)
+      const tierNote = tierMultiplierVal !== 1.0 ? ` (${earlyLoyaltyTier} tier ${tierMultiplierVal}×)` : '';
       await recordLoyaltyPoints({
         userId: customerId,
-        pointsDelta: pointsEarned,
+        pointsDelta: basePoints,
         orderId,
-        description: `POS order #${orderNumber ?? orderId.slice(0, 8)}${multiplierNote}`,
+        description: `POS order #${orderNumber ?? orderId.slice(0, 8)}${tierNote}`,
       });
+
+      // Birthday bonus — separate transaction so it appears distinctly in history
+      if (birthdayBonusVerified && birthdayBonusPoints > 0) {
+        await recordLoyaltyPoints({
+          userId: customerId,
+          pointsDelta: birthdayBonusPoints,
+          orderId,
+          description: `🎂 Birthday bonus for order #${orderNumber ?? orderId.slice(0, 8)}`,
+        });
+      }
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
 

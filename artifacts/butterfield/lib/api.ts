@@ -839,9 +839,9 @@ export const api = {
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
-    addStamp: (customerId: string) =>
+    addStamp: (customerId: string, items: { category: string }[]) =>
       request<{ data: { stampCount: number; rewardUnlocked: boolean; freeCoffeeRewards: number } }>(
-        `/pos/customers/${customerId}/stamp`, { method: 'POST' }
+        `/pos/customers/${customerId}/stamp`, { method: 'POST', body: JSON.stringify({ items }) }
       ),
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),

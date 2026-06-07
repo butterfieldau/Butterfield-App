@@ -1037,9 +1037,10 @@ function TicketPanel({
   const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
 
-  // Stamp mutation — award one stamp to attached customer
+  // Stamp mutation — award one stamp to attached customer (server validates coffee item present)
   const addStampMutation = useMutation({
-    mutationFn: (customerId: string) => api.pos.addStamp(customerId),
+    mutationFn: ({ customerId, items }: { customerId: string; items: { category: string }[] }) =>
+      api.pos.addStamp(customerId, items),
     onSuccess: (res) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const data = (res as any)?.data ?? {};
@@ -1183,7 +1184,10 @@ function TicketPanel({
               return (
                 <Pressable
                   key={i}
-                  onPress={canTap ? () => addStampMutation.mutate(ticket.customer!.userId) : undefined}
+                  onPress={canTap ? () => addStampMutation.mutate({
+                    customerId: ticket.customer!.userId,
+                    items: ticket.items.map(i => ({ category: i.category })),
+                  }) : undefined}
                   style={[
                     styles.stampCircle,
                     filled && styles.stampCircleFilled,
