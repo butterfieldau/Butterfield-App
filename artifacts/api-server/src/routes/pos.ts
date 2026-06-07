@@ -30,6 +30,9 @@ async function ensurePosSchemaReady() {
         await db.execute(sql.raw(
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS staff_user_id text`
         ));
+        await db.execute(sql.raw(
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method text`
+        ));
       } catch (err) {
         posSchemaReady = null;
         throw err;
@@ -200,12 +203,12 @@ router.post('/orders', async (req, res) => {
   const orderNumber = await generateOrderNumber();
   const pointsEarned = Math.floor(totalCents / 100);
 
-  // Use raw SQL so we can write the new `source` and `staff_user_id` columns
+  // Use raw SQL so we can write the new `source`, `staff_user_id`, and `payment_method` columns
   await db.execute(sql`
     INSERT INTO orders (
       id, order_number, user_id, status, type, notes, total_cents,
       items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
-      stripe_payment_status, source, staff_user_id, created_at, updated_at
+      stripe_payment_status, source, staff_user_id, payment_method, created_at, updated_at
     ) VALUES (
       ${orderId},
       ${orderNumber},
@@ -222,6 +225,7 @@ router.post('/orders', async (req, res) => {
       'paid',
       'pos',
       ${req.user!.id},
+      ${paymentMethod},
       now(),
       now()
     )
@@ -281,6 +285,71 @@ router.post('/orders', async (req, res) => {
     data: { id: orderId, orderNumber, totalCents, paymentMethod, status: 'received' },
     loyaltyResult,
   });
+});
+
+// ── GET /pos/orders — today's POS orders (for history view) ──────────────────
+router.get('/orders', async (req, res) => {
+  await ensurePosSchemaReady();
+
+  const now = new Date();
+  const sydNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const startOfToday = new Date(
+    sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()
+  );
+
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        o.id,
+        o.order_number,
+        o.created_at,
+        o.total_cents,
+        o.status,
+        o.payment_method,
+        o.items,
+        o.notes,
+        u.name AS customer_name,
+        su.name AS staff_name
+      FROM orders o
+      LEFT JOIN users u ON u.id = o.user_id AND o.user_id != o.staff_user_id
+      LEFT JOIN users su ON su.id = o.staff_user_id
+      WHERE o.source = 'pos'
+        AND o.created_at >= ${startOfToday}
+      ORDER BY o.created_at DESC
+      LIMIT 200
+    `);
+
+    const rows = (result.rows ?? result as unknown as any[]) as Array<{
+      id: string;
+      order_number: string;
+      created_at: string;
+      total_cents: string | number;
+      status: string;
+      payment_method: string | null;
+      items: any;
+      notes: string | null;
+      customer_name: string | null;
+      staff_name: string | null;
+    }>;
+
+    return res.json({
+      data: rows.map(r => ({
+        id: r.id,
+        orderNumber: r.order_number,
+        createdAt: r.created_at,
+        totalCents: Number(r.total_cents),
+        status: r.status,
+        paymentMethod: r.payment_method ?? 'eftpos',
+        items: Array.isArray(r.items) ? r.items : (typeof r.items === 'string' ? JSON.parse(r.items) : []),
+        notes: r.notes,
+        customerName: r.customer_name,
+        staffName: r.staff_name,
+      })),
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'GET /pos/orders failed');
+    return res.status(500).json({ error: 'Failed to fetch orders' });
+  }
 });
 
 // ── GET /pos/summary — today's POS sales for this shift/store ─────────────

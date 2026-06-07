@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult } from '@/lib/api';
+import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -145,6 +145,7 @@ export default function PosScreen() {
   } | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [salesOpen, setSalesOpen]         = useState(false);
+  const [showHistory, setShowHistory]     = useState(false);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
 
   // ── Detail cache (product → { variants, optionGroups }) ──────────────────
@@ -391,6 +392,11 @@ export default function PosScreen() {
                 : 'Today'}
             </Text>
           </Pressable>
+          {/* History */}
+          <Pressable onPress={() => setShowHistory(true)} style={styles.headerBtn}>
+            <Feather name="clock" size={16} color={MID} />
+            <Text style={styles.headerBtnText}>History</Text>
+          </Pressable>
           {/* Void last */}
           <Pressable
             onPress={handleVoidLast}
@@ -627,6 +633,18 @@ export default function PosScreen() {
             setShowCustomerModal(false);
           }}
           onClose={() => setShowCustomerModal(false)}
+        />
+      )}
+
+      {/* ── History modal ──────────────────────────────────────────────────── */}
+      {showHistory && (
+        <HistoryModal
+          onClose={() => setShowHistory(false)}
+          onVoidSuccess={(id) => {
+            if (id === lastOrderId) setLastOrderId(null);
+            refetchSummary();
+            queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
+          }}
         />
       )}
     </View>
@@ -1431,6 +1449,313 @@ function CustomerModal({
   );
 }
 
+// ── History Modal ─────────────────────────────────────────────────────────────
+type HistoryFilter = 'all' | 'active' | 'voided';
+
+function HistoryModal({
+  onClose, onVoidSuccess,
+}: {
+  onClose: () => void;
+  onVoidSuccess: (id: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick every 15s so the "Void" window timer refreshes
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const { data, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['pos-history'],
+    queryFn: () => api.pos.orders(),
+    staleTime: 30_000,
+  });
+
+  const allOrders: PosHistoryOrder[] = (data as any)?.data ?? [];
+
+  // Self-contained void mutation so we know exactly which order is being voided
+  const voidMutation = useMutation({
+    mutationFn: (id: string) => api.pos.voidOrder(id),
+    onSuccess: (_, id) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Voided', 'Transaction has been voided.');
+      onVoidSuccess(id);
+      queryClient.invalidateQueries({ queryKey: ['pos-history'] });
+      refetch();
+    },
+    onError: (err: any) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Cannot Void', err?.message ?? 'Order cannot be voided (must be within 5 minutes).');
+    },
+  });
+
+  const totalRevenue = allOrders
+    .filter(o => o.status !== 'cancelled')
+    .reduce((s, o) => s + o.totalCents, 0);
+
+  const filteredOrders = useMemo(() => {
+    if (filter === 'active') return allOrders.filter(o => o.status !== 'cancelled');
+    if (filter === 'voided') return allOrders.filter(o => o.status === 'cancelled');
+    return allOrders;
+  }, [allOrders, filter]);
+
+  const countActive = allOrders.filter(o => o.status !== 'cancelled').length;
+  const countVoided = allOrders.filter(o => o.status === 'cancelled').length;
+
+  const statusColor = (s: string) => {
+    if (s === 'cancelled') return CHERRY;
+    if (s === 'received' || s === 'preparing') return '#F59E0B';
+    return '#16A34A';
+  };
+
+  const statusLabel = (s: string) => {
+    if (s === 'cancelled') return 'Voided';
+    if (s === 'received') return 'Received';
+    if (s === 'preparing') return 'Preparing';
+    if (s === 'ready') return 'Ready';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
+  const fmtTime = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleTimeString('en-AU', {
+        hour: '2-digit', minute: '2-digit', hour12: true,
+        timeZone: 'Australia/Sydney',
+      });
+    } catch { return ''; }
+  };
+
+  const canVoid = (order: PosHistoryOrder) => {
+    if (order.status === 'cancelled') return false;
+    return now - new Date(order.createdAt).getTime() < 5 * 60 * 1000;
+  };
+
+  const handleVoid = (order: PosHistoryOrder) => {
+    Alert.alert(
+      'Void Transaction',
+      `Void order #${order.orderNumber} (${fmtCents(order.totalCents)})?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Void', style: 'destructive',
+          onPress: () => voidMutation.mutate(order.id),
+        },
+      ]
+    );
+  };
+
+  const FILTER_CHIPS: { key: HistoryFilter; label: string; count: number }[] = [
+    { key: 'all',    label: 'All',    count: allOrders.length },
+    { key: 'active', label: 'Active', count: countActive },
+    { key: 'voided', label: 'Voided', count: countVoided },
+  ];
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={styles.customiseRoot}>
+        {/* Header */}
+        <View style={styles.sheetHeader}>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Feather name="x" size={22} color={DARK} />
+          </Pressable>
+          <Text style={styles.sheetTitle}>Sales History</Text>
+          <Pressable onPress={() => refetch()} hitSlop={12} disabled={isRefetching}>
+            <Feather name="refresh-cw" size={18} color={isRefetching ? MUTED : BLUE} />
+          </Pressable>
+        </View>
+
+        {/* Summary bar */}
+        <View style={styles.historySummaryBar}>
+          <View style={styles.historySummaryItem}>
+            <Text style={styles.historySummaryLabel}>Transactions</Text>
+            <Text style={styles.historySummaryValue}>{countActive}</Text>
+          </View>
+          <View style={styles.historySummaryDivider} />
+          <View style={styles.historySummaryItem}>
+            <Text style={styles.historySummaryLabel}>Revenue</Text>
+            <Text style={styles.historySummaryValue}>{fmtCents(totalRevenue)}</Text>
+          </View>
+          <View style={styles.historySummaryDivider} />
+          <View style={styles.historySummaryItem}>
+            <Text style={styles.historySummaryLabel}>Voided</Text>
+            <Text style={[styles.historySummaryValue, { color: CHERRY }]}>{countVoided}</Text>
+          </View>
+        </View>
+
+        {/* Status filter chips */}
+        <View style={styles.historyFilterRow}>
+          {FILTER_CHIPS.map(chip => (
+            <Pressable
+              key={chip.key}
+              onPress={() => setFilter(chip.key)}
+              style={[styles.historyFilterChip, filter === chip.key && styles.historyFilterChipActive]}
+            >
+              <Text style={[styles.historyFilterChipText, filter === chip.key && styles.historyFilterChipTextActive]}>
+                {chip.label}
+              </Text>
+              <View style={[
+                styles.historyFilterCount,
+                filter === chip.key && styles.historyFilterCountActive,
+              ]}>
+                <Text style={[
+                  styles.historyFilterCountText,
+                  filter === chip.key && styles.historyFilterCountTextActive,
+                ]}>
+                  {chip.count}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator color={BLUE} size="large" />
+          </View>
+        ) : filteredOrders.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 32 }}>
+            <Feather name="inbox" size={48} color={MUTED} />
+            <Text style={{ color: MID, fontSize: 16, fontWeight: '600' }}>
+              {allOrders.length === 0 ? 'No transactions today' : `No ${filter} transactions`}
+            </Text>
+            <Text style={{ color: MUTED, textAlign: 'center', fontSize: 14 }}>
+              {allOrders.length === 0
+                ? 'POS sales will appear here as they are completed.'
+                : 'Try a different filter above.'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredOrders}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ padding: 12, gap: 0 }}
+            showsVerticalScrollIndicator={false}
+            onRefresh={refetch}
+            refreshing={isRefetching}
+            renderItem={({ item }) => {
+              const expanded = expandedId === item.id;
+              const voidable = canVoid(item);
+              const isVoiding = voidMutation.isPending && voidMutation.variables === item.id;
+              return (
+                <View style={[
+                  styles.historyRow,
+                  item.status === 'cancelled' && styles.historyRowVoided,
+                ]}>
+                  <Pressable
+                    onPress={() => setExpandedId(expanded ? null : item.id)}
+                    style={styles.historyRowHeader}
+                  >
+                    {/* Left: order # + time */}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={styles.historyOrderNum}>#{item.orderNumber}</Text>
+                        <View style={[styles.historyStatusBadge, { backgroundColor: statusColor(item.status) + '22' }]}>
+                          <Text style={[styles.historyStatusText, { color: statusColor(item.status) }]}>
+                            {statusLabel(item.status)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                        <Feather name="clock" size={11} color={MUTED} />
+                        <Text style={styles.historyMeta}>{fmtTime(item.createdAt)}</Text>
+                        {item.customerName && (
+                          <>
+                            <Text style={styles.historyMetaDot}>·</Text>
+                            <Feather name="user" size={11} color={MUTED} />
+                            <Text style={styles.historyMeta}>{item.customerName}</Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Right: total + payment */}
+                    <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                      <Text style={[
+                        styles.historyTotal,
+                        item.status === 'cancelled' && { color: MUTED, textDecorationLine: 'line-through' },
+                      ]}>
+                        {fmtCents(item.totalCents)}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Feather
+                          name={item.paymentMethod === 'cash' ? 'dollar-sign' : 'credit-card'}
+                          size={12}
+                          color={MUTED}
+                        />
+                        <Text style={styles.historyPayMethod}>
+                          {item.paymentMethod === 'cash' ? 'Cash' : 'EFTPOS'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Feather
+                      name={expanded ? 'chevron-up' : 'chevron-down'}
+                      size={14}
+                      color={MUTED}
+                      style={{ marginLeft: 8 }}
+                    />
+                  </Pressable>
+
+                  {/* Expanded items */}
+                  {expanded && (
+                    <View style={styles.historyItemsSection}>
+                      {item.items.map((li, idx) => (
+                        <View key={idx} style={styles.historyLineItem}>
+                          <Text style={styles.historyLineQty}>{li.quantity}×</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.historyLineName}>
+                              {li.productName}{li.variantName ? ` (${li.variantName})` : ''}
+                            </Text>
+                            {li.notes ? (
+                              <Text style={styles.historyLineNote}>{li.notes}</Text>
+                            ) : null}
+                          </View>
+                          <Text style={styles.historyLinePrice}>{fmtCents(li.unitPriceCents * li.quantity)}</Text>
+                        </View>
+                      ))}
+                      {item.notes && (
+                        <Text style={styles.historyOrderNote}>Note: {item.notes}</Text>
+                      )}
+
+                      {/* Void button */}
+                      {item.status !== 'cancelled' && (
+                        <View style={styles.historyVoidRow}>
+                          {voidable ? (
+                            <TouchableOpacity
+                              onPress={() => handleVoid(item)}
+                              style={styles.historyVoidBtn}
+                              disabled={isVoiding}
+                              activeOpacity={0.8}
+                            >
+                              {isVoiding
+                                ? <ActivityIndicator size="small" color={WHITE} />
+                                : <><Feather name="x-circle" size={14} color={WHITE} />
+                                   <Text style={styles.historyVoidBtnText}>Void Transaction</Text></>
+                              }
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={styles.historyVoidExpired}>
+                              Void window expired (5 min limit)
+                            </Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            }}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root:               { flex: 1, backgroundColor: BG },
@@ -1608,4 +1933,45 @@ const styles = StyleSheet.create({
   customerResultRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   customerAvatar:     { width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center' },
   customerAvatarText: { fontSize: 18, fontWeight: '700', color: WHITE },
+
+  // History modal
+  historySummaryBar:      { flexDirection: 'row', backgroundColor: '#EFF6FF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingVertical: 12 },
+  historySummaryItem:     { flex: 1, alignItems: 'center', gap: 2 },
+  historySummaryLabel:    { fontSize: 11, fontWeight: '500', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
+  historySummaryValue:    { fontSize: 20, fontWeight: '800', color: DARK },
+  historySummaryDivider:  { width: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginVertical: 4 },
+
+  historyRow:             { backgroundColor: WHITE, borderRadius: 12, marginBottom: 8, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  historyRowVoided:       { opacity: 0.65 },
+  historyRowHeader:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
+  historyOrderNum:        { fontSize: 15, fontWeight: '700', color: DARK },
+  historyStatusBadge:     { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+  historyStatusText:      { fontSize: 11, fontWeight: '700' },
+  historyMeta:            { fontSize: 12, color: MUTED },
+  historyMetaDot:         { fontSize: 12, color: MUTED },
+  historyTotal:           { fontSize: 17, fontWeight: '800', color: DARK },
+  historyPayMethod:       { fontSize: 12, color: MUTED, fontWeight: '500' },
+
+  historyItemsSection:    { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#FAFBFF', gap: 6 },
+  historyLineItem:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  historyLineQty:         { fontSize: 13, fontWeight: '700', color: MUTED, minWidth: 24 },
+  historyLineName:        { fontSize: 13, color: DARK, fontWeight: '500', flex: 1 },
+  historyLineNote:        { fontSize: 11, color: BLUE, fontStyle: 'italic', marginTop: 1 },
+  historyLinePrice:       { fontSize: 13, fontWeight: '700', color: DARK },
+  historyOrderNote:       { fontSize: 12, color: MID, fontStyle: 'italic', marginTop: 4, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+
+  historyVoidRow:         { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+  historyVoidBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: CHERRY, borderRadius: 8, paddingVertical: 10 },
+  historyVoidBtnText:     { fontSize: 14, fontWeight: '700', color: WHITE },
+  historyVoidExpired:     { fontSize: 12, color: MUTED, textAlign: 'center', fontStyle: 'italic' },
+
+  historyFilterRow:         { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  historyFilterChip:        { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },
+  historyFilterChipActive:  { backgroundColor: BLUE, borderColor: BLUE },
+  historyFilterChipText:    { fontSize: 13, fontWeight: '600', color: MID },
+  historyFilterChipTextActive: { color: WHITE },
+  historyFilterCount:       { minWidth: 18, height: 18, borderRadius: 9, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  historyFilterCountActive: { backgroundColor: 'rgba(255,255,255,0.3)' },
+  historyFilterCountText:   { fontSize: 10, fontWeight: '700', color: MID },
+  historyFilterCountTextActive: { color: WHITE },
 });

@@ -829,6 +829,7 @@ export const api = {
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
+    orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
   },
 
@@ -873,6 +874,26 @@ export interface PosLoyaltyResult {
   stampsAdded: number;
   newStampCount: number;
   rewardUnlocked: boolean;
+}
+
+export interface PosHistoryOrder {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  totalCents: number;
+  status: string;
+  paymentMethod: string;
+  items: {
+    productName: string;
+    variantName?: string | null;
+    quantity: number;
+    unitPriceCents: number;
+    totalPriceCents: number;
+    notes?: string;
+  }[];
+  notes: string | null;
+  customerName: string | null;
+  staffName: string | null;
 }
 
 export interface StockItem {
