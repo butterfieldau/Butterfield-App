@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { ShopDisplayStaffMember } from '@/lib/api';
+import type { ShopDisplayShiftToday, ShopDisplayStaffMember } from '@/lib/api';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -275,12 +275,38 @@ export default function ShopDisplayClockScreen() {
     refetchInterval: 30000,
   });
 
+  const { data: shiftsData } = useQuery({
+    queryKey: ['shop-display-shifts-today'],
+    queryFn: () => api.shopDisplay.shiftsToday(),
+    refetchInterval: 10000,
+  });
+
   useEffect(() => {
     tickRef.current = setInterval(() => setTick((t) => t + 1), 60000);
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, []);
 
-  const staff: ShopDisplayStaffMember[] = data?.data ?? [];
+  // Merge: staff list from staffAssigned, live clock status from shiftsToday
+  const rawStaff: ShopDisplayStaffMember[] = data?.data ?? [];
+  const todayShifts: ShopDisplayShiftToday[] = shiftsData?.data ?? [];
+
+  const activeShiftByUser = new Map<string, ShopDisplayShiftToday>();
+  for (const shift of todayShifts) {
+    if (shift.isActive) activeShiftByUser.set(shift.userId, shift);
+  }
+
+  const staff: ShopDisplayStaffMember[] = rawStaff.map((member) => {
+    const liveShift = activeShiftByUser.get(member.userId);
+    if (liveShift) {
+      return { ...member, isClockedIn: true, shiftStart: liveShift.clockIn, shiftId: liveShift.shiftId };
+    }
+    const hadActiveShift = todayShifts.some(s => s.userId === member.userId && !s.isActive);
+    if (shiftsData && !liveShift && hadActiveShift) {
+      return { ...member, isClockedIn: false, shiftStart: null, shiftId: null };
+    }
+    return member;
+  });
+
   const clockedIn = staff.filter((s) => s.isClockedIn);
   const clockedOut = staff.filter((s) => !s.isClockedIn);
 
@@ -289,6 +315,7 @@ export default function ShopDisplayClockScreen() {
     setSuccess(result);
     setShowSuccess(true);
     void qc.invalidateQueries({ queryKey: ['shop-display-staff-assigned'] });
+    void qc.invalidateQueries({ queryKey: ['shop-display-shifts-today'] });
   }, [qc]);
 
   const renderStaffCard = (item: ShopDisplayStaffMember) => (

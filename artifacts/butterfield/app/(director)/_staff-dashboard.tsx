@@ -137,6 +137,7 @@ export function StaffDashboard() {
 
   const { data: shiftData, refetch: refetchShift } = useQuery({
     queryKey: ['current-shift'], queryFn: () => api.staff.currentShift(), retry: 1,
+    refetchInterval: 10000,
   });
   const { data: statsData, refetch: refetchStats } = useQuery({
     queryKey: ['staff-shift-stats'], queryFn: () => api.staff.shiftStats(), retry: 1,

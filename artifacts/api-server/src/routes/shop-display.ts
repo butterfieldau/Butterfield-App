@@ -463,34 +463,145 @@ router.get('/staff-assigned', async (req, res) => {
   return res.json({ data });
 });
 
+// ── PIN lockout constants ─────────────────────────────────────────────────
+const PIN_WINDOW_SECS  = 60;
+const PIN_MAX_ATTEMPTS = 5;
+const PIN_LOCKOUT_SECS = 5 * 60;
+
+// ── DB-backed lockout helpers ─────────────────────────────────────────────
+async function checkPinLockout(userId: string): Promise<{ locked: boolean }> {
+  const rows = await db.execute(sql`
+    SELECT locked_until FROM pin_lockouts
+    WHERE user_id = ${userId}
+      AND locked_until IS NOT NULL
+      AND locked_until > now()
+  `);
+  const hits = (rows as any).rows ?? (rows as any) ?? [];
+  return { locked: hits.length > 0 };
+}
+
+async function recordPinFailure(userId: string): Promise<{ nowLocked: boolean }> {
+  // Reset counter if last attempt was outside the window, then increment.
+  await db.execute(sql`
+    INSERT INTO pin_lockouts (user_id, failed_attempts, last_attempt_at, updated_at)
+    VALUES (${userId}, 1, now(), now())
+    ON CONFLICT (user_id) DO UPDATE SET
+      failed_attempts = CASE
+        WHEN pin_lockouts.last_attempt_at < now() - (${PIN_WINDOW_SECS} || ' seconds')::interval
+        THEN 1
+        ELSE pin_lockouts.failed_attempts + 1
+      END,
+      locked_until = CASE
+        WHEN (CASE
+          WHEN pin_lockouts.last_attempt_at < now() - (${PIN_WINDOW_SECS} || ' seconds')::interval
+          THEN 1
+          ELSE pin_lockouts.failed_attempts + 1
+        END) >= ${PIN_MAX_ATTEMPTS}
+        THEN now() + (${PIN_LOCKOUT_SECS} || ' seconds')::interval
+        ELSE NULL
+      END,
+      last_attempt_at = now(),
+      updated_at = now()
+  `);
+
+  const rows = await db.execute(sql`
+    SELECT locked_until FROM pin_lockouts
+    WHERE user_id = ${userId} AND locked_until IS NOT NULL AND locked_until > now()
+  `);
+  const hits = (rows as any).rows ?? (rows as any) ?? [];
+  return { nowLocked: hits.length > 0 };
+}
+
+async function clearPinLockout(userId: string): Promise<void> {
+  await db.execute(sql`
+    UPDATE pin_lockouts
+    SET failed_attempts = 0, locked_until = NULL, last_attempt_at = NULL, updated_at = now()
+    WHERE user_id = ${userId}
+  `);
+}
+
 // ── PIN-based clock in / out ───────────────────────────────────────────────
 router.post('/staff-clock', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const { staffId, pin } = req.body ?? {};
-  if (!staffId || !pin) {
-    return res.status(400).json({ error: 'staffId and pin are required.' });
+  if (!staffId || typeof pin !== 'string' || !/^\d{4}$/.test(pin)) {
+    return res.status(400).json({ error: 'staffId and a 4-digit pin are required.' });
   }
 
-  const [staffUser] = await db.select({ id: usersTable.id, name: usersTable.name })
-    .from(usersTable)
-    .where(and(eq(usersTable.id, staffId), or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager'))));
-  if (!staffUser) return res.status(404).json({ error: 'Staff member not found.' });
-
-  const [profile] = await db.select({ clockPin: staffProfilesTable.clockPin, approvedByAdmin: staffProfilesTable.approvedByAdmin })
-    .from(staffProfilesTable)
-    .where(eq(staffProfilesTable.userId, staffId));
-
-  if (!profile?.clockPin) {
-    return res.status(403).json({ error: 'No PIN set for this staff member.' });
-  }
-  if (!profile.approvedByAdmin) {
-    return res.status(403).json({ error: 'Staff account not approved.' });
+  // DB-backed lockout check — before touching user data
+  const { locked: alreadyLocked } = await checkPinLockout(staffId);
+  if (alreadyLocked) {
+    return res.status(429).json({ error: 'Too many failed attempts. Try again in a few minutes.' });
   }
 
-  const valid = await bcrypt.compare(String(pin), profile.clockPin);
-  if (!valid) {
-    return res.status(401).json({ error: 'Incorrect PIN.' });
+  // Store-scope authorization: target staffId must share a store with this display
+  const displayAssignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  const displayStoreIds = displayAssignments.map((a) => a.storeId);
+
+  if (displayStoreIds.length > 0) {
+    const sharedAssignment = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+      .from(staffStoreAssignmentsTable)
+      .where(and(
+        eq(staffStoreAssignmentsTable.staffId, staffId),
+        eq(staffStoreAssignmentsTable.isActive, true),
+        inArray(staffStoreAssignmentsTable.storeId, displayStoreIds),
+      ))
+      .limit(1);
+    if (sharedAssignment.length === 0) {
+      return res.status(403).json({ error: 'Staff member is not assigned to this store.' });
+    }
   }
+  // If display has no store assignments (setup mode), fall through — no store restriction
+
+  // Fetch user + profile
+  const [[staffUser], [profile]] = await Promise.all([
+    db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+      .from(usersTable)
+      .where(and(eq(usersTable.id, staffId), or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')))),
+    db.select({
+      clockPin: staffProfilesTable.clockPin,
+      approvedByAdmin: staffProfilesTable.approvedByAdmin,
+      isManager: staffProfilesTable.isManager,
+    }).from(staffProfilesTable).where(eq(staffProfilesTable.userId, staffId)),
+  ]);
+
+  // Eligibility: same rule as staff-assigned — must have PIN and be approved OR be a manager
+  const pinHash = profile?.clockPin ?? null;
+  const isEligible = !!staffUser && !!pinHash &&
+    (profile?.approvedByAdmin === true || profile?.isManager === true || staffUser.role === 'manager');
+  const pinValid = isEligible ? await bcrypt.compare(pin, pinHash!) : false;
+
+  if (!pinValid) {
+    // Record each failed attempt + audit log (actor = shop_display device, not target staff)
+    const { nowLocked } = await recordPinFailure(staffId);
+    await recordAuditLog({
+      actor: req.user as any,
+      entityType: 'staff_profile',
+      entityId: staffId,
+      action: nowLocked ? 'clock_pin_lockout' : 'clock_pin_failed',
+      metadata: {
+        targetStaffId: staffId,
+        targetStaffName: staffUser?.name ?? 'unknown',
+        reason: nowLocked
+          ? `Locked after ${PIN_MAX_ATTEMPTS} failed attempts in ${PIN_WINDOW_SECS}s`
+          : 'Failed PIN attempt',
+        lockoutSecs: nowLocked ? PIN_LOCKOUT_SECS : undefined,
+      },
+    });
+    if (nowLocked) {
+      return res.status(429).json({ error: 'Too many failed attempts. Try again in a few minutes.' });
+    }
+    // Generic response — do not reveal whether user/PIN/approval is missing
+    return res.status(401).json({ error: 'Invalid PIN.' });
+  }
+
+  // Success — clear lockout counter
+  await clearPinLockout(staffId);
 
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -511,7 +622,7 @@ router.post('/staff-clock', async (req, res) => {
       .set({ clockOut, hoursWorked })
       .where(eq(staffShiftsTable.id, openShift.id));
 
-    return res.json({ data: { clocked: 'out', name: staffUser.name, shiftId: openShift.id, hoursWorked } });
+    return res.json({ data: { clocked: 'out', name: staffUser!.name, shiftId: openShift.id, hoursWorked } });
   } else {
     const shiftId = randomUUID();
     await db.insert(staffShiftsTable).values({
@@ -519,8 +630,99 @@ router.post('/staff-clock', async (req, res) => {
       userId: staffId,
       clockIn: now,
     });
-    return res.json({ data: { clocked: 'in', name: staffUser.name, shiftId } });
+    return res.json({ data: { clocked: 'in', name: staffUser!.name, shiftId } });
   }
+});
+
+// ── Today's shifts (for real-time sync polling) ────────────────────────────
+router.get('/shifts/today', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+
+  const myAssignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  const storeIds = myAssignments.map((a) => a.storeId);
+
+  let eligibleIds: string[] = [];
+  if (storeIds.length > 0) {
+    const staffAssignments = await db.select({ staffId: staffStoreAssignmentsTable.staffId })
+      .from(staffStoreAssignmentsTable)
+      .where(and(
+        inArray(staffStoreAssignmentsTable.storeId, storeIds),
+        eq(staffStoreAssignmentsTable.isActive, true),
+      ));
+    eligibleIds = [...new Set(staffAssignments.map((a) => a.staffId))];
+    // If this display is store-scoped but no staff are assigned, return nothing
+    if (eligibleIds.length === 0) return res.json({ data: [] });
+  }
+
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Build scoped WHERE — filter by userId AND storeId where possible
+  const shiftWhere = eligibleIds.length > 0
+    ? and(
+        inArray(staffShiftsTable.userId, eligibleIds),
+        gte(staffShiftsTable.clockIn, dayStart),
+        // Also scope by storeId when the shift has one recorded
+        or(isNull(staffShiftsTable.storeId), inArray(staffShiftsTable.storeId, storeIds)),
+      )
+    : gte(staffShiftsTable.clockIn, dayStart); // setup mode: display has no store assignments
+
+  const shiftsQuery = db.select({
+    id: staffShiftsTable.id,
+    userId: staffShiftsTable.userId,
+    clockIn: staffShiftsTable.clockIn,
+    clockOut: staffShiftsTable.clockOut,
+    hoursWorked: staffShiftsTable.hoursWorked,
+    storeId: staffShiftsTable.storeId,
+  }).from(staffShiftsTable).where(shiftWhere);
+
+  const [shifts, profiles, users] = await Promise.all([
+    shiftsQuery,
+    db.select({
+      userId: staffProfilesTable.userId,
+      position: staffProfilesTable.position,
+      employeeId: staffProfilesTable.employeeId,
+      approvedByAdmin: staffProfilesTable.approvedByAdmin,
+      isManager: staffProfilesTable.isManager,
+      clockPin: staffProfilesTable.clockPin,
+    }).from(staffProfilesTable),
+    db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+      .from(usersTable)
+      .where(or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager'))),
+  ]);
+
+  const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
+  const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+
+  const data = shifts
+    .filter((s) => {
+      const p = profileMap[s.userId];
+      const u = userMap[s.userId];
+      return u && p && p.clockPin && (p.approvedByAdmin || p.isManager || u.role === 'manager');
+    })
+    .map((s) => {
+      const u = userMap[s.userId];
+      const p = profileMap[s.userId];
+      return {
+        shiftId: s.id,
+        userId: s.userId,
+        name: u?.name ?? '',
+        position: p?.position ?? '',
+        employeeId: p?.employeeId ?? '',
+        clockIn: s.clockIn.toISOString(),
+        clockOut: s.clockOut ? s.clockOut.toISOString() : null,
+        hoursWorked: s.hoursWorked ?? null,
+        isActive: s.clockOut == null,
+      };
+    })
+    .sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
+
+  return res.json({ data });
 });
 
 // ── In-memory transaction binding (sessionId → orderId + device) ──────────────

@@ -103,5 +103,15 @@ export async function ensureShopDisplaySchemaReady() {
     ADD COLUMN IF NOT EXISTS linkly_terminal_id text;
   `);
 
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS pin_lockouts (
+      user_id text PRIMARY KEY,
+      failed_attempts integer NOT NULL DEFAULT 0,
+      last_attempt_at timestamp,
+      locked_until timestamp,
+      updated_at timestamp NOT NULL DEFAULT now()
+    );
+  `);
+
   ensured = true;
 }

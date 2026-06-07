@@ -227,6 +227,7 @@ export const api = {
     customers:     (search: string) =>
       request<{ data: ShopDisplayCustomer[] }>(`/shop-display/customers?search=${encodeURIComponent(search)}`),
     staffAssigned: () => request<{ data: ShopDisplayStaffMember[] }>('/shop-display/staff-assigned'),
+    shiftsToday:   () => request<{ data: ShopDisplayShiftToday[] }>('/shop-display/shifts/today'),
     staffClock:    (staffId: string, pin: string) =>
       request<{ data: { clocked: 'in' | 'out'; name: string; shiftId: string; hoursWorked?: string } }>(
         '/shop-display/staff-clock', { method: 'POST', body: JSON.stringify({ staffId, pin }) },
@@ -1815,6 +1816,18 @@ export interface ShopDisplayStaffMember {
   isClockedIn: boolean;
   shiftId?: string | null;
   shiftStart?: string | null;
+}
+
+export interface ShopDisplayShiftToday {
+  shiftId: string;
+  userId: string;
+  name: string;
+  position: string;
+  employeeId: string;
+  clockIn: string;
+  clockOut: string | null;
+  hoursWorked: string | null;
+  isActive: boolean;
 }
 
 export interface ShopDisplayCustomer {
