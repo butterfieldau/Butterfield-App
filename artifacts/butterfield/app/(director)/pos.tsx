@@ -16,8 +16,13 @@ import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, 
 import { useAuth } from '@/context/AuthContext';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadCachedPosProducts, savePosProductsCache } from '@/lib/posCache';
+import {
+  loadCachedPosProducts, savePosProductsCache,
+  upsertCustomerCache, searchCustomerCache,
+  type CachedPosCustomer, type OfflineQueueEntry,
+} from '@/lib/posCache';
 import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
+import { OfflineProvider, useOffline } from '@/context/OfflineContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const BG       = '#F0F3F8';
@@ -110,6 +115,7 @@ type OrderType = 'dine_in' | 'takeaway' | 'counter';
 
 interface Ticket {
   id: string;
+  idempotencyKey: string;
   items: TicketItem[];
   customer: AttachedCustomer | null;
   orderType: OrderType;
@@ -137,7 +143,7 @@ interface ProductDetail {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtCents = (c: number) => `$${(c / 100).toFixed(2)}`;
 const uuid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-const blankTicket = (): Ticket => ({ id: uuid(), items: [], customer: null, orderType: 'counter', notes: '', appliedDiscount: null });
+const blankTicket = (): Ticket => ({ id: uuid(), idempotencyKey: uuid(), items: [], customer: null, orderType: 'counter', notes: '', appliedDiscount: null });
 
 function isBirthdayMonth(birthday?: string | null): boolean {
   if (!birthday) return false;
@@ -173,14 +179,15 @@ function buildPosItems(items: TicketItem[]): PosOrderItem[] {
 
 const STAMP_GOAL = 6;
 
-// ── POS Screen ────────────────────────────────────────────────────────────────
-export default function PosScreen() {
+// ── POS Screen (inner, wrapped by OfflineProvider below) ─────────────────────
+function PosScreenInner() {
   const insets = useSafeAreaInsets();
   const layoutHandledSafeArea = useLayoutHandledSafeArea();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { isOnline, pendingCount, syncToast, enqueueOrder } = useOffline();
 
   // ── Ticket state ──────────────────────────────────────────────────────────
   const [tickets, setTickets] = useState<Ticket[]>([blankTicket()]);
@@ -510,6 +517,42 @@ export default function PosScreen() {
   }, [detailCache, addItemToTicket]);
 
   // ── Order submission ──────────────────────────────────────────────────────
+  const activeIdempotencyKey = activeTicket.idempotencyKey;
+
+  const buildOrderPayload = useCallback((vars: {
+    paymentMethod: 'cash' | 'eftpos' | 'split';
+    amountTenderedCents?: number;
+    tipCents?: number;
+    surchargeCents?: number;
+    splitPayments?: { method: string; amountCents: number }[];
+  }) => ({
+    items: buildPosItems(activeTicket.items),
+    orderType: activeTicket.orderType,
+    paymentMethod: (vars.paymentMethod === 'split' ? 'eftpos' : vars.paymentMethod) as 'cash' | 'eftpos',
+    amountTenderedCents: vars.amountTenderedCents,
+    tipCents: vars.tipCents,
+    surchargeCents: vars.surchargeCents,
+    splitPayments: vars.splitPayments,
+    customerId: activeTicket.customer?.userId,
+    notes: activeTicket.notes || undefined,
+    discountCode: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.code : undefined,
+    discountCodeId: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.codeId : undefined,
+    manualDiscountPct: activeTicket.appliedDiscount?.type === 'pct' ? activeTicket.appliedDiscount.pct : undefined,
+    redeemFreeCoffee: activeTicket.appliedDiscount?.type === 'free_coffee' ? true : undefined,
+    claimedRewardId: activeTicket.appliedDiscount?.type === 'claimed_reward' ? activeTicket.appliedDiscount.claimedRewardId : undefined,
+    birthdayBonus: activeTicket.customer ? isBirthdayMonth(activeTicket.customer.birthday) : undefined,
+    idempotencyKey: activeIdempotencyKey,
+  }), [activeTicket, activeIdempotencyKey]);
+
+  const clearActiveTicket = useCallback(() => {
+    setTickets(prev => {
+      if (prev.length === 1) return [blankTicket()];
+      const next = prev.filter((_, i) => i !== activeIdx);
+      return next.length ? next : [blankTicket()];
+    });
+    if (activeIdx > 0) setActiveIdx(0);
+  }, [activeIdx]);
+
   const createOrderMutation = useMutation({
     mutationFn: (vars: {
       paymentMethod: 'cash' | 'eftpos' | 'split';
@@ -517,23 +560,7 @@ export default function PosScreen() {
       tipCents?: number;
       surchargeCents?: number;
       splitPayments?: { method: string; amountCents: number }[];
-    }) => api.pos.createOrder({
-      items: buildPosItems(activeTicket.items),
-      orderType: activeTicket.orderType,
-      paymentMethod: vars.paymentMethod === 'split' ? 'eftpos' : vars.paymentMethod,
-      amountTenderedCents: vars.amountTenderedCents,
-      tipCents: vars.tipCents,
-      surchargeCents: vars.surchargeCents,
-      splitPayments: vars.splitPayments,
-      customerId: activeTicket.customer?.userId,
-      notes: activeTicket.notes || undefined,
-      discountCode: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.code : undefined,
-      discountCodeId: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.codeId : undefined,
-      manualDiscountPct: activeTicket.appliedDiscount?.type === 'pct' ? activeTicket.appliedDiscount.pct : undefined,
-      redeemFreeCoffee: activeTicket.appliedDiscount?.type === 'free_coffee' ? true : undefined,
-      claimedRewardId: activeTicket.appliedDiscount?.type === 'claimed_reward' ? activeTicket.appliedDiscount.claimedRewardId : undefined,
-      birthdayBonus: activeTicket.customer ? isBirthdayMonth(activeTicket.customer.birthday) : undefined,
-    }),
+    }) => api.pos.createOrder(buildOrderPayload(vars)),
     onSuccess: (res, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLastOrderId(res.data.id);
@@ -549,13 +576,7 @@ export default function PosScreen() {
         loyaltyResult: res.loyaltyResult,
       });
       setShowPayment(false);
-      // Clear the active ticket
-      setTickets(prev => {
-        if (prev.length === 1) return [blankTicket()];
-        const next = prev.filter((_, i) => i !== activeIdx);
-        return next.length ? next : [blankTicket()];
-      });
-      if (activeIdx > 0) setActiveIdx(0);
+      clearActiveTicket();
       refetchSummary();
       queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
       // Auto-print receipt if printer is configured and autoPrint is on
@@ -563,9 +584,7 @@ export default function PosScreen() {
       if (store?.autoPrint && store?.printerIp) {
         const job = orderToPrintJob(res.data, store.printerBrand ?? 'epson');
         const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-        sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {
-          // Silent fail — don't interrupt the cashier flow for a print error
-        });
+        sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
       }
     },
     onError: (err: any) => {
@@ -573,6 +592,55 @@ export default function PosScreen() {
       Alert.alert('Order Failed', err?.message ?? 'Could not complete order. Please try again.');
     },
   });
+
+  const handleChargeConfirm = useCallback((params: {
+    method: 'cash' | 'eftpos' | 'split';
+    amountTenderedCents?: number;
+    tipCents: number;
+    surchargeCents: number;
+    splitPayments?: { method: string; amountCents: number }[];
+  }) => {
+    const mutateVars = {
+      paymentMethod: params.method,
+      amountTenderedCents: params.amountTenderedCents,
+      tipCents: params.tipCents,
+      surchargeCents: params.surchargeCents,
+      splitPayments: params.splitPayments,
+    };
+    if (!isOnline) {
+      // Queue order offline
+      const payload = buildOrderPayload(mutateVars);
+      const totalCents = ticketTotal(activeTicket);
+      const entry: OfflineQueueEntry = {
+        idempotencyKey: activeIdempotencyKey,
+        queuedAt: new Date().toISOString(),
+        syncStatus: 'pending',
+        payload: payload as any,
+        totalCents,
+        customerName: activeTicket.customer?.name,
+        itemSummary: activeTicket.items.map(i =>
+          `${i.quantity}× ${i.productName}`).join(', ').slice(0, 80),
+      };
+      enqueueOrder(entry).then(() => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setCompletedOrder({
+          id: 'offline-' + activeIdempotencyKey,
+          orderNumber: 'QUEUED',
+          totalCents,
+          paymentMethod: params.method,
+          amountTenderedCents: params.amountTenderedCents,
+          tipCents: params.tipCents,
+          surchargeCents: params.surchargeCents,
+          splitPayments: params.splitPayments,
+          loyaltyResult: null,
+        });
+        setShowPayment(false);
+        clearActiveTicket();
+      });
+    } else {
+      createOrderMutation.mutate(mutateVars);
+    }
+  }, [isOnline, buildOrderPayload, activeTicket, activeIdempotencyKey, enqueueOrder, createOrderMutation, clearActiveTicket]);
 
   const voidOrderMutation = useMutation({
     mutationFn: (id: string) => api.pos.voidOrder(id),
@@ -605,11 +673,26 @@ export default function PosScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: layoutHandledSafeArea ? 0 : insets.top }]}>
+      {/* ── Sync toast ──────────────────────────────────────────────────────── */}
+      {!!syncToast && (
+        <View style={styles.syncToast}>
+          <Feather name="check-circle" size={14} color={WHITE} />
+          <Text style={styles.syncToastText}>{syncToast}</Text>
+        </View>
+      )}
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Feather name="monitor" size={20} color={BLUE} />
           <Text style={styles.headerTitle}>Point of Sale</Text>
+          {!isOnline && (
+            <View style={styles.offlineBadge}>
+              <Feather name="wifi-off" size={11} color={WHITE} />
+              <Text style={styles.offlineBadgeText}>
+                Offline{pendingCount > 0 ? ` · ${pendingCount} queued` : ''}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
           {/* Sales strip toggle */}
@@ -845,16 +928,9 @@ export default function PosScreen() {
           subtotalCents={subtotal}
           discount={activeTicket.appliedDiscount}
           onClose={() => setShowPayment(false)}
-          onConfirm={(params) => {
-            createOrderMutation.mutate({
-              paymentMethod: params.method,
-              amountTenderedCents: params.amountTenderedCents,
-              tipCents: params.tipCents,
-              surchargeCents: params.surchargeCents,
-              splitPayments: params.splitPayments,
-            });
-          }}
+          onConfirm={handleChargeConfirm}
           loading={createOrderMutation.isPending}
+          isOnline={isOnline}
         />
       )}
 
@@ -874,6 +950,7 @@ export default function PosScreen() {
           onSelect={(c) => {
             updateTicket({ customer: c, appliedDiscount: null });
             setShowCustomerModal(false);
+            upsertCustomerCache(c).catch(() => {});
           }}
           onRemove={() => {
             updateTicket({ customer: null, appliedDiscount: null });
@@ -1688,7 +1765,7 @@ type PaymentConfirmParams = {
 };
 
 function PaymentModal({
-  totalCents, subtotalCents, discount, onClose, onConfirm, loading,
+  totalCents, subtotalCents, discount, onClose, onConfirm, loading, isOnline,
 }: {
   totalCents: number;
   subtotalCents: number;
@@ -1696,9 +1773,10 @@ function PaymentModal({
   onClose: () => void;
   onConfirm: (params: PaymentConfirmParams) => void;
   loading: boolean;
+  isOnline: boolean;
 }) {
   const [step, setStep] = useState<'method' | 'tip' | 'confirm'>('method');
-  const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>('eftpos');
+  const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline ? 'cash' : 'eftpos');
   const [tipCents, setTipCents] = useState(0);
   const [tipMode, setTipMode] = useState<'none' | 'pct' | 'custom'>('none');
   const [customTipDollars, setCustomTipDollars] = useState('');
@@ -1871,19 +1949,33 @@ function PaymentModal({
             {/* ── STEP: method ── */}
             {step === 'method' && (
               <>
+                {!isOnline && (
+                  <View style={styles.offlinePayNotice}>
+                    <Feather name="wifi-off" size={14} color="#92400E" />
+                    <Text style={styles.offlinePayNoticeText}>
+                      No connection — EFTPOS unavailable. Cash only. Order will be queued and synced when back online.
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.sectionTitle}>Payment Method</Text>
                 <View style={styles.methodRow}>
-                  <Pressable onPress={() => setMethod('eftpos')} style={[styles.methodBtn, method === 'eftpos' && styles.methodBtnActive]}>
-                    <Feather name="credit-card" size={18} color={method === 'eftpos' ? WHITE : MID} />
-                    <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }]}>EFTPOS</Text>
+                  <Pressable
+                    onPress={() => !isOnline ? undefined : setMethod('eftpos')}
+                    style={[styles.methodBtn, method === 'eftpos' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
+                  >
+                    <Feather name="credit-card" size={18} color={method === 'eftpos' ? WHITE : !isOnline ? MUTED : MID} />
+                    <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }, !isOnline && { color: MUTED }]}>EFTPOS</Text>
                   </Pressable>
                   <Pressable onPress={() => { setMethod('cash'); setTendered(''); }} style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive]}>
                     <Feather name="dollar-sign" size={18} color={method === 'cash' ? WHITE : MID} />
                     <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
                   </Pressable>
-                  <Pressable onPress={() => setMethod('split')} style={[styles.methodBtn, method === 'split' && styles.methodBtnActive]}>
-                    <Feather name="git-branch" size={16} color={method === 'split' ? WHITE : MID} />
-                    <Text style={[styles.methodBtnText, method === 'split' && { color: WHITE }]}>Split</Text>
+                  <Pressable
+                    onPress={() => !isOnline ? undefined : setMethod('split')}
+                    style={[styles.methodBtn, method === 'split' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
+                  >
+                    <Feather name="git-branch" size={16} color={method === 'split' ? WHITE : !isOnline ? MUTED : MID} />
+                    <Text style={[styles.methodBtnText, method === 'split' && { color: WHITE }, !isOnline && { color: MUTED }]}>Split</Text>
                   </Pressable>
                 </View>
 
@@ -2207,15 +2299,27 @@ function CustomerModal({
   onClose: () => void;
   initialMode?: 'search' | 'scan';
 }) {
+  const { isOnline } = useOffline();
   const [mode, setMode]       = useState<'search' | 'scan'>(initialMode);
   const [query, setQuery]     = useState('');
   const [results, setResults] = useState<PosCustomerResult[]>([]);
+  const [cachedResults, setCachedResults] = useState<CachedPosCustomer[]>([]);
   const [searching, setSearching] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const lastScanAt = useRef<number>(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Load cached customers on mount (used as fallback when offline)
   useEffect(() => {
+    searchCustomerCache('').then(setCachedResults).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline) {
+      // Offline: search local cache
+      searchCustomerCache(query).then(setCachedResults).catch(() => {});
+      return;
+    }
     if (query.trim().length < 2) { setResults([]); return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
@@ -2230,7 +2334,7 @@ function CustomerModal({
       }
     }, 350);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query]);
+  }, [query, isOnline]);
 
   const handleQrScan = useCallback(async ({ data }: { data: string }) => {
     if (!data.startsWith('BUTTERFIELD:')) return;
@@ -2305,11 +2409,17 @@ function CustomerModal({
 
         {mode === 'search' && (
           <View style={{ flex: 1 }}>
+            {!isOnline && (
+              <View style={styles.offlineCacheNotice}>
+                <Feather name="wifi-off" size={13} color="#92400E" />
+                <Text style={styles.offlineCacheNoticeText}>Offline — showing recently seen customers</Text>
+              </View>
+            )}
             <View style={[styles.searchInputWrap, { margin: 12 }]}>
               <Feather name="search" size={16} color={MUTED} style={{ marginRight: 6 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Name, email, phone or referral code…"
+                placeholder={isOnline ? "Name, email, phone or referral code…" : "Search cached customers…"}
                 placeholderTextColor={MUTED}
                 value={query}
                 onChangeText={setQuery}
@@ -2317,37 +2427,69 @@ function CustomerModal({
               />
               {searching && <ActivityIndicator size="small" color={BLUE} />}
             </View>
-            <FlatList
-              data={results}
-              keyExtractor={item => item.userId}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  onPress={() => onSelect({
-                    userId: item.userId, name: item.name, email: item.email,
-                    loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
-                    loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
-                    birthday: item.birthday ?? null,
-                    availableClaimedRewards: item.availableClaimedRewards ?? [],
-                  })}
-                  style={styles.customerResultRow}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.customerAvatar}>
-                    <Text style={styles.customerAvatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.customerName}>{item.name}</Text>
-                    <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts</Text>
-                  </View>
-                  <Feather name="chevron-right" size={16} color={MUTED} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                query.length >= 2 && !searching
-                  ? <Text style={{ textAlign: 'center', color: MUTED, padding: 24 }}>No customers found</Text>
-                  : null
-              }
-            />
+            {isOnline ? (
+              <FlatList
+                data={results}
+                keyExtractor={item => item.userId}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => onSelect({
+                      userId: item.userId, name: item.name, email: item.email,
+                      loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
+                      loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
+                      birthday: item.birthday ?? null,
+                      availableClaimedRewards: item.availableClaimedRewards ?? [],
+                    })}
+                    style={styles.customerResultRow}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.customerAvatar}>
+                      <Text style={styles.customerAvatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.customerName}>{item.name}</Text>
+                      <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts</Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={MUTED} />
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  query.length >= 2 && !searching
+                    ? <Text style={{ textAlign: 'center', color: MUTED, padding: 24 }}>No customers found</Text>
+                    : null
+                }
+              />
+            ) : (
+              <FlatList
+                data={cachedResults}
+                keyExtractor={item => item.userId}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => onSelect({
+                      userId: item.userId, name: item.name, email: item.email,
+                      loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
+                      loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
+                      birthday: item.birthday ?? null,
+                      availableClaimedRewards: item.availableClaimedRewards ?? [],
+                    })}
+                    style={styles.customerResultRow}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.customerAvatar, { backgroundColor: '#D97706' }]}>
+                      <Text style={styles.customerAvatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.customerName}>{item.name}</Text>
+                      <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts (cached)</Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={MUTED} />
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <Text style={{ textAlign: 'center', color: MUTED, padding: 24 }}>No cached customers</Text>
+                }
+              />
+            )}
           </View>
         )}
 
@@ -2385,6 +2527,7 @@ function HistoryModal({
   onVoidSuccess: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const { failedItems, retryItem, dismissItem } = useOffline();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const [now, setNow] = useState(() => Date.now());
@@ -2569,6 +2712,36 @@ function HistoryModal({
             </Pressable>
           ))}
         </View>
+
+        {/* ── Failed sync items section ──────────────────────────────────── */}
+        {failedItems.length > 0 && (
+          <View style={styles.failedSyncSection}>
+            <View style={styles.failedSyncHeader}>
+              <Feather name="alert-circle" size={15} color={CHERRY} />
+              <Text style={styles.failedSyncTitle}>Sync Failed ({failedItems.length})</Text>
+            </View>
+            <Text style={styles.failedSyncSubtitle}>These orders could not be submitted. Retry or dismiss each one.</Text>
+            {failedItems.map(item => (
+              <View key={item.idempotencyKey} style={styles.failedSyncRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.failedSyncItems} numberOfLines={1}>{item.itemSummary || 'Order'}</Text>
+                  <Text style={styles.failedSyncMeta}>
+                    {fmtCents(item.totalCents)}{item.customerName ? ` · ${item.customerName}` : ''}
+                    {item.syncError ? ` · ${item.syncError}` : ''}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Pressable onPress={() => retryItem(item.idempotencyKey)} style={styles.failedSyncRetryBtn}>
+                    <Text style={styles.failedSyncRetryText}>Retry</Text>
+                  </Pressable>
+                  <Pressable onPress={() => dismissItem(item.idempotencyKey)} style={styles.failedSyncDismissBtn}>
+                    <Text style={styles.failedSyncDismissText}>Dismiss</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {isLoading ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -3619,6 +3792,38 @@ const styles = StyleSheet.create({
   cpReset:      { alignItems: 'center', paddingVertical: 8 },
   cpResetText:  { fontSize: 13, color: MUTED, fontWeight: '600' },
 
+  // Offline badge in header
+  offlineBadge:           { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#D97706', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  offlineBadgeText:       { fontSize: 11, fontWeight: '700', color: WHITE },
+
+  // Sync toast (top of screen)
+  syncToast:              { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#16A34A', paddingVertical: 10, paddingHorizontal: 16 },
+  syncToastText:          { fontSize: 13, fontWeight: '700', color: WHITE },
+
+  // Payment modal offline notice
+  offlinePayNotice:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FCD34D' },
+  offlinePayNoticeText:   { flex: 1, fontSize: 13, color: '#92400E', lineHeight: 18 },
+
+  // Disabled method button
+  methodBtnDisabled:      { opacity: 0.4 },
+
+  // Customer modal offline cache notice
+  offlineCacheNotice:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF3C7', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#FCD34D' },
+  offlineCacheNoticeText: { fontSize: 12, color: '#92400E', fontWeight: '600' },
+
+  // History modal — failed sync section
+  failedSyncSection:      { backgroundColor: '#FFF1F2', margin: 12, marginBottom: 0, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FECDD3' },
+  failedSyncHeader:       { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  failedSyncTitle:        { fontSize: 14, fontWeight: '700', color: CHERRY },
+  failedSyncSubtitle:     { fontSize: 12, color: '#9F1239', marginBottom: 10 },
+  failedSyncRow:          { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#FECDD3' },
+  failedSyncItems:        { fontSize: 13, fontWeight: '600', color: DARK },
+  failedSyncMeta:         { fontSize: 12, color: MID, marginTop: 2 },
+  failedSyncRetryBtn:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: BLUE },
+  failedSyncRetryText:    { fontSize: 12, fontWeight: '700', color: WHITE },
+  failedSyncDismissBtn:   { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },
+  failedSyncDismissText:  { fontSize: 12, fontWeight: '700', color: MID },
+
   // PIN gate modal
   pinOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   pinSheet:         { backgroundColor: WHITE, borderRadius: 24, width: '100%', maxWidth: 360, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 12, overflow: 'hidden' },
@@ -3639,3 +3844,12 @@ const styles = StyleSheet.create({
   pinCancel:        { alignItems: 'center', paddingVertical: 16 },
   pinCancelText:    { fontSize: 15, color: MUTED, fontWeight: '600' },
 });
+
+// ── Export (wraps inner screen with OfflineProvider) ──────────────────────────
+export default function PosScreen() {
+  return (
+    <OfflineProvider>
+      <PosScreenInner />
+    </OfflineProvider>
+  );
+}

@@ -40,12 +40,16 @@ export const ordersTable = pgTable("orders", {
   contactPhone: text("contact_phone"),
   contactEmail: text("contact_email"),
   cancelReason: text("cancel_reason"),
+  clientIdempotencyKey: text("client_idempotency_key"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("orders_stripe_payment_intent_id_unique_idx")
     .on(table.stripePaymentIntentId)
     .where(sql`${table.stripePaymentIntentId} IS NOT NULL`),
+  uniqueIndex("orders_client_idempotency_key_unique_idx")
+    .on(table.clientIdempotencyKey)
+    .where(sql`${table.clientIdempotencyKey} IS NOT NULL`),
 ]);
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({

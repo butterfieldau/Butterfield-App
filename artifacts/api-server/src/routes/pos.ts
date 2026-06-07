@@ -478,7 +478,37 @@ router.post('/orders', async (req, res) => {
     claimedRewardId,
     birthdayBonus,
     notes,
+    idempotencyKey,
   } = req.body;
+
+  // ── Idempotency check — return existing order if key already processed ────
+  if (idempotencyKey && typeof idempotencyKey === 'string') {
+    try {
+      const [existing] = await db.execute(sql`
+        SELECT id, order_number, total_cents, payment_method, status
+        FROM orders
+        WHERE client_idempotency_key = ${idempotencyKey}
+        LIMIT 1
+      `);
+      if (existing) {
+        const row = existing as any;
+        req.log.info({ idempotencyKey, orderId: row.id }, 'POS idempotent order returned');
+        return res.status(200).json({
+          data: {
+            id: row.id,
+            orderNumber: row.order_number,
+            totalCents: row.total_cents,
+            paymentMethod: row.payment_method,
+            status: row.status,
+          },
+          loyaltyResult: null,
+          idempotent: true,
+        });
+      }
+    } catch (err: any) {
+      req.log.warn({ err, idempotencyKey }, 'POS idempotency check failed — continuing');
+    }
+  }
 
   // Tier multiplier map — applied to points earned (not tip or surcharge)
   function getTierMultiplier(tier: string): number {
@@ -680,6 +710,7 @@ router.post('/orders', async (req, res) => {
           items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
           stripe_payment_status, source, staff_user_id, payment_method,
           tip_cents, surcharge_cents, split_payments,
+          client_idempotency_key,
           created_at, updated_at
         ) VALUES (
           ${orderId},
@@ -701,6 +732,7 @@ router.post('/orders', async (req, res) => {
           ${tipCents},
           ${surchargeCents},
           ${splitPayments ? JSON.stringify(splitPayments) : null}::jsonb,
+          ${idempotencyKey && typeof idempotencyKey === 'string' ? idempotencyKey : null},
           now(),
           now()
         )

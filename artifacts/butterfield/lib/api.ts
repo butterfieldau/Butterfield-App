@@ -852,6 +852,7 @@ export const api = {
       claimedRewardId?: string;
       birthdayBonus?: boolean;
       notes?: string;
+      idempotencyKey?: string;
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
