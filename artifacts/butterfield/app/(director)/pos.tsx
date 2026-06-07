@@ -202,6 +202,13 @@ export default function PosScreen() {
   const [showHistory, setShowHistory]     = useState(false);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
 
+  // ── Product list ref (scroll-to-top on category change) ──────────────────
+  const productListRef = useRef<any>(null);
+
+  useEffect(() => {
+    productListRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [selCategory]);
+
   // ── Detail cache (product → { variants, optionGroups }) ──────────────────
   const [detailCache, setDetailCache] = useState<Record<string, ProductDetail>>({});
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
@@ -674,6 +681,7 @@ export default function PosScreen() {
               </View>
             ) : (
               <FlatList
+                ref={productListRef}
                 data={filteredProducts}
                 keyExtractor={item => item.id}
                 numColumns={isWide ? 3 : 2}
