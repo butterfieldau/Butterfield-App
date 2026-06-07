@@ -467,7 +467,6 @@ router.post('/orders', async (req, res) => {
     orderType,
     paymentMethod,
     amountTenderedCents,
-    tipCents: rawTipCents,
     surchargeCents: rawSurchargeCents,
     splitPayments: rawSplitPayments,
     customerId,
@@ -660,11 +659,11 @@ router.post('/orders', async (req, res) => {
   discountAmountCents = Math.min(discountAmountCents, subtotalCents);
   const baseTotalCents = Math.max(0, subtotalCents - discountAmountCents);
 
-  // Clamp tip and surcharge to reasonable values
-  const tipCents = Math.max(0, Math.floor(Number(rawTipCents) || 0));
+  // Tip feature removed — always 0 (column retained for historical order data)
+  const tipCents = 0;
   const surchargeCents = Math.max(0, Math.floor(Number(rawSurchargeCents) || 0));
   const splitPayments = Array.isArray(rawSplitPayments) ? rawSplitPayments : null;
-  const totalCents = baseTotalCents + tipCents + surchargeCents;
+  const totalCents = baseTotalCents + surchargeCents;
 
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();

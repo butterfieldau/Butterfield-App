@@ -213,7 +213,6 @@ function PosScreenInner() {
     id: string; orderNumber: string; totalCents: number;
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
-    tipCents?: number;
     surchargeCents?: number;
     splitPayments?: { method: string; amountCents: number }[];
     loyaltyResult: PosLoyaltyResult | null;
@@ -522,7 +521,6 @@ function PosScreenInner() {
   const buildOrderPayload = useCallback((vars: {
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
-    tipCents?: number;
     surchargeCents?: number;
     splitPayments?: { method: string; amountCents: number }[];
   }) => ({
@@ -530,7 +528,6 @@ function PosScreenInner() {
     orderType: activeTicket.orderType,
     paymentMethod: (vars.paymentMethod === 'split' ? 'eftpos' : vars.paymentMethod) as 'cash' | 'eftpos',
     amountTenderedCents: vars.amountTenderedCents,
-    tipCents: vars.tipCents,
     surchargeCents: vars.surchargeCents,
     splitPayments: vars.splitPayments,
     customerId: activeTicket.customer?.userId,
@@ -557,7 +554,6 @@ function PosScreenInner() {
     mutationFn: (vars: {
       paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
-      tipCents?: number;
       surchargeCents?: number;
       splitPayments?: { method: string; amountCents: number }[];
     }) => api.pos.createOrder(buildOrderPayload(vars)),
@@ -570,7 +566,6 @@ function PosScreenInner() {
         totalCents: res.data.totalCents,
         paymentMethod: vars.paymentMethod,
         amountTenderedCents: vars.amountTenderedCents,
-        tipCents: vars.tipCents,
         surchargeCents: vars.surchargeCents,
         splitPayments: vars.splitPayments,
         loyaltyResult: res.loyaltyResult,
@@ -596,14 +591,12 @@ function PosScreenInner() {
   const handleChargeConfirm = useCallback((params: {
     method: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
-    tipCents: number;
     surchargeCents: number;
     splitPayments?: { method: string; amountCents: number }[];
   }) => {
     const mutateVars = {
       paymentMethod: params.method,
       amountTenderedCents: params.amountTenderedCents,
-      tipCents: params.tipCents,
       surchargeCents: params.surchargeCents,
       splitPayments: params.splitPayments,
     };
@@ -629,7 +622,6 @@ function PosScreenInner() {
           totalCents,
           paymentMethod: params.method,
           amountTenderedCents: params.amountTenderedCents,
-          tipCents: params.tipCents,
           surchargeCents: params.surchargeCents,
           splitPayments: params.splitPayments,
           loyaltyResult: null,
@@ -1755,11 +1747,10 @@ function CustomiseModal({ data, onClose, onAdd }: {
   );
 }
 
-// ── Payment Modal (multi-step: method → tip → confirm) ──────────────────────
+// ── Payment Modal (method → confirm) ────────────────────────────────────────
 type PaymentConfirmParams = {
   method: 'cash' | 'eftpos' | 'split';
   amountTenderedCents?: number;
-  tipCents: number;
   surchargeCents: number;
   splitPayments?: { method: string; amountCents: number }[];
 };
@@ -1775,11 +1766,8 @@ function PaymentModal({
   loading: boolean;
   isOnline: boolean;
 }) {
-  const [step, setStep] = useState<'method' | 'tip' | 'confirm'>('method');
+  const [step, setStep] = useState<'method' | 'confirm'>('method');
   const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline ? 'cash' : 'eftpos');
-  const [tipCents, setTipCents] = useState(0);
-  const [tipMode, setTipMode] = useState<'none' | 'pct' | 'custom'>('none');
-  const [customTipDollars, setCustomTipDollars] = useState('');
   const [tendered, setTendered] = useState('');
   const [splitCashDollars, setSplitCashDollars] = useState('');
 
@@ -1815,7 +1803,7 @@ function PaymentModal({
     }, 0),
   [applicableSurcharges, totalCents]);
 
-  const chargeTotalCents = totalCents + tipCents + computedSurchargeCents;
+  const chargeTotalCents = totalCents + computedSurchargeCents;
   const splitCashCents = Math.max(0, Math.round(parseFloat(splitCashDollars || '0') * 100));
   const splitEftposCents = Math.max(0, chargeTotalCents - splitCashCents);
   const tenderedCents = Math.round(parseFloat(tendered || '0') * 100);
@@ -1831,21 +1819,6 @@ function PaymentModal({
     if (val === 'backspace') setter(current.slice(0, -1));
     else if (val === '.') { if (!current.includes('.')) setter(current + '.'); }
     else { const next = current + val; if (!isNaN(parseFloat(next)) || next === '.') setter(next); }
-  };
-
-  const handleTipPct = (pct: number) => {
-    const cents = Math.round(totalCents * pct / 100);
-    setTipCents(cents);
-    setTipMode(pct === 0 ? 'none' : 'pct');
-    setCustomTipDollars('');
-    setStep('confirm');
-  };
-
-  const handleCustomTipConfirm = () => {
-    const cents = Math.max(0, Math.round(parseFloat(customTipDollars || '0') * 100));
-    setTipCents(cents);
-    setTipMode('custom');
-    setStep('confirm');
   };
 
   const handleLinklyInitiate = async () => {
@@ -1868,7 +1841,7 @@ function PaymentModal({
             linklyPollRef.current = null;
             if (pd.approved) {
               setLinklyStep('approved');
-              onConfirm({ method: 'eftpos', tipCents, surchargeCents: computedSurchargeCents });
+              onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents });
             } else {
               setLinklyStep('declined');
             }
@@ -1892,16 +1865,15 @@ function PaymentModal({
 
   const handleConfirm = () => {
     if (method === 'cash') {
-      onConfirm({ method: 'cash', amountTenderedCents: tenderedCents, tipCents, surchargeCents: computedSurchargeCents });
+      onConfirm({ method: 'cash', amountTenderedCents: tenderedCents, surchargeCents: computedSurchargeCents });
     } else if (method === 'eftpos') {
       handleLinklyInitiate().catch(() => {
-        onConfirm({ method: 'eftpos', tipCents, surchargeCents: computedSurchargeCents });
+        onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents });
       });
     } else if (method === 'split') {
       onConfirm({
         method: 'split',
         amountTenderedCents: splitCashCents,
-        tipCents,
         surchargeCents: computedSurchargeCents,
         splitPayments: [
           { method: 'cash', amountCents: splitCashCents },
@@ -1927,7 +1899,7 @@ function PaymentModal({
               <Feather name={isLinklyBusy ? 'arrow-left' : 'x'} size={22} color={DARK} />
             </Pressable>
             <Text style={styles.sheetTitle}>
-              {step === 'method' ? 'Payment' : step === 'tip' ? 'Add a Tip?' : 'Confirm Payment'}
+              {step === 'method' ? 'Payment' : 'Confirm Payment'}
             </Text>
             <View style={{ width: 22 }} />
           </View>
@@ -2002,42 +1974,6 @@ function PaymentModal({
               </>
             )}
 
-            {/* ── STEP: tip ── */}
-            {step === 'tip' && (
-              <View>
-                <Text style={[styles.sectionTitle, { textAlign: 'center', marginBottom: 20 }]}>Would you like to add a tip?</Text>
-                <View style={{ gap: 10 }}>
-                  {[0, 10, 15, 20].map(pct => (
-                    <TouchableOpacity key={pct} onPress={() => handleTipPct(pct)} style={[styles.tipOption, tipMode === 'pct' && Math.round(totalCents * pct / 100) === tipCents && pct > 0 && styles.tipOptionActive]} activeOpacity={0.75}>
-                      <Text style={[styles.tipOptionLabel, tipMode === 'pct' && Math.round(totalCents * pct / 100) === tipCents && pct > 0 && styles.tipOptionLabelActive]}>
-                        {pct === 0 ? 'No tip' : `${pct}%`}
-                      </Text>
-                      {pct > 0 && <Text style={[styles.tipOptionAmount, tipMode === 'pct' && Math.round(totalCents * pct / 100) === tipCents && styles.tipOptionAmountActive]}>{fmtCents(Math.round(totalCents * pct / 100))}</Text>}
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity onPress={() => setTipMode('custom')} style={[styles.tipOption, tipMode === 'custom' && styles.tipOptionActive]} activeOpacity={0.75}>
-                    <Text style={[styles.tipOptionLabel, tipMode === 'custom' && styles.tipOptionLabelActive]}>Custom amount</Text>
-                    {tipMode === 'custom' && tipCents > 0 && <Text style={[styles.tipOptionAmount, styles.tipOptionAmountActive]}>{fmtCents(tipCents)}</Text>}
-                  </TouchableOpacity>
-                </View>
-                {tipMode === 'custom' && (
-                  <View style={{ marginTop: 16, gap: 8 }}>
-                    <View style={styles.tenderedDisplay}><Text style={styles.tenderedText}>${customTipDollars || '0'}</Text></View>
-                    <View style={styles.numpad}>
-                      {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
-                        <Pressable key={k} onPress={() => handleKeypad(k, setCustomTipDollars, customTipDollars)} style={styles.numpadKey}>
-                          {k === 'backspace' ? <Feather name="delete" size={20} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
-                        </Pressable>
-                      ))}
-                    </View>
-                    <TouchableOpacity onPress={handleCustomTipConfirm} style={styles.addToOrderBtn} activeOpacity={0.85}>
-                      <Text style={styles.addToOrderBtnText}>Confirm Tip</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            )}
-
             {/* ── STEP: confirm ── */}
             {step === 'confirm' && (
               <View>
@@ -2047,12 +1983,6 @@ function PaymentModal({
                     <Text style={styles.payBreakdownLabel}>Subtotal</Text>
                     <Text style={styles.payBreakdownValue}>{fmtCents(totalCents)}</Text>
                   </View>
-                  {tipCents > 0 && (
-                    <View style={styles.payBreakdownRow}>
-                      <Text style={styles.payBreakdownLabel}>Tip</Text>
-                      <Text style={[styles.payBreakdownValue, { color: '#16A34A' }]}>+{fmtCents(tipCents)}</Text>
-                    </View>
-                  )}
                   {applicableSurcharges.map(s => {
                     const amt = s.amountType === 'pct_basis_points' ? Math.round(totalCents * s.amountValue / 10000) : s.amountValue;
                     return (
@@ -2181,13 +2111,8 @@ function PaymentModal({
 
           <View style={styles.sheetFooter}>
             {step === 'method' && (
-              <TouchableOpacity onPress={() => setStep('tip')} style={styles.addToOrderBtn} activeOpacity={0.85}>
-                <Text style={styles.addToOrderBtnText}>Next: Add Tip →</Text>
-              </TouchableOpacity>
-            )}
-            {step === 'tip' && tipMode !== 'custom' && (
-              <TouchableOpacity onPress={() => { setTipCents(0); setTipMode('none'); setStep('confirm'); }} style={[styles.addToOrderBtn, { backgroundColor: MID }]} activeOpacity={0.85}>
-                <Text style={styles.addToOrderBtnText}>Skip Tip</Text>
+              <TouchableOpacity onPress={() => setStep('confirm')} style={styles.addToOrderBtn} activeOpacity={0.85}>
+                <Text style={styles.addToOrderBtnText}>Next: Confirm →</Text>
               </TouchableOpacity>
             )}
             {step === 'confirm' && (
@@ -2225,7 +2150,6 @@ function OrderCompleteModal({ order, onClose }: {
     id: string; orderNumber: string; totalCents: number;
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
-    tipCents?: number;
     surchargeCents?: number;
     splitPayments?: { method: string; amountCents: number }[];
     loyaltyResult: PosLoyaltyResult | null;
@@ -2852,15 +2776,9 @@ function HistoryModal({
                         <Text style={styles.historyOrderNote}>Note: {item.notes}</Text>
                       )}
 
-                      {/* Tip / surcharge / split breakdown */}
-                      {(item.tipCents > 0 || item.surchargeCents > 0 || item.splitPayments) && (
+                      {/* Surcharge / split breakdown */}
+                      {(item.surchargeCents > 0 || item.splitPayments) && (
                         <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, gap: 4 }}>
-                          {item.tipCents > 0 && (
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                              <Text style={styles.historyLineNote}>Tip</Text>
-                              <Text style={[styles.historyLineNote, { color: '#16A34A' }]}>+{fmtCents(item.tipCents)}</Text>
-                            </View>
-                          )}
                           {item.surchargeCents > 0 && (
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                               <Text style={styles.historyLineNote}>Surcharge</Text>

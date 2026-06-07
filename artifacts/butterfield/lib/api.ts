@@ -841,7 +841,6 @@ export const api = {
       orderType: 'dine_in' | 'takeaway' | 'counter';
       paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
-      tipCents?: number;
       surchargeCents?: number;
       splitPayments?: { method: string; amountCents: number }[];
       customerId?: string;
@@ -955,7 +954,6 @@ export interface PosHistoryOrder {
     notes?: string;
   }[];
   notes: string | null;
-  tipCents: number;
   surchargeCents: number;
   discountCents: number;
   splitPayments: { method: string; amountCents: number }[] | null;
