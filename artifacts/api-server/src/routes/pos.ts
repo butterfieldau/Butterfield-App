@@ -286,27 +286,60 @@ router.post('/customers/:id/stamp', async (req, res) => {
     return res.status(400).json({ error: 'Stamp can only be awarded when a coffee item is in the ticket' });
   }
 
-  // Cross-validate coffee item productIds against the Stripe product catalog
-  // to prevent fabricated client payloads from minting stamps
+  // Cross-validate coffee item productIds against the internal product catalog
+  // to prevent fabricated client payloads from minting stamps with unknown products
   const coffeeProductIds = coffeeItems
     .map((i: any) => i.productId)
     .filter((id: any) => typeof id === 'string' && id.trim());
   if (coffeeProductIds.length > 0) {
     try {
-      const catalogCheck = await db.execute(sql`
-        SELECT id FROM stripe.products
-        WHERE id = ANY(${coffeeProductIds})
-          AND raw_data->'metadata'->>'category' ILIKE 'coffee'
-        LIMIT 1
-      `);
-      const verified = ((catalogCheck as any).rows ?? catalogCheck as unknown as any[]) as any[];
+      const verified = await db
+        .select({ id: productsTable.id })
+        .from(productsTable)
+        .where(
+          and(
+            inArray(productsTable.id, coffeeProductIds),
+            sql`${productsTable.category} ILIKE 'coffee'`,
+          ),
+        )
+        .limit(1);
       if (verified.length === 0) {
-        return res.status(400).json({ error: 'Coffee product not found in catalog' });
+        return res.status(400).json({ error: 'No verified coffee product found in catalog' });
       }
     } catch (catalogErr: any) {
-      req.log.warn({ catalogErr }, 'Stripe product catalog check failed — proceeding with category-only validation');
+      req.log.warn({ catalogErr }, 'Product catalog check failed — proceeding with category-only validation');
     }
   }
+
+  // Enforce per-ticket stamp cap: client sends coffeeItemCount (sum of coffee item quantities)
+  // so the server can reject over-tapping beyond what was actually ordered
+  const { coffeeItemCount } = req.body;
+  const maxStampsThisTicket = Number.isFinite(Number(coffeeItemCount)) && Number(coffeeItemCount) > 0
+    ? Math.floor(Number(coffeeItemCount))
+    : coffeeItems.length;
+
+  // Count stamps already awarded by this staff member to this customer in the last 10 minutes
+  // (approximates per-ticket idempotency without requiring server-side ticket state)
+  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+  const recentRows = await db
+    .select({ total: sql<number>`COALESCE(SUM(${loyaltyActivityLogTable.coffeeStampsDelta}), 0)` })
+    .from(loyaltyActivityLogTable)
+    .where(
+      and(
+        eq(loyaltyActivityLogTable.customerId, customerId),
+        eq(loyaltyActivityLogTable.staffId, req.user!.id),
+        sql`${loyaltyActivityLogTable.coffeeStampsDelta} > 0`,
+        sql`${loyaltyActivityLogTable.createdAt} >= ${tenMinAgo}`,
+      ),
+    );
+  const recentStamps = Number((recentRows[0] as any)?.total ?? 0);
+  if (recentStamps >= maxStampsThisTicket) {
+    return res.status(400).json({
+      error: `Maximum ${maxStampsThisTicket} stamp(s) allowed for this order (${recentStamps} already awarded)`,
+    });
+  }
+
+  req.log.info({ customerId, coffeeItemCount: maxStampsThisTicket, recentStamps }, 'POS manual stamp award');
 
   const [user] = await db
     .select({ id: usersTable.id })

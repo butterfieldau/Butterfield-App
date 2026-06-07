@@ -1035,12 +1035,23 @@ function TicketPanel({
 
   // Determine if customer has free coffee rewards and order has coffee items
   const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
+  // Total coffee quantity in this ticket (e.g. 2× flat white = coffeeCount 2)
+  const coffeeCount = ticket.items
+    .filter(i => i.category.toLowerCase() === 'coffee')
+    .reduce((sum, i) => sum + (i.quantity ?? 1), 0);
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
+
+  // Track stamp count at the moment the current customer was attached.
+  // Resets when customer identity changes so stampsAwardedThisTicket is relative to attachment.
+  const initialStampRef = React.useRef<number>(ticket.customer?.stampCount ?? 0);
+  React.useEffect(() => {
+    initialStampRef.current = ticket.customer?.stampCount ?? 0;
+  }, [ticket.customer?.userId]);
 
   // Stamp mutation — award one stamp to attached customer (server validates coffee item present)
   const addStampMutation = useMutation({
-    mutationFn: ({ customerId, items }: { customerId: string; items: { category: string }[] }) =>
-      api.pos.addStamp(customerId, items),
+    mutationFn: ({ customerId, items, coffeeItemCount }: { customerId: string; items: { category: string; productId?: string }[]; coffeeItemCount: number }) =>
+      api.pos.addStamp(customerId, items, coffeeItemCount),
     onSuccess: (res) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const data = (res as any)?.data ?? {};
@@ -1180,13 +1191,17 @@ function TicketPanel({
             {Array.from({ length: STAMP_GOAL }).map((_, i) => {
               const filled = i < (ticket.customer?.stampCount ?? 0);
               const isNext = i === (ticket.customer?.stampCount ?? 0);
-              const canTap = isNext && hasCoffeeItems && !addStampMutation.isPending;
+              // Stamps awarded this ticket = current count minus count at customer attachment
+              const stampsAwardedThisTicket = (ticket.customer?.stampCount ?? 0) - initialStampRef.current;
+              // Can only tap the next circle if: coffee in ticket AND haven't exceeded coffee quantity cap
+              const canTap = isNext && coffeeCount > 0 && stampsAwardedThisTicket < coffeeCount && !addStampMutation.isPending;
               return (
                 <Pressable
                   key={i}
                   onPress={canTap ? () => addStampMutation.mutate({
                     customerId: ticket.customer!.userId,
                     items: ticket.items.map(i => ({ category: i.category, productId: i.productId })),
+                    coffeeItemCount: coffeeCount,
                   }) : undefined}
                   style={[
                     styles.stampCircle,
