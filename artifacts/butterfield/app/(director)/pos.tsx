@@ -2249,8 +2249,8 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.holdOverlay}>
-        <View style={[styles.holdSheet, { height: screenH * 0.72 }]}>
+      <Pressable style={styles.holdOverlay} onPress={onClose}>
+        <Pressable style={[styles.holdSheet, { height: screenH * 0.72 }]} onPress={() => {}}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>
               {held.length > 0 ? `${held.length} Order${held.length > 1 ? 's' : ''} on Hold` : 'Held Orders'}
@@ -2313,8 +2313,8 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
               })}
             </ScrollView>
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -2350,8 +2350,8 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.settingsOverlay}>
-        <View style={[styles.settingsSheet, { height: screenH * 0.65 }]}>
+      <Pressable style={styles.settingsOverlay} onPress={onClose}>
+        <Pressable style={[styles.settingsSheet, { height: screenH * 0.65 }]} onPress={() => {}}>
           <View style={styles.sheetHeader}>
             <Pressable onPress={onClose} hitSlop={8} style={{ width: 28 }}>
               <Feather name="x" size={20} color={MID} />
@@ -2404,8 +2404,8 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
               <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{inputError}</Text>
             ) : null}
           </ScrollView>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
