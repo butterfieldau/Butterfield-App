@@ -279,7 +279,12 @@ export default function PosScreen() {
   }, []);
 
   // ── Data queries ──────────────────────────────────────────────────────────
-  const { data: productsData, isLoading: loadingProducts } = useQuery({
+  const {
+    data: productsData,
+    isLoading: loadingProducts,
+    isFetching: syncingProducts,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: ['pos-products'],
     queryFn: async () => {
       const res = await api.products.list();
@@ -288,7 +293,7 @@ export default function PosScreen() {
       }
       return res;
     },
-    staleTime: Infinity,   // never auto-refetch; only syncs on demand or at 4am
+    staleTime: Infinity,   // never auto-refetch; only syncs on demand
     enabled: cacheReady,   // wait until AsyncStorage check completes
   });
 
@@ -575,21 +580,20 @@ export default function PosScreen() {
                 : ''}
             </Text>
           </Pressable>
-          {/* Void last */}
-          <Pressable
-            onPress={handleVoidLast}
-            style={[styles.headerBtn, !lastOrderId && { opacity: 0.4 }]}
-            disabled={!lastOrderId || voidOrderMutation.isPending}
-          >
-            <Feather name="x-circle" size={16} color={CHERRY} />
-            <Text style={[styles.headerBtnText, { color: CHERRY }]}>Void</Text>
-          </Pressable>
           {/* Search toggle */}
           <Pressable
             onPress={() => { setShowSearch(v => !v); }}
             style={[styles.headerBtn, showSearch && { backgroundColor: `${BLUE}20` }]}
           >
             <Feather name="search" size={16} color={showSearch ? BLUE : MID} />
+          </Pressable>
+          {/* Sync products */}
+          <Pressable
+            onPress={() => refetchProducts()}
+            disabled={syncingProducts}
+            style={[styles.headerBtn, syncingProducts && { opacity: 0.5 }]}
+          >
+            <Feather name="refresh-cw" size={16} color={syncingProducts ? MUTED : MID} />
           </Pressable>
           {/* POS Settings */}
           <Pressable onPress={() => setShowSettings(true)} style={styles.headerBtn}>
@@ -2238,6 +2242,7 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
   onDelete: (idx: number) => void;
   onClose: () => void;
 }) {
+  const { height: screenH } = useWindowDimensions();
   const held = tickets
     .map((t, i) => ({ ticket: t, idx: i }))
     .filter(({ idx, ticket }) => idx !== activeIdx && ticket.items.length > 0);
@@ -2245,7 +2250,7 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.holdOverlay}>
-        <View style={styles.holdSheet}>
+        <View style={[styles.holdSheet, { maxHeight: screenH * 0.72 }]}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>
               {held.length > 0 ? `${held.length} Order${held.length > 1 ? 's' : ''} on Hold` : 'Held Orders'}
@@ -2320,6 +2325,7 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
   onChangePresets: (presets: number[]) => void;
   onClose: () => void;
 }) {
+  const { height: screenH } = useWindowDimensions();
   const [localPresets, setLocalPresets] = React.useState<number[]>(discountPresets);
   const [newPct, setNewPct] = React.useState('');
   const [inputError, setInputError] = React.useState<string | null>(null);
@@ -2345,7 +2351,7 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.settingsOverlay}>
-        <View style={styles.settingsSheet}>
+        <View style={[styles.settingsSheet, { maxHeight: screenH * 0.65 }]}>
           <View style={styles.sheetHeader}>
             <Pressable onPress={onClose} hitSlop={8} style={{ width: 28 }}>
               <Feather name="x" size={20} color={MID} />
