@@ -49,6 +49,13 @@ interface TicketItem {
   notes: string;
 }
 
+interface AttachedCustomerClaimedReward {
+  id: string;
+  rewardType: string;
+  rewardName: string;
+  voucherValueCents: number | null;
+}
+
 interface AttachedCustomer {
   userId: string;
   name: string;
@@ -56,6 +63,18 @@ interface AttachedCustomer {
   loyaltyPoints: number;
   stampCount: number;
   loyaltyTier: string;
+  freeCoffeeRewards: number;
+  availableClaimedRewards: AttachedCustomerClaimedReward[];
+}
+
+interface AppliedDiscount {
+  type: 'code' | 'pct' | 'free_coffee' | 'claimed_reward';
+  code?: string;
+  codeId?: string;
+  pct?: number;
+  claimedRewardId?: string;
+  amountCents: number;
+  label: string;
 }
 
 type OrderType = 'dine_in' | 'takeaway' | 'counter';
@@ -66,6 +85,7 @@ interface Ticket {
   customer: AttachedCustomer | null;
   orderType: OrderType;
   notes: string;
+  appliedDiscount: AppliedDiscount | null;
 }
 
 interface ProductDetail {
@@ -88,10 +108,16 @@ interface ProductDetail {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtCents = (c: number) => `$${(c / 100).toFixed(2)}`;
 const uuid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-const blankTicket = (): Ticket => ({ id: uuid(), items: [], customer: null, orderType: 'counter', notes: '' });
+const blankTicket = (): Ticket => ({ id: uuid(), items: [], customer: null, orderType: 'counter', notes: '', appliedDiscount: null });
 
 function ticketSubtotal(t: Ticket): number {
   return t.items.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0);
+}
+
+function ticketTotal(t: Ticket): number {
+  const sub = ticketSubtotal(t);
+  const disc = t.appliedDiscount?.amountCents ?? 0;
+  return Math.max(0, sub - disc);
 }
 
 function buildPosItems(items: TicketItem[]): PosOrderItem[] {
@@ -208,14 +234,18 @@ export default function PosScreen() {
       } else {
         newItems = [...t.items, item];
       }
-      return prev.map((ticket, i) => i === activeIdx ? { ...ticket, items: newItems } : ticket);
+      // Clear discount: item composition changes affect both cheapest-coffee and %-based amounts
+      return prev.map((ticket, i) => i === activeIdx ? { ...ticket, items: newItems, appliedDiscount: null } : ticket);
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [activeIdx]);
 
   const removeItem = useCallback((localId: string) => {
-    setTickets(prev => prev.map((t, i) => i !== activeIdx ? t : {
-      ...t, items: t.items.filter(x => x.localId !== localId),
+    setTickets(prev => prev.map((t, i) => {
+      if (i !== activeIdx) return t;
+      const newItems = t.items.filter(x => x.localId !== localId);
+      // Clear discount: removing an item shifts subtotal (affecting % amounts) and cheapest coffee
+      return { ...t, items: newItems, appliedDiscount: null };
     }));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [activeIdx]);
@@ -228,7 +258,8 @@ export default function PosScreen() {
         const q = Math.max(1, x.quantity + delta);
         return { ...x, quantity: q };
       });
-      return { ...t, items: newItems };
+      // Clear discount: qty change shifts subtotal (affecting % amounts) and cheapest coffee
+      return { ...t, items: newItems, appliedDiscount: null };
     }));
     Haptics.selectionAsync();
   }, [activeIdx]);
@@ -317,6 +348,11 @@ export default function PosScreen() {
       amountTenderedCents: vars.amountTenderedCents,
       customerId: activeTicket.customer?.userId,
       notes: activeTicket.notes || undefined,
+      discountCode: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.code : undefined,
+      discountCodeId: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.codeId : undefined,
+      manualDiscountPct: activeTicket.appliedDiscount?.type === 'pct' ? activeTicket.appliedDiscount.pct : undefined,
+      redeemFreeCoffee: activeTicket.appliedDiscount?.type === 'free_coffee' ? true : undefined,
+      claimedRewardId: activeTicket.appliedDiscount?.type === 'claimed_reward' ? activeTicket.appliedDiscount.claimedRewardId : undefined,
     }),
     onSuccess: (res, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -372,6 +408,7 @@ export default function PosScreen() {
 
   // ── Layout ────────────────────────────────────────────────────────────────
   const subtotal = ticketSubtotal(activeTicket);
+  const total = ticketTotal(activeTicket);
   const itemCount = activeTicket.items.reduce((s, i) => s + i.quantity, 0);
 
   return (
@@ -476,7 +513,7 @@ export default function PosScreen() {
               Ticket {itemCount > 0 ? `(${itemCount})` : ''}
             </Text>
             {itemCount > 0 && (
-              <View style={styles.paneTabBadge}><Text style={styles.paneTabBadgeText}>{fmtCents(subtotal)}</Text></View>
+              <View style={styles.paneTabBadge}><Text style={styles.paneTabBadgeText}>{fmtCents(total)}</Text></View>
             )}
           </Pressable>
         </View>
@@ -586,10 +623,11 @@ export default function PosScreen() {
           onClose={() => setCustomiseData(null)}
           onAdd={(item) => {
             if (customiseData.editItem) {
-              // Replace edited item
+              // Replace edited item — clear discount as item composition changed
               setTickets(prev => prev.map((t, i) => i !== activeIdx ? t : {
                 ...t,
                 items: t.items.map(x => x.localId === customiseData.editItem!.localId ? item : x),
+                appliedDiscount: null,
               }));
             } else {
               addItemToTicket(item);
@@ -603,7 +641,9 @@ export default function PosScreen() {
       {/* ── Payment modal ──────────────────────────────────────────────────── */}
       {showPayment && (
         <PaymentModal
-          ticket={activeTicket}
+          totalCents={total}
+          subtotalCents={subtotal}
+          discount={activeTicket.appliedDiscount}
           onClose={() => setShowPayment(false)}
           onConfirm={(method, tendered) => {
             createOrderMutation.mutate({ paymentMethod: method, amountTenderedCents: tendered });
@@ -625,11 +665,11 @@ export default function PosScreen() {
         <CustomerModal
           currentCustomer={activeTicket.customer}
           onSelect={(c) => {
-            updateTicket({ customer: c });
+            updateTicket({ customer: c, appliedDiscount: null });
             setShowCustomerModal(false);
           }}
           onRemove={() => {
-            updateTicket({ customer: null });
+            updateTicket({ customer: null, appliedDiscount: null });
             setShowCustomerModal(false);
           }}
           onClose={() => setShowCustomerModal(false)}
@@ -709,7 +749,110 @@ function TicketPanel({
   onEditItem: (item: TicketItem) => void;
 }) {
   const subtotal = ticketSubtotal(ticket);
+  const total = ticketTotal(ticket);
   const isEmpty = ticket.items.length === 0;
+  const discount = ticket.appliedDiscount;
+
+  // Local discount input state
+  const [codeInput, setCodeInput] = React.useState('');
+  const [validating, setValidating] = React.useState(false);
+  const [codeError, setCodeError] = React.useState<string | null>(null);
+  const [showCodeInput, setShowCodeInput] = React.useState(false);
+
+  // Determine if customer has free coffee rewards and order has coffee items
+  const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
+  const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
+
+  const applyPctDiscount = (pct: number) => {
+    const amountCents = Math.round(subtotal * pct / 100);
+    onUpdateTicket({ appliedDiscount: { type: 'pct', pct, amountCents, label: `${pct}% off` } });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const applyFreeCoffee = () => {
+    const coffeeItems = ticket.items.filter(i => i.category.toLowerCase() === 'coffee');
+    if (coffeeItems.length === 0) return;
+    const cheapest = Math.min(...coffeeItems.map(i => i.unitPriceCents));
+    onUpdateTicket({
+      appliedDiscount: {
+        type: 'free_coffee',
+        amountCents: cheapest,
+        label: `☕ Free Coffee (–${fmtCents(cheapest)})`,
+      },
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const applyClaimedReward = (cr: AttachedCustomerClaimedReward) => {
+    const subtotal = ticketSubtotal(ticket);
+    // Voucher rewards deduct their face value (capped to subtotal); other rewards are fully free
+    const amountCents = cr.voucherValueCents
+      ? Math.min(cr.voucherValueCents, subtotal)
+      : subtotal;
+    const label = cr.voucherValueCents
+      ? `🎁 ${cr.rewardName} (–${fmtCents(Math.min(cr.voucherValueCents, subtotal))})`
+      : `🎁 ${cr.rewardName} (free)`;
+    onUpdateTicket({
+      appliedDiscount: {
+        type: 'claimed_reward',
+        claimedRewardId: cr.id,
+        amountCents,
+        label,
+      },
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const applyCode = async () => {
+    const code = codeInput.trim().toUpperCase();
+    if (!code) return;
+    setValidating(true);
+    setCodeError(null);
+    try {
+      const res = await api.discounts.validate({
+        code,
+        items: ticket.items.map(i => ({
+          productId: i.productId,
+          variantId: i.variantId,
+          quantity: i.quantity,
+          selectedOptions: i.selectedOptions.map(o => ({
+            optionId: o.optionId,
+            groupId: o.groupId,
+            priceAdjustmentCents: o.priceAdjustmentCents,
+          })),
+        })),
+        orderType: 'pickup',
+        customerId: ticket.customer?.userId,
+      });
+      if (res.valid) {
+        onUpdateTicket({
+          appliedDiscount: {
+            type: 'code',
+            code: res.code,
+            codeId: res.id,
+            amountCents: res.discountAmountCents,
+            label: `Code: ${res.code} (–${fmtCents(res.discountAmountCents)})`,
+          },
+        });
+        setShowCodeInput(false);
+        setCodeInput('');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err: any) {
+      setCodeError(err?.message ?? 'Invalid discount code');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  const removeDiscount = () => {
+    onUpdateTicket({ appliedDiscount: null });
+    setCodeInput('');
+    setCodeError(null);
+    setShowCodeInput(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   return (
     <View style={styles.ticketContainer}>
@@ -721,7 +864,8 @@ function TicketPanel({
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{ticket.customer.name}</Text>
               <Text style={styles.customerSub}>
-                {ticket.customer.loyaltyPoints} pts · {ticket.customer.stampCount}/{STAMP_GOAL} stamps · {ticket.customer.loyaltyTier}
+                {ticket.customer.loyaltyPoints} pts · {ticket.customer.stampCount}/{STAMP_GOAL} stamps
+                {(ticket.customer.freeCoffeeRewards ?? 0) > 0 ? ` · ☕×${ticket.customer.freeCoffeeRewards}` : ''}
               </Text>
             </View>
           ) : (
@@ -767,6 +911,84 @@ function TicketPanel({
         )}
       </ScrollView>
 
+      {/* ── Discount section ─────────────────────────────────────────────────── */}
+      {!isEmpty && (
+        <View style={styles.discountSection}>
+          {/* Applied discount badge */}
+          {discount ? (
+            <View style={styles.discountApplied}>
+              <Feather name="tag" size={13} color="#16A34A" />
+              <Text style={styles.discountAppliedText} numberOfLines={1}>{discount.label}</Text>
+              <Pressable onPress={removeDiscount} hitSlop={8} style={{ marginLeft: 'auto' }}>
+                <Feather name="x" size={14} color={MID} />
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              {/* Quick % chips + code button */}
+              <View style={styles.discountChips}>
+                {([10, 20, 50] as const).map(pct => (
+                  <Pressable key={pct} onPress={() => applyPctDiscount(pct)} style={styles.discountChip}>
+                    <Text style={styles.discountChipText}>{pct}%</Text>
+                  </Pressable>
+                ))}
+                <Pressable onPress={() => { setShowCodeInput(v => !v); setCodeError(null); }} style={styles.discountChipCode}>
+                  <Feather name="hash" size={12} color={BLUE} />
+                  <Text style={[styles.discountChipText, { color: BLUE }]}>Code</Text>
+                </Pressable>
+                {canRedeemFreeCoffee && (
+                  <Pressable onPress={applyFreeCoffee} style={styles.discountChipCoffee}>
+                    <Text style={styles.discountChipText}>☕ Free</Text>
+                  </Pressable>
+                )}
+                {(ticket.customer?.availableClaimedRewards ?? []).map(cr => {
+                  const chipLabel = cr.voucherValueCents
+                    ? `🎁 $${(cr.voucherValueCents / 100).toFixed(0)} off`
+                    : `🎁 ${cr.rewardName}`;
+                  return (
+                    <Pressable
+                      key={cr.id}
+                      onPress={() => applyClaimedReward(cr)}
+                      style={styles.discountChipReward}
+                    >
+                      <Text style={styles.discountChipText}>{chipLabel}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {/* Code input row */}
+              {showCodeInput && (
+                <View style={styles.discountCodeRow}>
+                  <TextInput
+                    style={styles.discountCodeInput}
+                    placeholder="Enter code…"
+                    placeholderTextColor={MUTED}
+                    value={codeInput}
+                    onChangeText={t => { setCodeInput(t.toUpperCase()); setCodeError(null); }}
+                    autoCapitalize="characters"
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={applyCode}
+                  />
+                  <Pressable
+                    onPress={applyCode}
+                    disabled={validating || !codeInput.trim()}
+                    style={[styles.discountCodeApplyBtn, (!codeInput.trim() || validating) && { opacity: 0.5 }]}
+                  >
+                    {validating
+                      ? <ActivityIndicator size="small" color={WHITE} />
+                      : <Text style={styles.discountCodeApplyText}>Apply</Text>}
+                  </Pressable>
+                </View>
+              )}
+              {codeError ? (
+                <Text style={styles.discountCodeError}>{codeError}</Text>
+              ) : null}
+            </>
+          )}
+        </View>
+      )}
+
       {/* Totals */}
       {!isEmpty && (
         <View style={styles.totalsSection}>
@@ -774,9 +996,15 @@ function TicketPanel({
             <Text style={styles.totalLabel}>Subtotal</Text>
             <Text style={styles.totalValue}>{fmtCents(subtotal)}</Text>
           </View>
+          {discount && (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: '#16A34A' }]}>Discount</Text>
+              <Text style={[styles.totalValue, { color: '#16A34A' }]}>–{fmtCents(discount.amountCents)}</Text>
+            </View>
+          )}
           <View style={styles.totalRowFinal}>
             <Text style={styles.totalFinalLabel}>Total</Text>
-            <Text style={styles.totalFinalValue}>{fmtCents(subtotal)}</Text>
+            <Text style={styles.totalFinalValue}>{fmtCents(total)}</Text>
           </View>
         </View>
       )}
@@ -805,7 +1033,7 @@ function TicketPanel({
         >
           <Feather name="credit-card" size={18} color={WHITE} />
           <Text style={styles.chargeBtnText}>
-            {isEmpty ? 'Charge' : `Charge ${fmtCents(subtotal)}`}
+            {isEmpty ? 'Charge' : `Charge ${fmtCents(total)}`}
           </Text>
         </TouchableOpacity>
       </View>
@@ -1073,19 +1301,20 @@ function CustomiseModal({ data, onClose, onAdd }: {
 
 // ── Payment Modal ─────────────────────────────────────────────────────────────
 function PaymentModal({
-  ticket, onClose, onConfirm, loading,
+  totalCents, subtotalCents, discount, onClose, onConfirm, loading,
 }: {
-  ticket: Ticket; onClose: () => void;
+  totalCents: number; subtotalCents: number;
+  discount: AppliedDiscount | null;
+  onClose: () => void;
   onConfirm: (method: 'cash' | 'eftpos', tendered?: number) => void;
   loading: boolean;
 }) {
-  const subtotal = ticketSubtotal(ticket);
   const [method, setMethod] = useState<'cash' | 'eftpos'>('eftpos');
   const [tendered, setTendered] = useState('');
 
   const tenderedCents = Math.round(parseFloat(tendered || '0') * 100);
-  const changeCents = method === 'cash' ? Math.max(0, tenderedCents - subtotal) : 0;
-  const cashOk = method !== 'cash' || tenderedCents >= subtotal;
+  const changeCents = method === 'cash' ? Math.max(0, tenderedCents - totalCents) : 0;
+  const cashOk = method !== 'cash' || tenderedCents >= totalCents;
 
   const handleKeypad = (val: string) => {
     if (val === 'backspace') {
@@ -1099,7 +1328,7 @@ function PaymentModal({
   };
 
   // Quick tender presets
-  const roundUpPresets = [5, 10, 20, 50].filter(d => d * 100 >= subtotal).slice(0, 3);
+  const roundUpPresets = [5, 10, 20, 50].filter(d => d * 100 >= totalCents).slice(0, 3);
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -1117,8 +1346,16 @@ function PaymentModal({
             {/* Total */}
             <View style={styles.payTotal}>
               <Text style={styles.payTotalLabel}>Total Due</Text>
-              <Text style={styles.payTotalValue}>{fmtCents(subtotal)}</Text>
+              <Text style={styles.payTotalValue}>{fmtCents(totalCents)}</Text>
             </View>
+            {/* Discount summary */}
+            {discount && (
+              <View style={styles.payDiscountRow}>
+                <Feather name="tag" size={13} color="#16A34A" />
+                <Text style={styles.payDiscountLabel}>{discount.label}</Text>
+                <Text style={styles.payDiscountSaving}>–{fmtCents(discount.amountCents)}</Text>
+              </View>
+            )}
 
             {/* Method selector */}
             <View style={styles.methodRow}>
@@ -1168,7 +1405,7 @@ function PaymentModal({
                 </View>
 
                 {/* Change */}
-                {tenderedCents >= subtotal && (
+                {tenderedCents >= totalCents && (
                   <View style={styles.changeRow}>
                     <Text style={styles.changeLabel}>Change</Text>
                     <Text style={styles.changeValue}>{fmtCents(changeCents)}</Text>
@@ -1202,7 +1439,9 @@ function PaymentModal({
                 activeOpacity={0.85}
               >
                 <Text style={styles.addToOrderBtnText}>
-                  {method === 'cash' ? 'Confirm Cash Payment' : 'Confirm EFTPOS Payment'}
+                  {method === 'cash'
+                    ? `Confirm Cash · ${fmtCents(totalCents)}`
+                    : `Confirm EFTPOS · ${fmtCents(totalCents)}`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1326,7 +1565,9 @@ function CustomerModal({
         const c = res.data[0]!;
         onSelect({
           userId: c.userId, name: c.name, email: c.email,
-          loyaltyPoints: c.loyaltyPoints, stampCount: c.stampCount, loyaltyTier: c.loyaltyTier,
+          loyaltyPoints: c.loyaltyPoints, stampCount: c.stampCount,
+          loyaltyTier: c.loyaltyTier, freeCoffeeRewards: c.freeCoffeeRewards ?? 0,
+          availableClaimedRewards: c.availableClaimedRewards ?? [],
         });
       } else {
         Alert.alert('Not Found', 'Customer not found for this QR code.');
@@ -1401,7 +1642,9 @@ function CustomerModal({
                 <TouchableOpacity
                   onPress={() => onSelect({
                     userId: item.userId, name: item.name, email: item.email,
-                    loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount, loyaltyTier: item.loyaltyTier,
+                    loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
+                    loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
+                    availableClaimedRewards: item.availableClaimedRewards ?? [],
                   })}
                   style={styles.customerResultRow}
                   activeOpacity={0.7}
@@ -1974,4 +2217,25 @@ const styles = StyleSheet.create({
   historyFilterCountActive: { backgroundColor: 'rgba(255,255,255,0.3)' },
   historyFilterCountText:   { fontSize: 10, fontWeight: '700', color: MID },
   historyFilterCountTextActive: { color: WHITE },
+
+  // Discount section
+  discountSection:      { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, paddingHorizontal: 12, paddingVertical: 8 },
+  discountChips:        { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  discountChip:         { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },
+  discountChipCode:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' },
+  discountChipCoffee:   { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0' },
+  discountChipReward:   { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA' },
+  discountChipText:     { fontSize: 13, fontWeight: '700', color: MID },
+  discountApplied:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#A7F3D0' },
+  discountAppliedText:  { fontSize: 13, fontWeight: '600', color: '#16A34A', flex: 1 },
+  discountCodeRow:      { flexDirection: 'row', gap: 8, marginTop: 8 },
+  discountCodeInput:    { flex: 1, backgroundColor: WHITE, borderRadius: 8, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontWeight: '700', color: DARK },
+  discountCodeApplyBtn: { backgroundColor: BLUE, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, justifyContent: 'center', alignItems: 'center' },
+  discountCodeApplyText: { fontSize: 14, fontWeight: '700', color: WHITE },
+  discountCodeError:    { fontSize: 12, color: CHERRY, marginTop: 4 },
+
+  // Payment discount row
+  payDiscountRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16 },
+  payDiscountLabel:     { fontSize: 13, fontWeight: '600', color: '#16A34A', flex: 1 },
+  payDiscountSaving:    { fontSize: 13, fontWeight: '800', color: '#16A34A' },
 });

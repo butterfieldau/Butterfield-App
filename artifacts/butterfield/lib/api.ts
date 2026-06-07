@@ -132,7 +132,7 @@ export const api = {
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   },
   discounts: {
-    validate: (data: { code: string; items: ApiOrderItem[]; orderType?: string }) =>
+    validate: (data: { code: string; items: ApiOrderItem[]; orderType?: string; customerId?: string }) =>
       request<{ valid: boolean; id: string; code: string; discountAmountCents: number; discountType: string; description: string | null }>(
         '/discounts/validate',
         { method: 'POST', body: JSON.stringify(data) },
@@ -824,6 +824,10 @@ export const api = {
       amountTenderedCents?: number;
       customerId?: string;
       discountCode?: string;
+      discountCodeId?: string;
+      manualDiscountPct?: number;
+      redeemFreeCoffee?: boolean;
+      claimedRewardId?: string;
       notes?: string;
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
@@ -846,6 +850,13 @@ export const api = {
   },
 };
 
+export interface PosClaimedReward {
+  id: string;
+  rewardType: string;
+  rewardName: string;
+  voucherValueCents: number | null;
+}
+
 export interface PosCustomerResult {
   userId: string;
   name: string;
@@ -853,6 +864,8 @@ export interface PosCustomerResult {
   loyaltyPoints: number;
   stampCount: number;
   loyaltyTier: string;
+  freeCoffeeRewards: number;
+  availableClaimedRewards: PosClaimedReward[];
 }
 
 export interface PosOrderItem {

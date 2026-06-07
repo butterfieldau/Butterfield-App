@@ -2,15 +2,19 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
+  discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
+  claimedRewardsTable, loyaltyRewardsTable,
 } from '@workspace/db';
-import { eq, and, desc, gte, sql, or, count, sum } from 'drizzle-orm';
+import { eq, and, desc, gte, sql, or, count, sum, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
   applyCoffeeStamps,
   getOrCreateCustomerLoyaltyProfile,
   parseLoyaltyQrPayload,
   recordLoyaltyPoints,
+  ensureLoyaltySchemaReady,
 } from '../lib/loyaltyIdentity.js';
+import { validateDiscountCode } from '../lib/discountUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 
 const router = Router();
@@ -42,6 +46,25 @@ async function ensurePosSchemaReady() {
   return posSchemaReady;
 }
 
+// ── Helper: fetch available claimed rewards for a customer ─────────────────
+async function fetchAvailableClaimedRewards(userId: string) {
+  const rows = await db
+    .select({
+      id: claimedRewardsTable.id,
+      rewardType: loyaltyRewardsTable.rewardType,
+      rewardName: loyaltyRewardsTable.name,
+      voucherValueCents: claimedRewardsTable.voucherValueCents,
+    })
+    .from(claimedRewardsTable)
+    .innerJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
+    .where(and(
+      eq(claimedRewardsTable.userId, userId),
+      inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+      sql`(${claimedRewardsTable.expiresAt} IS NULL OR ${claimedRewardsTable.expiresAt} > NOW())`,
+    ));
+  return rows;
+}
+
 // ── GET /pos/customer-search — find customers by text or QR userId ─────────
 router.get('/customer-search', async (req, res) => {
   await ensurePosSchemaReady();
@@ -68,7 +91,10 @@ router.get('/customer-search', async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, resolvedUserId));
     if (!user) return res.status(404).json({ error: 'Customer not found' });
 
-    const profile = await getOrCreateCustomerLoyaltyProfile(resolvedUserId, user.name);
+    const [profile, availableClaimedRewards] = await Promise.all([
+      getOrCreateCustomerLoyaltyProfile(resolvedUserId, user.name),
+      fetchAvailableClaimedRewards(resolvedUserId),
+    ]);
     return res.json({
       data: [{
         userId: user.id,
@@ -77,6 +103,8 @@ router.get('/customer-search', async (req, res) => {
         loyaltyPoints: profile.loyaltyPoints ?? 0,
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         loyaltyTier: profile.loyaltyTier ?? 'blue',
+        freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
+        availableClaimedRewards,
       }],
     });
   }
@@ -86,7 +114,10 @@ router.get('/customer-search', async (req, res) => {
     const uid = String(userId);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, uid));
     if (!user) return res.status(404).json({ error: 'Customer not found' });
-    const profile = await getOrCreateCustomerLoyaltyProfile(uid, user.name);
+    const [profile, availableClaimedRewards] = await Promise.all([
+      getOrCreateCustomerLoyaltyProfile(uid, user.name),
+      fetchAvailableClaimedRewards(uid),
+    ]);
     return res.json({
       data: [{
         userId: user.id,
@@ -95,6 +126,8 @@ router.get('/customer-search', async (req, res) => {
         loyaltyPoints: profile.loyaltyPoints ?? 0,
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         loyaltyTier: profile.loyaltyTier ?? 'blue',
+        freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
+        availableClaimedRewards,
       }],
     });
   }
@@ -108,7 +141,8 @@ router.get('/customer-search', async (req, res) => {
     SELECT u.id, u.name, u.email,
       COALESCE(cp.loyalty_points, 0) AS loyalty_points,
       COALESCE(cp.coffee_stamp_count, cp.stamp_count, 0) AS stamp_count,
-      COALESCE(cp.loyalty_tier, 'blue') AS loyalty_tier
+      COALESCE(cp.loyalty_tier, 'blue') AS loyalty_tier,
+      COALESCE(cp.free_coffee_rewards, cp.free_coffees_earned, 0) AS free_coffee_rewards
     FROM users u
     LEFT JOIN customer_profiles cp ON cp.user_id = u.id
     WHERE u.role = 'customer'
@@ -120,7 +154,13 @@ router.get('/customer-search', async (req, res) => {
   const users = (rows.rows ?? rows as unknown as any[]) as Array<{
     id: string; name: string; email: string;
     loyalty_points: number; stamp_count: number; loyalty_tier: string;
+    free_coffee_rewards: number;
   }>;
+
+  // Fetch claimed rewards for each result in parallel
+  const claimedRewardsMap = await Promise.all(
+    users.map(u => fetchAvailableClaimedRewards(u.id).then(cr => [u.id, cr] as const))
+  ).then(entries => Object.fromEntries(entries));
 
   return res.json({
     data: users.map(u => ({
@@ -130,6 +170,8 @@ router.get('/customer-search', async (req, res) => {
       loyaltyPoints: Number(u.loyalty_points),
       stampCount: Number(u.stamp_count),
       loyaltyTier: u.loyalty_tier,
+      freeCoffeeRewards: Number(u.free_coffee_rewards),
+      availableClaimedRewards: claimedRewardsMap[u.id] ?? [],
     })),
   });
 });
@@ -137,6 +179,7 @@ router.get('/customer-search', async (req, res) => {
 // ── POST /pos/orders — create a POS order ────────────────────────────────────
 router.post('/orders', async (req, res) => {
   await ensurePosSchemaReady();
+  await ensureLoyaltySchemaReady();
 
   const {
     items: rawItems,
@@ -145,6 +188,10 @@ router.post('/orders', async (req, res) => {
     amountTenderedCents,
     customerId,
     discountCode,
+    discountCodeId,
+    manualDiscountPct,
+    redeemFreeCoffee,
+    claimedRewardId,
     notes,
   } = req.body;
 
@@ -196,40 +243,212 @@ router.post('/orders', async (req, res) => {
   });
 
   const subtotalCents = items.reduce((s: number, i: any) => s + i.totalPriceCents, 0);
-  const discountAmountCents = 0; // discount codes validated separately in future
+
+  // ── Resolve discount amount server-side ────────────────────────────────────
+  let discountAmountCents = 0;
+  let resolvedDiscountCode: string | null = discountCode ?? null;
+  let resolvedDiscountCodeId: string | null = null;
+  let discountDescription: string | null = null;
+
+  // 1. Discount code — re-validate server-side using the purchasing customer's identity
+  //    when one is attached, so per-customer/first-order constraints apply correctly.
+  //    Fall back to staff identity only when no customer is attached (walk-in, no account).
+  if (discountCode && typeof discountCode === 'string' && discountCode.trim()) {
+    const discountUserId = customerId ?? req.user!.id;
+    const discountUserRole = customerId ? 'customer' : req.user!.role;
+    try {
+      const validated = await validateDiscountCode(
+        discountCode,
+        discountUserId,
+        discountUserRole,
+        subtotalCents,
+        'pickup',
+      );
+      discountAmountCents = validated.discountAmountCents;
+      resolvedDiscountCodeId = validated.id;
+      resolvedDiscountCode = validated.code;
+      discountDescription = validated.description;
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message ?? 'Invalid discount code' });
+    }
+  }
+
+  // 2. Manual staff % discount (10/20/50 quick chips) — no code required
+  if (!discountCode && manualDiscountPct && [10, 20, 50].includes(Number(manualDiscountPct))) {
+    const pct = Number(manualDiscountPct);
+    discountAmountCents = Math.round(subtotalCents * pct / 100);
+    resolvedDiscountCode = null;
+    discountDescription = `${pct}% staff discount`;
+  }
+
+  // 3. Free coffee redemption — cheapest coffee item is free
+  let freeCoffeeRedeemed = false;
+  if (redeemFreeCoffee && customerId) {
+    const profile = await getOrCreateCustomerLoyaltyProfile(customerId);
+    const availableRewards = Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0);
+    if (availableRewards <= 0) {
+      return res.status(400).json({ error: 'Customer has no free coffee rewards available' });
+    }
+    // Cheapest coffee item in the order
+    const coffeeItems = items.filter((i: any) => String(i.category ?? '').toLowerCase() === 'coffee');
+    if (coffeeItems.length > 0) {
+      const cheapestCoffee = Math.min(...coffeeItems.map((i: any) => i.unitPriceCents));
+      discountAmountCents += cheapestCoffee;
+      freeCoffeeRedeemed = true;
+    }
+  }
+
+  // ── Validate catalog claimed reward (if provided) ──────────────────────────
+  let claimedRewardData: { id: string } | null = null;
+  if (claimedRewardId && customerId) {
+    const [cr] = await db
+      .select({
+        id: claimedRewardsTable.id,
+        userId: claimedRewardsTable.userId,
+        status: claimedRewardsTable.status,
+        expiresAt: claimedRewardsTable.expiresAt,
+        claimVoucherCents: claimedRewardsTable.voucherValueCents,
+        rewardVoucherCents: loyaltyRewardsTable.voucherValueCents,
+        rewardType: loyaltyRewardsTable.rewardType,
+      })
+      .from(claimedRewardsTable)
+      .innerJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
+      .where(eq(claimedRewardsTable.id, claimedRewardId));
+    if (!cr) return res.status(400).json({ error: 'Claimed reward not found.' });
+    if (cr.userId !== customerId) return res.status(403).json({ error: 'This reward belongs to a different customer.' });
+    if (!['available', 'applied_to_cart'].includes(cr.status)) {
+      return res.status(400).json({ error: 'This reward has already been used or has expired.' });
+    }
+    if (cr.expiresAt && cr.expiresAt < new Date()) {
+      return res.status(400).json({ error: 'This reward has expired.' });
+    }
+    // Apply monetary value: voucher deducts face value (capped to subtotal); other rewards = full subtotal free
+    const voucherCents = cr.claimVoucherCents ?? cr.rewardVoucherCents ?? null;
+    const rewardDiscountCents = voucherCents != null
+      ? Math.min(voucherCents, subtotalCents)
+      : subtotalCents;
+    discountAmountCents += rewardDiscountCents;
+    claimedRewardData = { id: cr.id };
+  }
+
+  discountAmountCents = Math.min(discountAmountCents, subtotalCents);
   const totalCents = Math.max(0, subtotalCents - discountAmountCents);
 
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
   const pointsEarned = Math.floor(totalCents / 100);
 
-  // Use raw SQL so we can write the new `source`, `staff_user_id`, and `payment_method` columns
-  await db.execute(sql`
-    INSERT INTO orders (
-      id, order_number, user_id, status, type, notes, total_cents,
-      items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
-      stripe_payment_status, source, staff_user_id, payment_method, created_at, updated_at
-    ) VALUES (
-      ${orderId},
-      ${orderNumber},
-      ${customerId ?? req.user!.id},
-      'received',
-      'pickup',
-      ${notes ?? null},
-      ${totalCents},
-      ${JSON.stringify(items)}::jsonb,
-      ${pointsEarned},
-      0,
-      ${discountAmountCents},
-      ${discountCode ?? null},
-      'paid',
-      'pos',
-      ${req.user!.id},
-      ${paymentMethod},
-      now(),
-      now()
-    )
-  `);
+  // Store a human-readable discount label as discount_code
+  // For manual % discounts and free coffee we use a descriptive label
+  const storedDiscountCode = resolvedDiscountCode ?? (discountDescription ?? null);
+
+  // ── Atomic transaction: INSERT order + transition any claimed reward ─────────
+  try {
+    await db.transaction(async (tx) => {
+      // Use raw SQL so we can write the POS-specific columns (source, staff_user_id, payment_method)
+      await tx.execute(sql`
+        INSERT INTO orders (
+          id, order_number, user_id, status, type, notes, total_cents,
+          items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
+          stripe_payment_status, source, staff_user_id, payment_method, created_at, updated_at
+        ) VALUES (
+          ${orderId},
+          ${orderNumber},
+          ${customerId ?? req.user!.id},
+          'received',
+          'pickup',
+          ${notes ?? null},
+          ${totalCents},
+          ${JSON.stringify(items)}::jsonb,
+          ${pointsEarned},
+          0,
+          ${discountAmountCents},
+          ${storedDiscountCode},
+          'paid',
+          'pos',
+          ${req.user!.id},
+          ${paymentMethod},
+          now(),
+          now()
+        )
+      `);
+
+      // Catalog claimed reward — transition to redeemed atomically with order insert
+      if (claimedRewardData) {
+        const redeemResult = await tx
+          .update(claimedRewardsTable)
+          .set({ status: 'redeemed', redeemedAt: new Date(), orderId })
+          .where(and(
+            eq(claimedRewardsTable.id, claimedRewardData.id),
+            inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+          ))
+          .returning({ id: claimedRewardsTable.id });
+        if (redeemResult.length === 0) {
+          throw new Error('REWARD_ALREADY_CONSUMED');
+        }
+      }
+
+      // Stamp-based free coffee — decrement counter atomically with order insert
+      if (freeCoffeeRedeemed && customerId) {
+        const freeCoffeeResult = await tx.execute(sql`
+          UPDATE customer_profiles
+          SET free_coffee_rewards = GREATEST(0, free_coffee_rewards - 1),
+              free_coffees_earned  = GREATEST(0, free_coffees_earned  - 1),
+              updated_at = now()
+          WHERE user_id = ${customerId}
+            AND free_coffee_rewards > 0
+        `);
+        if ((freeCoffeeResult.rowCount ?? 0) === 0) {
+          throw new Error('FREE_COFFEE_ALREADY_USED');
+        }
+      }
+    });
+  } catch (err: any) {
+    if (err?.message === 'REWARD_ALREADY_CONSUMED') {
+      return res.status(409).json({ error: 'This reward has already been used. Please remove it and try again.' });
+    }
+    if (err?.message === 'FREE_COFFEE_ALREADY_USED') {
+      return res.status(409).json({ error: 'Free coffee reward has already been redeemed. Please remove it and try again.' });
+    }
+    throw err;
+  }
+
+  // ── Record discount code usage (if a validated code was applied) ────────────
+  if (resolvedDiscountCodeId) {
+    try {
+      await db.update(discountCodesTable)
+        .set({ usageCount: sql`${discountCodesTable.usageCount} + 1`, updatedAt: new Date() })
+        .where(eq(discountCodesTable.id, resolvedDiscountCodeId));
+      await db.insert(discountCodeUsagesTable).values({
+        id: randomUUID(),
+        discountCodeId: resolvedDiscountCodeId,
+        userId: customerId ?? req.user!.id,
+        orderId,
+        discountAmountCents,
+      });
+    } catch (err: any) {
+      req.log.warn({ err, orderId }, 'POS discount usage tracking failed');
+    }
+  }
+
+  // ── Log stamp-based free coffee activity ────────────────────────────────────
+  if (freeCoffeeRedeemed && customerId) {
+    try {
+      await db.insert(loyaltyActivityLogTable).values({
+        id: randomUUID(),
+        customerId,
+        staffId: req.user!.id,
+        orderId,
+        activityType: 'reward_redeem',
+        pointsDelta: 0,
+        coffeeStampsDelta: 0,
+        freeCoffeeRewardsDelta: -1,
+        description: `Free coffee redeemed at POS — order #${orderNumber ?? orderId.slice(0, 8)}`,
+      });
+    } catch (err: any) {
+      req.log.error({ err, orderId }, 'POS free coffee log failed');
+    }
+  }
 
   // ── Award loyalty to attached customer ──────────────────────────────────────
   let loyaltyResult: {
