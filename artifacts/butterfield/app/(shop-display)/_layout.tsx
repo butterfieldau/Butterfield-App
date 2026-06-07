@@ -157,10 +157,14 @@ export default function ShopDisplayLayout() {
     </Tabs>
   );
 
-  if (isWide) {
-    return (
-      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: NAVY }}>
-        {/* ── Sidebar ─────────────────────────────────────────────── */}
+  // Single return keeps <Tabs> at the same tree position on every render,
+  // so rotating the device never unmounts the navigator or clears app state.
+  return (
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: NAVY }}>
+      <StatusBar barStyle="light-content" backgroundColor={NAVY} />
+
+      {/* ── Sidebar — wide screens only ───────────────────────────── */}
+      {isWide && (
         <View style={[styles.sidebar, { paddingTop: Math.max(insets.top + 12, 40) }]}>
           <View style={styles.sidebarBrand}>
             <Image
@@ -215,28 +219,23 @@ export default function ShopDisplayLayout() {
             <Text style={styles.sidebarLogoutText}>Sign out</Text>
           </Pressable>
         </View>
+      )}
 
-        {/* ── Content ─────────────────────────────────────────────── */}
-        <View style={{ flex: 1, paddingTop: insets.top }}>
-          {tabScreens}
-        </View>
+      {/* ── Content — always the same node at the same tree position ─ */}
+      <View style={{ flex: 1, paddingTop: isWide ? insets.top : 0 }}>
+        {!isWide && (
+          <PortalHeader
+            badge="SHOP DISPLAY"
+            badgeColor={BLUE}
+            backgroundColor={NAVY}
+            onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+            onSync={syncNow}
+            syncing={syncing}
+            syncLabel={syncing ? 'Syncing…' : 'Sync'}
+          />
+        )}
+        {tabScreens}
       </View>
-    );
-  }
-
-  return (
-    <View style={{ flex: 1, backgroundColor: NAVY }}>
-      <StatusBar barStyle="light-content" backgroundColor={NAVY} />
-      <PortalHeader
-        badge="SHOP DISPLAY"
-        badgeColor={BLUE}
-        backgroundColor={NAVY}
-        onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
-        onSync={syncNow}
-        syncing={syncing}
-        syncLabel={syncing ? 'Syncing…' : 'Sync'}
-      />
-      {tabScreens}
     </View>
   );
 }
