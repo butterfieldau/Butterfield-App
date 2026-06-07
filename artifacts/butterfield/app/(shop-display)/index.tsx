@@ -22,7 +22,7 @@ import {
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { ShopDisplayOrder } from '@/lib/api';
+import type { LinklyTransactionStatus, ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
@@ -174,6 +174,11 @@ export default function ShopDisplayOrdersScreen() {
   const [cancelReasonText, setCancelReasonText] = useState('');
   const [detailOrder, setDetailOrder] = useState<ShopDisplayOrder | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [eftposOrder, setEftposOrder] = useState<ShopDisplayOrder | null>(null);
+  const [eftposSessionId, setEftposSessionId] = useState<string | null>(null);
+  const [eftposStarting, setEftposStarting] = useState(false);
+  const [eftposStatus, setEftposStatus] = useState<LinklyTransactionStatus | null>(null);
+  const eftposIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
 
@@ -193,6 +198,13 @@ export default function ShopDisplayOrdersScreen() {
     staleTime: 60_000,
   });
   const store = storeData?.data?.[0] ?? null;
+
+  const { data: linklyData } = useQuery({
+    queryKey: ['linkly-config'],
+    queryFn: () => api.shopDisplay.getLinklyConfig(),
+    staleTime: 60_000,
+  });
+  const linklyEnabled = (linklyData?.data?.linklyEnabled && linklyData?.data?.linklyConfigComplete) ?? false;
 
   const rows: ShopDisplayOrder[] = data?.data ?? [];
 
@@ -392,6 +404,54 @@ export default function ShopDisplayOrdersScreen() {
     }
   };
 
+  const startEftpos = async (order: ShopDisplayOrder) => {
+    setEftposOrder(order);
+    setEftposSessionId(null);
+    setEftposStatus(null);
+    setEftposStarting(true);
+    try {
+      const res = await api.shopDisplay.startLinklyTransaction(order.id);
+      setEftposSessionId(res.data.sessionId);
+      setEftposStatus({ status: 'pending', responseText: 'Waiting for card…', approved: false, complete: false });
+    } catch (e: any) {
+      Alert.alert('EFTPOS Error', e?.message ?? 'Failed to start transaction. Check terminal connection.');
+      setEftposOrder(null);
+    } finally {
+      setEftposStarting(false);
+    }
+  };
+
+  const cancelEftpos = async () => {
+    if (eftposIntervalRef.current) { clearInterval(eftposIntervalRef.current); eftposIntervalRef.current = null; }
+    const sid = eftposSessionId;
+    if (sid) {
+      try { await api.shopDisplay.cancelLinklyTransaction(sid); } catch {}
+    }
+    setEftposOrder(null);
+    setEftposSessionId(null);
+    setEftposStatus(null);
+  };
+
+  useEffect(() => {
+    if (!eftposSessionId || !eftposOrder) return;
+    eftposIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await api.shopDisplay.pollLinklyTransaction(eftposSessionId);
+        setEftposStatus(res.data);
+        if (res.data.complete) {
+          if (eftposIntervalRef.current) { clearInterval(eftposIntervalRef.current); eftposIntervalRef.current = null; }
+          if (res.data.approved) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            await qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
+          }
+          // Auto-dismiss after 3 s for both approved and declined
+          setTimeout(() => { setEftposOrder(null); setEftposSessionId(null); setEftposStatus(null); }, 3000);
+        }
+      } catch {}
+    }, 2000);
+    return () => { if (eftposIntervalRef.current) { clearInterval(eftposIntervalRef.current); eftposIntervalRef.current = null; } };
+  }, [eftposSessionId, eftposOrder]);
+
   const openCancelModal = (order: ShopDisplayOrder) => {
     setCancellingOrder(order);
     setCancelReasonText('');
@@ -471,6 +531,19 @@ export default function ShopDisplayOrdersScreen() {
         ) : null}
 
         {/* Action buttons */}
+        {/* EFTPOS charge button — shown when Linkly enabled and payment pending */}
+        {linklyEnabled && availableActions.length > 0 &&
+          item.stripePaymentStatus !== 'succeeded' &&
+          (item.stripePaymentStatus === 'pending' || !item.stripePaymentStatus) ? (
+          <Pressable
+            onPress={() => void startEftpos(item)}
+            style={s.eftposBtn}
+          >
+            <Feather name="credit-card" size={15} color="#4F46E5" />
+            <Text style={s.eftposBtnText}>Charge EFTPOS  ·  ${((item.totalCents ?? 0) / 100).toFixed(2)}</Text>
+          </Pressable>
+        ) : null}
+
         {availableActions.length > 0 ? (
         <View style={s.actionRail}>
           {primaryAction ? (
@@ -832,6 +905,58 @@ export default function ShopDisplayOrdersScreen() {
         </View>
       </Modal>
 
+      {/* ── EFTPOS Transaction Modal ─────────────────────────────── */}
+      {eftposOrder ? (() => {
+        const isApproved = eftposStatus?.approved && eftposStatus?.complete;
+        const isDeclined = !eftposStatus?.approved && eftposStatus?.complete;
+        const statusText = eftposStarting ? 'Connecting to terminal…' : (eftposStatus?.responseText ?? 'Waiting for card…');
+        const total = `$${((eftposOrder.totalCents ?? 0) / 100).toFixed(2)}`;
+        const iconName = isApproved ? 'check-circle' : isDeclined ? 'x-circle' : 'credit-card';
+        const iconColor = isApproved ? GREEN : isDeclined ? RED : '#4F46E5';
+        const iconBg = isApproved ? '#DCFCE7' : isDeclined ? '#FEE2E2' : '#EEF2FF';
+        return (
+          <Modal visible transparent animationType="fade" onRequestClose={cancelEftpos}
+            supportedOrientations={['portrait','landscape','landscape-left','landscape-right']}>
+            <View style={s.eftposBackdrop}>
+              <View style={s.eftposSheet}>
+                <View style={[s.eftposIconWrap, { backgroundColor: iconBg }]}>
+                  <Feather name={iconName} size={32} color={iconColor} />
+                </View>
+
+                <Text style={s.eftposCustomer}>{eftposOrder.customerName ?? 'Customer'}</Text>
+                <Text style={s.eftposOrderNum}>{eftposOrder.orderNumber ?? `#${eftposOrder.id.slice(0, 6).toUpperCase()}`}</Text>
+                <Text style={s.eftposAmount}>{total}</Text>
+
+                {(eftposStarting || (!eftposStatus?.complete)) && (
+                  <ActivityIndicator color="#4F46E5" size="large" style={{ marginTop: 8 }} />
+                )}
+
+                <Text style={[
+                  s.eftposStatusText,
+                  isApproved && { color: GREEN },
+                  isDeclined && { color: RED },
+                ]}>{statusText}</Text>
+
+                {isDeclined && (
+                  <Text style={s.eftposDeclinedHint}>Card declined. Ask the customer to try again or use another payment method.</Text>
+                )}
+
+                {!isApproved && (
+                  <Pressable
+                    onPress={() => void cancelEftpos()}
+                    style={[s.eftposCancelBtn, isDeclined && { backgroundColor: '#FEE2E2' }]}
+                  >
+                    <Text style={[s.eftposCancelText, isDeclined && { color: RED }]}>
+                      {isDeclined ? 'Dismiss' : 'Cancel Transaction'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          </Modal>
+        );
+      })() : null}
+
       {/* ── Order Detail Modal ───────────────────────────────────── */}
       {detailOrder ? (() => {
         const d = detailOrder;
@@ -1136,4 +1261,17 @@ const s = StyleSheet.create({
   detailCancelText:   { color: RED, fontSize: 13, fontWeight: '800' },
   detailPrimaryBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
   detailPrimaryText:  { color: '#fff', fontSize: 15, fontWeight: '800' },
+
+  eftposBtn:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderColor: '#C7D2FE', backgroundColor: '#EEF2FF', paddingVertical: 11, marginTop: 2 },
+  eftposBtnText:      { color: '#4F46E5', fontSize: 14, fontWeight: '800' },
+  eftposBackdrop:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  eftposSheet:        { backgroundColor: '#fff', borderRadius: 28, padding: 32, width: '100%', maxWidth: 380, alignItems: 'center', gap: 10 },
+  eftposIconWrap:     { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  eftposCustomer:     { fontSize: 22, fontWeight: '900', color: NAVY, textAlign: 'center' },
+  eftposOrderNum:     { fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 1, textAlign: 'center' },
+  eftposAmount:       { fontSize: 40, fontWeight: '900', color: TEXT, textAlign: 'center', marginVertical: 6 },
+  eftposStatusText:   { fontSize: 16, fontWeight: '700', color: NAVY, textAlign: 'center', marginTop: 6 },
+  eftposDeclinedHint: { fontSize: 13, color: MUTED, textAlign: 'center', lineHeight: 18, marginTop: 2 },
+  eftposCancelBtn:    { marginTop: 12, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, backgroundColor: '#F3F4F6' },
+  eftposCancelText:   { color: NAVY, fontSize: 15, fontWeight: '700' },
 });

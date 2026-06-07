@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { randomUUID } from 'crypto';
+import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import {
   claimedRewardsTable,
@@ -520,6 +520,459 @@ router.post('/staff-clock', async (req, res) => {
       clockIn: now,
     });
     return res.json({ data: { clocked: 'in', name: staffUser.name, shiftId } });
+  }
+});
+
+// ── In-memory transaction binding (sessionId → orderId + device) ──────────────
+interface EftposSession {
+  orderId: string;
+  deviceUserId: string;
+  createdAt: number;
+}
+const activeSessions = new Map<string, EftposSession>();
+setInterval(() => {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [id, s] of activeSessions.entries()) {
+    if (s.createdAt < cutoff) activeSessions.delete(id);
+  }
+}, 60_000).unref();
+
+// ── Encryption helpers (AES-256-CBC, key derived from SESSION_SECRET) ─────────
+import { createHash } from 'crypto';
+
+function getEncKey(): Buffer {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) throw new Error('SESSION_SECRET is not set — cannot encrypt/decrypt Linkly credentials.');
+  return createHash('sha256').update(secret).digest();
+}
+
+function encryptText(plain: string): string {
+  const key = getEncKey();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-cbc', key, iv);
+  let enc = cipher.update(plain, 'utf8', 'hex');
+  enc += cipher.final('hex');
+  return `${iv.toString('hex')}:${enc}`;
+}
+
+function decryptText(stored: string): string {
+  const key = getEncKey();
+  const sep = stored.indexOf(':');
+  const iv = Buffer.from(stored.slice(0, sep), 'hex');
+  const data = stored.slice(sep + 1);
+  const decipher = createDecipheriv('aes-256-cbc', key, iv);
+  let dec = decipher.update(data, 'hex', 'utf8');
+  dec += decipher.final('utf8');
+  return dec;
+}
+
+// ── Verify settings PIN (uses clock-in PIN, scoped to stores assigned to device)
+router.post('/verify-settings-pin', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { pin } = req.body ?? {};
+  if (!pin || !/^\d{4}$/.test(String(pin))) {
+    return res.status(400).json({ error: 'A 4-digit PIN is required.' });
+  }
+
+  // Require this device to have at least one store assigned via staff_store_assignments —
+  // unassigned displays have no organisational context and cannot be unlocked.
+  const storeRows = await db.execute(sql`
+    SELECT store_id FROM staff_store_assignments
+    WHERE staff_id = ${req.user!.id} AND is_active = true LIMIT 10
+  `);
+  const deviceStoreRows = (storeRows as any).rows ?? (storeRows as any) ?? [];
+  if (deviceStoreRows.length === 0) {
+    return res.json({ granted: false, reason: 'No store assigned to this display.' });
+  }
+  const deviceStoreIds: string[] = deviceStoreRows.map((r: any) => r.store_id);
+
+  // Accept only dedicated settings PINs of manager/director/master accounts
+  // who share at least one store assignment with this device.
+  const rows = await db.execute(sql`
+    SELECT sp.settings_pin_hash
+    FROM staff_profiles sp
+    INNER JOIN users u ON u.id = sp.user_id
+    INNER JOIN staff_store_assignments ssa ON ssa.staff_id = sp.user_id AND ssa.is_active = true
+    WHERE u.role IN ('manager', 'director', 'master')
+      AND sp.settings_pin_hash IS NOT NULL
+      AND ssa.store_id = ANY(${deviceStoreIds}::text[])
+  `);
+  const profiles = (rows as any).rows ?? (rows as any) ?? [];
+
+  for (const row of profiles) {
+    const valid = await bcrypt.compare(String(pin), row.settings_pin_hash);
+    if (valid) return res.json({ granted: true });
+  }
+  return res.json({ granted: false });
+});
+
+// ── Linkly device config ───────────────────────────────────────────────────────
+router.get('/linkly', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const rows = await db.execute(sql`
+    SELECT linkly_enabled, linkly_username, linkly_pairing_code, linkly_terminal_id,
+           CASE WHEN linkly_password_encrypted IS NOT NULL THEN true ELSE false END AS has_password
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const row = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!row) {
+    return res.json({ data: { linklyEnabled: false, linklyUsername: null, linklyPairingCode: null, linklyTerminalId: null, hasPassword: false, linklyConfigComplete: false } });
+  }
+  const linklyConfigComplete = !!(row.linkly_username && row.has_password && row.linkly_pairing_code);
+  return res.json({
+    data: {
+      linklyEnabled: row.linkly_enabled ?? false,
+      linklyUsername: row.linkly_username ?? null,
+      linklyPairingCode: row.linkly_pairing_code ?? null,
+      linklyTerminalId: row.linkly_terminal_id ?? null,
+      hasPassword: row.has_password ?? false,
+      linklyConfigComplete,
+    },
+  });
+});
+
+router.patch('/linkly', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { linklyEnabled, linklyUsername, linklyPassword, linklyPairingCode } = req.body ?? {};
+
+  const encPassword = linklyPassword ? encryptText(String(linklyPassword)) : undefined;
+
+  await db.execute(sql`
+    INSERT INTO shop_display_profiles (user_id, permissions, linkly_enabled, linkly_username, linkly_password_encrypted, linkly_pairing_code, linkly_terminal_id)
+    VALUES (
+      ${req.user!.id}, '[]',
+      ${linklyEnabled ?? false},
+      ${linklyUsername ?? null},
+      ${encPassword ?? null},
+      ${linklyPairingCode ?? null},
+      NULL
+    )
+    ON CONFLICT (user_id) DO UPDATE SET
+      linkly_enabled = COALESCE(${linklyEnabled ?? null}, shop_display_profiles.linkly_enabled),
+      linkly_username = CASE WHEN ${linklyUsername !== undefined} THEN ${linklyUsername ?? null} ELSE shop_display_profiles.linkly_username END,
+      linkly_password_encrypted = CASE WHEN ${encPassword !== undefined} THEN ${encPassword ?? null} ELSE shop_display_profiles.linkly_password_encrypted END,
+      linkly_pairing_code = CASE WHEN ${linklyPairingCode !== undefined} THEN ${linklyPairingCode ?? null} ELSE shop_display_profiles.linkly_pairing_code END,
+      updated_at = NOW()
+  `);
+
+  return res.json({ success: true });
+});
+
+// ── Linkly proxy — test connection ────────────────────────────────────────────
+router.post('/linkly/test', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const row = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!row?.linkly_username || !row?.linkly_password_encrypted || !row?.linkly_pairing_code) {
+    return res.status(400).json({ error: 'Linkly credentials not configured on this device.' });
+  }
+
+  let password: string;
+  try { password = decryptText(row.linkly_password_encrypted); }
+  catch { return res.status(500).json({ error: 'Failed to decrypt stored password.' }); }
+
+  try {
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: row.linkly_username,
+        password,
+        pairingCode: row.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: req.user!.id,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (!authRes.ok) {
+      return res.status(400).json({ error: authBody?.message ?? authBody?.error ?? 'Linkly authentication failed.' });
+    }
+
+    const terminalId = authBody.terminalId ?? authBody.terminal_id ?? authBody.TerminalId ?? null;
+    if (terminalId) {
+      await db.execute(sql`
+        UPDATE shop_display_profiles SET linkly_terminal_id = ${terminalId} WHERE user_id = ${req.user!.id}
+      `);
+    }
+
+    return res.json({ success: true, terminalId });
+  } catch (err: any) {
+    req.log.error({ err }, 'Linkly test connection error');
+    return res.status(502).json({ error: 'Could not reach Linkly Cloud. Check your network and try again.' });
+  }
+});
+
+// ── Linkly proxy — initiate transaction ──────────────────────────────────────
+router.post('/linkly/transaction', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { orderId } = req.body ?? {};
+  if (!orderId) return res.status(400).json({ error: 'orderId is required.' });
+
+  // Validate order exists, is unpaid, and belongs to a store assigned to this device
+  const [order] = await db.select({
+    id: ordersTable.id,
+    totalCents: ordersTable.totalCents,
+    stripePaymentStatus: ordersTable.stripePaymentStatus,
+    storeId: (ordersTable as any).storeId,
+  }).from(ordersTable).where(eq(ordersTable.id, orderId));
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+  if (order.stripePaymentStatus === 'succeeded' || (order as any).paymentStatus === 'paid') {
+    return res.status(400).json({ error: 'Order is already paid.' });
+  }
+
+  // Scope check: device can only charge orders in its assigned stores
+  if (order.storeId) {
+    const assignedRows = await db.execute(sql`
+      SELECT 1 FROM staff_store_assignments
+      WHERE staff_id = ${req.user!.id} AND store_id = ${order.storeId} AND is_active = true LIMIT 1
+    `);
+    const assigned = (assignedRows as any).rows ?? (assignedRows as any) ?? [];
+    if (assigned.length === 0) {
+      return res.status(403).json({ error: 'This order is not in a store assigned to this display.' });
+    }
+  }
+
+  // Get Linkly config for this device
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code, linkly_terminal_id
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+    return res.status(400).json({ error: 'Linkly is not configured on this device.' });
+  }
+
+  let password: string;
+  try { password = decryptText(cfg.linkly_password_encrypted); }
+  catch { return res.status(500).json({ error: 'Failed to decrypt stored password.' }); }
+
+  const sessionId = randomUUID();
+  const amountCents = order.totalCents ?? 0;
+
+  try {
+    // Authenticate first
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cfg.linkly_username,
+        password,
+        pairingCode: cfg.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: req.user!.id,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (!authRes.ok) {
+      return res.status(400).json({ error: authBody?.message ?? 'Linkly authentication failed.' });
+    }
+
+    const authToken = authBody.token ?? authBody.Token;
+    const secret = authBody.secret ?? authBody.Secret ?? '';
+
+    // Initiate transaction
+    const txnRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+        'Secret': secret,
+      },
+      body: JSON.stringify({
+        SessionId: sessionId,
+        Merchant: '00',
+        TxnType: 'P',
+        AmountCash: 0,
+        AmountPurchase: amountCents,
+        TxnRef: orderId.slice(0, 16),
+        EnableTip: false,
+        CutReceipt: '0',
+        ReceiptAutoPrint: '7',
+      }),
+    });
+
+    if (!txnRes.ok) {
+      const txnBody = await txnRes.json().catch(() => ({})) as any;
+      return res.status(400).json({ error: txnBody?.message ?? 'Failed to start EFTPOS transaction.' });
+    }
+
+    // Bind this session to the order and device — poll endpoint will enforce this binding
+    activeSessions.set(sessionId, { orderId, deviceUserId: req.user!.id, createdAt: Date.now() });
+
+    return res.json({ data: { sessionId, amountCents } });
+  } catch (err: any) {
+    req.log.error({ err }, 'Linkly transaction initiation error');
+    return res.status(502).json({ error: 'Could not reach Linkly Cloud.' });
+  }
+});
+
+// ── Linkly proxy — poll transaction status ────────────────────────────────────
+router.get('/linkly/transaction/:sessionId', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { sessionId } = req.params;
+
+  // Verify session was created by this device and extract the authoritative orderId
+  const binding = activeSessions.get(sessionId);
+  if (!binding) return res.status(404).json({ error: 'Session not found or expired.' });
+  if (binding.deviceUserId !== req.user!.id) return res.status(403).json({ error: 'Session belongs to a different device.' });
+  const boundOrderId = binding.orderId;
+
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+    return res.status(400).json({ error: 'Linkly not configured.' });
+  }
+
+  let password: string;
+  try { password = decryptText(cfg.linkly_password_encrypted); }
+  catch { return res.status(500).json({ error: 'Failed to decrypt password.' }); }
+
+  try {
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cfg.linkly_username,
+        password,
+        pairingCode: cfg.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: req.user!.id,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (!authRes.ok) return res.status(400).json({ error: 'Linkly re-authentication failed.' });
+
+    const authToken = authBody.token ?? authBody.Token;
+    const secret = authBody.secret ?? authBody.Secret ?? '';
+
+    const pollRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Secret': secret,
+      },
+    });
+    const pollBody = await pollRes.json().catch(() => ({})) as any;
+
+    if (!pollRes.ok) {
+      return res.json({ data: { status: 'unknown', responseText: 'Polling error', approved: false } });
+    }
+
+    const response = pollBody.Response ?? pollBody.response ?? {};
+    const success = pollBody.SessionComplete ?? pollBody.Complete ?? false;
+    const approved = success && (
+      response.Success === true ||
+      response.ResponseCode === '00' ||
+      response.ResponseText?.toLowerCase().includes('approved') ||
+      pollBody.TxnCompleted === true
+    );
+    const declined = success && !approved;
+
+    let statusText = 'Waiting for card…';
+    if (success && approved) statusText = 'Approved';
+    else if (success && declined) statusText = 'Declined';
+    else if (response.ResponseText) statusText = response.ResponseText;
+
+    // On approval: update order using the server-bound orderId only (never trust client-supplied value)
+    if (approved) {
+      try {
+        await db.update(ordersTable)
+          .set({
+            stripePaymentStatus: 'succeeded',
+            paymentMethodType: 'linkly_eftpos',
+            status: 'being_prepared',
+            updatedAt: new Date(),
+          } as any)
+          .where(eq(ordersTable.id, boundOrderId));
+        activeSessions.delete(sessionId);
+      } catch (updateErr: any) {
+        req.log.error({ updateErr, orderId: boundOrderId }, 'Failed to update order after Linkly approval');
+      }
+    } else if (success) {
+      // Declined — clean up binding
+      activeSessions.delete(sessionId);
+    }
+
+    return res.json({
+      data: {
+        status: success ? (approved ? 'approved' : 'declined') : 'pending',
+        responseText: statusText,
+        approved,
+        complete: success,
+        receiptText: response.ReceiptText ?? null,
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'Linkly poll error');
+    return res.json({ data: { status: 'pending', responseText: 'Connecting to terminal…', approved: false, complete: false } });
+  }
+});
+
+// ── Linkly proxy — cancel transaction ────────────────────────────────────────
+router.delete('/linkly/transaction/:sessionId', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { sessionId } = req.params;
+
+  // Verify device ownership before allowing cancellation
+  const binding = activeSessions.get(sessionId);
+  if (binding && binding.deviceUserId !== req.user!.id) {
+    return res.status(403).json({ error: 'Session belongs to a different device.' });
+  }
+  activeSessions.delete(sessionId);
+
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+    return res.status(400).json({ error: 'Linkly not configured.' });
+  }
+
+  let password: string;
+  try { password = decryptText(cfg.linkly_password_encrypted); }
+  catch { return res.status(500).json({ error: 'Failed to decrypt password.' }); }
+
+  try {
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cfg.linkly_username,
+        password,
+        pairingCode: cfg.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: req.user!.id,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (!authRes.ok) return res.status(400).json({ error: 'Linkly re-authentication failed.' });
+
+    const authToken = authBody.token ?? authBody.Token;
+    const secret = authBody.secret ?? authBody.Secret ?? '';
+
+    await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Secret': secret,
+      },
+    });
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    req.log.error({ err }, 'Linkly cancel error');
+    return res.json({ success: true });
   }
 });
 

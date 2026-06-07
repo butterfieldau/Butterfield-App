@@ -740,6 +740,40 @@ router.patch('/staff/:id/clock-pin', async (req, res) => {
   return res.json({ success: true });
 });
 
+router.patch('/staff/:id/settings-pin', async (req, res) => {
+  // Settings PIN management is director/master only — managers cannot issue access PINs
+  if (!['director', 'master'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Only directors and masters can manage Settings PINs.' });
+  }
+  const { id } = req.params;
+  const { pin } = req.body ?? {};
+  if (pin !== null && pin !== undefined) {
+    if (!/^\d{4}$/.test(String(pin))) {
+      return res.status(400).json({ error: 'Settings PIN must be exactly 4 digits.' });
+    }
+    const hashed = await bcrypt.hash(String(pin), 10);
+    const [existing] = await db.select({ userId: staffProfilesTable.userId })
+      .from(staffProfilesTable).where(eq(staffProfilesTable.userId, id)).limit(1);
+    if (existing) {
+      await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = ${hashed} WHERE user_id = ${id}`);
+    } else {
+      await db.insert(staffProfilesTable).values({
+        userId: id,
+        employeeId: `EMP-${id.slice(0, 8).toUpperCase()}`,
+        clockPin: null,
+        isManager: true,
+        approvedByAdmin: false,
+      });
+      await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = ${hashed} WHERE user_id = ${id}`);
+    }
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'settings_pin_set' });
+  } else {
+    await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = NULL WHERE user_id = ${id}`);
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'settings_pin_cleared' });
+  }
+  return res.json({ success: true });
+});
+
 // ── Delete user (director only) ──────────────────────────────────────────────
 router.delete('/users/:id', async (req, res) => {
   const { id } = req.params;

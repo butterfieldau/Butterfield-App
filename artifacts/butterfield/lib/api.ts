@@ -231,6 +231,20 @@ export const api = {
       request<{ data: { clocked: 'in' | 'out'; name: string; shiftId: string; hoursWorked?: string } }>(
         '/shop-display/staff-clock', { method: 'POST', body: JSON.stringify({ staffId, pin }) },
       ),
+    verifySettingsPin: (pin: string) =>
+      request<{ granted: boolean }>('/shop-display/verify-settings-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
+    getLinklyConfig: () =>
+      request<{ data: LinklyConfig }>('/shop-display/linkly'),
+    saveLinklyConfig: (data: { linklyEnabled?: boolean; linklyUsername?: string; linklyPassword?: string; linklyPairingCode?: string }) =>
+      request<{ success: boolean }>('/shop-display/linkly', { method: 'PATCH', body: JSON.stringify(data) }),
+    testLinkly: () =>
+      request<{ success: boolean; terminalId?: string | null }>('/shop-display/linkly/test', { method: 'POST', body: '{}' }),
+    startLinklyTransaction: (orderId: string) =>
+      request<{ data: { sessionId: string; amountCents: number } }>('/shop-display/linkly/transaction', { method: 'POST', body: JSON.stringify({ orderId }) }),
+    pollLinklyTransaction: (sessionId: string) =>
+      request<{ data: LinklyTransactionStatus }>(`/shop-display/linkly/transaction/${sessionId}`),
+    cancelLinklyTransaction: (sessionId: string) =>
+      request<{ success: boolean }>(`/shop-display/linkly/transaction/${sessionId}`, { method: 'DELETE' }),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
@@ -517,6 +531,8 @@ export const api = {
     deleteShopDisplay:   (id: string) => request<{ success: boolean }>(`/director/shop-displays/${id}`, { method: 'DELETE' }),
     setStaffClockPin:    (staffId: string, pin: string | null) =>
       request<{ success: boolean }>(`/director/staff/${staffId}/clock-pin`, { method: 'PATCH', body: JSON.stringify({ pin }) }),
+    setStaffSettingsPin: (staffId: string, pin: string | null) =>
+      request<{ success: boolean }>(`/director/staff/${staffId}/settings-pin`, { method: 'PATCH', body: JSON.stringify({ pin }) }),
 
     // Pricing tiers
     tiers:               () => request<{ data: PricingTier[] }>('/director/tiers'),
@@ -1687,6 +1703,23 @@ export interface ShopDisplayOrder extends ApiOrder {
   customerPhone?: string | null;
   pickupTime?: string | null;
   paymentStatus?: string | null;
+}
+
+export interface LinklyConfig {
+  linklyEnabled: boolean;
+  linklyUsername: string | null;
+  linklyPairingCode: string | null;
+  linklyTerminalId: string | null;
+  hasPassword: boolean;
+  linklyConfigComplete: boolean;
+}
+
+export interface LinklyTransactionStatus {
+  status: 'pending' | 'approved' | 'declined' | 'unknown';
+  responseText: string;
+  approved: boolean;
+  complete: boolean;
+  receiptText?: string | null;
 }
 
 export interface WholesaleDeliverySlot {

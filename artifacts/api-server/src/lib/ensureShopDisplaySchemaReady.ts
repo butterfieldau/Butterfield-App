@@ -65,12 +65,42 @@ export async function ensureShopDisplaySchemaReady() {
   `);
 
   await db.execute(sql`
+    ALTER TABLE staff_profiles
+    ADD COLUMN IF NOT EXISTS settings_pin_hash text;
+  `);
+
+  await db.execute(sql`
     CREATE TABLE IF NOT EXISTS shop_display_profiles (
       user_id text PRIMARY KEY,
       permissions text NOT NULL DEFAULT '[]',
       created_at timestamp NOT NULL DEFAULT now(),
       updated_at timestamp NOT NULL DEFAULT now()
     );
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS linkly_enabled boolean NOT NULL DEFAULT false;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS linkly_username text;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS linkly_password_encrypted text;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS linkly_pairing_code text;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS linkly_terminal_id text;
   `);
 
   ensured = true;
