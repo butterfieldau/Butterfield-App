@@ -809,6 +809,29 @@ export const api = {
     },
   },
 
+  pos: {
+    customerSearch: (params: { q?: string; userId?: string; qrPayload?: string }) => {
+      const qs = new URLSearchParams();
+      if (params.q)          qs.set('q', params.q);
+      if (params.userId)     qs.set('userId', params.userId);
+      if (params.qrPayload)  qs.set('qrPayload', params.qrPayload);
+      return request<{ data: PosCustomerResult[] }>(`/pos/customer-search?${qs}`);
+    },
+    createOrder: (data: {
+      items: PosOrderItem[];
+      orderType: 'dine_in' | 'takeaway' | 'counter';
+      paymentMethod: 'cash' | 'eftpos';
+      amountTenderedCents?: number;
+      customerId?: string;
+      discountCode?: string;
+      notes?: string;
+    }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
+      '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
+    ),
+    summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
+    voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
+  },
+
   stock: {
     categories:       () => request<{ data: { id: string; label: string }[] }>('/stock/categories'),
     createCategory:   (name: string) => request<{ data: StockCategory }>('/stock/categories', { method: 'POST', body: JSON.stringify({ name }) }),
@@ -821,6 +844,36 @@ export const api = {
     delete: (id: string) => request<{ data: { success: boolean } }>(`/stock/items/${id}`, { method: 'DELETE' }),
   },
 };
+
+export interface PosCustomerResult {
+  userId: string;
+  name: string;
+  email?: string;
+  loyaltyPoints: number;
+  stampCount: number;
+  loyaltyTier: string;
+}
+
+export interface PosOrderItem {
+  productId: string;
+  productName: string;
+  variantId?: string | null;
+  variantName?: string | null;
+  variantPriceCents?: number;
+  selectedOptions?: { groupId: string; groupName: string; optionId: string; optionName: string; priceAdjustmentCents: number }[];
+  category?: string;
+  quantity: number;
+  unitPriceCents: number;
+  notes?: string;
+}
+
+export interface PosLoyaltyResult {
+  pointsEarned: number;
+  newBalance: number;
+  stampsAdded: number;
+  newStampCount: number;
+  rewardUnlocked: boolean;
+}
 
 export interface StockItem {
   id: string;
