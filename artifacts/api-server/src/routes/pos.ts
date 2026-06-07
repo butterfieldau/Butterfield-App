@@ -781,27 +781,12 @@ router.post('/orders', async (req, res) => {
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
 
-      const coffeeItems = items.filter((i: any) =>
-        String(i.category ?? '').toLowerCase() === 'coffee'
-      );
-
-      let stampsAdded = 0;
-      let rewardUnlocked = false;
-      let newStampCount = profile.coffeeStampCount ?? profile.stampCount ?? 0;
-
-      if (coffeeItems.length > 0) {
-        const stampRes = await applyCoffeeStamps({
-          userId: customerId,
-          stampsToAdd: 1,
-          source: 'in_app_order',
-          staffId: req.user!.id,
-          orderId,
-          description: `Coffee from POS order #${orderNumber ?? orderId.slice(0, 8)}`,
-        });
-        stampsAdded = 1;
-        rewardUnlocked = stampRes.earnedFree;
-        newStampCount = stampRes.stampCount;
-      }
+      // POS stamps are awarded exclusively through the interactive stamp card UI
+      // (POST /pos/customers/:id/stamp). Auto-stamping here is intentionally disabled
+      // to prevent double-awarding when staff have already tapped the stamp circles.
+      const stampsAdded = 0;
+      const rewardUnlocked = false;
+      const newStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
 
       loyaltyResult = { pointsEarned, newBalance, stampsAdded, newStampCount, rewardUnlocked };
     } catch (err: any) {
