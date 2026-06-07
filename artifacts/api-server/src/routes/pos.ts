@@ -1,5 +1,19 @@
 import { Router } from 'express';
 import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+
+// ── Per-ticket stamp cap (in-memory, keyed by client ticket UUID) ─────────────
+// Deterministic guard that prevents over-tapping without requiring server-side
+// ticket state in the DB. Survives normal shift durations; resets on restart.
+const posTicketStampCache = new Map<string, { stampsIssued: number; expiresAt: number }>();
+// Prune expired entries every 30 minutes so the Map doesn't grow unbounded
+const _stampCachePruner = setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of posTicketStampCache.entries()) {
+    if (val.expiresAt < now) posTicketStampCache.delete(key);
+  }
+}, 30 * 60 * 1000);
+if (typeof _stampCachePruner.unref === 'function') _stampCachePruner.unref();
+
 import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
   discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
@@ -273,7 +287,7 @@ router.post('/customers/:id/stamp', async (req, res) => {
   await ensureLoyaltySchemaReady();
 
   const customerId = req.params.id;
-  const { items: ticketItems } = req.body;
+  const { items: ticketItems, coffeeItemCount, ticketId } = req.body;
 
   // Server-side validation: require ticket items with at least one coffee item
   if (!Array.isArray(ticketItems) || ticketItems.length === 0) {
@@ -311,35 +325,25 @@ router.post('/customers/:id/stamp', async (req, res) => {
     }
   }
 
-  // Enforce per-ticket stamp cap: client sends coffeeItemCount (sum of coffee item quantities)
-  // so the server can reject over-tapping beyond what was actually ordered
-  const { coffeeItemCount } = req.body;
+  // Per-ticket stamp cap: use client-supplied ticketId as a deterministic cache key.
+  // This prevents over-tapping (e.g. 3 taps for 1 coffee) without a time-window
+  // heuristic that would incorrectly block consecutive valid tickets.
   const maxStampsThisTicket = Number.isFinite(Number(coffeeItemCount)) && Number(coffeeItemCount) > 0
     ? Math.floor(Number(coffeeItemCount))
     : coffeeItems.length;
 
-  // Count stamps already awarded by this staff member to this customer in the last 10 minutes
-  // (approximates per-ticket idempotency without requiring server-side ticket state)
-  const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
-  const recentRows = await db
-    .select({ total: sql<number>`COALESCE(SUM(${loyaltyActivityLogTable.coffeeStampsDelta}), 0)` })
-    .from(loyaltyActivityLogTable)
-    .where(
-      and(
-        eq(loyaltyActivityLogTable.customerId, customerId),
-        eq(loyaltyActivityLogTable.staffId, req.user!.id),
-        sql`${loyaltyActivityLogTable.coffeeStampsDelta} > 0`,
-        sql`${loyaltyActivityLogTable.createdAt} >= ${tenMinAgo}`,
-      ),
-    );
-  const recentStamps = Number((recentRows[0] as any)?.total ?? 0);
-  if (recentStamps >= maxStampsThisTicket) {
-    return res.status(400).json({
-      error: `Maximum ${maxStampsThisTicket} stamp(s) allowed for this order (${recentStamps} already awarded)`,
-    });
+  const ticketKey = typeof ticketId === 'string' && ticketId.length > 0 ? ticketId : null;
+  if (ticketKey) {
+    const entry = posTicketStampCache.get(ticketKey);
+    const stampsIssued = entry?.stampsIssued ?? 0;
+    if (stampsIssued >= maxStampsThisTicket) {
+      return res.status(400).json({
+        error: `Maximum ${maxStampsThisTicket} stamp(s) already awarded for this order`,
+      });
+    }
   }
 
-  req.log.info({ customerId, coffeeItemCount: maxStampsThisTicket, recentStamps }, 'POS manual stamp award');
+  req.log.info({ customerId, coffeeItemCount: maxStampsThisTicket, ticketId: ticketKey }, 'POS manual stamp award');
 
   const [user] = await db
     .select({ id: usersTable.id })
@@ -355,6 +359,13 @@ router.post('/customers/:id/stamp', async (req, res) => {
       staffId: req.user!.id,
       description: 'Coffee stamp awarded manually at POS',
     });
+
+    // Increment the in-memory per-ticket cap so subsequent calls for the same
+    // ticket are correctly blocked once all coffee items have stamps
+    if (ticketKey) {
+      const prev = posTicketStampCache.get(ticketKey) ?? { stampsIssued: 0, expiresAt: Date.now() + 4 * 60 * 60 * 1000 };
+      posTicketStampCache.set(ticketKey, { stampsIssued: prev.stampsIssued + 1, expiresAt: prev.expiresAt });
+    }
 
     const profile = await getOrCreateCustomerLoyaltyProfile(customerId);
     return res.json({

@@ -1050,8 +1050,8 @@ function TicketPanel({
 
   // Stamp mutation — award one stamp to attached customer (server validates coffee item present)
   const addStampMutation = useMutation({
-    mutationFn: ({ customerId, items, coffeeItemCount }: { customerId: string; items: { category: string; productId?: string }[]; coffeeItemCount: number }) =>
-      api.pos.addStamp(customerId, items, coffeeItemCount),
+    mutationFn: ({ customerId, items, coffeeItemCount, ticketId }: { customerId: string; items: { category: string; productId?: string }[]; coffeeItemCount: number; ticketId: string }) =>
+      api.pos.addStamp(customerId, items, coffeeItemCount, ticketId),
     onSuccess: (res) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const data = (res as any)?.data ?? {};
@@ -1202,6 +1202,7 @@ function TicketPanel({
                     customerId: ticket.customer!.userId,
                     items: ticket.items.map(i => ({ category: i.category, productId: i.productId })),
                     coffeeItemCount: coffeeCount,
+                    ticketId: ticket.id,
                   }) : undefined}
                   style={[
                     styles.stampCircle,
@@ -2241,13 +2242,15 @@ function CustomerModal({
       const res = await api.pos.customerSearch({ qrPayload: data });
       if (res.data.length > 0) {
         const c = res.data[0]!;
-        onSelect({
+        const customer: AttachedCustomer = {
           userId: c.userId, name: c.name, email: c.email,
           loyaltyPoints: c.loyaltyPoints, stampCount: c.stampCount,
           loyaltyTier: c.loyaltyTier, freeCoffeeRewards: c.freeCoffeeRewards ?? 0,
           birthday: c.birthday ?? null,
           availableClaimedRewards: c.availableClaimedRewards ?? [],
-        });
+        };
+        onSelect(customer);
+        Alert.alert(`✓ ${c.name} attached`, `${c.loyaltyPoints} pts · ${c.stampCount}/${STAMP_GOAL} stamps`);
       } else {
         Alert.alert('Not Found', 'Customer not found for this QR code.');
       }
