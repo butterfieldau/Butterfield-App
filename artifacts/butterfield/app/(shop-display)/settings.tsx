@@ -138,11 +138,11 @@ function PinModal({
 
           <View style={p.numpad}>
             {KEYS.map((key, i) => {
-              if (key === '') return <View key={i} style={p.keyPlaceholder} />;
+              if (key === '') return <View key={`k-${i}`} style={p.keyPlaceholder} />;
               const isBack = key === '⌫';
               return (
                 <Pressable
-                  key={key}
+                  key={`k-${i}`}
                   onPress={() => isBack ? backspace() : appendDigit(key)}
                   style={({ pressed }) => [p.key, pressed && p.keyPressed]}
                 >

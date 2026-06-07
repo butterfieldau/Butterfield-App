@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Image, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, Platform, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -32,7 +32,10 @@ export default function ShopDisplayLayout() {
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  // On iOS, only use the sidebar/wide layout on iPad — never on iPhone (even wide-screen
+  // iPhones in landscape return insets.top=0 which breaks safe-area handling).
+  // On other platforms (web preview, Android) fall back to width-based detection.
+  const isWide = Platform.OS === 'ios' ? Platform.isPad : width >= 768;
   const pathname = usePathname();
   useShopDisplayAwakeMode(user?.role === 'shop_display');
 
