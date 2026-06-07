@@ -420,6 +420,7 @@ export const api = {
       ),
   },
   director: {
+    verifySettingsPin:   (pin: string) => request<{ granted: boolean }>('/director/verify-settings-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
     stats:               () => request<{ data: DirectorStats }>('/director/stats'),
     activity:            () => request<{ data: DirectorActivityItem[] }>('/director/activity'),
     sessions:            () => request<{ data: { today: {hour:number;count:number}[]; lastWeek: {hour:number;count:number}[]; totalToday: number; totalLastWeek: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),

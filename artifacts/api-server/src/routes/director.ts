@@ -774,6 +774,31 @@ router.patch('/staff/:id/settings-pin', async (req, res) => {
   return res.json({ success: true });
 });
 
+// ── Verify settings PIN (director/manager/master tokens) ─────────────────────
+router.post('/verify-settings-pin', async (req, res) => {
+  const { pin } = req.body ?? {};
+  if (!pin || !/^\d{4}$/.test(String(pin))) {
+    return res.status(400).json({ error: 'A 4-digit PIN is required.' });
+  }
+  const rows = await db.execute(sql`
+    SELECT sp.settings_pin_hash, sp.clock_pin
+    FROM staff_profiles sp
+    INNER JOIN users u ON u.id = sp.user_id
+    WHERE u.role IN ('manager', 'director', 'master')
+  `);
+  const profiles = (rows as any).rows ?? (rows as any) ?? [];
+  for (const row of profiles) {
+    if (row.settings_pin_hash) {
+      const valid = await bcrypt.compare(String(pin), row.settings_pin_hash);
+      if (valid) return res.json({ granted: true });
+    } else if (row.clock_pin) {
+      const valid = await bcrypt.compare(String(pin), row.clock_pin);
+      if (valid) return res.json({ granted: true });
+    }
+  }
+  return res.json({ granted: false });
+});
+
 // ── Delete user (director only) ──────────────────────────────────────────────
 router.delete('/users/:id', async (req, res) => {
   const { id } = req.params;
