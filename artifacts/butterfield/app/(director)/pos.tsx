@@ -196,6 +196,8 @@ export default function PosScreen() {
     loyaltyResult: PosLoyaltyResult | null;
   } | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [customerModalMode, setCustomerModalMode] = useState<'search' | 'scan'>('search');
+  const [showSearch, setShowSearch]       = useState(false);
   const [salesOpen, setSalesOpen]         = useState(false);
   const [showHistory, setShowHistory]     = useState(false);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
@@ -514,8 +516,36 @@ export default function PosScreen() {
             <Feather name="x-circle" size={16} color={CHERRY} />
             <Text style={[styles.headerBtnText, { color: CHERRY }]}>Void Last</Text>
           </Pressable>
+          {/* Search toggle */}
+          <Pressable
+            onPress={() => { setShowSearch(v => !v); }}
+            style={[styles.headerBtn, showSearch && { backgroundColor: `${BLUE}20` }]}
+          >
+            <Feather name="search" size={16} color={showSearch ? BLUE : MID} />
+          </Pressable>
         </View>
       </View>
+
+      {/* ── Search bar (collapsible) ────────────────────────────────────── */}
+      {showSearch && (
+        <View style={styles.headerSearchRow}>
+          <Feather name="search" size={15} color={MUTED} style={{ marginRight: 8 }} />
+          <TextInput
+            style={[styles.searchInput, { flex: 1 }]}
+            placeholder="Search products…"
+            placeholderTextColor={MUTED}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            autoFocus
+          />
+          {searchText.length > 0 && (
+            <Pressable onPress={() => setSearchText('')} hitSlop={8}>
+              <Feather name="x" size={15} color={MUTED} />
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* ── Sales strip ─────────────────────────────────────────────────── */}
       {salesOpen && (
@@ -595,26 +625,6 @@ export default function PosScreen() {
         {/* ── Product browser ────────────────────────────────────────────── */}
         {(isWide || paneTab === 'menu') && (
           <View style={[styles.menuPane, isWide && { flex: 3 }]}>
-            {/* Search + category chips */}
-            <View style={styles.searchRow}>
-              <View style={styles.searchInputWrap}>
-                <Feather name="search" size={16} color={MUTED} style={{ marginRight: 6 }} />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search products…"
-                  placeholderTextColor={MUTED}
-                  value={searchText}
-                  onChangeText={setSearchText}
-                  returnKeyType="search"
-                />
-                {searchText.length > 0 && (
-                  <Pressable onPress={() => setSearchText('')}>
-                    <Feather name="x" size={16} color={MUTED} />
-                  </Pressable>
-                )}
-              </View>
-            </View>
-
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -694,7 +704,8 @@ export default function PosScreen() {
               onUpdateQty={updateItemQty}
               onClear={clearTicket}
               onHold={tickets.length <= 3 ? holdTicket : undefined}
-              onAttachCustomer={() => setShowCustomerModal(true)}
+              onAttachCustomer={() => { setCustomerModalMode('search'); setShowCustomerModal(true); }}
+              onScanQR={() => { setCustomerModalMode('scan'); setShowCustomerModal(true); }}
               onCharge={() => setShowPayment(true)}
               onEditItem={(item) => {
                 const cached = detailCache[item.productId];
@@ -753,6 +764,7 @@ export default function PosScreen() {
       {showCustomerModal && (
         <CustomerModal
           currentCustomer={activeTicket.customer}
+          initialMode={customerModalMode}
           onSelect={(c) => {
             updateTicket({ customer: c, appliedDiscount: null });
             setShowCustomerModal(false);
@@ -863,7 +875,7 @@ function ProductGridCard({
 // ── Ticket Panel ──────────────────────────────────────────────────────────────
 function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty,
-  onClear, onHold, onAttachCustomer, onCharge, onEditItem,
+  onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
 }: {
   ticket: Ticket;
   onUpdateTicket: (p: Partial<Ticket>) => void;
@@ -872,6 +884,7 @@ function TicketPanel({
   onClear: () => void;
   onHold?: () => void;
   onAttachCustomer: () => void;
+  onScanQR: () => void;
   onCharge: () => void;
   onEditItem: (item: TicketItem) => void;
 }) {
@@ -983,24 +996,32 @@ function TicketPanel({
 
   return (
     <View style={styles.ticketContainer}>
-      {/* Customer bar */}
-      <TouchableOpacity onPress={onAttachCustomer} style={styles.customerBar} activeOpacity={0.7}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-          <Feather name="user" size={16} color={ticket.customer ? BLUE : MUTED} />
-          {ticket.customer ? (
-            <View style={{ flex: 1 }}>
-              <Text style={styles.customerName}>{ticket.customer.name}</Text>
-              <Text style={styles.customerSub}>
-                {ticket.customer.loyaltyPoints} pts · {ticket.customer.stampCount}/{STAMP_GOAL} stamps
-                {(ticket.customer.freeCoffeeRewards ?? 0) > 0 ? ` · ☕×${ticket.customer.freeCoffeeRewards}` : ''}
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.customerPlaceholder}>Attach customer</Text>
-          )}
+      {/* Customer section */}
+      {ticket.customer ? (
+        <TouchableOpacity onPress={onAttachCustomer} style={styles.customerBar} activeOpacity={0.7}>
+          <Feather name="user" size={16} color={BLUE} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.customerName}>{ticket.customer.name}</Text>
+            <Text style={styles.customerSub}>
+              {ticket.customer.loyaltyPoints} pts · {ticket.customer.stampCount}/{STAMP_GOAL} stamps
+              {(ticket.customer.freeCoffeeRewards ?? 0) > 0 ? ` · ☕×${ticket.customer.freeCoffeeRewards}` : ''}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={14} color={MUTED} />
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.customerBtnRow}>
+          <Pressable onPress={onAttachCustomer} style={styles.customerBtn}>
+            <Feather name="user" size={14} color={BLUE} />
+            <Text style={styles.customerBtnText}>Attach Customer</Text>
+          </Pressable>
+          <View style={styles.customerBtnDivider} />
+          <Pressable onPress={onScanQR} style={styles.customerBtn}>
+            <Feather name="maximize" size={14} color={MID} />
+            <Text style={[styles.customerBtnText, { color: MID }]}>Scan QR</Text>
+          </Pressable>
         </View>
-        <Feather name="chevron-right" size={14} color={MUTED} />
-      </TouchableOpacity>
+      )}
 
       {/* Order type */}
       <View style={styles.orderTypeRow}>
@@ -1648,14 +1669,15 @@ function OrderCompleteModal({ order, onClose }: {
 
 // ── Customer Modal ────────────────────────────────────────────────────────────
 function CustomerModal({
-  currentCustomer, onSelect, onRemove, onClose,
+  currentCustomer, onSelect, onRemove, onClose, initialMode = 'search',
 }: {
   currentCustomer: AttachedCustomer | null;
   onSelect: (c: AttachedCustomer) => void;
   onRemove: () => void;
   onClose: () => void;
+  initialMode?: 'search' | 'scan';
 }) {
-  const [mode, setMode]       = useState<'search' | 'scan'>('search');
+  const [mode, setMode]       = useState<'search' | 'scan'>(initialMode);
   const [query, setQuery]     = useState('');
   const [results, setResults] = useState<PosCustomerResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -2174,10 +2196,15 @@ const styles = StyleSheet.create({
   variantBadgeText:   { fontSize: 10, color: BLUE, fontWeight: '600' },
 
   ticketContainer:    { flex: 1, display: 'flex', flexDirection: 'column' },
-  customerBar:        { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingHorizontal: 14, paddingVertical: 12 },
+  customerBar:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingHorizontal: 14, paddingVertical: 12 },
   customerName:       { fontSize: 14, fontWeight: '700', color: DARK },
   customerSub:        { fontSize: 12, color: MUTED, marginTop: 1 },
   customerPlaceholder: { fontSize: 14, color: MUTED },
+  customerBtnRow:     { flexDirection: 'row', backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  customerBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11 },
+  customerBtnText:    { fontSize: 13, fontWeight: '600', color: BLUE },
+  customerBtnDivider: { width: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginVertical: 8 },
+  headerSearchRow:    { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingHorizontal: 14, paddingVertical: 9 },
 
   orderTypeRow:       { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   orderTypeChip:      { flex: 1, paddingVertical: 6, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center' },
