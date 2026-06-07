@@ -164,6 +164,7 @@ router.get('/customer-search', async (req, res) => {
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         loyaltyTier: profile.loyaltyTier ?? 'blue',
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
+        birthday: (profile as any).birthday ?? null,
         availableClaimedRewards,
       }],
     });
@@ -187,34 +188,41 @@ router.get('/customer-search', async (req, res) => {
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         loyaltyTier: profile.loyaltyTier ?? 'blue',
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
+        birthday: (profile as any).birthday ?? null,
         availableClaimedRewards,
       }],
     });
   }
 
-  // Text search by name / email
+  // Text search by name / email / phone / referral code
   const query = String(q ?? '').trim();
   if (query.length < 2) return res.json({ data: [] });
 
   const like = `%${query}%`;
   const rows = await db.execute(sql`
-    SELECT u.id, u.name, u.email,
+    SELECT u.id, u.name, u.email, u.phone,
       COALESCE(cp.loyalty_points, 0) AS loyalty_points,
       COALESCE(cp.coffee_stamp_count, cp.stamp_count, 0) AS stamp_count,
       COALESCE(cp.loyalty_tier, 'blue') AS loyalty_tier,
-      COALESCE(cp.free_coffee_rewards, cp.free_coffees_earned, 0) AS free_coffee_rewards
+      COALESCE(cp.free_coffee_rewards, cp.free_coffees_earned, 0) AS free_coffee_rewards,
+      cp.birthday
     FROM users u
     LEFT JOIN customer_profiles cp ON cp.user_id = u.id
     WHERE u.role = 'customer'
-      AND (u.name ILIKE ${like} OR u.email ILIKE ${like})
+      AND (
+        u.name ILIKE ${like}
+        OR u.email ILIKE ${like}
+        OR u.phone ILIKE ${like}
+        OR cp.referral_code ILIKE ${like}
+      )
     ORDER BY u.name
     LIMIT 10
   `);
 
   const users = (rows.rows ?? rows as unknown as any[]) as Array<{
-    id: string; name: string; email: string;
+    id: string; name: string; email: string; phone: string | null;
     loyalty_points: number; stamp_count: number; loyalty_tier: string;
-    free_coffee_rewards: number;
+    free_coffee_rewards: number; birthday: string | null;
   }>;
 
   // Fetch claimed rewards for each result in parallel
@@ -231,9 +239,45 @@ router.get('/customer-search', async (req, res) => {
       stampCount: Number(u.stamp_count),
       loyaltyTier: u.loyalty_tier,
       freeCoffeeRewards: Number(u.free_coffee_rewards),
+      birthday: u.birthday ?? null,
       availableClaimedRewards: claimedRewardsMap[u.id] ?? [],
     })),
   });
+});
+
+// ── POST /pos/customers/:id/stamp — manually award one coffee stamp ──────────
+router.post('/customers/:id/stamp', async (req, res) => {
+  await ensurePosSchemaReady();
+  await ensureLoyaltySchemaReady();
+
+  const customerId = req.params.id;
+  const [user] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.id, customerId), sql`${usersTable.role} = 'customer'`));
+  if (!user) return res.status(404).json({ error: 'Customer not found' });
+
+  try {
+    const stampRes = await applyCoffeeStamps({
+      userId: customerId,
+      stampsToAdd: 1,
+      source: 'pos_manual' as any,
+      staffId: req.user!.id,
+      description: 'Coffee stamp awarded manually at POS',
+    });
+
+    const profile = await getOrCreateCustomerLoyaltyProfile(customerId);
+    return res.json({
+      data: {
+        stampCount: stampRes.stampCount,
+        rewardUnlocked: stampRes.earnedFree,
+        freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err, customerId }, 'POS stamp award failed');
+    return res.status(500).json({ error: 'Failed to award stamp' });
+  }
 });
 
 // ── GET /pos/surcharges — list all active surcharges ──────────────────────
@@ -331,8 +375,19 @@ router.post('/orders', async (req, res) => {
     manualDiscountPct,
     redeemFreeCoffee,
     claimedRewardId,
+    birthdayBonus,
     notes,
   } = req.body;
+
+  // Tier multiplier map — applied to points earned (not tip or surcharge)
+  function getTierMultiplier(tier: string): number {
+    switch ((tier ?? '').toLowerCase()) {
+      case 'platinum': return 2.0;
+      case 'gold':     return 1.5;
+      case 'silver':   return 1.25;
+      default:         return 1.0; // blue / bronze / unknown
+    }
+  }
 
   if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'Order must have at least one item' });
@@ -481,8 +536,20 @@ router.post('/orders', async (req, res) => {
 
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
-  // Points earned only on base order value (not tip or surcharge)
-  const pointsEarned = Math.floor(baseTotalCents / 100);
+
+  // ── Points earned: apply tier multiplier + birthday bonus ────────────────
+  let tierMultiplierVal = 1.0;
+  let birthdayMultiplierVal = 1.0;
+  let earlyLoyaltyTier = 'blue';
+  if (customerId) {
+    try {
+      const earlyProfile = await getOrCreateCustomerLoyaltyProfile(customerId);
+      earlyLoyaltyTier = earlyProfile.loyaltyTier ?? 'blue';
+      tierMultiplierVal = getTierMultiplier(earlyLoyaltyTier);
+      if (birthdayBonus) birthdayMultiplierVal = 2.0;
+    } catch { /* fall back to 1× */ }
+  }
+  const pointsEarned = Math.floor(baseTotalCents / 100 * tierMultiplierVal * birthdayMultiplierVal);
 
   // Store a human-readable discount label as discount_code
   // For manual % discounts and free coffee we use a descriptive label
@@ -614,11 +681,15 @@ router.post('/orders', async (req, res) => {
     try {
       const profile = await getOrCreateCustomerLoyaltyProfile(customerId);
 
+      const multiplierParts: string[] = [];
+      if (tierMultiplierVal !== 1.0) multiplierParts.push(`${earlyLoyaltyTier} tier ${tierMultiplierVal}×`);
+      if (birthdayBonus) multiplierParts.push('🎂 birthday 2×');
+      const multiplierNote = multiplierParts.length ? ` (${multiplierParts.join(', ')})` : '';
       await recordLoyaltyPoints({
         userId: customerId,
         pointsDelta: pointsEarned,
         orderId,
-        description: `POS order #${orderNumber ?? orderId.slice(0, 8)}`,
+        description: `POS order #${orderNumber ?? orderId.slice(0, 8)}${multiplierNote}`,
       });
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;

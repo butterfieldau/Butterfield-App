@@ -92,6 +92,7 @@ interface AttachedCustomer {
   stampCount: number;
   loyaltyTier: string;
   freeCoffeeRewards: number;
+  birthday?: string | null;
   availableClaimedRewards: AttachedCustomerClaimedReward[];
 }
 
@@ -137,6 +138,13 @@ interface ProductDetail {
 const fmtCents = (c: number) => `$${(c / 100).toFixed(2)}`;
 const uuid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const blankTicket = (): Ticket => ({ id: uuid(), items: [], customer: null, orderType: 'counter', notes: '', appliedDiscount: null });
+
+function isBirthdayMonth(birthday?: string | null): boolean {
+  if (!birthday) return false;
+  const parts = birthday.split('-');
+  if (parts.length < 2) return false;
+  return parseInt(parts[1], 10) - 1 === new Date().getMonth();
+}
 
 function ticketSubtotal(t: Ticket): number {
   return t.items.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0);
@@ -524,6 +532,7 @@ export default function PosScreen() {
       manualDiscountPct: activeTicket.appliedDiscount?.type === 'pct' ? activeTicket.appliedDiscount.pct : undefined,
       redeemFreeCoffee: activeTicket.appliedDiscount?.type === 'free_coffee' ? true : undefined,
       claimedRewardId: activeTicket.appliedDiscount?.type === 'claimed_reward' ? activeTicket.appliedDiscount.claimedRewardId : undefined,
+      birthdayBonus: activeTicket.customer ? isBirthdayMonth(activeTicket.customer.birthday) : undefined,
     }),
     onSuccess: (res, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -1028,6 +1037,31 @@ function TicketPanel({
   const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
 
+  // Stamp mutation — award one stamp to attached customer
+  const addStampMutation = useMutation({
+    mutationFn: (customerId: string) => api.pos.addStamp(customerId),
+    onSuccess: (res) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const data = (res as any)?.data ?? {};
+      if (ticket.customer) {
+        onUpdateTicket({
+          customer: {
+            ...ticket.customer,
+            stampCount: data.stampCount ?? ticket.customer.stampCount,
+            freeCoffeeRewards: data.freeCoffeeRewards ?? ticket.customer.freeCoffeeRewards,
+          },
+        });
+      }
+      if (data.rewardUnlocked) {
+        Alert.alert('☕ Free Coffee Earned!', `${ticket.customer?.name ?? 'Customer'} has earned a free coffee!`);
+      }
+    },
+    onError: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Could not award stamp. Please try again.');
+    },
+  });
+
   const applyPctDiscount = (pct: number) => {
     const amountCents = Math.round(subtotal * pct / 100);
     onUpdateTicket({ appliedDiscount: { type: 'pct', pct, amountCents, label: `${pct}% off` } });
@@ -1123,17 +1157,50 @@ function TicketPanel({
     <View style={styles.ticketContainer}>
       {/* Customer section */}
       {ticket.customer ? (
-        <TouchableOpacity onPress={onAttachCustomer} style={styles.customerBar} activeOpacity={0.7}>
-          <Feather name="user" size={16} color={BLUE} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.customerName}>{ticket.customer.name}</Text>
-            <Text style={styles.customerSub}>
-              {ticket.customer.loyaltyPoints} pts · {ticket.customer.stampCount}/{STAMP_GOAL} stamps
-              {(ticket.customer.freeCoffeeRewards ?? 0) > 0 ? ` · ☕×${ticket.customer.freeCoffeeRewards}` : ''}
-            </Text>
+        <View style={styles.customerSection}>
+          <TouchableOpacity onPress={onAttachCustomer} style={styles.customerBarInner} activeOpacity={0.7}>
+            <Feather name="user" size={16} color={BLUE} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.customerName}>{ticket.customer.name}</Text>
+                {isBirthdayMonth(ticket.customer.birthday) && (
+                  <Text style={{ fontSize: 14 }}>🎂</Text>
+                )}
+              </View>
+              <Text style={styles.customerSub}>
+                {ticket.customer.loyaltyPoints} pts
+                {(ticket.customer.freeCoffeeRewards ?? 0) > 0 ? ` · ☕ ×${ticket.customer.freeCoffeeRewards} free` : ''}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={14} color={MUTED} />
+          </TouchableOpacity>
+          {/* Interactive stamp card */}
+          <View style={styles.stampRow}>
+            {Array.from({ length: STAMP_GOAL }).map((_, i) => {
+              const filled = i < (ticket.customer?.stampCount ?? 0);
+              const isNext = i === (ticket.customer?.stampCount ?? 0);
+              const canTap = isNext && hasCoffeeItems && !addStampMutation.isPending;
+              return (
+                <Pressable
+                  key={i}
+                  onPress={canTap ? () => addStampMutation.mutate(ticket.customer!.userId) : undefined}
+                  style={[
+                    styles.stampCircle,
+                    filled && styles.stampCircleFilled,
+                    isNext && hasCoffeeItems && styles.stampCircleNext,
+                    addStampMutation.isPending && { opacity: 0.5 },
+                  ]}
+                >
+                  {filled ? <Feather name="coffee" size={11} color={WHITE} /> : null}
+                </Pressable>
+              );
+            })}
+            <Text style={styles.stampLabel}>{ticket.customer.stampCount}/{STAMP_GOAL}</Text>
+            {!hasCoffeeItems && (
+              <Text style={[styles.stampLabel, { marginLeft: 0, color: MUTED }]}>— add coffee to stamp</Text>
+            )}
           </View>
-          <Feather name="chevron-right" size={14} color={MUTED} />
-        </TouchableOpacity>
+        </View>
       ) : (
         <View style={styles.customerBtnRow}>
           <Pressable onPress={onAttachCustomer} style={styles.customerBtn}>
@@ -2159,6 +2226,7 @@ function CustomerModal({
           userId: c.userId, name: c.name, email: c.email,
           loyaltyPoints: c.loyaltyPoints, stampCount: c.stampCount,
           loyaltyTier: c.loyaltyTier, freeCoffeeRewards: c.freeCoffeeRewards ?? 0,
+          birthday: c.birthday ?? null,
           availableClaimedRewards: c.availableClaimedRewards ?? [],
         });
       } else {
@@ -2219,7 +2287,7 @@ function CustomerModal({
               <Feather name="search" size={16} color={MUTED} style={{ marginRight: 6 }} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Name or email…"
+                placeholder="Name, email, phone or referral code…"
                 placeholderTextColor={MUTED}
                 value={query}
                 onChangeText={setQuery}
@@ -2236,6 +2304,7 @@ function CustomerModal({
                     userId: item.userId, name: item.name, email: item.email,
                     loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
                     loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
+                    birthday: item.birthday ?? null,
                     availableClaimedRewards: item.availableClaimedRewards ?? [],
                   })}
                   style={styles.customerResultRow}
@@ -3252,6 +3321,13 @@ const styles = StyleSheet.create({
 
   ticketContainer:    { flex: 1, display: 'flex', flexDirection: 'column' },
   customerBar:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingHorizontal: 14, paddingVertical: 12 },
+  customerSection:    { backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10 },
+  customerBarInner:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stampRow:           { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
+  stampCircle:        { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: BORDER, backgroundColor: WHITE, justifyContent: 'center', alignItems: 'center' },
+  stampCircleFilled:  { backgroundColor: '#92400E', borderColor: '#92400E' },
+  stampCircleNext:    { borderColor: BLUE, borderWidth: 2 },
+  stampLabel:         { fontSize: 11, color: MUTED, marginLeft: 'auto' as any },
   customerName:       { fontSize: 14, fontWeight: '700', color: DARK },
   customerSub:        { fontSize: 12, color: MUTED, marginTop: 1 },
   customerPlaceholder: { fontSize: 14, color: MUTED },

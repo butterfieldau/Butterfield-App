@@ -834,10 +834,15 @@ export const api = {
       manualDiscountPct?: number;
       redeemFreeCoffee?: boolean;
       claimedRewardId?: string;
+      birthdayBonus?: boolean;
       notes?: string;
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
+    addStamp: (customerId: string) =>
+      request<{ data: { stampCount: number; rewardUnlocked: boolean; freeCoffeeRewards: number } }>(
+        `/pos/customers/${customerId}/stamp`, { method: 'POST' }
+      ),
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
@@ -892,6 +897,7 @@ export interface PosCustomerResult {
   stampCount: number;
   loyaltyTier: string;
   freeCoffeeRewards: number;
+  birthday?: string | null;
   availableClaimedRewards: PosClaimedReward[];
 }
 
