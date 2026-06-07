@@ -17,6 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadCachedPosProducts, savePosProductsCache } from '@/lib/posCache';
+import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const BG       = '#F0F3F8';
@@ -306,6 +307,27 @@ export default function PosScreen() {
     refetchInterval: 30_000,
   });
 
+  // ── Store settings (for auto-print) ──────────────────────────────────────
+  const isShopDisplay = user?.role === 'shop_display';
+  const { data: storeData } = useQuery({
+    queryKey: ['pos-store-settings'],
+    queryFn: async () => {
+      if (isShopDisplay) {
+        const res = await api.shopDisplay.store();
+        return (res as any)?.data?.[0] ?? null;
+      }
+      const res = await api.director.settings();
+      const s = (res as any)?.data ?? {};
+      return {
+        printerIp:    s.printerIp ?? null,
+        printerPort:  s.printerPort ? Number(s.printerPort) : 9100,
+        printerBrand: s.printerBrand ?? 'epson',
+        autoPrint:    s.autoPrint === 'true' || s.autoPrint === true,
+      };
+    },
+    staleTime: 60_000,
+  });
+
   // ── Filtered products ─────────────────────────────────────────────────────
   const allProducts = useMemo(() => {
     const raw = (productsData as any)?.data ?? [];
@@ -515,6 +537,15 @@ export default function PosScreen() {
       if (activeIdx > 0) setActiveIdx(0);
       refetchSummary();
       queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
+      // Auto-print receipt if printer is configured and autoPrint is on
+      const store = storeData as any;
+      if (store?.autoPrint && store?.printerIp) {
+        const job = orderToPrintJob(res.data, store.printerBrand ?? 'epson');
+        const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+        sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {
+          // Silent fail — don't interrupt the cashier flow for a print error
+        });
+      }
     },
     onError: (err: any) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -2331,6 +2362,7 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
 // ── POS Settings PIN Gate ─────────────────────────────────────────────────────
 function PosPinModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const { height: screenH } = useWindowDimensions();
+  const { user } = useAuth();
   const [digits, setDigits] = React.useState<string[]>([]);
   const [error,  setError]  = React.useState('');
   const [checking, setChecking] = React.useState(false);
@@ -2364,7 +2396,10 @@ function PosPinModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
   const verify = async (pin: string) => {
     setChecking(true);
     try {
-      const res = await api.director.verifySettingsPin(pin);
+      const verifyFn = user?.role === 'shop_display'
+        ? api.shopDisplay.verifySettingsPin
+        : api.director.verifySettingsPin;
+      const res = await verifyFn(pin);
       if (res.granted) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onSuccess();

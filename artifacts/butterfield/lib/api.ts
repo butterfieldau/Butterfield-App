@@ -245,6 +245,8 @@ export const api = {
       request<{ data: LinklyTransactionStatus }>(`/shop-display/linkly/transaction/${sessionId}`),
     cancelLinklyTransaction: (sessionId: string) =>
       request<{ success: boolean }>(`/shop-display/linkly/transaction/${sessionId}`, { method: 'DELETE' }),
+    printerBytes: (job?: PrinterJob) =>
+      request<{ data: { bytes: string } }>('/shop-display/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),

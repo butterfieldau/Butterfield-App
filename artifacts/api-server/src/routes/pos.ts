@@ -19,7 +19,7 @@ import { generateOrderNumber } from '../lib/orderNumber.js';
 
 const router = Router();
 router.use(requireAuth);
-router.use(requireRole('staff', 'manager', 'director', 'master'));
+router.use(requireRole('staff', 'manager', 'director', 'master', 'shop_display'));
 
 // ── Schema migration (idempotent) ─────────────────────────────────────────
 let posSchemaReady: Promise<void> | null = null;

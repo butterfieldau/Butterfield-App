@@ -397,7 +397,7 @@ export default function ShopDisplayOrdersScreen() {
     }
     try {
       const job = orderToPrintJob(order);
-      await sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100);
+      await sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, api.shopDisplay.printerBytes);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       Alert.alert('Print failed', msg);

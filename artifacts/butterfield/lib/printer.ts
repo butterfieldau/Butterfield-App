@@ -66,12 +66,15 @@ export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 
  * We use a dynamic import so Expo Go does not crash at module-load time — the
  * error is surfaced only when the user actually taps Send Test Print.
  */
-export async function sendTestPrint(printerIp: string, printerPort = 9100, printerBrand: 'epson' | 'star' = 'epson'): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await api.director.printerBytes({ printerBrand }));
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type BytesFetcher = (job?: any) => Promise<{ data: { bytes: string } }>;
+
+export async function sendTestPrint(printerIp: string, printerPort = 9100, printerBrand: 'epson' | 'star' = 'epson', fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ printerBrand }));
 }
 
-export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await api.director.printerBytes(job));
+export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes(job));
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {

@@ -967,4 +967,35 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
   }
 });
 
+// ── Printer bytes — device opens TCP socket, server just builds ESC/POS ──────
+// Mirrors /director/printer/bytes but accessible to shop_display role.
+router.post('/printer/bytes', async (req, res) => {
+  try {
+    const { buildReceiptBytes } = await import('../lib/printer.js');
+    const { job } = req.body as { job?: any };
+    const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
+    const isRealJob = job && job.orderId && job.orderId !== 'test-0000-0000-0000' && Array.isArray(job.items) && job.items.length > 0;
+    const printJob = isRealJob
+      ? (job as import('../lib/printer.js').PrintJob)
+      : {
+          orderId:             'test-0000-0000-0000',
+          customerName:        req.user!.name,
+          type:                'pickup' as const,
+          items:               [
+            { name: 'Choc Chip Cookie', quantity: 2, unitPriceCents: 500 },
+            { name: 'Flat White',       quantity: 1, unitPriceCents: 550 },
+          ],
+          totalCents:          1550,
+          loyaltyPointsEarned: 15,
+          notes:               'Test print — Butterfield POS',
+          printerBrand:        brand,
+        };
+    const bytes = buildReceiptBytes(printJob);
+    return res.json({ data: { bytes: bytes.toString('base64') } });
+  } catch (err: any) {
+    req.log.error({ err }, 'printer bytes error');
+    return res.status(500).json({ error: 'Failed to build receipt bytes' });
+  }
+});
+
 export default router;
