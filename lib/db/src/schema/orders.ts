@@ -33,6 +33,7 @@ export const ordersTable = pgTable("orders", {
   discountCents: integer("discount_cents").notNull().default(0),
   discountCode: text("discount_code"),
   discountCodeId: text("discount_code_id"),
+  processedByUserId: text("processed_by_user_id"),
   paymentMethodType: text("payment_method_type"),
   deliveryAddress: text("delivery_address"),
   contactName: text("contact_name"),

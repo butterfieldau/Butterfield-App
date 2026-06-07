@@ -104,8 +104,8 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // Announcements
   if (path === '/announcements' || path.startsWith('/announcements/')) return 'announcements';
 
-  // Reports
-  if (path === '/reports') return 'reports';
+  // Reports (base + all sub-routes)
+  if (path === '/reports' || path.startsWith('/reports/')) return 'reports';
   // Feedback tab is shown to all managers in staffhub manage mode
   if (path === '/feedback' || path.startsWith('/feedback/')) return 'always';
 
@@ -1821,6 +1821,474 @@ router.get('/reports', async (req, res) => {
         total:   totalCustomers.count,
         newWeek: newCustomersWeek.count,
       },
+    },
+  });
+});
+
+// ── Analytics: helper to parse from/to date range ────────────────────────────
+/**
+ * Returns the UTC Date corresponding to a wall-clock boundary in Sydney timezone.
+ * E.g. "2026-06-01" + endOfDay=false => 2026-05-31T14:00:00Z (AEST midnight)
+ */
+function sydneyBoundary(dateStr: string, endOfDay: boolean): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const h = endOfDay ? 23 : 0, mi = endOfDay ? 59 : 0, sec = endOfDay ? 59 : 0;
+
+  // Probe at 02:00 UTC on that day to find Sydney's actual offset (handles AEST/AEDT correctly)
+  const probe = new Date(Date.UTC(y, m - 1, d, 2, 0, 0));
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(probe);
+  const get = (t: string) => {
+    const v = parseInt(parts.find(p => p.type === t)?.value ?? '0', 10);
+    return t === 'hour' ? v % 24 : v;
+  };
+  const sydLocalMs = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+  const offsetMs = sydLocalMs - probe.getTime(); // positive for Sydney (UTC+10 or UTC+11)
+
+  // Target UTC = Sydney wall-clock time − offset
+  return new Date(Date.UTC(y, m - 1, d, h, mi, sec) - offsetMs);
+}
+
+function parseDateRange(query: Record<string, any>): { fromDate: Date; toDate: Date } {
+  // Default: today in Sydney (start and end of day)
+  const now = new Date();
+  const sydneyParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const sy = sydneyParts.find(p => p.type === 'year')?.value ?? '2026';
+  const sm = sydneyParts.find(p => p.type === 'month')?.value ?? '01';
+  const sd = sydneyParts.find(p => p.type === 'day')?.value ?? '01';
+  const todayStr = `${sy}-${sm}-${sd}`;
+
+  let fromDate: Date;
+  let toDate: Date;
+
+  if (query.from) {
+    const str = String(query.from).trim();
+    fromDate = /^\d{4}-\d{2}-\d{2}$/.test(str) ? sydneyBoundary(str, false) : sydneyBoundary(todayStr, false);
+  } else {
+    fromDate = sydneyBoundary(todayStr, false);
+  }
+
+  if (query.to) {
+    const str = String(query.to).trim();
+    toDate = /^\d{4}-\d{2}-\d{2}$/.test(str) ? sydneyBoundary(str, true) : sydneyBoundary(todayStr, true);
+  } else {
+    toDate = sydneyBoundary(todayStr, true);
+  }
+
+  return { fromDate, toDate };
+}
+
+// ── Analytics: Sales Summary ──────────────────────────────────────────────────
+router.get('/reports/summary', async (req, res) => {
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const [
+    [revenue],
+    [orderCount],
+    [refundCount],
+    [cancelCount],
+    [discountTotal],
+  ] = await Promise.all([
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+      )),
+    db.select({ count: count() }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+      )),
+    db.select({ count: count() }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        eq(ordersTable.status, 'refunded' as any),
+      )),
+    db.select({ count: count() }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        eq(ordersTable.status, 'cancelled' as any),
+      )),
+    db.select({ total: sum(ordersTable.discountCents) }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+        isNotNull(ordersTable.discountCents),
+        sql`${ordersTable.discountCents} > 0`,
+      )),
+  ]);
+
+  const totalRevenueCents = Number(revenue.total ?? 0);
+  const totalOrders = orderCount.count;
+  const avgOrderValueCents = totalOrders > 0 ? Math.round(totalRevenueCents / totalOrders) : 0;
+  // Australian GST is 10% included in price; net = gross / 1.1
+  const gstCents = Math.round(totalRevenueCents - totalRevenueCents / 1.1);
+  const netRevenueCents = totalRevenueCents - gstCents;
+
+  return res.json({
+    data: {
+      totalRevenueCents,
+      orderCount: totalOrders,
+      avgOrderValueCents,
+      gstCents,
+      netRevenueCents,
+      refundCount: refundCount.count,
+      cancelCount: cancelCount.count,
+      totalDiscountCents: Number(discountTotal.total ?? 0),
+    },
+  });
+});
+
+// ── Analytics: Product Sales ──────────────────────────────────────────────────
+router.get('/reports/products', async (req, res) => {
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const orders = await db.select({ items: ordersTable.items }).from(ordersTable)
+    .where(and(
+      gte(ordersTable.createdAt, fromDate),
+      lte(ordersTable.createdAt, toDate),
+      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+    ));
+
+  const productMap = new Map<string, { name: string; units: number; revenueCents: number }>();
+  for (const row of orders) {
+    const items = Array.isArray(row.items) ? row.items as any[] : [];
+    for (const item of items) {
+      const name = (
+        (typeof item?.name === 'string' && item.name.trim()) ||
+        (typeof item?.productName === 'string' && item.productName.trim()) ||
+        (typeof item?.title === 'string' && item.title.trim()) ||
+        'Unknown Item'
+      ).replace(/\s+/g, ' ').trim();
+      const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
+      const price = Math.max(0, Number(item?.priceCents ?? item?.price ?? 0));
+      const existing = productMap.get(name);
+      if (existing) {
+        existing.units += qty;
+        existing.revenueCents += price * qty;
+      } else {
+        productMap.set(name, { name, units: qty, revenueCents: price * qty });
+      }
+    }
+  }
+
+  const products = Array.from(productMap.values())
+    .sort((a, b) => b.units - a.units || b.revenueCents - a.revenueCents)
+    .slice(0, 30);
+
+  return res.json({ data: products });
+});
+
+// ── Analytics: Busy Times (hourly daily-average heatmap, date-range-aware) ───
+router.get('/reports/busy-times', async (req, res) => {
+  // Honour the same from/to range as other report endpoints so the whole dashboard
+  // is consistent. avgPerDay = rawCount / rangeDays gives the daily average per hour.
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const rows = await db.select({
+    hour: sql<number>`EXTRACT(HOUR FROM ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')::int`,
+    orderCount: count(),
+  }).from(ordersTable)
+    .where(and(
+      gte(ordersTable.createdAt, fromDate),
+      lte(ordersTable.createdAt, toDate),
+      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+    ))
+    .groupBy(sql`EXTRACT(HOUR FROM ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')::int`)
+    .orderBy(sql`EXTRACT(HOUR FROM ${ordersTable.createdAt} AT TIME ZONE 'Australia/Sydney')::int`);
+
+  // Number of Sydney calendar days in the selected range (minimum 1)
+  const rangeDays = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86_400_000));
+
+  const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, orderCount: 0, avgPerDay: 0 }));
+  for (const row of rows) {
+    const h = Number(row.hour);
+    if (h >= 0 && h < 24) {
+      buckets[h].orderCount = row.orderCount;
+      buckets[h].avgPerDay  = Math.round((row.orderCount / rangeDays) * 10) / 10;
+    }
+  }
+
+  return res.json({ data: buckets });
+});
+
+// ── Analytics: Staff Performance ──────────────────────────────────────────────
+router.get('/reports/staff', async (req, res) => {
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const [shifts, staffUsers, staffProfiles, processedOrders] = await Promise.all([
+    db.select({
+      userId:          staffShiftsTable.userId,
+      clockIn:         staffShiftsTable.clockIn,
+      clockOut:        staffShiftsTable.clockOut,
+      unpaidBreakMins: staffShiftsTable.unpaidBreakMins,
+    }).from(staffShiftsTable)
+      .where(and(
+        gte(staffShiftsTable.clockIn, fromDate),
+        lte(staffShiftsTable.clockIn, toDate),
+        isNotNull(staffShiftsTable.clockOut),
+      )),
+    db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+      .where(sql`${usersTable.role} IN ('staff','manager','supervisor','store_manager','area_manager')`),
+    db.select({
+      userId: staffProfilesTable.userId,
+      employeeId: staffProfilesTable.employeeId,
+      position: staffProfilesTable.position,
+    }).from(staffProfilesTable),
+    // Orders attributed to a staff member via processedByUserId
+    db.select({
+      processedByUserId: (ordersTable as any).processedByUserId,
+      totalCents:        ordersTable.totalCents,
+    }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        isNotNull((ordersTable as any).processedByUserId),
+        sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+      )),
+  ]);
+
+  const userMap = Object.fromEntries(staffUsers.map(u => [u.id, u]));
+  const profMap = Object.fromEntries(staffProfiles.map(p => [p.userId, p]));
+
+  // Group attributed orders by processedByUserId
+  const ordersByStaff = new Map<string, { count: number; revenueCents: number }>();
+  for (const o of processedOrders) {
+    const uid = o.processedByUserId as string;
+    const ex = ordersByStaff.get(uid);
+    if (ex) { ex.count++; ex.revenueCents += o.totalCents ?? 0; }
+    else ordersByStaff.set(uid, { count: 1, revenueCents: o.totalCents ?? 0 });
+  }
+
+  // Aggregate shifts per staff member; include order attribution where available
+  const staffMap = new Map<string, {
+    userId: string; name: string; employeeId: string | null; position: string | null;
+    shiftCount: number; totalMinutes: number;
+    ordersProcessed: number | null; revenueHandledCents: number | null;
+  }>();
+
+  for (const shift of shifts) {
+    const uid      = shift.userId;
+    const clockIn  = new Date(shift.clockIn);
+    const clockOut = shift.clockOut ? new Date(shift.clockOut) : null;
+    if (!clockOut) continue;
+
+    const totalMins = Math.max(0, Math.floor((clockOut.getTime() - clockIn.getTime()) / 60000));
+    const paidMins  = Math.max(0, totalMins - (shift.unpaidBreakMins ?? 0));
+
+    const existing = staffMap.get(uid);
+    if (existing) {
+      existing.shiftCount++;
+      existing.totalMinutes += paidMins;
+    } else {
+      const attribution = ordersByStaff.get(uid);
+      staffMap.set(uid, {
+        userId:              uid,
+        name:                userMap[uid]?.name ?? 'Unknown',
+        employeeId:          profMap[uid]?.employeeId ?? null,
+        position:            profMap[uid]?.position ?? null,
+        shiftCount:          1,
+        totalMinutes:        paidMins,
+        ordersProcessed:     attribution?.count ?? null,
+        revenueHandledCents: attribution?.revenueCents ?? null,
+      });
+    }
+  }
+
+  const staffList = Array.from(staffMap.values())
+    .sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+  return res.json({ data: staffList });
+});
+
+// ── Analytics: Payment Breakdown ──────────────────────────────────────────────
+router.get('/reports/payments', async (req, res) => {
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const rows = await db.select({
+    method:     ordersTable.paymentMethodType,
+    orderCount: count(),
+    revenue:    sum(ordersTable.totalCents),
+  }).from(ordersTable)
+    .where(and(
+      gte(ordersTable.createdAt, fromDate),
+      lte(ordersTable.createdAt, toDate),
+      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+    ))
+    .groupBy(ordersTable.paymentMethodType);
+
+  const breakdown = rows.map(r => ({
+    method:      r.method ?? 'unknown',
+    orderCount:  r.orderCount,
+    revenueCents: Number(r.revenue ?? 0),
+  }));
+
+  return res.json({ data: breakdown });
+});
+
+// ── Analytics: Refunds & Discounts ────────────────────────────────────────────
+router.get('/reports/refunds', async (req, res) => {
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const [refundedOrders, cancelledOrders, discountedOrders] = await Promise.all([
+    db.select({
+      totalCents:   ordersTable.totalCents,
+      cancelReason: (ordersTable as any).cancelReason,
+    }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        eq(ordersTable.status, 'refunded' as any),
+      )),
+    // Cancelled orders also have cancelReason and represent lost revenue
+    db.select({
+      totalCents:   ordersTable.totalCents,
+      cancelReason: (ordersTable as any).cancelReason,
+    }).from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        eq(ordersTable.status, 'cancelled' as any),
+      )),
+    // Discounted orders — LEFT JOIN discount_codes to get type
+    db.select({
+      discountCode:   ordersTable.discountCode,
+      discountCodeId: ordersTable.discountCodeId,
+      discountCents:  ordersTable.discountCents,
+      loyaltyPointsUsed: ordersTable.loyaltyPointsUsed,
+      discountType:   discountCodesTable.discountType,
+    }).from(ordersTable)
+      .leftJoin(discountCodesTable, eq(ordersTable.discountCodeId, discountCodesTable.id))
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+        sql`(${ordersTable.discountCents} > 0 OR ${ordersTable.loyaltyPointsUsed} > 0)`,
+      )),
+  ]);
+
+  const totalRefundCents = refundedOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+
+  // Aggregate top cancel/refund reasons across both refunded and cancelled orders
+  const reasonMap = new Map<string, { reason: string; count: number; totalCents: number }>();
+  for (const o of [...refundedOrders, ...cancelledOrders]) {
+    const reason = ((o as any).cancelReason as string | null | undefined)?.trim() || 'No reason given';
+    const ex = reasonMap.get(reason);
+    if (ex) {
+      ex.count++;
+      ex.totalCents += Number(o.totalCents ?? 0);
+    } else {
+      reasonMap.set(reason, { reason, count: 1, totalCents: Number(o.totalCents ?? 0) });
+    }
+  }
+  const topReasons = Array.from(reasonMap.values())
+    .sort((a, b) => b.count - a.count || b.totalCents - a.totalCents)
+    .slice(0, 10);
+
+  // Group discounts by type:
+  //   loyalty_redemption — loyalty points used (even if also has code)
+  //   percentage         — % off promo code (from discountType)
+  //   fixed_amount       — flat $ off promo code
+  //   free_delivery      — delivery waiver promo code
+  //   promo_code         — promo code but type unknown (no matching code row)
+  const typeMap = new Map<string, { type: string; count: number; totalDiscountCents: number }>();
+  for (const o of discountedOrders) {
+    let type: string;
+    if ((o.loyaltyPointsUsed ?? 0) > 0 && !o.discountCodeId) {
+      type = 'loyalty_redemption';
+    } else if (o.discountType) {
+      type = o.discountType;
+    } else if (o.discountCode || o.discountCodeId) {
+      type = 'promo_code';
+    } else {
+      type = 'other';
+    }
+    const cents = Number(o.discountCents ?? 0);
+    const ex = typeMap.get(type);
+    if (ex) { ex.count++; ex.totalDiscountCents += cents; }
+    else typeMap.set(type, { type, count: 1, totalDiscountCents: cents });
+  }
+  const totalDiscountCents = discountedOrders.reduce((s, o) => s + Number(o.discountCents ?? 0), 0);
+  const byType = Array.from(typeMap.values()).sort((a, b) => b.totalDiscountCents - a.totalDiscountCents);
+
+  // Also keep byCode for drill-down
+  const codeMap = new Map<string, { code: string; count: number; totalDiscountCents: number }>();
+  for (const o of discountedOrders) {
+    const code = o.discountCode ?? 'no_code';
+    const ex = codeMap.get(code);
+    if (ex) { ex.count++; ex.totalDiscountCents += Number(o.discountCents ?? 0); }
+    else codeMap.set(code, { code, count: 1, totalDiscountCents: Number(o.discountCents ?? 0) });
+  }
+
+  return res.json({
+    data: {
+      refunds: {
+        count:      refundedOrders.length,
+        totalCents: totalRefundCents,
+        topReasons,
+      },
+      discounts: {
+        count:         discountedOrders.length,
+        totalCents:    totalDiscountCents,
+        byType,
+        byCode:        Array.from(codeMap.values()).sort((a, b) => b.totalDiscountCents - a.totalDiscountCents),
+      },
+    },
+  });
+});
+
+// ── Analytics: Customer Growth ────────────────────────────────────────────────
+router.get('/reports/customers', async (req, res) => {
+  const { fromDate, toDate } = parseDateRange(req.query as any);
+
+  const [
+    newCustomers,
+    [totalCustomers],
+    [activeCustomers],
+  ] = await Promise.all([
+    db.select({
+      day: sql<string>`DATE_TRUNC('day', ${usersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`,
+      count: count(),
+    }).from(usersTable)
+      .where(and(
+        eq(usersTable.role, 'customer' as any),
+        gte(usersTable.createdAt, fromDate),
+        lte(usersTable.createdAt, toDate),
+      ))
+      .groupBy(sql`DATE_TRUNC('day', ${usersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`)
+      .orderBy(sql`DATE_TRUNC('day', ${usersTable.createdAt} AT TIME ZONE 'Australia/Sydney')`),
+    db.select({ count: count() }).from(usersTable).where(eq(usersTable.role, 'customer' as any)),
+    db.select({ count: count() }).from(usersTable)
+      .where(and(
+        eq(usersTable.role, 'customer' as any),
+        gte(usersTable.lastLogin, fromDate),
+        lte(usersTable.lastLogin, toDate),
+      )),
+  ]);
+
+  const newTotal = newCustomers.reduce((s, r) => s + r.count, 0);
+
+  return res.json({
+    data: {
+      newCustomers: newTotal,
+      totalCustomers: totalCustomers.count,
+      activeCustomers: activeCustomers.count,
+      byDay: newCustomers.map(r => ({
+        day: new Date(r.day as any).toISOString(),
+        count: r.count,
+      })),
     },
   });
 });

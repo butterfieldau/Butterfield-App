@@ -455,7 +455,9 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
   const { status } = req.body ?? {};
   if (!status) return res.status(400).json({ error: 'status is required.' });
-  const [updated] = await db.update(ordersTable).set({ status, updatedAt: new Date() })
+  // Record which staff member last processed this order
+  const [updated] = await db.update(ordersTable)
+    .set({ status, processedByUserId: req.user!.id, updatedAt: new Date() })
     .where(eq(ordersTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Order not found.' });
   return res.json({ data: updated });

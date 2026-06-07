@@ -620,8 +620,23 @@ export const api = {
     updateDiscountCode:  (id: string, data: DiscountCodeInput) => request<{ data: DiscountCodeRecord }>(`/director/discount-codes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteDiscountCode:  (id: string) => request<{ success: boolean }>(`/director/discount-codes/${id}`, { method: 'DELETE' }),
 
-    // Reports
+    // Reports (legacy summary)
     reports:             () => request<{ data: DirectorReports }>('/director/reports'),
+    // Analytics sub-endpoints (accept from/to YYYY-MM-DD params)
+    reportsSummary: (from: string, to: string) =>
+      request<{ data: ReportsSummary }>(`/director/reports/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    reportsProducts: (from: string, to: string) =>
+      request<{ data: ReportsProduct[] }>(`/director/reports/products?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    reportsBusyTimes: (from: string, to: string) =>
+      request<{ data: ReportsBusyBucket[] }>(`/director/reports/busy-times?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    reportsStaff: (from: string, to: string) =>
+      request<{ data: ReportsStaffMember[] }>(`/director/reports/staff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    reportsPayments: (from: string, to: string) =>
+      request<{ data: ReportsPaymentBreakdown[] }>(`/director/reports/payments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    reportsRefunds: (from: string, to: string) =>
+      request<{ data: ReportsRefundsData }>(`/director/reports/refunds?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    reportsCustomers: (from: string, to: string) =>
+      request<{ data: ReportsCustomerGrowth }>(`/director/reports/customers?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 
     // Timesheets
     timesheets:          () => request<{ data: DirectorShift[] }>('/director/timesheets'),
@@ -1466,6 +1481,70 @@ export interface DirectorReports {
   feedback:  DirectorFeedback[];
   unreadFeedback: number;
   customers: { total: number; newWeek: number };
+}
+
+// ── Analytics / Reports types ─────────────────────────────────────────────────
+export interface ReportsSummary {
+  totalRevenueCents: number;
+  orderCount: number;
+  avgOrderValueCents: number;
+  gstCents: number;
+  netRevenueCents: number;
+  refundCount: number;
+  cancelCount: number;
+  totalDiscountCents: number;
+}
+
+export interface ReportsProduct {
+  name: string;
+  units: number;
+  revenueCents: number;
+}
+
+export interface ReportsBusyBucket {
+  hour: number;
+  orderCount: number;
+  avgPerDay: number;
+}
+
+export interface ReportsStaffMember {
+  userId: string;
+  name: string;
+  employeeId: string | null;
+  position: string | null;
+  shiftCount: number;
+  totalMinutes: number;
+  /** null when orders table lacks a staffId/processedBy column for attribution */
+  ordersProcessed: number | null;
+  /** null when orders table lacks a staffId/processedBy column for attribution */
+  revenueHandledCents: number | null;
+}
+
+export interface ReportsPaymentBreakdown {
+  method: string;
+  orderCount: number;
+  revenueCents: number;
+}
+
+export interface ReportsRefundsData {
+  refunds: {
+    count: number;
+    totalCents: number;
+    topReasons: { reason: string; count: number; totalCents: number }[];
+  };
+  discounts: {
+    count: number;
+    totalCents: number;
+    byType: { type: string; count: number; totalDiscountCents: number }[];
+    byCode: { code: string; count: number; totalDiscountCents: number }[];
+  };
+}
+
+export interface ReportsCustomerGrowth {
+  newCustomers: number;
+  totalCustomers: number;
+  activeCustomers: number;
+  byDay: { day: string; count: number }[];
 }
 
 // ── CRM types ─────────────────────────────────────────────────────────────────
