@@ -823,8 +823,11 @@ export const api = {
     createOrder: (data: {
       items: PosOrderItem[];
       orderType: 'dine_in' | 'takeaway' | 'counter';
-      paymentMethod: 'cash' | 'eftpos';
+      paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
+      tipCents?: number;
+      surchargeCents?: number;
+      splitPayments?: { method: string; amountCents: number }[];
       customerId?: string;
       discountCode?: string;
       discountCodeId?: string;
@@ -838,6 +841,27 @@ export const api = {
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
+    refundOrder: (id: string, data: { amountCents: number; reason?: string }) =>
+      request<{ success: boolean; refundAmountCents: number; isFullRefund: boolean }>(
+        `/pos/orders/${id}/refund`, { method: 'POST', body: JSON.stringify(data) }
+      ),
+    surcharges: () => request<{ data: PosSurcharge[] }>('/pos/surcharges'),
+    createSurcharge: (data: { name: string; triggerType: string; triggerValue: string; amountType: string; amountValue: number }) =>
+      request<{ data: PosSurcharge }>('/pos/surcharges', { method: 'POST', body: JSON.stringify(data) }),
+    updateSurcharge: (id: string, data: { name?: string; isActive?: boolean; amountValue?: number }) =>
+      request<{ success: boolean }>(`/pos/surcharges/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteSurcharge: (id: string) =>
+      request<{ success: boolean }>(`/pos/surcharges/${id}`, { method: 'DELETE' }),
+    linklyInitiate: (amountCents: number) =>
+      request<{ data: { sessionId: string; amountCents: number } }>(
+        '/pos/linkly/transaction', { method: 'POST', body: JSON.stringify({ amountCents }) }
+      ),
+    linklyPoll: (sessionId: string) =>
+      request<{ data: { status: string; responseText: string; approved: boolean; complete: boolean; receiptText?: string | null } }>(
+        `/pos/linkly/${sessionId}`
+      ),
+    linklyCancel: (sessionId: string) =>
+      request<{ success: boolean }>(`/pos/linkly/${sessionId}`, { method: 'DELETE' }),
   },
 
   stock: {
@@ -908,8 +932,23 @@ export interface PosHistoryOrder {
     notes?: string;
   }[];
   notes: string | null;
+  tipCents: number;
+  surchargeCents: number;
+  discountCents: number;
+  splitPayments: { method: string; amountCents: number }[] | null;
   customerName: string | null;
   staffName: string | null;
+}
+
+export interface PosSurcharge {
+  id: string;
+  name: string;
+  triggerType: string;
+  triggerValue: string;
+  amountType: string;
+  amountValue: number;
+  isActive: boolean;
+  createdAt?: string;
 }
 
 export interface StockItem {

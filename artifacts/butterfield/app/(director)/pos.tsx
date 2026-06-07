@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder } from '@/lib/api';
+import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder, type PosSurcharge } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -196,8 +196,11 @@ export default function PosScreen() {
   const [showPayment,   setShowPayment]   = useState(false);
   const [completedOrder, setCompletedOrder] = useState<{
     id: string; orderNumber: string; totalCents: number;
-    paymentMethod: 'cash' | 'eftpos';
+    paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
+    tipCents?: number;
+    surchargeCents?: number;
+    splitPayments?: { method: string; amountCents: number }[];
     loyaltyResult: PosLoyaltyResult | null;
   } | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -501,13 +504,19 @@ export default function PosScreen() {
   // ── Order submission ──────────────────────────────────────────────────────
   const createOrderMutation = useMutation({
     mutationFn: (vars: {
-      paymentMethod: 'cash' | 'eftpos';
+      paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
+      tipCents?: number;
+      surchargeCents?: number;
+      splitPayments?: { method: string; amountCents: number }[];
     }) => api.pos.createOrder({
       items: buildPosItems(activeTicket.items),
       orderType: activeTicket.orderType,
-      paymentMethod: vars.paymentMethod,
+      paymentMethod: vars.paymentMethod === 'split' ? 'eftpos' : vars.paymentMethod,
       amountTenderedCents: vars.amountTenderedCents,
+      tipCents: vars.tipCents,
+      surchargeCents: vars.surchargeCents,
+      splitPayments: vars.splitPayments,
       customerId: activeTicket.customer?.userId,
       notes: activeTicket.notes || undefined,
       discountCode: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.code : undefined,
@@ -525,6 +534,9 @@ export default function PosScreen() {
         totalCents: res.data.totalCents,
         paymentMethod: vars.paymentMethod,
         amountTenderedCents: vars.amountTenderedCents,
+        tipCents: vars.tipCents,
+        surchargeCents: vars.surchargeCents,
+        splitPayments: vars.splitPayments,
         loyaltyResult: res.loyaltyResult,
       });
       setShowPayment(false);
@@ -824,8 +836,14 @@ export default function PosScreen() {
           subtotalCents={subtotal}
           discount={activeTicket.appliedDiscount}
           onClose={() => setShowPayment(false)}
-          onConfirm={(method, tendered) => {
-            createOrderMutation.mutate({ paymentMethod: method, amountTenderedCents: tendered });
+          onConfirm={(params) => {
+            createOrderMutation.mutate({
+              paymentMethod: params.method,
+              amountTenderedCents: params.amountTenderedCents,
+              tipCents: params.tipCents,
+              surchargeCents: params.surchargeCents,
+              splitPayments: params.splitPayments,
+            });
           }}
           loading={createOrderMutation.isPending}
         />
@@ -1573,151 +1591,447 @@ function CustomiseModal({ data, onClose, onAdd }: {
   );
 }
 
-// ── Payment Modal ─────────────────────────────────────────────────────────────
+// ── Payment Modal (multi-step: method → tip → confirm) ──────────────────────
+type PaymentConfirmParams = {
+  method: 'cash' | 'eftpos' | 'split';
+  amountTenderedCents?: number;
+  tipCents: number;
+  surchargeCents: number;
+  splitPayments?: { method: string; amountCents: number }[];
+};
+
 function PaymentModal({
   totalCents, subtotalCents, discount, onClose, onConfirm, loading,
 }: {
-  totalCents: number; subtotalCents: number;
+  totalCents: number;
+  subtotalCents: number;
   discount: AppliedDiscount | null;
   onClose: () => void;
-  onConfirm: (method: 'cash' | 'eftpos', tendered?: number) => void;
+  onConfirm: (params: PaymentConfirmParams) => void;
   loading: boolean;
 }) {
-  const [method, setMethod] = useState<'cash' | 'eftpos'>('eftpos');
+  const [step, setStep] = useState<'method' | 'tip' | 'confirm'>('method');
+  const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>('eftpos');
+  const [tipCents, setTipCents] = useState(0);
+  const [tipMode, setTipMode] = useState<'none' | 'pct' | 'custom'>('none');
+  const [customTipDollars, setCustomTipDollars] = useState('');
   const [tendered, setTendered] = useState('');
+  const [splitCashDollars, setSplitCashDollars] = useState('');
 
+  // Linkly EFTPOS state
+  const [linklyStep, setLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
+  const [linklySessionId, setLinklySessionId] = useState<string | null>(null);
+  const [linklyText, setLinklyText] = useState('');
+  const linklyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load surcharges
+  const { data: surchargesData } = useQuery({
+    queryKey: ['pos-surcharges'],
+    queryFn: () => api.pos.surcharges(),
+    staleTime: 60_000,
+  });
+  const surcharges: PosSurcharge[] = (surchargesData as any)?.data ?? [];
+
+  // Computed surcharges for current method + day
+  const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const;
+  const dayOfWeek = DAY_NAMES[new Date().getDay()]!;
+  const applicableSurcharges = useMemo(() => surcharges.filter(s => {
+    if (!s.isActive) return false;
+    const effectiveMethod = method === 'split' ? 'eftpos' : method;
+    if (s.triggerType === 'payment_method') return s.triggerValue === effectiveMethod;
+    if (s.triggerType === 'day_of_week') return s.triggerValue === dayOfWeek;
+    return false;
+  }), [surcharges, method, dayOfWeek]);
+
+  const computedSurchargeCents = useMemo(() =>
+    applicableSurcharges.reduce((sum, s) => {
+      if (s.amountType === 'pct_basis_points') return sum + Math.round(totalCents * s.amountValue / 10000);
+      return sum + s.amountValue;
+    }, 0),
+  [applicableSurcharges, totalCents]);
+
+  const chargeTotalCents = totalCents + tipCents + computedSurchargeCents;
+  const splitCashCents = Math.max(0, Math.round(parseFloat(splitCashDollars || '0') * 100));
+  const splitEftposCents = Math.max(0, chargeTotalCents - splitCashCents);
   const tenderedCents = Math.round(parseFloat(tendered || '0') * 100);
-  const changeCents = method === 'cash' ? Math.max(0, tenderedCents - totalCents) : 0;
-  const cashOk = method !== 'cash' || tenderedCents >= totalCents;
+  const cashChangeCents = Math.max(0, tenderedCents - chargeTotalCents);
+  const cashOk = method !== 'cash' || tenderedCents >= chargeTotalCents;
+  const splitOk = method !== 'split' || splitCashCents <= chargeTotalCents;
+  const roundUpPresets = [5, 10, 20, 50, 100].filter(d => d * 100 >= chargeTotalCents).slice(0, 3);
 
-  const handleKeypad = (val: string) => {
-    if (val === 'backspace') {
-      setTendered(prev => prev.slice(0, -1));
-    } else if (val === '.') {
-      if (!tendered.includes('.')) setTendered(prev => prev + '.');
-    } else {
-      const next = tendered + val;
-      if (!isNaN(parseFloat(next)) || next === '.') setTendered(next);
+  // Cleanup poll interval on unmount
+  useEffect(() => () => { if (linklyPollRef.current) clearInterval(linklyPollRef.current); }, []);
+
+  const handleKeypad = (val: string, setter: (s: string) => void, current: string) => {
+    if (val === 'backspace') setter(current.slice(0, -1));
+    else if (val === '.') { if (!current.includes('.')) setter(current + '.'); }
+    else { const next = current + val; if (!isNaN(parseFloat(next)) || next === '.') setter(next); }
+  };
+
+  const handleTipPct = (pct: number) => {
+    const cents = Math.round(totalCents * pct / 100);
+    setTipCents(cents);
+    setTipMode(pct === 0 ? 'none' : 'pct');
+    setCustomTipDollars('');
+    setStep('confirm');
+  };
+
+  const handleCustomTipConfirm = () => {
+    const cents = Math.max(0, Math.round(parseFloat(customTipDollars || '0') * 100));
+    setTipCents(cents);
+    setTipMode('custom');
+    setStep('confirm');
+  };
+
+  const handleLinklyInitiate = async () => {
+    setLinklyStep('initiating');
+    setLinklyText('Connecting to terminal…');
+    try {
+      const res = await api.pos.linklyInitiate(chargeTotalCents) as any;
+      const sessionId = res?.data?.sessionId;
+      if (!sessionId) throw new Error('No session ID returned');
+      setLinklySessionId(sessionId);
+      setLinklyStep('waiting');
+      setLinklyText('Waiting for card…');
+      linklyPollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await api.pos.linklyPoll(sessionId) as any;
+          const pd = pollRes?.data;
+          if (pd?.responseText) setLinklyText(pd.responseText);
+          if (pd?.complete) {
+            clearInterval(linklyPollRef.current!);
+            linklyPollRef.current = null;
+            if (pd.approved) {
+              setLinklyStep('approved');
+              onConfirm({ method: 'eftpos', tipCents, surchargeCents: computedSurchargeCents });
+            } else {
+              setLinklyStep('declined');
+            }
+          }
+        } catch {}
+      }, 2000);
+    } catch (err: any) {
+      setLinklyStep('idle');
+      setLinklyText('');
+      Alert.alert('EFTPOS Error', err?.message ?? 'Could not connect to terminal. Ensure Linkly is configured in Shop Display settings.');
     }
   };
 
-  // Quick tender presets
-  const roundUpPresets = [5, 10, 20, 50].filter(d => d * 100 >= totalCents).slice(0, 3);
+  const handleLinklyCancel = async () => {
+    if (linklyPollRef.current) { clearInterval(linklyPollRef.current); linklyPollRef.current = null; }
+    if (linklySessionId) { try { await api.pos.linklyCancel(linklySessionId); } catch {} }
+    setLinklyStep('idle');
+    setLinklySessionId(null);
+    setLinklyText('');
+  };
+
+  const handleConfirm = () => {
+    if (method === 'cash') {
+      onConfirm({ method: 'cash', amountTenderedCents: tenderedCents, tipCents, surchargeCents: computedSurchargeCents });
+    } else if (method === 'eftpos') {
+      handleLinklyInitiate().catch(() => {
+        onConfirm({ method: 'eftpos', tipCents, surchargeCents: computedSurchargeCents });
+      });
+    } else if (method === 'split') {
+      onConfirm({
+        method: 'split',
+        amountTenderedCents: splitCashCents,
+        tipCents,
+        surchargeCents: computedSurchargeCents,
+        splitPayments: [
+          { method: 'cash', amountCents: splitCashCents },
+          { method: 'eftpos', amountCents: splitEftposCents },
+        ],
+      });
+    }
+  };
+
+  const isLinklyBusy = linklyStep === 'initiating' || linklyStep === 'waiting';
+  const canClose = !loading && linklyStep === 'idle';
 
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={canClose ? onClose : undefined}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.customiseRoot}>
           <View style={styles.sheetHeader}>
-            <Pressable onPress={onClose} hitSlop={12} disabled={loading}>
-              <Feather name="x" size={22} color={DARK} />
+            <Pressable
+              onPress={isLinklyBusy ? handleLinklyCancel : onClose}
+              hitSlop={12}
+              disabled={loading && !isLinklyBusy}
+            >
+              <Feather name={isLinklyBusy ? 'arrow-left' : 'x'} size={22} color={DARK} />
             </Pressable>
-            <Text style={styles.sheetTitle}>Payment</Text>
+            <Text style={styles.sheetTitle}>
+              {step === 'method' ? 'Payment' : step === 'tip' ? 'Add a Tip?' : 'Confirm Payment'}
+            </Text>
             <View style={{ width: 22 }} />
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-            {/* Total */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+            {/* ── Total summary ── */}
             <View style={styles.payTotal}>
-              <Text style={styles.payTotalLabel}>Total Due</Text>
-              <Text style={styles.payTotalValue}>{fmtCents(totalCents)}</Text>
-            </View>
-            {/* Discount summary */}
-            {discount && (
-              <View style={styles.payDiscountRow}>
-                <Feather name="tag" size={13} color="#16A34A" />
-                <Text style={styles.payDiscountLabel}>{discount.label}</Text>
-                <Text style={styles.payDiscountSaving}>–{fmtCents(discount.amountCents)}</Text>
-              </View>
-            )}
-
-            {/* Method selector */}
-            <View style={styles.methodRow}>
-              <Pressable
-                onPress={() => setMethod('eftpos')}
-                style={[styles.methodBtn, method === 'eftpos' && styles.methodBtnActive]}
-              >
-                <Feather name="credit-card" size={20} color={method === 'eftpos' ? WHITE : MID} />
-                <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }]}>EFTPOS</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { setMethod('cash'); setTendered(''); }}
-                style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive]}
-              >
-                <Feather name="dollar-sign" size={20} color={method === 'cash' ? WHITE : MID} />
-                <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
-              </Pressable>
+              <Text style={styles.payTotalLabel}>{step === 'confirm' ? 'Total Due' : 'Order Total'}</Text>
+              <Text style={styles.payTotalValue}>{fmtCents(step === 'confirm' ? chargeTotalCents : totalCents)}</Text>
+              {discount && (
+                <View style={styles.payDiscountRow}>
+                  <Feather name="tag" size={13} color="#16A34A" />
+                  <Text style={styles.payDiscountLabel}>{discount.label}</Text>
+                  <Text style={styles.payDiscountSaving}>–{fmtCents(discount.amountCents)}</Text>
+                </View>
+              )}
             </View>
 
-            {method === 'eftpos' && (
-              <View style={styles.eftposInstructions}>
-                <Feather name="wifi" size={24} color={BLUE} />
-                <Text style={styles.eftposText}>Present card or device to EFTPOS terminal</Text>
-                <Text style={styles.eftposSubText}>Tap, insert, or swipe · then confirm below</Text>
-              </View>
+            {/* ── STEP: method ── */}
+            {step === 'method' && (
+              <>
+                <Text style={styles.sectionTitle}>Payment Method</Text>
+                <View style={styles.methodRow}>
+                  <Pressable onPress={() => setMethod('eftpos')} style={[styles.methodBtn, method === 'eftpos' && styles.methodBtnActive]}>
+                    <Feather name="credit-card" size={18} color={method === 'eftpos' ? WHITE : MID} />
+                    <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }]}>EFTPOS</Text>
+                  </Pressable>
+                  <Pressable onPress={() => { setMethod('cash'); setTendered(''); }} style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive]}>
+                    <Feather name="dollar-sign" size={18} color={method === 'cash' ? WHITE : MID} />
+                    <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setMethod('split')} style={[styles.methodBtn, method === 'split' && styles.methodBtnActive]}>
+                    <Feather name="git-branch" size={16} color={method === 'split' ? WHITE : MID} />
+                    <Text style={[styles.methodBtnText, method === 'split' && { color: WHITE }]}>Split</Text>
+                  </Pressable>
+                </View>
+
+                {/* Surcharge preview */}
+                {applicableSurcharges.length > 0 && (
+                  <View style={styles.surchargePreviewBox}>
+                    <Text style={styles.surchargePreviewTitle}>Surcharges apply:</Text>
+                    {applicableSurcharges.map(s => (
+                      <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                        <Text style={styles.surchargeLabel}>{s.name}</Text>
+                        <Text style={styles.surchargeCentsText}>
+                          {s.amountType === 'pct_basis_points'
+                            ? `+${(s.amountValue / 100).toFixed(2)}%`
+                            : `+${fmtCents(s.amountValue)}`}
+                        </Text>
+                      </View>
+                    ))}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#FDBA74', marginTop: 6, paddingTop: 6 }}>
+                      <Text style={[styles.surchargeLabel, { fontWeight: '700' }]}>Total surcharge</Text>
+                      <Text style={[styles.surchargeCentsText, { fontWeight: '700' }]}>+{fmtCents(computedSurchargeCents)}</Text>
+                    </View>
+                  </View>
+                )}
+              </>
             )}
 
-            {method === 'cash' && (
+            {/* ── STEP: tip ── */}
+            {step === 'tip' && (
               <View>
-                {/* Quick presets */}
-                <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Tendered Amount</Text>
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                  {roundUpPresets.map(d => (
-                    <Pressable
-                      key={d}
-                      onPress={() => setTendered(String(d))}
-                      style={styles.presetBtn}
-                    >
-                      <Text style={styles.presetBtnText}>${d}</Text>
-                    </Pressable>
+                <Text style={[styles.sectionTitle, { textAlign: 'center', marginBottom: 20 }]}>Would you like to add a tip?</Text>
+                <View style={{ gap: 10 }}>
+                  {[0, 10, 15, 20].map(pct => (
+                    <TouchableOpacity key={pct} onPress={() => handleTipPct(pct)} style={[styles.tipOption, tipMode === 'pct' && Math.round(totalCents * pct / 100) === tipCents && pct > 0 && styles.tipOptionActive]} activeOpacity={0.75}>
+                      <Text style={[styles.tipOptionLabel, tipMode === 'pct' && Math.round(totalCents * pct / 100) === tipCents && pct > 0 && styles.tipOptionLabelActive]}>
+                        {pct === 0 ? 'No tip' : `${pct}%`}
+                      </Text>
+                      {pct > 0 && <Text style={[styles.tipOptionAmount, tipMode === 'pct' && Math.round(totalCents * pct / 100) === tipCents && styles.tipOptionAmountActive]}>{fmtCents(Math.round(totalCents * pct / 100))}</Text>}
+                    </TouchableOpacity>
                   ))}
+                  <TouchableOpacity onPress={() => setTipMode('custom')} style={[styles.tipOption, tipMode === 'custom' && styles.tipOptionActive]} activeOpacity={0.75}>
+                    <Text style={[styles.tipOptionLabel, tipMode === 'custom' && styles.tipOptionLabelActive]}>Custom amount</Text>
+                    {tipMode === 'custom' && tipCents > 0 && <Text style={[styles.tipOptionAmount, styles.tipOptionAmountActive]}>{fmtCents(tipCents)}</Text>}
+                  </TouchableOpacity>
+                </View>
+                {tipMode === 'custom' && (
+                  <View style={{ marginTop: 16, gap: 8 }}>
+                    <View style={styles.tenderedDisplay}><Text style={styles.tenderedText}>${customTipDollars || '0'}</Text></View>
+                    <View style={styles.numpad}>
+                      {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
+                        <Pressable key={k} onPress={() => handleKeypad(k, setCustomTipDollars, customTipDollars)} style={styles.numpadKey}>
+                          {k === 'backspace' ? <Feather name="delete" size={20} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
+                        </Pressable>
+                      ))}
+                    </View>
+                    <TouchableOpacity onPress={handleCustomTipConfirm} style={styles.addToOrderBtn} activeOpacity={0.85}>
+                      <Text style={styles.addToOrderBtnText}>Confirm Tip</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* ── STEP: confirm ── */}
+            {step === 'confirm' && (
+              <View>
+                {/* Breakdown */}
+                <View style={styles.payBreakdownBox}>
+                  <View style={styles.payBreakdownRow}>
+                    <Text style={styles.payBreakdownLabel}>Subtotal</Text>
+                    <Text style={styles.payBreakdownValue}>{fmtCents(totalCents)}</Text>
+                  </View>
+                  {tipCents > 0 && (
+                    <View style={styles.payBreakdownRow}>
+                      <Text style={styles.payBreakdownLabel}>Tip</Text>
+                      <Text style={[styles.payBreakdownValue, { color: '#16A34A' }]}>+{fmtCents(tipCents)}</Text>
+                    </View>
+                  )}
+                  {applicableSurcharges.map(s => {
+                    const amt = s.amountType === 'pct_basis_points' ? Math.round(totalCents * s.amountValue / 10000) : s.amountValue;
+                    return (
+                      <View key={s.id} style={styles.payBreakdownRow}>
+                        <Text style={styles.payBreakdownLabel}>{s.name}</Text>
+                        <Text style={[styles.payBreakdownValue, { color: '#EA580C' }]}>+{fmtCents(amt)}</Text>
+                      </View>
+                    );
+                  })}
+                  <View style={[styles.payBreakdownRow, { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8, marginTop: 4 }]}>
+                    <Text style={[styles.payBreakdownLabel, { fontWeight: '700', fontSize: 16, color: DARK }]}>Total</Text>
+                    <Text style={[styles.payBreakdownValue, { fontWeight: '800', fontSize: 18, color: DARK }]}>{fmtCents(chargeTotalCents)}</Text>
+                  </View>
                 </View>
 
-                {/* Tendered display */}
-                <View style={styles.tenderedDisplay}>
-                  <Text style={styles.tenderedText}>${tendered || '0'}</Text>
+                {/* Method badge + change */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <Feather name={method === 'cash' ? 'dollar-sign' : method === 'split' ? 'git-branch' : 'credit-card'} size={15} color={BLUE} />
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: DARK }}>{method === 'cash' ? 'Cash' : method === 'split' ? 'Split' : 'EFTPOS'}</Text>
+                  <Pressable onPress={() => { setStep('method'); setLinklyStep('idle'); }} style={{ marginLeft: 'auto' }}>
+                    <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>Change</Text>
+                  </Pressable>
                 </View>
 
-                {/* Change */}
-                {tenderedCents >= totalCents && (
-                  <View style={styles.changeRow}>
-                    <Text style={styles.changeLabel}>Change</Text>
-                    <Text style={styles.changeValue}>{fmtCents(changeCents)}</Text>
+                {/* Cash numpad */}
+                {method === 'cash' && (
+                  <View>
+                    <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Tendered Amount</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                      {roundUpPresets.map(d => (
+                        <Pressable key={d} onPress={() => setTendered(String(d))} style={styles.presetBtn}>
+                          <Text style={styles.presetBtnText}>${d}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <View style={styles.tenderedDisplay}><Text style={styles.tenderedText}>${tendered || '0'}</Text></View>
+                    {tenderedCents >= chargeTotalCents && (
+                      <View style={styles.changeRow}>
+                        <Text style={styles.changeLabel}>Change</Text>
+                        <Text style={styles.changeValue}>{fmtCents(cashChangeCents)}</Text>
+                      </View>
+                    )}
+                    <View style={styles.numpad}>
+                      {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
+                        <Pressable key={k} onPress={() => handleKeypad(k, setTendered, tendered)} style={styles.numpadKey}>
+                          {k === 'backspace' ? <Feather name="delete" size={20} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 )}
 
-                {/* Numpad */}
-                <View style={styles.numpad}>
-                  {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
-                    <Pressable key={k} onPress={() => handleKeypad(k)} style={styles.numpadKey}>
-                      {k === 'backspace'
-                        ? <Feather name="delete" size={20} color={DARK} />
-                        : <Text style={styles.numpadKeyText}>{k}</Text>}
-                    </Pressable>
-                  ))}
-                </View>
+                {/* Split numpad */}
+                {method === 'split' && (
+                  <View>
+                    <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Cash Component</Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      {[5, 10, 20, 50].filter(d => d * 100 < chargeTotalCents).map(d => (
+                        <Pressable key={d} onPress={() => setSplitCashDollars(String(d))} style={styles.presetBtn}>
+                          <Text style={styles.presetBtnText}>${d}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <View style={styles.tenderedDisplay}><Text style={styles.tenderedText}>${splitCashDollars || '0'}</Text></View>
+                    <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
+                      <View style={[styles.splitAmountBox, { borderColor: '#16A34A33', backgroundColor: '#ECFDF5' }]}>
+                        <Feather name="dollar-sign" size={13} color="#16A34A" />
+                        <Text style={{ fontSize: 13, color: '#16A34A', fontWeight: '600' }}>Cash: {fmtCents(splitCashCents)}</Text>
+                      </View>
+                      <View style={[styles.splitAmountBox, { borderColor: `${BLUE}33`, backgroundColor: '#EFF6FF' }]}>
+                        <Feather name="credit-card" size={13} color={BLUE} />
+                        <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>EFTPOS: {fmtCents(splitEftposCents)}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.numpad}>
+                      {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
+                        <Pressable key={k} onPress={() => handleKeypad(k, setSplitCashDollars, splitCashDollars)} style={styles.numpadKey}>
+                          {k === 'backspace' ? <Feather name="delete" size={20} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* EFTPOS / Linkly */}
+                {method === 'eftpos' && (
+                  <View style={styles.eftposInstructions}>
+                    {linklyStep === 'idle' && (
+                      <>
+                        <Feather name="credit-card" size={32} color={BLUE} />
+                        <Text style={styles.eftposText}>Ready for EFTPOS</Text>
+                        <Text style={styles.eftposSubText}>Tap "Confirm EFTPOS" to send to terminal</Text>
+                      </>
+                    )}
+                    {(linklyStep === 'initiating' || linklyStep === 'waiting') && (
+                      <>
+                        <ActivityIndicator size="large" color={BLUE} />
+                        <Text style={styles.eftposText}>{linklyText || 'Connecting…'}</Text>
+                        <Text style={styles.eftposSubText}>Present card or device to the terminal</Text>
+                        <TouchableOpacity onPress={handleLinklyCancel} style={[styles.presetBtn, { borderColor: '#FECACA', backgroundColor: '#FFF1F2' }]} activeOpacity={0.75}>
+                          <Text style={[styles.presetBtnText, { color: CHERRY }]}>Cancel Transaction</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    {linklyStep === 'approved' && (
+                      <>
+                        <Feather name="check-circle" size={40} color="#16A34A" />
+                        <Text style={[styles.eftposText, { color: '#16A34A' }]}>Payment Approved</Text>
+                      </>
+                    )}
+                    {linklyStep === 'declined' && (
+                      <>
+                        <Feather name="x-circle" size={40} color={CHERRY} />
+                        <Text style={[styles.eftposText, { color: CHERRY }]}>Payment Declined</Text>
+                        {!!linklyText && <Text style={styles.eftposSubText}>{linklyText}</Text>}
+                        <TouchableOpacity onPress={() => { setLinklyStep('idle'); setLinklyText(''); }} style={styles.presetBtn} activeOpacity={0.75}>
+                          <Text style={styles.presetBtnText}>Try Again</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                )}
               </View>
             )}
           </ScrollView>
 
           <View style={styles.sheetFooter}>
-            {loading ? (
-              <View style={[styles.addToOrderBtn, { justifyContent: 'center' }]}>
-                <ActivityIndicator color={WHITE} />
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => onConfirm(method, method === 'cash' ? tenderedCents : undefined)}
-                style={[styles.addToOrderBtn, !cashOk && { opacity: 0.5 }]}
-                disabled={!cashOk || loading}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.addToOrderBtnText}>
-                  {method === 'cash'
-                    ? `Confirm Cash · ${fmtCents(totalCents)}`
-                    : `Confirm EFTPOS · ${fmtCents(totalCents)}`}
-                </Text>
+            {step === 'method' && (
+              <TouchableOpacity onPress={() => setStep('tip')} style={styles.addToOrderBtn} activeOpacity={0.85}>
+                <Text style={styles.addToOrderBtnText}>Next: Add Tip →</Text>
               </TouchableOpacity>
+            )}
+            {step === 'tip' && tipMode !== 'custom' && (
+              <TouchableOpacity onPress={() => { setTipCents(0); setTipMode('none'); setStep('confirm'); }} style={[styles.addToOrderBtn, { backgroundColor: MID }]} activeOpacity={0.85}>
+                <Text style={styles.addToOrderBtnText}>Skip Tip</Text>
+              </TouchableOpacity>
+            )}
+            {step === 'confirm' && (
+              <>
+                {loading || isLinklyBusy ? (
+                  <View style={[styles.addToOrderBtn, { justifyContent: 'center' }]}>
+                    <ActivityIndicator color={WHITE} />
+                  </View>
+                ) : method === 'eftpos' && linklyStep === 'idle' ? (
+                  <TouchableOpacity onPress={handleConfirm} style={styles.addToOrderBtn} activeOpacity={0.85}>
+                    <Feather name="credit-card" size={17} color={WHITE} />
+                    <Text style={styles.addToOrderBtnText}>Confirm EFTPOS · {fmtCents(chargeTotalCents)}</Text>
+                  </TouchableOpacity>
+                ) : method === 'cash' ? (
+                  <TouchableOpacity onPress={handleConfirm} style={[styles.addToOrderBtn, !cashOk && { opacity: 0.5 }]} disabled={!cashOk || loading} activeOpacity={0.85}>
+                    <Text style={styles.addToOrderBtnText}>Confirm Cash · {fmtCents(chargeTotalCents)}</Text>
+                  </TouchableOpacity>
+                ) : method === 'split' ? (
+                  <TouchableOpacity onPress={handleConfirm} style={[styles.addToOrderBtn, !splitOk && { opacity: 0.5 }]} disabled={!splitOk || loading} activeOpacity={0.85}>
+                    <Text style={styles.addToOrderBtnText}>Confirm Split · {fmtCents(chargeTotalCents)}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
             )}
           </View>
         </View>
@@ -1730,8 +2044,11 @@ function PaymentModal({
 function OrderCompleteModal({ order, onClose }: {
   order: {
     id: string; orderNumber: string; totalCents: number;
-    paymentMethod: 'cash' | 'eftpos';
+    paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
+    tipCents?: number;
+    surchargeCents?: number;
+    splitPayments?: { method: string; amountCents: number }[];
     loyaltyResult: PosLoyaltyResult | null;
   };
   onClose: () => void;
@@ -2011,6 +2328,38 @@ function HistoryModal({
     },
   });
 
+  const [pinForRefund, setPinForRefund] = useState<{ order: PosHistoryOrder; reason?: string } | null>(null);
+  const refundMutation = useMutation({
+    mutationFn: (vars: { orderId: string; amountCents: number; reason?: string }) =>
+      api.pos.refundOrder(vars.orderId, { amountCents: vars.amountCents, reason: vars.reason }),
+    onSuccess: (res, vars) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const { isFullRefund, refundAmountCents } = res as any;
+      Alert.alert('Refund Issued', `${isFullRefund ? 'Full' : 'Partial'} refund of ${fmtCents(refundAmountCents)} processed.`);
+      queryClient.invalidateQueries({ queryKey: ['pos-history'] });
+      refetch();
+    },
+    onError: (err: any) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Refund Failed', err?.message ?? 'Could not process refund.');
+    },
+  });
+
+  const handleRefund = (order: PosHistoryOrder) => {
+    Alert.alert(
+      'Issue Refund',
+      `Refund order #${order.orderNumber} (${fmtCents(order.totalCents)})?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Full Refund',
+          style: 'destructive',
+          onPress: () => setPinForRefund({ order, reason: 'Full refund' }),
+        },
+      ],
+    );
+  };
+
   const totalRevenue = allOrders
     .filter(o => o.status !== 'cancelled')
     .reduce((s, o) => s + o.totalCents, 0);
@@ -2239,29 +2588,84 @@ function HistoryModal({
                         <Text style={styles.historyOrderNote}>Note: {item.notes}</Text>
                       )}
 
-                      {/* Void button */}
-                      {item.status !== 'cancelled' && (
-                        <View style={styles.historyVoidRow}>
-                          {voidable ? (
-                            <TouchableOpacity
-                              onPress={() => handleVoid(item)}
-                              style={styles.historyVoidBtn}
-                              disabled={isVoiding}
-                              activeOpacity={0.8}
-                            >
-                              {isVoiding
-                                ? <ActivityIndicator size="small" color={WHITE} />
-                                : <><Feather name="x-circle" size={14} color={WHITE} />
-                                   <Text style={styles.historyVoidBtnText}>Void Transaction</Text></>
-                              }
-                            </TouchableOpacity>
-                          ) : (
-                            <Text style={styles.historyVoidExpired}>
-                              Void window expired (5 min limit)
-                            </Text>
+                      {/* Tip / surcharge / split breakdown */}
+                      {(item.tipCents > 0 || item.surchargeCents > 0 || item.splitPayments) && (
+                        <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, gap: 4 }}>
+                          {item.tipCents > 0 && (
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={styles.historyLineNote}>Tip</Text>
+                              <Text style={[styles.historyLineNote, { color: '#16A34A' }]}>+{fmtCents(item.tipCents)}</Text>
+                            </View>
+                          )}
+                          {item.surchargeCents > 0 && (
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={styles.historyLineNote}>Surcharge</Text>
+                              <Text style={[styles.historyLineNote, { color: '#EA580C' }]}>+{fmtCents(item.surchargeCents)}</Text>
+                            </View>
+                          )}
+                          {item.splitPayments && item.splitPayments.length > 0 && (
+                            <View style={{ gap: 2 }}>
+                              {item.splitPayments.map((sp, si) => (
+                                <View key={si} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                  <Text style={styles.historyLineNote}>{sp.method === 'cash' ? 'Cash' : 'EFTPOS'}</Text>
+                                  <Text style={styles.historyLineNote}>{fmtCents(sp.amountCents)}</Text>
+                                </View>
+                              ))}
+                            </View>
                           )}
                         </View>
                       )}
+
+                      {/* Action buttons row */}
+                      <View style={styles.historyVoidRow}>
+                        {/* Reprint button */}
+                        <TouchableOpacity
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            Alert.alert('Reprint', `Reprinting receipt for #${item.orderNumber}…\n(Requires printer configured in Settings)`);
+                          }}
+                          style={styles.historyReprintBtn}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="printer" size={13} color={BLUE} />
+                          <Text style={styles.historyReprintBtnText}>Reprint</Text>
+                        </TouchableOpacity>
+
+                        {/* Void button */}
+                        {item.status !== 'cancelled' && voidable && (
+                          <TouchableOpacity
+                            onPress={() => handleVoid(item)}
+                            style={styles.historyVoidBtn}
+                            disabled={isVoiding}
+                            activeOpacity={0.8}
+                          >
+                            {isVoiding
+                              ? <ActivityIndicator size="small" color={WHITE} />
+                              : <><Feather name="x-circle" size={13} color={WHITE} />
+                                 <Text style={styles.historyVoidBtnText}>Void</Text></>
+                            }
+                          </TouchableOpacity>
+                        )}
+                        {item.status !== 'cancelled' && !voidable && (
+                          <Text style={styles.historyVoidExpired}>Void window expired</Text>
+                        )}
+
+                        {/* Refund button (director / manager only) */}
+                        {item.status !== 'cancelled' && !voidable && (
+                          <TouchableOpacity
+                            onPress={() => handleRefund(item)}
+                            style={styles.historyRefundBtn}
+                            disabled={refundMutation.isPending && refundMutation.variables?.orderId === item.id}
+                            activeOpacity={0.8}
+                          >
+                            {refundMutation.isPending && (refundMutation.variables as any)?.orderId === item.id
+                              ? <ActivityIndicator size="small" color={WHITE} />
+                              : <><Feather name="rotate-ccw" size={13} color={WHITE} />
+                                 <Text style={styles.historyRefundBtnText}>Refund</Text></>
+                            }
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                   )}
                 </View>
@@ -2270,6 +2674,18 @@ function HistoryModal({
           />
         )}
       </View>
+
+      {/* PIN gate for refunds */}
+      {pinForRefund && (
+        <PosPinModal
+          onClose={() => setPinForRefund(null)}
+          onSuccess={() => {
+            const { order, reason } = pinForRefund;
+            setPinForRefund(null);
+            refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason });
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -2474,10 +2890,68 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
   onChangePresets: (presets: number[]) => void;
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
   const { height: screenH } = useWindowDimensions();
   const [localPresets, setLocalPresets] = React.useState<number[]>(discountPresets);
   const [newPct, setNewPct] = React.useState('');
   const [inputError, setInputError] = React.useState<string | null>(null);
+
+  // Surcharge state
+  const [surchargeTab, setSurchargeTab] = React.useState<'list' | 'add'>('list');
+  const [newSurchargeName, setNewSurchargeName] = React.useState('');
+  const [newSurchargeTriggerType, setNewSurchargeTriggerType] = React.useState<'payment_method' | 'day_of_week'>('payment_method');
+  const [newSurchargeTriggerValue, setNewSurchargeTriggerValue] = React.useState('eftpos');
+  const [newSurchargeAmountType, setNewSurchargeAmountType] = React.useState<'pct_basis_points' | 'fixed_cents'>('pct_basis_points');
+  const [newSurchargeAmount, setNewSurchargeAmount] = React.useState('');
+  const [surchargeError, setSurchargeError] = React.useState<string | null>(null);
+
+  const { data: surchargesData, refetch: refetchSurcharges } = useQuery({
+    queryKey: ['pos-surcharges'],
+    queryFn: () => api.pos.surcharges(),
+    staleTime: 30_000,
+  });
+  const surcharges: PosSurcharge[] = (surchargesData as any)?.data ?? [];
+
+  const createSurchargeMutation = useMutation({
+    mutationFn: () => api.pos.createSurcharge({
+      name: newSurchargeName.trim(),
+      triggerType: newSurchargeTriggerType,
+      triggerValue: newSurchargeTriggerValue,
+      amountType: newSurchargeAmountType,
+      amountValue: newSurchargeAmountType === 'pct_basis_points'
+        ? Math.round(parseFloat(newSurchargeAmount || '0') * 100)
+        : Math.round(parseFloat(newSurchargeAmount || '0') * 100),
+    }),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
+      refetchSurcharges();
+      setSurchargeTab('list');
+      setNewSurchargeName('');
+      setNewSurchargeAmount('');
+      setSurchargeError(null);
+    },
+    onError: (err: any) => {
+      setSurchargeError(err?.message ?? 'Failed to create surcharge');
+    },
+  });
+
+  const deleteSurchargeMutation = useMutation({
+    mutationFn: (id: string) => api.pos.deleteSurcharge(id),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
+      refetchSurcharges();
+    },
+  });
+
+  const toggleSurchargeMutation = useMutation({
+    mutationFn: (vars: { id: string; isActive: boolean }) => api.pos.updateSurcharge(vars.id, { isActive: vars.isActive }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
+      refetchSurcharges();
+    },
+  });
 
   const addPreset = () => {
     const val = parseInt(newPct, 10);
@@ -2497,10 +2971,22 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
     onClose();
   };
 
+  const handleAddSurcharge = () => {
+    if (!newSurchargeName.trim()) { setSurchargeError('Enter a name'); return; }
+    if (!newSurchargeAmount || parseFloat(newSurchargeAmount) <= 0) { setSurchargeError('Enter a valid amount'); return; }
+    setSurchargeError(null);
+    createSurchargeMutation.mutate();
+  };
+
+  const fmtSurchargeValue = (s: PosSurcharge) =>
+    s.amountType === 'pct_basis_points'
+      ? `${(s.amountValue / 100).toFixed(2)}%`
+      : fmtCents(s.amountValue);
+
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.settingsOverlay} onPress={onClose}>
-        <Pressable style={[styles.settingsSheet, { height: screenH * 0.65 }]} onPress={() => {}}>
+        <Pressable style={[styles.settingsSheet, { height: screenH * 0.82 }]} onPress={() => {}}>
           <View style={styles.sheetHeader}>
             <Pressable onPress={onClose} hitSlop={8} style={{ width: 44, alignItems: 'flex-start' }}>
               <Feather name="x" size={20} color={MID} />
@@ -2512,7 +2998,7 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            {/* Discount presets */}
+            {/* ── Discount presets ── */}
             <Text style={styles.settingsSectionTitle}>Quick Discount Presets</Text>
             <Text style={styles.settingsSectionDesc}>
               These percentage buttons appear on every ticket for fast discounting.
@@ -2552,6 +3038,163 @@ function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
             {inputError ? (
               <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{inputError}</Text>
             ) : null}
+
+            {/* ── Surcharges ── */}
+            <View style={{ marginTop: 28 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text style={styles.settingsSectionTitle}>Payment Surcharges</Text>
+                <Pressable
+                  onPress={() => setSurchargeTab(surchargeTab === 'list' ? 'add' : 'list')}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Feather name={surchargeTab === 'list' ? 'plus' : 'list'} size={16} color={BLUE} />
+                  <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>{surchargeTab === 'list' ? 'Add' : 'List'}</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.settingsSectionDesc}>
+                Automatically applied surcharges based on payment method or day of week.
+              </Text>
+
+              {surchargeTab === 'list' && (
+                <View style={{ marginTop: 12, gap: 8 }}>
+                  {surcharges.length === 0 && (
+                    <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No surcharges configured.</Text>
+                  )}
+                  {surcharges.map(s => (
+                    <View key={s.id} style={styles.surchargeRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.surchargeRowName}>{s.name}</Text>
+                        <Text style={styles.surchargeRowMeta}>
+                          {s.triggerType === 'payment_method' ? s.triggerValue.toUpperCase() : s.triggerValue.charAt(0).toUpperCase() + s.triggerValue.slice(1)}
+                          {' · '}+{fmtSurchargeValue(s)}
+                          {' · '}{s.isActive ? '✓ Active' : 'Disabled'}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => toggleSurchargeMutation.mutate({ id: s.id, isActive: !s.isActive })}
+                        style={[styles.surchargeToggle, s.isActive && styles.surchargeToggleActive]}
+                        hitSlop={8}
+                      >
+                        <Text style={[styles.surchargeToggleText, s.isActive && styles.surchargeToggleTextActive]}>
+                          {s.isActive ? 'On' : 'Off'}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => Alert.alert('Delete Surcharge', `Remove "${s.name}"?`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Delete', style: 'destructive', onPress: () => deleteSurchargeMutation.mutate(s.id) },
+                        ])}
+                        hitSlop={8}
+                        style={{ padding: 6, marginLeft: 4 }}
+                      >
+                        <Feather name="trash-2" size={15} color={CHERRY} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {surchargeTab === 'add' && (
+                <View style={{ marginTop: 12, gap: 12 }}>
+                  <TextInput
+                    style={styles.surchargeNameInput}
+                    placeholder="Name (e.g. EFTPOS Surcharge)"
+                    placeholderTextColor={MUTED}
+                    value={newSurchargeName}
+                    onChangeText={setNewSurchargeName}
+                    returnKeyType="next"
+                  />
+
+                  <View>
+                    <Text style={[styles.settingsSectionDesc, { marginBottom: 6 }]}>Trigger</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => { setNewSurchargeTriggerType('payment_method'); setNewSurchargeTriggerValue('eftpos'); }}
+                        style={[styles.surchargeChip, newSurchargeTriggerType === 'payment_method' && styles.surchargeChipActive]}
+                      >
+                        <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'payment_method' && { color: WHITE }]}>By Payment</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => { setNewSurchargeTriggerType('day_of_week'); setNewSurchargeTriggerValue('sunday'); }}
+                        style={[styles.surchargeChip, newSurchargeTriggerType === 'day_of_week' && styles.surchargeChipActive]}
+                      >
+                        <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'day_of_week' && { color: WHITE }]}>By Day</Text>
+                      </Pressable>
+                    </View>
+
+                    {newSurchargeTriggerType === 'payment_method' && (
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        {['eftpos', 'cash'].map(v => (
+                          <Pressable key={v} onPress={() => setNewSurchargeTriggerValue(v)} style={[styles.surchargeChip, newSurchargeTriggerValue === v && styles.surchargeChipActive]}>
+                            <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === v && { color: WHITE }]}>{v.toUpperCase()}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+
+                    {newSurchargeTriggerType === 'day_of_week' && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
+                            <Pressable key={d} onPress={() => setNewSurchargeTriggerValue(d)} style={[styles.surchargeChip, newSurchargeTriggerValue === d && styles.surchargeChipActive]}>
+                              <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === d && { color: WHITE }]}>{d.slice(0,3).toUpperCase()}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    )}
+                  </View>
+
+                  <View>
+                    <Text style={[styles.settingsSectionDesc, { marginBottom: 6 }]}>Amount Type</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => setNewSurchargeAmountType('pct_basis_points')}
+                        style={[styles.surchargeChip, newSurchargeAmountType === 'pct_basis_points' && styles.surchargeChipActive]}
+                      >
+                        <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'pct_basis_points' && { color: WHITE }]}>Percentage %</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setNewSurchargeAmountType('fixed_cents')}
+                        style={[styles.surchargeChip, newSurchargeAmountType === 'fixed_cents' && styles.surchargeChipActive]}
+                      >
+                        <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'fixed_cents' && { color: WHITE }]}>Fixed $</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  <View style={styles.settingsAddRow}>
+                    <TextInput
+                      style={styles.settingsAddInput}
+                      placeholder={newSurchargeAmountType === 'pct_basis_points' ? 'e.g. 1.5 (%)' : 'e.g. 0.50 ($)'}
+                      placeholderTextColor={MUTED}
+                      value={newSurchargeAmount}
+                      onChangeText={v => { setNewSurchargeAmount(v.replace(/[^0-9.]/g, '')); setSurchargeError(null); }}
+                      keyboardType="decimal-pad"
+                      returnKeyType="done"
+                    />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 6 }}>
+                      {newSurchargeAmountType === 'pct_basis_points' ? '%' : 'AUD'}
+                    </Text>
+                  </View>
+
+                  {surchargeError ? (
+                    <Text style={{ fontSize: 12, color: CHERRY }}>{surchargeError}</Text>
+                  ) : null}
+
+                  <TouchableOpacity
+                    onPress={handleAddSurcharge}
+                    style={[styles.settingsAddBtn, { paddingHorizontal: 24, alignSelf: 'flex-start' }]}
+                    disabled={createSurchargeMutation.isPending}
+                    activeOpacity={0.85}
+                  >
+                    {createSurchargeMutation.isPending
+                      ? <ActivityIndicator size="small" color={WHITE} />
+                      : <Text style={styles.settingsAddBtnText}>Add Surcharge</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -2688,26 +3331,47 @@ const styles = StyleSheet.create({
   notesInput:         { backgroundColor: '#F8FAFC', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: BORDER, fontSize: 14, color: DARK, minHeight: 72, textAlignVertical: 'top' },
 
   // Payment
-  payTotal:           { alignItems: 'center', paddingVertical: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, marginBottom: 20 },
-  payTotalLabel:      { fontSize: 14, color: MUTED, fontWeight: '500' },
-  payTotalValue:      { fontSize: 40, fontWeight: '800', color: DARK, marginTop: 4 },
-  methodRow:          { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  methodBtn:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1.5, borderColor: BORDER },
-  methodBtnActive:    { backgroundColor: BLUE, borderColor: BLUE },
-  methodBtnText:      { fontSize: 15, fontWeight: '700', color: MID },
-  eftposInstructions: { alignItems: 'center', paddingVertical: 32, gap: 10 },
-  eftposText:         { fontSize: 16, fontWeight: '600', color: DARK, textAlign: 'center' },
-  eftposSubText:      { fontSize: 13, color: MUTED, textAlign: 'center' },
-  presetBtn:          { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' },
-  presetBtnText:      { fontSize: 15, fontWeight: '700', color: BLUE },
-  tenderedDisplay:    { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 16, alignItems: 'flex-end', marginBottom: 12, borderWidth: 1, borderColor: BORDER },
-  tenderedText:       { fontSize: 36, fontWeight: '800', color: DARK },
-  changeRow:          { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#ECFDF5', borderRadius: 10, padding: 12, marginBottom: 16 },
-  changeLabel:        { fontSize: 15, fontWeight: '600', color: '#16A34A' },
-  changeValue:        { fontSize: 15, fontWeight: '800', color: '#16A34A' },
-  numpad:             { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  numpadKey:          { width: '30%', aspectRatio: 2, backgroundColor: '#F1F5F9', borderRadius: 10, justifyContent: 'center', alignItems: 'center', flexGrow: 1 },
-  numpadKeyText:      { fontSize: 22, fontWeight: '700', color: DARK },
+  payTotal:             { alignItems: 'center', paddingVertical: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, marginBottom: 20 },
+  payTotalLabel:        { fontSize: 14, color: MUTED, fontWeight: '500' },
+  payTotalValue:        { fontSize: 40, fontWeight: '800', color: DARK, marginTop: 4 },
+  payDiscountRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  payDiscountLabel:     { fontSize: 13, color: '#16A34A', fontWeight: '500', flex: 1 },
+  payDiscountSaving:    { fontSize: 13, fontWeight: '700', color: '#16A34A' },
+  payBreakdownBox:      { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: BORDER },
+  payBreakdownRow:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  payBreakdownLabel:    { fontSize: 14, color: MID },
+  payBreakdownValue:    { fontSize: 14, fontWeight: '600', color: DARK },
+  methodRow:            { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  methodBtn:            { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1.5, borderColor: BORDER },
+  methodBtnActive:      { backgroundColor: BLUE, borderColor: BLUE },
+  methodBtnText:        { fontSize: 14, fontWeight: '700', color: MID },
+  eftposInstructions:   { alignItems: 'center', paddingVertical: 32, gap: 12 },
+  eftposText:           { fontSize: 16, fontWeight: '600', color: DARK, textAlign: 'center' },
+  eftposSubText:        { fontSize: 13, color: MUTED, textAlign: 'center' },
+  presetBtn:            { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' },
+  presetBtnText:        { fontSize: 15, fontWeight: '700', color: BLUE },
+  tenderedDisplay:      { backgroundColor: '#F8FAFC', borderRadius: 12, padding: 16, alignItems: 'flex-end', marginBottom: 12, borderWidth: 1, borderColor: BORDER },
+  tenderedText:         { fontSize: 36, fontWeight: '800', color: DARK },
+  changeRow:            { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#ECFDF5', borderRadius: 10, padding: 12, marginBottom: 16 },
+  changeLabel:          { fontSize: 15, fontWeight: '600', color: '#16A34A' },
+  changeValue:          { fontSize: 15, fontWeight: '800', color: '#16A34A' },
+  numpad:               { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  numpadKey:            { width: '30%', aspectRatio: 2, backgroundColor: '#F1F5F9', borderRadius: 10, justifyContent: 'center', alignItems: 'center', flexGrow: 1 },
+  numpadKeyText:        { fontSize: 22, fontWeight: '700', color: DARK },
+  // Tip selection
+  tipOption:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: BORDER },
+  tipOptionActive:      { backgroundColor: '#EFF6FF', borderColor: BLUE },
+  tipOptionLabel:       { fontSize: 15, fontWeight: '600', color: DARK },
+  tipOptionLabelActive: { color: BLUE },
+  tipOptionAmount:      { fontSize: 15, fontWeight: '700', color: MID },
+  tipOptionAmountActive:{ color: BLUE },
+  // Split payment
+  splitAmountBox:       { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: 10, borderWidth: 1 },
+  // Surcharge preview (in payment modal)
+  surchargePreviewBox:  { backgroundColor: '#FFF7ED', borderRadius: 10, padding: 12, marginTop: 8, marginBottom: 8, borderWidth: 1, borderColor: '#FDBA74' },
+  surchargePreviewTitle:{ fontSize: 12, fontWeight: '700', color: '#EA580C', marginBottom: 4 },
+  surchargeLabel:       { fontSize: 13, color: '#92400E' },
+  surchargeCentsText:   { fontSize: 13, fontWeight: '600', color: '#EA580C' },
 
   // Complete
   completeBg:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
@@ -2767,10 +3431,14 @@ const styles = StyleSheet.create({
   historyLinePrice:       { fontSize: 13, fontWeight: '700', color: DARK },
   historyOrderNote:       { fontSize: 12, color: MID, fontStyle: 'italic', marginTop: 4, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
 
-  historyVoidRow:         { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
-  historyVoidBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: CHERRY, borderRadius: 8, paddingVertical: 10 },
-  historyVoidBtnText:     { fontSize: 14, fontWeight: '700', color: WHITE },
-  historyVoidExpired:     { fontSize: 12, color: MUTED, textAlign: 'center', fontStyle: 'italic' },
+  historyVoidRow:         { marginTop: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  historyVoidBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: CHERRY, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  historyVoidBtnText:     { fontSize: 13, fontWeight: '700', color: WHITE },
+  historyVoidExpired:     { fontSize: 12, color: MUTED, fontStyle: 'italic', flex: 1 },
+  historyReprintBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: '#EFF6FF', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: '#BFDBFE' },
+  historyReprintBtnText:  { fontSize: 13, fontWeight: '700', color: BLUE },
+  historyRefundBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: '#92400E', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  historyRefundBtnText:   { fontSize: 13, fontWeight: '700', color: WHITE },
 
   historyFilterRow:         { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   historyFilterChip:        { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },
@@ -2798,10 +3466,19 @@ const styles = StyleSheet.create({
   discountCodeApplyText: { fontSize: 14, fontWeight: '700', color: WHITE },
   discountCodeError:    { fontSize: 12, color: CHERRY, marginTop: 4 },
 
-  // Payment discount row
-  payDiscountRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16 },
-  payDiscountLabel:     { fontSize: 13, fontWeight: '600', color: '#16A34A', flex: 1 },
-  payDiscountSaving:    { fontSize: 13, fontWeight: '800', color: '#16A34A' },
+  // Payment discount row (old style kept for any usage; canonical definition is in Payment section above)
+  // Surcharge management rows (PosSettingsModal)
+  surchargeRow:          { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER },
+  surchargeRowName:      { fontSize: 14, fontWeight: '600', color: DARK },
+  surchargeRowMeta:      { fontSize: 11, color: MUTED, marginTop: 2 },
+  surchargeToggle:       { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },
+  surchargeToggleActive: { backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' },
+  surchargeToggleText:   { fontSize: 12, fontWeight: '700', color: MID },
+  surchargeToggleTextActive: { color: '#065F46' },
+  surchargeChip:         { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },
+  surchargeChipActive:   { backgroundColor: BLUE, borderColor: BLUE },
+  surchargeChipText:     { fontSize: 13, fontWeight: '600', color: MID },
+  surchargeNameInput:    { flex: 1, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: DARK },
 
   // Ticket notes
   ticketNotesRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },

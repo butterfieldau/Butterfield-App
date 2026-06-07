@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { randomUUID } from 'crypto';
+import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
   discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
@@ -12,10 +12,12 @@ import {
   getOrCreateCustomerLoyaltyProfile,
   parseLoyaltyQrPayload,
   recordLoyaltyPoints,
+  reverseCoffeeStamps,
   ensureLoyaltySchemaReady,
 } from '../lib/loyaltyIdentity.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
+import { recordAuditLog } from '../lib/auditLog.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -37,6 +39,29 @@ async function ensurePosSchemaReady() {
         await db.execute(sql.raw(
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method text`
         ));
+        await db.execute(sql.raw(
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS tip_cents integer NOT NULL DEFAULT 0`
+        ));
+        await db.execute(sql.raw(
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS surcharge_cents integer NOT NULL DEFAULT 0`
+        ));
+        await db.execute(sql.raw(
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS split_payments jsonb`
+        ));
+        // pos_surcharges table
+        await db.execute(sql.raw(`
+          CREATE TABLE IF NOT EXISTS pos_surcharges (
+            id text PRIMARY KEY,
+            name text NOT NULL,
+            trigger_type text NOT NULL,
+            trigger_value text NOT NULL,
+            amount_type text NOT NULL,
+            amount_value integer NOT NULL,
+            is_active boolean NOT NULL DEFAULT true,
+            created_at timestamptz NOT NULL DEFAULT now(),
+            updated_at timestamptz NOT NULL DEFAULT now()
+          )
+        `));
       } catch (err) {
         posSchemaReady = null;
         throw err;
@@ -45,6 +70,41 @@ async function ensurePosSchemaReady() {
   }
   return posSchemaReady;
 }
+
+// ── Linkly encrypt/decrypt (mirrors shop-display pattern) ─────────────────
+function getPosEncKey(): Buffer {
+  const secret = process.env.SESSION_SECRET ?? 'default-secret-32-characters-ok!';
+  const padded = secret.padEnd(32, '0').slice(0, 32);
+  return Buffer.from(padded, 'utf8');
+}
+function posEncryptText(plain: string): string {
+  const key = getPosEncKey();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-cbc', key, iv);
+  let enc = cipher.update(plain, 'utf8', 'hex');
+  enc += cipher.final('hex');
+  return `${iv.toString('hex')}:${enc}`;
+}
+function posDecryptText(stored: string): string {
+  const key = getPosEncKey();
+  const sep = stored.indexOf(':');
+  const iv = Buffer.from(stored.slice(0, sep), 'hex');
+  const data = stored.slice(sep + 1);
+  const decipher = createDecipheriv('aes-256-cbc', key, iv);
+  let dec = decipher.update(data, 'hex', 'utf8');
+  dec += decipher.final('utf8');
+  return dec;
+}
+
+// ── Active Linkly sessions (POS) ──────────────────────────────────────────
+const posActiveSessions = new Map<string, { deviceUserId: string; amountCents: number; createdAt: number }>();
+// Clean up sessions older than 30 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, s] of posActiveSessions.entries()) {
+    if (s.createdAt < cutoff) posActiveSessions.delete(id);
+  }
+}, 5 * 60 * 1000);
 
 // ── Helper: fetch available claimed rewards for a customer ─────────────────
 async function fetchAvailableClaimedRewards(userId: string) {
@@ -176,6 +236,82 @@ router.get('/customer-search', async (req, res) => {
   });
 });
 
+// ── GET /pos/surcharges — list all active surcharges ──────────────────────
+router.get('/surcharges', async (req, res) => {
+  await ensurePosSchemaReady();
+  try {
+    const result = await db.execute(sql`
+      SELECT id, name, trigger_type, trigger_value, amount_type, amount_value, is_active, created_at
+      FROM pos_surcharges
+      ORDER BY created_at ASC
+    `);
+    const rows = (result.rows ?? result as any[]) as any[];
+    return res.json({ data: rows.map(r => ({
+      id: r.id, name: r.name,
+      triggerType: r.trigger_type, triggerValue: r.trigger_value,
+      amountType: r.amount_type, amountValue: Number(r.amount_value),
+      isActive: r.is_active, createdAt: r.created_at,
+    })) });
+  } catch (err: any) {
+    req.log.error({ err }, 'GET /pos/surcharges failed');
+    return res.status(500).json({ error: 'Failed to fetch surcharges' });
+  }
+});
+
+// ── POST /pos/surcharges — create a surcharge (director/manager only) ──────
+router.post('/surcharges', async (req, res) => {
+  await ensurePosSchemaReady();
+  if (!['director', 'master', 'manager'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Director or manager access required' });
+  }
+  const { name, triggerType, triggerValue, amountType, amountValue } = req.body;
+  if (!name || !triggerType || !triggerValue || !amountType || amountValue == null) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  if (!['payment_method', 'day_of_week'].includes(triggerType)) {
+    return res.status(400).json({ error: 'triggerType must be payment_method or day_of_week' });
+  }
+  if (!['pct_basis_points', 'fixed_cents'].includes(amountType)) {
+    return res.status(400).json({ error: 'amountType must be pct_basis_points or fixed_cents' });
+  }
+  const id = randomUUID();
+  await db.execute(sql`
+    INSERT INTO pos_surcharges (id, name, trigger_type, trigger_value, amount_type, amount_value)
+    VALUES (${id}, ${name}, ${triggerType}, ${triggerValue}, ${amountType}, ${Number(amountValue)})
+  `);
+  return res.status(201).json({ data: { id, name, triggerType, triggerValue, amountType, amountValue: Number(amountValue), isActive: true } });
+});
+
+// ── PATCH /pos/surcharges/:id — update a surcharge ─────────────────────────
+router.patch('/surcharges/:id', async (req, res) => {
+  await ensurePosSchemaReady();
+  if (!['director', 'master', 'manager'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Director or manager access required' });
+  }
+  const { id } = req.params;
+  const { name, isActive, amountValue } = req.body;
+  await db.execute(sql`
+    UPDATE pos_surcharges SET
+      name = COALESCE(${name ?? null}, name),
+      is_active = COALESCE(${isActive ?? null}, is_active),
+      amount_value = COALESCE(${amountValue != null ? Number(amountValue) : null}, amount_value),
+      updated_at = now()
+    WHERE id = ${id}
+  `);
+  return res.json({ success: true });
+});
+
+// ── DELETE /pos/surcharges/:id — delete a surcharge ────────────────────────
+router.delete('/surcharges/:id', async (req, res) => {
+  await ensurePosSchemaReady();
+  if (!['director', 'master', 'manager'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Director or manager access required' });
+  }
+  const { id } = req.params;
+  await db.execute(sql`DELETE FROM pos_surcharges WHERE id = ${id}`);
+  return res.json({ success: true });
+});
+
 // ── POST /pos/orders — create a POS order ────────────────────────────────────
 router.post('/orders', async (req, res) => {
   await ensurePosSchemaReady();
@@ -186,6 +322,9 @@ router.post('/orders', async (req, res) => {
     orderType,
     paymentMethod,
     amountTenderedCents,
+    tipCents: rawTipCents,
+    surchargeCents: rawSurchargeCents,
+    splitPayments: rawSplitPayments,
     customerId,
     discountCode,
     discountCodeId,
@@ -332,11 +471,18 @@ router.post('/orders', async (req, res) => {
   }
 
   discountAmountCents = Math.min(discountAmountCents, subtotalCents);
-  const totalCents = Math.max(0, subtotalCents - discountAmountCents);
+  const baseTotalCents = Math.max(0, subtotalCents - discountAmountCents);
+
+  // Clamp tip and surcharge to reasonable values
+  const tipCents = Math.max(0, Math.floor(Number(rawTipCents) || 0));
+  const surchargeCents = Math.max(0, Math.floor(Number(rawSurchargeCents) || 0));
+  const splitPayments = Array.isArray(rawSplitPayments) ? rawSplitPayments : null;
+  const totalCents = baseTotalCents + tipCents + surchargeCents;
 
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
-  const pointsEarned = Math.floor(totalCents / 100);
+  // Points earned only on base order value (not tip or surcharge)
+  const pointsEarned = Math.floor(baseTotalCents / 100);
 
   // Store a human-readable discount label as discount_code
   // For manual % discounts and free coffee we use a descriptive label
@@ -345,12 +491,14 @@ router.post('/orders', async (req, res) => {
   // ── Atomic transaction: INSERT order + transition any claimed reward ─────────
   try {
     await db.transaction(async (tx) => {
-      // Use raw SQL so we can write the POS-specific columns (source, staff_user_id, payment_method)
+      // Use raw SQL so we can write the POS-specific columns (source, staff_user_id, payment_method, tip_cents, surcharge_cents, split_payments)
       await tx.execute(sql`
         INSERT INTO orders (
           id, order_number, user_id, status, type, notes, total_cents,
           items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
-          stripe_payment_status, source, staff_user_id, payment_method, created_at, updated_at
+          stripe_payment_status, source, staff_user_id, payment_method,
+          tip_cents, surcharge_cents, split_payments,
+          created_at, updated_at
         ) VALUES (
           ${orderId},
           ${orderNumber},
@@ -368,6 +516,9 @@ router.post('/orders', async (req, res) => {
           'pos',
           ${req.user!.id},
           ${paymentMethod},
+          ${tipCents},
+          ${surchargeCents},
+          ${splitPayments ? JSON.stringify(splitPayments) : null}::jsonb,
           now(),
           now()
         )
@@ -527,6 +678,10 @@ router.get('/orders', async (req, res) => {
         o.payment_method,
         o.items,
         o.notes,
+        COALESCE(o.tip_cents, 0) AS tip_cents,
+        COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
+        o.split_payments,
+        o.discount_cents,
         u.name AS customer_name,
         su.name AS staff_name
       FROM orders o
@@ -547,6 +702,10 @@ router.get('/orders', async (req, res) => {
       payment_method: string | null;
       items: any;
       notes: string | null;
+      tip_cents: string | number;
+      surcharge_cents: string | number;
+      split_payments: any;
+      discount_cents: string | number;
       customer_name: string | null;
       staff_name: string | null;
     }>;
@@ -561,6 +720,10 @@ router.get('/orders', async (req, res) => {
         paymentMethod: r.payment_method ?? 'eftpos',
         items: Array.isArray(r.items) ? r.items : (typeof r.items === 'string' ? JSON.parse(r.items) : []),
         notes: r.notes,
+        tipCents: Number(r.tip_cents ?? 0),
+        surchargeCents: Number(r.surcharge_cents ?? 0),
+        splitPayments: r.split_payments ?? null,
+        discountCents: Number(r.discount_cents ?? 0),
         customerName: r.customer_name,
         staffName: r.staff_name,
       })),
@@ -601,6 +764,286 @@ router.get('/summary', async (req, res) => {
     });
   } catch {
     return res.json({ data: { orderCount: 0, revenueCents: 0 } });
+  }
+});
+
+// ── POST /pos/orders/:id/refund — PIN-gated refund (full or partial) ─────────
+router.post('/orders/:id/refund', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { id } = req.params;
+  const { amountCents, reason } = req.body;
+
+  if (!['director', 'master', 'manager'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Director or manager access required to issue refunds' });
+  }
+  if (!amountCents || Number(amountCents) <= 0) {
+    return res.status(400).json({ error: 'amountCents must be a positive number' });
+  }
+
+  const result = await db.execute(sql`
+    SELECT id, total_cents, status, source, user_id, loyalty_points_earned, items
+    FROM orders WHERE id = ${id} LIMIT 1
+  `);
+  const order = (result.rows ?? result as unknown as any[])[0];
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.source !== 'pos') return res.status(400).json({ error: 'Only POS orders can be refunded via this endpoint' });
+  if (order.status === 'cancelled' || order.status === 'refunded') {
+    return res.status(400).json({ error: 'Order is already cancelled or refunded' });
+  }
+
+  const refundAmountCents = Math.min(Number(amountCents), Number(order.total_cents));
+  const isFullRefund = refundAmountCents >= Number(order.total_cents);
+
+  await db.execute(sql`
+    UPDATE orders SET
+      status = ${isFullRefund ? 'cancelled' : 'received'},
+      cancel_reason = ${isFullRefund ? ('refund: ' + (reason ?? 'POS refund')) : null},
+      updated_at = now()
+    WHERE id = ${id}
+  `);
+
+  // Reverse loyalty points if full refund and customer attached
+  if (isFullRefund && order.user_id && order.loyalty_points_earned > 0) {
+    try {
+      await db.execute(sql`
+        UPDATE customer_profiles
+        SET loyalty_points = GREATEST(0, loyalty_points - ${Number(order.loyalty_points_earned)}),
+            updated_at = now()
+        WHERE user_id = ${order.user_id}
+      `);
+      // Reverse coffee stamps if any coffee items
+      const items = Array.isArray(order.items) ? order.items : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
+      const hasCoffee = items.some((i: any) => String(i.category ?? '').toLowerCase() === 'coffee');
+      if (hasCoffee) {
+        await reverseCoffeeStamps({ userId: order.user_id, stampsToRemove: 1, orderId: id });
+      }
+    } catch (err: any) {
+      req.log.error({ err, orderId: id }, 'POS refund: loyalty reversal failed');
+    }
+  }
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'pos_order',
+    entityId: id,
+    action: isFullRefund ? 'refund_full' : 'refund_partial',
+    reason: reason ?? null,
+    metadata: { refundAmountCents, orderTotalCents: Number(order.total_cents), isFullRefund },
+  });
+
+  return res.json({ success: true, refundAmountCents, isFullRefund });
+});
+
+// ── POST /pos/linkly/transaction — initiate EFTPOS via Linkly ─────────────
+router.post('/linkly/transaction', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { amountCents } = req.body ?? {};
+  if (!amountCents || Number(amountCents) <= 0) {
+    return res.status(400).json({ error: 'amountCents is required and must be positive' });
+  }
+
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+    return res.status(400).json({ error: 'Linkly is not configured for this account. Configure it via the Shop Display settings.' });
+  }
+
+  let password: string;
+  try { password = posDecryptText(cfg.linkly_password_encrypted); }
+  catch { return res.status(500).json({ error: 'Failed to decrypt Linkly credentials.' }); }
+
+  const sessionId = randomUUID();
+  const chargeAmount = Math.round(Number(amountCents));
+
+  try {
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cfg.linkly_username,
+        password,
+        pairingCode: cfg.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: `pos-${req.user!.id}`,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (!authRes.ok) {
+      return res.status(400).json({ error: authBody?.message ?? 'Linkly authentication failed.' });
+    }
+
+    const authToken = authBody.token ?? authBody.Token;
+    const secret = authBody.secret ?? authBody.Secret ?? '';
+
+    const txnRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+        'Secret': secret,
+      },
+      body: JSON.stringify({
+        SessionId: sessionId,
+        Merchant: '00',
+        TxnType: 'P',
+        AmountCash: 0,
+        AmountPurchase: chargeAmount,
+        TxnRef: sessionId.slice(0, 16),
+        EnableTip: false,
+        CutReceipt: '0',
+        ReceiptAutoPrint: '7',
+      }),
+    });
+
+    if (!txnRes.ok) {
+      const txnBody = await txnRes.json().catch(() => ({})) as any;
+      return res.status(400).json({ error: txnBody?.message ?? 'Failed to start EFTPOS transaction.' });
+    }
+
+    posActiveSessions.set(sessionId, { deviceUserId: req.user!.id, amountCents: chargeAmount, createdAt: Date.now() });
+    return res.json({ data: { sessionId, amountCents: chargeAmount } });
+  } catch (err: any) {
+    req.log.error({ err }, 'POS Linkly transaction initiation error');
+    return res.status(502).json({ error: 'Could not reach Linkly Cloud.' });
+  }
+});
+
+// ── GET /pos/linkly/:sessionId — poll Linkly transaction status ───────────
+router.get('/linkly/:sessionId', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { sessionId } = req.params;
+
+  const binding = posActiveSessions.get(sessionId);
+  if (!binding) return res.status(404).json({ error: 'Session not found or expired.' });
+  if (binding.deviceUserId !== req.user!.id) return res.status(403).json({ error: 'Session belongs to a different device.' });
+
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+    return res.status(400).json({ error: 'Linkly not configured.' });
+  }
+
+  let password: string;
+  try { password = posDecryptText(cfg.linkly_password_encrypted); }
+  catch { return res.status(500).json({ error: 'Failed to decrypt credentials.' }); }
+
+  try {
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cfg.linkly_username,
+        password,
+        pairingCode: cfg.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: `pos-${req.user!.id}`,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (!authRes.ok) return res.status(400).json({ error: 'Linkly re-authentication failed.' });
+
+    const authToken = authBody.token ?? authBody.Token;
+    const secret = authBody.secret ?? authBody.Secret ?? '';
+
+    const pollRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+      headers: { 'Authorization': `Bearer ${authToken}`, 'Secret': secret },
+    });
+    const pollBody = await pollRes.json().catch(() => ({})) as any;
+
+    if (!pollRes.ok) {
+      return res.json({ data: { status: 'unknown', responseText: 'Polling error', approved: false, complete: false } });
+    }
+
+    const response = pollBody.Response ?? pollBody.response ?? {};
+    const complete = pollBody.SessionComplete ?? pollBody.Complete ?? false;
+    const approved = complete && (
+      response.Success === true ||
+      response.ResponseCode === '00' ||
+      response.ResponseText?.toLowerCase().includes('approved') ||
+      pollBody.TxnCompleted === true
+    );
+    const declined = complete && !approved;
+
+    let responseText = 'Waiting for card…';
+    if (complete && approved) responseText = 'Approved';
+    else if (complete && declined) responseText = response.ResponseText ?? 'Declined';
+    else if (response.ResponseText) responseText = response.ResponseText;
+
+    if (complete) posActiveSessions.delete(sessionId);
+
+    return res.json({
+      data: {
+        status: complete ? (approved ? 'approved' : 'declined') : 'pending',
+        responseText,
+        approved,
+        complete,
+        receiptText: response.ReceiptText ?? null,
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'POS Linkly poll error');
+    return res.json({ data: { status: 'pending', responseText: 'Connecting to terminal…', approved: false, complete: false } });
+  }
+});
+
+// ── DELETE /pos/linkly/:sessionId — cancel Linkly transaction ────────────
+router.delete('/linkly/:sessionId', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { sessionId } = req.params;
+
+  const binding = posActiveSessions.get(sessionId);
+  if (binding && binding.deviceUserId !== req.user!.id) {
+    return res.status(403).json({ error: 'Session belongs to a different device.' });
+  }
+  posActiveSessions.delete(sessionId);
+
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+    return res.json({ success: true });
+  }
+
+  let password: string;
+  try { password = posDecryptText(cfg.linkly_password_encrypted); }
+  catch { return res.json({ success: true }); }
+
+  try {
+    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: cfg.linkly_username,
+        password,
+        pairingCode: cfg.linkly_pairing_code,
+        posName: 'Butterfield Cookies POS',
+        posVersion: '1.0',
+        posId: `pos-${req.user!.id}`,
+      }),
+    });
+    const authBody = await authRes.json().catch(() => ({})) as any;
+    if (authRes.ok) {
+      const authToken = authBody.token ?? authBody.Token;
+      const secret = authBody.secret ?? authBody.Secret ?? '';
+      await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${authToken}`, 'Secret': secret },
+      });
+    }
+    return res.json({ success: true });
+  } catch (err: any) {
+    req.log.error({ err }, 'POS Linkly cancel error');
+    return res.json({ success: true });
   }
 });
 

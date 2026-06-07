@@ -26,3 +26,4 @@ export * from "./discount_codes";
 export * from "./audit_logs";
 export * from "./staff_invite_tokens";
 export * from "./wholesale_settings";
+export * from "./pos_surcharges";
