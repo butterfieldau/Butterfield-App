@@ -1186,7 +1186,7 @@ function TicketPanel({
                   key={i}
                   onPress={canTap ? () => addStampMutation.mutate({
                     customerId: ticket.customer!.userId,
-                    items: ticket.items.map(i => ({ category: i.category })),
+                    items: ticket.items.map(i => ({ category: i.category, productId: i.productId })),
                   }) : undefined}
                   style={[
                     styles.stampCircle,

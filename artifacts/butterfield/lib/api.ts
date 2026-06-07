@@ -839,7 +839,7 @@ export const api = {
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
-    addStamp: (customerId: string, items: { category: string }[]) =>
+    addStamp: (customerId: string, items: { category: string; productId?: string }[]) =>
       request<{ data: { stampCount: number; rewardUnlocked: boolean; freeCoffeeRewards: number } }>(
         `/pos/customers/${customerId}/stamp`, { method: 'POST', body: JSON.stringify({ items }) }
       ),

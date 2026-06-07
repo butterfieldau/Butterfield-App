@@ -3,7 +3,8 @@ import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypt
 import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
   discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
-  claimedRewardsTable, loyaltyRewardsTable,
+  claimedRewardsTable, loyaltyRewardsTable, loyaltyTransactionsTable,
+  storeSettingsTable,
 } from '@workspace/db';
 import { eq, and, desc, gte, sql, or, count, sum, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
@@ -22,6 +23,27 @@ import { recordAuditLog } from '../lib/auditLog.js';
 const router = Router();
 router.use(requireAuth);
 router.use(requireRole('staff', 'manager', 'director', 'master', 'shop_display'));
+
+// ── Loyalty POS settings (birthday bonus multiplier, etc.) ─────────────────
+const LOYALTY_POS_SETTINGS_KEY = 'loyalty_pos_settings';
+const DEFAULT_BIRTHDAY_BONUS_MULTIPLIER = 2.0;
+
+async function getLoyaltyPosSettings(): Promise<{ birthdayBonusMultiplier: number }> {
+  try {
+    const [row] = await db.select().from(storeSettingsTable)
+      .where(eq(storeSettingsTable.key, LOYALTY_POS_SETTINGS_KEY)).limit(1);
+    if (!row?.value) return { birthdayBonusMultiplier: DEFAULT_BIRTHDAY_BONUS_MULTIPLIER };
+    const parsed = JSON.parse(row.value);
+    const mult = Number(parsed?.birthdayBonusMultiplier);
+    return {
+      birthdayBonusMultiplier: Number.isFinite(mult) && mult >= 1
+        ? mult
+        : DEFAULT_BIRTHDAY_BONUS_MULTIPLIER,
+    };
+  } catch {
+    return { birthdayBonusMultiplier: DEFAULT_BIRTHDAY_BONUS_MULTIPLIER };
+  }
+}
 
 // ── Schema migration (idempotent) ─────────────────────────────────────────
 let posSchemaReady: Promise<void> | null = null;
@@ -253,15 +275,37 @@ router.post('/customers/:id/stamp', async (req, res) => {
   const customerId = req.params.id;
   const { items: ticketItems } = req.body;
 
-  // Server-side validation: require ticket items and at least one coffee item
+  // Server-side validation: require ticket items with at least one coffee item
   if (!Array.isArray(ticketItems) || ticketItems.length === 0) {
     return res.status(400).json({ error: 'Ticket items are required to award a stamp' });
   }
-  const hasCoffeeInTicket = ticketItems.some(
-    (item: any) => String(item.category ?? '').toLowerCase() === 'coffee',
+  const coffeeItems = (ticketItems as any[]).filter(
+    i => String(i.category ?? '').toLowerCase() === 'coffee',
   );
-  if (!hasCoffeeInTicket) {
+  if (coffeeItems.length === 0) {
     return res.status(400).json({ error: 'Stamp can only be awarded when a coffee item is in the ticket' });
+  }
+
+  // Cross-validate coffee item productIds against the Stripe product catalog
+  // to prevent fabricated client payloads from minting stamps
+  const coffeeProductIds = coffeeItems
+    .map((i: any) => i.productId)
+    .filter((id: any) => typeof id === 'string' && id.trim());
+  if (coffeeProductIds.length > 0) {
+    try {
+      const catalogCheck = await db.execute(sql`
+        SELECT id FROM stripe.products
+        WHERE id = ANY(${coffeeProductIds})
+          AND raw_data->'metadata'->>'category' ILIKE 'coffee'
+        LIMIT 1
+      `);
+      const verified = ((catalogCheck as any).rows ?? catalogCheck as unknown as any[]) as any[];
+      if (verified.length === 0) {
+        return res.status(400).json({ error: 'Coffee product not found in catalog' });
+      }
+    } catch (catalogErr: any) {
+      req.log.warn({ catalogErr }, 'Stripe product catalog check failed — proceeding with category-only validation');
+    }
   }
 
   const [user] = await db
@@ -569,7 +613,13 @@ router.post('/orders', async (req, res) => {
     } catch { /* fall back to 1× */ }
   }
   const basePoints = Math.floor(baseTotalCents / 100 * tierMultiplierVal);
-  const birthdayBonusPoints = birthdayBonusVerified ? basePoints : 0;
+  let birthdayBonusPoints = 0;
+  let birthdayBonusMultiplier = DEFAULT_BIRTHDAY_BONUS_MULTIPLIER;
+  if (birthdayBonusVerified) {
+    const posSettings = await getLoyaltyPosSettings();
+    birthdayBonusMultiplier = posSettings.birthdayBonusMultiplier;
+    birthdayBonusPoints = Math.floor(basePoints * (birthdayBonusMultiplier - 1));
+  }
   const pointsEarned = basePoints + birthdayBonusPoints;
 
   // Store a human-readable discount label as discount_code
@@ -711,13 +761,21 @@ router.post('/orders', async (req, res) => {
         description: `POS order #${orderNumber ?? orderId.slice(0, 8)}${tierNote}`,
       });
 
-      // Birthday bonus — separate transaction so it appears distinctly in history
+      // Birthday bonus — explicit type:'birthday_bonus' transaction (separate from earn)
       if (birthdayBonusVerified && birthdayBonusPoints > 0) {
-        await recordLoyaltyPoints({
+        await db.update(customerProfilesTable)
+          .set({
+            loyaltyPoints: sql`${customerProfilesTable.loyaltyPoints} + ${birthdayBonusPoints}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(customerProfilesTable.userId, customerId));
+        await db.insert(loyaltyTransactionsTable).values({
+          id: randomUUID(),
           userId: customerId,
-          pointsDelta: birthdayBonusPoints,
-          orderId,
-          description: `🎂 Birthday bonus for order #${orderNumber ?? orderId.slice(0, 8)}`,
+          points: birthdayBonusPoints,
+          type: 'birthday_bonus',
+          description: `🎂 Birthday bonus for order #${orderNumber ?? orderId.slice(0, 8)} (${birthdayBonusMultiplier}×)`,
+          referenceId: orderId,
         });
       }
 
