@@ -45,7 +45,9 @@ const PRESET_COLORS = [
   '#06B6D4', '#1493FF', '#8B5CF6', '#EC4899',
   '#92400E', '#0F766E', '#4F46E5', '#64748B',
 ];
-const CAT_COLORS_KEY = 'pos_category_colors';
+const CAT_COLORS_KEY       = 'pos_category_colors';
+const DISCOUNT_PRESETS_KEY = 'pos_discount_presets';
+const HELD_TICKETS_KEY     = 'pos_held_tickets';
 function getDefaultCatColor(cat: string): string {
   return CATEGORY_COLORS[cat.toLowerCase()] ?? '#64748B';
 }
@@ -200,6 +202,9 @@ export default function PosScreen() {
   const [showSearch, setShowSearch]       = useState(false);
   const [salesOpen, setSalesOpen]         = useState(false);
   const [showHistory, setShowHistory]     = useState(false);
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [showSettings,  setShowSettings]  = useState(false);
+  const [discountPresets, setDiscountPresets] = useState<number[]>([10, 20, 50]);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
 
   // ── Product list ref (scroll-to-top on category change) ──────────────────
@@ -231,6 +236,36 @@ export default function PosScreen() {
       if (v) try { setCustomCatColors(JSON.parse(v)); } catch {}
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load discount presets
+  useEffect(() => {
+    AsyncStorage.getItem(DISCOUNT_PRESETS_KEY).then(v => {
+      if (v) try { setDiscountPresets(JSON.parse(v)); } catch {}
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore held tickets so they survive app restarts
+  useEffect(() => {
+    AsyncStorage.getItem(HELD_TICKETS_KEY).then(v => {
+      if (!v) return;
+      try {
+        const saved = JSON.parse(v) as { tickets: Ticket[]; activeIdx: number };
+        if (Array.isArray(saved.tickets) && saved.tickets.length > 0) {
+          const hasContent = saved.tickets.some(t => t.items.length > 0);
+          if (hasContent) {
+            setTickets(saved.tickets);
+            setActiveIdx(typeof saved.activeIdx === 'number'
+              ? Math.min(saved.activeIdx, saved.tickets.length - 1) : 0);
+          }
+        }
+      } catch {}
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist all tickets + active index on every change
+  useEffect(() => {
+    AsyncStorage.setItem(HELD_TICKETS_KEY, JSON.stringify({ tickets, activeIdx }));
+  }, [tickets, activeIdx]);
 
   const saveCatColor = useCallback((cat: string, color: string | null) => {
     setCustomCatColors(prev => {
@@ -350,9 +385,9 @@ export default function PosScreen() {
 
   const holdTicket = useCallback(() => {
     if (activeTicket.items.length === 0) return;
-    const maxHolds = 3;
+    const maxHolds = 5;
     if (tickets.length >= maxHolds + 1) {
-      Alert.alert('Hold Limit', 'Maximum 3 tickets on hold. Complete or clear an existing ticket first.');
+      Alert.alert('Hold Limit', 'Maximum 5 tickets on hold. Complete or clear an existing ticket first.');
       return;
     }
     // Add a new blank ticket and switch to it
@@ -360,6 +395,23 @@ export default function PosScreen() {
     setActiveIdx(tickets.length); // new ticket index
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [activeTicket.items.length, tickets.length]);
+
+  const deleteHeldTicket = useCallback((idx: number) => {
+    setTickets(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      return next.length ? next : [blankTicket()];
+    });
+    setActiveIdx(prev => {
+      if (prev > idx) return prev - 1;
+      if (prev === idx) return 0;
+      return prev;
+    });
+  }, []);
+
+  const saveDiscountPresets = useCallback((presets: number[]) => {
+    setDiscountPresets(presets);
+    AsyncStorage.setItem(DISCOUNT_PRESETS_KEY, JSON.stringify(presets));
+  }, []);
 
   // ── Product tap handler ───────────────────────────────────────────────────
   const handleProductTap = useCallback(async (product: any) => {
@@ -499,7 +551,7 @@ export default function PosScreen() {
           <Feather name="monitor" size={20} color={BLUE} />
           <Text style={styles.headerTitle}>Point of Sale</Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
           {/* Sales strip toggle */}
           <Pressable onPress={() => setSalesOpen(v => !v)} style={styles.headerBtn}>
             <Feather name="bar-chart-2" size={16} color={MID} />
@@ -514,6 +566,15 @@ export default function PosScreen() {
             <Feather name="clock" size={16} color={MID} />
             <Text style={styles.headerBtnText}>History</Text>
           </Pressable>
+          {/* Hold orders */}
+          <Pressable onPress={() => setShowHoldModal(true)} style={styles.headerBtn}>
+            <Feather name="layers" size={16} color={tickets.filter((_, i) => i !== activeIdx && tickets[i].items.length > 0).length > 0 ? BLUE : MID} />
+            <Text style={[styles.headerBtnText, tickets.filter((_, i) => i !== activeIdx && tickets[i].items.length > 0).length > 0 && { color: BLUE }]}>
+              Hold{tickets.filter((_, i) => i !== activeIdx && tickets[i].items.length > 0).length > 0
+                ? ` (${tickets.filter((_, i) => i !== activeIdx && tickets[i].items.length > 0).length})`
+                : ''}
+            </Text>
+          </Pressable>
           {/* Void last */}
           <Pressable
             onPress={handleVoidLast}
@@ -521,7 +582,7 @@ export default function PosScreen() {
             disabled={!lastOrderId || voidOrderMutation.isPending}
           >
             <Feather name="x-circle" size={16} color={CHERRY} />
-            <Text style={[styles.headerBtnText, { color: CHERRY }]}>Void Last</Text>
+            <Text style={[styles.headerBtnText, { color: CHERRY }]}>Void</Text>
           </Pressable>
           {/* Search toggle */}
           <Pressable
@@ -529,6 +590,10 @@ export default function PosScreen() {
             style={[styles.headerBtn, showSearch && { backgroundColor: `${BLUE}20` }]}
           >
             <Feather name="search" size={16} color={showSearch ? BLUE : MID} />
+          </Pressable>
+          {/* POS Settings */}
+          <Pressable onPress={() => setShowSettings(true)} style={styles.headerBtn}>
+            <Feather name="settings" size={16} color={MID} />
           </Pressable>
         </View>
       </View>
@@ -568,41 +633,6 @@ export default function PosScreen() {
         </View>
       )}
 
-      {/* ── Hold tabs ──────────────────────────────────────────────────────── */}
-      {tickets.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.holdTabsRow}>
-          {tickets.map((t, i) => (
-            <Pressable
-              key={t.id}
-              onPress={() => setActiveIdx(i)}
-              style={[styles.holdTab, i === activeIdx && styles.holdTabActive]}
-            >
-              <Text style={[styles.holdTabText, i === activeIdx && { color: WHITE }]}>
-                {i === 0 && tickets.length > 1 ? `T${i + 1}` : `Hold ${i}`}
-                {t.items.length > 0 && ` (${t.items.reduce((s, x) => s + x.quantity, 0)})`}
-              </Text>
-              {i > 0 && (
-                <Pressable
-                  onPress={() => {
-                    setTickets(prev => {
-                      const next = prev.filter((_, j) => j !== i);
-                      return next.length ? next : [blankTicket()];
-                    });
-                    setActiveIdx(prev => Math.max(0, prev > i ? prev - 1 : prev));
-                  }}
-                  hitSlop={8}
-                  style={{ marginLeft: 4 }}
-                >
-                  <Feather name="x" size={12} color={i === activeIdx ? WHITE : MID} />
-                </Pressable>
-              )}
-            </Pressable>
-          ))}
-          <Pressable onPress={holdTicket} style={styles.holdTabAdd}>
-            <Feather name="plus" size={14} color={BLUE} />
-          </Pressable>
-        </ScrollView>
-      )}
 
       {/* ── Narrow screen: tab switcher ────────────────────────────────────── */}
       {!isWide && (
@@ -713,7 +743,7 @@ export default function PosScreen() {
               onRemoveItem={removeItem}
               onUpdateQty={updateItemQty}
               onClear={clearTicket}
-              onHold={tickets.length <= 3 ? holdTicket : undefined}
+              onHold={tickets.length <= 6 ? holdTicket : undefined}
               onAttachCustomer={() => { setCustomerModalMode('search'); setShowCustomerModal(true); }}
               onScanQR={() => { setCustomerModalMode('scan'); setShowCustomerModal(true); }}
               onCharge={() => setShowPayment(true)}
@@ -721,6 +751,7 @@ export default function PosScreen() {
                 const cached = detailCache[item.productId];
                 if (cached) setCustomiseData({ product: cached, editItem: item });
               }}
+              discountPresets={discountPresets}
             />
           </View>
         )}
@@ -784,6 +815,26 @@ export default function PosScreen() {
             setShowCustomerModal(false);
           }}
           onClose={() => setShowCustomerModal(false)}
+        />
+      )}
+
+      {/* ── Hold orders modal ──────────────────────────────────────────────── */}
+      {showHoldModal && (
+        <HoldModal
+          tickets={tickets}
+          activeIdx={activeIdx}
+          onResume={(idx) => { setActiveIdx(idx); setShowHoldModal(false); }}
+          onDelete={deleteHeldTicket}
+          onClose={() => setShowHoldModal(false)}
+        />
+      )}
+
+      {/* ── POS Settings modal ─────────────────────────────────────────────── */}
+      {showSettings && (
+        <PosSettingsModal
+          discountPresets={discountPresets}
+          onChangePresets={saveDiscountPresets}
+          onClose={() => setShowSettings(false)}
         />
       )}
 
@@ -886,6 +937,7 @@ function ProductGridCard({
 function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty,
   onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
+  discountPresets,
 }: {
   ticket: Ticket;
   onUpdateTicket: (p: Partial<Ticket>) => void;
@@ -897,6 +949,7 @@ function TicketPanel({
   onScanQR: () => void;
   onCharge: () => void;
   onEditItem: (item: TicketItem) => void;
+  discountPresets: number[];
 }) {
   const subtotal = ticketSubtotal(ticket);
   const total = ticketTotal(ticket);
@@ -1048,6 +1101,25 @@ function TicketPanel({
         ))}
       </View>
 
+      {/* Order note */}
+      <View style={styles.ticketNotesRow}>
+        <Feather name="file-text" size={13} color={MUTED} style={{ marginTop: 1 }} />
+        <TextInput
+          style={styles.ticketNotesInput}
+          placeholder="Add order note…"
+          placeholderTextColor={MUTED}
+          value={ticket.notes}
+          onChangeText={v => onUpdateTicket({ notes: v })}
+          returnKeyType="done"
+          blurOnSubmit
+        />
+        {ticket.notes.length > 0 && (
+          <Pressable onPress={() => onUpdateTicket({ notes: '' })} hitSlop={8}>
+            <Feather name="x" size={13} color={MUTED} />
+          </Pressable>
+        )}
+      </View>
+
       {/* Items list */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {isEmpty ? (
@@ -1085,7 +1157,7 @@ function TicketPanel({
             <>
               {/* Quick % chips + code button */}
               <View style={styles.discountChips}>
-                {([10, 20, 50] as const).map(pct => (
+                {discountPresets.map(pct => (
                   <Pressable key={pct} onPress={() => applyPctDiscount(pct)} style={styles.discountChip}>
                     <Text style={styles.discountChipText}>{pct}%</Text>
                   </Pressable>
@@ -2158,6 +2230,180 @@ function HistoryModal({
   );
 }
 
+// ── Hold Orders Modal ─────────────────────────────────────────────────────────
+function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
+  tickets: Ticket[];
+  activeIdx: number;
+  onResume: (idx: number) => void;
+  onDelete: (idx: number) => void;
+  onClose: () => void;
+}) {
+  const held = tickets
+    .map((t, i) => ({ ticket: t, idx: i }))
+    .filter(({ idx, ticket }) => idx !== activeIdx && ticket.items.length > 0);
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.holdOverlay}>
+        <View style={styles.holdSheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>
+              {held.length > 0 ? `${held.length} Order${held.length > 1 ? 's' : ''} on Hold` : 'Held Orders'}
+            </Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Feather name="x" size={20} color={MID} />
+            </Pressable>
+          </View>
+
+          {held.length === 0 ? (
+            <View style={styles.holdEmptyState}>
+              <Feather name="inbox" size={40} color={MUTED} />
+              <Text style={styles.holdEmptyTitle}>No held orders</Text>
+              <Text style={styles.holdEmptyText}>Use the Hold button on a ticket to park it here.</Text>
+            </View>
+          ) : (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 12, gap: 10 }}>
+              {held.map(({ ticket, idx }) => {
+                const total = ticketTotal(ticket);
+                const itemCount = ticket.items.reduce((s, i) => s + i.quantity, 0);
+                const summary = ticket.items.map(i =>
+                  `${i.productName}${i.quantity > 1 ? ` ×${i.quantity}` : ''}`
+                ).join(', ');
+                return (
+                  <TouchableOpacity
+                    key={ticket.id}
+                    style={styles.holdRow}
+                    onPress={() => onResume(idx)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.holdRowIcon}>
+                      <Feather name="shopping-bag" size={18} color={BLUE} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        {ticket.customer && (
+                          <Text style={styles.holdRowCustomer}>{ticket.customer.name}</Text>
+                        )}
+                        <Text style={styles.holdRowMeta}>
+                          {itemCount} item{itemCount !== 1 ? 's' : ''} · {ticket.orderType === 'dine_in' ? 'Dine In' : ticket.orderType === 'takeaway' ? 'Takeaway' : 'Counter'}
+                        </Text>
+                      </View>
+                      <Text style={styles.holdRowItems} numberOfLines={2}>{summary}</Text>
+                      {ticket.notes ? (
+                        <Text style={styles.holdRowNote} numberOfLines={1}>📝 {ticket.notes}</Text>
+                      ) : null}
+                    </View>
+                    <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                      <Text style={styles.holdRowTotal}>{fmtCents(total)}</Text>
+                      <Pressable
+                        onPress={() => onDelete(idx)}
+                        hitSlop={8}
+                        style={styles.holdRowDelete}
+                      >
+                        <Feather name="trash-2" size={14} color={CHERRY} />
+                      </Pressable>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── POS Settings Modal ────────────────────────────────────────────────────────
+function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
+  discountPresets: number[];
+  onChangePresets: (presets: number[]) => void;
+  onClose: () => void;
+}) {
+  const [localPresets, setLocalPresets] = React.useState<number[]>(discountPresets);
+  const [newPct, setNewPct] = React.useState('');
+  const [inputError, setInputError] = React.useState<string | null>(null);
+
+  const addPreset = () => {
+    const val = parseInt(newPct, 10);
+    if (!val || val < 1 || val > 99) { setInputError('Enter a value between 1 and 99'); return; }
+    if (localPresets.includes(val)) { setInputError(`${val}% already exists`); return; }
+    setLocalPresets(prev => [...prev, val].sort((a, b) => a - b));
+    setNewPct('');
+    setInputError(null);
+  };
+
+  const removePreset = (pct: number) => {
+    setLocalPresets(prev => prev.filter(p => p !== pct));
+  };
+
+  const save = () => {
+    onChangePresets(localPresets);
+    onClose();
+  };
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.settingsOverlay}>
+        <View style={styles.settingsSheet}>
+          <View style={styles.sheetHeader}>
+            <Pressable onPress={onClose} hitSlop={8} style={{ width: 28 }}>
+              <Feather name="x" size={20} color={MID} />
+            </Pressable>
+            <Text style={styles.sheetTitle}>POS Settings</Text>
+            <Pressable onPress={save} hitSlop={8} style={{ width: 28, alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>Save</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+            {/* Discount presets */}
+            <Text style={styles.settingsSectionTitle}>Quick Discount Presets</Text>
+            <Text style={styles.settingsSectionDesc}>
+              These percentage buttons appear on every ticket for fast discounting.
+            </Text>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 16 }}>
+              {localPresets.map(pct => (
+                <View key={pct} style={styles.settingsPresetChip}>
+                  <Text style={styles.settingsPresetText}>{pct}%</Text>
+                  <Pressable onPress={() => removePreset(pct)} hitSlop={6} style={{ marginLeft: 6 }}>
+                    <Feather name="x" size={12} color={MID} />
+                  </Pressable>
+                </View>
+              ))}
+              {localPresets.length === 0 && (
+                <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No presets — add one below</Text>
+              )}
+            </View>
+
+            <View style={styles.settingsAddRow}>
+              <TextInput
+                style={styles.settingsAddInput}
+                placeholder="e.g. 15"
+                placeholderTextColor={MUTED}
+                value={newPct}
+                onChangeText={v => { setNewPct(v.replace(/[^0-9]/g, '')); setInputError(null); }}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={addPreset}
+                maxLength={2}
+              />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 4 }}>%</Text>
+              <Pressable onPress={addPreset} style={styles.settingsAddBtn}>
+                <Text style={styles.settingsAddBtnText}>Add</Text>
+              </Pressable>
+            </View>
+            {inputError ? (
+              <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{inputError}</Text>
+            ) : null}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root:               { flex: 1, backgroundColor: BG },
@@ -2401,6 +2647,37 @@ const styles = StyleSheet.create({
   payDiscountRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ECFDF5', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 16 },
   payDiscountLabel:     { fontSize: 13, fontWeight: '600', color: '#16A34A', flex: 1 },
   payDiscountSaving:    { fontSize: 13, fontWeight: '800', color: '#16A34A' },
+
+  // Ticket notes
+  ticketNotesRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  ticketNotesInput: { flex: 1, fontSize: 13, color: DARK, paddingVertical: 0 },
+
+  // Hold modal
+  holdOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  holdSheet:      { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  holdEmptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, paddingVertical: 48 },
+  holdEmptyTitle: { fontSize: 16, fontWeight: '700', color: DARK },
+  holdEmptyText:  { fontSize: 13, color: MUTED, textAlign: 'center', paddingHorizontal: 32 },
+  holdRow:        { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#FAFBFF', borderRadius: 12, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
+  holdRowIcon:    { width: 36, height: 36, borderRadius: 10, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  holdRowCustomer: { fontSize: 13, fontWeight: '700', color: DARK },
+  holdRowMeta:    { fontSize: 12, color: MUTED },
+  holdRowItems:   { fontSize: 13, color: MID, lineHeight: 18 },
+  holdRowNote:    { fontSize: 12, color: BLUE, marginTop: 3, fontStyle: 'italic' },
+  holdRowTotal:   { fontSize: 15, fontWeight: '800', color: DARK },
+  holdRowDelete:  { padding: 4 },
+
+  // Settings modal
+  settingsOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  settingsSheet:         { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  settingsSectionTitle:  { fontSize: 15, fontWeight: '700', color: DARK, marginBottom: 4 },
+  settingsSectionDesc:   { fontSize: 13, color: MUTED, lineHeight: 18 },
+  settingsPresetChip:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F1F5F9', borderRadius: 20, borderWidth: 1, borderColor: BORDER },
+  settingsPresetText:    { fontSize: 14, fontWeight: '700', color: DARK },
+  settingsAddRow:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  settingsAddInput:      { width: 70, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, fontWeight: '700', color: DARK, textAlign: 'center' },
+  settingsAddBtn:        { backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },
+  settingsAddBtnText:    { fontSize: 14, fontWeight: '700', color: WHITE },
 
   // Category colour picker
   cpOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' },
