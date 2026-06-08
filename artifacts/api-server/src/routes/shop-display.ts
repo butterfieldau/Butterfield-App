@@ -1177,6 +1177,41 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
 
 // ── Printer bytes — device opens TCP socket, server just builds ESC/POS ──────
 // Mirrors /director/printer/bytes but accessible to shop_display role.
+// ── Analytics helpers (Sydney-timezone-correct) ───────────────────────────────
+/** Returns today's date in Australia/Sydney as a YYYY-MM-DD string. */
+function getSydneyTodayStr(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(new Date());
+}
+
+/**
+ * Converts a Sydney-local YYYY-MM-DD date to UTC start/end timestamps for DB queries.
+ * Probes Sydney's UTC offset at 02:00 UTC of the given calendar date to handle DST correctly.
+ * Australia/Sydney is always on the hour (+10 AEST or +11 AEDT), never :30.
+ */
+function sydneyDateToUtcBounds(dateStr: string): { startUtc: Date; endUtc: Date } {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const probe = new Date(Date.UTC(y, m - 1, d, 2, 0, 0)); // 02:00 UTC = midday Sydney
+  const sydHour = parseInt(
+    new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', hour12: false }).format(probe),
+    10,
+  );
+  const utcOffsetHours = sydHour - 2; // e.g. 12-2=10 (AEST), 13-2=11 (AEDT)
+  // Date.UTC handles negative hours: Date.UTC(y,m,d,-10) = 14:00 UTC of previous day = Sydney midnight
+  const startUtc = new Date(Date.UTC(y, m - 1, d, -utcOffsetHours, 0, 0));
+  const endUtc = new Date(startUtc.getTime() + 86400_000 - 1);
+  return { startUtc, endUtc };
+}
+
+/** Add `days` calendar days to a YYYY-MM-DD string and return the new string. */
+function addDaysToDateStr(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const result = new Date(Date.UTC(y, m - 1, d + days));
+  const yy = result.getUTCFullYear();
+  const mm = String(result.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(result.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
 // ── Analytics ────────────────────────────────────────────────────────────────
 router.get('/analytics', async (req, res) => {
   await ensureShopDisplaySchemaReady();
@@ -1199,17 +1234,8 @@ router.get('/analytics', async (req, res) => {
 
   const { range = 'day', date } = req.query as { range?: string; date?: string };
 
-  const now = new Date();
-  const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-
-  // Parse reference date (Sydney local, defaults to today)
-  let refDate: Date;
-  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const [y, m, d] = date.split('-').map(Number);
-    refDate = new Date(y, m - 1, d);
-  } else {
-    refDate = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate());
-  }
+  // Reference date: Sydney-local YYYY-MM-DD (from param or today in Sydney)
+  const refDateStr = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getSydneyTodayStr();
 
   let periodStart: Date;
   let periodEnd: Date;
@@ -1218,35 +1244,45 @@ router.get('/analytics', async (req, res) => {
   let chartBuckets: { label: string; startMs: number; endMs: number }[];
 
   if (range === 'week') {
-    const dow = refDate.getDay();
+    // Find Monday of the week containing refDateStr (Sydney local day-of-week)
+    const [ry, rm, rd] = refDateStr.split('-').map(Number);
+    const dow = new Date(Date.UTC(ry, rm - 1, rd)).getUTCDay(); // 0=Sun
     const mondayDiff = dow === 0 ? -6 : 1 - dow;
-    const monday = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + mondayDiff);
-    periodStart = monday;
-    periodEnd = new Date(monday.getTime() + 7 * 86400_000 - 1);
-    prevStart = new Date(periodStart.getTime() - 7 * 86400_000);
-    prevEnd = new Date(periodEnd.getTime() - 7 * 86400_000);
+    const mondayStr = addDaysToDateStr(refDateStr, mondayDiff);
+    const sundayStr = addDaysToDateStr(mondayStr, 6);
     const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    chartBuckets = dayLabels.map((label, i) => ({
-      label,
-      startMs: monday.getTime() + i * 86400_000,
-      endMs: monday.getTime() + (i + 1) * 86400_000 - 1,
-    }));
+    const weekBuckets = dayLabels.map((label, i) => {
+      const { startUtc, endUtc } = sydneyDateToUtcBounds(addDaysToDateStr(mondayStr, i));
+      return { label, startMs: startUtc.getTime(), endMs: endUtc.getTime() };
+    });
+    ({ startUtc: periodStart } = sydneyDateToUtcBounds(mondayStr));
+    ({ endUtc: periodEnd } = sydneyDateToUtcBounds(sundayStr));
+    ({ startUtc: prevStart } = sydneyDateToUtcBounds(addDaysToDateStr(mondayStr, -7)));
+    ({ endUtc: prevEnd } = sydneyDateToUtcBounds(addDaysToDateStr(sundayStr, -7)));
+    chartBuckets = weekBuckets;
   } else if (range === 'month') {
-    periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
-    periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59, 999);
-    prevStart = new Date(refDate.getFullYear(), refDate.getMonth() - 1, 1);
-    prevEnd = new Date(refDate.getFullYear(), refDate.getMonth(), 0, 23, 59, 59, 999);
-    const daysInMonth = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0).getDate();
+    const [ry, rm] = refDateStr.split('-').map(Number);
+    const monthStartStr = `${ry}-${String(rm).padStart(2, '0')}-01`;
+    const daysInMonth = new Date(Date.UTC(ry, rm, 0)).getUTCDate();
+    const monthEndStr = `${ry}-${String(rm).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    const prevMonthEnd = new Date(Date.UTC(ry, rm - 1, 0));
+    const pmy = prevMonthEnd.getUTCFullYear(), pmm = prevMonthEnd.getUTCMonth() + 1;
+    const prevDays = prevMonthEnd.getUTCDate();
+    const prevMonthStartStr = `${pmy}-${String(pmm).padStart(2, '0')}-01`;
+    const prevMonthEndStr = `${pmy}-${String(pmm).padStart(2, '0')}-${String(prevDays).padStart(2, '0')}`;
+    ({ startUtc: periodStart } = sydneyDateToUtcBounds(monthStartStr));
+    ({ endUtc: periodEnd } = sydneyDateToUtcBounds(monthEndStr));
+    ({ startUtc: prevStart } = sydneyDateToUtcBounds(prevMonthStartStr));
+    ({ endUtc: prevEnd } = sydneyDateToUtcBounds(prevMonthEndStr));
     chartBuckets = Array.from({ length: daysInMonth }, (_, i) => {
-      const d = new Date(refDate.getFullYear(), refDate.getMonth(), i + 1);
-      return { label: String(i + 1), startMs: d.getTime(), endMs: d.getTime() + 86400_000 - 1 };
+      const dayStr = `${ry}-${String(rm).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+      const { startUtc, endUtc } = sydneyDateToUtcBounds(dayStr);
+      return { label: String(i + 1), startMs: startUtc.getTime(), endMs: endUtc.getTime() };
     });
   } else {
-    // day
-    periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
-    periodEnd = new Date(periodStart.getTime() + 86400_000 - 1);
-    prevStart = new Date(periodStart.getTime() - 86400_000);
-    prevEnd = new Date(periodEnd.getTime() - 86400_000);
+    // day: one Sydney calendar day split into 24 hourly buckets
+    ({ startUtc: periodStart, endUtc: periodEnd } = sydneyDateToUtcBounds(refDateStr));
+    ({ startUtc: prevStart, endUtc: prevEnd } = sydneyDateToUtcBounds(addDaysToDateStr(refDateStr, -1)));
     chartBuckets = Array.from({ length: 24 }, (_, h) => ({
       label: String(h).padStart(2, '0'),
       startMs: periodStart.getTime() + h * 3600_000,
