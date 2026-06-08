@@ -1179,6 +1179,24 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
 // Mirrors /director/printer/bytes but accessible to shop_display role.
 // ── Analytics ────────────────────────────────────────────────────────────────
 router.get('/analytics', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const permissions = await getDisplayPermissions(req.user!.id);
+  if (!permissions.includes('dashboard')) {
+    return res.status(403).json({ error: 'Dashboard permission required' });
+  }
+
+  // Scope to assigned stores (mirrors /orders route)
+  const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  const assignedStoreIds = assignments.map(a => a.storeId);
+  const storeFilter = assignedStoreIds.length > 0
+    ? or(inArray(ordersTable.storeId, assignedStoreIds), isNull(ordersTable.storeId))
+    : undefined;
+
   const { range = 'day', date } = req.query as { range?: string; date?: string };
 
   const now = new Date();
@@ -1236,7 +1254,7 @@ router.get('/analytics', async (req, res) => {
     }));
   }
 
-  // Pull orders for both periods in one query each
+  // Pull orders for both periods in one query each (store-scoped)
   const [currentOrders, prevOrders] = await Promise.all([
     db.select({
       id: ordersTable.id,
@@ -1249,6 +1267,7 @@ router.get('/analytics', async (req, res) => {
     }).from(ordersTable).where(and(
       gte(ordersTable.createdAt, periodStart),
       lte(ordersTable.createdAt, periodEnd),
+      storeFilter,
     )),
     db.select({
       totalCents: ordersTable.totalCents,
@@ -1257,6 +1276,7 @@ router.get('/analytics', async (req, res) => {
       gte(ordersTable.createdAt, prevStart),
       lte(ordersTable.createdAt, prevEnd),
       sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+      storeFilter,
     )),
   ]);
 
@@ -1293,7 +1313,7 @@ router.get('/analytics', async (req, res) => {
       name: p.name,
       units: p.units,
       revenueCents: p.revenueCents,
-      pct: transactionCount > 0 && itemsSold > 0 ? Math.round((p.units / itemsSold) * 100) : 0,
+      pct: totalCents > 0 ? Math.round((p.revenueCents / totalCents) * 100) : 0,
     }));
 
   // Tender types

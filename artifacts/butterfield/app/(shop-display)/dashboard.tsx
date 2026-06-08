@@ -2,14 +2,11 @@ import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Pressable, RefreshControl,
+  ActivityIndicator, Alert, Modal, RefreshControl,
   ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle, useSharedValue, withSpring, withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Defs, LinearGradient, Path, Stop, Svg, Text as SvgText } from 'react-native-svg';
 import { useQuery } from '@tanstack/react-query';
@@ -210,9 +207,7 @@ function DonutChart({ segments, size = 130, thickness = 22 }: DonutChartProps) {
 // ── Animated Number ───────────────────────────────────────────────────────────
 function AnimatedNumber({ value, formatter }: { value: number; formatter: (v: number) => string }) {
   const [displayed, setDisplayed] = useState(0);
-  const animVal = useSharedValue(0);
   useEffect(() => {
-    animVal.value = withTiming(value, { duration: 900 });
     let frame: ReturnType<typeof requestAnimationFrame>;
     const start = Date.now();
     const from = displayed;
@@ -262,6 +257,143 @@ function CountCard({ label, value, icon, color = WHITE, suffix = '' }:
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Range = 'day' | 'week' | 'month';
+
+// ── Calendar Picker ───────────────────────────────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_NAMES = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+
+interface CalendarPickerProps {
+  selectedDate: string;
+  onSelect: (date: string) => void;
+  onClose: () => void;
+}
+function CalendarPicker({ selectedDate, onSelect, onClose }: CalendarPickerProps) {
+  const today = todayString();
+  const selD = dateFromString(selectedDate);
+  const [viewYear, setViewYear] = useState(selD.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selD.getMonth()); // 0-indexed
+
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+  // Convert to Mon-start: Mon=0, Sun=6
+  const startOffset = firstDow === 0 ? 6 : firstDow - 1;
+
+  const cells: (number | null)[] = [
+    ...Array(startOffset).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  // Pad to complete last row
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const goBack = () => {
+    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
+    else setViewMonth(m => m - 1);
+  };
+  const goForward = () => {
+    const nextYear = viewMonth === 11 ? viewYear + 1 : viewYear;
+    const nextMonth = viewMonth === 11 ? 0 : viewMonth + 1;
+    const limitDate = dateFromString(today);
+    if (nextYear > limitDate.getFullYear() || (nextYear === limitDate.getFullYear() && nextMonth > limitDate.getMonth())) return;
+    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const handleDay = (d: number) => {
+    const mo = String(viewMonth + 1).padStart(2, '0');
+    const da = String(d).padStart(2, '0');
+    const picked = `${viewYear}-${mo}-${da}`;
+    if (picked <= today) { onSelect(picked); onClose(); }
+  };
+
+  const isSelected = (d: number) => {
+    const mo = String(viewMonth + 1).padStart(2, '0');
+    const da = String(d).padStart(2, '0');
+    return selectedDate === `${viewYear}-${mo}-${da}`;
+  };
+
+  const isFuture = (d: number) => {
+    const mo = String(viewMonth + 1).padStart(2, '0');
+    const da = String(d).padStart(2, '0');
+    return `${viewYear}-${mo}-${da}` > today;
+  };
+
+  const isToday = (d: number) => {
+    const mo = String(viewMonth + 1).padStart(2, '0');
+    const da = String(d).padStart(2, '0');
+    return `${viewYear}-${mo}-${da}` === today;
+  };
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={cal.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={cal.sheet} onPress={() => {}}>
+          {/* Month header */}
+          <View style={cal.monthRow}>
+            <TouchableOpacity onPress={goBack} style={cal.monthBtn} activeOpacity={0.7}>
+              <Feather name="chevron-left" size={18} color={WHITE} />
+            </TouchableOpacity>
+            <Text style={cal.monthTitle}>{MONTH_NAMES[viewMonth]} {viewYear}</Text>
+            <TouchableOpacity onPress={goForward} style={cal.monthBtn} activeOpacity={0.7}>
+              <Feather name="chevron-right" size={18} color={WHITE} />
+            </TouchableOpacity>
+          </View>
+          {/* Day name headers */}
+          <View style={cal.dayNameRow}>
+            {DAY_NAMES.map(n => <Text key={n} style={cal.dayName}>{n}</Text>)}
+          </View>
+          {/* Grid */}
+          {Array.from({ length: cells.length / 7 }, (_, row) => (
+            <View key={row} style={cal.weekRow}>
+              {cells.slice(row * 7, row * 7 + 7).map((d, col) => {
+                if (!d) return <View key={col} style={cal.cell} />;
+                const sel = isSelected(d);
+                const fut = isFuture(d);
+                const tod = isToday(d);
+                return (
+                  <TouchableOpacity
+                    key={col}
+                    style={[cal.cell, sel && cal.cellSelected, tod && !sel && cal.cellToday]}
+                    onPress={() => handleDay(d)}
+                    disabled={fut}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[cal.cellText, sel && cal.cellTextSel, fut && cal.cellTextFut, tod && !sel && cal.cellTextToday]}>
+                      {d}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+          {/* Today shortcut */}
+          <TouchableOpacity style={cal.todayBtn} onPress={() => { onSelect(today); onClose(); }} activeOpacity={0.7}>
+            <Text style={cal.todayBtnText}>Jump to Today</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+const cal = StyleSheet.create({
+  overlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  sheet:         { backgroundColor: '#0D1A2E', borderRadius: 20, borderWidth: 1, borderColor: BORDER, padding: 20, width: 320 },
+  monthRow:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  monthBtn:      { width: 36, height: 36, borderRadius: 10, backgroundColor: DIM, alignItems: 'center', justifyContent: 'center' },
+  monthTitle:    { fontSize: 15, fontWeight: '800', color: WHITE },
+  dayNameRow:    { flexDirection: 'row', marginBottom: 8 },
+  dayName:       { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', color: MUTED },
+  weekRow:       { flexDirection: 'row', marginBottom: 4 },
+  cell:          { flex: 1, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  cellSelected:  { backgroundColor: BLUE },
+  cellToday:     { borderWidth: 1, borderColor: BLUE },
+  cellText:      { fontSize: 14, fontWeight: '600', color: WHITE },
+  cellTextSel:   { color: WHITE, fontWeight: '800' },
+  cellTextFut:   { color: MUTED, opacity: 0.4 },
+  cellTextToday: { color: BLUE },
+  todayBtn:      { marginTop: 12, alignItems: 'center', paddingVertical: 10, borderRadius: 12, backgroundColor: BLUE + '22', borderWidth: 1, borderColor: BLUE + '44' },
+  todayBtnText:  { color: BLUE, fontSize: 13, fontWeight: '700' },
+});
 
 // ── Export ────────────────────────────────────────────────────────────────────
 async function exportReport(data: ShopDisplayAnalytics, range: Range, date: string) {
@@ -315,6 +447,7 @@ export default function DashboardScreen() {
   const [range, setRange] = useState<Range>('day');
   const [date, setDate] = useState(todayString);
   const [exporting, setExporting] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const { data: resp, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['shop-display-analytics', range, date],
@@ -380,7 +513,7 @@ export default function DashboardScreen() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Analytics</Text>
+          <Text style={styles.headerTitle}>Dashboard</Text>
           <Text style={styles.headerSub}>{formatDateLabel(date, range)}</Text>
         </View>
         <TouchableOpacity
@@ -417,10 +550,20 @@ export default function DashboardScreen() {
             <Feather name="chevron-left" size={16} color={WHITE} />
             <Text style={styles.dateNavBtnText}>Prev</Text>
           </TouchableOpacity>
-          <View style={styles.dateNavCenter}>
+          <TouchableOpacity
+            style={styles.dateNavCenter}
+            onPress={() => { setShowCalendar(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            activeOpacity={0.7}
+          >
             <Text style={styles.dateNavDate}>{dateFromString(date).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
-            {isToday && <Text style={styles.dateNavToday}>Today</Text>}
-          </View>
+            <View style={styles.dateNavPickerHint}>
+              <Feather name="calendar" size={10} color={BLUE} />
+              {isToday
+                ? <Text style={styles.dateNavToday}>Today</Text>
+                : <Text style={[styles.dateNavToday, { color: MUTED }]}>Pick date</Text>
+              }
+            </View>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.dateNavBtn, isToday && styles.dateNavBtnDisabled]}
             onPress={handleNext}
@@ -431,6 +574,15 @@ export default function DashboardScreen() {
             <Feather name="chevron-right" size={16} color={isToday ? MUTED : WHITE} />
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* ── Calendar Picker Modal ─────────────────────────────────────────── */}
+      {showCalendar && (
+        <CalendarPicker
+          selectedDate={date}
+          onSelect={setDate}
+          onClose={() => setShowCalendar(false)}
+        />
       )}
 
       <ScrollView
@@ -579,7 +731,8 @@ const styles = StyleSheet.create({
   dateNavBtnDisabled: { opacity: 0.3 },
   dateNavCenter:    { alignItems: 'center' },
   dateNavDate:      { color: WHITE, fontSize: 14, fontWeight: '700' },
-  dateNavToday:     { color: BLUE, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  dateNavPickerHint:{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  dateNavToday:     { color: BLUE, fontSize: 11, fontWeight: '700' },
 
   scroll:           { flex: 1 },
   scrollContent:    { paddingHorizontal: 20 },

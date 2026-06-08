@@ -21,7 +21,7 @@ const MUTED = '#9CA3AF';
 const NAV_ITEMS = [
   { segment: 'pos',       label: 'POS',          icon: 'monitor'      as const },
   { segment: 'index',     label: 'App Sales',    icon: 'shopping-bag' as const },
-  { segment: 'dashboard', label: 'Analytics',    icon: 'bar-chart-2'  as const, perm: 'dashboard' },
+  { segment: 'dashboard', label: 'Dashboard',    icon: 'bar-chart-2'  as const, perm: 'dashboard' },
   { segment: 'products',  label: 'Products',     icon: 'package'      as const, perm: 'products'  },
   { segment: 'tasks',     label: 'Tasks',        icon: 'check-square' as const },
   { segment: 'clock',     label: 'Clock In/Out', icon: 'clock'        as const },
@@ -190,7 +190,7 @@ export default function ShopDisplayLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Analytics',
+          title: 'Dashboard',
           tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={size} color={color} />,
           tabBarButton: (!isWide && !permissions.includes('dashboard')) ? () => null : undefined,
         }}
