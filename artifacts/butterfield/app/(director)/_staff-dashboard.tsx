@@ -115,24 +115,32 @@ export function StaffDashboard() {
   const [storePickerVisible, setStorePickerVisible] = useState(false);
   const [pendingCoords, setPendingCoords] = useState<{ latitude: number; longitude: number; accuracyMeters?: number } | undefined>();
 
-  const getFastLocation = useCallback(async (accuracy: Location.Accuracy = Platform.OS === 'ios' ? Location.Accuracy.BestForNavigation : Location.Accuracy.Highest) => {
-    const lastKnown = await Location.getLastKnownPositionAsync({
-      maxAge: 120000,
-      requiredAccuracy: 120,
-    }).catch(() => null);
-    if (lastKnown?.coords) {
+  const getFastLocation = useCallback(async () => {
+    // Try a fresh position with Balanced accuracy (fast indoor fix) and 12s timeout
+    try {
+      const pos = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Location timed out')), 12000),
+        ),
+      ]) as Location.LocationObject;
       return {
-        latitude: lastKnown.coords.latitude,
-        longitude: lastKnown.coords.longitude,
-        accuracyMeters: typeof lastKnown.coords.accuracy === 'number' ? lastKnown.coords.accuracy : undefined,
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracyMeters: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : undefined,
       };
+    } catch {
+      // Fall back to last-known position (no accuracy constraint — better than nothing)
+      const last = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (last?.coords) {
+        return {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+          accuracyMeters: typeof last.coords.accuracy === 'number' ? last.coords.accuracy : undefined,
+        };
+      }
+      throw new Error('Unable to determine your location. Please check Location Services and try again.');
     }
-    const pos = await Location.getCurrentPositionAsync({ accuracy });
-    return {
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-      accuracyMeters: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : undefined,
-    };
   }, []);
 
   const { data: shiftData, refetch: refetchShift } = useQuery({

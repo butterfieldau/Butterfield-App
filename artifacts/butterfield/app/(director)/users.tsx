@@ -245,7 +245,12 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     Alert.alert('Remove Assignment', `Remove assignment to ${storeName}?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: async () => {
-          await api.director.deleteAssignment(assignId);
+          try {
+            await api.director.deleteAssignment(assignId);
+            refetchAssign();
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error, 'Unable to remove this store assignment.'));
+          }
       }},
     ]);
   };
