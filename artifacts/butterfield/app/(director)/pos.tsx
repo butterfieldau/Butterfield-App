@@ -1861,15 +1861,21 @@ function PaymentModal({
 }) {
   const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline ? 'cash' : 'eftpos');
   const [tendered, setTendered] = useState('');
-  // Split: array of committed payment amounts (cents) + current input being typed
-  const [splitParts, setSplitParts] = useState<number[]>([]);
+  // Split: each committed part has an amount + method (cash or eftpos)
+  const [splitParts, setSplitParts] = useState<{ amountCents: number; method: 'cash' | 'eftpos' }[]>([]);
   const [splitInput, setSplitInput] = useState('');
 
-  // Linkly EFTPOS state
+  // Linkly EFTPOS state (full-payment mode)
   const [linklyStep, setLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
   const [linklySessionId, setLinklySessionId] = useState<string | null>(null);
   const [linklyText, setLinklyText] = useState('');
   const linklyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Linkly EFTPOS state (split-part mode — runs one part at a time)
+  const [splitCardStep, setSplitCardStep] = useState<'idle' | 'initiating' | 'waiting' | 'declined'>('idle');
+  const [splitCardSessionId, setSplitCardSessionId] = useState<string | null>(null);
+  const [splitCardText, setSplitCardText] = useState('');
+  const splitCardPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load surcharges
   const { data: surchargesData } = useQuery({
@@ -1898,18 +1904,21 @@ function PaymentModal({
   [applicableSurcharges, totalCents]);
 
   const chargeTotalCents = totalCents + computedSurchargeCents;
-  const splitCommittedCents = splitParts.reduce((s, p) => s + p, 0);
+  const splitCommittedCents = splitParts.reduce((s, p) => s + p.amountCents, 0);
   const splitCurrentCents = Math.round(parseFloat(splitInput || '0') * 100);
   const splitRemainingCents = Math.max(0, chargeTotalCents - splitCommittedCents);
   const tenderedCents = Math.round(parseFloat(tendered || '0') * 100);
   const cashChangeCents = Math.max(0, tenderedCents - chargeTotalCents);
   const cashOk = method !== 'cash' || tenderedCents >= chargeTotalCents;
-  const splitOk = method !== 'split' || splitCommittedCents >= chargeTotalCents ||
-    (splitCurrentCents > 0 && splitCommittedCents + splitCurrentCents >= chargeTotalCents);
+  // Split is ready only when all parts are explicitly collected (no auto-include)
+  const splitOk = method !== 'split' || splitCommittedCents >= chargeTotalCents;
   const roundUpPresets = [5, 10, 20, 50, 100].filter(d => d * 100 >= chargeTotalCents).slice(0, 3);
 
-  // Cleanup poll interval on unmount
-  useEffect(() => () => { if (linklyPollRef.current) clearInterval(linklyPollRef.current); }, []);
+  // Cleanup poll intervals on unmount
+  useEffect(() => () => {
+    if (linklyPollRef.current) clearInterval(linklyPollRef.current);
+    if (splitCardPollRef.current) clearInterval(splitCardPollRef.current);
+  }, []);
 
   const handleKeypad = (val: string, setter: (s: string) => void, current: string) => {
     if (val === 'backspace') setter(current.slice(0, -1));
@@ -1959,6 +1968,54 @@ function PaymentModal({
     setLinklyText('');
   };
 
+  // ── Split: charge one person's portion via Linkly EFTPOS ──
+  const handleSplitCardPayment = async () => {
+    const amountCents = Math.min(splitCurrentCents, splitRemainingCents);
+    if (amountCents <= 0) return;
+    setSplitCardStep('initiating');
+    setSplitCardText('Connecting to terminal…');
+    try {
+      const res = await api.pos.linklyInitiate(amountCents) as any;
+      const sessionId = res?.data?.sessionId;
+      if (!sessionId) throw new Error('No session ID returned');
+      setSplitCardSessionId(sessionId);
+      setSplitCardStep('waiting');
+      setSplitCardText('Waiting for card…');
+      splitCardPollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await api.pos.linklyPoll(sessionId) as any;
+          const pd = pollRes?.data;
+          if (pd?.responseText) setSplitCardText(pd.responseText);
+          if (pd?.complete) {
+            clearInterval(splitCardPollRef.current!);
+            splitCardPollRef.current = null;
+            if (pd.approved) {
+              setSplitParts(ps => [...ps, { amountCents, method: 'eftpos' }]);
+              setSplitInput('');
+              setSplitCardStep('idle');
+              setSplitCardText('');
+              setSplitCardSessionId(null);
+            } else {
+              setSplitCardStep('declined');
+            }
+          }
+        } catch {}
+      }, 2000);
+    } catch (err: any) {
+      setSplitCardStep('idle');
+      setSplitCardText('');
+      Alert.alert('EFTPOS Error', err?.message ?? 'Could not connect to terminal.');
+    }
+  };
+
+  const handleSplitCardCancel = async () => {
+    if (splitCardPollRef.current) { clearInterval(splitCardPollRef.current); splitCardPollRef.current = null; }
+    if (splitCardSessionId) { try { await api.pos.linklyCancel(splitCardSessionId); } catch {} }
+    setSplitCardStep('idle');
+    setSplitCardSessionId(null);
+    setSplitCardText('');
+  };
+
   const handleConfirm = () => {
     if (method === 'cash') {
       onConfirm({ method: 'cash', amountTenderedCents: tenderedCents, surchargeCents: computedSurchargeCents });
@@ -1967,21 +2024,18 @@ function PaymentModal({
         onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents });
       });
     } else if (method === 'split') {
-      // Include current input as last part if it makes up the remainder
-      const finalParts = (splitCurrentCents > 0 && splitCommittedCents < chargeTotalCents)
-        ? [...splitParts, splitCurrentCents]
-        : splitParts;
       onConfirm({
         method: 'split',
-        amountTenderedCents: finalParts.reduce((s, p) => s + p, 0),
+        amountTenderedCents: splitCommittedCents,
         surchargeCents: computedSurchargeCents,
-        splitPayments: finalParts.map((a, i) => ({ method: 'cash' as const, amountCents: a, label: `Person ${i + 1}` })),
+        splitPayments: splitParts.map(p => ({ method: p.method, amountCents: p.amountCents })),
       });
     }
   };
 
+  const isSplitCardBusy = splitCardStep === 'initiating' || splitCardStep === 'waiting';
   const isLinklyBusy = linklyStep === 'initiating' || linklyStep === 'waiting';
-  const canClose = !loading && linklyStep === 'idle';
+  const canClose = !loading && linklyStep === 'idle' && !isSplitCardBusy;
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={canClose ? onClose : undefined}>
@@ -2137,17 +2191,19 @@ function PaymentModal({
                   <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14, flex: 1, marginBottom: 10 }}>
                     <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 10 }}>SPLIT PAYMENTS</Text>
 
-                    {/* Committed parts */}
-                    {splitParts.map((amt, i) => (
+                    {/* Committed parts — each shows cash or card icon */}
+                    {splitParts.map((part, i) => (
                       <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-                          <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#4ADE80', alignItems: 'center', justifyContent: 'center' }}>
-                            <Feather name="check" size={10} color="#0F172A" />
+                          <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: part.method === 'eftpos' ? BLUE : '#4ADE80', alignItems: 'center', justifyContent: 'center' }}>
+                            <Feather name={part.method === 'eftpos' ? 'credit-card' : 'check'} size={9} color="#0F172A" />
                           </View>
-                          <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '500' }}>Person {i + 1}</Text>
+                          <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '500' }}>
+                            Person {i + 1}{'  '}<Text style={{ fontSize: 11, color: part.method === 'eftpos' ? BLUE : '#4ADE80' }}>{part.method === 'eftpos' ? 'Card' : 'Cash'}</Text>
+                          </Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          <Text style={{ fontSize: 15, color: WHITE, fontWeight: '700' }}>{fmtCents(amt)}</Text>
+                          <Text style={{ fontSize: 15, color: WHITE, fontWeight: '700' }}>{fmtCents(part.amountCents)}</Text>
                           <Pressable onPress={() => setSplitParts(ps => ps.filter((_, j) => j !== i))} hitSlop={8}>
                             <Feather name="x" size={14} color="#475569" />
                           </Pressable>
@@ -2155,8 +2211,8 @@ function PaymentModal({
                       </View>
                     ))}
 
-                    {/* Current input row */}
-                    {splitRemainingCents > 0 && (
+                    {/* Current input row (pending person) */}
+                    {splitRemainingCents > 0 && !isSplitCardBusy && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: splitParts.length > 0 ? 8 : 0, borderTopWidth: splitParts.length > 0 ? 1 : 0, borderTopColor: '#1E293B' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                           <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: '#475569' }} />
@@ -2168,10 +2224,34 @@ function PaymentModal({
                       </View>
                     )}
 
-                    {/* Remaining */}
+                    {/* Linkly terminal status during split card payment */}
+                    {isSplitCardBusy && (
+                      <View style={{ paddingTop: splitParts.length > 0 ? 8 : 0, borderTopWidth: splitParts.length > 0 ? 1 : 0, borderTopColor: '#1E293B', alignItems: 'center', gap: 8 }}>
+                        <ActivityIndicator size="small" color={BLUE} />
+                        <Text style={{ fontSize: 12, color: WHITE, fontWeight: '600', textAlign: 'center' }}>{splitCardText || 'Connecting…'}</Text>
+                        <Text style={{ fontSize: 11, color: MUTED, textAlign: 'center' }}>Present card to terminal</Text>
+                        <Pressable onPress={handleSplitCardCancel} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FFF1F2' }}>
+                          <Text style={{ fontSize: 12, color: CHERRY, fontWeight: '600' }}>Cancel</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    {/* Declined state */}
+                    {splitCardStep === 'declined' && (
+                      <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: '#1E293B', alignItems: 'center', gap: 8 }}>
+                        <Feather name="x-circle" size={22} color={CHERRY} />
+                        <Text style={{ fontSize: 12, color: CHERRY, fontWeight: '600' }}>Card Declined</Text>
+                        {!!splitCardText && <Text style={{ fontSize: 11, color: MUTED, textAlign: 'center' }}>{splitCardText}</Text>}
+                        <Pressable onPress={() => { setSplitCardStep('idle'); setSplitCardText(''); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: '#F8FAFC' }}>
+                          <Text style={{ fontSize: 12, color: DARK, fontWeight: '600' }}>Try Again</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    {/* Remaining balance */}
                     <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={{ fontSize: 11, color: splitRemainingCents === 0 ? '#4ADE80' : MUTED, fontWeight: '700', letterSpacing: 0.5 }}>
-                        {splitRemainingCents === 0 ? '✓ FULLY PAID' : 'REMAINING'}
+                        {splitRemainingCents === 0 ? '✓ FULLY COLLECTED' : 'REMAINING'}
                       </Text>
                       {splitRemainingCents > 0 && (
                         <Text style={{ fontSize: 18, color: WHITE, fontWeight: '800' }}>{fmtCents(splitRemainingCents)}</Text>
@@ -2179,40 +2259,42 @@ function PaymentModal({
                     </View>
                   </View>
 
-                  {/* Equal-split shortcuts */}
-                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                    {[2, 3, 4, 5].map(n => (
-                      <Pressable
-                        key={n}
-                        onPress={() => setSplitInput((splitRemainingCents / n / 100).toFixed(2))}
-                        style={{ paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}
-                      >
-                        <Text style={{ fontSize: 12, color: MID, fontWeight: '700' }}>÷{n}</Text>
+                  {/* Equal-split shortcuts + Remaining fill */}
+                  {!isSplitCardBusy && splitRemainingCents > 0 && (
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                      {[2, 3, 4, 5].map(n => (
+                        <Pressable key={n} onPress={() => setSplitInput((splitRemainingCents / n / 100).toFixed(2))} style={{ paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
+                          <Text style={{ fontSize: 12, color: MID, fontWeight: '700' }}>÷{n}</Text>
+                        </Pressable>
+                      ))}
+                      <Pressable onPress={() => setSplitInput((splitRemainingCents / 100).toFixed(2))} style={{ paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                        <Text style={{ fontSize: 12, color: BLUE, fontWeight: '700' }}>All</Text>
                       </Pressable>
-                    ))}
-                    {splitRemainingCents > 0 && (
-                      <Pressable
-                        onPress={() => setSplitInput((splitRemainingCents / 100).toFixed(2))}
-                        style={{ paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' }}
-                      >
-                        <Text style={{ fontSize: 12, color: BLUE, fontWeight: '700' }}>Remaining</Text>
-                      </Pressable>
-                    )}
-                  </View>
+                    </View>
+                  )}
 
-                  {/* Add part button */}
-                  {splitCurrentCents > 0 && splitRemainingCents > 0 && (
-                    <Pressable
-                      onPress={() => {
-                        const adding = Math.min(splitCurrentCents, splitRemainingCents);
-                        setSplitParts(ps => [...ps, adding]);
-                        setSplitInput('');
-                      }}
-                      style={{ backgroundColor: DARK, borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, borderWidth: 1, borderColor: '#334155' }}
-                    >
-                      <Feather name="plus-circle" size={15} color="#4ADE80" />
-                      <Text style={{ fontSize: 14, color: WHITE, fontWeight: '700' }}>Add {fmtCents(Math.min(splitCurrentCents, splitRemainingCents))}</Text>
-                    </Pressable>
+                  {/* Pay Cash / Pay Card buttons — shown when an amount is entered */}
+                  {splitCurrentCents > 0 && splitRemainingCents > 0 && !isSplitCardBusy && splitCardStep !== 'declined' && (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable
+                        onPress={() => {
+                          const adding = Math.min(splitCurrentCents, splitRemainingCents);
+                          setSplitParts(ps => [...ps, { amountCents: adding, method: 'cash' }]);
+                          setSplitInput('');
+                        }}
+                        style={{ flex: 1, backgroundColor: '#ECFDF5', borderRadius: 10, paddingVertical: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#BBF7D0' }}
+                      >
+                        <Feather name="dollar-sign" size={14} color="#16A34A" />
+                        <Text style={{ fontSize: 13, color: '#16A34A', fontWeight: '700' }}>Cash</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleSplitCardPayment}
+                        style={{ flex: 1, backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#BFDBFE' }}
+                      >
+                        <Feather name="credit-card" size={14} color={BLUE} />
+                        <Text style={{ fontSize: 13, color: BLUE, fontWeight: '700' }}>Card</Text>
+                      </Pressable>
+                    </View>
                   )}
                 </View>
 
