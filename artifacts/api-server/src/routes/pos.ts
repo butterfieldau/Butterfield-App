@@ -19,7 +19,7 @@ import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
   discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
   claimedRewardsTable, loyaltyRewardsTable, loyaltyTransactionsTable,
-  storeSettingsTable, loginHistoryTable,
+  storeSettingsTable, loginHistoryTable, wholesaleOrdersTable,
 } from '@workspace/db';
 import { eq, and, desc, gte, sql, or, count, sum, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
@@ -215,10 +215,25 @@ async function buildCurrentRegisterResponse(user: { id: string; role: string }) 
     getOrCreateCurrentRegisterSession(user.id),
     getPendingAutoPrintReport(user.id),
   ]);
-  const [report, cashMovements] = await Promise.all([
+  const [report, cashMovements, inAppRow, wholesaleRow] = await Promise.all([
     getRegisterSessionReport(session.id),
     fetchRegisterCashMovements(session.id),
+    db.execute(sql`
+      SELECT COUNT(*)::int AS count, COALESCE(SUM(total_cents), 0)::int AS revenue
+      FROM orders
+      WHERE source = 'customer_app'
+        AND status NOT IN ('cancelled', 'refunded')
+        AND created_at >= date_trunc('day', now())
+    `),
+    db.execute(sql`
+      SELECT COUNT(*)::int AS count, COALESCE(SUM(total_cents), 0)::int AS revenue
+      FROM wholesale_orders
+      WHERE status != 'cancelled'
+        AND created_at >= date_trunc('day', now())
+    `),
   ]);
+  const inApp = (inAppRow.rows[0] ?? {}) as { count: number; revenue: number };
+  const ws    = (wholesaleRow.rows[0] ?? {}) as { count: number; revenue: number };
   return {
     session: report,
     cashEnabled: session.startingFloatCents !== null,
@@ -226,6 +241,8 @@ async function buildCurrentRegisterResponse(user: { id: string; role: string }) 
     canEditAutoClose: ['manager', 'director', 'master'].includes(user.role),
     pendingAutoPrintReport,
     cashMovements,
+    inAppOrders:      { count: Number(inApp.count ?? 0),  revenueCents: Number(inApp.revenue ?? 0) },
+    wholesaleOrders:  { count: Number(ws.count ?? 0),     revenueCents: Number(ws.revenue ?? 0) },
   };
 }
 

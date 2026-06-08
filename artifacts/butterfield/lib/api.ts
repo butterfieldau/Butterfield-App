@@ -1102,6 +1102,8 @@ export interface PosRegisterCurrentResponse {
   canEditAutoClose: boolean;
   pendingAutoPrintReport: RegisterSessionReport | null;
   cashMovements: PosRegisterCashMovement[];
+  inAppOrders: { count: number; revenueCents: number };
+  wholesaleOrders: { count: number; revenueCents: number };
 }
 
 export interface StockItem {

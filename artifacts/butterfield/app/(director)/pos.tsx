@@ -3695,6 +3695,45 @@ function RegisterModal({
                 ))}
               </View>
 
+              {/* ── All Channels Today ─────────────────────────────────── */}
+              {(() => {
+                const posTotal       = summary.totalSalesCents;
+                const inAppTotal     = data?.inAppOrders?.revenueCents ?? 0;
+                const wholesaleTotal = data?.wholesaleOrders?.revenueCents ?? 0;
+                const grandTotal     = posTotal + inAppTotal + wholesaleTotal;
+                const inAppCount     = data?.inAppOrders?.count ?? 0;
+                const wsCount        = data?.wholesaleOrders?.count ?? 0;
+                return (
+                  <View style={styles.registerSection}>
+                    <Text style={styles.sectionTitle}>All Channels Today</Text>
+                    <View style={styles.registerLine}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.registerLineLabel}>POS</Text>
+                      </View>
+                      <Text style={styles.registerLineValue}>{fmtCents(posTotal)}</Text>
+                    </View>
+                    <View style={styles.registerLine}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.registerLineLabel}>Customer App</Text>
+                        <Text style={[styles.registerLineLabel, { fontSize: 11, marginTop: 1 }]}>{inAppCount} order{inAppCount !== 1 ? 's' : ''}</Text>
+                      </View>
+                      <Text style={styles.registerLineValue}>{fmtCents(inAppTotal)}</Text>
+                    </View>
+                    <View style={styles.registerLine}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.registerLineLabel}>Wholesale</Text>
+                        <Text style={[styles.registerLineLabel, { fontSize: 11, marginTop: 1 }]}>{wsCount} order{wsCount !== 1 ? 's' : ''}</Text>
+                      </View>
+                      <Text style={styles.registerLineValue}>{fmtCents(wholesaleTotal)}</Text>
+                    </View>
+                    <View style={[styles.registerLine, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#334155', marginTop: 6, paddingTop: 10 }]}>
+                      <Text style={[styles.registerLineLabel, { fontWeight: '700', color: '#F1F5F9' }]}>Grand Total</Text>
+                      <Text style={[styles.registerLineValue, { fontWeight: '800', color: '#F1F5F9' }]}>{fmtCents(grandTotal)}</Text>
+                    </View>
+                  </View>
+                );
+              })()}
+
               {/* ── Settings accordion ─────────────────────────────────── */}
               <View style={styles.regAccordionGroup}>
 
