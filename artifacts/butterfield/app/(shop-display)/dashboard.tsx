@@ -448,10 +448,18 @@ export default function DashboardScreen() {
   const [date, setDate] = useState(todayString);
   const [exporting, setExporting] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+
+  const { data: storesResp } = useQuery({
+    queryKey: ['shop-display-stores'],
+    queryFn: () => api.shopDisplay.store(),
+    staleTime: 300_000,
+  });
+  const stores = storesResp?.data ?? [];
 
   const { data: resp, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['shop-display-analytics', range, date],
-    queryFn: () => api.shopDisplay.analytics(range, date),
+    queryKey: ['shop-display-analytics', range, date, selectedStoreId],
+    queryFn: () => api.shopDisplay.analytics(range, date, selectedStoreId),
     staleTime: 60_000,
   });
 
@@ -526,6 +534,41 @@ export default function DashboardScreen() {
           <Text style={styles.exportBtnText}>{exporting ? 'Exporting…' : 'Export'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── Store picker (only shown when >1 store available) ───────────── */}
+      {stores.length > 1 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.storePicker}
+          contentContainerStyle={styles.storePickerContent}
+        >
+          <TouchableOpacity
+            key="all"
+            style={[styles.storePill, selectedStoreId === null && styles.storePillActive]}
+            onPress={() => { setSelectedStoreId(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            activeOpacity={0.75}
+          >
+            <Feather name="layers" size={11} color={selectedStoreId === null ? WHITE : MUTED} />
+            <Text style={[styles.storePillText, selectedStoreId === null && styles.storePillTextActive]}>
+              All Stores
+            </Text>
+          </TouchableOpacity>
+          {stores.map(store => (
+            <TouchableOpacity
+              key={store.id}
+              style={[styles.storePill, selectedStoreId === store.id && styles.storePillActive]}
+              onPress={() => { setSelectedStoreId(store.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              activeOpacity={0.75}
+            >
+              <Feather name="map-pin" size={11} color={selectedStoreId === store.id ? WHITE : MUTED} />
+              <Text style={[styles.storePillText, selectedStoreId === store.id && styles.storePillTextActive]} numberOfLines={1}>
+                {store.suburb ?? store.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* ── Range pills ─────────────────────────────────────────────────── */}
       <View style={styles.rangePills}>
@@ -718,6 +761,13 @@ const styles = StyleSheet.create({
   headerSub:        { fontSize: 12, color: MUTED, marginTop: 2 },
   exportBtn:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '18', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BLUE + '44' },
   exportBtnText:    { color: BLUE, fontSize: 13, fontWeight: '700' },
+
+  storePicker:        { marginBottom: 10 },
+  storePickerContent: { paddingHorizontal: 20, gap: 8, flexDirection: 'row' },
+  storePill:          { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: 'transparent' },
+  storePillActive:    { backgroundColor: BLUE, borderColor: BLUE },
+  storePillText:      { fontSize: 12, fontWeight: '700', color: MUTED },
+  storePillTextActive:{ color: WHITE },
 
   rangePills:       { flexDirection: 'row', marginHorizontal: 20, gap: 8, marginBottom: 12 },
   pill:             { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: BORDER },

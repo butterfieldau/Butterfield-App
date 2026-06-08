@@ -248,9 +248,10 @@ export const api = {
       request<{ success: boolean }>(`/shop-display/linkly/transaction/${sessionId}`, { method: 'DELETE' }),
     printerBytes: (job?: PrinterJob) =>
       request<{ data: { bytes: string } }>('/shop-display/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
-    analytics: (range: 'day' | 'week' | 'month', date?: string) => {
+    analytics: (range: 'day' | 'week' | 'month', date?: string, storeId?: string | null) => {
       const p = new URLSearchParams({ range });
       if (date) p.set('date', date);
+      if (storeId) p.set('storeId', storeId);
       return request<{ data: ShopDisplayAnalytics }>(`/shop-display/analytics?${p}`);
     },
   },

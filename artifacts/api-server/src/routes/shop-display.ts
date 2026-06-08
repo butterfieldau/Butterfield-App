@@ -1228,11 +1228,20 @@ router.get('/analytics', async (req, res) => {
       eq(staffStoreAssignmentsTable.isActive, true),
     ));
   const assignedStoreIds = assignments.map(a => a.storeId);
-  const storeFilter = assignedStoreIds.length > 0
-    ? or(inArray(ordersTable.storeId, assignedStoreIds), isNull(ordersTable.storeId))
-    : undefined;
 
-  const { range = 'day', date } = req.query as { range?: string; date?: string };
+  // Optional storeId filter: must be one of the assigned stores
+  const { range = 'day', date, storeId } = req.query as { range?: string; date?: string; storeId?: string };
+  const requestedStoreId = typeof storeId === 'string' && storeId.length > 0 ? storeId : null;
+  const isValidStoreId = requestedStoreId && (assignedStoreIds.length === 0 || assignedStoreIds.includes(requestedStoreId));
+
+  let storeFilter: ReturnType<typeof and> | ReturnType<typeof or> | undefined;
+  if (isValidStoreId) {
+    storeFilter = eq(ordersTable.storeId, requestedStoreId!);
+  } else if (assignedStoreIds.length > 0) {
+    storeFilter = or(inArray(ordersTable.storeId, assignedStoreIds), isNull(ordersTable.storeId));
+  } else {
+    storeFilter = undefined;
+  }
 
   // Reference date: Sydney-local YYYY-MM-DD (from param or today in Sydney)
   const refDateStr = (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? date : getSydneyTodayStr();
