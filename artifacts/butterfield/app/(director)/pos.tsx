@@ -2022,10 +2022,10 @@ function PaymentModal({
                   )}
                 </View>
                 {/* Compact numpad */}
-                <View style={[styles.numpad, { gap: 6 }]}>
+                <View style={styles.numpad}>
                   {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
-                    <Pressable key={k} onPress={() => handleKeypad(k, setTendered, tendered)} style={[styles.numpadKey, { paddingVertical: 14, borderRadius: 10 }]}>
-                      {k === 'backspace' ? <Feather name="delete" size={19} color={DARK} /> : <Text style={[styles.numpadKeyText, { fontSize: 20 }]}>{k}</Text>}
+                    <Pressable key={k} onPress={() => handleKeypad(k, setTendered, tendered)} style={styles.numpadKey}>
+                      {k === 'backspace' ? <Feather name="delete" size={18} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
                     </Pressable>
                   ))}
                 </View>
@@ -2056,10 +2056,10 @@ function PaymentModal({
                     <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>EFTPOS: {fmtCents(splitEftposCents)}</Text>
                   </View>
                 </View>
-                <View style={[styles.numpad, { gap: 6 }]}>
+                <View style={styles.numpad}>
                   {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
-                    <Pressable key={k} onPress={() => handleKeypad(k, setSplitCashDollars, splitCashDollars)} style={[styles.numpadKey, { paddingVertical: 14, borderRadius: 10 }]}>
-                      {k === 'backspace' ? <Feather name="delete" size={19} color={DARK} /> : <Text style={[styles.numpadKeyText, { fontSize: 20 }]}>{k}</Text>}
+                    <Pressable key={k} onPress={() => handleKeypad(k, setSplitCashDollars, splitCashDollars)} style={styles.numpadKey}>
+                      {k === 'backspace' ? <Feather name="delete" size={18} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
                     </Pressable>
                   ))}
                 </View>
@@ -3606,9 +3606,9 @@ const styles = StyleSheet.create({
   changeRow:            { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#ECFDF5', borderRadius: 10, padding: 12, marginBottom: 16 },
   changeLabel:          { fontSize: 15, fontWeight: '600', color: '#16A34A' },
   changeValue:          { fontSize: 15, fontWeight: '800', color: '#16A34A' },
-  numpad:               { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  numpadKey:            { width: '30%', aspectRatio: 2, backgroundColor: '#F1F5F9', borderRadius: 10, justifyContent: 'center', alignItems: 'center', flexGrow: 1 },
-  numpadKeyText:        { fontSize: 22, fontWeight: '700', color: DARK },
+  numpad:               { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignSelf: 'flex-start', width: 210 },
+  numpadKey:            { width: 64, height: 46, backgroundColor: '#F1F5F9', borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  numpadKeyText:        { fontSize: 20, fontWeight: '700', color: DARK, textAlignVertical: 'center' },
   // Tip selection
   tipOption:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: BORDER },
   tipOptionActive:      { backgroundColor: '#EFF6FF', borderColor: BLUE },
