@@ -3806,8 +3806,8 @@ function RegisterModal({
                       <Text style={styles.registerLineValue}>{fmtCents(wholesaleTotal)}</Text>
                     </View>
                     <View style={[styles.registerLine, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#334155', marginTop: 6, paddingTop: 10 }]}>
-                      <Text style={[styles.registerLineLabel, { fontWeight: '700', color: '#F1F5F9' }]}>Grand Total</Text>
-                      <Text style={[styles.registerLineValue, { fontWeight: '800', color: '#F1F5F9' }]}>{fmtCents(grandTotal)}</Text>
+                      <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Grand Total</Text>
+                      <Text style={[styles.registerLineValue, { fontWeight: '800', color: BLUE, fontSize: 18 }]}>{fmtCents(grandTotal)}</Text>
                     </View>
                   </View>
                 );
