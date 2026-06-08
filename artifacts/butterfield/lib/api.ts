@@ -248,6 +248,11 @@ export const api = {
       request<{ success: boolean }>(`/shop-display/linkly/transaction/${sessionId}`, { method: 'DELETE' }),
     printerBytes: (job?: PrinterJob) =>
       request<{ data: { bytes: string } }>('/shop-display/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
+    analytics: (range: 'day' | 'week' | 'month', date?: string) => {
+      const p = new URLSearchParams({ range });
+      if (date) p.set('date', date);
+      return request<{ data: ShopDisplayAnalytics }>(`/shop-display/analytics?${p}`);
+    },
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
@@ -2720,4 +2725,19 @@ export interface StockItemInput {
   supplier?: string | null;
   notes?: string | null;
   isActive?: boolean;
+}
+
+export interface ShopDisplayAnalytics {
+  totalCents: number;
+  prevPeriodTotalCents: number;
+  transactionCount: number;
+  avgSpendCents: number;
+  itemsSold: number;
+  cancelledCents: number;
+  discountedCents: number;
+  chartData: Array<{ label: string; valueCents: number; prevValueCents: number }>;
+  topSellers: Array<{ name: string; units: number; revenueCents: number; pct: number }>;
+  tenderTypes: Array<{ type: string; count: number; pct: number }>;
+  periodStart: string;
+  periodEnd: string;
 }

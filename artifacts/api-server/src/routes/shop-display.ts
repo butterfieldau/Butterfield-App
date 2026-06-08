@@ -15,7 +15,7 @@ import {
   storesTable,
   usersTable,
 } from '@workspace/db';
-import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
@@ -1177,6 +1177,171 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
 
 // ── Printer bytes — device opens TCP socket, server just builds ESC/POS ──────
 // Mirrors /director/printer/bytes but accessible to shop_display role.
+// ── Analytics ────────────────────────────────────────────────────────────────
+router.get('/analytics', async (req, res) => {
+  const { range = 'day', date } = req.query as { range?: string; date?: string };
+
+  const now = new Date();
+  const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+
+  // Parse reference date (Sydney local, defaults to today)
+  let refDate: Date;
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [y, m, d] = date.split('-').map(Number);
+    refDate = new Date(y, m - 1, d);
+  } else {
+    refDate = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate());
+  }
+
+  let periodStart: Date;
+  let periodEnd: Date;
+  let prevStart: Date;
+  let prevEnd: Date;
+  let chartBuckets: { label: string; startMs: number; endMs: number }[];
+
+  if (range === 'week') {
+    const dow = refDate.getDay();
+    const mondayDiff = dow === 0 ? -6 : 1 - dow;
+    const monday = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() + mondayDiff);
+    periodStart = monday;
+    periodEnd = new Date(monday.getTime() + 7 * 86400_000 - 1);
+    prevStart = new Date(periodStart.getTime() - 7 * 86400_000);
+    prevEnd = new Date(periodEnd.getTime() - 7 * 86400_000);
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    chartBuckets = dayLabels.map((label, i) => ({
+      label,
+      startMs: monday.getTime() + i * 86400_000,
+      endMs: monday.getTime() + (i + 1) * 86400_000 - 1,
+    }));
+  } else if (range === 'month') {
+    periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+    periodEnd = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    prevStart = new Date(refDate.getFullYear(), refDate.getMonth() - 1, 1);
+    prevEnd = new Date(refDate.getFullYear(), refDate.getMonth(), 0, 23, 59, 59, 999);
+    const daysInMonth = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0).getDate();
+    chartBuckets = Array.from({ length: daysInMonth }, (_, i) => {
+      const d = new Date(refDate.getFullYear(), refDate.getMonth(), i + 1);
+      return { label: String(i + 1), startMs: d.getTime(), endMs: d.getTime() + 86400_000 - 1 };
+    });
+  } else {
+    // day
+    periodStart = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+    periodEnd = new Date(periodStart.getTime() + 86400_000 - 1);
+    prevStart = new Date(periodStart.getTime() - 86400_000);
+    prevEnd = new Date(periodEnd.getTime() - 86400_000);
+    chartBuckets = Array.from({ length: 24 }, (_, h) => ({
+      label: String(h).padStart(2, '0'),
+      startMs: periodStart.getTime() + h * 3600_000,
+      endMs: periodStart.getTime() + (h + 1) * 3600_000 - 1,
+    }));
+  }
+
+  // Pull orders for both periods in one query each
+  const [currentOrders, prevOrders] = await Promise.all([
+    db.select({
+      id: ordersTable.id,
+      totalCents: ordersTable.totalCents,
+      discountCents: ordersTable.discountCents,
+      paymentMethodType: ordersTable.paymentMethodType,
+      items: ordersTable.items,
+      status: ordersTable.status,
+      createdAt: ordersTable.createdAt,
+    }).from(ordersTable).where(and(
+      gte(ordersTable.createdAt, periodStart),
+      lte(ordersTable.createdAt, periodEnd),
+    )),
+    db.select({
+      totalCents: ordersTable.totalCents,
+      createdAt: ordersTable.createdAt,
+    }).from(ordersTable).where(and(
+      gte(ordersTable.createdAt, prevStart),
+      lte(ordersTable.createdAt, prevEnd),
+      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+    )),
+  ]);
+
+  const validOrders = currentOrders.filter(o => o.status !== 'cancelled' && o.status !== 'refunded');
+  const cancelledOrders = currentOrders.filter(o => o.status === 'cancelled' || o.status === 'refunded');
+
+  const totalCents = validOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+  const transactionCount = validOrders.length;
+  const avgSpendCents = transactionCount > 0 ? Math.round(totalCents / transactionCount) : 0;
+  const cancelledCents = cancelledOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+  const discountedCents = validOrders.reduce((s, o) => s + (o.discountCents ?? 0), 0);
+  const prevPeriodTotalCents = prevOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+
+  // Items sold + top sellers
+  let itemsSold = 0;
+  const productMap = new Map<string, { name: string; units: number; revenueCents: number }>();
+  for (const order of validOrders) {
+    const items = Array.isArray(order.items) ? order.items as any[] : [];
+    for (const item of items) {
+      const qty = Number(item.quantity ?? item.qty ?? 1);
+      const price = Number(item.unitPriceCents ?? item.priceCents ?? 0) * qty;
+      itemsSold += qty;
+      const name = String(item.name ?? item.productName ?? 'Unknown');
+      const ex = productMap.get(name);
+      if (ex) { ex.units += qty; ex.revenueCents += price; }
+      else productMap.set(name, { name, units: qty, revenueCents: price });
+    }
+  }
+
+  const topSellers = [...productMap.values()]
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 6)
+    .map(p => ({
+      name: p.name,
+      units: p.units,
+      revenueCents: p.revenueCents,
+      pct: transactionCount > 0 && itemsSold > 0 ? Math.round((p.units / itemsSold) * 100) : 0,
+    }));
+
+  // Tender types
+  const tenderMap = new Map<string, number>();
+  for (const order of validOrders) {
+    const t = (order.paymentMethodType ?? '').toLowerCase();
+    const key = t === 'cash' ? 'Cash'
+      : (t === 'card' || t === 'eftpos' || t === 'credit_card' || t.includes('card') || t === 'stripe') ? 'Card'
+      : t === 'split' ? 'Split'
+      : t === 'loyalty' ? 'Loyalty'
+      : t ? t.charAt(0).toUpperCase() + t.slice(1)
+      : 'Other';
+    tenderMap.set(key, (tenderMap.get(key) ?? 0) + 1);
+  }
+  const tenderTypes = [...tenderMap.entries()]
+    .map(([type, cnt]) => ({ type, count: cnt, pct: transactionCount > 0 ? Math.round((cnt / transactionCount) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  // Chart data
+  const prevOffset = periodStart.getTime() - prevStart.getTime();
+  const chartData = chartBuckets.map(b => {
+    const curr = validOrders
+      .filter(o => { const t = new Date(o.createdAt).getTime(); return t >= b.startMs && t <= b.endMs; })
+      .reduce((s, o) => s + (o.totalCents ?? 0), 0);
+    const prev = prevOrders
+      .filter(o => { const t = new Date(o.createdAt).getTime() + prevOffset; return t >= b.startMs && t <= b.endMs; })
+      .reduce((s, o) => s + (o.totalCents ?? 0), 0);
+    return { label: b.label, valueCents: curr, prevValueCents: prev };
+  });
+
+  return res.json({
+    data: {
+      totalCents,
+      prevPeriodTotalCents,
+      transactionCount,
+      avgSpendCents,
+      itemsSold,
+      cancelledCents,
+      discountedCents,
+      chartData,
+      topSellers,
+      tenderTypes,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+    },
+  });
+});
+
 router.post('/printer/bytes', async (req, res) => {
   try {
     const { buildReceiptBytes, buildRegisterSummaryBytes, buildOpenDrawerBytes } = await import('../lib/printer.js');
