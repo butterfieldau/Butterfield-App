@@ -375,6 +375,13 @@ function PosScreenInner() {
     });
   }, [allProducts]);
 
+  // Pre-select the first category once products load (never default to "All")
+  useEffect(() => {
+    if (categories.length > 0 && selCategory === 'all') {
+      setSelCategory(categories[0]!);
+    }
+  }, [categories]);
+
   const filteredProducts = useMemo(() => {
     return allProducts.filter((p: any) => {
       if (selCategory !== 'all' && (p.category ?? '') !== selCategory) return false;
