@@ -19,6 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import type { LinklyConfig, ShopDisplayStore } from '@/lib/api';
+import { sendOpenDrawer } from '@/lib/printer';
 import { getShopDisplaySoundEnabled, setShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 
 const BG     = '#EFF6FF';
@@ -341,6 +342,7 @@ export default function ShopDisplaySettingsScreen() {
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [eftposUnlocked, setEftposUnlocked] = useState(false);
+  const [drawerBusy, setDrawerBusy] = useState(false);
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabledState).catch(() => {});
@@ -410,22 +412,46 @@ export default function ShopDisplaySettingsScreen() {
                 ) : null}
 
                 {(store.printerIp || store.printerBrand) && (
-                  <View style={styles.printerRow}>
-                    <Feather name="printer" size={14} color={MUTED} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.printerLabel}>Receipt Printer</Text>
-                      <Text style={styles.printerValue}>
-                        {store.printerBrand
-                          ? store.printerBrand.charAt(0).toUpperCase() + store.printerBrand.slice(1)
-                          : 'Printer'}
-                        {store.printerIp ? ` · ${store.printerIp}:${store.printerPort ?? 9100}` : ' · Not configured'}
-                      </Text>
+                  <View style={{ gap: 10 }}>
+                    <View style={styles.printerRow}>
+                      <Feather name="printer" size={14} color={MUTED} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.printerLabel}>Receipt Printer</Text>
+                        <Text style={styles.printerValue}>
+                          {store.printerBrand
+                            ? store.printerBrand.charAt(0).toUpperCase() + store.printerBrand.slice(1)
+                            : 'Printer'}
+                          {store.printerIp ? ` · ${store.printerIp}:${store.printerPort ?? 9100}` : ' · Not configured'}
+                        </Text>
+                      </View>
+                      <View style={[styles.autoPrintBadge, { backgroundColor: store.autoPrint ? '#DCFCE7' : '#F3F4F6' }]}>
+                        <Text style={[styles.autoPrintText, { color: store.autoPrint ? GREEN : MUTED }]}>
+                          {store.autoPrint ? 'Auto-print ON' : 'Auto-print OFF'}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={[styles.autoPrintBadge, { backgroundColor: store.autoPrint ? '#DCFCE7' : '#F3F4F6' }]}>
-                      <Text style={[styles.autoPrintText, { color: store.autoPrint ? GREEN : MUTED }]}>
-                        {store.autoPrint ? 'Auto-print ON' : 'Auto-print OFF'}
-                      </Text>
-                    </View>
+                    {store.printerIp ? (
+                      <Pressable
+                        style={({ pressed }) => [styles.openDrawerBtn, (pressed || drawerBusy) && { opacity: 0.7 }]}
+                        disabled={drawerBusy}
+                        onPress={async () => {
+                          if (!store.printerIp) return;
+                          setDrawerBusy(true);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          try {
+                            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, api.shopDisplay.printerBytes);
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          } catch (e: any) {
+                            Alert.alert('Drawer Error', e?.message ?? 'Could not open the cash drawer. Make sure the printer is reachable.');
+                          } finally {
+                            setDrawerBusy(false);
+                          }
+                        }}
+                      >
+                        <Feather name="unlock" size={14} color="#fff" />
+                        <Text style={styles.openDrawerBtnText}>{drawerBusy ? 'Opening…' : 'Open Drawer'}</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 )}
               </View>
@@ -531,6 +557,8 @@ const styles = StyleSheet.create({
   printerValue:     { fontSize: 14, fontWeight: '600', color: TEXT, marginTop: 2 },
   autoPrintBadge:   { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4 },
   autoPrintText:    { fontSize: 11, fontWeight: '700' },
+  openDrawerBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#1A2B4A', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
+  openDrawerBtnText:{ fontSize: 14, fontWeight: '700', color: '#fff' },
   logoutBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 8 },
   logoutText:       { color: RED, fontSize: 15, fontWeight: '700' },
   lockCard:         { flexDirection: 'row', alignItems: 'center', gap: 14 },

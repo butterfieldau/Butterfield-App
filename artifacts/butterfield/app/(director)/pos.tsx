@@ -31,7 +31,7 @@ import {
   upsertCustomerCache, searchCustomerCache,
   type CachedPosCustomer, type OfflineQueueEntry,
 } from '@/lib/posCache';
-import { sendReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint } from '@/lib/printer';
+import { sendReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint, sendOpenDrawer } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -729,8 +729,8 @@ function PosScreenInner() {
       queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
       // Auto-print receipt using the captured ticket items (not the sparse res.data)
       const store = storeData as any;
+      const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
       if (store?.autoPrint && store?.printerIp) {
-        const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
         sendReceiptPrint({
           orderId: res.data.id,
           customerName: snapshotCustomerName,
@@ -742,6 +742,12 @@ function PosScreenInner() {
           loyaltyPointsEarned: res.loyaltyResult?.pointsEarned,
           printerBrand: store.printerBrand ?? 'epson',
         }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
+      }
+      // Open cash drawer automatically on any cash payment
+      const hasCash = vars.paymentMethod === 'cash' ||
+        (vars.paymentMethod === 'split' && vars.splitPayments?.some(p => p.method === 'cash'));
+      if (hasCash && store?.printerIp) {
+        sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
       }
     },
     onError: (err: any, vars) => {
@@ -1283,6 +1289,15 @@ function PosScreenInner() {
             await printRegisterReport(registerSession);
             await api.pos.markRegisterSummaryPrinted(registerSession.id);
             refetchRegister();
+          }}
+          onOpenDrawer={async () => {
+            const store = storeData as any;
+            if (!store?.printerIp) {
+              Alert.alert('No Printer', 'Configure a printer IP in POS settings to open the cash drawer.');
+              return;
+            }
+            const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes);
           }}
           busy={
             setRegisterFloatMutation.isPending ||
@@ -3579,6 +3594,7 @@ function RegisterModal({
   discountPresets,
   onChangePresets,
   onPrintSummary,
+  onOpenDrawer,
   busy,
 }: {
   visible: boolean;
@@ -3592,12 +3608,14 @@ function RegisterModal({
   discountPresets: number[];
   onChangePresets: (presets: number[]) => void;
   onPrintSummary: () => Promise<void>;
+  onOpenDrawer: () => Promise<void>;
   busy: boolean;
 }) {
   const queryClient = useQueryClient();
   const session = data?.session ?? null;
   const summary = session?.summary;
   const [floatInput, setFloatInput] = useState('');
+  const [drawerBusy, setDrawerBusy] = useState(false);
   const [movementType, setMovementType] = useState<'add' | 'remove'>('add');
   const [movementAmount, setMovementAmount] = useState('');
   const [movementReason, setMovementReason] = useState('');
@@ -3815,6 +3833,32 @@ function RegisterModal({
 
               {/* ── Settings accordion ─────────────────────────────────── */}
               <View style={styles.regAccordionGroup}>
+
+                {/* Open Drawer */}
+                <Pressable
+                  style={({ pressed }) => [styles.regAccordionRow, (pressed || drawerBusy) && { opacity: 0.6 }]}
+                  disabled={drawerBusy}
+                  onPress={async () => {
+                    setDrawerBusy(true);
+                    try {
+                      await onOpenDrawer();
+                    } catch {
+                    } finally {
+                      setDrawerBusy(false);
+                    }
+                  }}
+                >
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#FFF7ED' }]}>
+                    <Feather name="unlock" size={16} color="#D97706" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.regAccordionTitle}>{drawerBusy ? 'Opening Drawer…' : 'Open Cash Drawer'}</Text>
+                    <Text style={styles.regAccordionSub}>Send pulse to open via receipt printer</Text>
+                  </View>
+                  <Feather name="chevron-right" size={16} color={MUTED} />
+                </Pressable>
+
+                <View style={styles.regAccordionDivider} />
 
                 {/* Cash Float */}
                 <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('float')}>

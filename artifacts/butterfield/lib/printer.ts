@@ -95,6 +95,10 @@ export async function sendRegisterSummaryPrint(job: RegisterSummaryPrintJob, pri
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'register_summary' }));
 }
 
+export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer' }));
+}
+
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);

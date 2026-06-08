@@ -1179,9 +1179,13 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
 // Mirrors /director/printer/bytes but accessible to shop_display role.
 router.post('/printer/bytes', async (req, res) => {
   try {
-    const { buildReceiptBytes, buildRegisterSummaryBytes } = await import('../lib/printer.js');
+    const { buildReceiptBytes, buildRegisterSummaryBytes, buildOpenDrawerBytes } = await import('../lib/printer.js');
     const { job } = req.body as { job?: any };
     const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
+    if (job?.jobType === 'open_drawer') {
+      const bytes = buildOpenDrawerBytes();
+      return res.json({ data: { bytes: bytes.toString('base64') } });
+    }
     if (job?.jobType === 'register_summary') {
       const bytes = buildRegisterSummaryBytes({
         title: typeof job?.title === 'string' ? job.title : 'Daily Register Summary',

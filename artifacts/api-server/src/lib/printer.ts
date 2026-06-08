@@ -83,6 +83,14 @@ export interface RegisterSummaryPrintJob {
   printerBrand?: 'epson' | 'star';
 }
 
+// ── Cash drawer pulse ─────────────────────────────────────────────────────────
+// ESC p — standard ESC/POS cash drawer kick command.
+// Works in ESC/POS mode on Epson and Star (MCP30) printers.
+// pin=0 (drawer 1), on_time=25ms (×2ms units), off_time=250ms (×2ms units)
+export function buildOpenDrawerBytes(): Buffer {
+  return Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+}
+
 export function buildReceiptBytes(job: PrintJob): Buffer {
   // Resolve brand early — needed both at the top (init) and at the bottom (cut).
   const isStar = job.printerBrand === 'star';
