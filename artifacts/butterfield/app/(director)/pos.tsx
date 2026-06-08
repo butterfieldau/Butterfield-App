@@ -1797,7 +1797,6 @@ function PaymentModal({
   loading: boolean;
   isOnline: boolean;
 }) {
-  const [step, setStep] = useState<'method' | 'confirm'>('method');
   const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline ? 'cash' : 'eftpos');
   const [tendered, setTendered] = useState('');
   const [splitCashDollars, setSplitCashDollars] = useState('');
@@ -1921,6 +1920,7 @@ function PaymentModal({
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={canClose ? onClose : undefined}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.customiseRoot}>
+          {/* ── Header ── */}
           <View style={styles.sheetHeader}>
             <Pressable
               onPress={isLinklyBusy ? handleLinklyCancel : onClose}
@@ -1929,245 +1929,199 @@ function PaymentModal({
             >
               <Feather name={isLinklyBusy ? 'arrow-left' : 'x'} size={22} color={DARK} />
             </Pressable>
-            <Text style={styles.sheetTitle}>
-              {step === 'method' ? 'Payment' : 'Confirm Payment'}
-            </Text>
+            <Text style={styles.sheetTitle}>Payment</Text>
             <View style={{ width: 22 }} />
           </View>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            {/* ── Total summary ── */}
-            <View style={styles.payTotal}>
-              <Text style={styles.payTotalLabel}>{step === 'confirm' ? 'Total Due' : 'Order Total'}</Text>
-              <Text style={styles.payTotalValue}>{fmtCents(step === 'confirm' ? chargeTotalCents : totalCents)}</Text>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+
+            {/* ── Compact totals strip ── */}
+            <View style={{ backgroundColor: DARK, borderRadius: 12, padding: 14, marginBottom: 14 }}>
               {discount && (
-                <View style={styles.payDiscountRow}>
-                  <Feather name="tag" size={13} color="#16A34A" />
-                  <Text style={styles.payDiscountLabel}>{discount.label}</Text>
-                  <Text style={styles.payDiscountSaving}>–{fmtCents(discount.amountCents)}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Feather name="tag" size={12} color="#4ADE80" />
+                    <Text style={{ fontSize: 12, color: '#4ADE80', fontWeight: '600' }}>{discount.label}</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#4ADE80', fontWeight: '600' }}>–{fmtCents(discount.amountCents)}</Text>
                 </View>
               )}
+              {applicableSurcharges.map(s => {
+                const amt = s.amountType === 'pct_basis_points' ? Math.round(totalCents * s.amountValue / 10000) : s.amountValue;
+                return (
+                  <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#FCA5A5' }}>{s.name}</Text>
+                    <Text style={{ fontSize: 12, color: '#FCA5A5' }}>+{fmtCents(amt)}</Text>
+                  </View>
+                );
+              })}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', borderTopWidth: applicableSurcharges.length > 0 || discount ? 1 : 0, borderTopColor: '#FFFFFF22', paddingTop: applicableSurcharges.length > 0 || discount ? 8 : 0, marginTop: applicableSurcharges.length > 0 || discount ? 4 : 0 }}>
+                <Text style={{ fontSize: 13, color: '#FFFFFFAA', fontWeight: '500' }}>TOTAL DUE</Text>
+                <Text style={{ fontSize: 26, color: WHITE, fontWeight: '800', letterSpacing: -0.5 }}>{fmtCents(chargeTotalCents)}</Text>
+              </View>
             </View>
 
-            {/* ── STEP: method ── */}
-            {step === 'method' && (
-              <>
-                {!isOnline && (
-                  <View style={styles.offlinePayNotice}>
-                    <Feather name="wifi-off" size={14} color="#92400E" />
-                    <Text style={styles.offlinePayNoticeText}>
-                      No connection — EFTPOS unavailable. Cash only. Order will be queued and synced when back online.
-                    </Text>
-                  </View>
-                )}
-                <Text style={styles.sectionTitle}>Payment Method</Text>
-                <View style={styles.methodRow}>
-                  <Pressable
-                    onPress={() => !isOnline ? undefined : setMethod('eftpos')}
-                    style={[styles.methodBtn, method === 'eftpos' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
-                  >
-                    <Feather name="credit-card" size={18} color={method === 'eftpos' ? WHITE : !isOnline ? MUTED : MID} />
-                    <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }, !isOnline && { color: MUTED }]}>EFTPOS</Text>
-                  </Pressable>
-                  <Pressable onPress={() => { setMethod('cash'); setTendered(''); }} style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive]}>
-                    <Feather name="dollar-sign" size={18} color={method === 'cash' ? WHITE : MID} />
-                    <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => !isOnline ? undefined : setMethod('split')}
-                    style={[styles.methodBtn, method === 'split' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
-                  >
-                    <Feather name="git-branch" size={16} color={method === 'split' ? WHITE : !isOnline ? MUTED : MID} />
-                    <Text style={[styles.methodBtnText, method === 'split' && { color: WHITE }, !isOnline && { color: MUTED }]}>Split</Text>
-                  </Pressable>
-                </View>
-
-                {/* Surcharge preview */}
-                {applicableSurcharges.length > 0 && (
-                  <View style={styles.surchargePreviewBox}>
-                    <Text style={styles.surchargePreviewTitle}>Surcharges apply:</Text>
-                    {applicableSurcharges.map(s => (
-                      <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                        <Text style={styles.surchargeLabel}>{s.name}</Text>
-                        <Text style={styles.surchargeCentsText}>
-                          {s.amountType === 'pct_basis_points'
-                            ? `+${(s.amountValue / 100).toFixed(2)}%`
-                            : `+${fmtCents(s.amountValue)}`}
-                        </Text>
-                      </View>
-                    ))}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#FDBA74', marginTop: 6, paddingTop: 6 }}>
-                      <Text style={[styles.surchargeLabel, { fontWeight: '700' }]}>Total surcharge</Text>
-                      <Text style={[styles.surchargeCentsText, { fontWeight: '700' }]}>+{fmtCents(computedSurchargeCents)}</Text>
-                    </View>
-                  </View>
-                )}
-              </>
+            {/* ── Offline notice ── */}
+            {!isOnline && (
+              <View style={styles.offlinePayNotice}>
+                <Feather name="wifi-off" size={14} color="#92400E" />
+                <Text style={styles.offlinePayNoticeText}>
+                  No connection — EFTPOS unavailable. Cash only. Order will be queued when back online.
+                </Text>
+              </View>
             )}
 
-            {/* ── STEP: confirm ── */}
-            {step === 'confirm' && (
-              <View>
-                {/* Breakdown */}
-                <View style={styles.payBreakdownBox}>
-                  <View style={styles.payBreakdownRow}>
-                    <Text style={styles.payBreakdownLabel}>Subtotal</Text>
-                    <Text style={styles.payBreakdownValue}>{fmtCents(totalCents)}</Text>
+            {/* ── Method selector ── */}
+            <View style={styles.methodRow}>
+              <Pressable
+                onPress={() => !isOnline ? undefined : setMethod('eftpos')}
+                style={[styles.methodBtn, method === 'eftpos' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
+              >
+                <Feather name="credit-card" size={18} color={method === 'eftpos' ? WHITE : !isOnline ? MUTED : MID} />
+                <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }, !isOnline && { color: MUTED }]}>EFTPOS</Text>
+              </Pressable>
+              <Pressable onPress={() => { setMethod('cash'); setTendered(''); }} style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive]}>
+                <Feather name="dollar-sign" size={18} color={method === 'cash' ? WHITE : MID} />
+                <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => !isOnline ? undefined : setMethod('split')}
+                style={[styles.methodBtn, method === 'split' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
+              >
+                <Feather name="git-branch" size={16} color={method === 'split' ? WHITE : !isOnline ? MUTED : MID} />
+                <Text style={[styles.methodBtnText, method === 'split' && { color: WHITE }, !isOnline && { color: MUTED }]}>Split</Text>
+              </Pressable>
+            </View>
+
+            {/* ── Cash: presets + tendered display + change + numpad ── */}
+            {method === 'cash' && (
+              <View style={{ marginTop: 12 }}>
+                {/* Quick presets */}
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                  {roundUpPresets.map(d => (
+                    <Pressable key={d} onPress={() => setTendered(String(d))} style={styles.presetBtn}>
+                      <Text style={styles.presetBtnText}>${d}</Text>
+                    </Pressable>
+                  ))}
+                  {tendered !== '' && (
+                    <Pressable onPress={() => setTendered('')} style={[styles.presetBtn, { borderColor: BORDER }]}>
+                      <Text style={[styles.presetBtnText, { color: MID }]}>Clear</Text>
+                    </Pressable>
+                  )}
+                </View>
+                {/* Tendered + change on same row */}
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                  <View style={[styles.tenderedDisplay, { flex: 1, marginBottom: 0 }]}>
+                    <Text style={[styles.tenderedText, { fontSize: 22 }]}>${tendered || '0'}</Text>
                   </View>
-                  {applicableSurcharges.map(s => {
-                    const amt = s.amountType === 'pct_basis_points' ? Math.round(totalCents * s.amountValue / 10000) : s.amountValue;
-                    return (
-                      <View key={s.id} style={styles.payBreakdownRow}>
-                        <Text style={styles.payBreakdownLabel}>{s.name}</Text>
-                        <Text style={[styles.payBreakdownValue, { color: '#EA580C' }]}>+{fmtCents(amt)}</Text>
-                      </View>
-                    );
-                  })}
-                  <View style={[styles.payBreakdownRow, { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8, marginTop: 4 }]}>
-                    <Text style={[styles.payBreakdownLabel, { fontWeight: '700', fontSize: 16, color: DARK }]}>Total</Text>
-                    <Text style={[styles.payBreakdownValue, { fontWeight: '800', fontSize: 18, color: DARK }]}>{fmtCents(chargeTotalCents)}</Text>
+                  {tenderedCents >= chargeTotalCents && (
+                    <View style={{ flex: 1, backgroundColor: '#ECFDF5', borderRadius: 10, borderWidth: 1, borderColor: '#BBF7D0', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+                      <Text style={{ fontSize: 11, color: '#16A34A', fontWeight: '600', marginBottom: 2 }}>CHANGE</Text>
+                      <Text style={{ fontSize: 20, color: '#15803D', fontWeight: '800' }}>{fmtCents(cashChangeCents)}</Text>
+                    </View>
+                  )}
+                </View>
+                {/* Compact numpad */}
+                <View style={[styles.numpad, { gap: 6 }]}>
+                  {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
+                    <Pressable key={k} onPress={() => handleKeypad(k, setTendered, tendered)} style={[styles.numpadKey, { paddingVertical: 14, borderRadius: 10 }]}>
+                      {k === 'backspace' ? <Feather name="delete" size={19} color={DARK} /> : <Text style={[styles.numpadKeyText, { fontSize: 20 }]}>{k}</Text>}
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* ── Split: cash component numpad ── */}
+            {method === 'split' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 8, fontSize: 13 }]}>Cash Component</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  {[5, 10, 20, 50].filter(d => d * 100 < chargeTotalCents).map(d => (
+                    <Pressable key={d} onPress={() => setSplitCashDollars(String(d))} style={styles.presetBtn}>
+                      <Text style={styles.presetBtnText}>${d}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={[styles.tenderedDisplay, { marginBottom: 10 }]}>
+                  <Text style={[styles.tenderedText, { fontSize: 22 }]}>${splitCashDollars || '0'}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                  <View style={[styles.splitAmountBox, { flex: 1, borderColor: '#16A34A33', backgroundColor: '#ECFDF5' }]}>
+                    <Feather name="dollar-sign" size={13} color="#16A34A" />
+                    <Text style={{ fontSize: 13, color: '#16A34A', fontWeight: '600' }}>Cash: {fmtCents(splitCashCents)}</Text>
+                  </View>
+                  <View style={[styles.splitAmountBox, { flex: 1, borderColor: `${BLUE}33`, backgroundColor: '#EFF6FF' }]}>
+                    <Feather name="credit-card" size={13} color={BLUE} />
+                    <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>EFTPOS: {fmtCents(splitEftposCents)}</Text>
                   </View>
                 </View>
-
-                {/* Method badge + change */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                  <Feather name={method === 'cash' ? 'dollar-sign' : method === 'split' ? 'git-branch' : 'credit-card'} size={15} color={BLUE} />
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: DARK }}>{method === 'cash' ? 'Cash' : method === 'split' ? 'Split' : 'EFTPOS'}</Text>
-                  <Pressable onPress={() => { setStep('method'); setLinklyStep('idle'); }} style={{ marginLeft: 'auto' }}>
-                    <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>Change</Text>
-                  </Pressable>
+                <View style={[styles.numpad, { gap: 6 }]}>
+                  {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
+                    <Pressable key={k} onPress={() => handleKeypad(k, setSplitCashDollars, splitCashDollars)} style={[styles.numpadKey, { paddingVertical: 14, borderRadius: 10 }]}>
+                      {k === 'backspace' ? <Feather name="delete" size={19} color={DARK} /> : <Text style={[styles.numpadKeyText, { fontSize: 20 }]}>{k}</Text>}
+                    </Pressable>
+                  ))}
                 </View>
+              </View>
+            )}
 
-                {/* Cash numpad */}
-                {method === 'cash' && (
-                  <View>
-                    <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Tendered Amount</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                      {roundUpPresets.map(d => (
-                        <Pressable key={d} onPress={() => setTendered(String(d))} style={styles.presetBtn}>
-                          <Text style={styles.presetBtnText}>${d}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                    <View style={styles.tenderedDisplay}><Text style={styles.tenderedText}>${tendered || '0'}</Text></View>
-                    {tenderedCents >= chargeTotalCents && (
-                      <View style={styles.changeRow}>
-                        <Text style={styles.changeLabel}>Change</Text>
-                        <Text style={styles.changeValue}>{fmtCents(cashChangeCents)}</Text>
-                      </View>
-                    )}
-                    <View style={styles.numpad}>
-                      {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
-                        <Pressable key={k} onPress={() => handleKeypad(k, setTendered, tendered)} style={styles.numpadKey}>
-                          {k === 'backspace' ? <Feather name="delete" size={20} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
+            {/* ── EFTPOS: Linkly status (only shown when active) ── */}
+            {method === 'eftpos' && linklyStep !== 'idle' && (
+              <View style={[styles.eftposInstructions, { marginTop: 12 }]}>
+                {(linklyStep === 'initiating' || linklyStep === 'waiting') && (
+                  <>
+                    <ActivityIndicator size="large" color={BLUE} />
+                    <Text style={styles.eftposText}>{linklyText || 'Connecting…'}</Text>
+                    <Text style={styles.eftposSubText}>Present card or device to the terminal</Text>
+                    <TouchableOpacity onPress={handleLinklyCancel} style={[styles.presetBtn, { borderColor: '#FECACA', backgroundColor: '#FFF1F2' }]} activeOpacity={0.75}>
+                      <Text style={[styles.presetBtnText, { color: CHERRY }]}>Cancel Transaction</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-
-                {/* Split numpad */}
-                {method === 'split' && (
-                  <View>
-                    <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Cash Component</Text>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                      {[5, 10, 20, 50].filter(d => d * 100 < chargeTotalCents).map(d => (
-                        <Pressable key={d} onPress={() => setSplitCashDollars(String(d))} style={styles.presetBtn}>
-                          <Text style={styles.presetBtnText}>${d}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                    <View style={styles.tenderedDisplay}><Text style={styles.tenderedText}>${splitCashDollars || '0'}</Text></View>
-                    <View style={{ flexDirection: 'row', gap: 10, marginVertical: 12 }}>
-                      <View style={[styles.splitAmountBox, { borderColor: '#16A34A33', backgroundColor: '#ECFDF5' }]}>
-                        <Feather name="dollar-sign" size={13} color="#16A34A" />
-                        <Text style={{ fontSize: 13, color: '#16A34A', fontWeight: '600' }}>Cash: {fmtCents(splitCashCents)}</Text>
-                      </View>
-                      <View style={[styles.splitAmountBox, { borderColor: `${BLUE}33`, backgroundColor: '#EFF6FF' }]}>
-                        <Feather name="credit-card" size={13} color={BLUE} />
-                        <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>EFTPOS: {fmtCents(splitEftposCents)}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.numpad}>
-                      {['7','8','9','4','5','6','1','2','3','.','0','backspace'].map(k => (
-                        <Pressable key={k} onPress={() => handleKeypad(k, setSplitCashDollars, splitCashDollars)} style={styles.numpadKey}>
-                          {k === 'backspace' ? <Feather name="delete" size={20} color={DARK} /> : <Text style={styles.numpadKeyText}>{k}</Text>}
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
+                {linklyStep === 'approved' && (
+                  <>
+                    <Feather name="check-circle" size={40} color="#16A34A" />
+                    <Text style={[styles.eftposText, { color: '#16A34A' }]}>Payment Approved</Text>
+                  </>
                 )}
-
-                {/* EFTPOS / Linkly */}
-                {method === 'eftpos' && (
-                  <View style={styles.eftposInstructions}>
-                    {linklyStep === 'idle' && (
-                      <>
-                        <Feather name="credit-card" size={32} color={BLUE} />
-                        <Text style={styles.eftposText}>Ready for EFTPOS</Text>
-                        <Text style={styles.eftposSubText}>Tap "Confirm EFTPOS" to send to terminal</Text>
-                      </>
-                    )}
-                    {(linklyStep === 'initiating' || linklyStep === 'waiting') && (
-                      <>
-                        <ActivityIndicator size="large" color={BLUE} />
-                        <Text style={styles.eftposText}>{linklyText || 'Connecting…'}</Text>
-                        <Text style={styles.eftposSubText}>Present card or device to the terminal</Text>
-                        <TouchableOpacity onPress={handleLinklyCancel} style={[styles.presetBtn, { borderColor: '#FECACA', backgroundColor: '#FFF1F2' }]} activeOpacity={0.75}>
-                          <Text style={[styles.presetBtnText, { color: CHERRY }]}>Cancel Transaction</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                    {linklyStep === 'approved' && (
-                      <>
-                        <Feather name="check-circle" size={40} color="#16A34A" />
-                        <Text style={[styles.eftposText, { color: '#16A34A' }]}>Payment Approved</Text>
-                      </>
-                    )}
-                    {linklyStep === 'declined' && (
-                      <>
-                        <Feather name="x-circle" size={40} color={CHERRY} />
-                        <Text style={[styles.eftposText, { color: CHERRY }]}>Payment Declined</Text>
-                        {!!linklyText && <Text style={styles.eftposSubText}>{linklyText}</Text>}
-                        <TouchableOpacity onPress={() => { setLinklyStep('idle'); setLinklyText(''); }} style={styles.presetBtn} activeOpacity={0.75}>
-                          <Text style={styles.presetBtnText}>Try Again</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-                  </View>
+                {linklyStep === 'declined' && (
+                  <>
+                    <Feather name="x-circle" size={40} color={CHERRY} />
+                    <Text style={[styles.eftposText, { color: CHERRY }]}>Payment Declined</Text>
+                    {!!linklyText && <Text style={styles.eftposSubText}>{linklyText}</Text>}
+                    <TouchableOpacity onPress={() => { setLinklyStep('idle'); setLinklyText(''); }} style={styles.presetBtn} activeOpacity={0.75}>
+                      <Text style={styles.presetBtnText}>Try Again</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
               </View>
             )}
+
           </ScrollView>
 
+          {/* ── Footer: confirm button ── */}
           <View style={styles.sheetFooter}>
-            {step === 'method' && (
-              <TouchableOpacity onPress={() => setStep('confirm')} style={styles.addToOrderBtn} activeOpacity={0.85}>
-                <Text style={styles.addToOrderBtnText}>Next: Confirm →</Text>
+            {loading || isLinklyBusy ? (
+              <View style={[styles.addToOrderBtn, { justifyContent: 'center' }]}>
+                <ActivityIndicator color={WHITE} />
+              </View>
+            ) : method === 'eftpos' && linklyStep === 'idle' ? (
+              <TouchableOpacity onPress={handleConfirm} style={styles.addToOrderBtn} activeOpacity={0.85}>
+                <Feather name="credit-card" size={17} color={WHITE} />
+                <Text style={styles.addToOrderBtnText}>Confirm EFTPOS · {fmtCents(chargeTotalCents)}</Text>
               </TouchableOpacity>
-            )}
-            {step === 'confirm' && (
-              <>
-                {loading || isLinklyBusy ? (
-                  <View style={[styles.addToOrderBtn, { justifyContent: 'center' }]}>
-                    <ActivityIndicator color={WHITE} />
-                  </View>
-                ) : method === 'eftpos' && linklyStep === 'idle' ? (
-                  <TouchableOpacity onPress={handleConfirm} style={styles.addToOrderBtn} activeOpacity={0.85}>
-                    <Feather name="credit-card" size={17} color={WHITE} />
-                    <Text style={styles.addToOrderBtnText}>Confirm EFTPOS · {fmtCents(chargeTotalCents)}</Text>
-                  </TouchableOpacity>
-                ) : method === 'cash' ? (
-                  <TouchableOpacity onPress={handleConfirm} style={[styles.addToOrderBtn, !cashOk && { opacity: 0.5 }]} disabled={!cashOk || loading} activeOpacity={0.85}>
-                    <Text style={styles.addToOrderBtnText}>Confirm Cash · {fmtCents(chargeTotalCents)}</Text>
-                  </TouchableOpacity>
-                ) : method === 'split' ? (
-                  <TouchableOpacity onPress={handleConfirm} style={[styles.addToOrderBtn, !splitOk && { opacity: 0.5 }]} disabled={!splitOk || loading} activeOpacity={0.85}>
-                    <Text style={styles.addToOrderBtnText}>Confirm Split · {fmtCents(chargeTotalCents)}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </>
-            )}
+            ) : method === 'cash' ? (
+              <TouchableOpacity onPress={handleConfirm} style={[styles.addToOrderBtn, !cashOk && { opacity: 0.5 }]} disabled={!cashOk || loading} activeOpacity={0.85}>
+                <Feather name="dollar-sign" size={17} color={WHITE} />
+                <Text style={styles.addToOrderBtnText}>Confirm Cash · {fmtCents(chargeTotalCents)}</Text>
+              </TouchableOpacity>
+            ) : method === 'split' ? (
+              <TouchableOpacity onPress={handleConfirm} style={[styles.addToOrderBtn, !splitOk && { opacity: 0.5 }]} disabled={!splitOk || loading} activeOpacity={0.85}>
+                <Feather name="git-branch" size={17} color={WHITE} />
+                <Text style={styles.addToOrderBtnText}>Confirm Split · {fmtCents(chargeTotalCents)}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </KeyboardAvoidingView>
