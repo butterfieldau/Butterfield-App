@@ -973,6 +973,7 @@ interface Confirmation {
   type: string;
   scheduledLabel?: string;
   paymentMethodType?: string;
+  isScheduled?: boolean;
 }
 
 type ConfettiPiece = {
@@ -1376,7 +1377,7 @@ function CartContent() {
       qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const serverTotal = order.data.totalCents ?? totalCents;
-      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType });
+      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType, isScheduled: (order.data as any).status === 'scheduled' });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
     } finally {
@@ -1445,9 +1446,11 @@ function CartContent() {
                     Order Number: <Text style={styles.successOrderStrong}>{orderShortId}</Text>
                   </Text>
                   <Text style={styles.successDescription}>
-                    {confirmation.paymentMethodType === 'pay_at_pickup'
-                      ? 'Your order is locked in. Please pay at pickup and check My Orders for live updates.'
-                      : 'Your order was placed successfully. Go to My Orders any time to check the live status.'}
+                    {confirmation.isScheduled
+                      ? `Your order has been placed and is awaiting confirmation for ${confirmation.scheduledLabel?.replace('Delivery on ', '') ?? 'your selected delivery date'}. You'll receive a push notification once confirmed.`
+                      : confirmation.paymentMethodType === 'pay_at_pickup'
+                        ? 'Your order is locked in. Please pay at pickup and check My Orders for live updates.'
+                        : 'Your order was placed successfully. Go to My Orders any time to check the live status.'}
                   </Text>
                 </View>
                 <View style={styles.successSummaryCard}>
@@ -1473,8 +1476,8 @@ function CartContent() {
                   <View style={styles.successDivider} />
                   <View style={styles.successSummaryBottom}>
                     <View style={styles.successStatusRow}>
-                      <Feather name="package" size={14} color="#A35A00" />
-                      <Text style={styles.successStatusText}>Being prepared</Text>
+                      <Feather name={confirmation.isScheduled ? 'clock' : 'package'} size={14} color="#A35A00" />
+                      <Text style={styles.successStatusText}>{confirmation.isScheduled ? 'Awaiting confirmation' : 'Being prepared'}</Text>
                     </View>
                     <Text style={styles.successDateText}>{placedLabel}</Text>
                   </View>

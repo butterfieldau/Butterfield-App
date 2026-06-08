@@ -437,6 +437,7 @@ export const api = {
     deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),
     restoreAccount:      (id: string) => request<{ success: boolean; data: DeletedAccount }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
     orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
+    acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
     staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`),

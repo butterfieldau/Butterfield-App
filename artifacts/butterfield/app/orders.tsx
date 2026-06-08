@@ -36,6 +36,8 @@ const STATUS_LABEL: Record<string, string> = {
   completed:        'Collected',
   cancelled:        'Cancelled',
   refunded:         'Refunded',
+  scheduled:        'Awaiting Confirmation',
+  accepted:         'Delivery Confirmed',
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -46,6 +48,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   completed:        { bg: '#F3F4F6', text: '#6B7280' },
   cancelled:        { bg: '#FEE2E2', text: '#991B1B' },
   refunded:         { bg: '#FEE2E2', text: '#991B1B' },
+  scheduled:        { bg: '#FEF3C7', text: '#92400E' },
+  accepted:         { bg: '#DCFCE7', text: '#166534' },
 };
 
 const STAGE_COLOR: Record<string, string> = {
@@ -55,6 +59,8 @@ const STAGE_COLOR: Record<string, string> = {
   completed:        '#6B7280',
   cancelled:        '#EF4444',
   refunded:         '#EF4444',
+  scheduled:        '#F59E0B',
+  accepted:         '#22C55E',
 };
 
 const STAGES_PICKUP = [
@@ -70,7 +76,7 @@ const STAGES_DELIVERY = [
   { key: 'completed',         label: 'Delivered',        icon: 'star'         as const, desc: 'Your order has been delivered. Enjoy!' },
 ];
 
-const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery'];
+const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'scheduled', 'accepted'];
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -297,7 +303,27 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
               </View>
             )}
             {/* ── Progress pipeline ─────────────────────────────────────── */}
-            {!isCancelled ? (
+            {status === 'scheduled' ? (
+              <View style={[d.card, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Feather name="clock" size={18} color="#92400E" />
+                  <Text style={[d.sectionTitle, { color: '#92400E' }]}>Awaiting Confirmation</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: '#92400E', opacity: 0.85, fontWeight: '400', lineHeight: 18 }}>
+                  Your delivery order has been placed. We'll confirm your delivery slot shortly and you'll receive a notification once it's accepted.
+                </Text>
+              </View>
+            ) : status === 'accepted' ? (
+              <View style={[d.card, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <Feather name="check-circle" size={18} color="#166534" />
+                  <Text style={[d.sectionTitle, { color: '#166534' }]}>Delivery Confirmed</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: '#166534', opacity: 0.85, fontWeight: '400', lineHeight: 18 }}>
+                  Your delivery has been confirmed! We'll start preparing your order closer to the scheduled date.
+                </Text>
+              </View>
+            ) : !isCancelled ? (
               <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Text style={d.sectionTitle}>Order progress</Text>
                 <View style={{ marginTop: 8 }}>
@@ -361,6 +387,7 @@ function OrderCard({ order, onPress }: { order: ApiOrder; onPress: () => void })
   useEffect(() => {
     const to = order.status === 'completed' ? 1
              : order.status === 'cancelled' || order.status === 'refunded' ? 0.15
+             : order.status === 'accepted' ? 0.45
              : order.status === 'ready_for_pickup' ? 0.85
              : order.status === 'being_prepared' ? 0.55 : 0.25;
     Animated.timing(progress, { toValue: to, duration: 700, useNativeDriver: false }).start();

@@ -211,13 +211,24 @@ router.post('/', async (req, res) => {
   const pointsEarned = Math.floor(authorativeTotalCents / 100);
   let order!: typeof ordersTable.$inferSelect;
   const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free' || stripePaymentStatus === 'pay_at_pickup';
+
+  // Detect if this is a future-date delivery (scheduled for a day beyond today in Sydney time)
+  const isFutureDelivery = (() => {
+    if (resolvedOrderType !== 'delivery' || !scheduledFor) return false;
+    const syd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const todaySyd = new Date(syd.getFullYear(), syd.getMonth(), syd.getDate());
+    const deliverySyd = new Date(new Date(scheduledFor).toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const deliveryDay = new Date(deliverySyd.getFullYear(), deliverySyd.getMonth(), deliverySyd.getDate());
+    return deliveryDay > todaySyd;
+  })();
+
   try {
     await db.transaction(async (tx) => {
       const [inserted] = await tx.insert(ordersTable).values({
         id: orderId,
         orderNumber,
         userId: req.user!.id,
-        status: 'received',
+        status: isFutureDelivery ? ('scheduled' as any) : 'received',
         type: resolvedOrderType,
         storeId: resolvedStoreId,
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
@@ -321,20 +332,40 @@ router.post('/', async (req, res) => {
 
   // ── Notify staff and customer of the new order ────────────────────────────
   const itemCount = Array.isArray(items) ? items.length : 1;
-  void sendNotificationToInternalTeam(
-    'new_order',
-    'New Order In',
-    `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
-    { orderId, screen: '/(staff)/orders' },
-  ).catch((err) => req.log.warn({ err, orderId }, 'Internal order notification failed'));
+  if (isFutureDelivery) {
+    const deliveryDateLabel = new Date(scheduledFor!).toLocaleDateString('en-AU', {
+      timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short',
+    });
+    void sendNotificationToInternalTeam(
+      'new_scheduled_order',
+      'Scheduled Delivery Order',
+      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · Delivery ${deliveryDateLabel} — needs acceptance`,
+      { orderId, screen: '/(director)/orders', filter: 'scheduled' },
+    ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order internal notification failed'));
 
-  void notifyUser(
-    req.user!.id,
-    'order_confirmed',
-    'Order Received',
-    'We\'ve got your order and will have it ready soon!',
-    { orderId, screen: '/(customer)/orders' },
-  ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
+    void notifyUser(
+      req.user!.id,
+      'order_scheduled',
+      'Order Placed',
+      `Your delivery for ${deliveryDateLabel} has been placed and is awaiting confirmation.`,
+      { orderId, screen: '/(customer)/orders' },
+    ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order customer notification failed'));
+  } else {
+    void sendNotificationToInternalTeam(
+      'new_order',
+      'New Order In',
+      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
+      { orderId, screen: '/(staff)/orders' },
+    ).catch((err) => req.log.warn({ err, orderId }, 'Internal order notification failed'));
+
+    void notifyUser(
+      req.user!.id,
+      'order_confirmed',
+      'Order Received',
+      'We\'ve got your order and will have it ready soon!',
+      { orderId, screen: '/(customer)/orders' },
+    ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
+  }
 
   return res.status(201).json({ data: order });
 });
@@ -345,7 +376,7 @@ router.patch(
   requireRole('staff', 'director', 'manager', 'master'),
   async (req, res) => {
     const { status } = req.body;
-    const validStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'refunded'];
+    const validStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'refunded', 'scheduled', 'accepted'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }

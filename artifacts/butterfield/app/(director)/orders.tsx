@@ -43,6 +43,8 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   processing:       { bg: '#FEF3C7', text: '#92400E' },
   dispatched:       { bg: '#EDE9FE', text: '#5B21B6' },
   delivered:        { bg: '#DCFCE7', text: '#166534' },
+  scheduled:        { bg: '#FEF3C7', text: '#92400E' },
+  accepted:         { bg: '#DCFCE7', text: '#166534' },
 };
 const STATUS_LABEL: Record<string, string> = {
   received: 'Pending', being_prepared: 'Preparing',
@@ -50,6 +52,7 @@ const STATUS_LABEL: Record<string, string> = {
   completed: 'Completed', cancelled: 'Cancelled', refunded: 'Refunded',
   pending: 'Pending', processing: 'Processing',
   dispatched: 'Dispatched', delivered: 'Delivered',
+  scheduled: 'Scheduled', accepted: 'Confirmed',
 };
 const CUSTOMER_NEXT: Record<string, string[]> = {
   received:         ['being_prepared', 'cancelled'],
@@ -57,6 +60,8 @@ const CUSTOMER_NEXT: Record<string, string[]> = {
   ready_for_pickup: ['being_prepared', 'out_for_delivery', 'completed', 'cancelled'],
   out_for_delivery: ['ready_for_pickup', 'completed', 'cancelled'],
   completed: [], cancelled: [], refunded: [],
+  scheduled:        ['accepted', 'cancelled'],
+  accepted:         ['being_prepared', 'cancelled'],
 };
 const WHOLESALE_NEXT: Record<string, string[]> = {
   pending:    ['processing', 'cancelled'],
@@ -68,6 +73,7 @@ const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const FILTER_TABS = [
   { key: 'all',              label: 'All' },
   { key: 'active',           label: 'Active' },
+  { key: 'scheduled_all',    label: 'Scheduled' },
   { key: 'received',         label: 'Pending' },
   { key: 'being_prepared',   label: 'Preparing' },
   { key: 'ready_for_pickup', label: 'Ready' },
@@ -129,9 +135,10 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Something went wrong.';
 }
 // ── Order Detail Modal ────────────────────────────────────────────────────────
-function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintReceipt, onViewInvoice, printing, canCancelRefund }: {
+function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund }: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string, cancelReason?: string) => Promise<void>;
+  onAcceptOrder: (id: string) => Promise<void>;
   onPrintReceipt: () => Promise<void>;
   onViewInvoice: () => Promise<void>;
   printing: boolean;
@@ -139,6 +146,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReasonText, setCancelReasonText] = useState('');
   const [pendingStatus, setPendingStatus] = useState('');
@@ -226,6 +234,59 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onPrintRece
           <View style={{ width: 36 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+          {/* Scheduled acceptance banner */}
+          {order.status === 'scheduled' && (
+            <View style={{ backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FDE68A', gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="clock" size={16} color="#92400E" />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#92400E', flex: 1 }}>
+                  Awaiting Acceptance
+                </Text>
+              </View>
+              {order.scheduledFor && (
+                <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '400' }}>
+                  Delivery scheduled for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </Text>
+              )}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  Alert.alert(
+                    'Accept Order',
+                    'Confirm this delivery order and notify the customer?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Accept',
+                        onPress: () => {
+                          setAccepting(true);
+                          onAcceptOrder(order.id).finally(() => setAccepting(false));
+                        },
+                      },
+                    ],
+                  );
+                }}
+                disabled={accepting}
+                style={{ backgroundColor: accepting ? MUTED : '#F59E0B', borderRadius: 10, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                {accepting
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <>
+                      <Feather name="check-circle" size={14} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Accept & Confirm Delivery</Text>
+                    </>}
+              </Pressable>
+            </View>
+          )}
+          {/* Accepted indicator */}
+          {order.status === 'accepted' && order.scheduledFor && (
+            <View style={{ backgroundColor: '#DCFCE7', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#86EFAC', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="check-circle" size={16} color="#166534" />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534', flex: 1 }}>
+                Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </Text>
+            </View>
+          )}
           {/* Status + change button */}
           <View style={[styles.section, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
             <View>
@@ -595,6 +656,12 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onP
             </View>
           );
         })()}
+        {order.status === 'scheduled' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <Feather name="clock" size={11} color="#92400E" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>Needs Acceptance</Text>
+          </View>
+        )}
         <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }]} numberOfLines={1}>
           {itemSummary || 'No items'}
         </Text>
@@ -819,6 +886,9 @@ export default function DirectorOrdersScreen() {
     if (filter === 'all') return allOrders;
     if (filter === 'active') return allOrders.filter((o) =>
       ['received','being_prepared','ready_for_pickup','pending','processing','dispatched'].includes(o.status)
+    );
+    if (filter === 'scheduled_all') return allOrders.filter((o) =>
+      ['scheduled','accepted'].includes(o.status)
     );
     if (filter === 'wholesale') return allOrders.filter((o) => o.orderSource === 'wholesale');
     return allOrders.filter((o) => o.status === filter);
@@ -1053,6 +1123,17 @@ export default function DirectorOrdersScreen() {
         visible={!!selectedOrder}
         onClose={() => setSelectedOrder(null)}
         onStatusChange={handleStatusChange}
+        onAcceptOrder={async (orderId) => {
+          try {
+            await api.director.acceptOrder(orderId);
+            await qc.invalidateQueries({ queryKey: ['director-orders'] });
+            await qc.invalidateQueries({ queryKey: ['director-stats'] });
+            setSelectedOrder((prev) => prev ? { ...prev, status: 'accepted' } : null);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch (error) {
+            Alert.alert('Error', getErrorMessage(error));
+          }
+        }}
         onPrintReceipt={() => selectedOrder ? printOrder(selectedOrder) : Promise.resolve()}
         onViewInvoice={() => selectedOrder ? handleViewInvoice(selectedOrder) : Promise.resolve()}
         printing={printingOrderId === selectedOrder?.id}

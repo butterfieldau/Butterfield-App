@@ -339,10 +339,46 @@ router.get('/orders', async (req, res) => {
   return res.json({ data: all });
 });
 
+router.post('/orders/:id/accept', async (req, res) => {
+  const { id } = req.params;
+
+  const [order] = await db
+    .select()
+    .from(ordersTable)
+    .where(eq(ordersTable.id, id));
+
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+  if (order.status !== ('scheduled' as any)) {
+    return res.status(400).json({ error: 'Only scheduled orders can be accepted.' });
+  }
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ status: 'accepted' as any, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  const deliveryLabel = order.scheduledFor
+    ? new Date(order.scheduledFor).toLocaleDateString('en-AU', {
+        timeZone: 'Australia/Sydney', weekday: 'long', day: 'numeric', month: 'long',
+      })
+    : 'the scheduled date';
+
+  notifyUser(
+    order.userId,
+    'order_accepted',
+    'Delivery Confirmed',
+    `Your delivery on ${deliveryLabel} has been confirmed. We'll start preparing it on the day.`,
+    { orderId: id, status: 'accepted', screen: '/(customer)/orders' },
+  ).catch(() => {});
+
+  return res.json({ data: updated });
+});
+
 router.patch('/orders/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status, cancelReason } = req.body;
-  const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded'];
+  const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded','scheduled','accepted'];
   const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
 
   // Cancelling or refunding is director/master only — managers cannot do this
@@ -358,6 +394,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     completed:        'Your order is complete. Thanks for visiting! 🍪',
     cancelled:        'Your order has been cancelled. A refund has been initiated where applicable.',
     refunded:         'Your order has been refunded.',
+    accepted:         'Your scheduled delivery has been confirmed. We\'ll prepare it on the day.',
   };
   const WHOLESALE_STATUS_MSG: Record<string, string> = {
     processing: 'Your wholesale order is being processed.',

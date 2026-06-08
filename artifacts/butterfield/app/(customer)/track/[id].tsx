@@ -19,6 +19,7 @@ const STAGES = [
 ];
 
 const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup'];
+const SCHEDULED_STATUSES = ['scheduled', 'accepted'];
 
 const STATUS_COLOR: Record<string, string> = {
   received:         '#F59E0B',
@@ -27,6 +28,8 @@ const STATUS_COLOR: Record<string, string> = {
   completed:        '#6B7280',
   cancelled:        '#EF4444',
   refunded:         '#EF4444',
+  scheduled:        '#F59E0B',
+  accepted:         '#22C55E',
 };
 
 function getStageIndex(status: string): number {
@@ -103,7 +106,7 @@ export default function TrackOrderScreen() {
     queryFn: () => api.orders.get(id),
     refetchInterval: (query) => {
       const status = query.state.data?.data?.status;
-      return ACTIVE_STATUSES.includes(status ?? '') ? 10000 : false;
+      return (ACTIVE_STATUSES.includes(status ?? '') || SCHEDULED_STATUSES.includes(status ?? '')) ? 10000 : false;
     },
     retry: 1,
   });
@@ -113,9 +116,16 @@ export default function TrackOrderScreen() {
   const stageIndex = getStageIndex(status);
   const isCancelled = status === 'cancelled' || status === 'refunded';
   const isActive = ACTIVE_STATUSES.includes(status);
+  const isScheduledPending = SCHEDULED_STATUSES.includes(status);
   const total = ((order?.totalCents ?? 0) / 100).toFixed(2);
   const statusColor = STATUS_COLOR[status] ?? colors.primary;
   const currentStage = STAGES[stageIndex];
+
+  const scheduledDeliveryLabel = order?.scheduledFor
+    ? new Date(order.scheduledFor).toLocaleDateString('en-AU', {
+        weekday: 'long', day: 'numeric', month: 'long',
+      })
+    : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -166,6 +176,30 @@ export default function TrackOrderScreen() {
             )}
           </View>
 
+          {/* Scheduled / Accepted status cards */}
+          {status === 'scheduled' && scheduledDeliveryLabel && (
+            <View style={[styles.liveCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="clock" size={14} color="#92400E" />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E' }}>Awaiting Confirmation</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '400', lineHeight: 17 }}>
+                Your delivery for <Text style={{ fontWeight: '700' }}>{scheduledDeliveryLabel}</Text> is awaiting confirmation from the team. You'll be notified once it's accepted.
+              </Text>
+            </View>
+          )}
+          {status === 'accepted' && scheduledDeliveryLabel && (
+            <View style={[styles.liveCard, { backgroundColor: '#DCFCE7', borderColor: '#86EFAC', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="check-circle" size={14} color="#166534" />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>Delivery Confirmed</Text>
+              </View>
+              <Text style={{ fontSize: 12, color: '#166534', fontWeight: '400', lineHeight: 17 }}>
+                Your delivery on <Text style={{ fontWeight: '700' }}>{scheduledDeliveryLabel}</Text> is confirmed. We'll start preparing it on the day.
+              </Text>
+            </View>
+          )}
+
           {/* Live message */}
           {isActive && currentStage && (
             <View style={[styles.liveCard, { backgroundColor: `${statusColor}12`, borderColor: `${statusColor}30` }]}>
@@ -175,7 +209,7 @@ export default function TrackOrderScreen() {
           )}
 
           {/* Pipeline */}
-          {!isCancelled ? (
+          {!isCancelled && !isScheduledPending ? (
             <View style={[styles.pipelineCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Order Progress</Text>
               <View style={{ marginTop: 8, gap: 0 }}>
@@ -184,7 +218,7 @@ export default function TrackOrderScreen() {
                 ))}
               </View>
             </View>
-          ) : (
+          ) : !isCancelled && isScheduledPending ? null : (
             <View style={[styles.pipelineCard, { backgroundColor: '#FFF1F0', borderColor: '#FECACA' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Feather name="x-circle" size={20} color="#EF4444" />

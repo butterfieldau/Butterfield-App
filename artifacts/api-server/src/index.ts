@@ -6,6 +6,8 @@ import { ensureScheduledNotificationSchemaReady } from "./lib/ensureScheduledNot
 import { ensureRegisterSchemaReady } from "./lib/registers.js";
 import { startScheduledNotificationsService } from "./lib/scheduledNotifications.js";
 import { startShiftReminderService } from "./lib/shiftReminderService.js";
+import { ensureScheduledOrderSchemaReady } from "./lib/ensureScheduledOrderSchemaReady.js";
+import { startScheduledDeliveryAlertService } from "./lib/scheduledDeliveryAlert.js";
 import { db, productCategoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -102,6 +104,8 @@ Promise.resolve()
   .then(() => initStripe())
   .then(() => startScheduledNotificationsService())
   .then(() => startShiftReminderService())
+  .then(() => ensureScheduledOrderSchemaReady())
+  .then(() => startScheduledDeliveryAlertService())
   .catch((err: any) => {
     logger.warn({ err: err?.message }, 'Background startup task failed');
   });
