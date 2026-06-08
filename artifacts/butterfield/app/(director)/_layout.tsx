@@ -16,7 +16,7 @@ const BG_STAFF = '#EFF6FF';
 
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',         title: 'Dashboard' },
-  orders:   { icon: 'shopping-bag', title: 'Orders'    },
+  orders:   { icon: 'shopping-bag', title: 'App Sales' },
   products: { icon: 'package',      title: 'Products'  },
   scan:     { icon: 'maximize',     title: 'Scan'      },
   staffhub: { icon: 'users',        title: 'Staff Hub' },
@@ -128,7 +128,7 @@ export default function DirectorLayout() {
         >
           <Tabs.Screen name="pos"      options={{ title: 'POS', href: null }} />
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
-          <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
+          <Tabs.Screen name="orders"   options={{ title: 'App Sales' }} />
           <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff ? undefined : null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
           <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub' }} />
@@ -188,7 +188,7 @@ export default function DirectorLayout() {
           options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
         <Tabs.Screen name="orders"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.orders)}
-          options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
+          options={{ title: 'App Sales', tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
         <Tabs.Screen name="users"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.users)}
           options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
