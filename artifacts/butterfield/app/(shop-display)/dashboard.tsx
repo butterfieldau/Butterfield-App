@@ -64,6 +64,27 @@ function offsetDate(s: string, days: number) {
   return `${y}-${mo}-${da}`;
 }
 
+/** Move forward/back by whole calendar months, always landing on the 1st. */
+function offsetMonth(s: string, delta: number) {
+  const [y, m] = s.split('-').map(Number);
+  const result = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${result.getUTCFullYear()}-${String(result.getUTCMonth() + 1).padStart(2, '0')}-01`;
+}
+
+/** True when dateStr falls inside the current day/week/month (so Next should be disabled). */
+function isCurrentPeriod(dateStr: string, range: Range): boolean {
+  const today = todayString();
+  if (range === 'day') return dateStr === today;
+  if (range === 'month') return dateStr.slice(0, 7) === today.slice(0, 7);
+  // week: compare Monday of dateStr's week to Monday of today's week
+  const mondayOf = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+    return offsetDate(s, dow === 0 ? -6 : 1 - dow);
+  };
+  return mondayOf(dateStr) === mondayOf(today);
+}
+
 function formatDateLabel(date: string, range: Range) {
   const d = dateFromString(date);
   if (range === 'day') {
@@ -584,21 +605,34 @@ export default function DashboardScreen() {
   };
 
   const handlePrev = () => {
-    const days = range === 'day' ? -1 : range === 'week' ? -7 : -28;
-    setDate(d => offsetDate(d, days));
+    if (range === 'month') {
+      setDate(d => offsetMonth(d, -1));
+    } else {
+      const days = range === 'day' ? -1 : -7;
+      setDate(d => offsetDate(d, days));
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleNext = () => {
-    const days = range === 'day' ? 1 : range === 'week' ? 7 : 28;
-    const next = offsetDate(date, days);
-    if (next <= todayString()) {
-      setDate(next);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const today = todayString();
+    if (range === 'month') {
+      const next = offsetMonth(date, 1);
+      if (next.slice(0, 7) <= today.slice(0, 7)) {
+        setDate(next);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } else {
+      const days = range === 'day' ? 1 : 7;
+      const next = offsetDate(date, days);
+      if (next <= today) {
+        setDate(next);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
     }
   };
 
-  const isToday = date === todayString();
+  const atCurrentPeriod = isCurrentPeriod(date, range);
   const pb = layoutHandled ? 0 : insets.bottom;
 
   return (
@@ -697,20 +731,20 @@ export default function DashboardScreen() {
             <Text style={styles.dateNavDate}>{dateFromString(date).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}</Text>
             <View style={styles.dateNavPickerHint}>
               <Feather name="calendar" size={10} color={BLUE} />
-              {isToday
+              {atCurrentPeriod
                 ? <Text style={styles.dateNavToday}>Today</Text>
                 : <Text style={[styles.dateNavToday, { color: MUTED }]}>Pick date</Text>
               }
             </View>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.dateNavBtn, isToday && styles.dateNavBtnDisabled]}
+            style={[styles.dateNavBtn, atCurrentPeriod && styles.dateNavBtnDisabled]}
             onPress={handleNext}
-            disabled={isToday}
+            disabled={atCurrentPeriod}
             activeOpacity={0.7}
           >
             <Text style={styles.dateNavBtnText}>Next</Text>
-            <Feather name="chevron-right" size={16} color={isToday ? MUTED : WHITE} />
+            <Feather name="chevron-right" size={16} color={atCurrentPeriod ? MUTED : WHITE} />
           </TouchableOpacity>
         </View>
       )}
