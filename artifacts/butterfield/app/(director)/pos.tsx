@@ -1861,7 +1861,9 @@ function PaymentModal({
 }) {
   const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline ? 'cash' : 'eftpos');
   const [tendered, setTendered] = useState('');
-  const [splitCashDollars, setSplitCashDollars] = useState('');
+  // Split: array of committed payment amounts (cents) + current input being typed
+  const [splitParts, setSplitParts] = useState<number[]>([]);
+  const [splitInput, setSplitInput] = useState('');
 
   // Linkly EFTPOS state
   const [linklyStep, setLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
@@ -1882,7 +1884,7 @@ function PaymentModal({
   const dayOfWeek = DAY_NAMES[new Date().getDay()]!;
   const applicableSurcharges = useMemo(() => surcharges.filter(s => {
     if (!s.isActive) return false;
-    const effectiveMethod = method === 'split' ? 'eftpos' : method;
+    const effectiveMethod = method === 'split' ? 'cash' : method;
     if (s.triggerType === 'payment_method') return s.triggerValue === effectiveMethod;
     if (s.triggerType === 'day_of_week') return s.triggerValue === dayOfWeek;
     return false;
@@ -1896,12 +1898,14 @@ function PaymentModal({
   [applicableSurcharges, totalCents]);
 
   const chargeTotalCents = totalCents + computedSurchargeCents;
-  const splitCashCents = Math.max(0, Math.round(parseFloat(splitCashDollars || '0') * 100));
-  const splitEftposCents = Math.max(0, chargeTotalCents - splitCashCents);
+  const splitCommittedCents = splitParts.reduce((s, p) => s + p, 0);
+  const splitCurrentCents = Math.round(parseFloat(splitInput || '0') * 100);
+  const splitRemainingCents = Math.max(0, chargeTotalCents - splitCommittedCents);
   const tenderedCents = Math.round(parseFloat(tendered || '0') * 100);
   const cashChangeCents = Math.max(0, tenderedCents - chargeTotalCents);
   const cashOk = method !== 'cash' || tenderedCents >= chargeTotalCents;
-  const splitOk = method !== 'split' || splitCashCents <= chargeTotalCents;
+  const splitOk = method !== 'split' || splitCommittedCents >= chargeTotalCents ||
+    (splitCurrentCents > 0 && splitCommittedCents + splitCurrentCents >= chargeTotalCents);
   const roundUpPresets = [5, 10, 20, 50, 100].filter(d => d * 100 >= chargeTotalCents).slice(0, 3);
 
   // Cleanup poll interval on unmount
@@ -1963,14 +1967,15 @@ function PaymentModal({
         onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents });
       });
     } else if (method === 'split') {
+      // Include current input as last part if it makes up the remainder
+      const finalParts = (splitCurrentCents > 0 && splitCommittedCents < chargeTotalCents)
+        ? [...splitParts, splitCurrentCents]
+        : splitParts;
       onConfirm({
         method: 'split',
-        amountTenderedCents: splitCashCents,
+        amountTenderedCents: finalParts.reduce((s, p) => s + p, 0),
         surchargeCents: computedSurchargeCents,
-        splitPayments: [
-          { method: 'cash', amountCents: splitCashCents },
-          { method: 'eftpos', amountCents: splitEftposCents },
-        ],
+        splitPayments: finalParts.map((a, i) => ({ method: 'cash' as const, amountCents: a, label: `Person ${i + 1}` })),
       });
     }
   };
@@ -2047,7 +2052,7 @@ function PaymentModal({
                 <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
               </Pressable>
               <Pressable
-                onPress={() => !isOnline ? undefined : setMethod('split')}
+                onPress={() => { if (!isOnline) return; setMethod('split'); setSplitParts([]); setSplitInput(''); }}
                 style={[styles.methodBtn, method === 'split' && styles.methodBtnActive, !isOnline && styles.methodBtnDisabled]}
               >
                 <Feather name="git-branch" size={16} color={method === 'split' ? WHITE : !isOnline ? MUTED : MID} />
@@ -2122,42 +2127,93 @@ function PaymentModal({
               </View>
             )}
 
-            {/* ── Split: two-column layout (info left | numpad right) ── */}
+            {/* ── Split: multi-party cash collection ── */}
             {method === 'split' && (
               <View style={{ marginTop: 8, flexDirection: 'row', gap: 10, alignItems: 'stretch' }}>
 
-                {/* Left column: cash display + split breakdown + presets */}
+                {/* Left column: committed parts list + shortcuts */}
                 <View style={{ flex: 1 }}>
-                  <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, flex: 1, marginBottom: 10 }}>
-                    <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 6 }}>CASH COMPONENT</Text>
-                    <Text style={{ fontSize: 34, color: WHITE, fontWeight: '800', letterSpacing: -1 }} numberOfLines={1} adjustsFontSizeToFit>
-                      {splitCashDollars ? `$${splitCashDollars}` : '$–'}
-                    </Text>
-                    {splitCashCents > 0 && (
-                      <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 12, gap: 6 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Feather name="dollar-sign" size={11} color="#4ADE80" />
-                          <Text style={{ fontSize: 12, color: '#4ADE80', fontWeight: '700' }}>Cash  {fmtCents(splitCashCents)}</Text>
+                  {/* Parts list card */}
+                  <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 14, flex: 1, marginBottom: 10 }}>
+                    <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 10 }}>SPLIT PAYMENTS</Text>
+
+                    {/* Committed parts */}
+                    {splitParts.map((amt, i) => (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                          <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#4ADE80', alignItems: 'center', justifyContent: 'center' }}>
+                            <Feather name="check" size={10} color="#0F172A" />
+                          </View>
+                          <Text style={{ fontSize: 13, color: '#94A3B8', fontWeight: '500' }}>Person {i + 1}</Text>
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Feather name="credit-card" size={11} color={MUTED} />
-                          <Text style={{ fontSize: 12, color: MUTED, fontWeight: '700' }}>EFTPOS  {fmtCents(splitEftposCents)}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontSize: 15, color: WHITE, fontWeight: '700' }}>{fmtCents(amt)}</Text>
+                          <Pressable onPress={() => setSplitParts(ps => ps.filter((_, j) => j !== i))} hitSlop={8}>
+                            <Feather name="x" size={14} color="#475569" />
+                          </Pressable>
                         </View>
                       </View>
+                    ))}
+
+                    {/* Current input row */}
+                    {splitRemainingCents > 0 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: splitParts.length > 0 ? 8 : 0, borderTopWidth: splitParts.length > 0 ? 1 : 0, borderTopColor: '#1E293B' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                          <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: '#475569' }} />
+                          <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500' }}>Person {splitParts.length + 1}</Text>
+                        </View>
+                        <Text style={{ fontSize: 15, color: splitCurrentCents > 0 ? WHITE : '#475569', fontWeight: '700' }}>
+                          {splitCurrentCents > 0 ? fmtCents(splitCurrentCents) : '—'}
+                        </Text>
+                      </View>
                     )}
+
+                    {/* Remaining */}
+                    <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ fontSize: 11, color: splitRemainingCents === 0 ? '#4ADE80' : MUTED, fontWeight: '700', letterSpacing: 0.5 }}>
+                        {splitRemainingCents === 0 ? '✓ FULLY PAID' : 'REMAINING'}
+                      </Text>
+                      {splitRemainingCents > 0 && (
+                        <Text style={{ fontSize: 18, color: WHITE, fontWeight: '800' }}>{fmtCents(splitRemainingCents)}</Text>
+                      )}
+                    </View>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-                    {[5, 10, 20, 50].filter(d => d * 100 < chargeTotalCents).map(d => (
-                      <Pressable key={d} onPress={() => setSplitCashDollars(String(d))} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
-                        <Text style={{ fontSize: 13, color: DARK, fontWeight: '700' }}>${d}</Text>
+
+                  {/* Equal-split shortcuts */}
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                    {[2, 3, 4, 5].map(n => (
+                      <Pressable
+                        key={n}
+                        onPress={() => setSplitInput((splitRemainingCents / n / 100).toFixed(2))}
+                        style={{ paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}
+                      >
+                        <Text style={{ fontSize: 12, color: MID, fontWeight: '700' }}>÷{n}</Text>
                       </Pressable>
                     ))}
-                    {splitCashDollars !== '' && (
-                      <Pressable onPress={() => setSplitCashDollars('')} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#FFF1F2', borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
-                        <Text style={{ fontSize: 13, color: CHERRY, fontWeight: '600' }}>Clear</Text>
+                    {splitRemainingCents > 0 && (
+                      <Pressable
+                        onPress={() => setSplitInput((splitRemainingCents / 100).toFixed(2))}
+                        style={{ paddingVertical: 8, paddingHorizontal: 11, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' }}
+                      >
+                        <Text style={{ fontSize: 12, color: BLUE, fontWeight: '700' }}>Remaining</Text>
                       </Pressable>
                     )}
                   </View>
+
+                  {/* Add part button */}
+                  {splitCurrentCents > 0 && splitRemainingCents > 0 && (
+                    <Pressable
+                      onPress={() => {
+                        const adding = Math.min(splitCurrentCents, splitRemainingCents);
+                        setSplitParts(ps => [...ps, adding]);
+                        setSplitInput('');
+                      }}
+                      style={{ backgroundColor: DARK, borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, borderWidth: 1, borderColor: '#334155' }}
+                    >
+                      <Feather name="plus-circle" size={15} color="#4ADE80" />
+                      <Text style={{ fontSize: 14, color: WHITE, fontWeight: '700' }}>Add {fmtCents(Math.min(splitCurrentCents, splitRemainingCents))}</Text>
+                    </Pressable>
+                  )}
                 </View>
 
                 {/* Right column: numpad */}
@@ -2167,7 +2223,7 @@ function PaymentModal({
                       {row.map(k => (
                         <Pressable
                           key={k}
-                          onPress={() => handleKeypad(k, setSplitCashDollars, splitCashDollars)}
+                          onPress={() => handleKeypad(k, setSplitInput, splitInput)}
                           style={({ pressed }) => ({
                             flex: 1, height: 62,
                             backgroundColor: pressed ? '#CBD5E1' : k === 'backspace' ? '#FFF1F2' : '#F1F5F9',
