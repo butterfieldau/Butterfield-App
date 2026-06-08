@@ -335,6 +335,25 @@ function PosScreenInner() {
     refetchInterval: 30_000,
   });
 
+  // ── Full sync (products + summary + settings + surcharges) ────────────────
+  const [syncingAll, setSyncingAll] = useState(false);
+  const syncAll = useCallback(async () => {
+    if (syncingAll) return;
+    setSyncingAll(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await Promise.all([
+        refetchProducts(),
+        refetchSummary(),
+        queryClient.invalidateQueries({ queryKey: ['pos-store-settings'] }),
+        queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] }),
+        queryClient.invalidateQueries({ queryKey: ['pos-loyalty-config'] }),
+      ]);
+    } finally {
+      setSyncingAll(false);
+    }
+  }, [syncingAll, refetchProducts, refetchSummary, queryClient]);
+
   // ── Store settings (for auto-print) ──────────────────────────────────────
   const isShopDisplay = user?.role === 'shop_display';
   const { data: storeData } = useQuery({
@@ -784,13 +803,14 @@ function PosScreenInner() {
           >
             <Feather name="search" size={16} color={showSearch ? BLUE : MID} />
           </Pressable>
-          {/* Sync products */}
+          {/* Sync everything */}
           <Pressable
-            onPress={() => refetchProducts()}
-            disabled={syncingProducts}
-            style={[styles.headerBtn, syncingProducts && { opacity: 0.5 }]}
+            onPress={syncAll}
+            disabled={syncingAll}
+            style={[styles.headerBtn, syncingAll && { opacity: 0.5 }]}
           >
-            <Feather name="refresh-cw" size={16} color={syncingProducts ? MUTED : MID} />
+            <Feather name="refresh-cw" size={16} color={syncingAll ? MUTED : MID} />
+            <Text style={styles.headerBtnText}>{syncingAll ? 'Syncing…' : 'Sync'}</Text>
           </Pressable>
           {/* POS Settings (PIN-gated) */}
           <Pressable onPress={() => setShowPinGate(true)} style={styles.headerBtn}>

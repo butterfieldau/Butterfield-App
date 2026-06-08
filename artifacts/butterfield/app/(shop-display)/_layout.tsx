@@ -176,21 +176,9 @@ export default function ShopDisplayLayout() {
               style={styles.sidebarLogo}
               resizeMode="contain"
             />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={styles.brandBadge}>
-                <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
-              </View>
-              <Pressable
-                onPress={syncing ? undefined : syncNow}
-                hitSlop={8}
-                style={[styles.sidebarSyncBtn, syncing && { opacity: 0.45 }]}
-              >
-                <Feather name="refresh-cw" size={13} color={syncing ? MUTED : BLUE} />
-              </Pressable>
+            <View style={styles.brandBadge}>
+              <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
             </View>
-            <Text style={styles.syncTimestamp} numberOfLines={1}>
-              {formatSyncTime(lastSyncedAt)}
-            </Text>
             <Text style={styles.brandSub} numberOfLines={1}>{user.name}</Text>
           </View>
 
@@ -233,9 +221,6 @@ export default function ShopDisplayLayout() {
             badgeColor={BLUE}
             backgroundColor={NAVY}
             onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
-            onSync={syncNow}
-            syncing={syncing}
-            syncLabel={syncing ? 'Syncing…' : 'Sync'}
           />
         )}
         <LayoutSafeAreaContext.Provider value={isWide}>
