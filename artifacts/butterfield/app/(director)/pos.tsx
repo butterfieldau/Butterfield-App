@@ -270,8 +270,6 @@ function PosScreenInner() {
   const [showHistory, setShowHistory]     = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [showSettings,  setShowSettings]  = useState(false);
-  const [showPinGate,   setShowPinGate]   = useState(false);
   const [discountPinGate, setDiscountPinGate] = useState<{
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
@@ -1239,12 +1237,6 @@ function PosScreenInner() {
       )}
 
       {/* ── POS Settings modal ─────────────────────────────────────────────── */}
-      {showPinGate && (
-        <PosPinModal
-          onClose={() => setShowPinGate(false)}
-          onSuccess={(_pin) => { setShowPinGate(false); setShowSettings(true); }}
-        />
-      )}
       {showRegister && (
         <RegisterModal
           visible={showRegister}
@@ -1255,7 +1247,8 @@ function PosScreenInner() {
           onCashMovement={(payload) => cashMovementMutation.mutate(payload)}
           onCloseRegister={(payload) => closeRegisterMutation.mutate(payload)}
           onToggleAutoClose={(enabled) => updateRegisterSettingsMutation.mutate(enabled)}
-          onOpenPosSettings={() => { setShowRegister(false); setShowPinGate(true); }}
+          discountPresets={discountPresets}
+          onChangePresets={saveDiscountPresets}
           onPrintSummary={async () => {
             if (!registerSession?.closedAt) return;
             await printRegisterReport(registerSession);
@@ -1296,13 +1289,6 @@ function PosScreenInner() {
               closeRegisterMutation.mutate({ ...prompt.payload, supervisorPin: pin });
             }
           }}
-        />
-      )}
-      {showSettings && (
-        <PosSettingsModal
-          discountPresets={discountPresets}
-          onChangePresets={saveDiscountPresets}
-          onClose={() => setShowSettings(false)}
         />
       )}
 
@@ -3411,7 +3397,8 @@ function RegisterModal({
   onCashMovement,
   onCloseRegister,
   onToggleAutoClose,
-  onOpenPosSettings,
+  discountPresets,
+  onChangePresets,
   onPrintSummary,
   busy,
 }: {
@@ -3423,10 +3410,12 @@ function RegisterModal({
   onCashMovement: (payload: { movementType: 'add' | 'remove'; amountCents: number; reason?: string }) => void;
   onCloseRegister: (payload: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string }) => void;
   onToggleAutoClose: (enabled: boolean) => void;
-  onOpenPosSettings: () => void;
+  discountPresets: number[];
+  onChangePresets: (presets: number[]) => void;
   onPrintSummary: () => Promise<void>;
   busy: boolean;
 }) {
+  const queryClient = useQueryClient();
   const session = data?.session ?? null;
   const summary = session?.summary;
   const [floatInput, setFloatInput] = useState('');
@@ -3436,6 +3425,87 @@ function RegisterModal({
   const [denomCounts, setDenomCounts] = useState<Record<number, string>>({});
   const [closeNote, setCloseNote] = useState('');
   const [varianceNote, setVarianceNote] = useState('');
+
+  // ── Discount Presets state ────────────────────────────────────────────────
+  const [localPresets, setLocalPresets] = React.useState<number[]>(discountPresets);
+  const [newPct, setNewPct] = React.useState('');
+  const [presetError, setPresetError] = React.useState<string | null>(null);
+
+  // Sync localPresets when parent discountPresets changes (e.g. on open)
+  React.useEffect(() => { setLocalPresets(discountPresets); }, [visible]);
+
+  const addPreset = () => {
+    const val = parseInt(newPct, 10);
+    if (!val || val < 1 || val > 99) { setPresetError('Enter 1–99'); return; }
+    if (localPresets.includes(val)) { setPresetError(`${val}% already exists`); return; }
+    setLocalPresets(prev => [...prev, val].sort((a, b) => a - b));
+    setNewPct('');
+    setPresetError(null);
+  };
+  const removePreset = (pct: number) => setLocalPresets(prev => prev.filter(p => p !== pct));
+  const savePresets = () => { onChangePresets(localPresets); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); };
+
+  // ── Surcharge state ───────────────────────────────────────────────────────
+  const [surchargeTab, setSurchargeTab] = React.useState<'list' | 'add'>('list');
+  const [newSurchargeName, setNewSurchargeName] = React.useState('');
+  const [newSurchargeTriggerType, setNewSurchargeTriggerType] = React.useState<'payment_method' | 'day_of_week'>('payment_method');
+  const [newSurchargeTriggerValue, setNewSurchargeTriggerValue] = React.useState('eftpos');
+  const [newSurchargeAmountType, setNewSurchargeAmountType] = React.useState<'pct_basis_points' | 'fixed_cents'>('pct_basis_points');
+  const [newSurchargeAmount, setNewSurchargeAmount] = React.useState('');
+  const [surchargeError, setSurchargeError] = React.useState<string | null>(null);
+
+  const { data: surchargesData, refetch: refetchSurcharges } = useQuery({
+    queryKey: ['pos-surcharges'],
+    queryFn: () => api.pos.surcharges(),
+    staleTime: 30_000,
+  });
+  const surcharges: PosSurcharge[] = (surchargesData as any)?.data ?? [];
+
+  const createSurchargeMutation = useMutation({
+    mutationFn: () => api.pos.createSurcharge({
+      name: newSurchargeName.trim(),
+      triggerType: newSurchargeTriggerType,
+      triggerValue: newSurchargeTriggerValue,
+      amountType: newSurchargeAmountType,
+      amountValue: Math.round(parseFloat(newSurchargeAmount || '0') * 100),
+    }),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
+      refetchSurcharges();
+      setSurchargeTab('list');
+      setNewSurchargeName('');
+      setNewSurchargeAmount('');
+      setSurchargeError(null);
+    },
+    onError: (err: any) => setSurchargeError(err?.message ?? 'Failed to create surcharge'),
+  });
+
+  const deleteSurchargeMutation = useMutation({
+    mutationFn: (id: string) => api.pos.deleteSurcharge(id),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
+      refetchSurcharges();
+    },
+  });
+
+  const toggleSurchargeMutation = useMutation({
+    mutationFn: (vars: { id: string; isActive: boolean }) => api.pos.updateSurcharge(vars.id, { isActive: vars.isActive }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] }); refetchSurcharges(); },
+  });
+
+  const handleAddSurcharge = () => {
+    if (!newSurchargeName.trim()) { setSurchargeError('Enter a name'); return; }
+    if (!newSurchargeAmount || parseFloat(newSurchargeAmount) <= 0) { setSurchargeError('Enter a valid amount'); return; }
+    setSurchargeError(null);
+    createSurchargeMutation.mutate();
+  };
+
+  const fmtSurchargeValue = (s: PosSurcharge) =>
+    s.amountType === 'pct_basis_points'
+      ? `${(s.amountValue / 100).toFixed(2)}%`
+      : fmtCents(s.amountValue);
 
   useEffect(() => {
     if (!visible || !session) return;
@@ -3461,9 +3531,7 @@ function RegisterModal({
             <Feather name="x" size={22} color={DARK} />
           </Pressable>
           <Text style={styles.sheetTitle}>Register</Text>
-          <Pressable onPress={onOpenPosSettings} hitSlop={12}>
-            <Feather name="sliders" size={18} color={MID} />
-          </Pressable>
+          <View style={{ width: 22 }} />
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
@@ -3757,6 +3825,204 @@ function RegisterModal({
                   </Pressable>
                 </View>
               </View>
+
+              {/* ── Quick Discount Presets ──────────────────────────────── */}
+              <View style={styles.registerSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={styles.sectionTitle}>Quick Discount Presets</Text>
+                  <Pressable
+                    onPress={savePresets}
+                    hitSlop={8}
+                    style={{ backgroundColor: BLUE, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: WHITE }}>Save</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.sectionSubtitle}>Percentage buttons shown on every ticket for fast discounting.</Text>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 12 }}>
+                  {localPresets.map(pct => (
+                    <View key={pct} style={styles.settingsPresetChip}>
+                      <Text style={styles.settingsPresetText}>{pct}%</Text>
+                      <Pressable onPress={() => removePreset(pct)} hitSlop={6} style={{ marginLeft: 6 }}>
+                        <Feather name="x" size={12} color={MID} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  {localPresets.length === 0 && (
+                    <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No presets — add one below</Text>
+                  )}
+                </View>
+
+                <View style={styles.settingsAddRow}>
+                  <TextInput
+                    style={styles.settingsAddInput}
+                    placeholder="e.g. 15"
+                    placeholderTextColor={MUTED}
+                    value={newPct}
+                    onChangeText={v => { setNewPct(v.replace(/[^0-9]/g, '')); setPresetError(null); }}
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    onSubmitEditing={addPreset}
+                    maxLength={2}
+                  />
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 4 }}>%</Text>
+                  <Pressable onPress={addPreset} style={styles.settingsAddBtn}>
+                    <Text style={styles.settingsAddBtnText}>Add</Text>
+                  </Pressable>
+                </View>
+                {presetError ? <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{presetError}</Text> : null}
+              </View>
+
+              {/* ── Payment Surcharges ──────────────────────────────────── */}
+              <View style={styles.registerSection}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={styles.sectionTitle}>Payment Surcharges</Text>
+                  <Pressable
+                    onPress={() => setSurchargeTab(surchargeTab === 'list' ? 'add' : 'list')}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    <Feather name={surchargeTab === 'list' ? 'plus' : 'list'} size={15} color={BLUE} />
+                    <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>{surchargeTab === 'list' ? 'Add' : 'List'}</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.sectionSubtitle}>Auto-applied based on payment method or day of week.</Text>
+
+                {surchargeTab === 'list' && (
+                  <View style={{ marginTop: 12, gap: 8 }}>
+                    {surcharges.length === 0 && (
+                      <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No surcharges configured.</Text>
+                    )}
+                    {surcharges.map(s => (
+                      <View key={s.id} style={styles.surchargeRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.surchargeRowName}>{s.name}</Text>
+                          <Text style={styles.surchargeRowMeta}>
+                            {s.triggerType === 'payment_method' ? s.triggerValue.toUpperCase() : s.triggerValue.charAt(0).toUpperCase() + s.triggerValue.slice(1)}
+                            {' · '}+{fmtSurchargeValue(s)}
+                            {' · '}{s.isActive ? '✓ Active' : 'Disabled'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => toggleSurchargeMutation.mutate({ id: s.id, isActive: !s.isActive })}
+                          style={[styles.surchargeToggle, s.isActive && styles.surchargeToggleActive]}
+                          hitSlop={8}
+                        >
+                          <Text style={[styles.surchargeToggleText, s.isActive && styles.surchargeToggleTextActive]}>
+                            {s.isActive ? 'On' : 'Off'}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => Alert.alert('Delete Surcharge', `Remove "${s.name}"?`, [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteSurchargeMutation.mutate(s.id) },
+                          ])}
+                          hitSlop={8}
+                          style={{ padding: 6, marginLeft: 4 }}
+                        >
+                          <Feather name="trash-2" size={15} color={CHERRY} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {surchargeTab === 'add' && (
+                  <View style={{ marginTop: 12, gap: 12 }}>
+                    <TextInput
+                      style={styles.surchargeNameInput}
+                      placeholder="Name (e.g. EFTPOS Surcharge)"
+                      placeholderTextColor={MUTED}
+                      value={newSurchargeName}
+                      onChangeText={setNewSurchargeName}
+                      returnKeyType="next"
+                    />
+
+                    <View>
+                      <Text style={[styles.sectionSubtitle, { marginBottom: 6 }]}>Trigger</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable
+                          onPress={() => { setNewSurchargeTriggerType('payment_method'); setNewSurchargeTriggerValue('eftpos'); }}
+                          style={[styles.surchargeChip, newSurchargeTriggerType === 'payment_method' && styles.surchargeChipActive]}
+                        >
+                          <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'payment_method' && { color: WHITE }]}>By Payment</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => { setNewSurchargeTriggerType('day_of_week'); setNewSurchargeTriggerValue('sunday'); }}
+                          style={[styles.surchargeChip, newSurchargeTriggerType === 'day_of_week' && styles.surchargeChipActive]}
+                        >
+                          <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'day_of_week' && { color: WHITE }]}>By Day</Text>
+                        </Pressable>
+                      </View>
+                      {newSurchargeTriggerType === 'payment_method' && (
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                          {['eftpos', 'cash'].map(v => (
+                            <Pressable key={v} onPress={() => setNewSurchargeTriggerValue(v)} style={[styles.surchargeChip, newSurchargeTriggerValue === v && styles.surchargeChipActive]}>
+                              <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === v && { color: WHITE }]}>{v.toUpperCase()}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                      {newSurchargeTriggerType === 'day_of_week' && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
+                              <Pressable key={d} onPress={() => setNewSurchargeTriggerValue(d)} style={[styles.surchargeChip, newSurchargeTriggerValue === d && styles.surchargeChipActive]}>
+                                <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === d && { color: WHITE }]}>{d.slice(0,3).toUpperCase()}</Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        </ScrollView>
+                      )}
+                    </View>
+
+                    <View>
+                      <Text style={[styles.sectionSubtitle, { marginBottom: 6 }]}>Amount Type</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <Pressable
+                          onPress={() => setNewSurchargeAmountType('pct_basis_points')}
+                          style={[styles.surchargeChip, newSurchargeAmountType === 'pct_basis_points' && styles.surchargeChipActive]}
+                        >
+                          <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'pct_basis_points' && { color: WHITE }]}>Percentage %</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => setNewSurchargeAmountType('fixed_cents')}
+                          style={[styles.surchargeChip, newSurchargeAmountType === 'fixed_cents' && styles.surchargeChipActive]}
+                        >
+                          <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'fixed_cents' && { color: WHITE }]}>Fixed $</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <View style={styles.settingsAddRow}>
+                      <TextInput
+                        style={styles.settingsAddInput}
+                        placeholder={newSurchargeAmountType === 'pct_basis_points' ? 'e.g. 1.5 (%)' : 'e.g. 0.50 ($)'}
+                        placeholderTextColor={MUTED}
+                        value={newSurchargeAmount}
+                        onChangeText={v => { setNewSurchargeAmount(v.replace(/[^0-9.]/g, '')); setSurchargeError(null); }}
+                        keyboardType="decimal-pad"
+                        returnKeyType="done"
+                      />
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 6 }}>
+                        {newSurchargeAmountType === 'pct_basis_points' ? '%' : 'AUD'}
+                      </Text>
+                    </View>
+                    {surchargeError ? <Text style={{ fontSize: 12, color: CHERRY }}>{surchargeError}</Text> : null}
+
+                    <TouchableOpacity
+                      onPress={handleAddSurcharge}
+                      style={[styles.settingsAddBtn, { paddingHorizontal: 24, alignSelf: 'flex-start' }]}
+                      disabled={createSurchargeMutation.isPending}
+                      activeOpacity={0.85}
+                    >
+                      {createSurchargeMutation.isPending
+                        ? <ActivityIndicator size="small" color={WHITE} />
+                        : <Text style={styles.settingsAddBtnText}>Add Surcharge</Text>}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </>
           )}
         </ScrollView>
@@ -4037,322 +4303,6 @@ function SupervisorPinCapture({ onClose, onSuccess, title, subtitle }: {
 }
 
 // ── POS Settings Modal ────────────────────────────────────────────────────────
-function PosSettingsModal({ discountPresets, onChangePresets, onClose }: {
-  discountPresets: number[];
-  onChangePresets: (presets: number[]) => void;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const { height: screenH } = useWindowDimensions();
-  const [localPresets, setLocalPresets] = React.useState<number[]>(discountPresets);
-  const [newPct, setNewPct] = React.useState('');
-  const [inputError, setInputError] = React.useState<string | null>(null);
-
-  // Surcharge state
-  const [surchargeTab, setSurchargeTab] = React.useState<'list' | 'add'>('list');
-  const [newSurchargeName, setNewSurchargeName] = React.useState('');
-  const [newSurchargeTriggerType, setNewSurchargeTriggerType] = React.useState<'payment_method' | 'day_of_week'>('payment_method');
-  const [newSurchargeTriggerValue, setNewSurchargeTriggerValue] = React.useState('eftpos');
-  const [newSurchargeAmountType, setNewSurchargeAmountType] = React.useState<'pct_basis_points' | 'fixed_cents'>('pct_basis_points');
-  const [newSurchargeAmount, setNewSurchargeAmount] = React.useState('');
-  const [surchargeError, setSurchargeError] = React.useState<string | null>(null);
-
-  const { data: surchargesData, refetch: refetchSurcharges } = useQuery({
-    queryKey: ['pos-surcharges'],
-    queryFn: () => api.pos.surcharges(),
-    staleTime: 30_000,
-  });
-  const surcharges: PosSurcharge[] = (surchargesData as any)?.data ?? [];
-
-  const createSurchargeMutation = useMutation({
-    mutationFn: () => api.pos.createSurcharge({
-      name: newSurchargeName.trim(),
-      triggerType: newSurchargeTriggerType,
-      triggerValue: newSurchargeTriggerValue,
-      amountType: newSurchargeAmountType,
-      amountValue: newSurchargeAmountType === 'pct_basis_points'
-        ? Math.round(parseFloat(newSurchargeAmount || '0') * 100)
-        : Math.round(parseFloat(newSurchargeAmount || '0') * 100),
-    }),
-    onSuccess: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
-      refetchSurcharges();
-      setSurchargeTab('list');
-      setNewSurchargeName('');
-      setNewSurchargeAmount('');
-      setSurchargeError(null);
-    },
-    onError: (err: any) => {
-      setSurchargeError(err?.message ?? 'Failed to create surcharge');
-    },
-  });
-
-  const deleteSurchargeMutation = useMutation({
-    mutationFn: (id: string) => api.pos.deleteSurcharge(id),
-    onSuccess: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
-      refetchSurcharges();
-    },
-  });
-
-  const toggleSurchargeMutation = useMutation({
-    mutationFn: (vars: { id: string; isActive: boolean }) => api.pos.updateSurcharge(vars.id, { isActive: vars.isActive }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] });
-      refetchSurcharges();
-    },
-  });
-
-  const addPreset = () => {
-    const val = parseInt(newPct, 10);
-    if (!val || val < 1 || val > 99) { setInputError('Enter a value between 1 and 99'); return; }
-    if (localPresets.includes(val)) { setInputError(`${val}% already exists`); return; }
-    setLocalPresets(prev => [...prev, val].sort((a, b) => a - b));
-    setNewPct('');
-    setInputError(null);
-  };
-
-  const removePreset = (pct: number) => {
-    setLocalPresets(prev => prev.filter(p => p !== pct));
-  };
-
-  const save = () => {
-    onChangePresets(localPresets);
-    onClose();
-  };
-
-  const handleAddSurcharge = () => {
-    if (!newSurchargeName.trim()) { setSurchargeError('Enter a name'); return; }
-    if (!newSurchargeAmount || parseFloat(newSurchargeAmount) <= 0) { setSurchargeError('Enter a valid amount'); return; }
-    setSurchargeError(null);
-    createSurchargeMutation.mutate();
-  };
-
-  const fmtSurchargeValue = (s: PosSurcharge) =>
-    s.amountType === 'pct_basis_points'
-      ? `${(s.amountValue / 100).toFixed(2)}%`
-      : fmtCents(s.amountValue);
-
-  return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.settingsOverlay} onPress={onClose}>
-        <Pressable style={[styles.settingsSheet, { height: screenH * 0.82 }]} onPress={() => {}}>
-          <View style={styles.sheetHeader}>
-            <Pressable onPress={onClose} hitSlop={8} style={{ width: 44, alignItems: 'flex-start' }}>
-              <Feather name="x" size={20} color={MID} />
-            </Pressable>
-            <Text style={styles.sheetTitle}>POS Settings</Text>
-            <Pressable onPress={save} hitSlop={8} style={{ width: 44, alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>Save</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            {/* ── Discount presets ── */}
-            <Text style={styles.settingsSectionTitle}>Quick Discount Presets</Text>
-            <Text style={styles.settingsSectionDesc}>
-              These percentage buttons appear on every ticket for fast discounting.
-            </Text>
-
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 16 }}>
-              {localPresets.map(pct => (
-                <View key={pct} style={styles.settingsPresetChip}>
-                  <Text style={styles.settingsPresetText}>{pct}%</Text>
-                  <Pressable onPress={() => removePreset(pct)} hitSlop={6} style={{ marginLeft: 6 }}>
-                    <Feather name="x" size={12} color={MID} />
-                  </Pressable>
-                </View>
-              ))}
-              {localPresets.length === 0 && (
-                <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No presets — add one below</Text>
-              )}
-            </View>
-
-            <View style={styles.settingsAddRow}>
-              <TextInput
-                style={styles.settingsAddInput}
-                placeholder="e.g. 15"
-                placeholderTextColor={MUTED}
-                value={newPct}
-                onChangeText={v => { setNewPct(v.replace(/[^0-9]/g, '')); setInputError(null); }}
-                keyboardType="number-pad"
-                returnKeyType="done"
-                onSubmitEditing={addPreset}
-                maxLength={2}
-              />
-              <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 4 }}>%</Text>
-              <Pressable onPress={addPreset} style={styles.settingsAddBtn}>
-                <Text style={styles.settingsAddBtnText}>Add</Text>
-              </Pressable>
-            </View>
-            {inputError ? (
-              <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{inputError}</Text>
-            ) : null}
-
-            {/* ── Surcharges ── */}
-            <View style={{ marginTop: 28 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={styles.settingsSectionTitle}>Payment Surcharges</Text>
-                <Pressable
-                  onPress={() => setSurchargeTab(surchargeTab === 'list' ? 'add' : 'list')}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                >
-                  <Feather name={surchargeTab === 'list' ? 'plus' : 'list'} size={16} color={BLUE} />
-                  <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>{surchargeTab === 'list' ? 'Add' : 'List'}</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.settingsSectionDesc}>
-                Automatically applied surcharges based on payment method or day of week.
-              </Text>
-
-              {surchargeTab === 'list' && (
-                <View style={{ marginTop: 12, gap: 8 }}>
-                  {surcharges.length === 0 && (
-                    <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No surcharges configured.</Text>
-                  )}
-                  {surcharges.map(s => (
-                    <View key={s.id} style={styles.surchargeRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.surchargeRowName}>{s.name}</Text>
-                        <Text style={styles.surchargeRowMeta}>
-                          {s.triggerType === 'payment_method' ? s.triggerValue.toUpperCase() : s.triggerValue.charAt(0).toUpperCase() + s.triggerValue.slice(1)}
-                          {' · '}+{fmtSurchargeValue(s)}
-                          {' · '}{s.isActive ? '✓ Active' : 'Disabled'}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => toggleSurchargeMutation.mutate({ id: s.id, isActive: !s.isActive })}
-                        style={[styles.surchargeToggle, s.isActive && styles.surchargeToggleActive]}
-                        hitSlop={8}
-                      >
-                        <Text style={[styles.surchargeToggleText, s.isActive && styles.surchargeToggleTextActive]}>
-                          {s.isActive ? 'On' : 'Off'}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => Alert.alert('Delete Surcharge', `Remove "${s.name}"?`, [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Delete', style: 'destructive', onPress: () => deleteSurchargeMutation.mutate(s.id) },
-                        ])}
-                        hitSlop={8}
-                        style={{ padding: 6, marginLeft: 4 }}
-                      >
-                        <Feather name="trash-2" size={15} color={CHERRY} />
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {surchargeTab === 'add' && (
-                <View style={{ marginTop: 12, gap: 12 }}>
-                  <TextInput
-                    style={styles.surchargeNameInput}
-                    placeholder="Name (e.g. EFTPOS Surcharge)"
-                    placeholderTextColor={MUTED}
-                    value={newSurchargeName}
-                    onChangeText={setNewSurchargeName}
-                    returnKeyType="next"
-                  />
-
-                  <View>
-                    <Text style={[styles.settingsSectionDesc, { marginBottom: 6 }]}>Trigger</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <Pressable
-                        onPress={() => { setNewSurchargeTriggerType('payment_method'); setNewSurchargeTriggerValue('eftpos'); }}
-                        style={[styles.surchargeChip, newSurchargeTriggerType === 'payment_method' && styles.surchargeChipActive]}
-                      >
-                        <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'payment_method' && { color: WHITE }]}>By Payment</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => { setNewSurchargeTriggerType('day_of_week'); setNewSurchargeTriggerValue('sunday'); }}
-                        style={[styles.surchargeChip, newSurchargeTriggerType === 'day_of_week' && styles.surchargeChipActive]}
-                      >
-                        <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'day_of_week' && { color: WHITE }]}>By Day</Text>
-                      </Pressable>
-                    </View>
-
-                    {newSurchargeTriggerType === 'payment_method' && (
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                        {['eftpos', 'cash'].map(v => (
-                          <Pressable key={v} onPress={() => setNewSurchargeTriggerValue(v)} style={[styles.surchargeChip, newSurchargeTriggerValue === v && styles.surchargeChipActive]}>
-                            <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === v && { color: WHITE }]}>{v.toUpperCase()}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-
-                    {newSurchargeTriggerType === 'day_of_week' && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                          {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
-                            <Pressable key={d} onPress={() => setNewSurchargeTriggerValue(d)} style={[styles.surchargeChip, newSurchargeTriggerValue === d && styles.surchargeChipActive]}>
-                              <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === d && { color: WHITE }]}>{d.slice(0,3).toUpperCase()}</Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      </ScrollView>
-                    )}
-                  </View>
-
-                  <View>
-                    <Text style={[styles.settingsSectionDesc, { marginBottom: 6 }]}>Amount Type</Text>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <Pressable
-                        onPress={() => setNewSurchargeAmountType('pct_basis_points')}
-                        style={[styles.surchargeChip, newSurchargeAmountType === 'pct_basis_points' && styles.surchargeChipActive]}
-                      >
-                        <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'pct_basis_points' && { color: WHITE }]}>Percentage %</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => setNewSurchargeAmountType('fixed_cents')}
-                        style={[styles.surchargeChip, newSurchargeAmountType === 'fixed_cents' && styles.surchargeChipActive]}
-                      >
-                        <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'fixed_cents' && { color: WHITE }]}>Fixed $</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  <View style={styles.settingsAddRow}>
-                    <TextInput
-                      style={styles.settingsAddInput}
-                      placeholder={newSurchargeAmountType === 'pct_basis_points' ? 'e.g. 1.5 (%)' : 'e.g. 0.50 ($)'}
-                      placeholderTextColor={MUTED}
-                      value={newSurchargeAmount}
-                      onChangeText={v => { setNewSurchargeAmount(v.replace(/[^0-9.]/g, '')); setSurchargeError(null); }}
-                      keyboardType="decimal-pad"
-                      returnKeyType="done"
-                    />
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 6 }}>
-                      {newSurchargeAmountType === 'pct_basis_points' ? '%' : 'AUD'}
-                    </Text>
-                  </View>
-
-                  {surchargeError ? (
-                    <Text style={{ fontSize: 12, color: CHERRY }}>{surchargeError}</Text>
-                  ) : null}
-
-                  <TouchableOpacity
-                    onPress={handleAddSurcharge}
-                    style={[styles.settingsAddBtn, { paddingHorizontal: 24, alignSelf: 'flex-start' }]}
-                    disabled={createSurchargeMutation.isPending}
-                    activeOpacity={0.85}
-                  >
-                    {createSurchargeMutation.isPending
-                      ? <ActivityIndicator size="small" color={WHITE} />
-                      : <Text style={styles.settingsAddBtnText}>Add Surcharge</Text>}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -4668,7 +4618,7 @@ const styles = StyleSheet.create({
   discountCodeError:    { fontSize: 12, color: CHERRY, marginTop: 4 },
 
   // Payment discount row (old style kept for any usage; canonical definition is in Payment section above)
-  // Surcharge management rows (PosSettingsModal)
+  // Surcharge management rows
   surchargeRow:          { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER },
   surchargeRowName:      { fontSize: 14, fontWeight: '600', color: DARK },
   surchargeRowMeta:      { fontSize: 11, color: MUTED, marginTop: 2 },
