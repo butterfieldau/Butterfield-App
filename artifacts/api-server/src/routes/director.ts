@@ -307,7 +307,7 @@ router.get('/activity', async (req, res) => {
 // ── All orders (customer + wholesale merged, enriched with customer info) ─────
 router.get('/orders', async (req, res) => {
   const [customerOrders, wholesaleOrders, allUsers, wsAccounts] = await Promise.all([
-    db.select().from(ordersTable).where(sql`source != 'pos'`).orderBy(desc(ordersTable.createdAt)).limit(300),
+    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(300),
     db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(150),
     db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone }).from(usersTable),
     db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName, abn: wholesaleAccountsTable.abn }).from(wholesaleAccountsTable),

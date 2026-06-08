@@ -910,7 +910,7 @@ export default function DirectorOrdersScreen() {
   };
   const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
-    <DirectorTabScreen title="App Sales">
+    <DirectorTabScreen title="Orders">
       {/* Status filter chips */}
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList

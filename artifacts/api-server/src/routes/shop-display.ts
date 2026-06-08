@@ -121,9 +121,12 @@ router.get('/orders', async (req, res) => {
   const assignedStoreIds = assignments.map((assignment) => assignment.storeId);
   const ordersQuery = assignedStoreIds.length > 0
     ? db.select().from(ordersTable)
-        .where(or(inArray(ordersTable.storeId, assignedStoreIds), isNull(ordersTable.storeId)))
+        .where(and(
+          sql`source != 'pos'`,
+          or(inArray(ordersTable.storeId, assignedStoreIds), isNull(ordersTable.storeId)),
+        ))
         .orderBy(desc(ordersTable.createdAt)).limit(150)
-    : db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(150);
+    : db.select().from(ordersTable).where(sql`source != 'pos'`).orderBy(desc(ordersTable.createdAt)).limit(150);
 
   const [orders, users] = await Promise.all([
     ordersQuery,
