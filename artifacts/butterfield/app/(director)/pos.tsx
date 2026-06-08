@@ -259,6 +259,7 @@ function PosScreenInner() {
     loyaltyResult: PosLoyaltyResult | null;
     // Ticket snapshot captured before clearActiveTicket() — needed for printing
     customerName: string;
+    customerEmail?: string;
     ticketItems: Array<{ name: string; quantity: number; unitPriceCents: number; variantName?: string; options: string[] }>;
     discountAmountCents: number;
     discountLabel: string;
@@ -716,6 +717,7 @@ function PosScreenInner() {
         splitPayments: vars.splitPayments,
         loyaltyResult: res.loyaltyResult,
         customerName: snapshotCustomerName,
+        customerEmail: activeTicket.customer?.email,
         ticketItems: snapshotItems,
         discountAmountCents,
         discountLabel,
@@ -867,6 +869,7 @@ function PosScreenInner() {
           splitPayments: params.splitPayments,
           loyaltyResult: null,
           customerName: activeTicket.customer?.name ?? 'Walk-in',
+          customerEmail: activeTicket.customer?.email,
           ticketItems: activeTicket.items.map(i => ({
             name: i.productName,
             quantity: i.quantity,
@@ -1184,6 +1187,7 @@ function PosScreenInner() {
       {completedOrder && (
         <OrderCompleteModal
           order={completedOrder}
+          customerEmail={completedOrder.customerEmail}
           onClose={() => setCompletedOrder(null)}
           onPrintTaxInvoice={() => {
             const store = storeData as any;
@@ -2655,7 +2659,7 @@ function PaymentModal({
 }
 
 // ── Order Complete / Loyalty Modal ────────────────────────────────────────────
-function OrderCompleteModal({ order, onClose, onPrintTaxInvoice }: {
+function OrderCompleteModal({ order, customerEmail: initialEmail, onClose, onPrintTaxInvoice }: {
   order: {
     id: string; orderNumber: string; totalCents: number;
     paymentMethod: 'cash' | 'eftpos' | 'split';
@@ -2668,6 +2672,7 @@ function OrderCompleteModal({ order, onClose, onPrintTaxInvoice }: {
     discountAmountCents: number;
     discountLabel: string;
   };
+  customerEmail?: string;
   onClose: () => void;
   onPrintTaxInvoice?: () => void;
 }) {
@@ -2676,6 +2681,29 @@ function OrderCompleteModal({ order, onClose, onPrintTaxInvoice }: {
     : null;
   const lr = order.loyaltyResult;
   const isOffline = order.id.startsWith('offline-');
+
+  const [emailOpen,    setEmailOpen]    = useState(false);
+  const [emailValue,   setEmailValue]   = useState(initialEmail ?? '');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent,    setEmailSent]    = useState(false);
+
+  const handleSendEmail = async () => {
+    const trimmed = emailValue.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    setEmailSending(true);
+    try {
+      await api.pos.emailInvoice(order.id, trimmed);
+      setEmailSent(true);
+      setEmailOpen(false);
+    } catch (e: any) {
+      Alert.alert('Email Failed', e?.message ?? 'Could not send the invoice. Check Resend is connected.');
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
@@ -2720,18 +2748,69 @@ function OrderCompleteModal({ order, onClose, onPrintTaxInvoice }: {
             </View>
           )}
 
-          {/* TAX Invoice — manual button only, never auto-printed */}
+          {/* Action buttons — with spacing between each */}
+
+          {/* TAX Invoice — manual, never auto-printed */}
           {!isOffline && onPrintTaxInvoice && (
             <TouchableOpacity
               onPress={onPrintTaxInvoice}
-              style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignSelf: 'stretch', alignItems: 'center' }}
+              style={{ marginTop: 12, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignSelf: 'stretch', alignItems: 'center' }}
               activeOpacity={0.7}
             >
               <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600' }}>🖨  Print TAX Invoice</Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity onPress={onClose} style={styles.completeCloseBtn} activeOpacity={0.8}>
+          {/* Email Invoice */}
+          {!isOffline && (
+            emailSent ? (
+              <View style={{ marginTop: 10, paddingVertical: 10, alignSelf: 'stretch', alignItems: 'center' }}>
+                <Text style={{ fontSize: 14, color: '#16A34A', fontWeight: '700' }}>✓ Invoice sent</Text>
+              </View>
+            ) : emailOpen ? (
+              <View style={{ marginTop: 10, alignSelf: 'stretch' }}>
+                <TextInput
+                  value={emailValue}
+                  onChangeText={setEmailValue}
+                  placeholder="customer@email.com"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={{ borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: '#1C1C1E', backgroundColor: '#F8FAFC', marginBottom: 8 }}
+                />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => { setEmailOpen(false); }}
+                    style={{ flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', alignItems: 'center', backgroundColor: '#F8FAFC' }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, color: '#6B7280', fontWeight: '600' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleSendEmail}
+                    disabled={emailSending}
+                    style={{ flex: 2, paddingVertical: 9, borderRadius: 8, backgroundColor: emailSending ? '#93C5FD' : BLUE, alignItems: 'center' }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13, color: WHITE, fontWeight: '700' }}>{emailSending ? 'Sending…' : 'Send Invoice'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEmailOpen(true)}
+                style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignSelf: 'stretch', alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                activeOpacity={0.7}
+              >
+                <Feather name="mail" size={14} color="#334155" />
+                <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600' }}>Email Invoice</Text>
+              </TouchableOpacity>
+            )
+          )}
+
+          {/* New Order — clear visual separation */}
+          <TouchableOpacity onPress={onClose} style={[styles.completeCloseBtn, { marginTop: 16 }]} activeOpacity={0.8}>
             <Text style={styles.completeCloseBtnText}>New Order</Text>
           </TouchableOpacity>
         </View>

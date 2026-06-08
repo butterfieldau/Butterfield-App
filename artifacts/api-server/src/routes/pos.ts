@@ -1600,4 +1600,65 @@ router.patch('/orders/:id/void', async (req, res) => {
   return res.json({ success: true });
 });
 
+// ── POST /pos/orders/:id/email-invoice ────────────────────────────────────────
+router.post('/orders/:id/email-invoice', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { id } = req.params;
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : null;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'A valid email address is required.' });
+  }
+
+  const result = await db.execute(sql`
+    SELECT
+      o.id, o.order_number, o.total_cents, o.items, o.payment_method,
+      o.surcharge_cents, o.discount_cents,
+      u.name AS customer_name,
+      (SELECT SUM(lt2.points) FROM loyalty_transactions lt2
+       WHERE lt2.reference_id = o.id AND lt2.type = 'earn') AS loyalty_points_earned
+    FROM orders o
+    LEFT JOIN users u ON u.id = o.user_id
+    WHERE o.id = ${id}
+    LIMIT 1
+  `);
+
+  const row = ((result as any).rows ?? (result as any) ?? [])[0] as any ?? null;
+  if (!row) return res.status(404).json({ error: 'Order not found.' });
+
+  const rawItems: Array<{ name?: string; productName?: string; quantity: number; unitPriceCents?: number; unit_price_cents?: number; variantName?: string; variant_name?: string }> =
+    Array.isArray(row.items) ? row.items : (typeof row.items === 'string' ? JSON.parse(row.items) : []);
+
+  const items = rawItems.map(i => ({
+    name: i.name ?? i.productName ?? 'Item',
+    quantity: Number(i.quantity ?? 1),
+    unitPriceCents: Number(i.unitPriceCents ?? i.unit_price_cents ?? 0),
+    variantName: i.variantName ?? i.variant_name,
+  }));
+
+  const totalCents    = Number(row.total_cents ?? 0);
+  const surchargeCents = Number(row.surcharge_cents ?? 0);
+  const discountCents  = Number(row.discount_cents ?? 0);
+  const subtotalCents  = totalCents - surchargeCents + discountCents;
+  const loyaltyPointsEarned = row.loyalty_points_earned ? Number(row.loyalty_points_earned) : null;
+  const customerName = row.customer_name ?? 'Customer';
+  const orderNumber  = row.order_number ?? id.slice(0, 8).toUpperCase();
+  const paymentMethod = row.payment_method ?? 'eftpos';
+  const date = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+
+  const { sendEmail, buildPosReceiptEmail } = await import('../lib/emailService.js');
+  const html = buildPosReceiptEmail({ orderNumber, customerName, items, subtotalCents, surchargeCents, discountCents, totalCents, paymentMethod, loyaltyPointsEarned, date });
+  const { success } = await sendEmail({
+    to: email,
+    subject: `Your Butterfield Cookies receipt — #${orderNumber}`,
+    html,
+  });
+
+  if (!success) {
+    return res.status(502).json({ error: 'Failed to send email. Check that Resend is connected.' });
+  }
+
+  return res.json({ success: true });
+});
+
 export default router;

@@ -952,6 +952,8 @@ export const api = {
       ),
     linklyCancel: (sessionId: string) =>
       request<{ success: boolean }>(`/pos/linkly/${sessionId}`, { method: 'DELETE' }),
+    emailInvoice: (orderId: string, email: string) =>
+      request<{ success: boolean }>(`/pos/orders/${orderId}/email-invoice`, { method: 'POST', body: JSON.stringify({ email }) }),
   },
 
   stock: {
