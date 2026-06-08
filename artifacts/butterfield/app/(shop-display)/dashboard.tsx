@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Defs, LinearGradient, Path, Stop, Svg, Text as SvgText } from 'react-native-svg';
 import { useQuery } from '@tanstack/react-query';
 import { api, type ShopDisplayAnalytics } from '@/lib/api';
+import { sendRegisterSummaryPrint } from '@/lib/printer';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -447,6 +448,7 @@ export default function DashboardScreen() {
   const [range, setRange] = useState<Range>('day');
   const [date, setDate] = useState(todayString);
   const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
 
@@ -498,6 +500,89 @@ export default function DashboardScreen() {
     setExporting(false);
   };
 
+  const handlePrintSummary = async () => {
+    if (!data) return;
+
+    // Resolve which store to use for printer config
+    const store = selectedStoreId
+      ? stores.find(s => s.id === selectedStoreId)
+      : stores.find(s => s.printerIp);
+
+    if (!store?.printerIp) {
+      Alert.alert(
+        'No Printer Configured',
+        'This display has no printer IP set up.\n\nGo to Settings → Store Printer to configure a printer.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+
+    setPrinting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const label = formatDateLabel(date, range);
+      const now = new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney' });
+      const rangeTitle = range === 'day' ? 'DAILY' : range === 'week' ? 'WEEKLY' : 'MONTHLY';
+      const title = `${rangeTitle} REGISTER SUMMARY`;
+
+      const lines: string[] = [
+        `Period:\t${label}`,
+        `Printed:\t${now}`,
+        store.name ? `Store:\t${store.name}` : '',
+        '===',
+        '',
+        'SALES SUMMARY',
+        '---',
+        `Total Sales\t${fmtAUD(data.totalCents)}`,
+        `Transactions\t${data.transactionCount}`,
+        `Avg Spend\t${fmtAUD(data.avgSpendCents)}`,
+        `Items Sold\t${data.itemsSold}`,
+        '',
+        ...(data.discountedCents > 0 ? [`Discounted\t${fmtAUD(data.discountedCents)}`] : []),
+        ...(data.cancelledCents > 0 ? [`Cancelled\t${fmtAUD(data.cancelledCents)}`] : []),
+      ];
+
+      if (data.topSellers.length > 0) {
+        lines.push('', 'TOP SELLERS', '---');
+        data.topSellers.slice(0, 5).forEach((s, i) => {
+          lines.push(`${i + 1}. ${s.name.slice(0, 20)}\t${s.units}x  ${fmtAUD(s.revenueCents)}`);
+        });
+      }
+
+      if (data.tenderTypes.length > 0) {
+        lines.push('', 'TENDER BREAKDOWN', '---');
+        data.tenderTypes.forEach(t => {
+          lines.push(`${t.type}\t${t.count}x  (${t.pct}%)`);
+        });
+      }
+
+      lines.push('');
+
+      const printerBrand = (store.printerBrand === 'star' ? 'star' : 'epson') as 'epson' | 'star';
+      const port = store.printerPort ?? 9100;
+
+      await sendRegisterSummaryPrint(
+        { title, lines, printerBrand },
+        store.printerIp,
+        port,
+        api.shopDisplay.printerBytes,
+      );
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Printed', 'Sales summary sent to printer.', [{ text: 'OK' }]);
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Print Failed',
+        err?.message ?? 'Could not reach the printer. Check the IP and network connection.',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const handlePrev = () => {
     const days = range === 'day' ? -1 : range === 'week' ? -7 : -28;
     setDate(d => offsetDate(d, days));
@@ -524,15 +609,26 @@ export default function DashboardScreen() {
           <Text style={styles.headerTitle}>Dashboard</Text>
           <Text style={styles.headerSub}>{formatDateLabel(date, range)}</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
-          onPress={handleExport}
-          disabled={exporting || !data}
-          activeOpacity={0.75}
-        >
-          <Feather name="download" size={13} color={BLUE} />
-          <Text style={styles.exportBtnText}>{exporting ? 'Exporting…' : 'Export'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.exportBtn, printing && { opacity: 0.5 }]}
+            onPress={handlePrintSummary}
+            disabled={printing || !data}
+            activeOpacity={0.75}
+          >
+            <Feather name="printer" size={13} color={CYAN} />
+            <Text style={[styles.exportBtnText, { color: CYAN }]}>{printing ? 'Printing…' : 'Print'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+            onPress={handleExport}
+            disabled={exporting || !data}
+            activeOpacity={0.75}
+          >
+            <Feather name="download" size={13} color={BLUE} />
+            <Text style={styles.exportBtnText}>{exporting ? 'Exporting…' : 'Export'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Store picker (only shown when >1 store available) ───────────── */}
@@ -759,6 +855,7 @@ const styles = StyleSheet.create({
   header:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 },
   headerTitle:      { fontSize: 22, fontWeight: '800', color: WHITE, letterSpacing: -0.4 },
   headerSub:        { fontSize: 12, color: MUTED, marginTop: 2 },
+  headerActions:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
   exportBtn:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '18', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BLUE + '44' },
   exportBtnText:    { color: BLUE, fontSize: 13, fontWeight: '700' },
 
