@@ -1176,6 +1176,83 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
   }
 });
 
+// ── Printer config — device-local printer settings ───────────────────────────
+router.get('/printer-config', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const rows = await db.execute(sql`
+    SELECT printer_ip, printer_port, printer_brand, auto_print, auto_drawer
+    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
+  `);
+  const row = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+  if (!row) {
+    return res.json({ data: { printerIp: null, printerPort: 9100, printerBrand: 'epson', autoPrint: false, autoDrawer: false } });
+  }
+  return res.json({
+    data: {
+      printerIp: row.printer_ip ?? null,
+      printerPort: row.printer_port ?? 9100,
+      printerBrand: row.printer_brand ?? 'epson',
+      autoPrint: row.auto_print ?? false,
+      autoDrawer: row.auto_drawer ?? false,
+    },
+  });
+});
+
+router.patch('/printer-config', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const { printerIp, printerPort, printerBrand, autoPrint, autoDrawer } = req.body ?? {};
+
+  await db.execute(sql`
+    INSERT INTO shop_display_profiles (user_id, permissions, printer_ip, printer_port, printer_brand, auto_print, auto_drawer)
+    VALUES (
+      ${req.user!.id}, '[]',
+      ${printerIp ?? null},
+      ${printerPort ?? 9100},
+      ${printerBrand ?? 'epson'},
+      ${autoPrint ?? false},
+      ${autoDrawer ?? false}
+    )
+    ON CONFLICT (user_id) DO UPDATE SET
+      printer_ip    = CASE WHEN ${printerIp !== undefined} THEN ${printerIp ?? null}      ELSE shop_display_profiles.printer_ip    END,
+      printer_port  = CASE WHEN ${printerPort !== undefined} THEN ${printerPort ?? 9100} ELSE shop_display_profiles.printer_port  END,
+      printer_brand = CASE WHEN ${printerBrand !== undefined} THEN ${printerBrand ?? 'epson'} ELSE shop_display_profiles.printer_brand END,
+      auto_print    = CASE WHEN ${autoPrint !== undefined} THEN ${autoPrint ?? false}    ELSE shop_display_profiles.auto_print    END,
+      auto_drawer   = CASE WHEN ${autoDrawer !== undefined} THEN ${autoDrawer ?? false}  ELSE shop_display_profiles.auto_drawer   END,
+      updated_at    = NOW()
+  `);
+
+  return res.json({ success: true });
+});
+
+router.get('/store-printer-config', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })
+    .from(staffStoreAssignmentsTable)
+    .where(and(
+      eq(staffStoreAssignmentsTable.staffId, req.user!.id),
+      eq(staffStoreAssignmentsTable.isActive, true),
+    ));
+  if (assignments.length === 0) return res.json({ data: null });
+
+  const storeId = assignments[0].storeId;
+  const [store] = await db.select({
+    printerIp: storesTable.printerIp,
+    printerPort: storesTable.printerPort,
+    printerBrand: storesTable.printerBrand,
+    autoPrint: storesTable.autoPrint,
+  }).from(storesTable).where(eq(storesTable.id, storeId));
+
+  if (!store) return res.json({ data: null });
+  return res.json({
+    data: {
+      printerIp: store.printerIp ?? null,
+      printerPort: store.printerPort ?? 9100,
+      printerBrand: store.printerBrand ?? 'epson',
+      autoPrint: store.autoPrint ?? false,
+    },
+  });
+});
+
 // ── Printer bytes — device opens TCP socket, server just builds ESC/POS ──────
 // Mirrors /director/printer/bytes but accessible to shop_display role.
 // ── Analytics helpers (Sydney-timezone-correct) ───────────────────────────────

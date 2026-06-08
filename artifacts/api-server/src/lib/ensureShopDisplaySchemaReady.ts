@@ -113,5 +113,30 @@ export async function ensureShopDisplaySchemaReady() {
     );
   `);
 
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS printer_ip text;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS printer_port integer NOT NULL DEFAULT 9100;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS printer_brand text NOT NULL DEFAULT 'epson';
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS auto_print boolean NOT NULL DEFAULT false;
+  `);
+
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS auto_drawer boolean NOT NULL DEFAULT false;
+  `);
+
   ensured = true;
 }

@@ -25,7 +25,7 @@ import { api } from '@/lib/api';
 import type { LinklyTransactionStatus, ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
-import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
+import { sendReceiptPrint, sendOpenDrawer, orderToPrintJob } from '@/lib/printer';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -198,6 +198,13 @@ export default function ShopDisplayOrdersScreen() {
     staleTime: 60_000,
   });
   const store = storeData?.data?.[0] ?? null;
+
+  const { data: printerConfigData } = useQuery({
+    queryKey: ['shop-display-printer-config'],
+    queryFn: () => api.shopDisplay.getPrinterConfig(),
+    staleTime: 60_000,
+  });
+  const printerConfig = printerConfigData?.data ?? null;
 
   const { data: linklyData } = useQuery({
     queryKey: ['linkly-config'],
@@ -381,7 +388,7 @@ export default function ShopDisplayOrdersScreen() {
       await qc.invalidateQueries({ queryKey: ['shop-display-orders'] });
       setQueueMode('active');
 
-      if (status === 'being_prepared') {
+      if (status === 'being_prepared' && printerConfig?.autoPrint) {
         const order = rows.find(o => o.id === id);
         if (order) void printOrder(order);
       }
@@ -391,13 +398,20 @@ export default function ShopDisplayOrdersScreen() {
   };
 
   const printOrder = async (order: ShopDisplayOrder) => {
-    if (!store?.printerIp) {
-      Alert.alert('No printer configured', 'This store does not have a receipt printer IP address set. Ask a director to configure it in Store Settings.');
+    const ip = printerConfig?.printerIp ?? null;
+    if (!ip) {
+      Alert.alert('No printer configured', 'Set up a printer IP in Settings → Receipt Printer before printing.');
       return;
     }
+    const port = printerConfig?.printerPort ?? 9100;
+    const brand = printerConfig?.printerBrand === 'star' ? 'star' : 'epson';
+    const autoDrawer = printerConfig?.autoDrawer ?? false;
     try {
-      const job = orderToPrintJob(order);
-      await sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, api.shopDisplay.printerBytes);
+      const job = orderToPrintJob(order, brand);
+      await sendReceiptPrint(job, ip, port, api.shopDisplay.printerBytes);
+      if (autoDrawer) {
+        sendOpenDrawer(ip, port, api.shopDisplay.printerBytes).catch(() => {});
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       Alert.alert('Print failed', msg);

@@ -18,8 +18,8 @@ import { Feather } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import type { LinklyConfig, ShopDisplayStore } from '@/lib/api';
-import { sendOpenDrawer } from '@/lib/printer';
+import type { LinklyConfig, ShopDisplayPrinterConfig, ShopDisplayStore } from '@/lib/api';
+import { sendOpenDrawer, sendTestPrint } from '@/lib/printer';
 import {
   getShopDisplaySoundEnabled, setShopDisplaySoundEnabled,
   getDisplayLockPin, setDisplayLockPin, clearDisplayLockPin,
@@ -339,13 +339,237 @@ function LinklySection({ onLock }: { onLock: () => void }) {
   );
 }
 
+// ── Printer Configuration Card ────────────────────────────────────────────────
+function PrinterConfigCard() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery<{ data: ShopDisplayPrinterConfig }>({
+    queryKey: ['shop-display-printer-config'],
+    queryFn: () => api.shopDisplay.getPrinterConfig(),
+    staleTime: 30_000,
+  });
+
+  const cfg = data?.data;
+  const [printerIp, setPrinterIp] = useState('');
+  const [printerPort, setPrinterPort] = useState('9100');
+  const [printerBrand, setPrinterBrand] = useState<'epson' | 'star'>('epson');
+  const [autoPrint, setAutoPrint] = useState(false);
+  const [autoDrawer, setAutoDrawer] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [testPrinting, setTestPrinting] = useState(false);
+  const [drawerBusy, setDrawerBusy] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    if (cfg) {
+      setPrinterIp(cfg.printerIp ?? '');
+      setPrinterPort(String(cfg.printerPort ?? 9100));
+      setPrinterBrand(cfg.printerBrand === 'star' ? 'star' : 'epson');
+      setAutoPrint(cfg.autoPrint ?? false);
+      setAutoDrawer(cfg.autoDrawer ?? false);
+    }
+  }, [cfg]);
+
+  const save = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.shopDisplay.savePrinterConfig({
+        printerIp: printerIp.trim() || null,
+        printerPort: parseInt(printerPort, 10) || 9100,
+        printerBrand,
+        autoPrint,
+        autoDrawer,
+      });
+      await qc.invalidateQueries({ queryKey: ['shop-display-printer-config'] });
+      setMsg({ text: '✓ Printer configuration saved.', ok: true });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setMsg({ text: e?.message ?? 'Failed to save.', ok: false });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyFromStore = async () => {
+    setCopying(true);
+    setMsg(null);
+    try {
+      const res = await api.shopDisplay.getStorePrinterConfig();
+      if (!res.data) {
+        setMsg({ text: 'No store printer config found. Ask a director to configure it first.', ok: false });
+        return;
+      }
+      const s = res.data;
+      setPrinterIp(s.printerIp ?? '');
+      setPrinterPort(String(s.printerPort ?? 9100));
+      setPrinterBrand(s.printerBrand === 'star' ? 'star' : 'epson');
+      setAutoPrint(s.autoPrint ?? false);
+      setMsg({ text: '✓ Fields filled from store config. Tap Save to apply.', ok: true });
+      Haptics.selectionAsync();
+    } catch (e: any) {
+      setMsg({ text: e?.message ?? 'Could not fetch store config.', ok: false });
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  const testPrint = async () => {
+    const ip = printerIp.trim();
+    if (!ip) { Alert.alert('No IP', 'Enter a printer IP address first.'); return; }
+    setTestPrinting(true);
+    try {
+      await sendTestPrint(ip, parseInt(printerPort, 10) || 9100, printerBrand, api.shopDisplay.printerBytes);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Print failed', e?.message ?? 'Could not reach printer.');
+    } finally {
+      setTestPrinting(false);
+    }
+  };
+
+  const openDrawer = async () => {
+    const ip = printerIp.trim();
+    if (!ip) { Alert.alert('No IP', 'Enter a printer IP address first.'); return; }
+    setDrawerBusy(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, api.shopDisplay.printerBytes);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Drawer Error', e?.message ?? 'Could not open the cash drawer.');
+    } finally {
+      setDrawerBusy(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[pc.card, { alignItems: 'center', paddingVertical: 24 }]}>
+        <ActivityIndicator color={BLUE} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={pc.card}>
+      <View style={pc.headerRow}>
+        <View style={pc.iconWrap}>
+          <Feather name="printer" size={18} color={BLUE} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={pc.cardTitle}>Printer Configuration</Text>
+          <Text style={pc.cardSub}>Local settings for this display device</Text>
+        </View>
+        <Pressable onPress={copyFromStore} disabled={copying} style={pc.copyBtn} hitSlop={8}>
+          {copying
+            ? <ActivityIndicator size="small" color={BLUE} />
+            : <><Feather name="copy" size={13} color={BLUE} /><Text style={pc.copyBtnText}>Copy from store</Text></>
+          }
+        </Pressable>
+      </View>
+
+      <View style={pc.divider} />
+
+      <Text style={pc.inputLabel}>Printer IP Address</Text>
+      <TextInput
+        style={pc.input}
+        value={printerIp}
+        onChangeText={setPrinterIp}
+        placeholder="192.168.0.100"
+        placeholderTextColor={MUTED}
+        keyboardType="numbers-and-punctuation"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <Text style={pc.inputLabel}>Port</Text>
+      <TextInput
+        style={pc.input}
+        value={printerPort}
+        onChangeText={setPrinterPort}
+        placeholder="9100"
+        placeholderTextColor={MUTED}
+        keyboardType="number-pad"
+        maxLength={5}
+      />
+
+      <Text style={pc.groupLabel}>Printer Brand</Text>
+      <View style={pc.brandRow}>
+        {(['epson', 'star'] as const).map(b => (
+          <Pressable
+            key={b}
+            onPress={() => { setPrinterBrand(b); Haptics.selectionAsync(); }}
+            style={[pc.brandBtn, printerBrand === b && pc.brandBtnActive]}
+          >
+            <Text style={[pc.brandBtnText, printerBrand === b && pc.brandBtnTextActive]}>
+              {b.charAt(0).toUpperCase() + b.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={pc.toggleRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={pc.toggleLabel}>Auto-print on new order</Text>
+          <Text style={pc.toggleSub}>Automatically print receipt when an order is accepted</Text>
+        </View>
+        <Switch value={autoPrint} onValueChange={setAutoPrint} trackColor={{ true: BLUE }} thumbColor="#fff" />
+      </View>
+
+      <View style={pc.toggleRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={pc.toggleLabel}>Auto-open drawer after print</Text>
+          <Text style={pc.toggleSub}>Open cash drawer immediately after each receipt print</Text>
+        </View>
+        <Switch value={autoDrawer} onValueChange={setAutoDrawer} trackColor={{ true: GREEN }} thumbColor="#fff" />
+      </View>
+
+      {msg ? (
+        <Text style={{ fontSize: 13, fontWeight: '600', color: msg.ok ? GREEN : RED }}>{msg.text}</Text>
+      ) : null}
+
+      <Pressable
+        onPress={save}
+        disabled={saving}
+        style={[pc.saveBtn, saving && { opacity: 0.6 }]}
+      >
+        {saving
+          ? <ActivityIndicator color="#fff" size="small" />
+          : <Feather name="save" size={14} color="#fff" />
+        }
+        <Text style={pc.saveBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
+      </Pressable>
+
+      <View style={pc.actionRow}>
+        <Pressable
+          onPress={testPrint}
+          disabled={testPrinting || drawerBusy}
+          style={[pc.actionBtn, (testPrinting || drawerBusy) && { opacity: 0.6 }]}
+        >
+          {testPrinting ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="file-text" size={14} color={BLUE} />}
+          <Text style={pc.actionBtnText}>{testPrinting ? 'Printing…' : 'Test Print'}</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={openDrawer}
+          disabled={testPrinting || drawerBusy}
+          style={[pc.actionBtn, (testPrinting || drawerBusy) && { opacity: 0.6 }]}
+        >
+          {drawerBusy ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="unlock" size={14} color={BLUE} />}
+          <Text style={pc.actionBtnText}>{drawerBusy ? 'Opening…' : 'Open Drawer'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // ── Main settings screen ──────────────────────────────────────────────────────
 export default function ShopDisplaySettingsScreen() {
   const { user, logout } = useAuth();
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [eftposUnlocked, setEftposUnlocked] = useState(false);
-  const [drawerBusy, setDrawerBusy] = useState(false);
   const [lockPinSet, setLockPinSet] = useState(false);
   const [lockPinInput, setLockPinInput] = useState('');
   const [lockPinSaving, setLockPinSaving] = useState(false);
@@ -418,54 +642,18 @@ export default function ShopDisplaySettingsScreen() {
                     <Text style={styles.specialText}>{store.dailySpecial}</Text>
                   </View>
                 ) : null}
-
-                {(store.printerIp || store.printerBrand) && (
-                  <View style={{ gap: 10 }}>
-                    <View style={styles.printerRow}>
-                      <Feather name="printer" size={14} color={MUTED} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.printerLabel}>Receipt Printer</Text>
-                        <Text style={styles.printerValue}>
-                          {store.printerBrand
-                            ? store.printerBrand.charAt(0).toUpperCase() + store.printerBrand.slice(1)
-                            : 'Printer'}
-                          {store.printerIp ? ` · ${store.printerIp}:${store.printerPort ?? 9100}` : ' · Not configured'}
-                        </Text>
-                      </View>
-                      <View style={[styles.autoPrintBadge, { backgroundColor: store.autoPrint ? '#DCFCE7' : '#F3F4F6' }]}>
-                        <Text style={[styles.autoPrintText, { color: store.autoPrint ? GREEN : MUTED }]}>
-                          {store.autoPrint ? 'Auto-print ON' : 'Auto-print OFF'}
-                        </Text>
-                      </View>
-                    </View>
-                    {store.printerIp ? (
-                      <Pressable
-                        style={({ pressed }) => [styles.openDrawerBtn, (pressed || drawerBusy) && { opacity: 0.7 }]}
-                        disabled={drawerBusy}
-                        onPress={async () => {
-                          if (!store.printerIp) return;
-                          setDrawerBusy(true);
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                          try {
-                            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, api.shopDisplay.printerBytes);
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                          } catch (e: any) {
-                            Alert.alert('Drawer Error', e?.message ?? 'Could not open the cash drawer. Make sure the printer is reachable.');
-                          } finally {
-                            setDrawerBusy(false);
-                          }
-                        }}
-                      >
-                        <Feather name="unlock" size={14} color="#fff" />
-                        <Text style={styles.openDrawerBtnText}>{drawerBusy ? 'Opening…' : 'Open Drawer'}</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                )}
               </View>
             );
           })
         )}
+
+        {/* ── Receipt Printer ── */}
+        <View style={styles.sectionHeader}>
+          <Feather name="printer" size={15} color={NAVY} />
+          <Text style={styles.sectionTitle}>Receipt Printer</Text>
+        </View>
+
+        <PrinterConfigCard />
 
         {/* ── Payment terminal ── */}
         <View style={styles.sectionHeader}>
@@ -674,6 +862,34 @@ const p = StyleSheet.create({
   backText:      { fontSize: 18 },
   cancelBtn:     { paddingVertical: 8, paddingHorizontal: 20 },
   cancelText:    { color: MUTED, fontSize: 15, fontWeight: '600' },
+});
+
+// ── Printer config card styles ────────────────────────────────────────────────
+const pc = StyleSheet.create({
+  card:          { backgroundColor: CARD, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: BORDER, gap: 10 },
+  headerRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconWrap:      { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  cardTitle:     { fontSize: 15, fontWeight: '800', color: NAVY },
+  cardSub:       { fontSize: 12, color: MUTED, marginTop: 1 },
+  divider:       { height: 1, backgroundColor: BORDER, marginHorizontal: -16 },
+  inputLabel:    { fontSize: 12, fontWeight: '600', color: MUTED, marginBottom: -6 },
+  groupLabel:    { fontSize: 11, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+  input:         { backgroundColor: '#F8FAFF', borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT },
+  brandRow:      { flexDirection: 'row', gap: 10 },
+  brandBtn:      { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
+  brandBtnActive:{ backgroundColor: BLUE, borderColor: BLUE },
+  brandBtnText:  { fontSize: 14, fontWeight: '700', color: MUTED },
+  brandBtnTextActive: { color: '#fff' },
+  toggleRow:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  toggleLabel:   { fontSize: 14, fontWeight: '600', color: TEXT },
+  toggleSub:     { fontSize: 12, color: MUTED, marginTop: 2 },
+  saveBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: NAVY, borderRadius: 12, paddingVertical: 12 },
+  saveBtnText:   { fontSize: 14, fontWeight: '700', color: '#fff' },
+  actionRow:     { flexDirection: 'row', gap: 10 },
+  actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, paddingVertical: 11, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: BORDER },
+  actionBtnText: { fontSize: 13, fontWeight: '700', color: BLUE },
+  copyBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#EFF6FF' },
+  copyBtnText:   { fontSize: 12, fontWeight: '700', color: BLUE },
 });
 
 // ── Linkly section styles ─────────────────────────────────────────────────────

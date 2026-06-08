@@ -248,6 +248,12 @@ export const api = {
       request<{ success: boolean }>(`/shop-display/linkly/transaction/${sessionId}`, { method: 'DELETE' }),
     printerBytes: (job?: PrinterJob) =>
       request<{ data: { bytes: string } }>('/shop-display/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
+    getPrinterConfig: () =>
+      request<{ data: ShopDisplayPrinterConfig }>('/shop-display/printer-config'),
+    savePrinterConfig: (data: Partial<ShopDisplayPrinterConfig>) =>
+      request<{ success: boolean }>('/shop-display/printer-config', { method: 'PATCH', body: JSON.stringify(data) }),
+    getStorePrinterConfig: () =>
+      request<{ data: ShopDisplayPrinterConfig | null }>('/shop-display/store-printer-config'),
     analytics: (range: 'day' | 'week' | 'month', date?: string, storeId?: string | null) => {
       const p = new URLSearchParams({ range });
       if (date) p.set('date', date);
@@ -2081,6 +2087,14 @@ export interface ShopDisplayStore {
   longitude?: number | null;
   phone?: string | null;
   dailySpecial?: string | null;
+}
+
+export interface ShopDisplayPrinterConfig {
+  printerIp: string | null;
+  printerPort: number;
+  printerBrand: 'epson' | 'star';
+  autoPrint: boolean;
+  autoDrawer: boolean;
 }
 
 export interface ShopDisplayStaffMember {
