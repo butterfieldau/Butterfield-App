@@ -189,11 +189,17 @@ function posDecryptText(stored: string): string {
 
 // ── Active Linkly sessions (POS) ──────────────────────────────────────────
 const posActiveSessions = new Map<string, { deviceUserId: string; amountCents: number; createdAt: number }>();
-// Clean up sessions older than 30 minutes
+// Auth-token cache: Linkly tokens last ~60 min — cache for 55 min to avoid
+// re-authenticating on every 2-second poll, which is the main reliability risk.
+const posActiveLinklyTokens = new Map<string, { token: string; secret: string; expiresAt: number }>();
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000;
   for (const [id, s] of posActiveSessions.entries()) {
     if (s.createdAt < cutoff) posActiveSessions.delete(id);
+  }
+  const now = Date.now();
+  for (const [uid, t] of posActiveLinklyTokens.entries()) {
+    if (t.expiresAt < now) posActiveLinklyTokens.delete(uid);
   }
 }, 5 * 60 * 1000);
 
@@ -1155,56 +1161,64 @@ router.post('/orders/:id/refund', async (req, res) => {
   return res.json({ success: true, refundAmountCents, isFullRefund });
 });
 
+// ── Linkly helpers ────────────────────────────────────────────────────────────
+async function getLinklyConfig(userId: string) {
+  const rows = await db.execute(sql`
+    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
+    FROM shop_display_profiles WHERE user_id = ${userId}
+  `);
+  return (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
+}
+
+// Authenticate with Linkly Cloud — uses token cache (55-min TTL) so we only
+// re-auth when the token is about to expire, NOT on every 2-second poll.
+async function getLinklyAuth(userId: string, cfg: any): Promise<{ token: string; secret: string }> {
+  const cached = posActiveLinklyTokens.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+  let password: string;
+  try { password = posDecryptText(cfg.linkly_password_encrypted); }
+  catch { throw new Error('Failed to decrypt Linkly credentials.'); }
+  const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: cfg.linkly_username,
+      password,
+      pairingCode: cfg.linkly_pairing_code,
+      posName: 'Butterfield Cookies POS',
+      posVersion: '1.0',
+      posId: `pos-${userId}`,
+    }),
+  });
+  const authBody = await authRes.json().catch(() => ({})) as any;
+  if (!authRes.ok) throw new Error(authBody?.message ?? 'Linkly authentication failed.');
+  const token = authBody.token ?? authBody.Token;
+  const secret = authBody.secret ?? authBody.Secret ?? '';
+  posActiveLinklyTokens.set(userId, { token, secret, expiresAt: Date.now() + 55 * 60 * 1000 });
+  return { token, secret };
+}
+
 // ── POST /pos/linkly/transaction — initiate EFTPOS via Linkly ─────────────
 router.post('/linkly/transaction', async (req, res) => {
   await ensurePosSchemaReady();
   const { amountCents } = req.body ?? {};
-  if (!amountCents || Number(amountCents) <= 0) {
+  if (!amountCents || Number(amountCents) <= 0)
     return res.status(400).json({ error: 'amountCents is required and must be positive' });
-  }
 
-  const rows = await db.execute(sql`
-    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
-    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
-  `);
-  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
-  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+  const cfg = await getLinklyConfig(req.user!.id);
+  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code)
     return res.status(400).json({ error: 'Linkly is not configured for this account. Configure it via the Shop Display settings.' });
-  }
-
-  let password: string;
-  try { password = posDecryptText(cfg.linkly_password_encrypted); }
-  catch { return res.status(500).json({ error: 'Failed to decrypt Linkly credentials.' }); }
 
   const sessionId = randomUUID();
   const chargeAmount = Math.round(Number(amountCents));
 
   try {
-    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: cfg.linkly_username,
-        password,
-        pairingCode: cfg.linkly_pairing_code,
-        posName: 'Butterfield Cookies POS',
-        posVersion: '1.0',
-        posId: `pos-${req.user!.id}`,
-      }),
-    });
-    const authBody = await authRes.json().catch(() => ({})) as any;
-    if (!authRes.ok) {
-      return res.status(400).json({ error: authBody?.message ?? 'Linkly authentication failed.' });
-    }
-
-    const authToken = authBody.token ?? authBody.Token;
-    const secret = authBody.secret ?? authBody.Secret ?? '';
-
+    const { token, secret } = await getLinklyAuth(req.user!.id, cfg);
     const txnRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`,
+        'Authorization': `Bearer ${token}`,
         'Secret': secret,
       },
       body: JSON.stringify({
@@ -1219,17 +1233,15 @@ router.post('/linkly/transaction', async (req, res) => {
         ReceiptAutoPrint: '7',
       }),
     });
-
     if (!txnRes.ok) {
       const txnBody = await txnRes.json().catch(() => ({})) as any;
       return res.status(400).json({ error: txnBody?.message ?? 'Failed to start EFTPOS transaction.' });
     }
-
     posActiveSessions.set(sessionId, { deviceUserId: req.user!.id, amountCents: chargeAmount, createdAt: Date.now() });
     return res.json({ data: { sessionId, amountCents: chargeAmount } });
   } catch (err: any) {
     req.log.error({ err }, 'POS Linkly transaction initiation error');
-    return res.status(502).json({ error: 'Could not reach Linkly Cloud.' });
+    return res.status(502).json({ error: err.message ?? 'Could not reach Linkly Cloud.' });
   }
 });
 
@@ -1242,46 +1254,19 @@ router.get('/linkly/:sessionId', async (req, res) => {
   if (!binding) return res.status(404).json({ error: 'Session not found or expired.' });
   if (binding.deviceUserId !== req.user!.id) return res.status(403).json({ error: 'Session belongs to a different device.' });
 
-  const rows = await db.execute(sql`
-    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
-    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
-  `);
-  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
-  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
+  const cfg = await getLinklyConfig(req.user!.id);
+  if (!cfg?.linkly_username)
     return res.status(400).json({ error: 'Linkly not configured.' });
-  }
-
-  let password: string;
-  try { password = posDecryptText(cfg.linkly_password_encrypted); }
-  catch { return res.status(500).json({ error: 'Failed to decrypt credentials.' }); }
 
   try {
-    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: cfg.linkly_username,
-        password,
-        pairingCode: cfg.linkly_pairing_code,
-        posName: 'Butterfield Cookies POS',
-        posVersion: '1.0',
-        posId: `pos-${req.user!.id}`,
-      }),
-    });
-    const authBody = await authRes.json().catch(() => ({})) as any;
-    if (!authRes.ok) return res.status(400).json({ error: 'Linkly re-authentication failed.' });
-
-    const authToken = authBody.token ?? authBody.Token;
-    const secret = authBody.secret ?? authBody.Secret ?? '';
-
+    const { token, secret } = await getLinklyAuth(req.user!.id, cfg);
     const pollRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
-      headers: { 'Authorization': `Bearer ${authToken}`, 'Secret': secret },
+      headers: { 'Authorization': `Bearer ${token}`, 'Secret': secret },
     });
     const pollBody = await pollRes.json().catch(() => ({})) as any;
 
-    if (!pollRes.ok) {
+    if (!pollRes.ok)
       return res.json({ data: { status: 'unknown', responseText: 'Polling error', approved: false, complete: false } });
-    }
 
     const response = pollBody.Response ?? pollBody.response ?? {};
     const complete = pollBody.SessionComplete ?? pollBody.Complete ?? false;
@@ -1321,46 +1306,19 @@ router.delete('/linkly/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
 
   const binding = posActiveSessions.get(sessionId);
-  if (binding && binding.deviceUserId !== req.user!.id) {
+  if (binding && binding.deviceUserId !== req.user!.id)
     return res.status(403).json({ error: 'Session belongs to a different device.' });
-  }
   posActiveSessions.delete(sessionId);
 
-  const rows = await db.execute(sql`
-    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
-    FROM shop_display_profiles WHERE user_id = ${req.user!.id}
-  `);
-  const cfg = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
-  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code) {
-    return res.json({ success: true });
-  }
-
-  let password: string;
-  try { password = posDecryptText(cfg.linkly_password_encrypted); }
-  catch { return res.json({ success: true }); }
+  const cfg = await getLinklyConfig(req.user!.id);
+  if (!cfg?.linkly_username) return res.json({ success: true });
 
   try {
-    const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: cfg.linkly_username,
-        password,
-        pairingCode: cfg.linkly_pairing_code,
-        posName: 'Butterfield Cookies POS',
-        posVersion: '1.0',
-        posId: `pos-${req.user!.id}`,
-      }),
+    const { token, secret } = await getLinklyAuth(req.user!.id, cfg);
+    await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}`, 'Secret': secret },
     });
-    const authBody = await authRes.json().catch(() => ({})) as any;
-    if (authRes.ok) {
-      const authToken = authBody.token ?? authBody.Token;
-      const secret = authBody.secret ?? authBody.Secret ?? '';
-      await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Secret': secret },
-      });
-    }
     return res.json({ success: true });
   } catch (err: any) {
     req.log.error({ err }, 'POS Linkly cancel error');

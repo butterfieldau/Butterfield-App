@@ -1518,11 +1518,8 @@ router.patch('/settings', async (req, res) => {
 // socket itself from the device (which IS on the same LAN as the printer).
 router.post('/printer/bytes', async (req, res) => {
   try {
-    const { buildReceiptBytes } = await import('../lib/printer.js');
+    const { buildReceiptBytes, buildTaxInvoiceBytes } = await import('../lib/printer.js');
     const { job } = req.body as { job?: any };
-    // When job has a real orderId it is a receipt for an actual order; use it as-is.
-    // When job only carries printerBrand (test-print path), apply the brand to the
-    // default test receipt so Epson vs Star cut/feed commands are exercised correctly.
     const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
     const isRealJob = job && job.orderId && job.orderId !== 'test-0000-0000-0000' && Array.isArray(job.items) && job.items.length > 0;
     const printJob = isRealJob
@@ -1540,7 +1537,9 @@ router.post('/printer/bytes', async (req, res) => {
           notes:               'Test print — Butterfield POS',
           printerBrand:        brand,
         };
-    const bytes = buildReceiptBytes(printJob);
+    const bytes = job?.jobType === 'tax_invoice'
+      ? buildTaxInvoiceBytes(printJob)
+      : buildReceiptBytes(printJob);
     return res.json({ data: { bytes: bytes.toString('base64') } });
   } catch (err: any) {
     return res.status(500).json({ error: err.message ?? 'Could not build receipt' });

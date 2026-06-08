@@ -67,10 +67,14 @@ export interface PrintJob {
   items:               PrintItem[];
   totalCents:          number;
   discountCents?:      number;
+  surchargeCents?:     number;
   loyaltyPointsEarned?: number;
   notes?:              string;
   scheduledFor?:       Date | null;
   printerBrand?:       'epson' | 'star';
+  jobType?:            'receipt' | 'tax_invoice';
+  paymentMethod?:      string;
+  customerEmail?:      string;
 }
 
 export function buildReceiptBytes(job: PrintJob): Buffer {
@@ -189,6 +193,112 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
       ? [CMD_STAR_FEED, CMD_STAR_CUT]
       : [CMD_FEED_5MM, CMD_EPSON_CUT]
     ),
+  );
+
+  return Buffer.concat(parts);
+}
+
+// ── Tax Invoice builder ───────────────────────────────────────────────────────
+// Produces a GST-compliant "TAX INVOICE" for Australian businesses.
+// All prices are GST-inclusive; GST component = total / 11.
+export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
+  const isStar = job.printerBrand === 'star';
+  const sydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const dateStr = sydney.toLocaleDateString('en-AU', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Sydney',
+  });
+  const timeStr = sydney.toLocaleTimeString('en-AU', {
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney',
+  });
+
+  const discountCents  = job.discountCents  ?? 0;
+  const surchargeCents = job.surchargeCents ?? 0;
+  // subtotal before surcharge but after discount = totalCents - surchargeCents
+  const afterDiscountCents = job.totalCents - surchargeCents;
+  const subtotalCents  = afterDiscountCents + discountCents;
+  const gstCents       = Math.round(job.totalCents / 11);
+
+  const payLabel = job.paymentMethod
+    ? job.paymentMethod.charAt(0).toUpperCase() + job.paymentMethod.slice(1)
+    : 'In-Store';
+
+  const parts: Buffer[] = [
+    ...(isStar ? [] : [CMD_INIT, lf(1)]),
+    CMD_ALIGN_CTR,
+    CMD_BOLD_ON,
+    CMD_DBL_SIZE,
+    Buffer.from('TAX INVOICE\n', 'utf-8'),
+    CMD_NORMAL_SIZE,
+    CMD_BOLD_OFF,
+    lf(1),
+    Buffer.from('BUTTERFIELD COOKIES PTY LTD\n', 'utf-8'),
+    Buffer.from('Merrylands NSW 2160\n', 'utf-8'),
+    Buffer.from('ABN: 24 680 761 166\n', 'utf-8'),
+    Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
+    divider('='),
+    CMD_ALIGN_LEFT,
+    twoCol('Invoice #', job.orderId.slice(0, 8).toUpperCase()),
+    twoCol('Date', dateStr),
+    twoCol('Time', timeStr),
+    twoCol('Customer', job.customerName),
+  ];
+
+  if (job.customerEmail) parts.push(row(`Email: ${job.customerEmail}`));
+
+  parts.push(
+    twoCol('Payment', payLabel),
+    divider(),
+    CMD_BOLD_ON,
+    twoCol('ITEM', 'AMOUNT'),
+    CMD_BOLD_OFF,
+    divider(),
+  );
+
+  for (const item of job.items) {
+    const qty      = `${item.quantity}x `;
+    const price    = formatAUD(item.unitPriceCents * item.quantity);
+    const maxName  = COL - qty.length - price.length - 1;
+    const itemName = item.variantName ? `${item.name} (${item.variantName})` : item.name;
+    const safeName = itemName.slice(0, maxName).padEnd(maxName, ' ');
+    parts.push(Buffer.from(`${qty}${safeName} ${price}\n`, 'utf-8'));
+    if (item.options && item.options.length > 0) {
+      for (const opt of item.options)
+        parts.push(Buffer.from(`   + ${opt.slice(0, COL - 5)}\n`, 'utf-8'));
+    }
+  }
+
+  parts.push(divider());
+
+  if (discountCents > 0) {
+    parts.push(twoCol('Subtotal', formatAUD(subtotalCents)));
+    parts.push(twoCol('Discount', `-${formatAUD(discountCents)}`));
+  }
+  if (surchargeCents > 0) {
+    if (!discountCents) parts.push(twoCol('Subtotal', formatAUD(afterDiscountCents)));
+    parts.push(twoCol('Surcharge', `+${formatAUD(surchargeCents)}`));
+  }
+
+  parts.push(
+    divider(),
+    CMD_BOLD_ON,
+    twoCol('TOTAL (incl. GST)', formatAUD(job.totalCents)),
+    CMD_BOLD_OFF,
+    twoCol('GST included (10%)', formatAUD(gstCents)),
+    divider(),
+  );
+
+  if (job.loyaltyPointsEarned && job.loyaltyPointsEarned > 0) {
+    parts.push(twoCol('Loyalty points earned', `+${job.loyaltyPointsEarned} pts`));
+  }
+
+  parts.push(
+    lf(1),
+    CMD_ALIGN_CTR,
+    Buffer.from('Thank you for your purchase!\n', 'utf-8'),
+    Buffer.from('Please retain for your records.\n', 'utf-8'),
+    divider('='),
+    lf(3),
+    ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
   );
 
   return Buffer.concat(parts);

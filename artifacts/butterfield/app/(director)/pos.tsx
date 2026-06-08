@@ -21,7 +21,7 @@ import {
   upsertCustomerCache, searchCustomerCache,
   type CachedPosCustomer, type OfflineQueueEntry,
 } from '@/lib/posCache';
-import { sendReceiptPrint, orderToPrintJob } from '@/lib/printer';
+import { sendReceiptPrint, sendTaxInvoicePrint } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -213,9 +213,14 @@ function PosScreenInner() {
     id: string; orderNumber: string; totalCents: number;
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
-    surchargeCents?: number;
+    surchargeCents: number;
     splitPayments?: { method: string; amountCents: number }[];
     loyaltyResult: PosLoyaltyResult | null;
+    // Ticket snapshot captured before clearActiveTicket() — needed for printing
+    customerName: string;
+    ticketItems: Array<{ name: string; quantity: number; unitPriceCents: number; variantName?: string; options: string[] }>;
+    discountAmountCents: number;
+    discountLabel: string;
   } | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerModalMode, setCustomerModalMode] = useState<'search' | 'scan'>('search');
@@ -567,6 +572,19 @@ function PosScreenInner() {
       supervisorPin?: string;
     }) => api.pos.createOrder(buildOrderPayload(vars)),
     onSuccess: (res, vars) => {
+      // Capture ticket snapshot BEFORE clearActiveTicket() discards it.
+      // res.data only has { id, orderNumber, totalCents, paymentMethod, status } — no items.
+      const snapshotItems = activeTicket.items.map(i => ({
+        name: i.productName,
+        quantity: i.quantity,
+        unitPriceCents: i.unitPriceCents,
+        variantName: i.variantName ?? undefined,
+        options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[],
+      }));
+      const snapshotCustomerName = activeTicket.customer?.name ?? 'Walk-in';
+      const discountAmountCents = activeTicket.appliedDiscount?.amountCents ?? 0;
+      const discountLabel = activeTicket.appliedDiscount?.label ?? '';
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLastOrderId(res.data.id);
       setCompletedOrder({
@@ -575,20 +593,33 @@ function PosScreenInner() {
         totalCents: res.data.totalCents,
         paymentMethod: vars.paymentMethod,
         amountTenderedCents: vars.amountTenderedCents,
-        surchargeCents: vars.surchargeCents,
+        surchargeCents: vars.surchargeCents ?? 0,
         splitPayments: vars.splitPayments,
         loyaltyResult: res.loyaltyResult,
+        customerName: snapshotCustomerName,
+        ticketItems: snapshotItems,
+        discountAmountCents,
+        discountLabel,
       });
       setShowPayment(false);
       clearActiveTicket();
       refetchSummary();
       queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
-      // Auto-print receipt if printer is configured and autoPrint is on
+      // Auto-print receipt using the captured ticket items (not the sparse res.data)
       const store = storeData as any;
       if (store?.autoPrint && store?.printerIp) {
-        const job = orderToPrintJob(res.data, store.printerBrand ?? 'epson');
         const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-        sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
+        sendReceiptPrint({
+          orderId: res.data.id,
+          customerName: snapshotCustomerName,
+          type: 'pickup',
+          items: snapshotItems,
+          totalCents: res.data.totalCents,
+          discountCents: discountAmountCents,
+          surchargeCents: vars.surchargeCents ?? 0,
+          loyaltyPointsEarned: res.loyaltyResult?.pointsEarned,
+          printerBrand: store.printerBrand ?? 'epson',
+        }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
       }
     },
     onError: (err: any, vars) => {
@@ -641,9 +672,19 @@ function PosScreenInner() {
           totalCents,
           paymentMethod: params.method,
           amountTenderedCents: params.amountTenderedCents,
-          surchargeCents: params.surchargeCents,
+          surchargeCents: params.surchargeCents ?? 0,
           splitPayments: params.splitPayments,
           loyaltyResult: null,
+          customerName: activeTicket.customer?.name ?? 'Walk-in',
+          ticketItems: activeTicket.items.map(i => ({
+            name: i.productName,
+            quantity: i.quantity,
+            unitPriceCents: i.unitPriceCents,
+            variantName: i.variantName ?? undefined,
+            options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[],
+          })),
+          discountAmountCents: activeTicket.appliedDiscount?.amountCents ?? 0,
+          discountLabel: activeTicket.appliedDiscount?.label ?? '',
         });
         setShowPayment(false);
         clearActiveTicket();
@@ -950,6 +991,27 @@ function PosScreenInner() {
         <OrderCompleteModal
           order={completedOrder}
           onClose={() => setCompletedOrder(null)}
+          onPrintTaxInvoice={() => {
+            const store = storeData as any;
+            if (!store?.printerIp) {
+              Alert.alert('No Printer', 'Configure a printer IP in POS settings to print.');
+              return;
+            }
+            const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+            sendTaxInvoicePrint({
+              orderId: completedOrder.id,
+              customerName: completedOrder.customerName,
+              type: 'pickup',
+              items: completedOrder.ticketItems,
+              totalCents: completedOrder.totalCents,
+              discountCents: completedOrder.discountAmountCents,
+              surchargeCents: completedOrder.surchargeCents,
+              loyaltyPointsEarned: completedOrder.loyaltyResult?.pointsEarned,
+              printerBrand: store.printerBrand ?? 'epson',
+              paymentMethod: completedOrder.paymentMethod,
+            }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
+              .catch((e: any) => Alert.alert('Print Failed', e?.message ?? 'Could not reach printer.'));
+          }}
         />
       )}
 
@@ -2130,21 +2192,27 @@ function PaymentModal({
 }
 
 // ── Order Complete / Loyalty Modal ────────────────────────────────────────────
-function OrderCompleteModal({ order, onClose }: {
+function OrderCompleteModal({ order, onClose, onPrintTaxInvoice }: {
   order: {
     id: string; orderNumber: string; totalCents: number;
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
-    surchargeCents?: number;
+    surchargeCents: number;
     splitPayments?: { method: string; amountCents: number }[];
     loyaltyResult: PosLoyaltyResult | null;
+    customerName: string;
+    ticketItems: Array<{ name: string; quantity: number; unitPriceCents: number; variantName?: string; options: string[] }>;
+    discountAmountCents: number;
+    discountLabel: string;
   };
   onClose: () => void;
+  onPrintTaxInvoice?: () => void;
 }) {
   const changeCents = order.paymentMethod === 'cash' && order.amountTenderedCents
     ? Math.max(0, order.amountTenderedCents - order.totalCents)
     : null;
   const lr = order.loyaltyResult;
+  const isOffline = order.id.startsWith('offline-');
 
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
@@ -2187,6 +2255,17 @@ function OrderCompleteModal({ order, onClose }: {
                 </View>
               )}
             </View>
+          )}
+
+          {/* TAX Invoice — manual button only, never auto-printed */}
+          {!isOffline && onPrintTaxInvoice && (
+            <TouchableOpacity
+              onPress={onPrintTaxInvoice}
+              style={{ marginTop: 10, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignSelf: 'stretch', alignItems: 'center' }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 14, color: '#334155', fontWeight: '600' }}>🖨  Print TAX Invoice</Text>
+            </TouchableOpacity>
           )}
 
           <TouchableOpacity onPress={onClose} style={styles.completeCloseBtn} activeOpacity={0.8}>
