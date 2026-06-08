@@ -41,6 +41,7 @@ export const ordersTable = pgTable("orders", {
   contactEmail: text("contact_email"),
   cancelReason: text("cancel_reason"),
   clientIdempotencyKey: text("client_idempotency_key"),
+  registerSessionId: text("register_session_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

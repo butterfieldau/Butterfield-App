@@ -77,6 +77,12 @@ export interface PrintJob {
   customerEmail?:      string;
 }
 
+export interface RegisterSummaryPrintJob {
+  title?: string;
+  lines?: string[];
+  printerBrand?: 'epson' | 'star';
+}
+
 export function buildReceiptBytes(job: PrintJob): Buffer {
   // Resolve brand early — needed both at the top (init) and at the bottom (cut).
   const isStar = job.printerBrand === 'star';
@@ -297,6 +303,56 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     Buffer.from('Thank you for your purchase!\n', 'utf-8'),
     Buffer.from('Please retain for your records.\n', 'utf-8'),
     divider('='),
+    lf(3),
+    ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
+  );
+
+  return Buffer.concat(parts);
+}
+
+export function buildRegisterSummaryBytes(job: RegisterSummaryPrintJob): Buffer {
+  const isStar = job.printerBrand === 'star';
+  const lines = Array.isArray(job.lines) ? job.lines.filter((line) => typeof line === 'string') : [];
+  const title = (job.title?.trim() || 'DAILY REGISTER SUMMARY').slice(0, COL);
+
+  const parts: Buffer[] = [
+    ...(isStar ? [] : [CMD_INIT, lf(1)]),
+    CMD_ALIGN_CTR,
+    CMD_BOLD_ON,
+    CMD_DBL_SIZE,
+    Buffer.from(`${title}\n`, 'utf-8'),
+    CMD_NORMAL_SIZE,
+    CMD_BOLD_OFF,
+    divider('='),
+    CMD_ALIGN_LEFT,
+  ];
+
+  for (const line of lines) {
+    const normalized = line.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      parts.push(lf(1));
+      continue;
+    }
+    if (normalized === '---') {
+      parts.push(divider());
+      continue;
+    }
+    if (normalized === '===') {
+      parts.push(divider('='));
+      continue;
+    }
+    if (normalized.includes('\t')) {
+      const [left, right] = normalized.split('\t');
+      parts.push(twoCol(left.trim(), (right ?? '').trim()));
+      continue;
+    }
+    parts.push(row(normalized));
+  }
+
+  parts.push(
+    divider('='),
+    CMD_ALIGN_CTR,
+    Buffer.from('Butterfield POS\n', 'utf-8'),
     lf(3),
     ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
   );

@@ -637,6 +637,20 @@ export const api = {
       request<{ data: ReportsRefundsData }>(`/director/reports/refunds?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
     reportsCustomers: (from: string, to: string) =>
       request<{ data: ReportsCustomerGrowth }>(`/director/reports/customers?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+    registerReports: (params?: { from?: string; to?: string; register?: string; staffUserId?: string; closeMethod?: 'manual' | 'auto'; variance?: 'all' | 'with_variance' | 'without_variance' }) => {
+      const qs = new URLSearchParams();
+      if (params?.from) qs.set('from', params.from);
+      if (params?.to) qs.set('to', params.to);
+      if (params?.register) qs.set('register', params.register);
+      if (params?.staffUserId) qs.set('staffUserId', params.staffUserId);
+      if (params?.closeMethod) qs.set('closeMethod', params.closeMethod);
+      if (params?.variance) qs.set('variance', params.variance);
+      return request<{ data: RegisterSessionReport[] }>(`/director/reports/register-sessions${qs.toString() ? `?${qs}` : ''}`);
+    },
+    registerReport: (id: string) =>
+      request<{ data: RegisterSessionReport }>(`/director/reports/register-sessions/${id}`),
+    updateRegisterReportNotes: (id: string, data: { closeNote?: string; varianceNote?: string }) =>
+      request<{ data: RegisterSessionReport }>(`/director/reports/register-sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
     // Timesheets
     timesheets:          () => request<{ data: DirectorShift[] }>('/director/timesheets'),
@@ -899,6 +913,21 @@ export const api = {
       request<{ data: { stampCount: number; rewardUnlocked: boolean; freeCoffeeRewards: number } }>(
         `/pos/customers/${customerId}/stamp`, { method: 'POST', body: JSON.stringify({ items, coffeeItemCount, ticketId }) }
       ),
+    registerCurrent: () =>
+      request<{ data: PosRegisterCurrentResponse }>('/pos/register/current'),
+    setRegisterFloat: (amountCents: number) =>
+      request<{ data: RegisterSessionReport }>('/pos/register/float', { method: 'POST', body: JSON.stringify({ amountCents }) }),
+    addRegisterCashMovement: (data: { movementType: 'add' | 'remove'; amountCents: number; reason?: string; supervisorPin?: string }) =>
+      request<{ data: { session: RegisterSessionReport | null; cashMovements: PosRegisterCashMovement[] } }>(
+        '/pos/register/cash-movements',
+        { method: 'POST', body: JSON.stringify(data) },
+      ),
+    closeRegister: (data: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string; supervisorPin?: string }) =>
+      request<{ data: RegisterSessionReport | null }>('/pos/register/close', { method: 'POST', body: JSON.stringify(data) }),
+    updateRegisterSettings: (data: { autoCloseEnabled: boolean }) =>
+      request<{ data: { autoCloseEnabled: boolean } }>('/pos/register/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+    markRegisterSummaryPrinted: (sessionId: string) =>
+      request<{ success: boolean }>(`/pos/register/summary/${sessionId}/printed`, { method: 'PATCH' }),
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
@@ -1010,6 +1039,69 @@ export interface PosSurcharge {
   amountValue: number;
   isActive: boolean;
   createdAt?: string;
+}
+
+export interface RegisterSessionSummary {
+  startingFloatCents: number | null;
+  cashSalesCents: number;
+  cardSalesCents: number;
+  cashRefundsCents: number;
+  cardRefundsCents: number;
+  totalRefundsCents: number;
+  discountsCents: number;
+  surchargesCents: number;
+  cashAddedCents: number;
+  cashRemovedCents: number;
+  expectedCashCents: number;
+  actualCountedCashCents: number | null;
+  varianceCents: number | null;
+  totalSalesCents: number;
+}
+
+export interface RegisterSessionReport {
+  id: string;
+  storeId: string | null;
+  registerName: string;
+  registerLocation: string | null;
+  tradingDate: string;
+  openedAt: string;
+  openedByUserId: string;
+  openedByName: string | null;
+  startingFloatEnteredAt: string | null;
+  startingFloatEnteredByUserId: string | null;
+  startingFloatEnteredByName: string | null;
+  closedAt: string | null;
+  closedByUserId: string | null;
+  closedByName: string | null;
+  closeMethod: 'manual' | 'auto' | null;
+  closeNote: string | null;
+  varianceNote: string | null;
+  varianceApprovedByUserId: string | null;
+  varianceApprovedByName: string | null;
+  printedAt: string | null;
+  autoClosed: boolean;
+  summary: RegisterSessionSummary;
+}
+
+export interface PosRegisterCashMovement {
+  id: string;
+  movementType: 'add' | 'remove';
+  amountCents: number;
+  reason: string | null;
+  createdAt: string | null;
+  createdByUserId: string;
+  createdByName: string | null;
+  approvedByUserId: string | null;
+  approvedByName: string | null;
+}
+
+export interface PosRegisterCurrentResponse {
+  session: RegisterSessionReport | null;
+  cashEnabled: boolean;
+  autoCloseEnabled: boolean;
+  canEditAutoClose: boolean;
+  pendingAutoPrintReport: RegisterSessionReport | null;
+  cashMovements: PosRegisterCashMovement[];
 }
 
 export interface StockItem {
@@ -2482,6 +2574,7 @@ export interface PrinterJob {
   lines?: string[];
   copies?: number;
   printerBrand?: 'epson' | 'star';
+  jobType?: 'receipt' | 'tax_invoice' | 'register_summary';
 }
 
 export interface StaffInviteToken {

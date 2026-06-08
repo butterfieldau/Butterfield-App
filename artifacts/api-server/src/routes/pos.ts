@@ -34,10 +34,25 @@ import {
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { recordAuditLog } from '../lib/auditLog.js';
+import {
+  addRegisterCashMovement,
+  closeRegisterSession,
+  ensureRegisterSchemaReady,
+  getOrCreateCurrentRegisterSession,
+  getPendingAutoPrintReport,
+  getRegisterSessionReport,
+  getRegisterSettings,
+  markRegisterSummaryPrinted,
+  recordPosRefundEvent,
+  setRegisterStartingFloat,
+  startRegisterAutoCloseLoop,
+  updateRegisterAutoCloseSetting,
+} from '../lib/registers.js';
 
 const router = Router();
 router.use(requireAuth);
 router.use(requireRole('staff', 'manager', 'director', 'master', 'shop_display'));
+startRegisterAutoCloseLoop();
 
 function recordPosPinHistory(req: any, success: boolean, failReason: string | null, userId?: string | null, email?: string | null, role?: string | null) {
   const ip = (() => {
@@ -121,6 +136,7 @@ async function ensurePosSchemaReady() {
   if (!posSchemaReady) {
     posSchemaReady = (async () => {
       try {
+        await ensureRegisterSchemaReady();
         await db.execute(sql.raw(
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'customer_app'`
         ));
@@ -160,6 +176,57 @@ async function ensurePosSchemaReady() {
     })();
   }
   return posSchemaReady;
+}
+
+async function fetchRegisterCashMovements(sessionId: string) {
+  const rows = await db.execute(sql`
+    SELECT
+      m.id,
+      m.movement_type,
+      m.amount_cents,
+      m.reason,
+      m.created_at,
+      m.created_by_user_id,
+      creator.name AS created_by_name,
+      m.approved_by_user_id,
+      approver.name AS approved_by_name
+    FROM register_cash_movements m
+    LEFT JOIN users creator ON creator.id = m.created_by_user_id
+    LEFT JOIN users approver ON approver.id = m.approved_by_user_id
+    WHERE m.session_id = ${sessionId}
+    ORDER BY m.created_at DESC
+  `);
+  return ((rows as any).rows ?? (rows as any) ?? []).map((row: any) => ({
+    id: row.id,
+    movementType: row.movement_type,
+    amountCents: Number(row.amount_cents ?? 0),
+    reason: row.reason ?? null,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    createdByUserId: row.created_by_user_id,
+    createdByName: row.created_by_name ?? null,
+    approvedByUserId: row.approved_by_user_id ?? null,
+    approvedByName: row.approved_by_name ?? null,
+  }));
+}
+
+async function buildCurrentRegisterResponse(user: { id: string; role: string }) {
+  const [settings, session, pendingAutoPrintReport] = await Promise.all([
+    getRegisterSettings(),
+    getOrCreateCurrentRegisterSession(user.id),
+    getPendingAutoPrintReport(user.id),
+  ]);
+  const [report, cashMovements] = await Promise.all([
+    getRegisterSessionReport(session.id),
+    fetchRegisterCashMovements(session.id),
+  ]);
+  return {
+    session: report,
+    cashEnabled: session.startingFloatCents !== null,
+    autoCloseEnabled: settings.autoCloseEnabled,
+    canEditAutoClose: ['manager', 'director', 'master'].includes(user.role),
+    pendingAutoPrintReport,
+    cashMovements,
+  };
 }
 
 // ── Linkly encrypt/decrypt (mirrors shop-display pattern) ─────────────────
@@ -342,6 +409,110 @@ router.get('/customer-search', async (req, res) => {
   });
 });
 
+// ── Register session endpoints ───────────────────────────────────────────────
+router.get('/register/current', async (req, res) => {
+  await ensurePosSchemaReady();
+  const data = await buildCurrentRegisterResponse(req.user!);
+  return res.json({ data });
+});
+
+router.post('/register/float', async (req, res) => {
+  await ensurePosSchemaReady();
+  const amountCents = Math.max(0, Math.round(Number(req.body?.amountCents ?? 0)));
+  const session = await setRegisterStartingFloat({ userId: req.user!.id, amountCents });
+  const report = await getRegisterSessionReport(session.id);
+  return res.json({ data: report });
+});
+
+router.post('/register/cash-movements', async (req, res) => {
+  await ensurePosSchemaReady();
+  const movementType = req.body?.movementType === 'remove' ? 'remove' : 'add';
+  const amountCents = Math.round(Number(req.body?.amountCents ?? 0));
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    return res.status(400).json({ error: 'amountCents must be a positive number' });
+  }
+  const session = await getOrCreateCurrentRegisterSession(req.user!.id);
+  try {
+    await addRegisterCashMovement({
+      sessionId: session.id,
+      actorUserId: req.user!.id,
+      actorRole: req.user!.role as any,
+      movementType,
+      amountCents,
+      reason: typeof req.body?.reason === 'string' ? req.body.reason : null,
+      supervisorPin: typeof req.body?.supervisorPin === 'string' ? req.body.supervisorPin : null,
+    });
+    const [report, cashMovements] = await Promise.all([
+      getRegisterSessionReport(session.id),
+      fetchRegisterCashMovements(session.id),
+    ]);
+    return res.json({ data: { session: report, cashMovements } });
+  } catch (error: any) {
+    if (error?.message === 'REGISTER_SESSION_CLOSED') {
+      return res.status(409).json({ error: 'This register session is already closed.' });
+    }
+    if (error?.message === 'SUPERVISOR_PIN_REQUIRED') {
+      return res.status(403).json({ error: 'Manager approval is required for this cash removal.', code: 'SUPERVISOR_PIN_REQUIRED' });
+    }
+    if (error?.message === 'SUPERVISOR_PIN_INVALID') {
+      return res.status(403).json({ error: 'Incorrect manager PIN.', code: 'SUPERVISOR_PIN_INVALID' });
+    }
+    throw error;
+  }
+});
+
+router.post('/register/close', async (req, res) => {
+  await ensurePosSchemaReady();
+  const session = await getOrCreateCurrentRegisterSession(req.user!.id);
+  const actualCountedCashCents = Number(req.body?.actualCountedCashCents ?? NaN);
+  if (!Number.isFinite(actualCountedCashCents) || actualCountedCashCents < 0) {
+    return res.status(400).json({ error: 'actualCountedCashCents must be 0 or greater' });
+  }
+  try {
+    await closeRegisterSession({
+      sessionId: session.id,
+      actorUserId: req.user!.id,
+      actorRole: req.user!.role as any,
+      actualCountedCashCents,
+      closeNote: typeof req.body?.closeNote === 'string' ? req.body.closeNote : null,
+      varianceNote: typeof req.body?.varianceNote === 'string' ? req.body.varianceNote : null,
+      supervisorPin: typeof req.body?.supervisorPin === 'string' ? req.body.supervisorPin : null,
+    });
+    const report = await getRegisterSessionReport(session.id);
+    return res.json({ data: report });
+  } catch (error: any) {
+    if (error?.message === 'REGISTER_SESSION_CLOSED') {
+      return res.status(409).json({ error: 'This register session is already closed.' });
+    }
+    if (error?.message === 'VARIANCE_NOTE_REQUIRED') {
+      return res.status(400).json({ error: 'Please add a reason for the cash variance.', code: 'VARIANCE_NOTE_REQUIRED' });
+    }
+    if (error?.message === 'SUPERVISOR_PIN_REQUIRED') {
+      return res.status(403).json({ error: 'Manager approval is required for this cash variance.', code: 'SUPERVISOR_PIN_REQUIRED' });
+    }
+    if (error?.message === 'SUPERVISOR_PIN_INVALID') {
+      return res.status(403).json({ error: 'Incorrect manager PIN.', code: 'SUPERVISOR_PIN_INVALID' });
+    }
+    throw error;
+  }
+});
+
+router.patch('/register/settings', async (req, res) => {
+  await ensurePosSchemaReady();
+  if (!['manager', 'director', 'master'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Only managers or directors can change register settings.' });
+  }
+  const enabled = req.body?.autoCloseEnabled !== false;
+  const data = await updateRegisterAutoCloseSetting(req.user!.id, enabled);
+  return res.json({ data });
+});
+
+router.patch('/register/summary/:sessionId/printed', async (req, res) => {
+  await ensurePosSchemaReady();
+  await markRegisterSummaryPrinted(req.params.sessionId);
+  return res.json({ success: true });
+});
+
 // ── POST /pos/customers/:id/stamp — manually award one coffee stamp ──────────
 router.post('/customers/:id/stamp', async (req, res) => {
   await ensurePosSchemaReady();
@@ -451,7 +622,7 @@ router.get('/surcharges', async (req, res) => {
       FROM pos_surcharges
       ORDER BY created_at ASC
     `);
-    const rows = (result.rows ?? result as any[]) as any[];
+    const rows = ((result as any).rows ?? (result as any) ?? []) as any[];
     return res.json({ data: rows.map(r => ({
       id: r.id, name: r.name,
       triggerType: r.trigger_type, triggerValue: r.trigger_value,
@@ -544,12 +715,13 @@ router.post('/orders', async (req, res) => {
   // ── Idempotency check — return existing order if key already processed ────
   if (idempotencyKey && typeof idempotencyKey === 'string') {
     try {
-      const [existing] = await db.execute(sql`
+      const existingResult = await db.execute(sql`
         SELECT id, order_number, total_cents, payment_method, status
         FROM orders
         WHERE client_idempotency_key = ${idempotencyKey}
         LIMIT 1
       `);
+      const [existing] = (((existingResult as any).rows ?? (existingResult as any) ?? []) as any[]);
       if (existing) {
         const row = existing as any;
         req.log.info({ idempotencyKey, orderId: row.id }, 'POS idempotent order returned');
@@ -584,8 +756,19 @@ router.post('/orders', async (req, res) => {
   if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'Order must have at least one item' });
   }
-  if (!['cash', 'eftpos'].includes(paymentMethod)) {
-    return res.status(400).json({ error: 'paymentMethod must be cash or eftpos' });
+  if (!['cash', 'eftpos', 'split'].includes(paymentMethod)) {
+    return res.status(400).json({ error: 'paymentMethod must be cash, eftpos or split' });
+  }
+
+  const registerSession = await getOrCreateCurrentRegisterSession(req.user!.id);
+  const splitPayments = Array.isArray(rawSplitPayments) ? rawSplitPayments : null;
+  const usesCash = paymentMethod === 'cash'
+    || (paymentMethod === 'split' && !!splitPayments?.some((payment: any) => payment?.method === 'cash' && Number(payment?.amountCents ?? 0) > 0));
+  if (usesCash && registerSession.startingFloatCents === null) {
+    return res.status(403).json({
+      error: 'Enter the opening cash float before processing cash payments.',
+      code: 'REGISTER_FLOAT_REQUIRED',
+    });
   }
 
   // ── Resolve product prices server-side ─────────────────────────────────────
@@ -745,7 +928,6 @@ router.post('/orders', async (req, res) => {
   // Tip feature removed — always 0 (column retained for historical order data)
   const tipCents = 0;
   const surchargeCents = Math.max(0, Math.floor(Number(rawSurchargeCents) || 0));
-  const splitPayments = Array.isArray(rawSplitPayments) ? rawSplitPayments : null;
   const totalCents = baseTotalCents + surchargeCents;
 
   const orderId = randomUUID();
@@ -791,7 +973,7 @@ router.post('/orders', async (req, res) => {
           id, order_number, user_id, status, type, notes, total_cents,
           items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
           stripe_payment_status, source, staff_user_id, payment_method,
-          tip_cents, surcharge_cents, split_payments,
+          tip_cents, surcharge_cents, split_payments, register_session_id,
           client_idempotency_key,
           created_at, updated_at
         ) VALUES (
@@ -814,6 +996,7 @@ router.post('/orders', async (req, res) => {
           ${tipCents},
           ${surchargeCents},
           ${splitPayments ? JSON.stringify(splitPayments) : null}::jsonb,
+          ${registerSession.id},
           ${idempotencyKey && typeof idempotencyKey === 'string' ? idempotencyKey : null},
           now(),
           now()
@@ -1108,10 +1291,10 @@ router.post('/orders/:id/refund', async (req, res) => {
   }
 
   const result = await db.execute(sql`
-    SELECT id, total_cents, status, source, user_id, loyalty_points_earned, items
+    SELECT id, total_cents, status, source, user_id, loyalty_points_earned, items, payment_method, split_payments
     FROM orders WHERE id = ${id} LIMIT 1
   `);
-  const order = (result.rows ?? result as unknown as any[])[0];
+  const order = ((((result as any).rows ?? (result as any) ?? []) as any[])[0] ?? null) as any;
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (order.source !== 'pos') return res.status(400).json({ error: 'Only POS orders can be refunded via this endpoint' });
   if (order.status === 'cancelled' || order.status === 'refunded') {
@@ -1130,7 +1313,7 @@ router.post('/orders/:id/refund', async (req, res) => {
   `);
 
   // Reverse loyalty points if full refund and customer attached
-  if (isFullRefund && order.user_id && order.loyalty_points_earned > 0) {
+  if (isFullRefund && order.user_id && Number(order.loyalty_points_earned ?? 0) > 0) {
     try {
       await db.execute(sql`
         UPDATE customer_profiles
@@ -1142,12 +1325,31 @@ router.post('/orders/:id/refund', async (req, res) => {
       const items = Array.isArray(order.items) ? order.items : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
       const hasCoffee = items.some((i: any) => String(i.category ?? '').toLowerCase() === 'coffee');
       if (hasCoffee) {
-        await reverseCoffeeStamps({ userId: order.user_id, stampsToRemove: 1, orderId: id });
+        await reverseCoffeeStamps({
+          userId: String(order.user_id),
+          stampsToRemove: 1,
+          source: 'order_refund',
+          orderId: id,
+          description: 'POS refund — coffee stamps reversed',
+        });
       }
     } catch (err: any) {
       req.log.error({ err, orderId: id }, 'POS refund: loyalty reversal failed');
     }
   }
+
+  const refundSession = await getOrCreateCurrentRegisterSession(req.user!.id);
+  await recordPosRefundEvent({
+    orderId: id,
+    registerSessionId: refundSession.id,
+    refundAmountCents,
+    paymentMethod: typeof order.payment_method === 'string' ? order.payment_method : null,
+    splitPayments: order.split_payments ?? null,
+    reason: typeof reason === 'string' ? reason : null,
+    createdByUserId: req.user!.id,
+    approvedByUserId: req.user!.id,
+    isVoid: false,
+  });
 
   await recordAuditLog({
     actor: req.user,
@@ -1333,18 +1535,18 @@ router.patch('/orders/:id/void', async (req, res) => {
   const FIVE_MINS_MS = 5 * 60 * 1000;
 
   const result = await db.execute(sql`
-    SELECT id, created_at, status, source
+    SELECT id, created_at, status, source, total_cents, payment_method, split_payments
     FROM orders
     WHERE id = ${id}
     LIMIT 1
   `);
 
-  const row = (result.rows ?? result as unknown as any[])[0];
+  const row = ((((result as any).rows ?? (result as any) ?? []) as any[])[0] ?? null) as any;
   if (!row) return res.status(404).json({ error: 'Order not found' });
   if (row.source !== 'pos') return res.status(400).json({ error: 'Only POS orders can be voided this way' });
   if (row.status === 'cancelled') return res.status(400).json({ error: 'Order is already cancelled' });
 
-  const ageMs = Date.now() - new Date(row.created_at).getTime();
+  const ageMs = Date.now() - new Date(row.created_at as string | number | Date).getTime();
   if (ageMs > FIVE_MINS_MS) {
     return res.status(400).json({ error: 'Orders can only be voided within 5 minutes of completion' });
   }
@@ -1356,6 +1558,19 @@ router.patch('/orders/:id/void', async (req, res) => {
         updated_at = now()
     WHERE id = ${id}
   `);
+
+  const voidSession = await getOrCreateCurrentRegisterSession(req.user!.id);
+  await recordPosRefundEvent({
+    orderId: id,
+    registerSessionId: voidSession.id,
+    refundAmountCents: Number(row.total_cents ?? 0),
+    paymentMethod: typeof row.payment_method === 'string' ? row.payment_method : null,
+    splitPayments: row.split_payments ?? null,
+    reason: 'pos_void',
+    createdByUserId: req.user!.id,
+    approvedByUserId: req.user!.id,
+    isVoid: true,
+  });
 
   recordAuditLog({
     actor: req.user,

@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text,
@@ -13,6 +13,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import {
   api, getToken,
   type DirectorFeedback,
+  type RegisterSessionReport,
   type ReportsSummary,
   type ReportsProduct,
   type ReportsBusyBucket,
@@ -24,6 +25,7 @@ import {
   type RefundEvent,
 } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { sendRegisterSummaryPrint } from '@/lib/printer';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -37,7 +39,7 @@ const AMBER  = '#F59E0B';
 const RED    = '#EF4444';
 const PURPLE = '#8B5CF6';
 
-const TABS = ['Analytics', 'Feedback'] as const;
+const TABS = ['Analytics', 'Register Reports', 'Feedback'] as const;
 type TabKey = typeof TABS[number];
 
 type RangePreset = 'today' | 'week' | 'month' | 'custom';
@@ -97,6 +99,54 @@ function fmtPaymentMethod(method: string): string {
     unknown:       'Unknown',
   };
   return MAP[method] ?? method.replace(/_/g, ' ');
+}
+
+function fmtDateTime(iso: string | null | undefined) {
+  if (!iso) return 'Not recorded';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Not recorded';
+  return d.toLocaleString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function buildRegisterSummaryPrintLines(report: RegisterSessionReport): string[] {
+  const s = report.summary;
+  const actualCash = s.actualCountedCashCents === null ? 'Not entered' : fmtAUD(s.actualCountedCashCents);
+  const variance = s.varianceCents === null ? 'Not calculated' : fmtAUD(s.varianceCents);
+  const notes = [report.closeNote, report.varianceNote].filter(Boolean).join(' | ');
+  return [
+    `Date\t${report.tradingDate}`,
+    `Register\t${report.registerName}`,
+    `Location\t${report.registerLocation ?? 'Butterfield Cookies'}`,
+    `Opened By\t${report.openedByName ?? 'Not recorded'}`,
+    `Closed By\t${report.closedByName ?? (report.autoClosed ? 'Auto close' : 'Not recorded')}`,
+    '===',
+    `Opening Float\t${fmtAUD(s.startingFloatCents ?? 0)}`,
+    `Cash Sales\t${fmtAUD(s.cashSalesCents)}`,
+    `Card Sales\t${fmtAUD(s.cardSalesCents)}`,
+    `Refunds\t${fmtAUD(s.totalRefundsCents)}`,
+    `Discounts\t${fmtAUD(s.discountsCents)}`,
+    `Surcharges\t${fmtAUD(s.surchargesCents)}`,
+    `Cash Added\t${fmtAUD(s.cashAddedCents)}`,
+    `Cash Removed\t${fmtAUD(s.cashRemovedCents)}`,
+    `Expected Cash\t${fmtAUD(s.expectedCashCents)}`,
+    `Actual Cash\t${actualCash}`,
+    `Variance\t${variance}`,
+    `Total Sales\t${fmtAUD(s.totalSalesCents)}`,
+    `Close Method\t${report.autoClosed ? 'Auto Close' : 'Manual Close'}`,
+    '---',
+    `Notes\t${notes || 'None'}`,
+  ];
+}
+
+function csvCell(value: string | number | null | undefined): string {
+  const text = value == null ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 // ── Shared UI primitives ──────────────────────────────────────────────────────
@@ -879,6 +929,466 @@ function AnalyticsTab({ onDownloadPress }: { onDownloadPress: () => void }) {
   );
 }
 
+// ── Register Reports Tab ──────────────────────────────────────────────────────
+
+function RegisterReportsTab() {
+  const qc = useQueryClient();
+  const [preset, setPreset] = useState<RangePreset>('week');
+  const [customRange, setCustomRange] = useState<DateRange>(() => getPresetRange('week'));
+  const [registerFilter, setRegisterFilter] = useState('');
+  const [staffUserId, setStaffUserId] = useState<string>('all');
+  const [closeMethod, setCloseMethod] = useState<'all' | 'manual' | 'auto'>('all');
+  const [variance, setVariance] = useState<'all' | 'with_variance' | 'without_variance'>('all');
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const range = useMemo<DateRange>(() =>
+    preset === 'custom' ? customRange : getPresetRange(preset),
+    [preset, customRange],
+  );
+
+  const handlePreset = useCallback((next: RangePreset) => {
+    setPreset(next);
+    if (next !== 'custom') setCustomRange(getPresetRange(next));
+  }, []);
+
+  const { data: staffData } = useQuery({
+    queryKey: ['director-staff-list'],
+    queryFn: () => api.director.staffList(),
+    staleTime: 5 * 60_000,
+  });
+
+  const {
+    data,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ['director-register-reports', range.from, range.to, registerFilter, staffUserId, closeMethod, variance],
+    queryFn: () => api.director.registerReports({
+      from: range.from,
+      to: range.to,
+      register: registerFilter.trim() || undefined,
+      staffUserId: staffUserId !== 'all' ? staffUserId : undefined,
+      closeMethod: closeMethod !== 'all' ? closeMethod : undefined,
+      variance,
+    }),
+    staleTime: 60_000,
+  });
+
+  const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const reports = data?.data ?? [];
+  const staffMembers = staffData?.data ?? [];
+
+  const handleExport = useCallback(async () => {
+    if (reports.length === 0) {
+      Alert.alert('Nothing to Export', 'There are no register reports in this filtered view yet.');
+      return;
+    }
+    setExporting(true);
+    try {
+      const header = [
+        'Trading Date',
+        'Register',
+        'Location',
+        'Opened By',
+        'Closed By',
+        'Close Method',
+        'Opening Float',
+        'Cash Sales',
+        'Card Sales',
+        'Total Refunds',
+        'Discounts',
+        'Surcharges',
+        'Cash Added',
+        'Cash Removed',
+        'Expected Cash',
+        'Actual Cash',
+        'Variance',
+        'Total Sales',
+        'Close Note',
+        'Variance Note',
+      ];
+      const rows = reports.map((report) => {
+        const s = report.summary;
+        return [
+          report.tradingDate,
+          report.registerName,
+          report.registerLocation ?? '',
+          report.openedByName ?? '',
+          report.closedByName ?? '',
+          report.autoClosed ? 'Auto Close' : 'Manual Close',
+          (s.startingFloatCents ?? 0) / 100,
+          s.cashSalesCents / 100,
+          s.cardSalesCents / 100,
+          s.totalRefundsCents / 100,
+          s.discountsCents / 100,
+          s.surchargesCents / 100,
+          s.cashAddedCents / 100,
+          s.cashRemovedCents / 100,
+          s.expectedCashCents / 100,
+          s.actualCountedCashCents == null ? '' : s.actualCountedCashCents / 100,
+          s.varianceCents == null ? '' : s.varianceCents / 100,
+          s.totalSalesCents / 100,
+          report.closeNote ?? '',
+          report.varianceNote ?? '',
+        ];
+      });
+      const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
+      const filename = `daily-register-reports-${range.from}-to-${range.to}.csv`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objUrl);
+      } else {
+        const fileUri = `${FileSystem.cacheDirectory ?? ''}${filename}`;
+        await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Export Daily Register Reports',
+            UTI: 'public.comma-separated-values-text',
+          });
+        } else {
+          Alert.alert('Export Saved', `Saved to: ${fileUri}`);
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Export Failed', err?.message ?? 'Could not export these register reports.');
+    } finally {
+      setExporting(false);
+    }
+  }, [range.from, range.to, reports]);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 48 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+      >
+        <DateRangePicker
+          preset={preset}
+          range={range}
+          onPreset={handlePreset}
+          onCustomChange={setCustomRange}
+        />
+
+        <View style={s.section}>
+          <SectionHeader title="DAILY REGISTER REPORTS" icon="archive" />
+          <View style={s.card}>
+            <TextInput
+              value={registerFilter}
+              onChangeText={setRegisterFilter}
+              placeholder="Filter by register"
+              placeholderTextColor={MUTED}
+              style={s.filterInput}
+              autoCorrect={false}
+            />
+
+            <Text style={s.filterLabel}>Staff</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterChipRow}>
+              <Pressable onPress={() => setStaffUserId('all')} style={[s.filterChip, staffUserId === 'all' && s.filterChipActive]}>
+                <Text style={[s.filterChipText, staffUserId === 'all' && s.filterChipTextActive]}>All Staff</Text>
+              </Pressable>
+              {staffMembers.map((member) => (
+                <Pressable
+                  key={member.id}
+                  onPress={() => setStaffUserId(member.id)}
+                  style={[s.filterChip, staffUserId === member.id && s.filterChipActive]}
+                >
+                  <Text style={[s.filterChipText, staffUserId === member.id && s.filterChipTextActive]}>{member.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <Text style={s.filterLabel}>Close Method</Text>
+            <View style={s.filterChipWrap}>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'manual', label: 'Manual Close' },
+                { key: 'auto', label: 'Auto Close' },
+              ].map((option) => (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setCloseMethod(option.key as 'all' | 'manual' | 'auto')}
+                  style={[s.filterChip, closeMethod === option.key && s.filterChipActive]}
+                >
+                  <Text style={[s.filterChipText, closeMethod === option.key && s.filterChipTextActive]}>{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={s.filterLabel}>Cash Variance</Text>
+            <View style={s.filterChipWrap}>
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'with_variance', label: 'With Variance' },
+                { key: 'without_variance', label: 'No Variance' },
+              ].map((option) => (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setVariance(option.key as 'all' | 'with_variance' | 'without_variance')}
+                  style={[s.filterChip, variance === option.key && s.filterChipActive]}
+                >
+                  <Text style={[s.filterChipText, variance === option.key && s.filterChipTextActive]}>{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <View style={s.section}>
+          <SectionHeader title="SESSIONS" icon="file-text" />
+          {isLoading ? (
+            <SectionLoader />
+          ) : reports.length === 0 ? (
+            <EmptyState icon="archive" text="No closed register sessions match these filters" />
+          ) : (
+            <View style={{ gap: 10 }}>
+              {reports.map((report) => {
+                const varianceCents = report.summary.varianceCents;
+                const varianceTone = varianceCents == null
+                  ? MUTED
+                  : varianceCents === 0
+                    ? GREEN
+                    : RED;
+                return (
+                  <Pressable key={report.id} style={s.card} onPress={() => setSelectedReportId(report.id)}>
+                    <View style={s.registerReportHead}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.breakLabel}>{report.registerName}</Text>
+                        <Text style={s.breakSub}>
+                          {fmtDisplayDate(report.tradingDate)} · {report.registerLocation ?? 'Butterfield Cookies'}
+                        </Text>
+                      </View>
+                      <View style={[s.statusPill, report.autoClosed ? s.statusPillAuto : s.statusPillManual]}>
+                        <Text style={[s.statusPillText, report.autoClosed ? s.statusPillTextAuto : s.statusPillTextManual]}>
+                          {report.autoClosed ? 'Auto Close' : 'Manual Close'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={s.registerReportGrid}>
+                      <View style={s.registerMetricBox}>
+                        <Text style={s.registerMetricBoxLabel}>Expected Cash</Text>
+                        <Text style={s.registerMetricBoxValue}>{fmtAUD(report.summary.expectedCashCents)}</Text>
+                      </View>
+                      <View style={s.registerMetricBox}>
+                        <Text style={s.registerMetricBoxLabel}>Actual Cash</Text>
+                        <Text style={s.registerMetricBoxValue}>
+                          {report.summary.actualCountedCashCents == null ? 'Not entered' : fmtAUD(report.summary.actualCountedCashCents)}
+                        </Text>
+                      </View>
+                      <View style={s.registerMetricBox}>
+                        <Text style={s.registerMetricBoxLabel}>Variance</Text>
+                        <Text style={[s.registerMetricBoxValue, { color: varianceTone }]}>
+                          {varianceCents == null ? 'Not calculated' : fmtAUD(varianceCents)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={s.registerMetaRow}>
+                      <Text style={s.breakSub}>Opened by {report.openedByName ?? 'Unknown'}</Text>
+                      <Text style={s.breakSub}>{fmtDateTime(report.closedAt ?? report.openedAt)}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        <Pressable onPress={handleExport} style={[s.downloadBtn, exporting && { opacity: 0.7 }]} disabled={exporting}>
+          {exporting ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="download" size={16} color="#fff" />}
+          <Text style={s.downloadBtnText}>{exporting ? 'Exporting…' : 'Export Filtered Register Reports'}</Text>
+        </Pressable>
+      </ScrollView>
+
+      <RegisterReportDetailModal
+        reportId={selectedReportId}
+        onClose={() => setSelectedReportId(null)}
+        onSaved={() => {
+          qc.invalidateQueries({ queryKey: ['director-register-reports'] });
+          if (selectedReportId) qc.invalidateQueries({ queryKey: ['director-register-report', selectedReportId] });
+        }}
+      />
+    </View>
+  );
+}
+
+function RegisterReportDetailModal({
+  reportId,
+  onClose,
+  onSaved,
+}: {
+  reportId: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['director-register-report', reportId],
+    queryFn: () => api.director.registerReport(reportId!),
+    enabled: !!reportId,
+  });
+  const { data: settingsData } = useQuery({
+    queryKey: ['director-settings-register-print'],
+    queryFn: () => api.director.settings(),
+    staleTime: 60_000,
+    enabled: !!reportId,
+  });
+
+  const report = data?.data ?? null;
+  const [closeNote, setCloseNote] = useState('');
+  const [varianceNote, setVarianceNote] = useState('');
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    setCloseNote(report?.closeNote ?? '');
+    setVarianceNote(report?.varianceNote ?? '');
+  }, [report?.closeNote, report?.varianceNote, reportId]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.director.updateRegisterReportNotes(reportId!, { closeNote, varianceNote }),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSaved();
+    },
+    onError: (err: any) => Alert.alert('Could Not Save Notes', err?.message ?? 'Please try again.'),
+  });
+
+  const handlePrint = useCallback(async () => {
+    if (!report) return;
+    const settings = settingsData?.data ?? {};
+    const printerIp = settings.printerIp;
+    const printerBrand = settings.printerBrand === 'star' ? 'star' : 'epson';
+    if (!printerIp) {
+      Alert.alert('No Printer', 'Add a printer in POS settings before printing register summaries.');
+      return;
+    }
+    setPrinting(true);
+    try {
+      await sendRegisterSummaryPrint({
+        title: 'Daily Register Summary',
+        lines: buildRegisterSummaryPrintLines(report),
+        printerBrand,
+      }, printerIp, settings.printerPort ? Number(settings.printerPort) : 9100, api.director.printerBytes);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert('Print Failed', err?.message ?? 'Could not print this register summary.');
+    } finally {
+      setPrinting(false);
+    }
+  }, [report, settingsData?.data]);
+
+  return (
+    <Modal visible={!!reportId} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={dl.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={dl.header}>
+          <View style={dl.headerLeft}>
+            <View style={dl.iconBox}><Feather name="archive" size={18} color={BLUE} /></View>
+            <View>
+              <Text style={dl.title}>Register Summary</Text>
+              <Text style={dl.subtitle}>{report?.registerName ?? 'Loading…'}</Text>
+            </View>
+          </View>
+          <Pressable onPress={onClose}><Feather name="x" size={22} color={TEXT} /></Pressable>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 28 }}>
+          {isLoading || !report ? (
+            <View style={s.center}>
+              <ActivityIndicator color={BLUE} />
+            </View>
+          ) : (
+            <>
+              <View style={s.card}>
+                <View style={s.registerReportHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.breakLabel}>{fmtDisplayDate(report.tradingDate)}</Text>
+                    <Text style={s.breakSub}>{report.registerLocation ?? 'Butterfield Cookies'}</Text>
+                  </View>
+                  <View style={[s.statusPill, report.autoClosed ? s.statusPillAuto : s.statusPillManual]}>
+                    <Text style={[s.statusPillText, report.autoClosed ? s.statusPillTextAuto : s.statusPillTextManual]}>
+                      {report.autoClosed ? 'Auto Close' : 'Manual Close'}
+                    </Text>
+                  </View>
+                </View>
+
+                {[
+                  ['Opened By', report.openedByName ?? 'Not recorded'],
+                  ['Opened At', fmtDateTime(report.openedAt)],
+                  ['Closed By', report.closedByName ?? (report.autoClosed ? 'Auto close' : 'Not recorded')],
+                  ['Closed At', fmtDateTime(report.closedAt)],
+                  ['Opening Float', fmtAUD(report.summary.startingFloatCents ?? 0)],
+                  ['Cash Sales', fmtAUD(report.summary.cashSalesCents)],
+                  ['Card Sales', fmtAUD(report.summary.cardSalesCents)],
+                  ['Total Refunds', fmtAUD(report.summary.totalRefundsCents)],
+                  ['Discounts', fmtAUD(report.summary.discountsCents)],
+                  ['Surcharges', fmtAUD(report.summary.surchargesCents)],
+                  ['Cash Added', fmtAUD(report.summary.cashAddedCents)],
+                  ['Cash Removed', fmtAUD(report.summary.cashRemovedCents)],
+                  ['Expected Cash', fmtAUD(report.summary.expectedCashCents)],
+                  ['Actual Cash Counted', report.summary.actualCountedCashCents == null ? 'Not entered' : fmtAUD(report.summary.actualCountedCashCents)],
+                  ['Cash Variance', report.summary.varianceCents == null ? 'Not calculated' : fmtAUD(report.summary.varianceCents)],
+                  ['Total Sales', fmtAUD(report.summary.totalSalesCents)],
+                ].map(([label, value], index) => (
+                  <View key={label}>
+                    {index > 0 && <View style={s.divider} />}
+                    <View style={s.breakRow}>
+                      <Text style={[s.breakLabel, { flex: 1 }]}>{label}</Text>
+                      <Text style={s.breakValue}>{value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={s.card}>
+                <Text style={s.filterLabel}>Close Note</Text>
+                <TextInput
+                  value={closeNote}
+                  onChangeText={setCloseNote}
+                  placeholder="Add close note"
+                  placeholderTextColor={MUTED}
+                  multiline
+                  style={s.notesInput}
+                />
+                <Text style={s.filterLabel}>Variance Note</Text>
+                <TextInput
+                  value={varianceNote}
+                  onChangeText={setVarianceNote}
+                  placeholder="Add variance note"
+                  placeholderTextColor={MUTED}
+                  multiline
+                  style={s.notesInput}
+                />
+                <View style={s.detailActionRow}>
+                  <Pressable onPress={handlePrint} style={[s.secondaryActionBtn, printing && { opacity: 0.7 }]} disabled={printing}>
+                    {printing ? <ActivityIndicator color={BLUE} size="small" /> : <Feather name="printer" size={15} color={BLUE} />}
+                    <Text style={s.secondaryActionText}>{printing ? 'Printing…' : 'Print Summary'}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => saveMutation.mutate()} style={[s.primaryActionBtn, saveMutation.isPending && { opacity: 0.7 }]} disabled={saveMutation.isPending}>
+                    {saveMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="save" size={15} color="#fff" />}
+                    <Text style={s.primaryActionText}>{saveMutation.isPending ? 'Saving…' : 'Save Notes'}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ── Feedback Tab ──────────────────────────────────────────────────────────────
 
 function FeedbackTab() {
@@ -975,6 +1485,7 @@ export default function DirectorReportsScreen() {
           }}
         />
       )}
+      {tab === 'Register Reports' && <RegisterReportsTab />}
       {tab === 'Feedback' && <FeedbackTab />}
 
       <DownloadReportModal visible={showDownload} onClose={() => setShowDownload(false)} />
@@ -1051,6 +1562,90 @@ const s = StyleSheet.create({
   fbMessage: { fontSize: 13, color: TEXT, lineHeight: 19 },
   pill:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   pillText:  { fontSize: 10, fontWeight: '700' },
+
+  // Register reports
+  filterInput: {
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: TEXT,
+    marginBottom: 12,
+  },
+  filterLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8, marginBottom: 8 },
+  filterChipRow: { gap: 8, paddingRight: 4, marginBottom: 12 },
+  filterChipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
+  },
+  filterChipActive: { backgroundColor: BLUE, borderColor: BLUE },
+  filterChipText: { fontSize: 12, fontWeight: '600', color: MUTED },
+  filterChipTextActive: { color: '#fff' },
+  registerReportHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  statusPillManual: { backgroundColor: '#ECFDF5', borderColor: '#BBF7D0' },
+  statusPillAuto: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  statusPillText: { fontSize: 11, fontWeight: '700' },
+  statusPillTextManual: { color: '#15803D' },
+  statusPillTextAuto: { color: BLUE },
+  registerReportGrid: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  registerMetricBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 10,
+  },
+  registerMetricBoxLabel: { fontSize: 10, fontWeight: '700', color: MUTED, marginBottom: 4, letterSpacing: 0.6 },
+  registerMetricBoxValue: { fontSize: 13, fontWeight: '700', color: TEXT },
+  registerMetaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  notesInput: {
+    minHeight: 92,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: TEXT,
+    textAlignVertical: 'top',
+    marginBottom: 12,
+  },
+  detailActionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  secondaryActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+  },
+  secondaryActionText: { fontSize: 14, fontWeight: '700', color: BLUE },
+  primaryActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: NAVY,
+  },
+  primaryActionText: { fontSize: 14, fontWeight: '700', color: '#fff' },
 
   // Download button
   downloadBtn:     { margin: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: NAVY, paddingVertical: 14, borderRadius: 14 },

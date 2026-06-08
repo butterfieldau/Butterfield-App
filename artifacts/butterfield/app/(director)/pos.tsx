@@ -12,7 +12,17 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, type PosCustomerResult, type PosOrderItem, type PosLoyaltyResult, type PosHistoryOrder, type PosSurcharge } from '@/lib/api';
+import {
+  api,
+  type PosCustomerResult,
+  type PosOrderItem,
+  type PosLoyaltyResult,
+  type PosHistoryOrder,
+  type PosSurcharge,
+  type PosRegisterCurrentResponse,
+  type PosRegisterCashMovement,
+  type RegisterSessionReport,
+} from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,7 +31,7 @@ import {
   upsertCustomerCache, searchCustomerCache,
   type CachedPosCustomer, type OfflineQueueEntry,
 } from '@/lib/posCache';
-import { sendReceiptPrint, sendTaxInvoicePrint } from '@/lib/printer';
+import { sendReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -162,6 +172,37 @@ function ticketTotal(t: Ticket): number {
   return Math.max(0, sub - disc);
 }
 
+function buildRegisterSummaryPrintLines(report: RegisterSessionReport): string[] {
+  const s = report.summary;
+  const closeMethod = report.closeMethod === 'auto' ? 'Auto Close' : 'Manual Close';
+  const staffLine = report.closedByName ?? report.openedByName ?? 'Not recorded';
+  const actualCash = s.actualCountedCashCents === null ? 'Not entered' : fmtCents(s.actualCountedCashCents);
+  const variance = s.varianceCents === null ? 'Not calculated' : fmtCents(s.varianceCents);
+  const notes = [report.closeNote, report.varianceNote].filter(Boolean).join(' | ');
+  return [
+    'Date\t' + report.tradingDate,
+    'Register\t' + report.registerName,
+    'Location\t' + (report.registerLocation ?? 'Butterfield'),
+    'Staff\t' + staffLine,
+    '===',
+    'Opening Float\t' + fmtCents(s.startingFloatCents ?? 0),
+    'Cash Sales\t' + fmtCents(s.cashSalesCents),
+    'Card Sales\t' + fmtCents(s.cardSalesCents),
+    'Refunds\t' + fmtCents(s.totalRefundsCents),
+    'Discounts\t' + fmtCents(s.discountsCents),
+    'Surcharges\t' + fmtCents(s.surchargesCents),
+    'Cash Added\t' + fmtCents(s.cashAddedCents),
+    'Cash Removed\t' + fmtCents(s.cashRemovedCents),
+    'Expected Cash\t' + fmtCents(s.expectedCashCents),
+    'Actual Cash\t' + actualCash,
+    'Variance\t' + variance,
+    'Total Sales\t' + fmtCents(s.totalSalesCents),
+    'Close Method\t' + closeMethod,
+    '---',
+    'Notes\t' + (notes || 'None'),
+  ];
+}
+
 function buildPosItems(items: TicketItem[]): PosOrderItem[] {
   return items.map(i => ({
     productId: i.productId,
@@ -228,6 +269,7 @@ function PosScreenInner() {
   const [salesOpen, setSalesOpen]         = useState(false);
   const [showHistory, setShowHistory]     = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
   const [showSettings,  setShowSettings]  = useState(false);
   const [showPinGate,   setShowPinGate]   = useState(false);
   const [discountPinGate, setDiscountPinGate] = useState<{
@@ -236,6 +278,12 @@ function PosScreenInner() {
     surchargeCents?: number;
     splitPayments?: { method: string; amountCents: number }[];
   } | null>(null);
+  const [registerApprovalPrompt, setRegisterApprovalPrompt] = useState<null | {
+    mode: 'movement' | 'close';
+    payload: any;
+    title: string;
+    subtitle: string;
+  }>(null);
   const [discountPresets, setDiscountPresets] = useState<number[]>([10, 20, 50]);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
 
@@ -334,6 +382,14 @@ function PosScreenInner() {
     queryFn: () => api.pos.summary(),
     refetchInterval: 30_000,
   });
+  const {
+    data: registerData,
+    refetch: refetchRegister,
+  } = useQuery({
+    queryKey: ['pos-register-current'],
+    queryFn: () => api.pos.registerCurrent(),
+    refetchInterval: 30_000,
+  });
 
   // ── Full sync (products + summary + settings + surcharges) ────────────────
   const [syncingAll, setSyncingAll] = useState(false);
@@ -345,6 +401,7 @@ function PosScreenInner() {
       await Promise.all([
         refetchProducts(),
         refetchSummary(),
+        refetchRegister(),
         queryClient.invalidateQueries({ queryKey: ['pos-store-settings'] }),
         queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] }),
         queryClient.invalidateQueries({ queryKey: ['pos-loyalty-config'] }),
@@ -352,7 +409,7 @@ function PosScreenInner() {
     } finally {
       setSyncingAll(false);
     }
-  }, [syncingAll, refetchProducts, refetchSummary, queryClient]);
+  }, [syncingAll, refetchProducts, refetchSummary, refetchRegister, queryClient]);
 
   // ── Store settings (for auto-print) ──────────────────────────────────────
   const isShopDisplay = user?.role === 'shop_display';
@@ -374,6 +431,42 @@ function PosScreenInner() {
     },
     staleTime: 60_000,
   });
+  const registerState = registerData?.data ?? null;
+  const registerSession = registerState?.session ?? null;
+  const cashEnabled = registerState?.cashEnabled ?? false;
+
+  const printRegisterReport = useCallback(async (report: RegisterSessionReport) => {
+    const store = storeData as any;
+    if (!store?.printerIp) {
+      Alert.alert('No Printer', 'Configure a printer IP in POS settings to print the daily register summary.');
+      return;
+    }
+    const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+    await sendRegisterSummaryPrint({
+      title: 'Daily Register Summary',
+      lines: buildRegisterSummaryPrintLines(report),
+      printerBrand: store.printerBrand ?? 'epson',
+    }, store.printerIp, store.printerPort ?? 9100, fetchBytes);
+  }, [isShopDisplay, storeData]);
+
+  useEffect(() => {
+    const pending = registerState?.pendingAutoPrintReport;
+    const store = storeData as any;
+    if (!pending || !store?.printerIp) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await printRegisterReport(pending);
+        if (!cancelled) {
+          await api.pos.markRegisterSummaryPrinted(pending.id);
+          refetchRegister();
+        }
+      } catch {
+        // Keep the pending report so the user can print it manually if needed.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [printRegisterReport, refetchRegister, registerState?.pendingAutoPrintReport, storeData]);
 
   // ── Filtered products ─────────────────────────────────────────────────────
   const allProducts = useMemo(() => {
@@ -630,6 +723,7 @@ function PosScreenInner() {
       setShowPayment(false);
       clearActiveTicket();
       refetchSummary();
+      refetchRegister();
       queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
       // Auto-print receipt using the captured ticket items (not the sparse res.data)
       const store = storeData as any;
@@ -660,8 +754,79 @@ function PosScreenInner() {
         });
         return;
       }
+      if (err?.code === 'REGISTER_FLOAT_REQUIRED') {
+        setShowPayment(false);
+        setShowRegister(true);
+        Alert.alert('Cash Float Required', err?.message ?? 'Enter the opening cash float before taking cash payments.');
+        return;
+      }
       Alert.alert('Order Failed', err?.message ?? 'Could not complete order. Please try again.');
     },
+  });
+
+  const setRegisterFloatMutation = useMutation({
+    mutationFn: (amountCents: number) => api.pos.setRegisterFloat(amountCents),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refetchRegister();
+    },
+    onError: (err: any) => Alert.alert('Cash Float', err?.message ?? 'Could not save the opening cash float.'),
+  });
+
+  const cashMovementMutation = useMutation({
+    mutationFn: (vars: { movementType: 'add' | 'remove'; amountCents: number; reason?: string; supervisorPin?: string }) =>
+      api.pos.addRegisterCashMovement(vars),
+    onSuccess: () => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      refetchRegister();
+    },
+    onError: (err: any, vars) => {
+      if (err?.code === 'SUPERVISOR_PIN_REQUIRED') {
+        setRegisterApprovalPrompt({
+          mode: 'movement',
+          payload: vars,
+          title: 'Manager Approval',
+          subtitle: 'Enter a manager or director PIN for this cash removal',
+        });
+        return;
+      }
+      Alert.alert('Cash Movement', err?.message ?? 'Could not update the cash drawer.');
+    },
+  });
+
+  const closeRegisterMutation = useMutation({
+    mutationFn: (vars: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string; supervisorPin?: string }) =>
+      api.pos.closeRegister(vars),
+    onSuccess: async (res) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (res.data) {
+        try {
+          await printRegisterReport(res.data);
+          await api.pos.markRegisterSummaryPrinted(res.data.id);
+        } catch (err: any) {
+          Alert.alert('Register Closed', err?.message ?? 'Register closed, but the summary could not be printed.');
+        }
+      }
+      refetchRegister();
+    },
+    onError: (err: any, vars) => {
+      if (err?.code === 'SUPERVISOR_PIN_REQUIRED') {
+        setRegisterApprovalPrompt({
+          mode: 'close',
+          payload: vars,
+          title: 'Manager Approval',
+          subtitle: 'Enter a manager or director PIN to approve this cash variance',
+        });
+        return;
+      }
+      Alert.alert('Close Register', err?.message ?? 'Could not close the register.');
+    },
+  });
+
+  const updateRegisterSettingsMutation = useMutation({
+    mutationFn: (enabled: boolean) => api.pos.updateRegisterSettings({ autoCloseEnabled: enabled }),
+    onSuccess: () => refetchRegister(),
+    onError: (err: any) => Alert.alert('Register Setting', err?.message ?? 'Could not update auto-close.'),
   });
 
   const handleChargeConfirm = useCallback((params: {
@@ -812,9 +977,10 @@ function PosScreenInner() {
             <Feather name="refresh-cw" size={16} color={syncingAll ? MUTED : MID} />
             <Text style={styles.headerBtnText}>{syncingAll ? 'Syncing…' : 'Sync'}</Text>
           </Pressable>
-          {/* POS Settings (PIN-gated) */}
-          <Pressable onPress={() => setShowPinGate(true)} style={styles.headerBtn}>
-            <Feather name="settings" size={16} color={MID} />
+          {/* Register */}
+          <Pressable onPress={() => setShowRegister(true)} style={styles.headerBtn}>
+            <Feather name="archive" size={16} color={cashEnabled ? MID : CHERRY} />
+            <Text style={[styles.headerBtnText, !cashEnabled && { color: CHERRY }]}>Register</Text>
           </Pressable>
         </View>
       </View>
@@ -1006,6 +1172,7 @@ function PosScreenInner() {
           totalCents={total}
           subtotalCents={subtotal}
           discount={activeTicket.appliedDiscount}
+          cashEnabled={cashEnabled}
           onClose={() => setShowPayment(false)}
           onConfirm={handleChargeConfirm}
           loading={createOrderMutation.isPending}
@@ -1078,6 +1245,31 @@ function PosScreenInner() {
           onSuccess={(_pin) => { setShowPinGate(false); setShowSettings(true); }}
         />
       )}
+      {showRegister && (
+        <RegisterModal
+          visible={showRegister}
+          onClose={() => setShowRegister(false)}
+          data={registerState}
+          loading={!registerData}
+          onSaveFloat={(amountCents) => setRegisterFloatMutation.mutate(amountCents)}
+          onCashMovement={(payload) => cashMovementMutation.mutate(payload)}
+          onCloseRegister={(payload) => closeRegisterMutation.mutate(payload)}
+          onToggleAutoClose={(enabled) => updateRegisterSettingsMutation.mutate(enabled)}
+          onOpenPosSettings={() => { setShowRegister(false); setShowPinGate(true); }}
+          onPrintSummary={async () => {
+            if (!registerSession?.closedAt) return;
+            await printRegisterReport(registerSession);
+            await api.pos.markRegisterSummaryPrinted(registerSession.id);
+            refetchRegister();
+          }}
+          busy={
+            setRegisterFloatMutation.isPending ||
+            cashMovementMutation.isPending ||
+            closeRegisterMutation.isPending ||
+            updateRegisterSettingsMutation.isPending
+          }
+        />
+      )}
       {discountPinGate && (
         <SupervisorPinCapture
           onClose={() => setDiscountPinGate(null)}
@@ -1087,6 +1279,22 @@ function PosScreenInner() {
             const params = discountPinGate;
             setDiscountPinGate(null);
             createOrderMutation.mutate({ ...params, supervisorPin: pin });
+          }}
+        />
+      )}
+      {registerApprovalPrompt && (
+        <SupervisorPinCapture
+          onClose={() => setRegisterApprovalPrompt(null)}
+          title={registerApprovalPrompt.title}
+          subtitle={registerApprovalPrompt.subtitle}
+          onSuccess={(pin) => {
+            const prompt = registerApprovalPrompt;
+            setRegisterApprovalPrompt(null);
+            if (prompt.mode === 'movement') {
+              cashMovementMutation.mutate({ ...prompt.payload, supervisorPin: pin });
+            } else {
+              closeRegisterMutation.mutate({ ...prompt.payload, supervisorPin: pin });
+            }
           }}
         />
       )}
@@ -1876,17 +2084,18 @@ type PaymentConfirmParams = {
 };
 
 function PaymentModal({
-  totalCents, subtotalCents, discount, onClose, onConfirm, loading, isOnline,
+  totalCents, subtotalCents, discount, cashEnabled, onClose, onConfirm, loading, isOnline,
 }: {
   totalCents: number;
   subtotalCents: number;
   discount: AppliedDiscount | null;
+  cashEnabled: boolean;
   onClose: () => void;
   onConfirm: (params: PaymentConfirmParams) => void;
   loading: boolean;
   isOnline: boolean;
 }) {
-  const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline ? 'cash' : 'eftpos');
+  const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline && cashEnabled ? 'cash' : 'eftpos');
   const [tendered, setTendered] = useState('');
   // Split: each committed part has an amount + method (cash or eftpos)
   const [splitParts, setSplitParts] = useState<{ amountCents: number; method: 'cash' | 'eftpos' }[]>([]);
@@ -1936,7 +2145,7 @@ function PaymentModal({
   const splitRemainingCents = Math.max(0, chargeTotalCents - splitCommittedCents);
   const tenderedCents = Math.round(parseFloat(tendered || '0') * 100);
   const cashChangeCents = Math.max(0, tenderedCents - chargeTotalCents);
-  const cashOk = method !== 'cash' || tenderedCents >= chargeTotalCents;
+  const cashOk = method !== 'cash' || (cashEnabled && tenderedCents >= chargeTotalCents);
   // Split is ready only when all parts are explicitly collected (no auto-include)
   const splitOk = method !== 'split' || splitCommittedCents >= chargeTotalCents;
   const roundUpPresets = [5, 10, 20, 50, 100].filter(d => d * 100 >= chargeTotalCents).slice(0, 3);
@@ -1946,6 +2155,10 @@ function PaymentModal({
     if (linklyPollRef.current) clearInterval(linklyPollRef.current);
     if (splitCardPollRef.current) clearInterval(splitCardPollRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!cashEnabled && method === 'cash') setMethod('eftpos');
+  }, [cashEnabled, method]);
 
   const handleKeypad = (val: string, setter: (s: string) => void, current: string) => {
     if (val === 'backspace') setter(current.slice(0, -1));
@@ -2118,6 +2331,14 @@ function PaymentModal({
                 </Text>
               </View>
             )}
+            {!cashEnabled && (
+              <View style={[styles.offlinePayNotice, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                <Feather name="alert-circle" size={14} color={CHERRY} />
+                <Text style={[styles.offlinePayNoticeText, { color: '#991B1B' }]}>
+                  Enter the opening cash float in Register before taking cash payments.
+                </Text>
+              </View>
+            )}
 
             {/* ── Method selector ── */}
             <View style={styles.methodRow}>
@@ -2128,9 +2349,12 @@ function PaymentModal({
                 <Feather name="credit-card" size={18} color={method === 'eftpos' ? WHITE : !isOnline ? MUTED : MID} />
                 <Text style={[styles.methodBtnText, method === 'eftpos' && { color: WHITE }, !isOnline && { color: MUTED }]}>EFTPOS</Text>
               </Pressable>
-              <Pressable onPress={() => { setMethod('cash'); setTendered(''); }} style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive]}>
-                <Feather name="dollar-sign" size={18} color={method === 'cash' ? WHITE : MID} />
-                <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }]}>Cash</Text>
+              <Pressable
+                onPress={() => { if (!cashEnabled) return; setMethod('cash'); setTendered(''); }}
+                style={[styles.methodBtn, method === 'cash' && styles.methodBtnActive, !cashEnabled && styles.methodBtnDisabled]}
+              >
+                <Feather name="dollar-sign" size={18} color={method === 'cash' ? WHITE : !cashEnabled ? MUTED : MID} />
+                <Text style={[styles.methodBtnText, method === 'cash' && { color: WHITE }, !cashEnabled && { color: MUTED }]}>Cash</Text>
               </Pressable>
               <Pressable
                 onPress={() => { if (!isOnline) return; setMethod('split'); setSplitParts([]); setSplitInput(''); }}
@@ -2305,14 +2529,15 @@ function PaymentModal({
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       <Pressable
                         onPress={() => {
+                          if (!cashEnabled) return;
                           const adding = Math.min(splitCurrentCents, splitRemainingCents);
                           setSplitParts(ps => [...ps, { amountCents: adding, method: 'cash' }]);
                           setSplitInput('');
                         }}
-                        style={{ flex: 1, backgroundColor: '#ECFDF5', borderRadius: 10, paddingVertical: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#BBF7D0' }}
+                        style={{ flex: 1, backgroundColor: cashEnabled ? '#ECFDF5' : '#E2E8F0', borderRadius: 10, paddingVertical: 11, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: cashEnabled ? '#BBF7D0' : BORDER }}
                       >
-                        <Feather name="dollar-sign" size={14} color="#16A34A" />
-                        <Text style={{ fontSize: 13, color: '#16A34A', fontWeight: '700' }}>Cash</Text>
+                        <Feather name="dollar-sign" size={14} color={cashEnabled ? '#16A34A' : MUTED} />
+                        <Text style={{ fontSize: 13, color: cashEnabled ? '#16A34A' : MUTED, fontWeight: '700' }}>Cash</Text>
                       </Pressable>
                       <Pressable
                         onPress={handleSplitCardPayment}
@@ -3163,6 +3388,283 @@ function HistoryModal({
   );
 }
 
+function RegisterModal({
+  visible,
+  onClose,
+  data,
+  loading,
+  onSaveFloat,
+  onCashMovement,
+  onCloseRegister,
+  onToggleAutoClose,
+  onOpenPosSettings,
+  onPrintSummary,
+  busy,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  data: PosRegisterCurrentResponse | null;
+  loading: boolean;
+  onSaveFloat: (amountCents: number) => void;
+  onCashMovement: (payload: { movementType: 'add' | 'remove'; amountCents: number; reason?: string }) => void;
+  onCloseRegister: (payload: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string }) => void;
+  onToggleAutoClose: (enabled: boolean) => void;
+  onOpenPosSettings: () => void;
+  onPrintSummary: () => Promise<void>;
+  busy: boolean;
+}) {
+  const session = data?.session ?? null;
+  const summary = session?.summary;
+  const [floatInput, setFloatInput] = useState('');
+  const [movementType, setMovementType] = useState<'add' | 'remove'>('add');
+  const [movementAmount, setMovementAmount] = useState('');
+  const [movementReason, setMovementReason] = useState('');
+  const [countedAmount, setCountedAmount] = useState('');
+  const [closeNote, setCloseNote] = useState('');
+  const [varianceNote, setVarianceNote] = useState('');
+
+  useEffect(() => {
+    if (!visible || !session) return;
+    if (summary?.startingFloatCents != null) {
+      setFloatInput((summary.startingFloatCents / 100).toFixed(2));
+    }
+    setCountedAmount(summary?.expectedCashCents != null ? (summary.expectedCashCents / 100).toFixed(2) : '');
+    setCloseNote(session.closeNote ?? '');
+    setVarianceNote(session.varianceNote ?? '');
+  }, [session, summary?.expectedCashCents, summary?.startingFloatCents, visible]);
+
+  const countedCents = Math.round(parseFloat(countedAmount || '0') * 100);
+  const variancePreview = summary ? countedCents - summary.expectedCashCents : 0;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={styles.customiseRoot}>
+        <View style={styles.sheetHeader}>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Feather name="x" size={22} color={DARK} />
+          </Pressable>
+          <Text style={styles.sheetTitle}>Register</Text>
+          <Pressable onPress={onOpenPosSettings} hitSlop={12}>
+            <Feather name="sliders" size={18} color={MID} />
+          </Pressable>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+          {loading || !summary ? (
+            <View style={{ paddingVertical: 48, alignItems: 'center' }}>
+              <ActivityIndicator color={BLUE} />
+            </View>
+          ) : (
+            <>
+              <View style={styles.registerHero}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.registerHeroTitle}>{session?.registerName ?? 'Register'}</Text>
+                  <Text style={styles.registerHeroSub}>{session?.registerLocation ?? 'Butterfield Cookies'}</Text>
+                  <Text style={styles.registerHeroMeta}>Trading day {session?.tradingDate}</Text>
+                </View>
+                <View style={[styles.registerStatusPill, data?.cashEnabled ? styles.registerStatusOpen : styles.registerStatusNeedsFloat]}>
+                  <Text style={[styles.registerStatusText, !data?.cashEnabled && { color: CHERRY }]}>
+                    {data?.cashEnabled ? 'Cash Ready' : 'Float Required'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.registerGrid}>
+                <View style={styles.registerCard}>
+                  <Text style={styles.registerMetricLabel}>Opening Float</Text>
+                  <Text style={styles.registerMetricValue}>{fmtCents(summary.startingFloatCents ?? 0)}</Text>
+                </View>
+                <View style={styles.registerCard}>
+                  <Text style={styles.registerMetricLabel}>Expected Cash</Text>
+                  <Text style={styles.registerMetricValue}>{fmtCents(summary.expectedCashCents)}</Text>
+                </View>
+                <View style={styles.registerCard}>
+                  <Text style={styles.registerMetricLabel}>Cash Sales</Text>
+                  <Text style={styles.registerMetricValue}>{fmtCents(summary.cashSalesCents)}</Text>
+                </View>
+                <View style={styles.registerCard}>
+                  <Text style={styles.registerMetricLabel}>Card Sales</Text>
+                  <Text style={styles.registerMetricValue}>{fmtCents(summary.cardSalesCents)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.registerSection}>
+                <Text style={styles.sectionTitle}>Today&apos;s Totals</Text>
+                {[
+                  ['Cash Refunds', fmtCents(summary.cashRefundsCents)],
+                  ['Card Refunds', fmtCents(summary.cardRefundsCents)],
+                  ['Discounts', fmtCents(summary.discountsCents)],
+                  ['Surcharges', fmtCents(summary.surchargesCents)],
+                  ['Cash Added', fmtCents(summary.cashAddedCents)],
+                  ['Cash Removed', fmtCents(summary.cashRemovedCents)],
+                  ['Total Sales', fmtCents(summary.totalSalesCents)],
+                ].map(([label, value]) => (
+                  <View key={label} style={styles.registerLine}>
+                    <Text style={styles.registerLineLabel}>{label}</Text>
+                    <Text style={styles.registerLineValue}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.registerSection}>
+                <Text style={styles.sectionTitle}>Cash Float</Text>
+                <TextInput
+                  style={styles.registerInput}
+                  placeholder="0.00"
+                  placeholderTextColor={MUTED}
+                  keyboardType="decimal-pad"
+                  value={floatInput}
+                  onChangeText={setFloatInput}
+                />
+                <TouchableOpacity
+                  onPress={() => onSaveFloat(Math.round(parseFloat(floatInput || '0') * 100))}
+                  style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                  disabled={busy}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.addToOrderBtnText}>{data?.cashEnabled ? 'Update Cash Float' : 'Start Cash Float'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.registerSection}>
+                <Text style={styles.sectionTitle}>Cash In Drawer</Text>
+                <View style={styles.registerToggleRow}>
+                  <Pressable onPress={() => setMovementType('add')} style={[styles.registerToggleBtn, movementType === 'add' && styles.registerToggleBtnActive]}>
+                    <Text style={[styles.registerToggleText, movementType === 'add' && styles.registerToggleTextActive]}>Add Cash</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setMovementType('remove')} style={[styles.registerToggleBtn, movementType === 'remove' && styles.registerToggleBtnActive]}>
+                    <Text style={[styles.registerToggleText, movementType === 'remove' && styles.registerToggleTextActive]}>Remove Cash</Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  style={styles.registerInput}
+                  placeholder="Amount"
+                  placeholderTextColor={MUTED}
+                  keyboardType="decimal-pad"
+                  value={movementAmount}
+                  onChangeText={setMovementAmount}
+                />
+                <TextInput
+                  style={[styles.registerInput, styles.registerTextarea]}
+                  placeholder="Reason / note"
+                  placeholderTextColor={MUTED}
+                  multiline
+                  value={movementReason}
+                  onChangeText={setMovementReason}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    onCashMovement({
+                      movementType,
+                      amountCents: Math.round(parseFloat(movementAmount || '0') * 100),
+                      reason: movementReason,
+                    });
+                    setMovementAmount('');
+                    setMovementReason('');
+                  }}
+                  style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                  disabled={busy}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.addToOrderBtnText}>{movementType === 'add' ? 'Add Cash to Drawer' : 'Remove Cash from Drawer'}</Text>
+                </TouchableOpacity>
+
+                {data?.cashMovements?.length ? (
+                  <View style={{ marginTop: 12, gap: 8 }}>
+                    {data.cashMovements.slice(0, 5).map((movement: PosRegisterCashMovement) => (
+                      <View key={movement.id} style={styles.registerMovementRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.registerMovementTitle}>
+                            {movement.movementType === 'add' ? 'Cash Added' : 'Cash Removed'} · {fmtCents(movement.amountCents)}
+                          </Text>
+                          <Text style={styles.registerMovementMeta}>
+                            {movement.reason || 'No note'}{movement.createdByName ? ` · ${movement.createdByName}` : ''}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.registerSection}>
+                <Text style={styles.sectionTitle}>Close Register</Text>
+                <TextInput
+                  style={styles.registerInput}
+                  placeholder="Actual cash counted"
+                  placeholderTextColor={MUTED}
+                  keyboardType="decimal-pad"
+                  value={countedAmount}
+                  onChangeText={setCountedAmount}
+                />
+                <View style={styles.registerVarianceRow}>
+                  <Text style={styles.registerLineLabel}>Variance</Text>
+                  <Text style={[styles.registerLineValue, variancePreview !== 0 && { color: variancePreview > 0 ? '#15803D' : CHERRY }]}>
+                    {fmtCents(variancePreview)}
+                  </Text>
+                </View>
+                <TextInput
+                  style={[styles.registerInput, styles.registerTextarea]}
+                  placeholder="Close note"
+                  placeholderTextColor={MUTED}
+                  multiline
+                  value={closeNote}
+                  onChangeText={setCloseNote}
+                />
+                {variancePreview !== 0 && (
+                  <TextInput
+                    style={[styles.registerInput, styles.registerTextarea]}
+                    placeholder="Reason for cash variance"
+                    placeholderTextColor={MUTED}
+                    multiline
+                    value={varianceNote}
+                    onChangeText={setVarianceNote}
+                  />
+                )}
+                <TouchableOpacity
+                  onPress={() => onCloseRegister({
+                    actualCountedCashCents: countedCents,
+                    closeNote,
+                    varianceNote: variancePreview !== 0 ? varianceNote : undefined,
+                  })}
+                  style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                  disabled={busy}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.addToOrderBtnText}>Close Register</Text>
+                </TouchableOpacity>
+                {!!session?.closedAt && (
+                  <Pressable onPress={() => void onPrintSummary()} style={styles.registerSecondaryBtn}>
+                    <Feather name="printer" size={14} color={BLUE} />
+                    <Text style={styles.registerSecondaryBtnText}>Print Summary</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              <View style={styles.registerSection}>
+                <View style={styles.registerAutoRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sectionTitle}>Auto Close Register at 11:59pm</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      {data?.canEditAutoClose ? 'Managers and directors can change this setting.' : 'Only managers and directors can change this setting.'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => data?.canEditAutoClose && onToggleAutoClose(!data.autoCloseEnabled)}
+                    style={[styles.registerSwitch, data?.autoCloseEnabled && styles.registerSwitchOn, !data?.canEditAutoClose && { opacity: 0.45 }]}
+                  >
+                    <View style={[styles.registerSwitchKnob, data?.autoCloseEnabled && styles.registerSwitchKnobOn]} />
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Hold Orders Modal ─────────────────────────────────────────────────────────
 function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
   tickets: Ticket[];
@@ -3863,6 +4365,40 @@ const styles = StyleSheet.create({
   sheetPrice:         { fontSize: 22, fontWeight: '800', color: DARK },
   addToOrderBtn:      { flex: 1, backgroundColor: CHERRY, borderRadius: 12, paddingVertical: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
   addToOrderBtnText:  { fontSize: 16, fontWeight: '800', color: WHITE },
+  registerHero:       { backgroundColor: '#F8FAFC', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  registerHeroTitle:  { fontSize: 18, fontWeight: '800', color: DARK },
+  registerHeroSub:    { fontSize: 13, color: MID, marginTop: 2 },
+  registerHeroMeta:   { fontSize: 12, color: MUTED, marginTop: 6 },
+  registerStatusPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#E2E8F0' },
+  registerStatusOpen: { backgroundColor: '#DCFCE7' },
+  registerStatusNeedsFloat: { backgroundColor: '#FEE2E2' },
+  registerStatusText: { fontSize: 12, fontWeight: '800', color: '#166534' },
+  registerGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  registerCard:       { width: '47.8%', backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
+  registerMetricLabel:{ fontSize: 12, color: MUTED, fontWeight: '600' },
+  registerMetricValue:{ fontSize: 20, color: DARK, fontWeight: '800', marginTop: 6 },
+  registerSection:    { backgroundColor: WHITE, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER },
+  registerLine:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  registerLineLabel:  { fontSize: 13, color: MID, fontWeight: '600' },
+  registerLineValue:  { fontSize: 14, color: DARK, fontWeight: '800' },
+  registerInput:      { backgroundColor: '#F8FAFC', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, borderWidth: 1, borderColor: BORDER, fontSize: 14, color: DARK, marginBottom: 10 },
+  registerTextarea:   { minHeight: 84, textAlignVertical: 'top' },
+  registerToggleRow:  { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  registerToggleBtn:  { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: '#F8FAFC', paddingVertical: 10, alignItems: 'center' },
+  registerToggleBtnActive: { backgroundColor: BLUE, borderColor: BLUE },
+  registerToggleText: { fontSize: 13, fontWeight: '700', color: MID },
+  registerToggleTextActive: { color: WHITE },
+  registerMovementRow:{ borderRadius: 10, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: BORDER, padding: 10 },
+  registerMovementTitle: { fontSize: 13, fontWeight: '700', color: DARK },
+  registerMovementMeta: { fontSize: 12, color: MUTED, marginTop: 3 },
+  registerVarianceRow:{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  registerAutoRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  registerSwitch:    { width: 54, height: 30, borderRadius: 999, backgroundColor: '#CBD5E1', padding: 3, justifyContent: 'center' },
+  registerSwitchOn:  { backgroundColor: BLUE },
+  registerSwitchKnob:{ width: 24, height: 24, borderRadius: 12, backgroundColor: WHITE },
+  registerSwitchKnobOn: { alignSelf: 'flex-end' },
+  registerSecondaryBtn: { marginTop: 10, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE' },
+  registerSecondaryBtnText: { fontSize: 13, fontWeight: '700', color: BLUE },
 
   section:            { marginBottom: 20 },
   sectionTitle:       { fontSize: 14, fontWeight: '700', color: DARK, marginBottom: 10 },

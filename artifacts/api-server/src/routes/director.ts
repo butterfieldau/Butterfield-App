@@ -29,6 +29,11 @@ import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../
 import { syncWholesaleInvoiceStatuses } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
+import {
+  getRegisterSessionReport,
+  listRegisterSessionReports,
+  updateClosedRegisterSessionNotes,
+} from '../lib/registers.js';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
@@ -1518,9 +1523,17 @@ router.patch('/settings', async (req, res) => {
 // socket itself from the device (which IS on the same LAN as the printer).
 router.post('/printer/bytes', async (req, res) => {
   try {
-    const { buildReceiptBytes, buildTaxInvoiceBytes } = await import('../lib/printer.js');
+    const { buildReceiptBytes, buildTaxInvoiceBytes, buildRegisterSummaryBytes } = await import('../lib/printer.js');
     const { job } = req.body as { job?: any };
     const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
+    if (job?.jobType === 'register_summary') {
+      const bytes = buildRegisterSummaryBytes({
+        title: typeof job?.title === 'string' ? job.title : 'Daily Register Summary',
+        lines: Array.isArray(job?.lines) ? job.lines : [],
+        printerBrand: brand,
+      });
+      return res.json({ data: { bytes: bytes.toString('base64') } });
+    }
     const isRealJob = job && job.orderId && job.orderId !== 'test-0000-0000-0000' && Array.isArray(job.items) && job.items.length > 0;
     const printJob = isRealJob
       ? (job as import('../lib/printer.js').PrintJob)
@@ -2291,6 +2304,41 @@ router.get('/reports/refunds', async (req, res) => {
       },
     },
   });
+});
+
+router.get('/reports/register-sessions', async (req, res) => {
+  const closeMethod = req.query.closeMethod === 'manual' || req.query.closeMethod === 'auto'
+    ? req.query.closeMethod
+    : undefined;
+  const variance = req.query.variance === 'with_variance' || req.query.variance === 'without_variance' || req.query.variance === 'all'
+    ? req.query.variance
+    : undefined;
+  const data = await listRegisterSessionReports({
+    from: typeof req.query.from === 'string' ? req.query.from : undefined,
+    to: typeof req.query.to === 'string' ? req.query.to : undefined,
+    register: typeof req.query.register === 'string' ? req.query.register : undefined,
+    staffUserId: typeof req.query.staffUserId === 'string' ? req.query.staffUserId : undefined,
+    closeMethod,
+    variance,
+  });
+  return res.json({ data });
+});
+
+router.get('/reports/register-sessions/:id', async (req, res) => {
+  const report = await getRegisterSessionReport(req.params.id);
+  if (!report) return res.status(404).json({ error: 'Register report not found.' });
+  return res.json({ data: report });
+});
+
+router.patch('/reports/register-sessions/:id', async (req, res) => {
+  const updated = await updateClosedRegisterSessionNotes({
+    sessionId: req.params.id,
+    closeNote: typeof req.body?.closeNote === 'string' ? req.body.closeNote : null,
+    varianceNote: typeof req.body?.varianceNote === 'string' ? req.body.varianceNote : null,
+  });
+  if (!updated) return res.status(404).json({ error: 'Register report not found.' });
+  const report = await getRegisterSessionReport(req.params.id);
+  return res.json({ data: report });
 });
 
 // ── Analytics: Customer Growth ────────────────────────────────────────────────

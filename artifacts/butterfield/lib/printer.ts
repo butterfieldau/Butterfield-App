@@ -18,8 +18,15 @@ export interface PrintJob {
   notes?: string;
   printerBrand?: 'epson' | 'star';
   scheduledFor?: Date | null;
-  jobType?: 'receipt' | 'tax_invoice';
+  jobType?: 'receipt' | 'tax_invoice' | 'register_summary';
   paymentMethod?: string;
+}
+
+export interface RegisterSummaryPrintJob {
+  title: string;
+  lines: string[];
+  printerBrand?: 'epson' | 'star';
+  jobType?: 'register_summary';
 }
 
 type PrintableOrder = Partial<ApiOrder> & {
@@ -82,6 +89,10 @@ export async function sendReceiptPrint(job: PrintJob, printerIp: string, printer
 
 export async function sendTaxInvoicePrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'tax_invoice' }));
+}
+
+export async function sendRegisterSummaryPrint(job: RegisterSummaryPrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'register_summary' }));
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
