@@ -1998,7 +1998,7 @@ function PaymentModal({
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
 
             {/* ── Compact totals strip ── */}
-            <View style={{ backgroundColor: DARK, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <View style={{ backgroundColor: DARK, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 10 }}>
               {discount && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -2055,47 +2055,47 @@ function PaymentModal({
               </Pressable>
             </View>
 
-            {/* ── Cash: tendered display + presets + full-width numpad ── */}
+            {/* ── Cash: two-column layout (info left | numpad right) ── */}
             {method === 'cash' && (
-              <View style={{ marginTop: 8 }}>
-                {/* Tendered amount display */}
-                <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 14, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 4 }}>TENDERED</Text>
-                  <Text style={{ fontSize: 42, color: WHITE, fontWeight: '800', letterSpacing: -1 }}>
-                    {tendered ? `$${tendered}` : '$–'}
-                  </Text>
-                  {tenderedCents > 0 && tenderedCents >= chargeTotalCents && (
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Feather name="corner-down-right" size={12} color="#4ADE80" />
-                        <Text style={{ fontSize: 11, color: '#4ADE80', fontWeight: '700', letterSpacing: 1 }}>CHANGE DUE</Text>
+              <View style={{ marginTop: 8, flexDirection: 'row', gap: 10, alignItems: 'stretch' }}>
+
+                {/* Left column: tendered display + change + quick presets */}
+                <View style={{ flex: 1 }}>
+                  {/* Dark amount display — fills available height */}
+                  <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, flex: 1, marginBottom: 10 }}>
+                    <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 6 }}>TENDERED</Text>
+                    <Text style={{ fontSize: 34, color: WHITE, fontWeight: '800', letterSpacing: -1 }} numberOfLines={1} adjustsFontSizeToFit>
+                      {tendered ? `$${tendered}` : '$–'}
+                    </Text>
+                    {tenderedCents > 0 && tenderedCents >= chargeTotalCents && (
+                      <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 12 }}>
+                        <Text style={{ fontSize: 10, color: '#4ADE80', fontWeight: '700', letterSpacing: 1, marginBottom: 4 }}>CHANGE DUE</Text>
+                        <Text style={{ fontSize: 26, color: '#4ADE80', fontWeight: '800', letterSpacing: -0.5 }}>{fmtCents(cashChangeCents)}</Text>
                       </View>
-                      <Text style={{ fontSize: 28, color: '#4ADE80', fontWeight: '800', letterSpacing: -0.5 }}>{fmtCents(cashChangeCents)}</Text>
-                    </View>
-                  )}
+                    )}
+                  </View>
+                  {/* Quick presets row */}
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    <Pressable onPress={() => setTendered((chargeTotalCents / 100).toFixed(2))} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                      <Text style={{ fontSize: 13, color: BLUE, fontWeight: '700' }}>Exact</Text>
+                    </Pressable>
+                    {roundUpPresets.map(d => (
+                      <Pressable key={d} onPress={() => setTendered(String(d))} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
+                        <Text style={{ fontSize: 13, color: DARK, fontWeight: '700' }}>${d}</Text>
+                      </Pressable>
+                    ))}
+                    {tendered !== '' && (
+                      <Pressable onPress={() => setTendered('')} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#FFF1F2', borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
+                        <Text style={{ fontSize: 13, color: CHERRY, fontWeight: '600' }}>Clear</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
 
-                {/* Quick amount presets */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                  <Pressable onPress={() => setTendered((chargeTotalCents / 100).toFixed(2))} style={{ paddingVertical: 9, paddingHorizontal: 14, backgroundColor: '#EFF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
-                    <Text style={{ fontSize: 14, color: BLUE, fontWeight: '700' }}>Exact</Text>
-                  </Pressable>
-                  {roundUpPresets.map(d => (
-                    <Pressable key={d} onPress={() => setTendered(String(d))} style={{ paddingVertical: 9, paddingHorizontal: 14, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
-                      <Text style={{ fontSize: 14, color: DARK, fontWeight: '700' }}>${d}</Text>
-                    </Pressable>
-                  ))}
-                  {tendered !== '' && (
-                    <Pressable onPress={() => setTendered('')} style={{ paddingVertical: 9, paddingHorizontal: 14, backgroundColor: '#FFF1F2', borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
-                      <Text style={{ fontSize: 14, color: CHERRY, fontWeight: '600' }}>Clear</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Full-width numpad grid */}
-                <View style={{ gap: 8 }}>
+                {/* Right column: numpad */}
+                <View style={{ width: 216, gap: 7 }}>
                   {[['7','8','9'],['4','5','6'],['1','2','3'],['.','0','backspace']].map((row, ri) => (
-                    <View key={ri} style={{ flexDirection: 'row', gap: 8 }}>
+                    <View key={ri} style={{ flexDirection: 'row', gap: 7 }}>
                       {row.map(k => (
                         <Pressable
                           key={k}
@@ -2110,58 +2110,60 @@ function PaymentModal({
                           })}
                         >
                           {k === 'backspace'
-                            ? <Feather name="delete" size={22} color={CHERRY} />
-                            : <Text style={{ fontSize: 26, fontWeight: '600', color: DARK }}>{k}</Text>
+                            ? <Feather name="delete" size={20} color={CHERRY} />
+                            : <Text style={{ fontSize: 24, fontWeight: '600', color: DARK }}>{k}</Text>
                           }
                         </Pressable>
                       ))}
                     </View>
                   ))}
                 </View>
+
               </View>
             )}
 
-            {/* ── Split: cash component numpad ── */}
+            {/* ── Split: two-column layout (info left | numpad right) ── */}
             {method === 'split' && (
-              <View style={{ marginTop: 8 }}>
-                {/* Cash amount display */}
-                <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 14, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 4 }}>CASH COMPONENT</Text>
-                  <Text style={{ fontSize: 42, color: WHITE, fontWeight: '800', letterSpacing: -1 }}>
-                    {splitCashDollars ? `$${splitCashDollars}` : '$–'}
-                  </Text>
-                  {splitCashCents > 0 && (
-                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 10, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 10 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        <Feather name="dollar-sign" size={12} color="#4ADE80" />
-                        <Text style={{ fontSize: 12, color: '#4ADE80', fontWeight: '600' }}>Cash {fmtCents(splitCashCents)}</Text>
+              <View style={{ marginTop: 8, flexDirection: 'row', gap: 10, alignItems: 'stretch' }}>
+
+                {/* Left column: cash display + split breakdown + presets */}
+                <View style={{ flex: 1 }}>
+                  <View style={{ backgroundColor: DARK, borderRadius: 14, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16, flex: 1, marginBottom: 10 }}>
+                    <Text style={{ fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 1.4, marginBottom: 6 }}>CASH COMPONENT</Text>
+                    <Text style={{ fontSize: 34, color: WHITE, fontWeight: '800', letterSpacing: -1 }} numberOfLines={1} adjustsFontSizeToFit>
+                      {splitCashDollars ? `$${splitCashDollars}` : '$–'}
+                    </Text>
+                    {splitCashCents > 0 && (
+                      <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: '#1E293B', paddingTop: 12, gap: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Feather name="dollar-sign" size={11} color="#4ADE80" />
+                          <Text style={{ fontSize: 12, color: '#4ADE80', fontWeight: '700' }}>Cash  {fmtCents(splitCashCents)}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Feather name="credit-card" size={11} color={MUTED} />
+                          <Text style={{ fontSize: 12, color: MUTED, fontWeight: '700' }}>EFTPOS  {fmtCents(splitEftposCents)}</Text>
+                        </View>
                       </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        <Feather name="credit-card" size={12} color={MUTED} />
-                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '600' }}>EFTPOS {fmtCents(splitEftposCents)}</Text>
-                      </View>
-                    </View>
-                  )}
+                    )}
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                    {[5, 10, 20, 50].filter(d => d * 100 < chargeTotalCents).map(d => (
+                      <Pressable key={d} onPress={() => setSplitCashDollars(String(d))} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
+                        <Text style={{ fontSize: 13, color: DARK, fontWeight: '700' }}>${d}</Text>
+                      </Pressable>
+                    ))}
+                    {splitCashDollars !== '' && (
+                      <Pressable onPress={() => setSplitCashDollars('')} style={{ paddingVertical: 9, paddingHorizontal: 12, backgroundColor: '#FFF1F2', borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
+                        <Text style={{ fontSize: 13, color: CHERRY, fontWeight: '600' }}>Clear</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
 
-                {/* Quick presets */}
-                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-                  {[5, 10, 20, 50].filter(d => d * 100 < chargeTotalCents).map(d => (
-                    <Pressable key={d} onPress={() => setSplitCashDollars(String(d))} style={{ paddingVertical: 9, paddingHorizontal: 14, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
-                      <Text style={{ fontSize: 14, color: DARK, fontWeight: '700' }}>${d}</Text>
-                    </Pressable>
-                  ))}
-                  {splitCashDollars !== '' && (
-                    <Pressable onPress={() => setSplitCashDollars('')} style={{ paddingVertical: 9, paddingHorizontal: 14, backgroundColor: '#FFF1F2', borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
-                      <Text style={{ fontSize: 14, color: CHERRY, fontWeight: '600' }}>Clear</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Full-width numpad grid */}
-                <View style={{ gap: 8 }}>
+                {/* Right column: numpad */}
+                <View style={{ width: 216, gap: 7 }}>
                   {[['7','8','9'],['4','5','6'],['1','2','3'],['.','0','backspace']].map((row, ri) => (
-                    <View key={ri} style={{ flexDirection: 'row', gap: 8 }}>
+                    <View key={ri} style={{ flexDirection: 'row', gap: 7 }}>
                       {row.map(k => (
                         <Pressable
                           key={k}
@@ -2176,14 +2178,15 @@ function PaymentModal({
                           })}
                         >
                           {k === 'backspace'
-                            ? <Feather name="delete" size={22} color={CHERRY} />
-                            : <Text style={{ fontSize: 26, fontWeight: '600', color: DARK }}>{k}</Text>
+                            ? <Feather name="delete" size={20} color={CHERRY} />
+                            : <Text style={{ fontSize: 24, fontWeight: '600', color: DARK }}>{k}</Text>
                           }
                         </Pressable>
                       ))}
                     </View>
                   ))}
                 </View>
+
               </View>
             )}
 
@@ -3730,8 +3733,8 @@ const styles = StyleSheet.create({
   payBreakdownRow:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   payBreakdownLabel:    { fontSize: 14, color: MID },
   payBreakdownValue:    { fontSize: 14, fontWeight: '600', color: DARK },
-  methodRow:            { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  methodBtn:            { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1.5, borderColor: BORDER },
+  methodRow:            { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  methodBtn:            { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1.5, borderColor: BORDER },
   methodBtnActive:      { backgroundColor: BLUE, borderColor: BLUE },
   methodBtnText:        { fontSize: 14, fontWeight: '700', color: MID },
   eftposInstructions:   { alignItems: 'center', paddingVertical: 32, gap: 12 },
