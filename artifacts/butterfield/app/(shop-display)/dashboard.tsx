@@ -810,19 +810,6 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* ── 3-col stat row ────────────────────────────────────────── */}
-            <View style={styles.statRow}>
-              <CountCard label="Transactions" value={data.transactionCount} icon="repeat" color={CYAN} />
-              <StatCard label="Avg Spend" valueCents={data.avgSpendCents} icon="user" color={WHITE} />
-              <CountCard label="Items Sold" value={data.itemsSold} icon="package" color={AMBER} />
-            </View>
-
-            {/* ── 2-col row: Discounted / Cancelled ────────────────────── */}
-            <View style={[styles.statRow, { gap: 10 }]}>
-              <StatCard label="Discounted" valueCents={data.discountedCents} icon="tag" color={GREEN} small />
-              <StatCard label="Cancelled" valueCents={data.cancelledCents} icon="x-circle" color={RED} small />
-            </View>
-
             {/* ── Sales by Channel ──────────────────────────────────────── */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -863,6 +850,19 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
               </View>
+            </View>
+
+            {/* ── 3-col stat row ────────────────────────────────────────── */}
+            <View style={styles.statRow}>
+              <CountCard label="Transactions" value={data.transactionCount} icon="repeat" color={CYAN} />
+              <StatCard label="Avg Spend" valueCents={data.avgSpendCents} icon="user" color={WHITE} />
+              <CountCard label="Items Sold" value={data.itemsSold} icon="package" color={AMBER} />
+            </View>
+
+            {/* ── 2-col row: Discounted / Cancelled ────────────────────── */}
+            <View style={[styles.statRow, { gap: 10 }]}>
+              <StatCard label="Discounted" valueCents={data.discountedCents} icon="tag" color={GREEN} small />
+              <StatCard label="Cancelled" valueCents={data.cancelledCents} icon="x-circle" color={RED} small />
             </View>
 
             {/* ── Top Sellers ──────────────────────────────────────────── */}
