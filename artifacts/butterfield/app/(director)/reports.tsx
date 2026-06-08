@@ -20,6 +20,8 @@ import {
   type ReportsPaymentBreakdown,
   type ReportsRefundsData,
   type ReportsCustomerGrowth,
+  type RefundOperator,
+  type RefundEvent,
 } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
@@ -562,6 +564,95 @@ function RefundsSection({ from, to }: { from: string; to: string }) {
           </>
         )}
       </View>
+
+      <RefundOperatorsCard from={from} to={to} />
+    </View>
+  );
+}
+
+function RefundOperatorsCard({ from, to }: { from: string; to: string }) {
+  const [showRefunds, setShowRefunds] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['reports-refund-operators', from, to],
+    queryFn: () => api.director.reportsRefundOperators(from, to),
+    staleTime: 60_000,
+  });
+  const operators: RefundOperator[] = data?.data ?? [];
+  const refunds: RefundEvent[] = data?.refunds ?? [];
+  const grandTotal: number = data?.grandTotalRefundedCents ?? 0;
+  if (isLoading) return <ActivityIndicator color={NAVY} style={{ marginVertical: 8 }} />;
+  if (operators.length === 0 && refunds.length === 0) return null;
+  return (
+    <View style={s.card}>
+      {/* Grand total row */}
+      <View style={[s.breakRow, { marginBottom: 12 }]}>
+        <Text style={[s.sectionTitle, { flex: 1 }]}>REFUND SUMMARY</Text>
+        <Text style={[s.breakCount, { color: RED, fontSize: 16 }]}>
+          ${(grandTotal / 100).toFixed(2)}
+        </Text>
+      </View>
+
+      {/* Operator breakdown */}
+      {operators.length > 0 && (
+        <>
+          <Text style={[s.sectionTitle, { marginBottom: 8 }]}>BY OPERATOR</Text>
+          {operators.map((op, i) => (
+            <View key={op.userId}>
+              {i > 0 && <View style={s.divider} />}
+              <View style={s.breakRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.breakLabel}>{op.name}</Text>
+                  <Text style={s.breakSub}>{op.role}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  {op.refunds > 0 && (
+                    <Text style={[s.breakCount, { color: RED }]}>
+                      {op.refunds} refund{op.refunds !== 1 ? 's' : ''}
+                      {op.totalRefundedCents > 0 ? ` · $${(op.totalRefundedCents / 100).toFixed(2)}` : ''}
+                    </Text>
+                  )}
+                  {op.voids > 0 && <Text style={[s.breakCount, { color: AMBER }]}>{op.voids} void{op.voids !== 1 ? 's' : ''}</Text>}
+                  {op.discounts > 0 && <Text style={[s.breakCount, { color: BLUE }]}>{op.discounts} discount{op.discounts !== 1 ? 's' : ''}</Text>}
+                </View>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
+
+      {/* Individual refund events toggle */}
+      {refunds.length > 0 && (
+        <>
+          <View style={s.divider} />
+          <Pressable
+            style={[s.breakRow, { marginTop: 8 }]}
+            onPress={() => setShowRefunds(v => !v)}
+          >
+            <Text style={[s.sectionTitle, { flex: 1 }]}>REFUND EVENTS ({refunds.length})</Text>
+            <Feather name={showRefunds ? 'chevron-up' : 'chevron-down'} size={14} color={MUTED} />
+          </Pressable>
+          {showRefunds && refunds.map((r, i) => (
+            <View key={r.id}>
+              {i > 0 && <View style={[s.divider, { opacity: 0.5 }]} />}
+              <View style={[s.breakRow, { marginTop: 6 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.breakSub}>
+                    {r.operatorName} · {new Date(r.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })}
+                  </Text>
+                  {r.orderId && <Text style={[s.breakSub, { fontSize: 10 }]}>Order {r.orderId.slice(0, 12)}…</Text>}
+                  {r.reason && <Text style={[s.breakSub, { fontSize: 10, fontStyle: 'italic' }]}>{r.reason}</Text>}
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[s.breakCount, { color: RED }]}>
+                    ${(r.refundAmountCents / 100).toFixed(2)}
+                  </Text>
+                  {r.refundType && <Text style={[s.breakSub, { fontSize: 10 }]}>{r.refundType}</Text>}
+                </View>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
     </View>
   );
 }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomBytes, randomInt, randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable } from '@workspace/db';
 import { eq, and, lt, isNull } from 'drizzle-orm';
 import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
@@ -10,10 +10,48 @@ import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
+import { recordAuditLog } from '../lib/auditLog.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
 
 const router = Router();
+
+function recordLoginHistory(opts: {
+  userId?: string | null;
+  email?: string | null;
+  role?: string | null;
+  success: boolean;
+  failReason?: string | null;
+  req: any;
+}) {
+  const ip = (() => {
+    const fwd = opts.req.headers?.['x-forwarded-for'];
+    if (Array.isArray(fwd)) return fwd[0] ?? opts.req.ip ?? null;
+    if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0]!.trim();
+    return opts.req.ip ?? opts.req.socket?.remoteAddress ?? null;
+  })();
+  const ua = opts.req.headers?.['user-agent'] ?? null;
+  db.insert(loginHistoryTable).values({
+    id: randomUUID(),
+    userId: opts.userId ?? null,
+    email: opts.email ?? null,
+    role: opts.role ?? null,
+    success: opts.success,
+    failReason: opts.failReason ?? null,
+    ip,
+    userAgent: ua,
+  }).catch(() => {});
+  // Mirror every failed login attempt into audit_logs for cross-system security queries
+  if (!opts.success) {
+    recordAuditLog({
+      actor: opts.userId ? { id: opts.userId, email: opts.email ?? '', role: opts.role ?? '', name: '' } : null,
+      action: 'auth.login_fail',
+      entityType: 'user',
+      entityId: opts.userId ?? opts.email ?? '',
+      reason: opts.failReason ?? undefined,
+    }).catch(() => {});
+  }
+}
 
 type RateLimitBucket = {
   count: number;
@@ -162,11 +200,13 @@ router.post('/login', loginRateLimit, async (req, res) => {
   }
 
   if (!user) {
+    recordLoginHistory({ email: email.toLowerCase().trim(), success: false, failReason: 'ACCOUNT_NOT_FOUND', req });
     return res.status(401).json({ error: 'No account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
   }
 
   // Accounts created for internal roles should use the staff/internal portal
   if (['staff', 'director', 'manager', 'master', 'shop_display'].includes(user.role)) {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'WRONG_PORTAL', req });
     return res.status(403).json({
       error: 'This account uses internal sign-in. Please use the "Staff / Internal Access" option on the login screen.',
       code: 'WRONG_PORTAL',
@@ -175,14 +215,17 @@ router.post('/login', loginRateLimit, async (req, res) => {
 
   // Account status check
   if (user.status === 'suspended') {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'ACCOUNT_SUSPENDED', req });
     return res.status(403).json({ error: 'This account has been suspended. Please contact us for help.', code: 'ACCOUNT_SUSPENDED' });
   }
   if (user.status === 'inactive' || user.isActive === 'false') {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'ACCOUNT_INACTIVE', req });
     return res.status(403).json({ error: 'This account has been deactivated. Please contact us for help.', code: 'ACCOUNT_INACTIVE' });
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'WRONG_PASSWORD', req });
     return res.status(401).json({ error: 'Incorrect password. Please try again.', code: 'WRONG_PASSWORD' });
   }
 
@@ -190,9 +233,11 @@ router.post('/login', loginRateLimit, async (req, res) => {
   if (user.role === 'wholesale') {
     const [wa] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, user.id));
     if (!wa) {
+      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'PROFILE_MISSING', req });
       return res.status(403).json({ error: 'Your wholesale account profile is missing. Please contact us to resolve this.', code: 'PROFILE_MISSING' });
     }
     if (wa.isSuspended) {
+      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'ACCOUNT_SUSPENDED', req });
       return res.status(403).json({ error: 'Your wholesale account has been suspended. Please contact your account manager.', code: 'ACCOUNT_SUSPENDED' });
     }
   }
@@ -204,6 +249,8 @@ router.post('/login', loginRateLimit, async (req, res) => {
   // Update last login timestamp
   db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
 
+  recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, req });
+  recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.login', entityType: 'user', entityId: user.id }).catch(() => {});
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -221,11 +268,13 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
   }
 
   if (!user) {
+    recordLoginHistory({ email: email.toLowerCase().trim(), success: false, failReason: 'ACCOUNT_NOT_FOUND', req });
     return res.status(401).json({ error: 'No account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
   }
 
   // Customer or wholesale accounts must use the public login, not the internal portal
   if (['customer', 'wholesale'].includes(user.role)) {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'WRONG_PORTAL', req });
     return res.status(403).json({
       error: 'This account doesn\'t have access to the internal portal. Please sign in using the Customer or Wholesale option.',
       code: 'WRONG_PORTAL',
@@ -234,20 +283,24 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
 
   // Only internal roles past this point: staff | director | manager | master
   if (!['staff', 'director', 'manager', 'master', 'shop_display'].includes(user.role)) {
+    recordLoginHistory({ email: email.toLowerCase().trim(), success: false, failReason: 'ACCOUNT_NOT_FOUND', req });
     return res.status(401).json({ error: 'No internal account found with that email address.', code: 'ACCOUNT_NOT_FOUND' });
   }
 
   // Account status check
   if (user.status === 'suspended') {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'ACCOUNT_SUSPENDED', req });
     return res.status(403).json({ error: 'This account has been suspended. Contact your manager or director.', code: 'ACCOUNT_SUSPENDED' });
   }
   if (user.status === 'inactive' || user.isActive === 'false') {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'ACCOUNT_INACTIVE', req });
     return res.status(403).json({ error: 'This account has been deactivated. Contact your manager or director.', code: 'ACCOUNT_INACTIVE' });
   }
 
   // Password check — done before approval so a wrong password gives the right error
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'WRONG_PASSWORD', req });
     return res.status(401).json({ error: 'Incorrect password. Please try again.', code: 'WRONG_PASSWORD' });
   }
 
@@ -255,9 +308,11 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
   if (user.role === 'staff') {
     const [staffProfile] = await db.select().from(staffProfilesTable).where(eq(staffProfilesTable.userId, user.id));
     if (!staffProfile) {
+      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'PROFILE_MISSING', req });
       return res.status(403).json({ error: 'Your staff profile is missing. Please ask the director to set up your account.', code: 'PROFILE_MISSING' });
     }
     if (!staffProfile.approvedByAdmin) {
+      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'PENDING_APPROVAL', req });
       return res.status(403).json({ error: 'Your staff account is pending approval by a director.', code: 'PENDING_APPROVAL' });
     }
   }
@@ -265,6 +320,7 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
   if (user.role === 'manager') {
     const [managerProfile] = await db.select().from(managerProfilesTable).where(eq(managerProfilesTable.userId, user.id));
     if (!managerProfile) {
+      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'PROFILE_MISSING', req });
       return res.status(403).json({ error: 'Your manager profile is missing. Please ask the director to set up your account.', code: 'PROFILE_MISSING' });
     }
   }
@@ -321,6 +377,7 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
     const matched = measured.find((a) => a.effectiveDistanceMeters <= a.radiusMeters);
     if (!matched) {
       const nearest = measured[0];
+      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'OUTSIDE_STORE_GEOFENCE', req });
       return res.status(403).json({
         error: `You must be within ${nearest.radiusMeters}m of ${nearest.storeName ?? 'your assigned store'} to sign in. You are currently ${Math.round(nearest.distanceMeters)}m away.`,
         distanceMeters: Math.round(nearest.distanceMeters),
@@ -335,6 +392,8 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
   // Update last login timestamp
   db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
 
+  recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, req });
+  recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.login', entityType: 'user', entityId: user.id }).catch(() => {});
   const token = signToken(
     { id: user.id, email: user.email, role: user.role, name: user.name },
     user.role === 'shop_display' ? '30d' : '7d',
@@ -1078,6 +1137,14 @@ router.delete('/account', requireAuth, async (req, res) => {
     .set({ email: anon, name: 'Deleted User', phone: null, passwordHash: '', updatedAt: new Date() })
     .where(eq(usersTable.id, userId));
   return res.json({ success: true, message: 'Account deleted.' });
+});
+
+// ── Logout (records audit event; JWT is stateless so token is discarded client-side) ──
+router.post('/logout', requireAuth, async (req, res) => {
+  const user = req.user!;
+  recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, failReason: null, req });
+  recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.logout', entityType: 'user', entityId: user.id }).catch(() => {});
+  return res.json({ success: true });
 });
 
 export default router;

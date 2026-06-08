@@ -736,6 +736,45 @@ export const api = {
         request<{ ok: boolean; sent: number }>(`/director/customers/segments/${segment}/notify`, { method: 'POST', body: JSON.stringify({ title, body }) }),
     },
 
+    // Audit Logs
+    auditLogs: (params?: { type?: string; userId?: string; actorName?: string; from?: string; to?: string; page?: number; pageSize?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.type)      qs.set('type',      params.type);
+      if (params?.userId)    qs.set('userId',    params.userId);
+      if (params?.actorName) qs.set('actorName', params.actorName);
+      if (params?.from)      qs.set('from',      params.from);
+      if (params?.to)        qs.set('to',        params.to);
+      if (params?.page)      qs.set('page',      String(params.page));
+      if (params?.pageSize)  qs.set('pageSize',  String(params.pageSize));
+      return request<{ data: AuditLogEntry[]; total: number; page: number; pageSize: number }>(
+        `/director/audit-logs${qs.toString() ? `?${qs}` : ''}`
+      );
+    },
+
+    // Login History
+    loginHistory: (params?: { userId?: string; email?: string; from?: string; to?: string; page?: number; pageSize?: number; success?: boolean }) => {
+      const qs = new URLSearchParams();
+      if (params?.userId)              qs.set('userId',   params.userId);
+      if (params?.email)               qs.set('email',    params.email);
+      if (params?.from)                qs.set('from',     params.from);
+      if (params?.to)                  qs.set('to',       params.to);
+      if (params?.page)                qs.set('page',     String(params.page));
+      if (params?.pageSize)            qs.set('pageSize', String(params.pageSize));
+      if (params?.success !== undefined) qs.set('success', String(params.success));
+      return request<{ data: LoginHistoryEntry[]; total: number; page: number; pageSize: number }>(
+        `/director/login-history${qs.toString() ? `?${qs}` : ''}`
+      );
+    },
+
+    // POS Thresholds
+    posThresholds:       () => request<{ data: PosThresholds }>('/director/pos-thresholds'),
+    updatePosThresholds: (data: Partial<PosThresholds>) =>
+      request<{ data: PosThresholds }>('/director/pos-thresholds', { method: 'PATCH', body: JSON.stringify(data) }),
+
+    // Refund operator breakdown
+    reportsRefundOperators: (from: string, to: string) =>
+      request<{ grandTotalRefundedCents: number; data: RefundOperator[]; refunds: RefundEvent[] }>(`/director/reports/refund-operators?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+
     // Manager management (director/master)
     managers: {
       list:              () => request<{ data: DirectorManager[] }>('/director/managers'),
@@ -852,6 +891,7 @@ export const api = {
       birthdayBonus?: boolean;
       notes?: string;
       idempotencyKey?: string;
+      supervisorPin?: string;
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
@@ -862,7 +902,7 @@ export const api = {
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
-    refundOrder: (id: string, data: { amountCents: number; reason?: string }) =>
+    refundOrder: (id: string, data: { amountCents: number; reason?: string; supervisorPin?: string }) =>
       request<{ success: boolean; refundAmountCents: number; isFullRefund: boolean }>(
         `/pos/orders/${id}/refund`, { method: 'POST', body: JSON.stringify(data) }
       ),
@@ -1407,6 +1447,60 @@ export interface ClaimedReward {
   rewardDescription?: string;
   rewardType?: 'item_reward' | 'money_voucher';
   linkedProductId?: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actorUserId?: string | null;
+  actorName?: string | null;
+  actorRole?: string | null;
+  entityType: string;
+  entityId: string;
+  action: string;
+  reason?: string | null;
+  beforeJson?: string | null;
+  afterJson?: string | null;
+  metadataJson?: string | null;
+  createdAt: string;
+}
+
+export interface LoginHistoryEntry {
+  id: string;
+  userId?: string | null;
+  email?: string | null;
+  role?: string | null;
+  success: boolean;
+  failReason?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+}
+
+export interface PosThresholds {
+  refundRequiresPin: boolean;
+  discountPinThresholdCents: number;
+}
+
+export interface RefundOperator {
+  userId: string;
+  name: string;
+  role: string;
+  refunds: number;
+  voids: number;
+  discounts: number;
+  totalRefundedCents: number;
+}
+
+export interface RefundEvent {
+  id: string;
+  orderId: string | null;
+  operatorId: string | null;
+  operatorName: string;
+  operatorRole: string;
+  refundAmountCents: number;
+  refundType: string | null;
+  reason: string | null;
+  createdAt: string;
 }
 
 export interface DirectorAnnouncement {

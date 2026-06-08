@@ -225,6 +225,12 @@ function PosScreenInner() {
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showSettings,  setShowSettings]  = useState(false);
   const [showPinGate,   setShowPinGate]   = useState(false);
+  const [discountPinGate, setDiscountPinGate] = useState<{
+    paymentMethod: 'cash' | 'eftpos' | 'split';
+    amountTenderedCents?: number;
+    surchargeCents?: number;
+    splitPayments?: { method: string; amountCents: number }[];
+  } | null>(null);
   const [discountPresets, setDiscountPresets] = useState<number[]>([10, 20, 50]);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
 
@@ -523,6 +529,7 @@ function PosScreenInner() {
     amountTenderedCents?: number;
     surchargeCents?: number;
     splitPayments?: { method: string; amountCents: number }[];
+    supervisorPin?: string;
   }) => ({
     items: buildPosItems(activeTicket.items),
     orderType: activeTicket.orderType,
@@ -539,6 +546,7 @@ function PosScreenInner() {
     claimedRewardId: activeTicket.appliedDiscount?.type === 'claimed_reward' ? activeTicket.appliedDiscount.claimedRewardId : undefined,
     birthdayBonus: activeTicket.customer ? isBirthdayMonth(activeTicket.customer.birthday) : undefined,
     idempotencyKey: activeIdempotencyKey,
+    supervisorPin: vars.supervisorPin,
   }), [activeTicket, activeIdempotencyKey]);
 
   const clearActiveTicket = useCallback(() => {
@@ -556,6 +564,7 @@ function PosScreenInner() {
       amountTenderedCents?: number;
       surchargeCents?: number;
       splitPayments?: { method: string; amountCents: number }[];
+      supervisorPin?: string;
     }) => api.pos.createOrder(buildOrderPayload(vars)),
     onSuccess: (res, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -582,8 +591,18 @@ function PosScreenInner() {
         sendReceiptPrint(job, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
       }
     },
-    onError: (err: any) => {
+    onError: (err: any, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      if (err?.code === 'DISCOUNT_PIN_REQUIRED') {
+        // Server requires supervisor PIN for this discount level — capture it
+        setDiscountPinGate({
+          paymentMethod: vars.paymentMethod,
+          amountTenderedCents: vars.amountTenderedCents,
+          surchargeCents: vars.surchargeCents,
+          splitPayments: vars.splitPayments,
+        });
+        return;
+      }
       Alert.alert('Order Failed', err?.message ?? 'Could not complete order. Please try again.');
     },
   });
@@ -967,7 +986,19 @@ function PosScreenInner() {
       {showPinGate && (
         <PosPinModal
           onClose={() => setShowPinGate(false)}
-          onSuccess={() => { setShowPinGate(false); setShowSettings(true); }}
+          onSuccess={(_pin) => { setShowPinGate(false); setShowSettings(true); }}
+        />
+      )}
+      {discountPinGate && (
+        <SupervisorPinCapture
+          onClose={() => setDiscountPinGate(null)}
+          title="Supervisor Required"
+          subtitle="This discount requires manager authorisation"
+          onSuccess={(pin) => {
+            const params = discountPinGate;
+            setDiscountPinGate(null);
+            createOrderMutation.mutate({ ...params, supervisorPin: pin });
+          }}
         />
       )}
       {showSettings && (
@@ -2488,8 +2519,8 @@ function HistoryModal({
 
   const [pinForRefund, setPinForRefund] = useState<{ order: PosHistoryOrder; reason?: string } | null>(null);
   const refundMutation = useMutation({
-    mutationFn: (vars: { orderId: string; amountCents: number; reason?: string }) =>
-      api.pos.refundOrder(vars.orderId, { amountCents: vars.amountCents, reason: vars.reason }),
+    mutationFn: (vars: { orderId: string; amountCents: number; reason?: string; supervisorPin?: string }) =>
+      api.pos.refundOrder(vars.orderId, { amountCents: vars.amountCents, reason: vars.reason, supervisorPin: vars.supervisorPin }),
     onSuccess: (res, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const { isFullRefund, refundAmountCents } = res as any;
@@ -2861,10 +2892,10 @@ function HistoryModal({
       {pinForRefund && (
         <PosPinModal
           onClose={() => setPinForRefund(null)}
-          onSuccess={() => {
+          onSuccess={(pin) => {
             const { order, reason } = pinForRefund;
             setPinForRefund(null);
-            refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason });
+            refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, supervisorPin: pin });
           }}
         />
       )}
@@ -2957,8 +2988,8 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
   );
 }
 
-// ── POS Settings PIN Gate ─────────────────────────────────────────────────────
-function PosPinModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+// ── POS Settings PIN Gate (verifies server-side, passes pin to onSuccess) ─────
+function PosPinModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (pin: string) => void }) {
   const { height: screenH } = useWindowDimensions();
   const { user } = useAuth();
   const [digits, setDigits] = React.useState<string[]>([]);
@@ -3000,7 +3031,7 @@ function PosPinModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
       const res = await verifyFn(pin);
       if (res.granted) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onSuccess();
+        onSuccess(pin);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         shake();
@@ -3057,6 +3088,83 @@ function PosPinModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             })}
           </View>
 
+          <Pressable onPress={onClose} style={styles.pinCancel}>
+            <Text style={styles.pinCancelText}>Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ── Supervisor PIN Capture (collects PIN without server verify, for POS gates) ─
+function SupervisorPinCapture({ onClose, onSuccess, title, subtitle }: {
+  onClose: () => void;
+  onSuccess: (pin: string) => void;
+  title?: string;
+  subtitle?: string;
+}) {
+  const { height: screenH } = useWindowDimensions();
+  const [digits, setDigits] = React.useState<string[]>([]);
+  const shakeAnim = React.useRef(new Animated.Value(0)).current;
+
+  const shake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 6, duration: 60, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const appendDigit = (d: string) => {
+    if (digits.length >= 4) return;
+    const next = [...digits, d];
+    setDigits(next);
+    Haptics.selectionAsync();
+    if (next.length === 4) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSuccess(next.join(''));
+    }
+  };
+
+  const backspace = () => {
+    setDigits(prev => prev.slice(0, -1));
+    Haptics.selectionAsync();
+  };
+
+  const KEYS = ['1','2','3','4','5','6','7','8','9','','0','⌫'] as const;
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <Pressable style={styles.pinOverlay} onPress={onClose}>
+        <Pressable style={[styles.pinSheet, { maxHeight: screenH * 0.72 }]} onPress={() => {}}>
+          <View style={styles.pinHeader}>
+            <View style={styles.pinLockCircle}>
+              <Feather name="shield" size={22} color={BLUE} />
+            </View>
+            <Text style={styles.pinTitle}>{title ?? 'Supervisor Authorisation'}</Text>
+            <Text style={styles.pinSub}>{subtitle ?? 'Enter a manager or director PIN'}</Text>
+          </View>
+          <Animated.View style={[styles.pinDotsRow, { transform: [{ translateX: shakeAnim }] }]}>
+            {[0,1,2,3].map(i => (
+              <View key={i} style={[styles.pinDot, digits[i] !== undefined && styles.pinDotFilled]} />
+            ))}
+          </Animated.View>
+          <View style={styles.pinNumpad}>
+            {KEYS.map((key, i) => {
+              if (key === '') return <View key={`k-${i}`} style={styles.pinKeyPlaceholder} />;
+              const isBack = key === '⌫';
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => isBack ? backspace() : appendDigit(key)}
+                  style={({ pressed }) => [styles.pinKey, pressed && styles.pinKeyPressed]}
+                >
+                  <Text style={[styles.pinKeyText, isBack && styles.pinBackText]}>{key}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <Pressable onPress={onClose} style={styles.pinCancel}>
             <Text style={styles.pinCancelText}>Cancel</Text>
           </Pressable>

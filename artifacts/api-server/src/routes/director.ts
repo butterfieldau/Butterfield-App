@@ -8,6 +8,7 @@ import {
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
   staffInviteTokensTable, storesTable, wholesaleDeliverySettingsTable,
+  auditLogsTable, loginHistoryTable,
 } from '@workspace/db';
 import {
   getOrCreateWholesaleDeliverySettings,
@@ -108,6 +109,13 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/reports' || path.startsWith('/reports/')) return 'reports';
   // Feedback tab is shown to all managers in staffhub manage mode
   if (path === '/feedback' || path.startsWith('/feedback/')) return 'always';
+
+  // Audit logs + login history — director only (security-sensitive data)
+  if (path === '/audit-logs') return 'director_only';
+  if (path === '/login-history') return 'director_only';
+
+  // POS thresholds — director only
+  if (path === '/pos-thresholds') return 'director_only';
 
   // Unknown paths: block managers
   return 'director_only';
@@ -781,7 +789,7 @@ router.post('/verify-settings-pin', async (req, res) => {
     return res.status(400).json({ error: 'A 4-digit PIN is required.' });
   }
   const rows = await db.execute(sql`
-    SELECT sp.settings_pin_hash, sp.clock_pin
+    SELECT sp.user_id, sp.settings_pin_hash, sp.clock_pin
     FROM staff_profiles sp
     INNER JOIN users u ON u.id = sp.user_id
     WHERE u.role IN ('manager', 'director', 'master')
@@ -790,12 +798,49 @@ router.post('/verify-settings-pin', async (req, res) => {
   for (const row of profiles) {
     if (row.settings_pin_hash) {
       const valid = await bcrypt.compare(String(pin), row.settings_pin_hash);
-      if (valid) return res.json({ granted: true });
+      if (valid) {
+        recordAuditLog({ actor: req.user, action: 'settings.pin_verify_success', entityType: 'settings', entityId: row.user_id ?? '' });
+        db.insert(loginHistoryTable).values({
+          id: randomUUID(),
+          userId: req.user?.id ?? null,
+          email: req.user?.email ?? null,
+          role: req.user?.role ?? null,
+          success: true,
+          failReason: null,
+          ip: (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? (req as any).ip ?? null,
+          userAgent: req.headers?.['user-agent'] ?? null,
+        }).catch(() => {});
+        return res.json({ granted: true });
+      }
     } else if (row.clock_pin) {
       const valid = await bcrypt.compare(String(pin), row.clock_pin);
-      if (valid) return res.json({ granted: true });
+      if (valid) {
+        recordAuditLog({ actor: req.user, action: 'settings.pin_verify_success', entityType: 'settings', entityId: row.user_id ?? '' });
+        db.insert(loginHistoryTable).values({
+          id: randomUUID(),
+          userId: req.user?.id ?? null,
+          email: req.user?.email ?? null,
+          role: req.user?.role ?? null,
+          success: true,
+          failReason: null,
+          ip: (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? (req as any).ip ?? null,
+          userAgent: req.headers?.['user-agent'] ?? null,
+        }).catch(() => {});
+        return res.json({ granted: true });
+      }
     }
   }
+  recordAuditLog({ actor: req.user, action: 'settings.pin_verify_fail', entityType: 'settings', entityId: '' });
+  db.insert(loginHistoryTable).values({
+    id: randomUUID(),
+    userId: req.user?.id ?? null,
+    email: req.user?.email ?? null,
+    role: req.user?.role ?? null,
+    success: false,
+    failReason: 'WRONG_PIN',
+    ip: (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? (req as any).ip ?? null,
+    userAgent: req.headers?.['user-agent'] ?? null,
+  }).catch(() => {});
   return res.json({ granted: false });
 });
 
@@ -3113,6 +3158,171 @@ router.delete('/staff-invites/:id', async (req, res) => {
   if (!row) return res.status(404).json({ error: 'Invite not found.' });
   await db.delete(staffInviteTokensTable).where(eq(staffInviteTokensTable.id, id));
   return res.json({ success: true });
+});
+
+// ── Audit Logs ───────────────────────────────────────────────────────────────
+router.get('/audit-logs', async (req, res) => {
+  const { type, userId, actorName, from, to, page = '1', pageSize = '50' } = req.query as Record<string, string>;
+  const limit = Math.min(parseInt(pageSize) || 50, 200);
+  const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limit;
+
+  const conditions: any[] = [];
+  if (type) conditions.push(sql`${auditLogsTable.action} ILIKE ${`${type}%`}`);
+  if (userId) conditions.push(eq(auditLogsTable.actorUserId, userId));
+  if (actorName) conditions.push(sql`${auditLogsTable.actorName} ILIKE ${`%${actorName}%`}`);
+  if (from) conditions.push(gte(auditLogsTable.createdAt, new Date(from)));
+  if (to) conditions.push(lte(auditLogsTable.createdAt, new Date(to)));
+
+  const [rows, [{ total }]] = await Promise.all([
+    db.select().from(auditLogsTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(auditLogsTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ total: count() }).from(auditLogsTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined),
+  ]);
+
+  return res.json({ data: rows, total, page: parseInt(page) || 1, pageSize: limit });
+});
+
+// ── Login History ─────────────────────────────────────────────────────────────
+router.get('/login-history', async (req, res) => {
+  const { userId, email, from, to, page = '1', pageSize = '50', success } = req.query as Record<string, string>;
+  const limit = Math.min(parseInt(pageSize) || 50, 200);
+  const offset = (Math.max(parseInt(page) || 1, 1) - 1) * limit;
+
+  const conditions: any[] = [];
+  if (userId) conditions.push(eq(loginHistoryTable.userId, userId));
+  if (email) conditions.push(sql`${loginHistoryTable.email} ILIKE ${`%${email}%`}`);
+  if (from) conditions.push(gte(loginHistoryTable.createdAt, new Date(from)));
+  if (to) conditions.push(lte(loginHistoryTable.createdAt, new Date(to)));
+  if (success === 'true') conditions.push(eq(loginHistoryTable.success, true));
+  if (success === 'false') conditions.push(eq(loginHistoryTable.success, false));
+
+  const [rows, [{ total }]] = await Promise.all([
+    db.select().from(loginHistoryTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(loginHistoryTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ total: count() }).from(loginHistoryTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined),
+  ]);
+
+  return res.json({ data: rows, total, page: parseInt(page) || 1, pageSize: limit });
+});
+
+// ── POS Thresholds settings ───────────────────────────────────────────────────
+const POS_THRESHOLDS_KEY = 'pos_thresholds';
+const DEFAULT_POS_THRESHOLDS = { refundRequiresPin: false, discountPinThresholdCents: 0 };
+
+router.get('/pos-thresholds', async (_req, res) => {
+  const [row] = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, POS_THRESHOLDS_KEY)).limit(1);
+  if (!row?.value) return res.json({ data: DEFAULT_POS_THRESHOLDS });
+  try {
+    return res.json({ data: { ...DEFAULT_POS_THRESHOLDS, ...JSON.parse(row.value) } });
+  } catch {
+    return res.json({ data: DEFAULT_POS_THRESHOLDS });
+  }
+});
+
+router.patch('/pos-thresholds', async (req, res) => {
+  const { refundRequiresPin, discountPinThresholdCents } = req.body;
+  const current: any = { ...DEFAULT_POS_THRESHOLDS };
+  const [existing] = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, POS_THRESHOLDS_KEY)).limit(1);
+  if (existing?.value) Object.assign(current, JSON.parse(existing.value));
+  if (typeof refundRequiresPin === 'boolean') current.refundRequiresPin = refundRequiresPin;
+  if (typeof discountPinThresholdCents === 'number') current.discountPinThresholdCents = discountPinThresholdCents;
+  const value = JSON.stringify(current);
+  if (existing) {
+    await db.update(storeSettingsTable).set({ value, updatedAt: new Date() }).where(eq(storeSettingsTable.key, POS_THRESHOLDS_KEY));
+  } else {
+    await db.insert(storeSettingsTable).values({ key: POS_THRESHOLDS_KEY, value, updatedBy: req.user!.id });
+  }
+  recordAuditLog({ actor: req.user, action: 'director.pos_thresholds_update', entityType: 'settings', entityId: POS_THRESHOLDS_KEY, after: current });
+  return res.json({ data: current });
+});
+
+// ── Refund operator breakdown (supplement to reports/refunds) ─────────────────
+router.get('/reports/refund-operators', async (req, res) => {
+  const { from, to } = req.query as Record<string, string>;
+  const allConditions: any[] = [sql`${auditLogsTable.action} IN ('pos.refund','pos.void','pos.discount')`];
+  const refundConditions: any[] = [eq(auditLogsTable.action, 'pos.refund')];
+  if (from) {
+    allConditions.push(gte(auditLogsTable.createdAt, new Date(from)));
+    refundConditions.push(gte(auditLogsTable.createdAt, new Date(from)));
+  }
+  if (to) {
+    allConditions.push(lte(auditLogsTable.createdAt, new Date(to)));
+    refundConditions.push(lte(auditLogsTable.createdAt, new Date(to)));
+  }
+
+  const [rows, refundEvents] = await Promise.all([
+    db.select({
+      actorUserId: auditLogsTable.actorUserId,
+      actorName: auditLogsTable.actorName,
+      actorRole: auditLogsTable.actorRole,
+      action: auditLogsTable.action,
+      count: count(),
+    }).from(auditLogsTable)
+      .where(and(...allConditions))
+      .groupBy(auditLogsTable.actorUserId, auditLogsTable.actorName, auditLogsTable.actorRole, auditLogsTable.action)
+      .orderBy(desc(count())),
+    db.select({
+      id: auditLogsTable.id,
+      actorUserId: auditLogsTable.actorUserId,
+      actorName: auditLogsTable.actorName,
+      actorRole: auditLogsTable.actorRole,
+      entityId: auditLogsTable.entityId,
+      metadataJson: auditLogsTable.metadataJson,
+      reason: auditLogsTable.reason,
+      createdAt: auditLogsTable.createdAt,
+    }).from(auditLogsTable)
+      .where(and(...refundConditions))
+      .orderBy(desc(auditLogsTable.createdAt))
+      .limit(200),
+  ]);
+
+  const operatorMap = new Map<string, { userId: string; name: string; role: string; refunds: number; voids: number; discounts: number; totalRefundedCents: number }>();
+  for (const r of rows) {
+    const key = r.actorUserId ?? 'unknown';
+    const ex = operatorMap.get(key) ?? { userId: key, name: r.actorName ?? 'Unknown', role: r.actorRole ?? '', refunds: 0, voids: 0, discounts: 0, totalRefundedCents: 0 };
+    if (r.action === 'pos.void') ex.voids += Number(r.count);
+    else if (r.action === 'pos.discount') ex.discounts += Number(r.count);
+    else ex.refunds += Number(r.count);
+    operatorMap.set(key, ex);
+  }
+
+  // Accumulate refunded totals from metadata
+  let grandTotalRefundedCents = 0;
+  const parsedRefunds = refundEvents.map(e => {
+    let meta: Record<string, any> = {};
+    try { meta = typeof e.metadataJson === 'string' ? JSON.parse(e.metadataJson) : (e.metadataJson as any) ?? {}; } catch { /**/ }
+    const amountCents: number = typeof meta.refundAmountCents === 'number' ? meta.refundAmountCents : 0;
+    grandTotalRefundedCents += amountCents;
+    if (e.actorUserId) {
+      const op = operatorMap.get(e.actorUserId);
+      if (op) { op.totalRefundedCents += amountCents; operatorMap.set(e.actorUserId, op); }
+    }
+    return {
+      id: e.id,
+      orderId: e.entityId ?? null,
+      operatorId: e.actorUserId ?? null,
+      operatorName: e.actorName ?? 'Unknown',
+      operatorRole: e.actorRole ?? '',
+      refundAmountCents: amountCents,
+      refundType: meta.refundType ?? null,
+      reason: e.reason ?? meta.reason ?? null,
+      createdAt: e.createdAt,
+    };
+  });
+
+  return res.json({
+    grandTotalRefundedCents,
+    data: Array.from(operatorMap.values()).sort((a, b) => (b.refunds + b.voids) - (a.refunds + a.voids)),
+    refunds: parsedRefunds,
+  });
 });
 
 export default router;

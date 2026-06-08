@@ -24,6 +24,7 @@ export * from "./stock";
 export * from "./deleted_accounts";
 export * from "./discount_codes";
 export * from "./audit_logs";
+export * from "./login_history";
 export * from "./staff_invite_tokens";
 export * from "./wholesale_settings";
 export * from "./pos_surcharges";

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import bcrypt from 'bcryptjs';
 
 // ── Per-ticket stamp cap (in-memory, keyed by client ticket UUID) ─────────────
 // Deterministic guard that prevents over-tapping without requiring server-side
@@ -18,7 +19,7 @@ import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
   discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
   claimedRewardsTable, loyaltyRewardsTable, loyaltyTransactionsTable,
-  storeSettingsTable,
+  storeSettingsTable, loginHistoryTable,
 } from '@workspace/db';
 import { eq, and, desc, gte, sql, or, count, sum, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
@@ -37,6 +38,60 @@ import { recordAuditLog } from '../lib/auditLog.js';
 const router = Router();
 router.use(requireAuth);
 router.use(requireRole('staff', 'manager', 'director', 'master', 'shop_display'));
+
+function recordPosPinHistory(req: any, success: boolean, failReason: string | null, userId?: string | null, email?: string | null, role?: string | null) {
+  const ip = (() => {
+    const fwd = req.headers?.['x-forwarded-for'];
+    if (Array.isArray(fwd)) return fwd[0] ?? req.ip ?? null;
+    if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0]!.trim();
+    return req.ip ?? req.socket?.remoteAddress ?? null;
+  })();
+  db.insert(loginHistoryTable).values({
+    id: randomUUID(),
+    userId: userId ?? null,
+    email: email ?? null,
+    role: role ?? null,
+    success,
+    failReason,
+    ip,
+    userAgent: req.headers?.['user-agent'] ?? null,
+  }).catch(() => {});
+}
+
+// ── POS threshold helpers ─────────────────────────────────────────────────────
+const POS_THRESHOLDS_SETTINGS_KEY = 'pos_thresholds';
+const DEFAULT_POS_THRESHOLDS = { refundRequiresPin: false, discountPinThresholdCents: 0 };
+
+async function getPosThresholds(): Promise<{ refundRequiresPin: boolean; discountPinThresholdCents: number }> {
+  try {
+    const [row] = await db.select().from(storeSettingsTable)
+      .where(eq(storeSettingsTable.key, POS_THRESHOLDS_SETTINGS_KEY)).limit(1);
+    if (!row?.value) return DEFAULT_POS_THRESHOLDS;
+    return { ...DEFAULT_POS_THRESHOLDS, ...JSON.parse(row.value) };
+  } catch {
+    return DEFAULT_POS_THRESHOLDS;
+  }
+}
+
+async function verifySupervisorPin(pin: string): Promise<boolean> {
+  const rows = await db.execute(sql`
+    SELECT sp.settings_pin_hash, sp.clock_pin
+    FROM staff_profiles sp
+    INNER JOIN users u ON u.id = sp.user_id
+    WHERE u.role IN ('manager', 'director', 'master')
+  `);
+  const profiles = (rows as any).rows ?? (rows as any) ?? [];
+  for (const row of profiles) {
+    if (row.settings_pin_hash) {
+      const valid = await bcrypt.compare(pin, row.settings_pin_hash);
+      if (valid) return true;
+    } else if (row.clock_pin) {
+      const valid = await bcrypt.compare(pin, row.clock_pin);
+      if (valid) return true;
+    }
+  }
+  return false;
+}
 
 // ── Loyalty POS settings (birthday bonus multiplier, etc.) ─────────────────
 const LOYALTY_POS_SETTINGS_KEY = 'loyalty_pos_settings';
@@ -606,6 +661,28 @@ router.post('/orders', async (req, res) => {
     discountDescription = `${pct}% staff discount`;
   }
 
+  // ── Server-side discount PIN gate ─────────────────────────────────────────
+  if (discountAmountCents > 0 && manualDiscountPct) {
+    const thresholds = await getPosThresholds();
+    if (thresholds.discountPinThresholdCents > 0 && discountAmountCents >= thresholds.discountPinThresholdCents) {
+      const supervisorPin = req.body.supervisorPin;
+      if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
+        return res.status(403).json({
+          error: `A manager PIN is required for discounts over $${(thresholds.discountPinThresholdCents / 100).toFixed(2)}. Ask a manager or director to authorise.`,
+          code: 'DISCOUNT_PIN_REQUIRED',
+          thresholdCents: thresholds.discountPinThresholdCents,
+        });
+      }
+      const pinValid = await verifySupervisorPin(String(supervisorPin));
+      if (!pinValid) {
+        recordAuditLog({ actor: req.user, action: 'pos.discount_pin_fail', entityType: 'pos_order', entityId: '', metadata: { discountAmountCents, discountPct: Number(manualDiscountPct) } }).catch(() => {});
+        recordPosPinHistory(req, false, 'DISCOUNT_PIN_INVALID', req.user?.id, req.user?.email, req.user?.role);
+        return res.status(403).json({ error: 'Incorrect manager PIN. Discount denied.', code: 'DISCOUNT_PIN_INVALID' });
+      }
+      recordPosPinHistory(req, true, null, req.user?.id, req.user?.email, req.user?.role);
+    }
+  }
+
   // 3. Free coffee redemption — cheapest coffee item is free
   let freeCoffeeRedeemed = false;
   if (redeemFreeCoffee && customerId) {
@@ -869,6 +946,17 @@ router.post('/orders', async (req, res) => {
     }
   }
 
+  // Audit log for manual staff discount
+  if (discountAmountCents > 0 && manualDiscountPct) {
+    recordAuditLog({
+      actor: req.user,
+      action: 'pos.discount',
+      entityType: 'pos_order',
+      entityId: orderId,
+      metadata: { discountAmountCents, discountPct: Number(manualDiscountPct), orderTotalCents: totalCents },
+    }).catch(() => {});
+  }
+
   return res.status(201).json({
     data: { id: orderId, orderNumber, totalCents, paymentMethod, status: 'received' },
     loyaltyResult,
@@ -989,13 +1077,28 @@ router.get('/summary', async (req, res) => {
 router.post('/orders/:id/refund', async (req, res) => {
   await ensurePosSchemaReady();
   const { id } = req.params;
-  const { amountCents, reason } = req.body;
+  const { amountCents, reason, supervisorPin } = req.body;
 
   if (!['director', 'master', 'manager'].includes(req.user!.role)) {
     return res.status(403).json({ error: 'Director or manager access required to issue refunds' });
   }
   if (!amountCents || Number(amountCents) <= 0) {
     return res.status(400).json({ error: 'amountCents must be a positive number' });
+  }
+
+  // ── Server-side refund PIN gate ───────────────────────────────────────────
+  const posThresholds = await getPosThresholds();
+  if (posThresholds.refundRequiresPin) {
+    if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
+      return res.status(403).json({ error: 'A manager PIN is required to process refunds.', code: 'REFUND_PIN_REQUIRED' });
+    }
+    const pinValid = await verifySupervisorPin(String(supervisorPin));
+    if (!pinValid) {
+      recordAuditLog({ actor: req.user, action: 'pos.refund_pin_fail', entityType: 'pos_order', entityId: id }).catch(() => {});
+      recordPosPinHistory(req, false, 'REFUND_PIN_INVALID', req.user?.id, req.user?.email, req.user?.role);
+      return res.status(403).json({ error: 'Incorrect manager PIN. Refund denied.', code: 'REFUND_PIN_INVALID' });
+    }
+    recordPosPinHistory(req, true, null, req.user?.id, req.user?.email, req.user?.role);
   }
 
   const result = await db.execute(sql`
@@ -1044,9 +1147,9 @@ router.post('/orders/:id/refund', async (req, res) => {
     actor: req.user,
     entityType: 'pos_order',
     entityId: id,
-    action: isFullRefund ? 'refund_full' : 'refund_partial',
+    action: 'pos.refund',
     reason: reason ?? null,
-    metadata: { refundAmountCents, orderTotalCents: Number(order.total_cents), isFullRefund },
+    metadata: { refundAmountCents, orderTotalCents: Number(order.total_cents), refundType: isFullRefund ? 'full' : 'partial' },
   });
 
   return res.json({ success: true, refundAmountCents, isFullRefund });
@@ -1295,6 +1398,14 @@ router.patch('/orders/:id/void', async (req, res) => {
         updated_at = now()
     WHERE id = ${id}
   `);
+
+  recordAuditLog({
+    actor: req.user,
+    action: 'pos.void',
+    entityType: 'order',
+    entityId: id,
+    reason: 'pos_void',
+  });
 
   return res.json({ success: true });
 });

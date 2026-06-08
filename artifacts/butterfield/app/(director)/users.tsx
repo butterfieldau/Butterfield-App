@@ -15,7 +15,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
+import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, LoginHistoryEntry, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { CrmCustomersTab } from './_crmCustomersTab';
 
@@ -76,6 +76,48 @@ function getUserRoleLabel(user: DirectorUserSummary): string {
   if (user.role === 'wholesale') return 'Wholesale';
   return 'Customer';
 }
+// ── Login History inline (used inside StaffProfileModal) ─────────────────
+function LoginHistoryInline({ userId }: { userId: string | null }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['director', 'login-history', userId],
+    queryFn: () => api.director.loginHistory({ userId: userId!, pageSize: 20 }),
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
+  const entries: LoginHistoryEntry[] = data?.data ?? [];
+  if (isLoading) return null;
+  if (entries.length === 0) return null;
+  return (
+    <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 12 }}>
+      <Text style={[sp_s.sectionLabel, { marginBottom: 10 }]}>RECENT LOGINS</Text>
+      <View style={sp_s.infoCard}>
+        {entries.map((ev, idx) => (
+          <View
+            key={ev.id}
+            style={[
+              { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
+              idx < entries.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER },
+            ]}
+          >
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ev.success ? GREEN : RED }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, color: TEXT }}>
+                {ev.success ? 'Login success' : `Failed · ${ev.failReason ?? 'unknown'}`}
+              </Text>
+              {ev.ip ? <Text style={{ fontSize: 11, color: MUTED }}>IP: {ev.ip}</Text> : null}
+            </View>
+            <Text style={{ fontSize: 11, color: MUTED }}>
+              {new Date(ev.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })}
+              {' '}
+              {new Date(ev.createdAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // ── Staff Profile Modal ────────────────────────────────────────────────────
 function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   userId: string | null; visible: boolean; onClose: () => void; onRefresh: () => void; onDelete: () => void;
@@ -806,6 +848,9 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   </View>
                 </View>
               )}
+              {/* ── Login History ─────────────────────────────────────── */}
+              <LoginHistoryInline userId={userId} />
+
               {/* ── Assign leadership role ───────────────────────────── */}
               {u?.role === 'staff' && (
                 <Pressable

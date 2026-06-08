@@ -157,6 +157,13 @@ const ALL_CATEGORIES: Category[] = [
         ],
       },
       {
+        label: 'Security & Access',
+        items: [
+          { icon: 'shield',     label: 'Audit Log',          sub: 'System events, refunds, voids & PIN access',  color: NAVY, directorOnly: true, onPress: () => router.push('/director-audit-log' as any) },
+          { icon: 'log-in',     label: 'Login History',      sub: 'All login attempts, failures & geo blocks',   color: PURPLE, directorOnly: true, onPress: () => router.push('/director-login-history' as any) },
+        ],
+      },
+      {
         label: 'Account Management',
         items: [
           { icon: 'trash-2',    label: 'Deleted Accounts',   sub: 'Recently deleted customer & staff accounts', color: RED, directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'deleted' } } as any) },
@@ -223,6 +230,12 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'globe',        label: 'Google Login',         sub: 'Sign in with Google for customers',    color: RED,       soon: true },
           { icon: 'smartphone',   label: 'Apple Login',          sub: 'Sign in with Apple for customers',     color: NAVY,      soon: true },
           { icon: 'message-square', label: 'SMS Provider',      sub: 'Twilio or Vonage for SMS receipts',     color: GREEN,     directorOnly: true, soon: true },
+        ],
+      },
+      {
+        label: 'POS Security',
+        items: [
+          { icon: 'lock',         label: 'POS Thresholds',      sub: 'Require manager PIN for refunds & large discounts', color: RED, directorOnly: true, onPress: () => router.push('/director-pos-thresholds' as any) },
         ],
       },
       {
