@@ -49,6 +49,16 @@ export default function ShopDisplayLayout() {
   });
   const permissions: string[] = meData?.data?.permissions ?? [];
 
+  // ── New-order badge — counts orders in 'received' state (not yet acknowledged) ──
+  const { data: ordersData } = useQuery({
+    queryKey: ['shop-display-orders'],
+    queryFn: () => api.shopDisplay.orders(),
+    enabled: user?.role === 'shop_display',
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+  const receivedCount = (ordersData?.data ?? []).filter((o: { status: string }) => o.status === 'received').length;
+
   // ── Product sync ──────────────────────────────────────────────────────────
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
@@ -185,7 +195,12 @@ export default function ShopDisplayLayout() {
       />
       <Tabs.Screen
         name="index"
-        options={{ title: 'App Sales', tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }}
+        options={{
+          title: 'App Sales',
+          tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} />,
+          tabBarBadge: receivedCount > 0 ? receivedCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 11, minWidth: 18, height: 18, lineHeight: 18 },
+        }}
       />
       <Tabs.Screen
         name="dashboard"
@@ -267,6 +282,11 @@ export default function ShopDisplayLayout() {
                 >
                   <Feather name={item.icon} size={18} color={active ? BLUE : MUTED} />
                   <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
+                  {item.segment === 'index' && receivedCount > 0 && (
+                    <View style={styles.navBadge}>
+                      <Text style={styles.navBadgeText}>{receivedCount > 99 ? '99+' : String(receivedCount)}</Text>
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
@@ -369,8 +389,10 @@ const styles = StyleSheet.create({
   navList:           { flex: 1, paddingHorizontal: 10, gap: 2 },
   navItem:           { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
   navItemActive:     { backgroundColor: 'rgba(20,147,255,0.18)' },
-  navLabel:          { fontSize: 14, fontWeight: '600', color: MUTED },
+  navLabel:          { fontSize: 14, fontWeight: '600', color: MUTED, flex: 1 },
   navLabelActive:    { color: WHITE, fontWeight: '700' },
+  navBadge:          { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  navBadgeText:      { color: WHITE, fontSize: 11, fontWeight: '800', lineHeight: 14 },
   sidebarLogout:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   sidebarLogoutText: { color: MUTED, fontSize: 13, fontWeight: '600' },
 
