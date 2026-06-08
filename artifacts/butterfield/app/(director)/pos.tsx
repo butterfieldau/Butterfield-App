@@ -3388,6 +3388,20 @@ function HistoryModal({
   );
 }
 
+const AUD_DENOMS = [
+  { label: '$100', cents: 10000, note: true },
+  { label: '$50',  cents: 5000,  note: true },
+  { label: '$20',  cents: 2000,  note: true },
+  { label: '$10',  cents: 1000,  note: true },
+  { label: '$5',   cents: 500,   note: true },
+  { label: '$2',   cents: 200,   note: false },
+  { label: '$1',   cents: 100,   note: false },
+  { label: '50¢',  cents: 50,    note: false },
+  { label: '20¢',  cents: 20,    note: false },
+  { label: '10¢',  cents: 10,    note: false },
+  { label: '5¢',   cents: 5,     note: false },
+];
+
 function RegisterModal({
   visible,
   onClose,
@@ -3419,7 +3433,7 @@ function RegisterModal({
   const [movementType, setMovementType] = useState<'add' | 'remove'>('add');
   const [movementAmount, setMovementAmount] = useState('');
   const [movementReason, setMovementReason] = useState('');
-  const [countedAmount, setCountedAmount] = useState('');
+  const [denomCounts, setDenomCounts] = useState<Record<number, string>>({});
   const [closeNote, setCloseNote] = useState('');
   const [varianceNote, setVarianceNote] = useState('');
 
@@ -3428,12 +3442,15 @@ function RegisterModal({
     if (summary?.startingFloatCents != null) {
       setFloatInput((summary.startingFloatCents / 100).toFixed(2));
     }
-    setCountedAmount(summary?.expectedCashCents != null ? (summary.expectedCashCents / 100).toFixed(2) : '');
+    setDenomCounts({});
     setCloseNote(session.closeNote ?? '');
     setVarianceNote(session.varianceNote ?? '');
-  }, [session, summary?.expectedCashCents, summary?.startingFloatCents, visible]);
+  }, [session, visible]);
 
-  const countedCents = Math.round(parseFloat(countedAmount || '0') * 100);
+  const countedCents = AUD_DENOMS.reduce((sum, d) => {
+    const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+    return sum + (isNaN(qty) || qty < 0 ? 0 : qty * d.cents);
+  }, 0);
   const variancePreview = summary ? countedCents - summary.expectedCashCents : 0;
 
   return (
@@ -3588,24 +3605,107 @@ function RegisterModal({
               </View>
 
               <View style={styles.registerSection}>
-                <Text style={styles.sectionTitle}>Close Register</Text>
-                <TextInput
-                  style={styles.registerInput}
-                  placeholder="Actual cash counted"
-                  placeholderTextColor={MUTED}
-                  keyboardType="decimal-pad"
-                  value={countedAmount}
-                  onChangeText={setCountedAmount}
-                />
-                <View style={styles.registerVarianceRow}>
-                  <Text style={styles.registerLineLabel}>Variance</Text>
-                  <Text style={[styles.registerLineValue, variancePreview !== 0 && { color: variancePreview > 0 ? '#15803D' : CHERRY }]}>
-                    {fmtCents(variancePreview)}
-                  </Text>
+                <Text style={styles.sectionTitle}>Count Cash &amp; Close Register</Text>
+
+                {/* Notes */}
+                <Text style={styles.denomGroupLabel}>Notes</Text>
+                {AUD_DENOMS.filter(d => d.note).map(d => {
+                  const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+                  const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
+                  return (
+                    <View key={d.cents} style={styles.denomRow}>
+                      <Text style={styles.denomLabel}>{d.label}</Text>
+                      <View style={styles.denomQtyRow}>
+                        <Pressable
+                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1) ) }))}
+                          style={styles.denomBtn}
+                          hitSlop={6}
+                        >
+                          <Feather name="minus" size={14} color={MID} />
+                        </Pressable>
+                        <TextInput
+                          style={styles.denomInput}
+                          keyboardType="number-pad"
+                          value={denomCounts[d.cents] ?? ''}
+                          placeholder="0"
+                          placeholderTextColor={MUTED}
+                          onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
+                          selectTextOnFocus
+                        />
+                        <Pressable
+                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
+                          style={styles.denomBtn}
+                          hitSlop={6}
+                        >
+                          <Feather name="plus" size={14} color={MID} />
+                        </Pressable>
+                      </View>
+                      <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+                    </View>
+                  );
+                })}
+
+                {/* Coins */}
+                <Text style={[styles.denomGroupLabel, { marginTop: 10 }]}>Coins</Text>
+                {AUD_DENOMS.filter(d => !d.note).map(d => {
+                  const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+                  const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
+                  return (
+                    <View key={d.cents} style={styles.denomRow}>
+                      <Text style={styles.denomLabel}>{d.label}</Text>
+                      <View style={styles.denomQtyRow}>
+                        <Pressable
+                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1) ) }))}
+                          style={styles.denomBtn}
+                          hitSlop={6}
+                        >
+                          <Feather name="minus" size={14} color={MID} />
+                        </Pressable>
+                        <TextInput
+                          style={styles.denomInput}
+                          keyboardType="number-pad"
+                          value={denomCounts[d.cents] ?? ''}
+                          placeholder="0"
+                          placeholderTextColor={MUTED}
+                          onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
+                          selectTextOnFocus
+                        />
+                        <Pressable
+                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
+                          style={styles.denomBtn}
+                          hitSlop={6}
+                        >
+                          <Feather name="plus" size={14} color={MID} />
+                        </Pressable>
+                      </View>
+                      <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+                    </View>
+                  );
+                })}
+
+                {/* Totals summary */}
+                <View style={styles.denomSummaryBox}>
+                  <View style={styles.registerLine}>
+                    <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Total Counted</Text>
+                    <Text style={[styles.registerLineValue, { fontWeight: '800', color: DARK, fontSize: 18 }]}>{fmtCents(countedCents)}</Text>
+                  </View>
+                  <View style={styles.registerLine}>
+                    <Text style={styles.registerLineLabel}>Expected Cash</Text>
+                    <Text style={styles.registerLineValue}>{fmtCents(summary?.expectedCashCents ?? 0)}</Text>
+                  </View>
+                  <View style={[styles.registerLine, { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6, paddingTop: 8 }]}>
+                    <Text style={[styles.registerLineLabel, { fontWeight: '700' }]}>Variance</Text>
+                    <Text style={[styles.registerLineValue, { fontWeight: '700',
+                      color: variancePreview === 0 ? '#15803D' : variancePreview > 0 ? '#15803D' : CHERRY,
+                    }]}>
+                      {variancePreview > 0 ? '+' : ''}{fmtCents(variancePreview)}
+                    </Text>
+                  </View>
                 </View>
+
                 <TextInput
                   style={[styles.registerInput, styles.registerTextarea]}
-                  placeholder="Close note"
+                  placeholder="Close note (optional)"
                   placeholderTextColor={MUTED}
                   multiline
                   value={closeNote}
@@ -4392,6 +4492,14 @@ const styles = StyleSheet.create({
   registerMovementTitle: { fontSize: 13, fontWeight: '700', color: DARK },
   registerMovementMeta: { fontSize: 12, color: MUTED, marginTop: 3 },
   registerVarianceRow:{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  denomGroupLabel:    { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 6, marginTop: 4 },
+  denomRow:           { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  denomLabel:         { width: 44, fontSize: 15, fontWeight: '700', color: DARK },
+  denomQtyRow:        { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 8 },
+  denomBtn:           { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  denomInput:         { flex: 1, height: 36, borderWidth: 1, borderColor: BORDER, borderRadius: 10, backgroundColor: WHITE, textAlign: 'center', fontSize: 16, fontWeight: '700', color: DARK },
+  denomSubtotal:      { width: 70, textAlign: 'right', fontSize: 13, fontWeight: '600', color: DARK },
+  denomSummaryBox:    { marginTop: 14, backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER, marginBottom: 4 },
   registerAutoRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
   registerSwitch:    { width: 54, height: 30, borderRadius: 999, backgroundColor: '#CBD5E1', padding: 3, justifyContent: 'center' },
   registerSwitchOn:  { backgroundColor: BLUE },
