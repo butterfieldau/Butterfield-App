@@ -3517,6 +3517,10 @@ function RegisterModal({
     setVarianceNote(session.varianceNote ?? '');
   }, [session, visible]);
 
+  const [openSection, setOpenSection] = React.useState<'float' | 'drawer' | 'close' | 'presets' | 'surcharges' | null>(null);
+  const toggleSection = (key: typeof openSection) =>
+    setOpenSection(prev => (prev === key ? null : key));
+
   const countedCents = AUD_DENOMS.reduce((sum, d) => {
     const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
     return sum + (isNaN(qty) || qty < 0 ? 0 : qty * d.cents);
@@ -3591,437 +3595,392 @@ function RegisterModal({
                 ))}
               </View>
 
-              <View style={styles.registerSection}>
-                <Text style={styles.sectionTitle}>Cash Float</Text>
-                <TextInput
-                  style={styles.registerInput}
-                  placeholder="0.00"
-                  placeholderTextColor={MUTED}
-                  keyboardType="decimal-pad"
-                  value={floatInput}
-                  onChangeText={setFloatInput}
-                />
-                <TouchableOpacity
-                  onPress={() => onSaveFloat(Math.round(parseFloat(floatInput || '0') * 100))}
-                  style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
-                  disabled={busy}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.addToOrderBtnText}>{data?.cashEnabled ? 'Update Cash Float' : 'Start Cash Float'}</Text>
-                </TouchableOpacity>
-              </View>
+              {/* ── Settings accordion ─────────────────────────────────── */}
+              <View style={styles.regAccordionGroup}>
 
-              <View style={styles.registerSection}>
-                <Text style={styles.sectionTitle}>Cash In Drawer</Text>
-                <View style={styles.registerToggleRow}>
-                  <Pressable onPress={() => setMovementType('add')} style={[styles.registerToggleBtn, movementType === 'add' && styles.registerToggleBtnActive]}>
-                    <Text style={[styles.registerToggleText, movementType === 'add' && styles.registerToggleTextActive]}>Add Cash</Text>
-                  </Pressable>
-                  <Pressable onPress={() => setMovementType('remove')} style={[styles.registerToggleBtn, movementType === 'remove' && styles.registerToggleBtnActive]}>
-                    <Text style={[styles.registerToggleText, movementType === 'remove' && styles.registerToggleTextActive]}>Remove Cash</Text>
-                  </Pressable>
-                </View>
-                <TextInput
-                  style={styles.registerInput}
-                  placeholder="Amount"
-                  placeholderTextColor={MUTED}
-                  keyboardType="decimal-pad"
-                  value={movementAmount}
-                  onChangeText={setMovementAmount}
-                />
-                <TextInput
-                  style={[styles.registerInput, styles.registerTextarea]}
-                  placeholder="Reason / note"
-                  placeholderTextColor={MUTED}
-                  multiline
-                  value={movementReason}
-                  onChangeText={setMovementReason}
-                />
-                <TouchableOpacity
-                  onPress={() => {
-                    onCashMovement({
-                      movementType,
-                      amountCents: Math.round(parseFloat(movementAmount || '0') * 100),
-                      reason: movementReason,
-                    });
-                    setMovementAmount('');
-                    setMovementReason('');
-                  }}
-                  style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
-                  disabled={busy}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.addToOrderBtnText}>{movementType === 'add' ? 'Add Cash to Drawer' : 'Remove Cash from Drawer'}</Text>
-                </TouchableOpacity>
-
-                {data?.cashMovements?.length ? (
-                  <View style={{ marginTop: 12, gap: 8 }}>
-                    {data.cashMovements.slice(0, 5).map((movement: PosRegisterCashMovement) => (
-                      <View key={movement.id} style={styles.registerMovementRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.registerMovementTitle}>
-                            {movement.movementType === 'add' ? 'Cash Added' : 'Cash Removed'} · {fmtCents(movement.amountCents)}
-                          </Text>
-                          <Text style={styles.registerMovementMeta}>
-                            {movement.reason || 'No note'}{movement.createdByName ? ` · ${movement.createdByName}` : ''}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
+                {/* Cash Float */}
+                <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('float')}>
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#EFF6FF' }]}>
+                    <Feather name="dollar-sign" size={16} color={BLUE} />
                   </View>
-                ) : null}
-              </View>
-
-              <View style={styles.registerSection}>
-                <Text style={styles.sectionTitle}>Count Cash &amp; Close Register</Text>
-
-                {/* Notes */}
-                <Text style={styles.denomGroupLabel}>Notes</Text>
-                {AUD_DENOMS.filter(d => d.note).map(d => {
-                  const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
-                  const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
-                  return (
-                    <View key={d.cents} style={styles.denomRow}>
-                      <Text style={styles.denomLabel}>{d.label}</Text>
-                      <View style={styles.denomQtyRow}>
-                        <Pressable
-                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1) ) }))}
-                          style={styles.denomBtn}
-                          hitSlop={6}
-                        >
-                          <Feather name="minus" size={14} color={MID} />
-                        </Pressable>
-                        <TextInput
-                          style={styles.denomInput}
-                          keyboardType="number-pad"
-                          value={denomCounts[d.cents] ?? ''}
-                          placeholder="0"
-                          placeholderTextColor={MUTED}
-                          onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
-                          selectTextOnFocus
-                        />
-                        <Pressable
-                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
-                          style={styles.denomBtn}
-                          hitSlop={6}
-                        >
-                          <Feather name="plus" size={14} color={MID} />
-                        </Pressable>
-                      </View>
-                      <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
-                    </View>
-                  );
-                })}
-
-                {/* Coins */}
-                <Text style={[styles.denomGroupLabel, { marginTop: 10 }]}>Coins</Text>
-                {AUD_DENOMS.filter(d => !d.note).map(d => {
-                  const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
-                  const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
-                  return (
-                    <View key={d.cents} style={styles.denomRow}>
-                      <Text style={styles.denomLabel}>{d.label}</Text>
-                      <View style={styles.denomQtyRow}>
-                        <Pressable
-                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1) ) }))}
-                          style={styles.denomBtn}
-                          hitSlop={6}
-                        >
-                          <Feather name="minus" size={14} color={MID} />
-                        </Pressable>
-                        <TextInput
-                          style={styles.denomInput}
-                          keyboardType="number-pad"
-                          value={denomCounts[d.cents] ?? ''}
-                          placeholder="0"
-                          placeholderTextColor={MUTED}
-                          onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
-                          selectTextOnFocus
-                        />
-                        <Pressable
-                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
-                          style={styles.denomBtn}
-                          hitSlop={6}
-                        >
-                          <Feather name="plus" size={14} color={MID} />
-                        </Pressable>
-                      </View>
-                      <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
-                    </View>
-                  );
-                })}
-
-                {/* Totals summary */}
-                <View style={styles.denomSummaryBox}>
-                  <View style={styles.registerLine}>
-                    <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Total Counted</Text>
-                    <Text style={[styles.registerLineValue, { fontWeight: '800', color: DARK, fontSize: 18 }]}>{fmtCents(countedCents)}</Text>
-                  </View>
-                  <View style={styles.registerLine}>
-                    <Text style={styles.registerLineLabel}>Expected Cash</Text>
-                    <Text style={styles.registerLineValue}>{fmtCents(summary?.expectedCashCents ?? 0)}</Text>
-                  </View>
-                  <View style={[styles.registerLine, { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6, paddingTop: 8 }]}>
-                    <Text style={[styles.registerLineLabel, { fontWeight: '700' }]}>Variance</Text>
-                    <Text style={[styles.registerLineValue, { fontWeight: '700',
-                      color: variancePreview === 0 ? '#15803D' : variancePreview > 0 ? '#15803D' : CHERRY,
-                    }]}>
-                      {variancePreview > 0 ? '+' : ''}{fmtCents(variancePreview)}
-                    </Text>
-                  </View>
-                </View>
-
-                <TextInput
-                  style={[styles.registerInput, styles.registerTextarea]}
-                  placeholder="Close note (optional)"
-                  placeholderTextColor={MUTED}
-                  multiline
-                  value={closeNote}
-                  onChangeText={setCloseNote}
-                />
-                {variancePreview !== 0 && (
-                  <TextInput
-                    style={[styles.registerInput, styles.registerTextarea]}
-                    placeholder="Reason for cash variance"
-                    placeholderTextColor={MUTED}
-                    multiline
-                    value={varianceNote}
-                    onChangeText={setVarianceNote}
-                  />
-                )}
-                <TouchableOpacity
-                  onPress={() => onCloseRegister({
-                    actualCountedCashCents: countedCents,
-                    closeNote,
-                    varianceNote: variancePreview !== 0 ? varianceNote : undefined,
-                  })}
-                  style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
-                  disabled={busy}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.addToOrderBtnText}>Close Register</Text>
-                </TouchableOpacity>
-                {!!session?.closedAt && (
-                  <Pressable onPress={() => void onPrintSummary()} style={styles.registerSecondaryBtn}>
-                    <Feather name="printer" size={14} color={BLUE} />
-                    <Text style={styles.registerSecondaryBtnText}>Print Summary</Text>
-                  </Pressable>
-                )}
-              </View>
-
-              <View style={styles.registerSection}>
-                <View style={styles.registerAutoRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.sectionTitle}>Auto Close Register at 11:59pm</Text>
-                    <Text style={styles.sectionSubtitle}>
-                      {data?.canEditAutoClose ? 'Managers and directors can change this setting.' : 'Only managers and directors can change this setting.'}
-                    </Text>
+                    <Text style={styles.regAccordionTitle}>Cash Float</Text>
+                    <Text style={styles.regAccordionSub}>{data?.cashEnabled ? fmtCents(summary.startingFloatCents ?? 0) : 'Not set — required to accept cash'}</Text>
                   </View>
-                  <Pressable
-                    onPress={() => data?.canEditAutoClose && onToggleAutoClose(!data.autoCloseEnabled)}
-                    style={[styles.registerSwitch, data?.autoCloseEnabled && styles.registerSwitchOn, !data?.canEditAutoClose && { opacity: 0.45 }]}
-                  >
-                    <View style={[styles.registerSwitchKnob, data?.autoCloseEnabled && styles.registerSwitchKnobOn]} />
-                  </Pressable>
-                </View>
-              </View>
-
-              {/* ── Quick Discount Presets ──────────────────────────────── */}
-              <View style={styles.registerSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={styles.sectionTitle}>Quick Discount Presets</Text>
-                  <Pressable
-                    onPress={savePresets}
-                    hitSlop={8}
-                    style={{ backgroundColor: BLUE, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 }}
-                  >
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: WHITE }}>Save</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.sectionSubtitle}>Percentage buttons shown on every ticket for fast discounting.</Text>
-
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 12 }}>
-                  {localPresets.map(pct => (
-                    <View key={pct} style={styles.settingsPresetChip}>
-                      <Text style={styles.settingsPresetText}>{pct}%</Text>
-                      <Pressable onPress={() => removePreset(pct)} hitSlop={6} style={{ marginLeft: 6 }}>
-                        <Feather name="x" size={12} color={MID} />
-                      </Pressable>
-                    </View>
-                  ))}
-                  {localPresets.length === 0 && (
-                    <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No presets — add one below</Text>
-                  )}
-                </View>
-
-                <View style={styles.settingsAddRow}>
-                  <TextInput
-                    style={styles.settingsAddInput}
-                    placeholder="e.g. 15"
-                    placeholderTextColor={MUTED}
-                    value={newPct}
-                    onChangeText={v => { setNewPct(v.replace(/[^0-9]/g, '')); setPresetError(null); }}
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    onSubmitEditing={addPreset}
-                    maxLength={2}
-                  />
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 4 }}>%</Text>
-                  <Pressable onPress={addPreset} style={styles.settingsAddBtn}>
-                    <Text style={styles.settingsAddBtnText}>Add</Text>
-                  </Pressable>
-                </View>
-                {presetError ? <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{presetError}</Text> : null}
-              </View>
-
-              {/* ── Payment Surcharges ──────────────────────────────────── */}
-              <View style={styles.registerSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <Text style={styles.sectionTitle}>Payment Surcharges</Text>
-                  <Pressable
-                    onPress={() => setSurchargeTab(surchargeTab === 'list' ? 'add' : 'list')}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                  >
-                    <Feather name={surchargeTab === 'list' ? 'plus' : 'list'} size={15} color={BLUE} />
-                    <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>{surchargeTab === 'list' ? 'Add' : 'List'}</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.sectionSubtitle}>Auto-applied based on payment method or day of week.</Text>
-
-                {surchargeTab === 'list' && (
-                  <View style={{ marginTop: 12, gap: 8 }}>
-                    {surcharges.length === 0 && (
-                      <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No surcharges configured.</Text>
-                    )}
-                    {surcharges.map(s => (
-                      <View key={s.id} style={styles.surchargeRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.surchargeRowName}>{s.name}</Text>
-                          <Text style={styles.surchargeRowMeta}>
-                            {s.triggerType === 'payment_method' ? s.triggerValue.toUpperCase() : s.triggerValue.charAt(0).toUpperCase() + s.triggerValue.slice(1)}
-                            {' · '}+{fmtSurchargeValue(s)}
-                            {' · '}{s.isActive ? '✓ Active' : 'Disabled'}
-                          </Text>
-                        </View>
-                        <Pressable
-                          onPress={() => toggleSurchargeMutation.mutate({ id: s.id, isActive: !s.isActive })}
-                          style={[styles.surchargeToggle, s.isActive && styles.surchargeToggleActive]}
-                          hitSlop={8}
-                        >
-                          <Text style={[styles.surchargeToggleText, s.isActive && styles.surchargeToggleTextActive]}>
-                            {s.isActive ? 'On' : 'Off'}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => Alert.alert('Delete Surcharge', `Remove "${s.name}"?`, [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Delete', style: 'destructive', onPress: () => deleteSurchargeMutation.mutate(s.id) },
-                          ])}
-                          hitSlop={8}
-                          style={{ padding: 6, marginLeft: 4 }}
-                        >
-                          <Feather name="trash-2" size={15} color={CHERRY} />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {surchargeTab === 'add' && (
-                  <View style={{ marginTop: 12, gap: 12 }}>
+                  <Feather name={openSection === 'float' ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+                {openSection === 'float' && (
+                  <View style={styles.regAccordionBody}>
                     <TextInput
-                      style={styles.surchargeNameInput}
-                      placeholder="Name (e.g. EFTPOS Surcharge)"
+                      style={styles.registerInput}
+                      placeholder="0.00"
                       placeholderTextColor={MUTED}
-                      value={newSurchargeName}
-                      onChangeText={setNewSurchargeName}
-                      returnKeyType="next"
+                      keyboardType="decimal-pad"
+                      value={floatInput}
+                      onChangeText={setFloatInput}
                     />
-
-                    <View>
-                      <Text style={[styles.sectionSubtitle, { marginBottom: 6 }]}>Trigger</Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable
-                          onPress={() => { setNewSurchargeTriggerType('payment_method'); setNewSurchargeTriggerValue('eftpos'); }}
-                          style={[styles.surchargeChip, newSurchargeTriggerType === 'payment_method' && styles.surchargeChipActive]}
-                        >
-                          <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'payment_method' && { color: WHITE }]}>By Payment</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => { setNewSurchargeTriggerType('day_of_week'); setNewSurchargeTriggerValue('sunday'); }}
-                          style={[styles.surchargeChip, newSurchargeTriggerType === 'day_of_week' && styles.surchargeChipActive]}
-                        >
-                          <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'day_of_week' && { color: WHITE }]}>By Day</Text>
-                        </Pressable>
-                      </View>
-                      {newSurchargeTriggerType === 'payment_method' && (
-                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                          {['eftpos', 'cash'].map(v => (
-                            <Pressable key={v} onPress={() => setNewSurchargeTriggerValue(v)} style={[styles.surchargeChip, newSurchargeTriggerValue === v && styles.surchargeChipActive]}>
-                              <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === v && { color: WHITE }]}>{v.toUpperCase()}</Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
-                      {newSurchargeTriggerType === 'day_of_week' && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-                          <View style={{ flexDirection: 'row', gap: 8 }}>
-                            {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
-                              <Pressable key={d} onPress={() => setNewSurchargeTriggerValue(d)} style={[styles.surchargeChip, newSurchargeTriggerValue === d && styles.surchargeChipActive]}>
-                                <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === d && { color: WHITE }]}>{d.slice(0,3).toUpperCase()}</Text>
-                              </Pressable>
-                            ))}
-                          </View>
-                        </ScrollView>
-                      )}
-                    </View>
-
-                    <View>
-                      <Text style={[styles.sectionSubtitle, { marginBottom: 6 }]}>Amount Type</Text>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable
-                          onPress={() => setNewSurchargeAmountType('pct_basis_points')}
-                          style={[styles.surchargeChip, newSurchargeAmountType === 'pct_basis_points' && styles.surchargeChipActive]}
-                        >
-                          <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'pct_basis_points' && { color: WHITE }]}>Percentage %</Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => setNewSurchargeAmountType('fixed_cents')}
-                          style={[styles.surchargeChip, newSurchargeAmountType === 'fixed_cents' && styles.surchargeChipActive]}
-                        >
-                          <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'fixed_cents' && { color: WHITE }]}>Fixed $</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-
-                    <View style={styles.settingsAddRow}>
-                      <TextInput
-                        style={styles.settingsAddInput}
-                        placeholder={newSurchargeAmountType === 'pct_basis_points' ? 'e.g. 1.5 (%)' : 'e.g. 0.50 ($)'}
-                        placeholderTextColor={MUTED}
-                        value={newSurchargeAmount}
-                        onChangeText={v => { setNewSurchargeAmount(v.replace(/[^0-9.]/g, '')); setSurchargeError(null); }}
-                        keyboardType="decimal-pad"
-                        returnKeyType="done"
-                      />
-                      <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 6 }}>
-                        {newSurchargeAmountType === 'pct_basis_points' ? '%' : 'AUD'}
-                      </Text>
-                    </View>
-                    {surchargeError ? <Text style={{ fontSize: 12, color: CHERRY }}>{surchargeError}</Text> : null}
-
                     <TouchableOpacity
-                      onPress={handleAddSurcharge}
-                      style={[styles.settingsAddBtn, { paddingHorizontal: 24, alignSelf: 'flex-start' }]}
-                      disabled={createSurchargeMutation.isPending}
+                      onPress={() => { onSaveFloat(Math.round(parseFloat(floatInput || '0') * 100)); toggleSection('float'); }}
+                      style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                      disabled={busy}
                       activeOpacity={0.85}
                     >
-                      {createSurchargeMutation.isPending
-                        ? <ActivityIndicator size="small" color={WHITE} />
-                        : <Text style={styles.settingsAddBtnText}>Add Surcharge</Text>}
+                      <Text style={styles.addToOrderBtnText}>{data?.cashEnabled ? 'Update Float' : 'Start Cash Float'}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
+
+                <View style={styles.regAccordionDivider} />
+
+                {/* Cash In Drawer */}
+                <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('drawer')}>
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#F0FDF4' }]}>
+                    <Feather name="refresh-cw" size={16} color="#16A34A" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.regAccordionTitle}>Cash In Drawer</Text>
+                    <Text style={styles.regAccordionSub}>Add or remove cash · {data?.cashMovements?.length ?? 0} movement{data?.cashMovements?.length === 1 ? '' : 's'} today</Text>
+                  </View>
+                  <Feather name={openSection === 'drawer' ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+                {openSection === 'drawer' && (
+                  <View style={styles.regAccordionBody}>
+                    <View style={styles.registerToggleRow}>
+                      <Pressable onPress={() => setMovementType('add')} style={[styles.registerToggleBtn, movementType === 'add' && styles.registerToggleBtnActive]}>
+                        <Text style={[styles.registerToggleText, movementType === 'add' && styles.registerToggleTextActive]}>Add Cash</Text>
+                      </Pressable>
+                      <Pressable onPress={() => setMovementType('remove')} style={[styles.registerToggleBtn, movementType === 'remove' && styles.registerToggleBtnActive]}>
+                        <Text style={[styles.registerToggleText, movementType === 'remove' && styles.registerToggleTextActive]}>Remove Cash</Text>
+                      </Pressable>
+                    </View>
+                    <TextInput
+                      style={styles.registerInput}
+                      placeholder="Amount"
+                      placeholderTextColor={MUTED}
+                      keyboardType="decimal-pad"
+                      value={movementAmount}
+                      onChangeText={setMovementAmount}
+                    />
+                    <TextInput
+                      style={[styles.registerInput, styles.registerTextarea]}
+                      placeholder="Reason / note"
+                      placeholderTextColor={MUTED}
+                      multiline
+                      value={movementReason}
+                      onChangeText={setMovementReason}
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        onCashMovement({ movementType, amountCents: Math.round(parseFloat(movementAmount || '0') * 100), reason: movementReason });
+                        setMovementAmount('');
+                        setMovementReason('');
+                      }}
+                      style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                      disabled={busy}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.addToOrderBtnText}>{movementType === 'add' ? 'Add Cash to Drawer' : 'Remove Cash from Drawer'}</Text>
+                    </TouchableOpacity>
+                    {data?.cashMovements?.length ? (
+                      <View style={{ marginTop: 12, gap: 8 }}>
+                        {data.cashMovements.slice(0, 5).map((movement: PosRegisterCashMovement) => (
+                          <View key={movement.id} style={styles.registerMovementRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.registerMovementTitle}>
+                                {movement.movementType === 'add' ? 'Cash Added' : 'Cash Removed'} · {fmtCents(movement.amountCents)}
+                              </Text>
+                              <Text style={styles.registerMovementMeta}>
+                                {movement.reason || 'No note'}{movement.createdByName ? ` · ${movement.createdByName}` : ''}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                )}
+
+                <View style={styles.regAccordionDivider} />
+
+                {/* Count Cash & Close */}
+                <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('close')}>
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#FFF7ED' }]}>
+                    <Feather name="lock" size={16} color="#EA580C" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.regAccordionTitle}>Count Cash &amp; Close Register</Text>
+                    <Text style={styles.regAccordionSub}>{session?.closedAt ? 'Closed · tap to print summary' : `Expected ${fmtCents(summary.expectedCashCents)} in drawer`}</Text>
+                  </View>
+                  <Feather name={openSection === 'close' ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+                {openSection === 'close' && (
+                  <View style={styles.regAccordionBody}>
+                    <Text style={styles.denomGroupLabel}>Notes</Text>
+                    {AUD_DENOMS.filter(d => d.note).map(d => {
+                      const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+                      const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
+                      return (
+                        <View key={d.cents} style={styles.denomRow}>
+                          <Text style={styles.denomLabel}>{d.label}</Text>
+                          <View style={styles.denomQtyRow}>
+                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))} style={styles.denomBtn} hitSlop={6}>
+                              <Feather name="minus" size={14} color={MID} />
+                            </Pressable>
+                            <TextInput style={styles.denomInput} keyboardType="number-pad" value={denomCounts[d.cents] ?? ''} placeholder="0" placeholderTextColor={MUTED} onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))} selectTextOnFocus />
+                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))} style={styles.denomBtn} hitSlop={6}>
+                              <Feather name="plus" size={14} color={MID} />
+                            </Pressable>
+                          </View>
+                          <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+                        </View>
+                      );
+                    })}
+                    <Text style={[styles.denomGroupLabel, { marginTop: 10 }]}>Coins</Text>
+                    {AUD_DENOMS.filter(d => !d.note).map(d => {
+                      const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+                      const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
+                      return (
+                        <View key={d.cents} style={styles.denomRow}>
+                          <Text style={styles.denomLabel}>{d.label}</Text>
+                          <View style={styles.denomQtyRow}>
+                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))} style={styles.denomBtn} hitSlop={6}>
+                              <Feather name="minus" size={14} color={MID} />
+                            </Pressable>
+                            <TextInput style={styles.denomInput} keyboardType="number-pad" value={denomCounts[d.cents] ?? ''} placeholder="0" placeholderTextColor={MUTED} onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))} selectTextOnFocus />
+                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))} style={styles.denomBtn} hitSlop={6}>
+                              <Feather name="plus" size={14} color={MID} />
+                            </Pressable>
+                          </View>
+                          <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+                        </View>
+                      );
+                    })}
+                    <View style={styles.denomSummaryBox}>
+                      <View style={styles.registerLine}>
+                        <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Total Counted</Text>
+                        <Text style={[styles.registerLineValue, { fontWeight: '800', color: DARK, fontSize: 18 }]}>{fmtCents(countedCents)}</Text>
+                      </View>
+                      <View style={styles.registerLine}>
+                        <Text style={styles.registerLineLabel}>Expected Cash</Text>
+                        <Text style={styles.registerLineValue}>{fmtCents(summary?.expectedCashCents ?? 0)}</Text>
+                      </View>
+                      <View style={[styles.registerLine, { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6, paddingTop: 8 }]}>
+                        <Text style={[styles.registerLineLabel, { fontWeight: '700' }]}>Variance</Text>
+                        <Text style={[styles.registerLineValue, { fontWeight: '700', color: variancePreview === 0 ? '#15803D' : variancePreview > 0 ? '#15803D' : CHERRY }]}>
+                          {variancePreview > 0 ? '+' : ''}{fmtCents(variancePreview)}
+                        </Text>
+                      </View>
+                    </View>
+                    <TextInput style={[styles.registerInput, styles.registerTextarea]} placeholder="Close note (optional)" placeholderTextColor={MUTED} multiline value={closeNote} onChangeText={setCloseNote} />
+                    {variancePreview !== 0 && (
+                      <TextInput style={[styles.registerInput, styles.registerTextarea]} placeholder="Reason for cash variance" placeholderTextColor={MUTED} multiline value={varianceNote} onChangeText={setVarianceNote} />
+                    )}
+                    <TouchableOpacity
+                      onPress={() => onCloseRegister({ actualCountedCashCents: countedCents, closeNote, varianceNote: variancePreview !== 0 ? varianceNote : undefined })}
+                      style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                      disabled={busy}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.addToOrderBtnText}>Close Register</Text>
+                    </TouchableOpacity>
+                    {!!session?.closedAt && (
+                      <Pressable onPress={() => void onPrintSummary()} style={styles.registerSecondaryBtn}>
+                        <Feather name="printer" size={14} color={BLUE} />
+                        <Text style={styles.registerSecondaryBtnText}>Print Summary</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.regAccordionDivider} />
+
+                {/* Auto Close — toggle inline, no expand needed */}
+                <Pressable
+                  style={styles.regAccordionRow}
+                  onPress={() => data?.canEditAutoClose && onToggleAutoClose(!data.autoCloseEnabled)}
+                  disabled={!data?.canEditAutoClose}
+                >
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#F5F3FF' }]}>
+                    <Feather name="clock" size={16} color="#7C3AED" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.regAccordionTitle, !data?.canEditAutoClose && { opacity: 0.5 }]}>Auto Close at 11:59pm</Text>
+                    <Text style={styles.regAccordionSub}>{data?.canEditAutoClose ? 'Tap to toggle' : 'Manager or director only'}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => data?.canEditAutoClose && onToggleAutoClose(!data.autoCloseEnabled)}
+                    style={[styles.registerSwitch, data?.autoCloseEnabled && styles.registerSwitchOn, !data?.canEditAutoClose && { opacity: 0.35 }]}
+                    hitSlop={8}
+                  >
+                    <View style={[styles.registerSwitchKnob, data?.autoCloseEnabled && styles.registerSwitchKnobOn]} />
+                  </Pressable>
+                </Pressable>
+
+                <View style={styles.regAccordionDivider} />
+
+                {/* Quick Discount Presets */}
+                <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('presets')}>
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#FFF1F2' }]}>
+                    <Feather name="percent" size={16} color={CHERRY} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.regAccordionTitle}>Quick Discount Presets</Text>
+                    <Text style={styles.regAccordionSub}>{localPresets.length > 0 ? localPresets.map(p => `${p}%`).join(' · ') : 'No presets set'}</Text>
+                  </View>
+                  <Feather name={openSection === 'presets' ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+                {openSection === 'presets' && (
+                  <View style={styles.regAccordionBody}>
+                    <Text style={styles.sectionSubtitle}>Percentage buttons shown on every ticket for fast discounting.</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 12 }}>
+                      {localPresets.map(pct => (
+                        <View key={pct} style={styles.settingsPresetChip}>
+                          <Text style={styles.settingsPresetText}>{pct}%</Text>
+                          <Pressable onPress={() => removePreset(pct)} hitSlop={6} style={{ marginLeft: 6 }}>
+                            <Feather name="x" size={12} color={MID} />
+                          </Pressable>
+                        </View>
+                      ))}
+                      {localPresets.length === 0 && <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No presets — add one below</Text>}
+                    </View>
+                    <View style={styles.settingsAddRow}>
+                      <TextInput
+                        style={styles.settingsAddInput}
+                        placeholder="e.g. 15"
+                        placeholderTextColor={MUTED}
+                        value={newPct}
+                        onChangeText={v => { setNewPct(v.replace(/[^0-9]/g, '')); setPresetError(null); }}
+                        keyboardType="number-pad"
+                        returnKeyType="done"
+                        onSubmitEditing={addPreset}
+                        maxLength={2}
+                      />
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 4 }}>%</Text>
+                      <Pressable onPress={addPreset} style={styles.settingsAddBtn}>
+                        <Text style={styles.settingsAddBtnText}>Add</Text>
+                      </Pressable>
+                    </View>
+                    {presetError ? <Text style={{ fontSize: 12, color: CHERRY, marginTop: 6 }}>{presetError}</Text> : null}
+                    <TouchableOpacity onPress={savePresets} style={[styles.addToOrderBtn, { marginTop: 12 }]} activeOpacity={0.85}>
+                      <Text style={styles.addToOrderBtnText}>Save Presets</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.regAccordionDivider} />
+
+                {/* Payment Surcharges */}
+                <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('surcharges')}>
+                  <View style={[styles.regAccordionIcon, { backgroundColor: '#F0FDF4' }]}>
+                    <Feather name="credit-card" size={16} color="#16A34A" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.regAccordionTitle}>Payment Surcharges</Text>
+                    <Text style={styles.regAccordionSub}>{surcharges.length === 0 ? 'None configured' : `${surcharges.filter(s => s.isActive).length} active · ${surcharges.length} total`}</Text>
+                  </View>
+                  <Feather name={openSection === 'surcharges' ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+                </Pressable>
+                {openSection === 'surcharges' && (
+                  <View style={styles.regAccordionBody}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <Text style={styles.sectionSubtitle}>Auto-applied by payment method or day of week.</Text>
+                      <Pressable onPress={() => setSurchargeTab(surchargeTab === 'list' ? 'add' : 'list')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Feather name={surchargeTab === 'list' ? 'plus' : 'list'} size={15} color={BLUE} />
+                        <Text style={{ fontSize: 13, color: BLUE, fontWeight: '600' }}>{surchargeTab === 'list' ? 'Add' : 'List'}</Text>
+                      </Pressable>
+                    </View>
+
+                    {surchargeTab === 'list' && (
+                      <View style={{ gap: 8 }}>
+                        {surcharges.length === 0 && <Text style={{ fontSize: 13, color: MUTED, fontStyle: 'italic' }}>No surcharges configured.</Text>}
+                        {surcharges.map(s => (
+                          <View key={s.id} style={styles.surchargeRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.surchargeRowName}>{s.name}</Text>
+                              <Text style={styles.surchargeRowMeta}>
+                                {s.triggerType === 'payment_method' ? s.triggerValue.toUpperCase() : s.triggerValue.charAt(0).toUpperCase() + s.triggerValue.slice(1)}
+                                {' · '}+{fmtSurchargeValue(s)} {' · '}{s.isActive ? '✓ Active' : 'Disabled'}
+                              </Text>
+                            </View>
+                            <Pressable onPress={() => toggleSurchargeMutation.mutate({ id: s.id, isActive: !s.isActive })} style={[styles.surchargeToggle, s.isActive && styles.surchargeToggleActive]} hitSlop={8}>
+                              <Text style={[styles.surchargeToggleText, s.isActive && styles.surchargeToggleTextActive]}>{s.isActive ? 'On' : 'Off'}</Text>
+                            </Pressable>
+                            <Pressable onPress={() => Alert.alert('Delete Surcharge', `Remove "${s.name}"?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteSurchargeMutation.mutate(s.id) }])} hitSlop={8} style={{ padding: 6, marginLeft: 4 }}>
+                              <Feather name="trash-2" size={15} color={CHERRY} />
+                            </Pressable>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {surchargeTab === 'add' && (
+                      <View style={{ gap: 12 }}>
+                        <TextInput style={styles.surchargeNameInput} placeholder="Name (e.g. EFTPOS Surcharge)" placeholderTextColor={MUTED} value={newSurchargeName} onChangeText={setNewSurchargeName} returnKeyType="next" />
+                        <View>
+                          <Text style={[styles.sectionSubtitle, { marginBottom: 6 }]}>Trigger</Text>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <Pressable onPress={() => { setNewSurchargeTriggerType('payment_method'); setNewSurchargeTriggerValue('eftpos'); }} style={[styles.surchargeChip, newSurchargeTriggerType === 'payment_method' && styles.surchargeChipActive]}>
+                              <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'payment_method' && { color: WHITE }]}>By Payment</Text>
+                            </Pressable>
+                            <Pressable onPress={() => { setNewSurchargeTriggerType('day_of_week'); setNewSurchargeTriggerValue('sunday'); }} style={[styles.surchargeChip, newSurchargeTriggerType === 'day_of_week' && styles.surchargeChipActive]}>
+                              <Text style={[styles.surchargeChipText, newSurchargeTriggerType === 'day_of_week' && { color: WHITE }]}>By Day</Text>
+                            </Pressable>
+                          </View>
+                          {newSurchargeTriggerType === 'payment_method' && (
+                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                              {['eftpos', 'cash'].map(v => (
+                                <Pressable key={v} onPress={() => setNewSurchargeTriggerValue(v)} style={[styles.surchargeChip, newSurchargeTriggerValue === v && styles.surchargeChipActive]}>
+                                  <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === v && { color: WHITE }]}>{v.toUpperCase()}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                          )}
+                          {newSurchargeTriggerType === 'day_of_week' && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
+                                  <Pressable key={d} onPress={() => setNewSurchargeTriggerValue(d)} style={[styles.surchargeChip, newSurchargeTriggerValue === d && styles.surchargeChipActive]}>
+                                    <Text style={[styles.surchargeChipText, newSurchargeTriggerValue === d && { color: WHITE }]}>{d.slice(0,3).toUpperCase()}</Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                            </ScrollView>
+                          )}
+                        </View>
+                        <View>
+                          <Text style={[styles.sectionSubtitle, { marginBottom: 6 }]}>Amount Type</Text>
+                          <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <Pressable onPress={() => setNewSurchargeAmountType('pct_basis_points')} style={[styles.surchargeChip, newSurchargeAmountType === 'pct_basis_points' && styles.surchargeChipActive]}>
+                              <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'pct_basis_points' && { color: WHITE }]}>Percentage %</Text>
+                            </Pressable>
+                            <Pressable onPress={() => setNewSurchargeAmountType('fixed_cents')} style={[styles.surchargeChip, newSurchargeAmountType === 'fixed_cents' && styles.surchargeChipActive]}>
+                              <Text style={[styles.surchargeChipText, newSurchargeAmountType === 'fixed_cents' && { color: WHITE }]}>Fixed $</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                        <View style={styles.settingsAddRow}>
+                          <TextInput
+                            style={styles.settingsAddInput}
+                            placeholder={newSurchargeAmountType === 'pct_basis_points' ? 'e.g. 1.5 (%)' : 'e.g. 0.50 ($)'}
+                            placeholderTextColor={MUTED}
+                            value={newSurchargeAmount}
+                            onChangeText={v => { setNewSurchargeAmount(v.replace(/[^0-9.]/g, '')); setSurchargeError(null); }}
+                            keyboardType="decimal-pad"
+                            returnKeyType="done"
+                          />
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: MID, marginLeft: 6 }}>
+                            {newSurchargeAmountType === 'pct_basis_points' ? '%' : 'AUD'}
+                          </Text>
+                        </View>
+                        {surchargeError ? <Text style={{ fontSize: 12, color: CHERRY }}>{surchargeError}</Text> : null}
+                        <TouchableOpacity onPress={handleAddSurcharge} style={[styles.settingsAddBtn, { paddingHorizontal: 24, alignSelf: 'flex-start' }]} disabled={createSurchargeMutation.isPending} activeOpacity={0.85}>
+                          {createSurchargeMutation.isPending ? <ActivityIndicator size="small" color={WHITE} /> : <Text style={styles.settingsAddBtnText}>Add Surcharge</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                )}
+
               </View>
             </>
           )}
@@ -4428,6 +4387,13 @@ const styles = StyleSheet.create({
   registerMetricLabel:{ fontSize: 12, color: MUTED, fontWeight: '600' },
   registerMetricValue:{ fontSize: 20, color: DARK, fontWeight: '800', marginTop: 6 },
   registerSection:    { backgroundColor: WHITE, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER },
+  regAccordionGroup:  { backgroundColor: WHITE, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  regAccordionRow:    { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
+  regAccordionIcon:   { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  regAccordionTitle:  { fontSize: 14, fontWeight: '700', color: DARK },
+  regAccordionSub:    { fontSize: 12, color: MUTED, marginTop: 2 },
+  regAccordionBody:   { paddingHorizontal: 14, paddingBottom: 16, paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, backgroundColor: '#FAFBFC' },
+  regAccordionDivider:{ height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginLeft: 60 },
   registerLine:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
   registerLineLabel:  { fontSize: 13, color: MID, fontWeight: '600' },
   registerLineValue:  { fontSize: 14, color: DARK, fontWeight: '800' },
