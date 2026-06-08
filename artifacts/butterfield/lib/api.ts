@@ -2736,6 +2736,7 @@ export interface ShopDisplayAnalytics {
   itemsSold: number;
   cancelledCents: number;
   discountedCents: number;
+  channelBreakdown: { appCents: number; posCents: number; wholesaleCents: number };
   chartData: Array<{ label: string; valueCents: number; prevValueCents: number }>;
   topSellers: Array<{ name: string; units: number; revenueCents: number; pct: number }>;
   tenderTypes: Array<{ type: string; count: number; pct: number }>;

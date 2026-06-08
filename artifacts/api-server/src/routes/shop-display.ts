@@ -14,6 +14,7 @@ import {
   staffTasksTable,
   storesTable,
   usersTable,
+  wholesaleOrdersTable,
 } from '@workspace/db';
 import { and, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
@@ -1299,8 +1300,8 @@ router.get('/analytics', async (req, res) => {
     }));
   }
 
-  // Pull orders for both periods in one query each (store-scoped)
-  const [currentOrders, prevOrders] = await Promise.all([
+  // Pull orders + wholesale for both periods in parallel (orders are store-scoped)
+  const [currentOrders, prevOrders, currentWholesale, prevWholesale] = await Promise.all([
     db.select({
       id: ordersTable.id,
       totalCents: ordersTable.totalCents,
@@ -1308,6 +1309,7 @@ router.get('/analytics', async (req, res) => {
       paymentMethodType: ordersTable.paymentMethodType,
       items: ordersTable.items,
       status: ordersTable.status,
+      source: sql<string>`orders.source`,
       createdAt: ordersTable.createdAt,
     }).from(ordersTable).where(and(
       gte(ordersTable.createdAt, periodStart),
@@ -1316,6 +1318,7 @@ router.get('/analytics', async (req, res) => {
     )),
     db.select({
       totalCents: ordersTable.totalCents,
+      source: sql<string>`orders.source`,
       createdAt: ordersTable.createdAt,
     }).from(ordersTable).where(and(
       gte(ordersTable.createdAt, prevStart),
@@ -1323,22 +1326,48 @@ router.get('/analytics', async (req, res) => {
       sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
       storeFilter,
     )),
+    db.select({
+      id: wholesaleOrdersTable.id,
+      totalCents: wholesaleOrdersTable.totalCents,
+      items: wholesaleOrdersTable.items,
+      status: wholesaleOrdersTable.status,
+      createdAt: wholesaleOrdersTable.createdAt,
+    }).from(wholesaleOrdersTable).where(and(
+      gte(wholesaleOrdersTable.createdAt, periodStart),
+      lte(wholesaleOrdersTable.createdAt, periodEnd),
+    )),
+    db.select({
+      totalCents: wholesaleOrdersTable.totalCents,
+      createdAt: wholesaleOrdersTable.createdAt,
+    }).from(wholesaleOrdersTable).where(and(
+      gte(wholesaleOrdersTable.createdAt, prevStart),
+      lte(wholesaleOrdersTable.createdAt, prevEnd),
+      sql`${wholesaleOrdersTable.status} NOT IN ('cancelled','refunded')`,
+    )),
   ]);
 
   const validOrders = currentOrders.filter(o => o.status !== 'cancelled' && o.status !== 'refunded');
   const cancelledOrders = currentOrders.filter(o => o.status === 'cancelled' || o.status === 'refunded');
+  const validWholesale = currentWholesale.filter(o => o.status !== 'cancelled' && o.status !== 'refunded');
 
-  const totalCents = validOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
-  const transactionCount = validOrders.length;
+  // Channel breakdown
+  const appCents = validOrders.filter(o => o.source !== 'pos').reduce((s, o) => s + (o.totalCents ?? 0), 0);
+  const posCents = validOrders.filter(o => o.source === 'pos').reduce((s, o) => s + (o.totalCents ?? 0), 0);
+  const wholesaleCents = validWholesale.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+
+  const totalCents = appCents + posCents + wholesaleCents;
+  const transactionCount = validOrders.length + validWholesale.length;
   const avgSpendCents = transactionCount > 0 ? Math.round(totalCents / transactionCount) : 0;
   const cancelledCents = cancelledOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
   const discountedCents = validOrders.reduce((s, o) => s + (o.discountCents ?? 0), 0);
-  const prevPeriodTotalCents = prevOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+  const prevPeriodTotalCents =
+    prevOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0) +
+    prevWholesale.reduce((s, o) => s + (o.totalCents ?? 0), 0);
 
-  // Items sold + top sellers
+  // Items sold + top sellers (all channels)
   let itemsSold = 0;
   const productMap = new Map<string, { name: string; units: number; revenueCents: number }>();
-  for (const order of validOrders) {
+  for (const order of [...validOrders, ...validWholesale]) {
     const items = Array.isArray(order.items) ? order.items as any[] : [];
     for (const item of items) {
       const qty = Number(item.quantity ?? item.qty ?? 1);
@@ -1361,7 +1390,7 @@ router.get('/analytics', async (req, res) => {
       pct: totalCents > 0 ? Math.round((p.revenueCents / totalCents) * 100) : 0,
     }));
 
-  // Tender types
+  // Tender types (orders only — wholesale invoiced separately)
   const tenderMap = new Map<string, number>();
   for (const order of validOrders) {
     const t = (order.paymentMethodType ?? '').toLowerCase();
@@ -1377,15 +1406,23 @@ router.get('/analytics', async (req, res) => {
     .map(([type, cnt]) => ({ type, count: cnt, pct: transactionCount > 0 ? Math.round((cnt / transactionCount) * 100) : 0 }))
     .sort((a, b) => b.count - a.count);
 
-  // Chart data
+  // Chart data — combined total across all channels
   const prevOffset = periodStart.getTime() - prevStart.getTime();
   const chartData = chartBuckets.map(b => {
-    const curr = validOrders
-      .filter(o => { const t = new Date(o.createdAt).getTime(); return t >= b.startMs && t <= b.endMs; })
-      .reduce((s, o) => s + (o.totalCents ?? 0), 0);
-    const prev = prevOrders
-      .filter(o => { const t = new Date(o.createdAt).getTime() + prevOffset; return t >= b.startMs && t <= b.endMs; })
-      .reduce((s, o) => s + (o.totalCents ?? 0), 0);
+    const curr =
+      validOrders
+        .filter(o => { const t = new Date(o.createdAt).getTime(); return t >= b.startMs && t <= b.endMs; })
+        .reduce((s, o) => s + (o.totalCents ?? 0), 0) +
+      validWholesale
+        .filter(o => { const t = new Date(o.createdAt).getTime(); return t >= b.startMs && t <= b.endMs; })
+        .reduce((s, o) => s + (o.totalCents ?? 0), 0);
+    const prev =
+      prevOrders
+        .filter(o => { const t = new Date(o.createdAt).getTime() + prevOffset; return t >= b.startMs && t <= b.endMs; })
+        .reduce((s, o) => s + (o.totalCents ?? 0), 0) +
+      prevWholesale
+        .filter(o => { const t = new Date(o.createdAt).getTime() + prevOffset; return t >= b.startMs && t <= b.endMs; })
+        .reduce((s, o) => s + (o.totalCents ?? 0), 0);
     return { label: b.label, valueCents: curr, prevValueCents: prev };
   });
 
@@ -1398,6 +1435,7 @@ router.get('/analytics', async (req, res) => {
       itemsSold,
       cancelledCents,
       discountedCents,
+      channelBreakdown: { appCents, posCents, wholesaleCents },
       chartData,
       topSellers,
       tenderTypes,

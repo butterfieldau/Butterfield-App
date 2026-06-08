@@ -823,6 +823,48 @@ export default function DashboardScreen() {
               <StatCard label="Cancelled" valueCents={data.cancelledCents} icon="x-circle" color={RED} small />
             </View>
 
+            {/* ── Sales by Channel ──────────────────────────────────────── */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionIconWrap}>
+                  <Feather name="layers" size={14} color={BLUE} />
+                </View>
+                <Text style={styles.sectionTitle}>Sales by Channel</Text>
+              </View>
+              <View style={styles.channelRow}>
+                <View style={styles.channelCard}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: BLUE + '22' }]}>
+                    <Feather name="shopping-bag" size={16} color={BLUE} />
+                  </View>
+                  <Text style={styles.channelLabel}>App Sales</Text>
+                  <Text style={styles.channelValue}>{fmtAUD(data.channelBreakdown.appCents)}</Text>
+                  <Text style={styles.channelPct}>
+                    {data.totalCents > 0 ? Math.round((data.channelBreakdown.appCents / data.totalCents) * 100) : 0}%
+                  </Text>
+                </View>
+                <View style={styles.channelCard}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: CYAN + '22' }]}>
+                    <Feather name="monitor" size={16} color={CYAN} />
+                  </View>
+                  <Text style={styles.channelLabel}>POS Sales</Text>
+                  <Text style={styles.channelValue}>{fmtAUD(data.channelBreakdown.posCents)}</Text>
+                  <Text style={styles.channelPct}>
+                    {data.totalCents > 0 ? Math.round((data.channelBreakdown.posCents / data.totalCents) * 100) : 0}%
+                  </Text>
+                </View>
+                <View style={styles.channelCard}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: AMBER + '22' }]}>
+                    <Feather name="truck" size={16} color={AMBER} />
+                  </View>
+                  <Text style={styles.channelLabel}>Wholesale</Text>
+                  <Text style={styles.channelValue}>{fmtAUD(data.channelBreakdown.wholesaleCents)}</Text>
+                  <Text style={styles.channelPct}>
+                    {data.totalCents > 0 ? Math.round((data.channelBreakdown.wholesaleCents / data.totalCents) * 100) : 0}%
+                  </Text>
+                </View>
+              </View>
+            </View>
+
             {/* ── Top Sellers ──────────────────────────────────────────── */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -955,4 +997,11 @@ const styles = StyleSheet.create({
   rankName:         { flex: 1, fontSize: 13, fontWeight: '600', color: WHITE },
   rankPct:          { fontSize: 13, fontWeight: '700', color: MUTED, minWidth: 34, textAlign: 'right' },
   rankCount:        { fontSize: 12, color: MUTED, minWidth: 26, textAlign: 'right' },
+
+  channelRow:       { flexDirection: 'row', gap: 8 },
+  channelCard:      { flex: 1, backgroundColor: BG, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 12, alignItems: 'center', gap: 4 },
+  channelIconWrap:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  channelLabel:     { fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
+  channelValue:     { fontSize: 14, fontWeight: '800', color: WHITE },
+  channelPct:       { fontSize: 11, fontWeight: '600', color: MUTED },
 });
