@@ -138,9 +138,6 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
   const [pinInput, setPinInput]         = useState('');
   const [pinSaving, setPinSaving]       = useState(false);
   const [pinMsg, setPinMsg]             = useState<string | null>(null);
-  const [settingsPinInput, setSettingsPinInput]   = useState('');
-  const [settingsPinSaving, setSettingsPinSaving] = useState(false);
-  const [settingsPinMsg, setSettingsPinMsg]       = useState<string | null>(null);
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
   const { data, isLoading, refetch } = useQuery({
@@ -521,13 +518,13 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   />
                 </View>
               </View>
-              {/* ── Clock-In PIN ──────────────────────────────────────── */}
+              {/* ── POS PIN (unified: clock-in, refunds, register menu, Linkly) ── */}
               <View style={[sp_s.menuSection, { marginBottom: 12 }]}>
                 <View style={[sp_s.menuRow, { paddingVertical: 12 }]}>
-                  <Feather name="hash" size={17} color={BLUE} style={{ marginRight: 14 }} />
+                  <Feather name="lock" size={17} color={BLUE} style={{ marginRight: 14 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={sp_s.menuLabel}>Clock-In PIN</Text>
-                    <Text style={sp_s.menuSub}>4-digit PIN for Shop Display iPad clock in/out</Text>
+                    <Text style={sp_s.menuLabel}>POS PIN</Text>
+                    <Text style={sp_s.menuSub}>One 4-digit PIN for clock-in, refunds, register menu, EFTPOS &amp; all approvals</Text>
                   </View>
                 </View>
                 <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
@@ -551,7 +548,11 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                         if (!userId || pinInput.length !== 4) return;
                         setPinSaving(true);
                         try {
-                          await api.director.setStaffClockPin(userId, pinInput);
+                          // Set both fields atomically — server syncs them together
+                          await Promise.all([
+                            api.director.setStaffClockPin(userId, pinInput),
+                            api.director.setStaffSettingsPin(userId, pinInput),
+                          ]);
                           setPinInput(''); setPinMsg('PIN saved ✓');
                           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                         } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to save PIN')); }
@@ -564,11 +565,14 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     <Pressable
                       onPress={() => {
                         if (!userId) return;
-                        Alert.alert('Clear PIN', 'Remove the clock-in PIN for this staff member?', [
+                        Alert.alert('Clear PIN', 'Remove the POS PIN for this staff member?', [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Clear', style: 'destructive', onPress: async () => {
                             try {
-                              await api.director.setStaffClockPin(userId, null);
+                              await Promise.all([
+                                api.director.setStaffClockPin(userId, null),
+                                api.director.setStaffSettingsPin(userId, null),
+                              ]);
                               setPinMsg('PIN cleared');
                             } catch (error) { setPinMsg(getErrorMessage(error, 'Failed to clear PIN')); }
                           }},
@@ -580,67 +584,6 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     </Pressable>
                   </View>
                   {pinMsg ? <Text style={{ fontSize: 12, fontWeight: '700', color: pinMsg.includes('✓') || pinMsg.includes('cleared') ? '#16A34A' : RED }}>{pinMsg}</Text> : null}
-                </View>
-              </View>
-              {/* ── Settings PIN (EFTPOS / Shop Display Settings) ──── */}
-              <View style={[sp_s.menuSection, { marginBottom: 12 }]}>
-                <View style={[sp_s.menuRow, { paddingVertical: 12 }]}>
-                  <Feather name="lock" size={17} color={BLUE} style={{ marginRight: 14 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={sp_s.menuLabel}>Settings PIN</Text>
-                    <Text style={sp_s.menuSub}>4-digit PIN to access EFTPOS &amp; Shop Display settings</Text>
-                  </View>
-                </View>
-                <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 8 }}>
-                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
-                      <TextInput
-                        style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '600', letterSpacing: 4 }}
-                        value={settingsPinInput}
-                        onChangeText={(t) => { setSettingsPinInput(t.replace(/\D/g, '').slice(0, 4)); setSettingsPinMsg(null); }}
-                        placeholder="New PIN"
-                        placeholderTextColor={MUTED}
-                        keyboardType="number-pad"
-                        secureTextEntry
-                        maxLength={4}
-                      />
-                      <Text style={{ color: MUTED, fontSize: 12, fontWeight: '700' }}>{settingsPinInput.length}/4</Text>
-                    </View>
-                    <Pressable
-                      disabled={settingsPinInput.length !== 4 || settingsPinSaving}
-                      onPress={async () => {
-                        if (!userId || settingsPinInput.length !== 4) return;
-                        setSettingsPinSaving(true);
-                        try {
-                          await api.director.setStaffSettingsPin(userId, settingsPinInput);
-                          setSettingsPinInput(''); setSettingsPinMsg('PIN saved ✓');
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        } catch (error) { setSettingsPinMsg(getErrorMessage(error, 'Failed to save PIN')); }
-                        finally { setSettingsPinSaving(false); }
-                      }}
-                      style={[modal.chip, { backgroundColor: settingsPinInput.length === 4 ? BLUE : BG, borderColor: settingsPinInput.length === 4 ? BLUE : BORDER, paddingVertical: 10, paddingHorizontal: 14 }]}
-                    >
-                      {settingsPinSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[modal.chipText, { color: settingsPinInput.length === 4 ? '#fff' : MUTED }]}>Set PIN</Text>}
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        if (!userId) return;
-                        Alert.alert('Clear PIN', 'Remove the settings PIN for this staff member?', [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Clear', style: 'destructive', onPress: async () => {
-                            try {
-                              await api.director.setStaffSettingsPin(userId, null);
-                              setSettingsPinMsg('PIN cleared');
-                            } catch (error) { setSettingsPinMsg(getErrorMessage(error, 'Failed to clear PIN')); }
-                          }},
-                        ]);
-                      }}
-                      style={[modal.chip, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', paddingVertical: 10, paddingHorizontal: 14 }]}
-                    >
-                      <Text style={[modal.chipText, { color: RED }]}>Clear</Text>
-                    </Pressable>
-                  </View>
-                  {settingsPinMsg ? <Text style={{ fontSize: 12, fontWeight: '700', color: settingsPinMsg.includes('✓') || settingsPinMsg.includes('cleared') ? '#16A34A' : RED }}>{settingsPinMsg}</Text> : null}
                 </View>
               </View>
               {/* ── Menu rows ────────────────────────────────────────── */}

@@ -788,7 +788,7 @@ function PosScreenInner() {
           mode: 'movement',
           payload: vars,
           title: 'Manager Approval',
-          subtitle: 'Enter a manager or director PIN for this cash removal',
+          subtitle: 'Enter your POS PIN to approve this cash removal',
         });
         return;
       }
@@ -817,7 +817,7 @@ function PosScreenInner() {
           mode: 'close',
           payload: vars,
           title: 'Manager Approval',
-          subtitle: 'Enter a manager or director PIN to approve this cash variance',
+          subtitle: 'Enter your POS PIN to approve this cash variance',
         });
         return;
       }
@@ -1259,7 +1259,7 @@ function PosScreenInner() {
       {showRegisterPin && (
         <PosPinModal
           title="Register"
-          subtitle="Enter a manager or director PIN to access the register"
+          subtitle="Enter your POS PIN to access the register"
           onClose={() => setShowRegisterPin(false)}
           onSuccess={() => { setShowRegisterPin(false); setShowRegister(true); }}
         />
@@ -4368,7 +4368,7 @@ function PosPinModal({ onClose, onSuccess, title, subtitle }: {
               <Feather name="lock" size={22} color={BLUE} />
             </View>
             <Text style={styles.pinTitle}>{title ?? 'POS Settings'}</Text>
-            <Text style={styles.pinSub}>{subtitle ?? 'Enter your director PIN to access settings'}</Text>
+            <Text style={styles.pinSub}>{subtitle ?? 'Enter your POS PIN to continue'}</Text>
           </View>
 
           {/* Dots */}
@@ -4453,7 +4453,7 @@ function SupervisorPinCapture({ onClose, onSuccess, title, subtitle }: {
               <Feather name="shield" size={22} color={BLUE} />
             </View>
             <Text style={styles.pinTitle}>{title ?? 'Supervisor Authorisation'}</Text>
-            <Text style={styles.pinSub}>{subtitle ?? 'Enter a manager or director PIN'}</Text>
+            <Text style={styles.pinSub}>{subtitle ?? 'Enter your POS PIN to continue'}</Text>
           </View>
           <Animated.View style={[styles.pinDotsRow, { transform: [{ translateX: shakeAnim }] }]}>
             {[0,1,2,3].map(i => (

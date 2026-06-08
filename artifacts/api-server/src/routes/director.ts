@@ -731,7 +731,10 @@ router.patch('/staff/:id/clock-pin', async (req, res) => {
     const [existingProfile] = await db.select({ userId: staffProfilesTable.userId })
       .from(staffProfilesTable).where(eq(staffProfilesTable.userId, id)).limit(1);
     if (existingProfile) {
-      await db.update(staffProfilesTable).set({ clockPin: hashed }).where(eq(staffProfilesTable.userId, id));
+      // Always sync both PIN fields so directors/managers have one PIN for everything
+      await db.execute(sql`
+        UPDATE staff_profiles SET clock_pin = ${hashed}, settings_pin_hash = ${hashed} WHERE user_id = ${id}
+      `);
     } else {
       // No staff_profiles row yet (e.g. manager accounts) — create a minimal one
       await db.insert(staffProfilesTable).values({
@@ -741,14 +744,18 @@ router.patch('/staff/:id/clock-pin', async (req, res) => {
         isManager: true,
         approvedByAdmin: false,
       });
+      // Also set settings_pin_hash on the new row
+      await db.execute(sql`
+        UPDATE staff_profiles SET settings_pin_hash = ${hashed} WHERE user_id = ${id}
+      `);
     }
-    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_set' });
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'pos_pin_set' });
   } else {
-    // Only update if a row exists (safe no-op otherwise)
+    // Clear both PIN fields together
     await db.execute(sql`
-      UPDATE staff_profiles SET clock_pin = NULL WHERE user_id = ${id}
+      UPDATE staff_profiles SET clock_pin = NULL, settings_pin_hash = NULL WHERE user_id = ${id}
     `);
-    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'clock_pin_cleared' });
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'pos_pin_cleared' });
   }
   return res.json({ success: true });
 });
@@ -768,21 +775,23 @@ router.patch('/staff/:id/settings-pin', async (req, res) => {
     const [existing] = await db.select({ userId: staffProfilesTable.userId })
       .from(staffProfilesTable).where(eq(staffProfilesTable.userId, id)).limit(1);
     if (existing) {
-      await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = ${hashed} WHERE user_id = ${id}`);
+      // Always sync both PIN fields so one PIN works for everything
+      await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = ${hashed}, clock_pin = ${hashed} WHERE user_id = ${id}`);
     } else {
       await db.insert(staffProfilesTable).values({
         userId: id,
         employeeId: `EMP-${id.slice(0, 8).toUpperCase()}`,
-        clockPin: null,
+        clockPin: hashed,
         isManager: true,
         approvedByAdmin: false,
       });
       await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = ${hashed} WHERE user_id = ${id}`);
     }
-    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'settings_pin_set' });
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'pos_pin_set' });
   } else {
-    await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = NULL WHERE user_id = ${id}`);
-    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'settings_pin_cleared' });
+    // Clear both fields together
+    await db.execute(sql`UPDATE staff_profiles SET settings_pin_hash = NULL, clock_pin = NULL WHERE user_id = ${id}`);
+    await recordAuditLog({ actor: req.user, entityType: 'staff_profile', entityId: id, action: 'pos_pin_cleared' });
   }
   return res.json({ success: true });
 });

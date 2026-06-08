@@ -124,7 +124,7 @@ function PinModal({
               <Feather name="lock" size={22} color={INDIGO} />
             </View>
             <Text style={p.title}>EFTPOS Settings</Text>
-            <Text style={p.sub}>Enter your director-assigned Settings PIN to access Linkly configuration</Text>
+            <Text style={p.sub}>Enter your POS PIN to access Linkly configuration</Text>
           </View>
 
           <Animated.View style={[p.dotsRow, { transform: [{ translateX: shakeAnim }] }]}>

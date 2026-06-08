@@ -561,22 +561,25 @@ router.post('/staff-clock', async (req, res) => {
   }
   // If display has no store assignments (setup mode), fall through — no store restriction
 
-  // Fetch user + profile
-  const [[staffUser], [profile]] = await Promise.all([
+  // Fetch user + profile (including settings_pin_hash as unified POS PIN fallback)
+  const [[staffUser], profileRows] = await Promise.all([
     db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
       .from(usersTable)
       .where(and(eq(usersTable.id, staffId), or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')))),
-    db.select({
-      clockPin: staffProfilesTable.clockPin,
-      approvedByAdmin: staffProfilesTable.approvedByAdmin,
-      isManager: staffProfilesTable.isManager,
-    }).from(staffProfilesTable).where(eq(staffProfilesTable.userId, staffId)),
+    db.execute(sql`
+      SELECT clock_pin, settings_pin_hash, approved_by_admin, is_manager
+      FROM staff_profiles WHERE user_id = ${staffId} LIMIT 1
+    `),
   ]);
+  const profile = ((profileRows as any).rows ?? (profileRows as any) ?? [])[0] as {
+    clock_pin: string | null; settings_pin_hash: string | null;
+    approved_by_admin: boolean | null; is_manager: boolean | null;
+  } | undefined;
 
-  // Eligibility: same rule as staff-assigned — must have PIN and be approved OR be a manager
-  const pinHash = profile?.clockPin ?? null;
+  // Use clock_pin if set, otherwise fall back to settings_pin_hash (unified POS PIN)
+  const pinHash = profile?.clock_pin ?? profile?.settings_pin_hash ?? null;
   const isEligible = !!staffUser && !!pinHash &&
-    (profile?.approvedByAdmin === true || profile?.isManager === true || staffUser.role === 'manager');
+    (profile?.approved_by_admin === true || profile?.is_manager === true || staffUser.role === 'manager');
   const pinValid = isEligible ? await bcrypt.compare(pin, pinHash!) : false;
 
   if (!pinValid) {
