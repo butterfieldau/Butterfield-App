@@ -25,12 +25,13 @@ type Props = {
   badgeColor?: string;
   backgroundColor?: string;
   onLogout?: () => void;
+  onLock?: () => void;
   onSync?: () => void;
   syncing?: boolean;
   syncLabel?: string;
 };
 
-export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = NAVY, onLogout, onSync, syncing, syncLabel }: Props) {
+export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = NAVY, onLogout, onLock, onSync, syncing, syncLabel }: Props) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const clock = useLiveClock();
@@ -86,7 +87,11 @@ export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = 
               <Feather name="clock" size={11} color="rgba(255,255,255,0.7)" />
               <Text style={styles.clockText}>{clock}</Text>
             </View>
-            {onLogout ? (
+            {onLock ? (
+              <Pressable onPress={onLock} style={styles.logoutBtn} hitSlop={8}>
+                <Feather name="lock" size={16} color="rgba(255,255,255,0.75)" />
+              </Pressable>
+            ) : onLogout ? (
               <Pressable onPress={handleLogout} style={styles.logoutBtn} hitSlop={8}>
                 <Feather name="log-out" size={16} color="rgba(255,255,255,0.75)" />
               </Pressable>

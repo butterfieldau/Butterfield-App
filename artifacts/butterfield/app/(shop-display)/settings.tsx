@@ -20,7 +20,10 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import type { LinklyConfig, ShopDisplayStore } from '@/lib/api';
 import { sendOpenDrawer } from '@/lib/printer';
-import { getShopDisplaySoundEnabled, setShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
+import {
+  getShopDisplaySoundEnabled, setShopDisplaySoundEnabled,
+  getDisplayLockPin, setDisplayLockPin, clearDisplayLockPin,
+} from '@/lib/shopDisplayMode';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -343,9 +346,14 @@ export default function ShopDisplaySettingsScreen() {
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [eftposUnlocked, setEftposUnlocked] = useState(false);
   const [drawerBusy, setDrawerBusy] = useState(false);
+  const [lockPinSet, setLockPinSet] = useState(false);
+  const [lockPinInput, setLockPinInput] = useState('');
+  const [lockPinSaving, setLockPinSaving] = useState(false);
+  const [lockPinMsg, setLockPinMsg] = useState<string | null>(null);
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabledState).catch(() => {});
+    getDisplayLockPin().then(p => setLockPinSet(!!p)).catch(() => {});
   }, []);
 
   const { data: storeData, isLoading: storeLoading } = useQuery({
@@ -483,6 +491,86 @@ export default function ShopDisplaySettingsScreen() {
           </Pressable>
         )}
 
+        {/* ── Display Lock PIN ── */}
+        <View style={styles.sectionHeader}>
+          <Feather name="shield" size={15} color={NAVY} />
+          <Text style={styles.sectionTitle}>Display Lock</Text>
+        </View>
+        <View style={[styles.card, { gap: 14 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>Display PIN</Text>
+              <Text style={styles.sub}>
+                {lockPinSet
+                  ? 'A PIN is set. The display locks automatically on launch.'
+                  : 'Set a 4-digit PIN to lock this display on launch. Staff need the PIN to access it.'}
+              </Text>
+            </View>
+            {lockPinSet && (
+              <View style={{ backgroundColor: '#DCFCE7', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: GREEN }}>Active</Text>
+              </View>
+            )}
+          </View>
+          <TextInput
+            style={styles.pinInput}
+            placeholder={lockPinSet ? 'Enter new 4-digit PIN to change' : 'Enter 4-digit PIN'}
+            placeholderTextColor={MUTED}
+            keyboardType="number-pad"
+            secureTextEntry
+            maxLength={4}
+            value={lockPinInput}
+            onChangeText={t => { setLockPinInput(t.replace(/\D/g, '')); setLockPinMsg(null); }}
+          />
+          {lockPinMsg ? (
+            <Text style={{ fontSize: 13, color: lockPinMsg.startsWith('✓') ? GREEN : RED, fontWeight: '600' }}>{lockPinMsg}</Text>
+          ) : null}
+          <Pressable
+            style={({ pressed }) => [styles.openDrawerBtn, (pressed || lockPinSaving || lockPinInput.length !== 4) && { opacity: 0.6 }]}
+            disabled={lockPinSaving || lockPinInput.length !== 4}
+            onPress={async () => {
+              setLockPinSaving(true);
+              try {
+                await setDisplayLockPin(lockPinInput);
+                setLockPinSet(true);
+                setLockPinInput('');
+                setLockPinMsg('✓ PIN saved. Display will lock on next launch.');
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } catch {
+                setLockPinMsg('Failed to save PIN. Please try again.');
+              } finally {
+                setLockPinSaving(false);
+              }
+            }}
+          >
+            <Feather name="check" size={14} color="#fff" />
+            <Text style={styles.openDrawerBtnText}>{lockPinSet ? 'Update PIN' : 'Set PIN'}</Text>
+          </Pressable>
+          {lockPinSet && (
+            <Pressable
+              style={({ pressed }) => [styles.openDrawerBtn, { backgroundColor: '#FEE2E2' }, (pressed || lockPinSaving) && { opacity: 0.6 }]}
+              disabled={lockPinSaving}
+              onPress={() => {
+                Alert.alert('Clear Display PIN', 'The display will no longer lock on launch. Continue?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Clear PIN', style: 'destructive', onPress: async () => {
+                      await clearDisplayLockPin();
+                      setLockPinSet(false);
+                      setLockPinInput('');
+                      setLockPinMsg(null);
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    },
+                  },
+                ]);
+              }}
+            >
+              <Feather name="trash-2" size={14} color={RED} />
+              <Text style={[styles.openDrawerBtnText, { color: RED }]}>Clear PIN</Text>
+            </Pressable>
+          )}
+        </View>
+
         {/* ── Session info ── */}
         <View style={styles.sectionHeader}>
           <Feather name="user" size={15} color={NAVY} />
@@ -559,6 +647,7 @@ const styles = StyleSheet.create({
   autoPrintText:    { fontSize: 11, fontWeight: '700' },
   openDrawerBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#1A2B4A', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
   openDrawerBtnText:{ fontSize: 14, fontWeight: '700', color: '#fff' },
+  pinInput:         { borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: TEXT, backgroundColor: '#F9FAFB', letterSpacing: 8, textAlign: 'center' },
   logoutBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 8 },
   logoutText:       { color: RED, fontSize: 15, fontWeight: '700' },
   lockCard:         { flexDirection: 'row', alignItems: 'center', gap: 14 },

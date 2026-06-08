@@ -26,3 +26,22 @@ export async function getShopDisplaySoundEnabled() {
 export async function setShopDisplaySoundEnabled(enabled: boolean) {
   await AsyncStorage.setItem(SHOP_DISPLAY_SOUND_KEY, enabled ? 'true' : 'false');
 }
+
+// ── Display lock PIN (stored locally per device) ──────────────────────────────
+const DISPLAY_LOCK_PIN_KEY = '@butterfield/shop_display_lock_pin';
+
+export async function getDisplayLockPin(): Promise<string | null> {
+  return AsyncStorage.getItem(DISPLAY_LOCK_PIN_KEY);
+}
+
+export async function setDisplayLockPin(pin: string): Promise<void> {
+  await AsyncStorage.setItem(DISPLAY_LOCK_PIN_KEY, pin);
+}
+
+export async function clearDisplayLockPin(): Promise<void> {
+  await AsyncStorage.removeItem(DISPLAY_LOCK_PIN_KEY);
+}
+
+export function verifyDisplayLockPin(entered: string, stored: string): boolean {
+  return entered === stored;
+}

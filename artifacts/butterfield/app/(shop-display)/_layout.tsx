@@ -2,13 +2,13 @@ import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Image, Platform, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Image, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { useShopDisplayAwakeMode } from '@/lib/shopDisplayMode';
+import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
@@ -53,9 +53,69 @@ export default function ShopDisplayLayout() {
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
+  // ── Display lock ─────────────────────────────────────────────────────────────
+  const [lockPin, setLockPin] = useState<string | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockDigits, setLockDigits] = useState<string[]>([]);
+  const lockShakeAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     getPosLastSyncedAt().then(d => setLastSyncedAt(d));
   }, []);
+
+  // Load lock PIN on mount — lock immediately if PIN is set
+  useEffect(() => {
+    getDisplayLockPin().then(pin => {
+      setLockPin(pin);
+      if (pin) setIsLocked(true);
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refresh lockPin (but don't re-lock) when user navigates — picks up PIN changes from Settings
+  useEffect(() => {
+    getDisplayLockPin().then(setLockPin);
+  }, [pathname]);
+
+  const lockShakeError = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Animated.sequence([
+      Animated.timing(lockShakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
+      Animated.timing(lockShakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
+      Animated.timing(lockShakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
+      Animated.timing(lockShakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
+      Animated.timing(lockShakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+    ]).start(() => setLockDigits([]));
+  }, [lockShakeAnim]);
+
+  const onLockDigit = useCallback((d: string) => {
+    setLockDigits(prev => {
+      const next = [...prev, d].slice(0, 4);
+      if (next.length === 4 && lockPin) {
+        if (verifyDisplayLockPin(next.join(''), lockPin)) {
+          setTimeout(() => {
+            setIsLocked(false);
+            setLockDigits([]);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }, 80);
+        } else {
+          setTimeout(lockShakeError, 80);
+        }
+      }
+      return next;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [lockPin, lockShakeError]);
+
+  const onLockBackspace = useCallback(() => {
+    setLockDigits(d => d.slice(0, -1));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  const doLock = useCallback(() => {
+    if (!lockPin) return;
+    setLockDigits([]);
+    setIsLocked(true);
+  }, [lockPin]);
 
   const syncNow = useCallback(async () => {
     if (syncing) return;
@@ -203,13 +263,12 @@ export default function ShopDisplayLayout() {
             })}
           </View>
 
-          <Pressable
-            onPress={() => logout().then(() => router.replace('/(auth)/login'))}
-            style={styles.sidebarLogout}
-          >
-            <Feather name="log-out" size={15} color={MUTED} />
-            <Text style={styles.sidebarLogoutText}>Sign out</Text>
-          </Pressable>
+          {lockPin ? (
+            <Pressable onPress={doLock} style={styles.sidebarLogout}>
+              <Feather name="lock" size={15} color={MUTED} />
+              <Text style={styles.sidebarLogoutText}>Lock screen</Text>
+            </Pressable>
+          ) : null}
         </View>
       )}
 
@@ -220,13 +279,71 @@ export default function ShopDisplayLayout() {
             badge="SHOP DISPLAY"
             badgeColor={BLUE}
             backgroundColor={NAVY}
-            onLogout={() => logout().then(() => router.replace('/(auth)/login'))}
+            onLock={lockPin ? doLock : undefined}
           />
         )}
         <LayoutSafeAreaContext.Provider value={isWide}>
           {tabScreens}
         </LayoutSafeAreaContext.Provider>
       </View>
+
+      {/* ── Display lock screen overlay ───────────────────────────── */}
+      {isLocked && lockPin && (
+        <View style={[StyleSheet.absoluteFill, styles.lockOverlay]}>
+          <StatusBar barStyle="light-content" backgroundColor={NAVY} />
+          <View style={styles.lockHeader}>
+            <Image
+              source={require('@/assets/images/logo-white.png')}
+              style={styles.lockLogo}
+              resizeMode="contain"
+            />
+            <View style={styles.lockBadge}>
+              <Feather name="lock" size={13} color={BLUE} />
+              <Text style={styles.lockBadgeText}>DISPLAY LOCKED</Text>
+            </View>
+            <Text style={styles.lockSubtitle}>Enter your 4-digit display PIN</Text>
+          </View>
+
+          <Animated.View style={[styles.lockDotsRow, { transform: [{ translateX: lockShakeAnim }] }]}>
+            {[0, 1, 2, 3].map(i => (
+              <View key={i} style={[styles.lockDot, lockDigits[i] !== undefined && styles.lockDotFilled]} />
+            ))}
+          </Animated.View>
+
+          <View style={styles.lockPad}>
+            {[['1','2','3'],['4','5','6'],['7','8','9'],['','0','⌫']].map((row, ri) => (
+              <View key={ri} style={styles.lockPadRow}>
+                {row.map((d, di) =>
+                  d === '' ? (
+                    <View key={di} style={styles.lockPadKey} />
+                  ) : d === '⌫' ? (
+                    <TouchableOpacity key={di} style={styles.lockPadKey} onPress={onLockBackspace} activeOpacity={0.6}>
+                      <Feather name="delete" size={22} color="rgba(255,255,255,0.7)" />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity key={di} style={[styles.lockPadKey, styles.lockPadKeyBtn]} onPress={() => onLockDigit(d)} activeOpacity={0.65}>
+                      <Text style={styles.lockPadKeyText}>{d}</Text>
+                    </TouchableOpacity>
+                  )
+                )}
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={styles.lockSignOutBtn}
+            onPress={() => {
+              Alert.alert('Sign out', 'Are you sure you want to sign out of this display?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign out', style: 'destructive', onPress: () => logout().then(() => router.replace('/(auth)/login')) },
+              ]);
+            }}
+          >
+            <Feather name="log-out" size={14} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.lockSignOutText}>Sign out of this display</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -247,4 +364,22 @@ const styles = StyleSheet.create({
   navLabelActive:    { color: WHITE, fontWeight: '700' },
   sidebarLogout:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   sidebarLogoutText: { color: MUTED, fontSize: 13, fontWeight: '600' },
+
+  // Lock screen
+  lockOverlay:       { backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center', zIndex: 9999 },
+  lockHeader:        { alignItems: 'center', gap: 12, marginBottom: 36 },
+  lockLogo:          { width: 160, height: 46, marginBottom: 4 },
+  lockBadge:         { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(20,147,255,0.2)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
+  lockBadgeText:     { color: BLUE, fontSize: 13, fontWeight: '800', letterSpacing: 0.8 },
+  lockSubtitle:      { color: 'rgba(255,255,255,0.45)', fontSize: 15, fontWeight: '500' },
+  lockDotsRow:       { flexDirection: 'row', gap: 16, marginBottom: 40 },
+  lockDot:           { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'transparent' },
+  lockDotFilled:     { backgroundColor: WHITE, borderColor: WHITE },
+  lockPad:           { gap: 10, width: 260 },
+  lockPadRow:        { flexDirection: 'row', gap: 10 },
+  lockPadKey:        { flex: 1, height: 68, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  lockPadKeyBtn:     { backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  lockPadKeyText:    { fontSize: 26, fontWeight: '400', color: WHITE },
+  lockSignOutBtn:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 44, padding: 12 },
+  lockSignOutText:   { color: 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: '500' },
 });
