@@ -42,7 +42,7 @@ function getShopDisplayAllowedNextStatuses(
   const transitions: Record<string, string[]> = isQuickPickup
     ? { received: ['being_prepared'], being_prepared: ['completed'] }
     : isStandardPickup
-    ? { scheduled: ['accepted'], accepted: ['being_prepared'], being_prepared: ['ready_for_pickup'] }
+    ? { scheduled: ['accepted'], accepted: ['being_prepared'], being_prepared: ['ready_for_pickup'], ready_for_pickup: ['completed'] }
     : isDelivery
     ? { scheduled: ['accepted'], accepted: ['being_prepared'], being_prepared: ['out_for_delivery'], out_for_delivery: ['completed'] }
     : {};
@@ -76,6 +76,7 @@ function getShopDisplayStatusAlert(
     if (status === 'accepted')         return "Your pickup slot is confirmed. We'll prepare it ahead of time.";
     if (status === 'being_prepared')   return 'Your order is being prepared. ☕';
     if (status === 'ready_for_pickup') return 'Your order is ready for pickup! 🎉';
+    if (status === 'completed')        return 'Your order has been collected. Thanks for visiting! 🍪';
   }
   return null;
 }
