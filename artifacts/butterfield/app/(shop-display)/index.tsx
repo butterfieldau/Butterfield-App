@@ -418,6 +418,10 @@ export default function ShopDisplayOrdersScreen() {
         const order = rows.find(o => o.id === id);
         if (order) void printOrder(order);
       }
+      if (status === 'completed' && printerConfig?.autoDrawer && printerConfig?.printerIp) {
+        const drawerPin = ((printerConfig.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
+        sendOpenDrawer(printerConfig.printerIp, printerConfig.printerPort ?? 9100, api.shopDisplay.printerBytes, drawerPin).catch(() => {});
+      }
     } finally {
       setUpdatingOrderId(null);
     }
@@ -432,12 +436,10 @@ export default function ShopDisplayOrdersScreen() {
     const port = printerConfig?.printerPort ?? 9100;
     const brand = printerConfig?.printerBrand === 'star' ? 'star' : 'epson';
     const autoDrawer = printerConfig?.autoDrawer ?? false;
+    const drawerPin = ((printerConfig?.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
     try {
       const job = orderToPrintJob(order, brand);
-      await sendReceiptPrint(job, ip, port, api.shopDisplay.printerBytes);
-      if (autoDrawer) {
-        sendOpenDrawer(ip, port, api.shopDisplay.printerBytes).catch(() => {});
-      }
+      await sendReceiptPrint({ ...job, autoDrawer, drawerPin }, ip, port, api.shopDisplay.printerBytes);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error';
       Alert.alert('Print failed', msg);

@@ -745,7 +745,7 @@ function PosScreenInner() {
           surchargeCents: vars.surchargeCents ?? 0,
           loyaltyPointsEarned: res.loyaltyResult?.pointsEarned,
           printerBrand: store.printerBrand ?? 'epson',
-          autoDrawer: hasCash && !!(store as any).autoDrawer,
+          autoDrawer: !!(store as any).autoDrawer,
           drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1,
         }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
       }
@@ -1297,7 +1297,7 @@ function PosScreenInner() {
               return;
             }
             const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes);
+            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, (store.drawerPin ?? 0) as 0 | 1);
           }}
           busy={
             setRegisterFloatMutation.isPending ||
