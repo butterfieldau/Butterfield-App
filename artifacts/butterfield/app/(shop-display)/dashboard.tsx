@@ -1041,7 +1041,7 @@ const styles = StyleSheet.create({
   rankCount:        { fontSize: 12, color: MUTED, minWidth: 26, textAlign: 'right' },
 
   channelRow:       { flexDirection: 'row', gap: 8 },
-  channelCard:      { flex: 1, backgroundColor: DARK, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 12, alignItems: 'center', gap: 4 },
+  channelCard:      { flex: 1, backgroundColor: BG, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 12, alignItems: 'center', gap: 4 },
   channelIconWrap:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   channelLabel:     { fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
   channelValue:     { fontSize: 14, fontWeight: '800', color: WHITE },
