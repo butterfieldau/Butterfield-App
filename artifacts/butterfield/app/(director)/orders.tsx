@@ -54,20 +54,51 @@ const STATUS_LABEL: Record<string, string> = {
   dispatched: 'Dispatched', delivered: 'Delivered',
   scheduled: 'Scheduled', accepted: 'Confirmed',
 };
-const CUSTOMER_NEXT: Record<string, string[]> = {
-  received:         ['being_prepared', 'cancelled'],
-  being_prepared:   ['received', 'ready_for_pickup', 'cancelled'],
-  ready_for_pickup: ['being_prepared', 'out_for_delivery', 'completed', 'cancelled'],
-  out_for_delivery: ['ready_for_pickup', 'completed', 'cancelled'],
-  completed: [], cancelled: [], refunded: [],
-  scheduled:        ['accepted', 'cancelled'],
-  accepted:         ['being_prepared', 'cancelled'],
+function getCustomerNextStatuses(order: ApiOrder): string[] {
+  const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
+  const isQuickPickup = !isDelivery && !order.scheduledFor;
+
+  const transitions: Record<string, string[]> = isQuickPickup
+    ? {
+        received:       ['being_prepared', 'cancelled', 'refunded'],
+        being_prepared: ['completed', 'cancelled', 'refunded'],
+      }
+    : isDelivery
+    ? {
+        scheduled:        ['accepted', 'cancelled', 'refunded'],
+        accepted:         ['being_prepared', 'cancelled', 'refunded'],
+        being_prepared:   ['out_for_delivery', 'cancelled', 'refunded'],
+        out_for_delivery: ['completed', 'cancelled', 'refunded'],
+      }
+    : {
+        scheduled:        ['accepted', 'cancelled', 'refunded'],
+        accepted:         ['being_prepared', 'cancelled', 'refunded'],
+        being_prepared:   ['ready_for_pickup', 'cancelled', 'refunded'],
+        ready_for_pickup: ['completed', 'cancelled', 'refunded'],
+      };
+
+  return transitions[order.status] ?? [];
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  accepted:         'Accept Order',
+  being_prepared:   'Start Preparing',
+  ready_for_pickup: 'Mark Ready for Pickup',
+  out_for_delivery: 'Mark Out for Delivery',
+  completed:        'Mark Complete',
+  cancelled:        'Cancel Order',
+  refunded:         'Process Refund',
+  received:         'Move Back to Pending',
+  processing:       'Start Processing',
+  dispatched:       'Mark Dispatched',
+  delivered:        'Mark Delivered',
+  pending:          'Move Back to Pending',
 };
 const WHOLESALE_NEXT: Record<string, string[]> = {
-  pending:    ['processing', 'cancelled'],
-  processing: ['pending', 'dispatched', 'cancelled'],
-  dispatched: ['processing', 'delivered', 'cancelled'],
-  delivered: [], cancelled: [],
+  pending:    ['processing', 'cancelled', 'refunded'],
+  processing: ['pending', 'dispatched', 'cancelled', 'refunded'],
+  dispatched: ['processing', 'delivered', 'cancelled', 'refunded'],
+  delivered: [], cancelled: [], refunded: [],
 };
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const FILTER_TABS = [
@@ -161,12 +192,12 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
 
   // 2-week cancellation window for completed/delivered orders
   const withinCancelWindow = (Date.now() - new Date(order.updatedAt).getTime()) < TWO_WEEKS_MS;
-  const rawNext = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : (CUSTOMER_NEXT[order.status] ?? []);
+  const rawNext = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : getCustomerNextStatuses(order);
   const nextWithWindow = (
     canCancelRefund &&
     (order.status === 'completed' || order.status === 'delivered') &&
     withinCancelWindow
-  ) ? ['cancelled'] : rawNext;
+  ) ? ['cancelled', 'refunded'] : rawNext;
   const next = canCancelRefund
     ? nextWithWindow
     : nextWithWindow.filter((s: string) => s !== 'cancelled' && s !== 'refunded');
@@ -182,9 +213,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
       Alert.alert('No Changes Available', `This order is ${label} and has no further status options.`); return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Update Status', 'Move to:', [
+    Alert.alert('Update Status', 'Select action:', [
       ...next.map(s => ({
-        text: STATUS_LABEL[s] ?? s,
+        text: ACTION_LABEL[s] ?? STATUS_LABEL[s] ?? s,
         onPress: () => {
           if (s === 'cancelled' || s === 'refunded') {
             triggerCancel(s);

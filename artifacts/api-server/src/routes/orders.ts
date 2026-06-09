@@ -397,9 +397,10 @@ function getAllowedNextStatuses(
       }
     : isStandardPickup
     ? {
-        scheduled:      ['accepted'],
-        accepted:       ['being_prepared'],
-        being_prepared: ['ready_for_pickup'],
+        scheduled:        ['accepted'],
+        accepted:         ['being_prepared'],
+        being_prepared:   ['ready_for_pickup'],
+        ready_for_pickup: ['completed'],
       }
     : isDelivery
     ? {
