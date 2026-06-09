@@ -28,13 +28,57 @@ import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 const router = Router();
 router.use(requireRole('shop_display'));
 
-const ORDER_STATUS_ALERTS: Record<string, string> = {
-  being_prepared: 'Your order is being prepared. ☕',
-  ready_for_pickup: 'Your order is ready for pickup! 🎉',
-  out_for_delivery: 'Your order is on its way! 🚚',
-  completed: 'Your order is complete. Thanks for visiting! 🍪',
-  cancelled: 'Your order has been cancelled. A refund has been initiated where applicable.',
-};
+const TERMINAL_STATUSES_SD = new Set(['completed', 'cancelled', 'refunded']);
+
+function getShopDisplayAllowedNextStatuses(
+  currentStatus: string,
+  orderType: string,
+  scheduledFor: Date | null,
+): Set<string> {
+  const isQuickPickup = orderType === 'pickup' && !scheduledFor;
+  const isStandardPickup = orderType === 'pickup' && !!scheduledFor;
+  const isDelivery = orderType === 'delivery';
+
+  const transitions: Record<string, string[]> = isQuickPickup
+    ? { received: ['being_prepared'], being_prepared: ['completed'] }
+    : isStandardPickup
+    ? { scheduled: ['accepted'], accepted: ['being_prepared'], being_prepared: ['ready_for_pickup'] }
+    : isDelivery
+    ? { scheduled: ['accepted'], accepted: ['being_prepared'], being_prepared: ['out_for_delivery'], out_for_delivery: ['completed'] }
+    : {};
+
+  const allowed = new Set<string>(transitions[currentStatus] ?? []);
+  if (!TERMINAL_STATUSES_SD.has(currentStatus)) {
+    allowed.add('cancelled');
+  }
+  return allowed;
+}
+
+function getShopDisplayStatusAlert(
+  status: string,
+  orderType: string,
+  scheduledFor: Date | null,
+): string | null {
+  const isQuickPickup = orderType === 'pickup' && !scheduledFor;
+  const isDelivery = orderType === 'delivery';
+
+  if (status === 'cancelled') return 'Your order has been cancelled. A refund has been initiated where applicable.';
+
+  if (isQuickPickup) {
+    if (status === 'being_prepared') return "We're making your order now — won't be long! ☕";
+    if (status === 'completed')      return 'Your order is ready — come pick it up! 🎉';
+  } else if (isDelivery) {
+    if (status === 'accepted')         return "Your delivery is confirmed — we'll start preparing it on the day.";
+    if (status === 'being_prepared')   return 'Your order is being prepared. ☕';
+    if (status === 'out_for_delivery') return 'Your order is on its way! 🚚';
+    if (status === 'completed')        return 'Your order has been delivered! Enjoy 🍪';
+  } else {
+    if (status === 'accepted')         return "Your pickup slot is confirmed. We'll prepare it ahead of time.";
+    if (status === 'being_prepared')   return 'Your order is being prepared. ☕';
+    if (status === 'ready_for_pickup') return 'Your order is ready for pickup! 🎉';
+  }
+  return null;
+}
 
 const ACTIVE_ORDER_RANK: Record<string, number> = {
   received: 0,
@@ -162,8 +206,9 @@ router.patch('/orders/:id/status', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const { id } = req.params;
   const { status } = req.body ?? {};
-  const allowed = ['received', 'being_prepared', 'ready_for_pickup', 'completed', 'cancelled'];
-  if (!allowed.includes(status)) {
+
+  const allValidStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'scheduled', 'accepted'];
+  if (!allValidStatuses.includes(status)) {
     return res.status(400).json({ error: 'Invalid order status for shop display mode.' });
   }
 
@@ -171,6 +216,15 @@ router.patch('/orders/:id/status', async (req, res) => {
   if (!existing) return res.status(404).json({ error: 'Order not found.' });
 
   const previousStatus = existing.status;
+
+  // Enforce per-type transitions
+  const allowed = getShopDisplayAllowedNextStatuses(previousStatus, existing.type, existing.scheduledFor);
+  if (!allowed.has(status)) {
+    return res.status(400).json({
+      error: `Cannot transition from '${previousStatus}' to '${status}' for this order type.`,
+    });
+  }
+
   const [updated] = await db.update(ordersTable)
     .set({ status, updatedAt: new Date() })
     .where(eq(ordersTable.id, id))
@@ -178,7 +232,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
   if (!updated) return res.status(404).json({ error: 'Order not found.' });
 
-  const msg = ORDER_STATUS_ALERTS[status];
+  const msg = getShopDisplayStatusAlert(status, existing.type, existing.scheduledFor);
   if (msg) {
     notifyUser(existing.userId, 'order_status', 'Butterfield Cookies', msg, {
       orderId: id,

@@ -212,15 +212,13 @@ router.post('/', async (req, res) => {
   let order!: typeof ordersTable.$inferSelect;
   const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free' || stripePaymentStatus === 'pay_at_pickup';
 
-  // Detect if this is a future-date delivery (scheduled for a day beyond today in Sydney time)
-  const isFutureDelivery = (() => {
-    if (resolvedOrderType !== 'delivery' || !scheduledFor) return false;
-    const syd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-    const todaySyd = new Date(syd.getFullYear(), syd.getMonth(), syd.getDate());
-    const deliverySyd = new Date(new Date(scheduledFor).toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-    const deliveryDay = new Date(deliverySyd.getFullYear(), deliverySyd.getMonth(), deliverySyd.getDate());
-    return deliveryDay > todaySyd;
-  })();
+  // An order requires acceptance (starts as 'scheduled') if:
+  // - It is a delivery order (any delivery needs staff to confirm), or
+  // - It is a pickup with a scheduledFor time (standard pickup, not ASAP)
+  // Quick pickup (pickup + no scheduledFor) starts as 'received' and goes straight to preparation.
+  const requiresAcceptance = resolvedOrderType === 'delivery' || (resolvedOrderType === 'pickup' && !!scheduledFor);
+  // Keep isFutureDelivery for backwards-compatible notification branching
+  const isFutureDelivery = requiresAcceptance;
 
   try {
     await db.transaction(async (tx) => {
@@ -228,7 +226,7 @@ router.post('/', async (req, res) => {
         id: orderId,
         orderNumber,
         userId: req.user!.id,
-        status: isFutureDelivery ? ('scheduled' as any) : 'received',
+        status: requiresAcceptance ? ('scheduled' as any) : 'received',
         type: resolvedOrderType,
         storeId: resolvedStoreId,
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
@@ -332,29 +330,37 @@ router.post('/', async (req, res) => {
 
   // ── Notify staff and customer of the new order ────────────────────────────
   const itemCount = Array.isArray(items) ? items.length : 1;
-  if (isFutureDelivery) {
-    const deliveryDateLabel = new Date(scheduledFor!).toLocaleDateString('en-AU', {
-      timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short',
-    });
+  if (requiresAcceptance) {
+    const scheduledDateLabel = scheduledFor
+      ? new Date(scheduledFor).toLocaleDateString('en-AU', {
+          timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short',
+        })
+      : null;
+    const orderTypeLabel = resolvedOrderType === 'delivery' ? 'Delivery' : 'Pickup';
+    const datePart = scheduledDateLabel ? ` ${scheduledDateLabel}` : '';
     void sendNotificationToInternalTeam(
       'new_scheduled_order',
-      'Scheduled Delivery Order',
-      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · Delivery ${deliveryDateLabel} — needs acceptance`,
+      `Scheduled ${orderTypeLabel} Order`,
+      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${orderTypeLabel}${datePart} — needs acceptance`,
       { orderId, screen: '/(director)/orders', filter: 'scheduled' },
     ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order internal notification failed'));
 
+    const customerMsg = scheduledDateLabel
+      ? `Your ${resolvedOrderType === 'delivery' ? 'delivery' : 'pickup'} for ${scheduledDateLabel} has been placed and is awaiting confirmation.`
+      : 'Your order has been placed and is awaiting confirmation.';
     void notifyUser(
       req.user!.id,
       'order_scheduled',
       'Order Placed',
-      `Your delivery for ${deliveryDateLabel} has been placed and is awaiting confirmation.`,
+      customerMsg,
       { orderId, screen: '/(customer)/orders' },
     ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order customer notification failed'));
   } else {
+    // Quick pickup — immediate, no acceptance needed
     void sendNotificationToInternalTeam(
       'new_order',
       'New Order In',
-      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${type === 'delivery' ? 'Delivery' : 'Pickup'}`,
+      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · Pickup`,
       { orderId, screen: '/(staff)/orders' },
     ).catch((err) => req.log.warn({ err, orderId }, 'Internal order notification failed'));
 
@@ -370,20 +376,97 @@ router.post('/', async (req, res) => {
   return res.status(201).json({ data: order });
 });
 
+// ── Per-type allowed status transitions ──────────────────────────────────
+// cancel/refund are always permitted from any non-terminal state regardless of type.
+const OVERRIDE_STATUSES = new Set(['cancelled', 'refunded']);
+const TERMINAL_STATUSES = new Set(['completed', 'cancelled', 'refunded']);
+
+function getAllowedNextStatuses(
+  currentStatus: string,
+  orderType: string,
+  scheduledFor: Date | null,
+): Set<string> {
+  const isQuickPickup = orderType === 'pickup' && !scheduledFor;
+  const isStandardPickup = orderType === 'pickup' && !!scheduledFor;
+  const isDelivery = orderType === 'delivery';
+
+  const transitions: Record<string, string[]> = isQuickPickup
+    ? {
+        received:       ['being_prepared'],
+        being_prepared: ['completed'],
+      }
+    : isStandardPickup
+    ? {
+        scheduled:      ['accepted'],
+        accepted:       ['being_prepared'],
+        being_prepared: ['ready_for_pickup'],
+      }
+    : isDelivery
+    ? {
+        scheduled:        ['accepted'],
+        accepted:         ['being_prepared'],
+        being_prepared:   ['out_for_delivery'],
+        out_for_delivery: ['completed'],
+      }
+    : {};
+
+  const allowed = new Set<string>(transitions[currentStatus] ?? []);
+  // Cancel/refund always available unless already terminal
+  if (!TERMINAL_STATUSES.has(currentStatus)) {
+    allowed.add('cancelled');
+    allowed.add('refunded');
+  }
+  return allowed;
+}
+
+// ── Type-aware notification copy ──────────────────────────────────────────
+function getStatusMessage(
+  status: string,
+  orderType: string,
+  scheduledFor: Date | null,
+): string | null {
+  const isQuickPickup = orderType === 'pickup' && !scheduledFor;
+  const isDelivery = orderType === 'delivery';
+
+  if (status === 'cancelled') return 'Your order has been cancelled.';
+  if (status === 'refunded')  return 'Your order has been refunded.';
+
+  if (isQuickPickup) {
+    if (status === 'being_prepared') return "We're making your order now — won't be long! ☕";
+    if (status === 'completed')      return 'Your order is ready — come pick it up! 🎉';
+  } else if (isDelivery) {
+    if (status === 'accepted')         return 'Your delivery is confirmed — we\'ll start preparing it on the day.';
+    if (status === 'being_prepared')   return 'Your order is being prepared.';
+    if (status === 'out_for_delivery') return 'Your order is on its way! 🚚';
+    if (status === 'completed')        return 'Your order has been delivered! Enjoy 🍪';
+  } else {
+    // Standard pickup
+    if (status === 'accepted')         return 'Your pickup slot is confirmed. We\'ll prepare it ahead of time.';
+    if (status === 'being_prepared')   return 'Your order is being prepared.';
+    if (status === 'ready_for_pickup') return 'Your order is ready at the counter! 🛍';
+  }
+  return null;
+}
+
 // ── Status updates are restricted to staff and management roles ───────────
 router.patch(
   '/:id/status',
   requireRole('staff', 'director', 'manager', 'master'),
   async (req, res) => {
     const { status } = req.body;
-    const validStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'refunded', 'scheduled', 'accepted'];
-    if (!validStatuses.includes(status)) {
+    const allValidStatuses = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'completed', 'cancelled', 'refunded', 'scheduled', 'accepted'];
+    if (!allValidStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    // Read current status BEFORE updating so we can guard idempotent side-effects
+    // Read current order (type + status + scheduledFor) BEFORE updating
     const [currentOrder] = await db
-      .select({ id: ordersTable.id, status: ordersTable.status })
+      .select({
+        id: ordersTable.id,
+        status: ordersTable.status,
+        type: ordersTable.type,
+        scheduledFor: ordersTable.scheduledFor,
+      })
       .from(ordersTable)
       .where(eq(ordersTable.id, String(req.params.id)));
     if (!currentOrder) {
@@ -391,20 +474,20 @@ router.patch(
     }
     const previousStatus = currentOrder.status;
 
+    // Enforce type-aware transitions (cancel/refund are always override-allowed)
+    const allowed = getAllowedNextStatuses(previousStatus, currentOrder.type, currentOrder.scheduledFor);
+    if (!allowed.has(status)) {
+      return res.status(400).json({
+        error: `Cannot transition from '${previousStatus}' to '${status}' for this order type.`,
+      });
+    }
+
     const [order] = await db.update(ordersTable)
       .set({ status, updatedAt: new Date() })
       .where(eq(ordersTable.id, String(req.params.id)))
       .returning();
 
-    const STATUS_MSG: Record<string, string> = {
-      being_prepared:   'Your order is being prepared.',
-      ready_for_pickup: 'Your order is ready for pickup!',
-      out_for_delivery: 'Your order is on its way!',
-      completed:        'Your order is complete. Thanks for visiting!',
-      cancelled:        'Your order has been cancelled.',
-      refunded:         'Your order has been refunded.',
-    };
-    const msg = STATUS_MSG[status];
+    const msg = getStatusMessage(status, currentOrder.type, currentOrder.scheduledFor);
     if (order && msg) {
       notifyUser(order.userId, 'order_status', 'Butterfield Cookies', msg,
         { orderId: order.id, status, screen: '/(customer)/orders' }).catch(() => {});
