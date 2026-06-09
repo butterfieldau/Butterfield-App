@@ -19,18 +19,21 @@ type Stage = {
 };
 
 const QUICK_PICKUP_STAGES: Stage[] = [
-  { key: 'being_prepared', label: 'Preparing',  icon: 'package',      desc: 'Our team is freshly making your order right now.' },
-  { key: 'completed',      label: 'Picked Up',  icon: 'star',         desc: 'Enjoy your Butterfield order! See you next time.' },
+  { key: 'received',         label: 'Received',         icon: 'check-circle',  desc: 'Your order is placed and in the queue — we\'ll start making it shortly.' },
+  { key: 'being_prepared',   label: 'Preparing',        icon: 'package',       desc: 'Our team is freshly making your order right now.' },
+  { key: 'ready_for_pickup', label: 'Ready',            icon: 'shopping-bag',  desc: 'Your order is ready at the counter. Come grab it!' },
 ];
 
-const STANDARD_PICKUP_STAGES: Stage[] = [
-  { key: 'accepted',       label: 'Accepted',          icon: 'check-circle',  desc: 'Your pickup slot is confirmed. We\'ll prepare it ahead of time.' },
-  { key: 'being_prepared', label: 'Preparing',          icon: 'package',       desc: 'Our team is freshly baking your order right now.' },
+const SCHEDULED_PICKUP_STAGES: Stage[] = [
+  { key: 'scheduled',        label: 'Scheduled',        icon: 'calendar',      desc: 'Your pickup slot is booked. We\'ll confirm it shortly.' },
+  { key: 'accepted',         label: 'Confirmed',        icon: 'check-circle',  desc: 'Your pickup slot is confirmed. We\'ll prepare it ahead of time.' },
+  { key: 'being_prepared',   label: 'Preparing',        icon: 'package',       desc: 'Our team is freshly baking your order right now.' },
   { key: 'ready_for_pickup', label: 'Ready for Pickup', icon: 'shopping-bag',  desc: 'Your order is ready at the counter. Come grab it!' },
 ];
 
 const DELIVERY_STAGES: Stage[] = [
-  { key: 'accepted',         label: 'Accepted',         icon: 'check-circle',  desc: 'Your delivery is confirmed. We\'ll start preparing it on the day.' },
+  { key: 'scheduled',        label: 'Scheduled',        icon: 'calendar',      desc: 'Your delivery is booked. We\'ll confirm it shortly.' },
+  { key: 'accepted',         label: 'Confirmed',        icon: 'check-circle',  desc: 'Your delivery is confirmed. We\'ll start preparing it on the day.' },
   { key: 'being_prepared',   label: 'Preparing',        icon: 'package',       desc: 'Our team is freshly making your order right now.' },
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: 'truck',         desc: 'Your order is on its way to you!' },
   { key: 'completed',        label: 'Delivered',        icon: 'star',          desc: 'Your order has been delivered. Enjoy 🍪' },
@@ -38,7 +41,7 @@ const DELIVERY_STAGES: Stage[] = [
 
 function getStages(orderType: string, scheduledFor: string | null | undefined): Stage[] {
   if (orderType === 'delivery') return DELIVERY_STAGES;
-  if (orderType === 'pickup' && scheduledFor) return STANDARD_PICKUP_STAGES;
+  if (scheduledFor) return SCHEDULED_PICKUP_STAGES;
   return QUICK_PICKUP_STAGES;
 }
 
@@ -60,7 +63,11 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 function getStageIndex(status: string, stages: Stage[]): number {
-  return stages.findIndex(s => s.key === status);
+  const idx = stages.findIndex(s => s.key === status);
+  // 'completed' is not in quick/scheduled-pickup stage lists (they end at ready_for_pickup).
+  // Treat it as past the final stage so all steps render as checked.
+  if (idx === -1 && status === 'completed') return stages.length;
+  return idx;
 }
 
 function formatDate(iso: string) {
@@ -104,7 +111,11 @@ function AnimatedStep({ stage, index, currentIndex, totalStages, colors }: {
           transform: [{ scale: scaleAnim }],
           opacity: opacityAnim,
         }]}>
-          <Feather name={stage.icon as any} size={16} color={isCompleted || isActive ? '#fff' : colors.mutedForeground} />
+          <Feather
+            name={isCompleted ? 'check' : (stage.icon as any)}
+            size={16}
+            color={isCompleted || isActive ? '#fff' : colors.mutedForeground}
+          />
         </Animated.View>
         {index < totalStages - 1 && (
           <View style={[styles.stageLine, { backgroundColor: isCompleted ? stageColor : colors.border }]} />
@@ -147,14 +158,6 @@ export default function TrackOrderScreen() {
   const stageIndex = getStageIndex(status, stages);
 
   const isCancelled = status === 'cancelled' || status === 'refunded';
-  // Only 'scheduled' is a true pre-pipeline holding state (awaiting acceptance).
-  // 'accepted' is stage 0 of the active pipeline for standard pickup and delivery.
-  const isAwaitingAcceptance = status === 'scheduled';
-
-  // For quick pickup, a 'received' order (queued but not yet preparing) shows the pipeline
-  // with the first step pending — so the customer knows it's in the queue.
-  const isQuickPickup = orderType === 'pickup' && !scheduledFor;
-  const isQuickPickupReceived = isQuickPickup && status === 'received';
 
   // Active = currently moving through the known pipeline steps
   const isActive = stageIndex >= 0 && !isCancelled;
@@ -166,27 +169,13 @@ export default function TrackOrderScreen() {
   const currentStage = stages[stageIndex];
   const statusBadgeLabel = isCancelled
     ? (status === 'refunded' ? 'Refunded' : 'Cancelled')
-    : isQuickPickupReceived
-    ? 'Queued'
     : (currentStage?.label ?? status.replace(/_/g, ' '));
 
   // Live message shown in the coloured banner
-  const liveMessage = isQuickPickupReceived
-    ? "Your order is in the queue — we'll start making it shortly."
-    : currentStage?.desc ?? null;
+  const liveMessage = currentStage?.desc ?? null;
 
-  const scheduledLabel = order?.scheduledFor
-    ? new Date(order.scheduledFor).toLocaleDateString('en-AU', {
-        weekday: 'long', day: 'numeric', month: 'long',
-      })
-    : null;
-
-  // Show the pipeline unless:
-  // - order is cancelled/refunded, OR
-  // - order is in the 'scheduled' pre-acceptance holding state (not yet accepted by staff)
-  // Quick pickup 'received' is NOT a holding state — it shows the pipeline with all steps pending.
-  // 'accepted' is stage 0 of the active pipeline and ALWAYS shows the pipeline.
-  const showPipeline = !isCancelled && !isAwaitingAcceptance;
+  // Show the pipeline for all non-cancelled orders
+  const showPipeline = !isCancelled;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -235,21 +224,8 @@ export default function TrackOrderScreen() {
             )}
           </View>
 
-          {/* Awaiting-acceptance holding card — only shown while status is 'scheduled' */}
-          {isAwaitingAcceptance && scheduledLabel && (
-            <View style={[styles.liveCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Feather name="clock" size={14} color="#92400E" />
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E' }}>Awaiting Confirmation</Text>
-              </View>
-              <Text style={{ fontSize: 12, color: '#92400E', fontWeight: '400', lineHeight: 17 }}>
-                Your {orderType === 'delivery' ? 'delivery' : 'pickup'} for <Text style={{ fontWeight: '700' }}>{scheduledLabel}</Text> is awaiting confirmation from the team. You'll be notified once it's accepted.
-              </Text>
-            </View>
-          )}
-
-          {/* Live message banner (active orders and quick pickup queued) */}
-          {(isActive || isQuickPickupReceived) && liveMessage && (
+          {/* Live message banner (active orders) */}
+          {isActive && liveMessage && (
             <View style={[styles.liveCard, { backgroundColor: `${statusColor}12`, borderColor: `${statusColor}30` }]}>
               <Feather name="zap" size={14} color={statusColor} />
               <Text style={[styles.liveMessage, { color: statusColor }]}>{liveMessage}</Text>
@@ -266,7 +242,7 @@ export default function TrackOrderScreen() {
                     key={stage.key}
                     stage={stage}
                     index={i}
-                    currentIndex={isQuickPickupReceived ? -1 : stageIndex}
+                    currentIndex={stageIndex}
                     totalStages={stages.length}
                     colors={colors}
                   />

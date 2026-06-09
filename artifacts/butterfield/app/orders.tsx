@@ -56,6 +56,7 @@ const STAGE_COLOR: Record<string, string> = {
   received:         '#F59E0B',
   being_prepared:   '#8B5CF6',
   ready_for_pickup: '#22C55E',
+  out_for_delivery: '#3B82F6',
   completed:        '#6B7280',
   cancelled:        '#EF4444',
   refunded:         '#EF4444',
@@ -63,15 +64,23 @@ const STAGE_COLOR: Record<string, string> = {
   accepted:         '#22C55E',
 };
 
-const STAGES_PICKUP = [
-  { key: 'received',          label: 'Received',         icon: 'check-circle' as const, desc: 'Your order has been placed successfully.' },
-  { key: 'being_prepared',    label: 'In Preparation',   icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
+const STAGES_QUICK_PICKUP = [
+  { key: 'received',          label: 'Received',         icon: 'check-circle' as const, desc: 'Your order is placed and in the queue — we\'ll start making it shortly.' },
+  { key: 'being_prepared',    label: 'Preparing',        icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
+  { key: 'ready_for_pickup',  label: 'Ready',            icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
+];
+
+const STAGES_SCHEDULED_PICKUP = [
+  { key: 'scheduled',         label: 'Scheduled',        icon: 'calendar'     as const, desc: 'Your pickup slot is booked. We\'ll confirm it shortly.' },
+  { key: 'accepted',          label: 'Confirmed',        icon: 'check-circle' as const, desc: 'Your pickup slot is confirmed. We\'ll prepare it ahead of time.' },
+  { key: 'being_prepared',    label: 'Preparing',        icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
   { key: 'ready_for_pickup',  label: 'Ready for Pickup', icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
-  { key: 'completed',         label: 'Collected',        icon: 'star'         as const, desc: 'Enjoy your Butterfield goodies! See you next time.' },
 ];
 
 const STAGES_DELIVERY = [
-  { key: 'ready_for_pickup',  label: 'Packed & Ready',   icon: 'box'          as const, desc: 'Your order is packed and ready to leave the kitchen.' },
+  { key: 'scheduled',         label: 'Scheduled',        icon: 'calendar'     as const, desc: 'Your delivery is booked. We\'ll confirm it shortly.' },
+  { key: 'accepted',          label: 'Confirmed',        icon: 'check-circle' as const, desc: 'Your delivery is confirmed. We\'ll start preparing it on the day.' },
+  { key: 'being_prepared',    label: 'Preparing',        icon: 'package'      as const, desc: 'Our team is freshly making your order right now.' },
   { key: 'out_for_delivery',  label: 'Out for Delivery', icon: 'truck'        as const, desc: 'Your order is on its way to you!' },
   { key: 'completed',         label: 'Delivered',        icon: 'star'         as const, desc: 'Your order has been delivered. Enjoy!' },
 ];
@@ -90,7 +99,7 @@ function fmtShort(iso: string) {
   };
 }
 
-type StageItem = typeof STAGES_PICKUP[0] | typeof STAGES_DELIVERY[0];
+type StageItem = typeof STAGES_QUICK_PICKUP[0] | typeof STAGES_DELIVERY[0];
 
 // ── Animated progress step ───────────────────────────────────────────────────
 function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageItem; index: number; currentIndex: number; totalStages: number }) {
@@ -120,7 +129,7 @@ function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageIt
           transform: [{ scale: scaleAnim }],
           opacity: opacityAnim,
         }]}>
-          <Feather name={stage.icon} size={16} color={isCompleted || isActive ? '#fff' : MUTED} />
+          <Feather name={isCompleted ? 'check' : stage.icon} size={16} color={isCompleted || isActive ? '#fff' : MUTED} />
         </Animated.View>
         {index < totalStages - 1 && (
           <View style={[d.stageLine, { backgroundColor: isCompleted ? color : BORDER }]} />
@@ -153,8 +162,15 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
   const order        = data?.data;
   const status       = order?.status ?? 'received';
   const isDelivery   = order?.type === 'delivery';
-  const STAGES       = isDelivery ? STAGES_DELIVERY : STAGES_PICKUP;
-  const stageIndex   = STAGES.findIndex(s => s.key === status);
+  const isScheduledPickup = order?.type === 'pickup' && !!order?.scheduledFor;
+  const STAGES       = isDelivery ? STAGES_DELIVERY : isScheduledPickup ? STAGES_SCHEDULED_PICKUP : STAGES_QUICK_PICKUP;
+  const stageIndex   = (() => {
+    const idx = STAGES.findIndex(s => s.key === status);
+    // 'completed' is not in quick/scheduled-pickup stage lists (they end at ready_for_pickup).
+    // Treat it as past the final stage so all steps render as checked.
+    if (idx === -1 && status === 'completed') return STAGES.length;
+    return idx;
+  })();
   const isCancelled  = status === 'cancelled' || status === 'refunded';
   const isActive     = ACTIVE_STATUSES.includes(status);
   const statusColor  = STAGE_COLOR[status] ?? BLUE;
@@ -207,7 +223,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                   <View style={[d.statusBadge, { backgroundColor: statusColor + '18' }]}>
                     {isActive && <View style={[d.statusDot, { backgroundColor: statusColor }]} />}
                     <Text style={{ fontSize: 12, fontWeight: '600', color: statusColor }}>
-                      {STATUS_LABEL[status] ?? status}
+                      {currentStage?.label ?? STATUS_LABEL[status] ?? status}
                     </Text>
                   </View>
                 </View>
@@ -303,27 +319,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
               </View>
             )}
             {/* ── Progress pipeline ─────────────────────────────────────── */}
-            {status === 'scheduled' ? (
-              <View style={[d.card, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Feather name="clock" size={18} color="#92400E" />
-                  <Text style={[d.sectionTitle, { color: '#92400E' }]}>Awaiting Confirmation</Text>
-                </View>
-                <Text style={{ fontSize: 13, color: '#92400E', opacity: 0.85, fontWeight: '400', lineHeight: 18 }}>
-                  Your delivery order has been placed. We'll confirm your delivery slot shortly and you'll receive a notification once it's accepted.
-                </Text>
-              </View>
-            ) : status === 'accepted' ? (
-              <View style={[d.card, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <Feather name="check-circle" size={18} color="#166534" />
-                  <Text style={[d.sectionTitle, { color: '#166534' }]}>Delivery Confirmed</Text>
-                </View>
-                <Text style={{ fontSize: 13, color: '#166534', opacity: 0.85, fontWeight: '400', lineHeight: 18 }}>
-                  Your delivery has been confirmed! We'll start preparing your order closer to the scheduled date.
-                </Text>
-              </View>
-            ) : !isCancelled ? (
+            {!isCancelled ? (
               <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Text style={d.sectionTitle}>Order progress</Text>
                 <View style={{ marginTop: 8 }}>
