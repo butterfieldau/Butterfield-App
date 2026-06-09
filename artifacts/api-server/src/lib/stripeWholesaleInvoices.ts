@@ -209,7 +209,7 @@ export async function createStripeInvoiceForWholesaleOrder(orderId: string) {
       customer: customerId,
       currency: 'aud',
       quantity: line.quantity,
-      unit_amount: line.unitPriceCents,
+      amount: line.unitPriceCents * line.quantity,
       description: line.description,
       metadata: {
         orderId: order.id,

@@ -178,7 +178,7 @@ router.patch('/scheduled/:id', requireRole('director', 'manager', 'master'), req
   const [existing] = await db
     .select()
     .from(scheduledNotificationsTable)
-    .where(eq(scheduledNotificationsTable.id, req.params.id))
+    .where(eq(scheduledNotificationsTable.id, req.params.id as string))
     .limit(1);
 
   if (!existing) return res.status(404).json({ error: 'Scheduled notification not found.' });
@@ -240,7 +240,7 @@ router.patch('/scheduled/:id', requireRole('director', 'manager', 'master'), req
   const [updated] = await db
     .update(scheduledNotificationsTable)
     .set(updates)
-    .where(eq(scheduledNotificationsTable.id, req.params.id))
+    .where(eq(scheduledNotificationsTable.id, req.params.id as string))
     .returning();
 
   return res.json({ data: updated });
@@ -252,7 +252,7 @@ router.post('/scheduled/:id/cancel', requireRole('director', 'manager', 'master'
   const [existing] = await db
     .select()
     .from(scheduledNotificationsTable)
-    .where(eq(scheduledNotificationsTable.id, req.params.id))
+    .where(eq(scheduledNotificationsTable.id, req.params.id as string))
     .limit(1);
 
   if (!existing) return res.status(404).json({ error: 'Scheduled notification not found.' });
@@ -267,7 +267,7 @@ router.post('/scheduled/:id/cancel', requireRole('director', 'manager', 'master'
       updatedAt: new Date(),
       processingStartedAt: null,
     })
-    .where(eq(scheduledNotificationsTable.id, req.params.id))
+    .where(eq(scheduledNotificationsTable.id, req.params.id as string))
     .returning();
 
   return res.json({ data: updated });
