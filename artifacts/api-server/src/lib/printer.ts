@@ -75,6 +75,8 @@ export interface PrintJob {
   jobType?:            'receipt' | 'tax_invoice';
   paymentMethod?:      string;
   customerEmail?:      string;
+  autoDrawer?:         boolean;
+  drawerPin?:          0 | 1;
 }
 
 export interface RegisterSummaryPrintJob {
@@ -86,9 +88,10 @@ export interface RegisterSummaryPrintJob {
 // ── Cash drawer pulse ─────────────────────────────────────────────────────────
 // ESC p — standard ESC/POS cash drawer kick command.
 // Works in ESC/POS mode on Epson and Star (MCP30) printers.
-// pin=0 (drawer 1), on_time=25ms (×2ms units), off_time=250ms (×2ms units)
-export function buildOpenDrawerBytes(): Buffer {
-  return Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+// pin 0 → drawer 1 (0x00), pin 1 → drawer 2 (0x01).
+// on_time=25ms (×2ms units=0x19), off_time=250ms (×2ms units=0xFA).
+export function buildOpenDrawerBytes(pin: 0 | 1 = 0): Buffer {
+  return Buffer.from([0x1b, 0x70, pin === 1 ? 0x01 : 0x00, 0x19, 0xfa]);
 }
 
 export function buildReceiptBytes(job: PrintJob): Buffer {
@@ -203,9 +206,10 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     // Star MCP30 (ESC/POS mode): ESC d 3 feeds 3 lines then GS V 0 cuts.
     // The CMD_STAR_FEED already handles paper advance, so CMD_FEED_5MM is skipped.
     // Epson: CMD_FEED_5MM gives a clean 5mm gap then GS V 0 cuts.
+    // Cash drawer pulse (if requested) is embedded BEFORE the cut — one TCP write.
     ...(isStar
-      ? [CMD_STAR_FEED, CMD_STAR_CUT]
-      : [CMD_FEED_5MM, CMD_EPSON_CUT]
+      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
+      : [CMD_FEED_5MM,  ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_EPSON_CUT]
     ),
   );
 
@@ -312,7 +316,10 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     Buffer.from('Please retain for your records.\n', 'utf-8'),
     divider('='),
     lf(3),
-    ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
+    ...(isStar
+      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
+      : [CMD_FEED_5MM,  ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_EPSON_CUT]
+    ),
   );
 
   return Buffer.concat(parts);

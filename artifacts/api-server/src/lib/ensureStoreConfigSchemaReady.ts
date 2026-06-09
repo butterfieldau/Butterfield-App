@@ -25,6 +25,8 @@ export async function ensureStoreConfigSchemaReady() {
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS preferred_store_id text`,
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS store_id text`,
           `ALTER TABLE stores ADD COLUMN IF NOT EXISTS auto_print boolean NOT NULL DEFAULT true`,
+          `ALTER TABLE stores ADD COLUMN IF NOT EXISTS auto_drawer boolean NOT NULL DEFAULT false`,
+          `ALTER TABLE stores ADD COLUMN IF NOT EXISTS drawer_pin integer NOT NULL DEFAULT 0`,
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_name text`,
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_phone text`,
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_email text`,

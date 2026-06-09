@@ -138,5 +138,10 @@ export async function ensureShopDisplaySchemaReady() {
     ADD COLUMN IF NOT EXISTS auto_drawer boolean NOT NULL DEFAULT false;
   `);
 
+  await db.execute(sql`
+    ALTER TABLE shop_display_profiles
+    ADD COLUMN IF NOT EXISTS drawer_pin integer NOT NULL DEFAULT 0;
+  `);
+
   ensured = true;
 }

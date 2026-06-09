@@ -1235,12 +1235,12 @@ router.delete('/linkly/transaction/:sessionId', async (req, res) => {
 router.get('/printer-config', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const rows = await db.execute(sql`
-    SELECT printer_ip, printer_port, printer_brand, auto_print, auto_drawer
+    SELECT printer_ip, printer_port, printer_brand, auto_print, auto_drawer, drawer_pin
     FROM shop_display_profiles WHERE user_id = ${req.user!.id}
   `);
   const row = (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
   if (!row) {
-    return res.json({ data: { printerIp: null, printerPort: 9100, printerBrand: 'epson', autoPrint: false, autoDrawer: false } });
+    return res.json({ data: { printerIp: null, printerPort: 9100, printerBrand: 'epson', autoPrint: false, autoDrawer: false, drawerPin: 0 } });
   }
   return res.json({
     data: {
@@ -1249,30 +1249,33 @@ router.get('/printer-config', async (req, res) => {
       printerBrand: row.printer_brand ?? 'epson',
       autoPrint: row.auto_print ?? false,
       autoDrawer: row.auto_drawer ?? false,
+      drawerPin: (row.drawer_pin === 1 ? 1 : 0) as 0 | 1,
     },
   });
 });
 
 router.patch('/printer-config', async (req, res) => {
   await ensureShopDisplaySchemaReady();
-  const { printerIp, printerPort, printerBrand, autoPrint, autoDrawer } = req.body ?? {};
+  const { printerIp, printerPort, printerBrand, autoPrint, autoDrawer, drawerPin } = req.body ?? {};
 
   await db.execute(sql`
-    INSERT INTO shop_display_profiles (user_id, permissions, printer_ip, printer_port, printer_brand, auto_print, auto_drawer)
+    INSERT INTO shop_display_profiles (user_id, permissions, printer_ip, printer_port, printer_brand, auto_print, auto_drawer, drawer_pin)
     VALUES (
       ${req.user!.id}, '[]',
       ${printerIp ?? null},
       ${printerPort ?? 9100},
       ${printerBrand ?? 'epson'},
       ${autoPrint ?? false},
-      ${autoDrawer ?? false}
+      ${autoDrawer ?? false},
+      ${drawerPin === 1 ? 1 : 0}
     )
     ON CONFLICT (user_id) DO UPDATE SET
-      printer_ip    = CASE WHEN ${printerIp !== undefined} THEN ${printerIp ?? null}      ELSE shop_display_profiles.printer_ip    END,
-      printer_port  = CASE WHEN ${printerPort !== undefined} THEN ${printerPort ?? 9100} ELSE shop_display_profiles.printer_port  END,
+      printer_ip    = CASE WHEN ${printerIp !== undefined} THEN ${printerIp ?? null}          ELSE shop_display_profiles.printer_ip    END,
+      printer_port  = CASE WHEN ${printerPort !== undefined} THEN ${printerPort ?? 9100}      ELSE shop_display_profiles.printer_port  END,
       printer_brand = CASE WHEN ${printerBrand !== undefined} THEN ${printerBrand ?? 'epson'} ELSE shop_display_profiles.printer_brand END,
-      auto_print    = CASE WHEN ${autoPrint !== undefined} THEN ${autoPrint ?? false}    ELSE shop_display_profiles.auto_print    END,
-      auto_drawer   = CASE WHEN ${autoDrawer !== undefined} THEN ${autoDrawer ?? false}  ELSE shop_display_profiles.auto_drawer   END,
+      auto_print    = CASE WHEN ${autoPrint !== undefined} THEN ${autoPrint ?? false}          ELSE shop_display_profiles.auto_print    END,
+      auto_drawer   = CASE WHEN ${autoDrawer !== undefined} THEN ${autoDrawer ?? false}        ELSE shop_display_profiles.auto_drawer   END,
+      drawer_pin    = CASE WHEN ${drawerPin !== undefined} THEN ${drawerPin === 1 ? 1 : 0}    ELSE shop_display_profiles.drawer_pin    END,
       updated_at    = NOW()
   `);
 
@@ -1295,6 +1298,8 @@ router.get('/store-printer-config', async (req, res) => {
     printerPort: storesTable.printerPort,
     printerBrand: storesTable.printerBrand,
     autoPrint: storesTable.autoPrint,
+    autoDrawer: storesTable.autoDrawer,
+    drawerPin: storesTable.drawerPin,
   }).from(storesTable).where(eq(storesTable.id, storeId));
 
   if (!store) return res.json({ data: null });
@@ -1304,6 +1309,8 @@ router.get('/store-printer-config', async (req, res) => {
       printerPort: store.printerPort ?? 9100,
       printerBrand: store.printerBrand ?? 'epson',
       autoPrint: store.autoPrint ?? false,
+      autoDrawer: store.autoDrawer ?? false,
+      drawerPin: ((store.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1,
     },
   });
 });
@@ -1583,7 +1590,8 @@ router.post('/printer/bytes', async (req, res) => {
     const { job } = req.body as { job?: any };
     const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
     if (job?.jobType === 'open_drawer') {
-      const bytes = buildOpenDrawerBytes();
+      const pin: 0 | 1 = job?.drawerPin === 1 ? 1 : 0;
+      const bytes = buildOpenDrawerBytes(pin);
       return res.json({ data: { bytes: bytes.toString('base64') } });
     }
     if (job?.jobType === 'register_summary') {

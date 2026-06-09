@@ -354,6 +354,7 @@ function PrinterConfigCard() {
   const [printerBrand, setPrinterBrand] = useState<'epson' | 'star'>('epson');
   const [autoPrint, setAutoPrint] = useState(false);
   const [autoDrawer, setAutoDrawer] = useState(false);
+  const [drawerPin, setDrawerPin] = useState<0|1>(0);
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
   const [testPrinting, setTestPrinting] = useState(false);
@@ -367,6 +368,7 @@ function PrinterConfigCard() {
       setPrinterBrand(cfg.printerBrand === 'star' ? 'star' : 'epson');
       setAutoPrint(cfg.autoPrint ?? false);
       setAutoDrawer(cfg.autoDrawer ?? false);
+      setDrawerPin(((cfg.drawerPin ?? 0) === 1 ? 1 : 0) as 0|1);
     }
   }, [cfg]);
 
@@ -380,6 +382,7 @@ function PrinterConfigCard() {
         printerBrand,
         autoPrint,
         autoDrawer,
+        drawerPin,
       });
       await qc.invalidateQueries({ queryKey: ['shop-display-printer-config'] });
       setMsg({ text: '✓ Printer configuration saved.', ok: true });
@@ -405,6 +408,8 @@ function PrinterConfigCard() {
       setPrinterPort(String(s.printerPort ?? 9100));
       setPrinterBrand(s.printerBrand === 'star' ? 'star' : 'epson');
       setAutoPrint(s.autoPrint ?? false);
+      setAutoDrawer(s.autoDrawer ?? false);
+      setDrawerPin(((s.drawerPin ?? 0) === 1 ? 1 : 0) as 0|1);
       setMsg({ text: '✓ Fields filled from store config. Tap Save to apply.', ok: true });
       Haptics.selectionAsync();
     } catch (e: any) {
@@ -434,7 +439,7 @@ function PrinterConfigCard() {
     setDrawerBusy(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, api.shopDisplay.printerBytes);
+      await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, api.shopDisplay.printerBytes, drawerPin);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert('Drawer Error', e?.message ?? 'Could not open the cash drawer.');
@@ -524,6 +529,28 @@ function PrinterConfigCard() {
         </View>
         <Switch value={autoDrawer} onValueChange={setAutoDrawer} trackColor={{ true: GREEN }} thumbColor="#fff" />
       </View>
+
+      {autoDrawer && (
+        <View style={{ paddingVertical: 10 }}>
+          <Text style={pc.inputLabel}>Drawer Pin</Text>
+          <View style={pc.brandRow}>
+            {([0, 1] as const).map(pin => (
+              <Pressable
+                key={pin}
+                onPress={() => { setDrawerPin(pin); Haptics.selectionAsync(); }}
+                style={[pc.brandBtn, drawerPin === pin && pc.brandBtnActive]}
+              >
+                <Text style={[pc.brandBtnText, drawerPin === pin && pc.brandBtnTextActive]}>
+                  {pin === 0 ? 'Pin 0 (Drawer 1)' : 'Pin 1 (Drawer 2)'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>
+            Most printers use Pin 0. Use Pin 1 only if your drawer is on the second port.
+          </Text>
+        </View>
+      )}
 
       {msg ? (
         <Text style={{ fontSize: 13, fontWeight: '600', color: msg.ok ? GREEN : RED }}>{msg.text}</Text>

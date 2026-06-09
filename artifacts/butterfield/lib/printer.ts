@@ -20,6 +20,8 @@ export interface PrintJob {
   scheduledFor?: Date | null;
   jobType?: 'receipt' | 'tax_invoice' | 'register_summary';
   paymentMethod?: string;
+  autoDrawer?: boolean;
+  drawerPin?: 0 | 1;
 }
 
 export interface RegisterSummaryPrintJob {
@@ -95,8 +97,8 @@ export async function sendRegisterSummaryPrint(job: RegisterSummaryPrintJob, pri
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'register_summary' }));
 }
 
-export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer' }));
+export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin }));
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {

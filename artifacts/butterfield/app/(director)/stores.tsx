@@ -15,7 +15,7 @@ import type { StoreDetail, StoreHour, StoreSummary } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-import { sendTestPrint } from '@/lib/printer';
+import { sendTestPrint, sendOpenDrawer } from '@/lib/printer';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -185,6 +185,9 @@ function StoreEditorModal({
   const [printerPort,      setPrinterPort]       = useState('9100');
   const [printerBrand,     setPrinterBrand]      = useState<'epson' | 'star'>('epson');
   const [autoPrint,        setAutoPrint]         = useState(true);
+  const [autoDrawer,       setAutoDrawer]        = useState(false);
+  const [drawerPin,        setDrawerPin]         = useState<0|1>(0);
+  const [drawerBusy,       setDrawerBusy]        = useState(false);
   const [testPrinting,     setTestPrinting]      = useState(false);
   const [testPrintResult,  setTestPrintResult]   = useState<{ ok: boolean; message: string } | null>(null);
   const [orderCutoffTime,  setOrderCutoffTime]   = useState('');
@@ -219,6 +222,8 @@ function StoreEditorModal({
       setPrinterPort(store.printerPort != null ? String(store.printerPort) : '9100');
       setPrinterBrand((store.printerBrand as 'epson' | 'star') ?? 'epson');
       setAutoPrint(store.autoPrint !== false);
+      setAutoDrawer(store.autoDrawer ?? false);
+      setDrawerPin(((store.drawerPin ?? 0) === 1 ? 1 : 0) as 0|1);
       setOrderCutoffTime(store.orderCutoffTime ?? '');
       setDailySpecial(store.dailySpecial ?? '');
     } else {
@@ -226,7 +231,7 @@ function StoreEditorModal({
       setCountry('Australia'); setLatitude(''); setLongitude(''); setGeofenceRadius('100');
       setPhone(''); setEmail(''); setWebsite(''); setImageUrl(''); setStatus('open'); setPickupAvailable(true);
       setDeliveryAvailable(false); setPublicNotes(''); setInternalNotes('');
-      setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setAutoPrint(true); setOrderCutoffTime(''); setDailySpecial('');
+      setPrinterIp(''); setPrinterPort('9100'); setPrinterBrand('epson'); setAutoPrint(true); setAutoDrawer(false); setDrawerPin(0); setOrderCutoffTime(''); setDailySpecial('');
     }
     setTestPrintResult(null);
     setActiveTab('Details');
@@ -292,6 +297,8 @@ function StoreEditorModal({
         printerPort: parseInt(printerPort, 10) || 9100,
         printerBrand,
         autoPrint,
+        autoDrawer,
+        drawerPin,
         orderCutoffTime: orderCutoffTime.trim() || null,
         dailySpecial: dailySpecial.trim() || null,
         status,
@@ -717,6 +724,41 @@ function StoreEditorModal({
                 </View>
                 <Switch value={autoPrint} onValueChange={setAutoPrint} />
               </View>
+              <View style={{ borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={[s.fieldLabel, { marginBottom: 2 }]}>Cash Drawer Connected?</Text>
+                  <Text style={{ fontSize: 12, color: MUTED }}>
+                    Open drawer embedded in receipt on cash payments
+                  </Text>
+                </View>
+                <Switch value={autoDrawer} onValueChange={setAutoDrawer} />
+              </View>
+              {autoDrawer && (
+                <View style={{ borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingVertical: 12 }}>
+                  <Text style={[s.fieldLabel, { marginBottom: 8 }]}>Drawer Pin</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    {([0, 1] as const).map(pin => (
+                      <Pressable
+                        key={pin}
+                        onPress={() => setDrawerPin(pin)}
+                        style={{
+                          flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center',
+                          borderWidth: 1.5,
+                          borderColor: drawerPin === pin ? BLUE : BORDER,
+                          backgroundColor: drawerPin === pin ? '#EFF6FF' : CARD,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: drawerPin === pin ? BLUE : TEXT }}>
+                          {pin === 0 ? 'Pin 0 (Drawer 1)' : 'Pin 1 (Drawer 2)'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+                    Most printers use Pin 0. Use Pin 1 only if your drawer is on the second port.
+                  </Text>
+                </View>
+              )}
               <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', paddingHorizontal: 14, paddingBottom: 4 }}>
                 Orders for this store will print to this network printer.
               </Text>
@@ -772,6 +814,40 @@ function StoreEditorModal({
                       {testPrintResult.message}
                     </Text>
                   </View>
+                )}
+                {autoDrawer && (
+                  <Pressable
+                    onPress={async () => {
+                      const ip = printerIp.trim();
+                      if (!ip) { setTestPrintResult({ ok: false, message: 'Enter a printer IP address first.' }); return; }
+                      setDrawerBusy(true);
+                      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      try {
+                        await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, undefined, drawerPin);
+                        setTestPrintResult({ ok: true, message: 'Cash drawer opened successfully.' });
+                      } catch (err: any) {
+                        setTestPrintResult({ ok: false, message: err?.message ?? 'Could not open the cash drawer.' });
+                      } finally {
+                        setDrawerBusy(false);
+                      }
+                    }}
+                    disabled={drawerBusy}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                      gap: 8, paddingVertical: 11, borderRadius: 10, marginTop: 8,
+                      borderWidth: 1.5, borderColor: printerIp.trim() ? GREEN : BORDER,
+                      backgroundColor: printerIp.trim() ? '#F0FDF4' : '#F9FAFB',
+                      opacity: drawerBusy ? 0.6 : 1,
+                    }}
+                  >
+                    {drawerBusy
+                      ? <ActivityIndicator size="small" color={GREEN} />
+                      : <Feather name="unlock" size={15} color={printerIp.trim() ? GREEN : MUTED} />
+                    }
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: printerIp.trim() ? GREEN : MUTED }}>
+                      {drawerBusy ? 'Opening…' : 'Open Drawer'}
+                    </Text>
+                  </Pressable>
                 )}
               </View>
             </View>

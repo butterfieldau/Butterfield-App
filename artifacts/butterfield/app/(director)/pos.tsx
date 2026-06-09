@@ -428,6 +428,8 @@ function PosScreenInner() {
         printerPort:  s.printerPort ? Number(s.printerPort) : 9100,
         printerBrand: s.printerBrand ?? 'epson',
         autoPrint:    s.autoPrint === 'true' || s.autoPrint === true,
+        autoDrawer:   s.autoDrawer === 'true' || s.autoDrawer === true,
+        drawerPin:    (Number(s.drawerPin ?? s.drawer_pin ?? 0) === 1 ? 1 : 0) as 0 | 1,
       };
     },
     staleTime: 60_000,
@@ -730,6 +732,8 @@ function PosScreenInner() {
       // Auto-print receipt using the captured ticket items (not the sparse res.data)
       const store = storeData as any;
       const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+      const hasCash = vars.paymentMethod === 'cash' ||
+        (vars.paymentMethod === 'split' && vars.splitPayments?.some(p => p.method === 'cash'));
       if (store?.autoPrint && store?.printerIp) {
         sendReceiptPrint({
           orderId: res.data.id,
@@ -741,13 +745,9 @@ function PosScreenInner() {
           surchargeCents: vars.surchargeCents ?? 0,
           loyaltyPointsEarned: res.loyaltyResult?.pointsEarned,
           printerBrand: store.printerBrand ?? 'epson',
+          autoDrawer: hasCash && !!(store as any).autoDrawer,
+          drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1,
         }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
-      }
-      // Open cash drawer automatically on any cash payment
-      const hasCash = vars.paymentMethod === 'cash' ||
-        (vars.paymentMethod === 'split' && vars.splitPayments?.some(p => p.method === 'cash'));
-      if (hasCash && store?.printerIp) {
-        sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
       }
     },
     onError: (err: any, vars) => {

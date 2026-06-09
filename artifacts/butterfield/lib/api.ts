@@ -2095,6 +2095,7 @@ export interface ShopDisplayPrinterConfig {
   printerBrand: 'epson' | 'star';
   autoPrint: boolean;
   autoDrawer: boolean;
+  drawerPin: 0 | 1;
 }
 
 export interface ShopDisplayStaffMember {
@@ -2299,6 +2300,8 @@ export interface StoreSummary {
   printerPort?: number | null;
   printerBrand?: 'epson' | 'star' | null;
   autoPrint?: boolean;
+  autoDrawer?: boolean;
+  drawerPin?: 0 | 1;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: string;
@@ -2347,6 +2350,8 @@ export interface StoreInput {
   printerPort?: number | null;
   printerBrand?: 'epson' | 'star' | null;
   autoPrint?: boolean;
+  autoDrawer?: boolean;
+  drawerPin?: 0 | 1;
   orderCutoffTime?: string | null;
   dailySpecial?: string | null;
   status?: 'open' | 'coming_soon' | 'temporarily_closed' | 'closed';
@@ -2599,7 +2604,9 @@ export interface PrinterJob {
   lines?: string[];
   copies?: number;
   printerBrand?: 'epson' | 'star';
-  jobType?: 'receipt' | 'tax_invoice' | 'register_summary';
+  jobType?: 'receipt' | 'tax_invoice' | 'register_summary' | 'open_drawer';
+  autoDrawer?: boolean;
+  drawerPin?: 0 | 1;
 }
 
 export interface StaffInviteToken {

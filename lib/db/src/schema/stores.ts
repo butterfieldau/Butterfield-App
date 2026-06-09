@@ -27,6 +27,8 @@ export const storesTable = pgTable("stores", {
   printerPort:      integer("printer_port").notNull().default(9100),
   printerBrand:     text("printer_brand").notNull().default("epson"),
   autoPrint:        boolean("auto_print").notNull().default(true),
+  autoDrawer:       boolean("auto_drawer").notNull().default(false),
+  drawerPin:        integer("drawer_pin").notNull().default(0),
   orderCutoffTime:  text("order_cutoff_time"),
   dailySpecial:     text("daily_special"),
   status:           storeStatusEnum("status").notNull().default("open"),
