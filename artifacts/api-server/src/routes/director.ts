@@ -367,8 +367,8 @@ router.post('/orders/:id/accept', async (req, res) => {
   notifyUser(
     order.userId,
     'order_accepted',
-    'Delivery Confirmed',
-    `Your delivery on ${deliveryLabel} has been confirmed. We'll start preparing it on the day.`,
+    'Order Accepted',
+    `Your order for ${deliveryLabel} has been confirmed. We'll start preparing it on the day.`,
     { orderId: id, status: 'accepted', screen: '/(customer)/orders' },
   ).catch(() => {});
 

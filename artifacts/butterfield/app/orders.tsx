@@ -37,7 +37,7 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled:        'Cancelled',
   refunded:         'Refunded',
   scheduled:        'Awaiting Confirmation',
-  accepted:         'Delivery Confirmed',
+  accepted:         'Order Accepted',
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
