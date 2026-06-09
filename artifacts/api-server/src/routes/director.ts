@@ -26,6 +26,7 @@ import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
+import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
 import { syncWholesaleInvoiceStatuses } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -378,7 +379,6 @@ router.post('/orders/:id/accept', async (req, res) => {
 router.patch('/orders/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status, cancelReason } = req.body;
-  const CUSTOMER_VALID = ['received','being_prepared','ready_for_pickup','out_for_delivery','completed','cancelled','refunded','scheduled','accepted'];
   const WHOLESALE_VALID = ['pending','processing','dispatched','delivered','cancelled'];
 
   // Cancelling or refunding is director/master only — managers cannot do this
@@ -387,15 +387,6 @@ router.patch('/orders/:id/status', async (req, res) => {
     return res.status(403).json({ error: 'Only directors and masters can cancel or refund orders.' });
   }
 
-  const CUSTOMER_STATUS_MSG: Record<string, string> = {
-    being_prepared:   'Your order is being prepared. ☕',
-    ready_for_pickup: 'Your order is ready for pickup! 🎉',
-    out_for_delivery: 'Your order is on its way! 🚚',
-    completed:        'Your order is complete. Thanks for visiting! 🍪',
-    cancelled:        'Your order has been cancelled. A refund has been initiated where applicable.',
-    refunded:         'Your order has been refunded.',
-    accepted:         'Your scheduled delivery has been confirmed. We\'ll prepare it on the day.',
-  };
   const WHOLESALE_STATUS_MSG: Record<string, string> = {
     processing: 'Your wholesale order is being processed.',
     dispatched: 'Your wholesale order has been dispatched. 🚚',
@@ -407,14 +398,26 @@ router.patch('/orders/:id/status', async (req, res) => {
     .select()
     .from(ordersTable).where(eq(ordersTable.id, id));
   if (customerOrder) {
-    if (!CUSTOMER_VALID.includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+    // Validate the requested status against the type-aware transition rules
+    const allowedNext = getAllowedNextStatuses(
+      customerOrder.status,
+      customerOrder.type,
+      customerOrder.scheduledFor ?? null,
+    );
+    if (!allowedNext.has(status)) {
+      const allowedList = [...allowedNext].join(', ');
+      return res.status(400).json({
+        error: `Cannot transition a ${customerOrder.type} order from '${customerOrder.status}' to '${status}'. Allowed next statuses: ${allowedList || 'none (order is terminal)'}.`,
+      });
+    }
+
     const previousStatus = customerOrder.status;
     const setFields: Record<string, any> = { status, updatedAt: new Date() };
     if ((status === 'cancelled' || status === 'refunded') && cancelReason) {
       setFields.cancelReason = String(cancelReason).trim();
     }
     const [updated] = await db.update(ordersTable).set(setFields).where(eq(ordersTable.id, id)).returning();
-    const msg = CUSTOMER_STATUS_MSG[status];
+    const msg = getStatusMessage(status, customerOrder.type, customerOrder.scheduledFor ?? null);
     if (msg) {
       notifyUser(customerOrder.userId, 'order_status', 'Butterfield Cookies', msg,
         { orderId: id, status, screen: '/(customer)/orders' }).catch(() => {});
