@@ -160,7 +160,7 @@ router.post('/shifts/clock-in', async (req, res) => {
       if (!selected) {
         return res.status(403).json({ error: 'That store is not assigned to your account. Please choose one of your assigned stores.' });
       }
-      if (selected.effectiveDistance > selected.radiusMeters) {
+      if (selected.radiusMeters != null && selected.effectiveDistance > selected.radiusMeters) {
         return res.status(403).json({
           error: `You are ${Math.round(selected.distance)}m from ${selected.storeName}. You must be within ${selected.radiusMeters}m to clock in.`,
           distanceMeters: Math.round(selected.distance),
@@ -169,7 +169,7 @@ router.post('/shifts/clock-in', async (req, res) => {
       finalStoreId = selected.storeId;
       distanceMeters = Math.round(selected.distance);
     } else {
-      const matched = measured.find(a => a.effectiveDistance <= a.radiusMeters);
+      const matched = measured.find(a => a.radiusMeters != null && a.effectiveDistance <= a.radiusMeters);
       if (!matched) {
         const nearest = measured[0];
         return res.status(403).json({

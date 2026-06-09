@@ -325,7 +325,7 @@ router.get('/orders', async (req, res) => {
       customerPhone: userMap[o.userId]?.phone ?? null,
     })),
     ...wholesaleOrders.map(wo => {
-      const liveOrder = syncedWholesaleOrders[wo.id] ?? wo;
+      const liveOrder = (syncedWholesaleOrders as Record<string, any>)[wo.id] ?? wo;
       return ({
       ...liveOrder,
       type:          'wholesale',

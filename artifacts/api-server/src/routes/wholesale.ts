@@ -194,7 +194,7 @@ router.get('/orders', async (req, res) => {
   const orders = await db.select().from(wholesaleOrdersTable)
     .where(eq(wholesaleOrdersTable.accountId, account.id))
     .orderBy(desc(wholesaleOrdersTable.createdAt));
-  const synced = await syncWholesaleInvoiceStatuses(orders.map((order) => order.id)).catch(() => ({}));
+  const synced = await syncWholesaleInvoiceStatuses(orders.map((order) => order.id)).catch(() => ({})) as Record<string, any>;
   const data = orders.map((order) => synced[order.id] ?? order);
   return res.json({ data });
 });
@@ -206,7 +206,7 @@ router.get('/orders/:id', async (req, res) => {
   // Customers can only see their own orders
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account || rawOrder.accountId !== account.id) return res.status(403).json({ error: 'Forbidden' });
-  const synced = await syncWholesaleInvoiceStatuses([req.params.id]).catch(() => ({}));
+  const synced = await syncWholesaleInvoiceStatuses([req.params.id]).catch(() => ({})) as Record<string, any>;
   const order = synced[req.params.id] ?? rawOrder;
   return res.json({ data: order });
 });
@@ -218,7 +218,7 @@ router.get('/invoices', async (req, res) => {
   const orders = await db.select().from(wholesaleOrdersTable)
     .where(eq(wholesaleOrdersTable.accountId, account.id))
     .orderBy(desc(wholesaleOrdersTable.createdAt));
-  const synced = await syncWholesaleInvoiceStatuses(orders.map((order) => order.id)).catch(() => ({}));
+  const synced = await syncWholesaleInvoiceStatuses(orders.map((order) => order.id)).catch(() => ({})) as Record<string, any>;
   const data = orders.map((order) => synced[order.id] ?? order);
   return res.json({ data });
 });
@@ -775,7 +775,7 @@ router.delete('/cards/:id', async (req, res) => {
       }
     } else {
       await stripe.customers.update(customerId, {
-        invoice_settings: { default_payment_method: null },
+        invoice_settings: { default_payment_method: null as any },
       });
     }
   }

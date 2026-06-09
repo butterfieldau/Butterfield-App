@@ -15,6 +15,7 @@ export const MANAGER_PERMISSIONS = [
   "pricing",
   "banners",
   "stock",
+  "tasks",
 ] as const;
 
 export type ManagerPermission = typeof MANAGER_PERMISSIONS[number];

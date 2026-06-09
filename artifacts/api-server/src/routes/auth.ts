@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { randomBytes, randomInt, randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable } from '@workspace/db';
-import { eq, and, lt, isNull } from 'drizzle-orm';
+import { eq, and, lt, isNull, sql } from 'drizzle-orm';
 import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
 import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
@@ -374,7 +374,7 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
-    const matched = measured.find((a) => a.effectiveDistanceMeters <= a.radiusMeters);
+    const matched = measured.find((a) => a.radiusMeters != null && a.effectiveDistanceMeters <= a.radiusMeters);
     if (!matched) {
       const nearest = measured[0];
       recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'OUTSIDE_STORE_GEOFENCE', req });
