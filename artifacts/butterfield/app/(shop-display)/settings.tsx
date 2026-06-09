@@ -835,7 +835,7 @@ const styles = StyleSheet.create({
   autoPrintText:    { fontSize: 11, fontWeight: '700' },
   openDrawerBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: '#1A2B4A', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16 },
   openDrawerBtnText:{ fontSize: 14, fontWeight: '700', color: '#fff' },
-  pinInput:         { borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: TEXT, backgroundColor: '#F9FAFB', letterSpacing: 8, textAlign: 'center' },
+  pinInput:         { borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, fontWeight: '700', color: TEXT, backgroundColor: '#F9FAFB', letterSpacing: 0, textAlign: 'center' },
   logoutBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 8 },
   logoutText:       { color: RED, fontSize: 15, fontWeight: '700' },
   lockCard:         { flexDirection: 'row', alignItems: 'center', gap: 14 },

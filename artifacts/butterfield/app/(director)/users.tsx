@@ -536,7 +536,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
                       <TextInput
-                        style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '600', letterSpacing: 4 }}
+                        style={{ flex: 1, fontSize: 15, color: TEXT, fontWeight: '600', letterSpacing: 0 }}
                         value={pinInput}
                         onChangeText={(t) => { setPinInput(t.replace(/\D/g, '').slice(0, 4)); setPinMsg(null); }}
                         placeholder="New PIN"

@@ -949,7 +949,7 @@ const psStyles = StyleSheet.create({
   saveCardRowCompact:{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
   saveCardLabel: { fontSize: 13, fontWeight: '600', color: TEXT },
   discountRow:   { flexDirection: 'row', gap: 8 },
-  discountInput: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '600', letterSpacing: 1.5, backgroundColor: CARD },
+  discountInput: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '600', letterSpacing: 0, backgroundColor: CARD },
   applyBtn:      { paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   discountApplied:{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, backgroundColor: '#F0FDF4', borderWidth: 1.5, borderColor: '#86EFAC' },
   pointsCard:    { gap: 10, padding: 14, borderRadius: 14, backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER },
