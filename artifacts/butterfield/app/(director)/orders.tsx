@@ -401,13 +401,17 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
           {/* Delivery / Pickup */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
-              {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery Details' : 'Pickup Details'}
+              {(order.type === 'delivery' || order.deliveryType === 'delivery')
+                ? 'Delivery Details'
+                : order.scheduledFor ? 'Pickup Details' : 'ASAP Pickup Details'}
             </Text>
             <View style={{ gap: 4, marginTop: 6 }}>
               <View style={styles.detailRow}>
                 <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={MUTED} />
                 <Text style={styles.detailText}>
-                  {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
+                  {(order.type === 'delivery' || order.deliveryType === 'delivery')
+                    ? 'Delivery'
+                    : order.scheduledFor ? 'Pickup' : 'ASAP Pickup'}
                 </Text>
               </View>
               {(order.deliveryAddress || order.street) && (() => {
@@ -670,7 +674,7 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onP
                 paddingHorizontal: 8, paddingVertical: 3 }}>
                 <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={11} color={isDelivery ? '#1E40AF' : '#166534'} />
                 <Text style={{ fontSize: 11, fontWeight: '700', color: isDelivery ? '#1E40AF' : '#166534' }}>
-                  {isDelivery ? 'Delivery' : 'Pickup'}
+                  {isDelivery ? 'Delivery' : (order.scheduledFor ? 'Pickup' : 'ASAP Pickup')}
                 </Text>
               </View>
               {/* Delivery address preview — tappable */}

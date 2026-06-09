@@ -42,10 +42,12 @@ type QueueMode = 'active' | 'completed' | 'cancelled';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 const STATUS_ACTIONS = [
-  { id: 'being_prepared',  label: 'Accept',    icon: 'check-circle', color: BLUE  },
-  { id: 'ready_for_pickup',label: 'Ready',     icon: 'bell',         color: GREEN },
-  { id: 'completed',       label: 'Completed', icon: 'archive',      color: NAVY  },
-  { id: 'cancelled',       label: 'Cancel',    icon: 'x-circle',     color: RED   },
+  { id: 'accepted',         label: 'Accept Order',     icon: 'check-circle', color: BLUE  },
+  { id: 'being_prepared',   label: 'Start Preparing',  icon: 'check-circle', color: BLUE  },
+  { id: 'ready_for_pickup', label: 'Ready for Pickup', icon: 'bell',         color: GREEN },
+  { id: 'out_for_delivery', label: 'Out for Delivery', icon: 'truck',        color: BLUE  },
+  { id: 'completed',        label: 'Completed',        icon: 'archive',      color: NAVY  },
+  { id: 'cancelled',        label: 'Cancel',           icon: 'x-circle',     color: RED   },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -54,23 +56,47 @@ const STATUS_ACTIONS = [
 }>;
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
-  received:        { label: 'Received',   bg: '#DBEAFE', fg: '#1D4ED8' },
-  being_prepared:  { label: 'Preparing',  bg: '#FEF3C7', fg: '#92400E' },
-  ready_for_pickup:{ label: 'Ready',      bg: '#DCFCE7', fg: '#166534' },
-  completed:       { label: 'Completed',  bg: '#E5E7EB', fg: '#374151' },
-  cancelled:       { label: 'Cancelled',  bg: '#FEE2E2', fg: '#B91C1C' },
-  refunded:        { label: 'Refunded',   bg: '#F3E8FF', fg: '#7C3AED' },
+  received:         { label: 'Received',        bg: '#DBEAFE', fg: '#1D4ED8' },
+  scheduled:        { label: 'Scheduled',        bg: '#FFF7ED', fg: '#C2410C' },
+  accepted:         { label: 'Confirmed',         bg: '#EFF6FF', fg: '#2563EB' },
+  being_prepared:   { label: 'Preparing',         bg: '#FEF3C7', fg: '#92400E' },
+  ready_for_pickup: { label: 'Ready',             bg: '#DCFCE7', fg: '#166534' },
+  out_for_delivery: { label: 'Out for Delivery',  bg: '#F5F3FF', fg: '#7C3AED' },
+  completed:        { label: 'Completed',         bg: '#E5E7EB', fg: '#374151' },
+  cancelled:        { label: 'Cancelled',         bg: '#FEE2E2', fg: '#B91C1C' },
+  refunded:         { label: 'Refunded',          bg: '#F3E8FF', fg: '#7C3AED' },
 };
 
-const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup'] as const;
+const ACTIVE_STATUSES = ['received', 'scheduled', 'accepted', 'being_prepared', 'ready_for_pickup', 'out_for_delivery'] as const;
 const COMPLETED_STATUSES = ['completed'] as const;
 const CANCELLED_STATUSES = ['cancelled', 'refunded'] as const;
 
-const NEXT_STATUS_ACTIONS: Partial<Record<ShopDisplayOrder['status'], ReadonlyArray<(typeof STATUS_ACTIONS)[number]['id']>>> = {
-  received: ['being_prepared', 'cancelled'],
-  being_prepared: ['ready_for_pickup', 'cancelled'],
-  ready_for_pickup: ['completed'],
-};
+function getNextStatusActions(order: ShopDisplayOrder): ReadonlyArray<string> {
+  const isDelivery = order.type === 'delivery';
+  const isQuickPickup = !isDelivery && !order.scheduledFor;
+  if (isQuickPickup) {
+    return ({
+      received:       ['being_prepared', 'cancelled'],
+      being_prepared: ['completed'],
+    } as Record<string, string[]>)[order.status] ?? [];
+  }
+  if (!isDelivery) {
+    // Scheduled pickup
+    return ({
+      scheduled:        ['accepted', 'cancelled'],
+      accepted:         ['being_prepared', 'cancelled'],
+      being_prepared:   ['ready_for_pickup', 'cancelled'],
+      ready_for_pickup: ['completed'],
+    } as Record<string, string[]>)[order.status] ?? [];
+  }
+  // Delivery
+  return ({
+    scheduled:        ['accepted', 'cancelled'],
+    accepted:         ['being_prepared', 'cancelled'],
+    being_prepared:   ['out_for_delivery', 'cancelled'],
+    out_for_delivery: ['completed'],
+  } as Record<string, string[]>)[order.status] ?? [];
+}
 
 function formatTime(value?: string | null) {
   if (!value) return 'ASAP';
@@ -493,7 +519,7 @@ export default function ShopDisplayOrdersScreen() {
     const isAlert = alertOrderId === item.id;
     const meta    = STATUS_META[item.status] ?? STATUS_META.received;
     const lines   = normalizeOrderItems(item.items);
-    const availableActions = NEXT_STATUS_ACTIONS[item.status] ?? [];
+    const availableActions = getNextStatusActions(item);
     const isUpdating = updatingOrderId === item.id;
     const primaryAction = STATUS_ACTIONS.find((action) => availableActions.find((status) => status === action.id && status !== 'cancelled'));
     const secondaryAction = STATUS_ACTIONS.find((action) => action.id === 'cancelled' && availableActions.includes('cancelled'));
@@ -508,7 +534,7 @@ export default function ShopDisplayOrdersScreen() {
             <Text style={s.orderMeta}>
               {item.type === 'delivery'
                 ? <Text style={{ color: '#D20001', fontWeight: '700' }}>Delivery</Text>
-                : 'Pickup'}
+                : item.scheduledFor ? 'Pickup' : 'ASAP Pickup'}
               {(item.stripePaymentStatus || item.scheduledFor) ? ' · ' : null}
               {item.stripePaymentStatus ? `Payment: ${fmtPaymentStatus(item.stripePaymentStatus)}` : null}
               {item.stripePaymentStatus && item.scheduledFor ? ' · ' : null}
@@ -574,11 +600,15 @@ export default function ShopDisplayOrdersScreen() {
               <View style={{ gap: 2 }}>
                 <Text style={s.primaryActionText}>{isUpdating ? 'Updating…' : primaryAction.label}</Text>
                 <Text style={s.primaryActionHint}>
-                  {primaryAction.id === 'being_prepared'
-                    ? 'Move into prep'
-                    : primaryAction.id === 'ready_for_pickup'
-                      ? 'Mark ready for collection'
-                      : 'Finish and remove from queue'}
+                  {primaryAction.id === 'accepted'
+                    ? 'Confirm this order'
+                    : primaryAction.id === 'being_prepared'
+                      ? 'Move into prep'
+                      : primaryAction.id === 'ready_for_pickup'
+                        ? 'Mark ready for collection'
+                        : primaryAction.id === 'out_for_delivery'
+                          ? 'Mark out for delivery'
+                          : 'Finish and remove from queue'}
                 </Text>
               </View>
             </Pressable>
@@ -827,7 +857,7 @@ export default function ShopDisplayOrdersScreen() {
                             <Text style={{ fontSize: 13, fontWeight: '700', color: NAVY }}>{order.orderNumber ?? `#${order.id.slice(0, 6).toUpperCase()}`}</Text>
                             <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>{order.customerName ?? 'Customer'}</Text>
                             <Text style={{ fontSize: 12, color: isDelivery ? '#D20001' : MUTED, fontWeight: isDelivery ? '700' : '500' }}>
-                              {isDelivery ? 'Delivery' : 'Pickup'} · {timeStr}
+                              {isDelivery ? 'Delivery' : order.scheduledFor ? 'Pickup' : 'ASAP Pickup'} · {timeStr}
                             </Text>
                           </View>
                           <View style={{ alignItems: 'flex-end', gap: 6 }}>
@@ -977,9 +1007,9 @@ export default function ShopDisplayOrdersScreen() {
         const total = `$${((d.totalCents ?? 0) / 100).toFixed(2)}`;
         const meta = STATUS_META[d.status] ?? STATUS_META.received;
         const lines = normalizeOrderItems(d.items);
-        const availableActions = NEXT_STATUS_ACTIONS[d.status] ?? [];
+        const availableActions = getNextStatusActions(d);
         const isUpdating = updatingOrderId === d.id;
-        const primaryAction = STATUS_ACTIONS.find((a) => availableActions.find((ss) => ss === a.id && ss !== 'cancelled'));
+        const primaryAction = STATUS_ACTIONS.find((a) => availableActions.find((ss: string) => ss === a.id && ss !== 'cancelled'));
         const secondaryAction = STATUS_ACTIONS.find((a) => a.id === 'cancelled' && availableActions.includes('cancelled'));
         const isDelivery = d.type === 'delivery';
         const deliveryAddr = [d.street, d.suburb, d.postcode].filter(Boolean).join(', ') || d.deliveryAddress || null;
@@ -1034,7 +1064,9 @@ export default function ShopDisplayOrdersScreen() {
                   </View>
 
                   {/* Fulfilment */}
-                  <Text style={[s.detailSectionLabel, { marginTop: 14 }]}>{isDelivery ? 'Delivery' : 'Pickup'}</Text>
+                  <Text style={[s.detailSectionLabel, { marginTop: 14 }]}>
+                    {isDelivery ? 'Delivery' : d.scheduledFor ? 'Pickup' : 'ASAP Pickup'}
+                  </Text>
                   <View style={s.detailInfoCard}>
                     <View style={s.detailInfoRow}>
                       <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={13} color={NAVY} />
