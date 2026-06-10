@@ -14,6 +14,20 @@ const INDIGO = '#4F46E5';
 const GREEN = '#16A34A';
 const RED = '#EF4444';
 
+function relativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} ${diffHr === 1 ? 'hour' : 'hours'} ago`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 30) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
+}
+
 type Props = {
   title?: string;
   subtitle?: string;
@@ -287,7 +301,19 @@ export default function LinklyCloudSettingsCard({
 
       <View style={s.statusCard}>
         <StatusRow label="Configured" ok={cfg?.linklyConfigComplete ?? false} text={cfg?.linklyConfigComplete ? 'Ready' : 'Missing details'} />
-        <StatusRow label="Paired" ok={cfg?.isPaired ?? false} text={cfg?.isPaired ? 'PIN pad paired' : 'Not paired'} />
+        <StatusRow
+          label="Paired"
+          ok={cfg?.isPaired ?? false}
+          text={
+            cfg?.isPaired && cfg?.lastPairedAt
+              ? `Paired ${relativeTime(cfg.lastPairedAt)}`
+              : cfg?.isPaired
+              ? 'PIN pad paired'
+              : cfg?.lastPairedAt
+              ? `Not paired · last paired ${relativeTime(cfg.lastPairedAt)}`
+              : 'Not yet paired'
+          }
+        />
         <StatusRow
           label="Token"
           ok={!!cfg?.tokenExpiresAt}
