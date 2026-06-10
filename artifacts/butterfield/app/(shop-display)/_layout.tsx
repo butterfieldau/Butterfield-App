@@ -160,10 +160,10 @@ export default function ShopDisplayLayout() {
   if (!user) return <Redirect href="/(auth)/login" />;
   if (user.role !== 'shop_display') return <Redirect href={getHomeRouteForRole(user.role)} />;
 
-  const activeSegment = pathname.split('/').pop() ?? 'index';
+  const activeSegment = pathname.split('/').filter(Boolean).pop() ?? '';
   const isActive = (segment: string) =>
     segment === 'index'
-      ? (activeSegment === 'index' || activeSegment === '(shop-display)')
+      ? (!activeSegment || activeSegment === 'index' || activeSegment === '(shop-display)')
       : activeSegment === segment;
 
   const visibleNavItems = NAV_ITEMS.filter((item) => !('perm' in item) || permissions.includes(item.perm!));
@@ -278,7 +278,7 @@ export default function ShopDisplayLayout() {
                       : `/(shop-display)/${item.segment}`;
                     router.navigate(route as any);
                   }}
-                  style={[styles.navItem, active && styles.navItemActive]}
+                  style={({ pressed }) => [styles.navItem, active && styles.navItemActive, pressed && !active && styles.navItemPressed]}
                 >
                   <Feather name={item.icon} size={18} color={active ? BLUE : MUTED} />
                   <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
@@ -389,6 +389,7 @@ const styles = StyleSheet.create({
   navList:           { flex: 1, paddingHorizontal: 10, gap: 2 },
   navItem:           { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
   navItemActive:     { backgroundColor: 'rgba(20,147,255,0.18)' },
+  navItemPressed:    { backgroundColor: 'rgba(255,255,255,0.07)' },
   navLabel:          { fontSize: 14, fontWeight: '600', color: MUTED, flex: 1 },
   navLabelActive:    { color: WHITE, fontWeight: '700' },
   navBadge:          { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
