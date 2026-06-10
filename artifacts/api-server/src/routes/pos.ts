@@ -1411,10 +1411,13 @@ router.patch('/linkly/config', async (req, res) => {
 
 router.post('/linkly/pair', async (req, res) => {
   await ensurePosSchemaReady();
+  req.log.info({ userId: req.user!.id }, 'Linkly pair: request received');
   try {
     const result = await pairLinklyPinPad(req.user!.id);
+    req.log.info({ userId: req.user!.id, terminalId: result.terminalId }, 'Linkly pair: succeeded');
     return res.json({ success: true, terminalId: result.terminalId ?? null });
   } catch (error: any) {
+    req.log.warn({ userId: req.user!.id, err: error?.message }, 'Linkly pair: failed');
     return res.status(400).json({ error: error?.message ?? 'Linkly pairing failed.' });
   }
 });

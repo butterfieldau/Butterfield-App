@@ -1,6 +1,26 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'crypto';
 import { db } from '@workspace/db';
 import { sql } from 'drizzle-orm';
+import { logger } from './logger.js';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function extractLinklyErrorMessage(body: any): string {
+  const candidates = [
+    body?.Message, body?.message, body?.Detail, body?.detail,
+    body?.title, body?.error, body?.Error,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c.trim();
+  }
+  try {
+    const raw = JSON.stringify(body);
+    if (!raw || raw === '{}') return 'Linkly returned an empty error response.';
+    return raw.length > 300 ? raw.slice(0, 300) + '…' : raw;
+  } catch {
+    return 'Linkly returned an unreadable error response.';
+  }
+}
 
 export type LinklyEnvironment = 'sandbox' | 'production';
 export type LinklyTransactionSource = 'pos' | 'shop_display' | 'management';
@@ -375,8 +395,21 @@ function assertConfigComplete(row: StoredLinklyConfig | null): asserts row is St
   if (!row?.linkly_username || !row.linkly_password_encrypted || !row.linkly_pairing_code) {
     throw new Error('Linkly username, password, and pair code are required.');
   }
-  if (!row.linkly_pos_id || !row.linkly_pos_vendor_id) {
-    throw new Error('Linkly POS ID and POS Vendor ID are required.');
+  if (!row.linkly_pos_id) {
+    throw new Error('Linkly POS ID is required.');
+  }
+  if (!UUID_REGEX.test(row.linkly_pos_id)) {
+    throw new Error(
+      `POS ID must be a valid UUID (e.g. 2a6d4cb3-91b5-4b68-9e21-6b88d7d1a9ef). Current value is not a UUID.`,
+    );
+  }
+  if (!row.linkly_pos_vendor_id) {
+    throw new Error('Linkly POS Vendor ID is required.');
+  }
+  if (!UUID_REGEX.test(row.linkly_pos_vendor_id)) {
+    throw new Error(
+      `POS Vendor ID must be a valid UUID (e.g. 2a6d4cb3-91b5-4b68-9e21-6b88d7d1a9ef). Current value is not a UUID.`,
+    );
   }
 }
 
@@ -392,7 +425,18 @@ export async function pairLinklyPinPad(userId: string) {
   const row = await getStoredConfig(userId);
   assertConfigComplete(row);
   const password = await getDecryptedPassword(row);
-  const { auth } = getBaseUrls(normaliseEnvironment(row.linkly_environment));
+  const env = normaliseEnvironment(row.linkly_environment);
+  const { auth } = getBaseUrls(env);
+
+  logger.info({
+    env,
+    hasUsername: Boolean(row.linkly_username),
+    hasPassword: true,
+    hasPairingCode: Boolean(row.linkly_pairing_code?.trim()),
+    posIdIsUuid: UUID_REGEX.test(row.linkly_pos_id ?? ''),
+    posVendorIdIsUuid: UUID_REGEX.test(row.linkly_pos_vendor_id ?? ''),
+  }, 'Linkly pairing: pre-flight checks');
+
   const response = await fetchJson(`${auth}/v1/pairing/cloudpos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -402,8 +446,14 @@ export async function pairLinklyPinPad(userId: string) {
       pairCode: row.linkly_pairing_code,
     }),
   });
+
+  logger.info({
+    httpStatus: response.status,
+    bodyKeys: response.body && typeof response.body === 'object' ? Object.keys(response.body) : [],
+  }, 'Linkly pairing: response received');
+
   if (!response.ok) {
-    throw new Error(response.body?.message ?? response.body?.error ?? 'Linkly pairing failed.');
+    throw new Error(extractLinklyErrorMessage(response.body));
   }
   const secret = response.body?.secret ?? response.body?.Secret;
   if (!secret) throw new Error('Linkly pairing succeeded but no secret was returned.');
@@ -459,7 +509,7 @@ export async function getLinklyToken(userId: string, forceRefresh = false) {
     }),
   });
   if (!response.ok) {
-    throw new Error(response.body?.message ?? response.body?.error ?? 'Linkly token request failed.');
+    throw new Error(extractLinklyErrorMessage(response.body));
   }
   const token = response.body?.token ?? response.body?.Token;
   const expirySeconds = Number(response.body?.expirySeconds ?? response.body?.ExpirySeconds ?? 0);
