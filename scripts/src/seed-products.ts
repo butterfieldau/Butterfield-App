@@ -10,7 +10,7 @@ async function tryFetchCreds(hostname: string, token: string, env: string): Prom
     signal: AbortSignal.timeout(10_000),
   });
   if (!resp.ok) return null;
-  const data = await resp.json();
+  const data = await resp.json() as { items?: Array<{ settings?: { secret?: string } }> };
   return data.items?.[0]?.settings?.secret ?? null;
 }
 
@@ -127,6 +127,12 @@ const PRODUCTS = [
   },
 ];
 
+function toMetadata(obj: Record<string, string | undefined>): Stripe.MetadataParam {
+  return Object.fromEntries(
+    Object.entries(obj).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+}
+
 async function run() {
   const { secretKey } = await getStripeCredentials();
   const stripe = new Stripe(secretKey);
@@ -142,7 +148,7 @@ async function run() {
     const product = await stripe.products.create({
       name: item.name,
       description: item.description,
-      metadata: item.metadata,
+      metadata: toMetadata(item.metadata),
     });
     await stripe.prices.create({
       product: product.id,

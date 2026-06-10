@@ -199,7 +199,7 @@ router.patch('/scheduled/:id', requireRole('director', 'manager', 'master'), req
     status,
   } = req.body ?? {};
 
-  const updates: Record<string, unknown> = { updatedAt: new Date(), processingStartedAt: null, lastError: null };
+  const updates: Partial<typeof scheduledNotificationsTable.$inferInsert> = { updatedAt: new Date(), processingStartedAt: null, lastError: null };
 
   if (title !== undefined) {
     if (!String(title).trim()) return res.status(400).json({ error: 'Title is required.' });

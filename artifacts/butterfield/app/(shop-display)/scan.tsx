@@ -1,7 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, TextInput } from 'react-native';
-import { useIsFocused } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { StampScanScreen } from '@/components/StampScanScreen';
+
+function useIsFocused(): boolean {
+  const [isFocused, setIsFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, []),
+  );
+  return isFocused;
+}
 
 export default function ShopDisplayScanScreen() {
   const isFocused = useIsFocused();
