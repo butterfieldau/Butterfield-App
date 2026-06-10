@@ -204,8 +204,17 @@ export default function MenuScreen() {
       icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
       imageUrl: toCategoryImageUrl(c.imageUrl),
     }));
-    return [{ id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null }, ...items];
+    return [...items, { id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null }];
   }, [categoriesData]);
+
+  // Auto-select the first real category when categories load (unless the user
+  // already picked one or a category was passed via navigation params).
+  useEffect(() => {
+    if (!params.category && !userChangedCategory && categories.length > 1) {
+      setActiveCategory(categories[0].id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
   const listRef = useRef(null);
   useScrollToTop(listRef);
   const shimmerProgress = useSharedValue(0);
