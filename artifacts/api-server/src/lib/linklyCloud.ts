@@ -115,7 +115,10 @@ const DEFAULT_POS_NAME = 'Butterfield POS';
 const DEFAULT_POS_VERSION = '1.3.1';
 const TOKEN_REFRESH_BUFFER_MS = 90_000;
 const FETCH_TIMEOUT_MS = 65_000;
-const RECOVERABLE_HTTP_STATUSES = new Set([408, 500, 502, 503, 504]);
+
+function isRecoverableLinklyStatus(status: number): boolean {
+  return status === 408 || (status >= 500 && status <= 599);
+}
 
 function getEncKey(): Buffer {
   const secret = process.env.SESSION_SECRET;
@@ -808,7 +811,7 @@ async function runManagementAction({
   const sessionId = randomUUID();
   const response = await callLinklyManagementAction(userId, environment, sessionId, requestType, requestPayload);
   if (!response.ok) {
-    throw new Error(response.body?.message ?? response.body?.error ?? `Linkly ${requestType} failed.`);
+    throw new Error(extractLinklyErrorMessage(response.body));
   }
 
   const payload = response.body ?? {};
@@ -883,10 +886,10 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
   try {
     const response = await callLinklyTransaction(args.userId, environment, args.sessionId, requestPayload);
     if (!response.ok) {
-      if (RECOVERABLE_HTTP_STATUSES.has(response.status)) {
+      if (isRecoverableLinklyStatus(response.status)) {
         return { sessionId: args.sessionId, txnRef: args.txnRef, amountCents: args.amountCents, recoveryRequired: true };
       }
-      const message = response.body?.message ?? response.body?.error ?? 'Linkly transaction failed.';
+      const message = extractLinklyErrorMessage(response.body);
       const failed = {
         ...pendingRecord,
         status: 'declined' as const,
