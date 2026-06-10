@@ -756,7 +756,7 @@ async function callLinklyTransaction(
 ) {
   const token = await getLinklyToken(userId);
   const { rest } = getBaseUrls(environment);
-  return fetchJson(`${rest}/v1/sessions/${sessionId}/transaction?async=false`, {
+  return fetchJson(`${rest}/v1/sessions/${sessionId}/transaction?async=true`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -906,13 +906,27 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
       args.txnRef,
       response.body,
     );
-    await upsertTransaction(args.userId, parsed, requestPayload);
+    const initialRecord = parsed.complete
+      ? parsed
+      : {
+          ...pendingRecord,
+          txnRef: parsed.txnRef,
+          responseText:
+            firstString(
+              response.body?.Response?.ResponseText,
+              response.body?.response?.ResponseText,
+              response.body?.displayMessage,
+              response.body?.message,
+            ) ?? 'Sent to terminal. Waiting for card…',
+          rawResponse: response.body,
+        };
+    await upsertTransaction(args.userId, initialRecord, requestPayload);
     return {
       sessionId: args.sessionId,
-      txnRef: parsed.txnRef,
+      txnRef: initialRecord.txnRef,
       amountCents: parsed.amountCents,
       recoveryRequired: false,
-      immediateResult: parsed,
+      immediateResult: initialRecord,
     };
   } catch (error: any) {
     if (error?.name === 'AbortError') {
