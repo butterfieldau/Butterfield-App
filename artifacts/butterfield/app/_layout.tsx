@@ -11,7 +11,7 @@ import { Animated, AppState, Image, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider } from "@/context/AuthContext";
@@ -116,6 +116,7 @@ function RootLayoutNav() {
 // there's no visible jump, holds for 2 s, then fades out at 60 fps.
 function JsSplashOverlay({ onDone }: { onDone: () => void }) {
   const opacity = useRef(new Animated.Value(1)).current;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const holdTimer = setTimeout(() => {
@@ -141,6 +142,13 @@ function JsSplashOverlay({ onDone }: { onDone: () => void }) {
           <Image
             source={require('../assets/images/logo-white.png')}
             style={styles.splashLogo}
+            resizeMode="contain"
+          />
+        </View>
+        <View style={[styles.splashWatermarkContainer, { paddingBottom: insets.bottom + 24 }]}>
+          <Image
+            source={require('../assets/images/launchtime-watermark.png')}
+            style={styles.splashWatermark}
             resizeMode="contain"
           />
         </View>
@@ -223,5 +231,17 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 340,
     height: 92,
+  },
+  splashWatermarkContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  splashWatermark: {
+    width: 140,
+    height: 20,
+    opacity: 0.85,
   },
 });
