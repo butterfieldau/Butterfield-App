@@ -156,6 +156,7 @@ export default function DirectorLayout() {
           <Tabs.Screen name="settings-directors" options={{ href: null }} />
 
           {/* Always hidden for staff/manager */}
+          <Tabs.Screen name="linkly"              options={{ href: null }} />
           <Tabs.Screen name="_staff-dashboard"    options={{ href: null }} />
           <Tabs.Screen name="_crmCustomersTab"    options={{ href: null }} />
           <Tabs.Screen name="more-category"                  options={{ href: null }} />
@@ -199,6 +200,7 @@ export default function DirectorLayout() {
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.more)}
           options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
+        <Tabs.Screen name="linkly"           options={{ href: null }} />
         <Tabs.Screen name="scan"             options={{ href: null }} />
         <Tabs.Screen name="tasks"            options={{ href: null }} />
         <Tabs.Screen name="staffhub"         options={{ href: null }} />
