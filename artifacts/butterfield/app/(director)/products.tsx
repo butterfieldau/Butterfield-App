@@ -1481,6 +1481,41 @@ export default function DirectorProductsScreen() {
       }},
     ]);
   };
+  const handleDeletePermanent = (product: any) => {
+    Alert.alert(
+      'Delete permanently?',
+      `This will completely remove "${product.name}" from the system. This cannot be undone.\n\nIf the product appears in any past orders it cannot be deleted — archive it instead.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, delete permanently',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Are you sure?',
+              `"${product.name}" will be permanently deleted.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                      await api.director.deleteProductPermanent(product.id);
+                      await qc.invalidateQueries({ queryKey: ['director-products'] });
+                    } catch (e: any) {
+                      Alert.alert('Cannot delete', e.message ?? 'Delete failed. Please try again.');
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  };
   const handleRestore = async (product: any) => {
     Haptics.selectionAsync();
     try {
@@ -1530,6 +1565,11 @@ export default function DirectorProductsScreen() {
         text: product.isActive ? 'Archive' : 'Restore',
         style: (product.isActive ? 'destructive' : 'default') as 'destructive' | 'default',
         onPress: () => product.isActive ? handleArchive(product) : handleRestore(product),
+      },
+      {
+        text: 'Delete permanently',
+        style: 'destructive' as const,
+        onPress: () => handleDeletePermanent(product),
       },
       { text: 'Cancel', style: 'cancel' as const },
     ];

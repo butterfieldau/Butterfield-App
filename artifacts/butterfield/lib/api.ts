@@ -513,6 +513,7 @@ export const api = {
     createProduct:       (data: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
     updateProduct:       (id: string, updates: Partial<DirectorProductInput>) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
+    deleteProductPermanent: (id: string) => request<{ success: boolean }>(`/director/products/${id}/permanent`, { method: 'DELETE' }),
     settings:            () => request<{ data: Record<string, string> }>('/director/settings'),
     updateSettings:      (settings: Record<string, string>) => request<{ data: Record<string, string> }>('/director/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
     loyaltyTierSettings: async () => {

@@ -1512,6 +1512,27 @@ router.delete('/products/:id', async (req, res) => {
   return res.json({ success: true });
 });
 
+router.delete('/products/:id/permanent', requireRole('director', 'master'), async (req, res) => {
+  const id = req.params.id as string;
+  const [product] = await db.select({ id: productsTable.id, name: productsTable.name })
+    .from(productsTable).where(eq(productsTable.id, id));
+  if (!product) return res.status(404).json({ error: 'Product not found.' });
+  try {
+    await db.delete(productsTable).where(eq(productsTable.id, id));
+    return res.json({ success: true });
+  } catch (err: any) {
+    const msg = String(err?.message ?? '');
+    if (msg.includes('foreign key') || msg.includes('violates') || msg.includes('constraint')) {
+      return res.status(409).json({
+        error: `"${product.name}" cannot be deleted because it appears in past orders. Archive it instead to hide it from menus while keeping your order history intact.`,
+        code: 'HAS_ORDER_HISTORY',
+      });
+    }
+    req.log.error({ err }, 'permanent product delete failed');
+    return res.status(500).json({ error: 'Delete failed. Please try again.' });
+  }
+});
+
 // ── Store settings ───────────────────────────────────────────────────────────
 router.get('/settings', async (req, res) => {
   await db.insert(storeSettingsTable).values([
