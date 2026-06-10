@@ -236,12 +236,22 @@ export const api = {
       request<{ granted: boolean }>('/shop-display/verify-settings-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
     getLinklyConfig: () =>
       request<{ data: LinklyConfig }>('/shop-display/linkly'),
-    saveLinklyConfig: (data: { linklyEnabled?: boolean; linklyUsername?: string; linklyPassword?: string; linklyPairingCode?: string }) =>
+    saveLinklyConfig: (data: {
+      linklyEnabled?: boolean;
+      environment?: 'sandbox' | 'production';
+      linklyUsername?: string;
+      linklyPassword?: string;
+      linklyPairingCode?: string;
+      linklyPosName?: string;
+      linklyPosVersion?: string;
+      linklyPosId?: string;
+      linklyPosVendorId?: string;
+    }) =>
       request<{ success: boolean }>('/shop-display/linkly', { method: 'PATCH', body: JSON.stringify(data) }),
     testLinkly: () =>
       request<{ success: boolean; terminalId?: string | null }>('/shop-display/linkly/test', { method: 'POST', body: '{}' }),
     startLinklyTransaction: (orderId: string) =>
-      request<{ data: { sessionId: string; amountCents: number } }>('/shop-display/linkly/transaction', { method: 'POST', body: JSON.stringify({ orderId }) }),
+      request<{ data: { sessionId: string; amountCents: number; txnRef?: string } }>('/shop-display/linkly/transaction', { method: 'POST', body: JSON.stringify({ orderId }) }),
     pollLinklyTransaction: (sessionId: string) =>
       request<{ data: LinklyTransactionStatus }>(`/shop-display/linkly/transaction/${sessionId}`),
     cancelLinklyTransaction: (sessionId: string) =>
@@ -908,7 +918,8 @@ export const api = {
       paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
       surchargeCents?: number;
-      splitPayments?: { method: string; amountCents: number }[];
+      splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
+      linklySessionId?: string;
       customerId?: string;
       discountCode?: string;
       discountCodeId?: string;
@@ -955,8 +966,30 @@ export const api = {
       request<{ success: boolean }>(`/pos/surcharges/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteSurcharge: (id: string) =>
       request<{ success: boolean }>(`/pos/surcharges/${id}`, { method: 'DELETE' }),
+    getLinklyConfig: () =>
+      request<{ data: LinklyConfig }>('/pos/linkly/config'),
+    saveLinklyConfig: (data: {
+      linklyEnabled?: boolean;
+      environment?: 'sandbox' | 'production';
+      linklyUsername?: string;
+      linklyPassword?: string;
+      linklyPairingCode?: string;
+      linklyPosName?: string;
+      linklyPosVersion?: string;
+      linklyPosId?: string;
+      linklyPosVendorId?: string;
+    }) =>
+      request<{ success: boolean }>('/pos/linkly/config', { method: 'PATCH', body: JSON.stringify(data) }),
+    pairLinkly: () =>
+      request<{ success: boolean; terminalId?: string | null }>('/pos/linkly/pair', { method: 'POST', body: '{}' }),
+    refreshLinklyToken: () =>
+      request<{ success: boolean; tokenExpiresAt?: string | null }>('/pos/linkly/token', { method: 'POST', body: '{}' }),
+    runLinklySettlement: (settlementType: 'S' | 'P') =>
+      request<{ data: LinklyManagementActionResult }>('/pos/linkly/settlement', { method: 'POST', body: JSON.stringify({ settlementType }) }),
+    runLinklyReprint: (mode: 'pos' | 'pinpad') =>
+      request<{ data: LinklyManagementActionResult }>('/pos/linkly/reprint', { method: 'POST', body: JSON.stringify({ mode }) }),
     linklyInitiate: (amountCents: number) =>
-      request<{ data: { sessionId: string; amountCents: number } }>(
+      request<{ data: { sessionId: string; amountCents: number; txnRef?: string; recoveryRequired?: boolean } }>(
         '/pos/linkly/transaction', { method: 'POST', body: JSON.stringify({ amountCents }) }
       ),
     linklyPoll: (sessionId: string) =>
@@ -2145,19 +2178,47 @@ export interface ShopDisplayOrder extends ApiOrder {
 
 export interface LinklyConfig {
   linklyEnabled: boolean;
+  environment: 'sandbox' | 'production';
   linklyUsername: string | null;
   linklyPairingCode: string | null;
   linklyTerminalId: string | null;
+  linklyPosName: string;
+  linklyPosVersion: string;
+  linklyPosId: string | null;
+  linklyPosVendorId: string | null;
   hasPassword: boolean;
+  isPaired: boolean;
+  tokenExpiresAt: string | null;
+  lastPairedAt: string | null;
   linklyConfigComplete: boolean;
 }
 
 export interface LinklyTransactionStatus {
   status: 'pending' | 'approved' | 'declined' | 'unknown';
+  sessionId?: string;
+  txnRef?: string;
+  responseCode?: string | null;
   responseText: string;
   approved: boolean;
   complete: boolean;
+  authCode?: string | null;
+  rrn?: string | null;
+  stan?: string | null;
+  catid?: string | null;
+  caid?: string | null;
+  rfn?: string | null;
+  ref?: string | null;
   receiptText?: string | null;
+}
+
+export interface LinklyManagementActionResult {
+  sessionId: string;
+  requestType: 'settlement' | 'reprintreceipt';
+  success: boolean;
+  responseCode: string | null;
+  responseText: string;
+  settlementData?: string | null;
+  receiptText?: string[] | null;
 }
 
 export interface WholesaleDeliverySlot {
@@ -2604,7 +2665,7 @@ export interface PrinterJob {
   lines?: string[];
   copies?: number;
   printerBrand?: 'epson' | 'star';
-  jobType?: 'receipt' | 'tax_invoice' | 'register_summary' | 'open_drawer';
+  jobType?: 'receipt' | 'tax_invoice' | 'register_summary' | 'open_drawer' | 'linkly_receipt';
   autoDrawer?: boolean;
   drawerPin?: 0 | 1;
 }

@@ -1572,7 +1572,7 @@ router.patch('/settings', async (req, res) => {
 // socket itself from the device (which IS on the same LAN as the printer).
 router.post('/printer/bytes', async (req, res) => {
   try {
-    const { buildReceiptBytes, buildTaxInvoiceBytes, buildRegisterSummaryBytes, buildOpenDrawerBytes } = await import('../lib/printer.js');
+    const { buildReceiptBytes, buildTaxInvoiceBytes, buildRegisterSummaryBytes, buildLinklyReceiptBytes, buildOpenDrawerBytes } = await import('../lib/printer.js');
     const { job } = req.body as { job?: any };
     const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
     if (job?.jobType === 'open_drawer') {
@@ -1583,6 +1583,14 @@ router.post('/printer/bytes', async (req, res) => {
     if (job?.jobType === 'register_summary') {
       const bytes = buildRegisterSummaryBytes({
         title: typeof job?.title === 'string' ? job.title : 'Daily Register Summary',
+        lines: Array.isArray(job?.lines) ? job.lines : [],
+        printerBrand: brand,
+      });
+      return res.json({ data: { bytes: bytes.toString('base64') } });
+    }
+    if (job?.jobType === 'linkly_receipt') {
+      const bytes = buildLinklyReceiptBytes({
+        title: typeof job?.title === 'string' ? job.title : 'Linkly Receipt',
         lines: Array.isArray(job?.lines) ? job.lines : [],
         printerBrand: brand,
       });

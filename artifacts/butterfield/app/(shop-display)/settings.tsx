@@ -18,8 +18,9 @@ import { Feather } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import type { LinklyConfig, ShopDisplayPrinterConfig, ShopDisplayStore } from '@/lib/api';
+import type { ShopDisplayPrinterConfig, ShopDisplayStore } from '@/lib/api';
 import { sendOpenDrawer, sendTestPrint } from '@/lib/printer';
+import LinklyCloudSettingsCard from '@/components/LinklyCloudSettingsCard';
 import {
   getShopDisplaySoundEnabled, setShopDisplaySoundEnabled,
   getDisplayLockPin, setDisplayLockPin, clearDisplayLockPin,
@@ -167,176 +168,7 @@ function PinModal({
 
 // ── Linkly config section (shown after PIN unlock) ────────────────────────────
 function LinklySection({ onLock }: { onLock: () => void }) {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery<{ data: LinklyConfig }>({
-    queryKey: ['linkly-config'],
-    queryFn: () => api.shopDisplay.getLinklyConfig(),
-    staleTime: 30_000,
-  });
-
-  const cfg = data?.data;
-  const [enabled, setEnabled] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [pairingCode, setPairingCode] = useState('');
-  const [terminalId, setTerminalId] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  useEffect(() => {
-    if (cfg) {
-      setEnabled(cfg.linklyEnabled ?? false);
-      setUsername(cfg.linklyUsername ?? '');
-      setPairingCode(cfg.linklyPairingCode ?? '');
-      setTerminalId(cfg.linklyTerminalId ?? '');
-    }
-  }, [cfg]);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api.shopDisplay.saveLinklyConfig({
-        linklyEnabled: enabled,
-        linklyUsername: username.trim() || undefined,
-        linklyPassword: password.trim() || undefined,
-        linklyPairingCode: pairingCode.trim() || undefined,
-      });
-      setPassword('');
-      await qc.invalidateQueries({ queryKey: ['linkly-config'] });
-      Alert.alert('Saved', 'Linkly configuration saved successfully.');
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Failed to save.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const testConnection = async () => {
-    setTesting(true);
-    try {
-      const res = await api.shopDisplay.testLinkly();
-      if (res.terminalId) setTerminalId(res.terminalId);
-      Alert.alert('Connected', `Terminal ${res.terminalId ?? 'paired'} — Linkly connection successful.`);
-      await qc.invalidateQueries({ queryKey: ['linkly-config'] });
-    } catch (e: any) {
-      Alert.alert('Connection Failed', e?.message ?? 'Could not connect to Linkly Cloud.');
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <View style={[l.card, { alignItems: 'center', paddingVertical: 24 }]}>
-        <ActivityIndicator color={INDIGO} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={l.card}>
-      {/* Header row */}
-      <View style={l.sectionRow}>
-        <View style={l.iconWrap}>
-          <Feather name="credit-card" size={18} color={INDIGO} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={l.cardTitle}>Linkly EFTPOS</Text>
-          <Text style={l.cardSub}>Linkly Cloud terminal integration</Text>
-        </View>
-        <Pressable onPress={onLock} style={l.lockBtn} hitSlop={10}>
-          <Feather name="lock" size={15} color={MUTED} />
-        </Pressable>
-      </View>
-
-      <View style={l.divider} />
-
-      {/* Enable toggle */}
-      <View style={l.row}>
-        <Text style={l.fieldLabel}>Enable EFTPOS on this display</Text>
-        <Switch
-          value={enabled}
-          onValueChange={setEnabled}
-          trackColor={{ true: INDIGO }}
-          thumbColor="#fff"
-        />
-      </View>
-
-      {/* Credentials */}
-      <Text style={l.groupLabel}>Linkly Cloud Credentials</Text>
-
-      <Text style={l.inputLabel}>Username</Text>
-      <TextInput
-        style={l.input}
-        value={username}
-        onChangeText={setUsername}
-        placeholder="Linkly Cloud username"
-        placeholderTextColor={MUTED}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <Text style={l.inputLabel}>Password {cfg?.hasPassword && !password ? '(saved — enter to change)' : ''}</Text>
-      <View style={l.passwordRow}>
-        <TextInput
-          style={[l.input, { flex: 1 }]}
-          value={password}
-          onChangeText={setPassword}
-          placeholder={cfg?.hasPassword ? '••••••••' : 'Linkly Cloud password'}
-          placeholderTextColor={MUTED}
-          secureTextEntry={!showPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Pressable onPress={() => setShowPassword(v => !v)} style={l.eyeBtn} hitSlop={8}>
-          <Feather name={showPassword ? 'eye-off' : 'eye'} size={16} color={MUTED} />
-        </Pressable>
-      </View>
-
-      <Text style={l.inputLabel}>Pairing Code</Text>
-      <TextInput
-        style={l.input}
-        value={pairingCode}
-        onChangeText={setPairingCode}
-        placeholder="6-digit pairing code"
-        placeholderTextColor={MUTED}
-        keyboardType="number-pad"
-        maxLength={6}
-      />
-
-      {!!terminalId && (
-        <>
-          <Text style={l.inputLabel}>Terminal ID</Text>
-          <View style={l.terminalIdRow}>
-            <Feather name="check-circle" size={14} color={GREEN} />
-            <Text style={l.terminalIdText}>{terminalId}</Text>
-          </View>
-        </>
-      )}
-
-      {/* Actions */}
-      <View style={l.actionRow}>
-        <Pressable
-          onPress={testConnection}
-          disabled={testing || saving}
-          style={[l.btn, l.btnSecondary, (testing || saving) && l.btnDisabled]}
-        >
-          {testing ? <ActivityIndicator color={INDIGO} size="small" /> : <Feather name="wifi" size={14} color={INDIGO} />}
-          <Text style={l.btnSecondaryText}>{testing ? 'Testing…' : 'Test Connection'}</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={save}
-          disabled={saving || testing}
-          style={[l.btn, l.btnPrimary, (saving || testing) && l.btnDisabled]}
-        >
-          {saving ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="save" size={14} color="#fff" />}
-          <Text style={l.btnPrimaryText}>{saving ? 'Saving…' : 'Save'}</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
+  return <LinklyCloudSettingsCard title="Linkly EFTPOS" subtitle="Linkly Cloud terminal integration" onLock={onLock} printerContext="shop_display" />;
 }
 
 // ── Printer Configuration Card ────────────────────────────────────────────────
@@ -917,31 +749,4 @@ const pc = StyleSheet.create({
   actionBtnText: { fontSize: 13, fontWeight: '700', color: BLUE },
   copyBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#EFF6FF' },
   copyBtnText:   { fontSize: 12, fontWeight: '700', color: BLUE },
-});
-
-// ── Linkly section styles ─────────────────────────────────────────────────────
-const l = StyleSheet.create({
-  card:          { backgroundColor: CARD, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: BORDER, gap: 10 },
-  sectionRow:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconWrap:      { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
-  cardTitle:     { fontSize: 15, fontWeight: '800', color: NAVY },
-  cardSub:       { fontSize: 12, color: MUTED, marginTop: 1 },
-  lockBtn:       { padding: 4 },
-  divider:       { height: 1, backgroundColor: BORDER, marginHorizontal: -16 },
-  row:           { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  fieldLabel:    { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
-  groupLabel:    { fontSize: 11, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
-  inputLabel:    { fontSize: 12, fontWeight: '600', color: MUTED, marginBottom: -6 },
-  input:         { backgroundColor: '#F8FAFF', borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT },
-  passwordRow:   { flexDirection: 'row', alignItems: 'center', gap: 0 },
-  eyeBtn:        { position: 'absolute', right: 12, top: 12 },
-  terminalIdRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 10 },
-  terminalIdText:{ fontSize: 14, fontWeight: '700', color: '#166534' },
-  actionRow:     { flexDirection: 'row', gap: 10, marginTop: 4 },
-  btn:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 14, paddingVertical: 12 },
-  btnPrimary:    { backgroundColor: INDIGO },
-  btnSecondary:  { backgroundColor: '#EEF2FF' },
-  btnDisabled:   { opacity: 0.5 },
-  btnPrimaryText:{ color: '#fff', fontSize: 14, fontWeight: '700' },
-  btnSecondaryText:{ color: INDIGO, fontSize: 14, fontWeight: '700' },
 });

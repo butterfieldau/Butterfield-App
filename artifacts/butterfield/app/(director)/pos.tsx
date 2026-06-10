@@ -255,7 +255,7 @@ function PosScreenInner() {
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
     surchargeCents: number;
-    splitPayments?: { method: string; amountCents: number }[];
+    splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
     loyaltyResult: PosLoyaltyResult | null;
     // Ticket snapshot captured before clearActiveTicket() — needed for printing
     customerName: string;
@@ -277,7 +277,7 @@ function PosScreenInner() {
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
     surchargeCents?: number;
-    splitPayments?: { method: string; amountCents: number }[];
+    splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
   } | null>(null);
   const [registerApprovalPrompt, setRegisterApprovalPrompt] = useState<null | {
     mode: 'movement' | 'close';
@@ -655,7 +655,8 @@ function PosScreenInner() {
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
     surchargeCents?: number;
-    splitPayments?: { method: string; amountCents: number }[];
+    splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
+    linklySessionId?: string;
     supervisorPin?: string;
   }) => ({
     items: buildPosItems(activeTicket.items),
@@ -664,6 +665,7 @@ function PosScreenInner() {
     amountTenderedCents: vars.amountTenderedCents,
     surchargeCents: vars.surchargeCents,
     splitPayments: vars.splitPayments,
+    linklySessionId: vars.linklySessionId,
     customerId: activeTicket.customer?.userId,
     notes: activeTicket.notes || undefined,
     discountCode: activeTicket.appliedDiscount?.type === 'code' ? activeTicket.appliedDiscount.code : undefined,
@@ -690,7 +692,8 @@ function PosScreenInner() {
       paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
       surchargeCents?: number;
-      splitPayments?: { method: string; amountCents: number }[];
+      splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
+      linklySessionId?: string;
       supervisorPin?: string;
     }) => api.pos.createOrder(buildOrderPayload(vars)),
     onSuccess: (res, vars) => {
@@ -841,13 +844,15 @@ function PosScreenInner() {
     method: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
     surchargeCents: number;
-    splitPayments?: { method: string; amountCents: number }[];
+    splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
+    linklySessionId?: string;
   }) => {
     const mutateVars = {
       paymentMethod: params.method,
       amountTenderedCents: params.amountTenderedCents,
       surchargeCents: params.surchargeCents,
       splitPayments: params.splitPayments,
+      linklySessionId: params.linklySessionId,
     };
     if (!isOnline) {
       // Queue order offline
@@ -2110,7 +2115,8 @@ type PaymentConfirmParams = {
   method: 'cash' | 'eftpos' | 'split';
   amountTenderedCents?: number;
   surchargeCents: number;
-  splitPayments?: { method: string; amountCents: number }[];
+  splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
+  linklySessionId?: string;
 };
 
 function PaymentModal({
@@ -2128,7 +2134,7 @@ function PaymentModal({
   const [method, setMethod] = useState<'cash' | 'eftpos' | 'split'>(!isOnline && cashEnabled ? 'cash' : 'eftpos');
   const [tendered, setTendered] = useState('');
   // Split: each committed part has an amount + method (cash or eftpos)
-  const [splitParts, setSplitParts] = useState<{ amountCents: number; method: 'cash' | 'eftpos' }[]>([]);
+  const [splitParts, setSplitParts] = useState<{ amountCents: number; method: 'cash' | 'eftpos'; linklySessionId?: string | null }[]>([]);
   const [splitInput, setSplitInput] = useState('');
 
   // Linkly EFTPOS state (full-payment mode)
@@ -2216,7 +2222,7 @@ function PaymentModal({
             linklyPollRef.current = null;
             if (pd.approved) {
               setLinklyStep('approved');
-              onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents });
+              onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents, linklySessionId: sessionId });
             } else {
               setLinklyStep('declined');
             }
@@ -2226,7 +2232,7 @@ function PaymentModal({
     } catch (err: any) {
       setLinklyStep('idle');
       setLinklyText('');
-      Alert.alert('EFTPOS Error', err?.message ?? 'Could not connect to terminal. Ensure Linkly is configured in Shop Display settings.');
+      Alert.alert('EFTPOS Error', err?.message ?? 'Could not connect to the Linkly terminal. Check the Linkly Cloud integration settings for this device.');
     }
   };
 
@@ -2260,7 +2266,7 @@ function PaymentModal({
             clearInterval(splitCardPollRef.current!);
             splitCardPollRef.current = null;
             if (pd.approved) {
-              setSplitParts(ps => [...ps, { amountCents, method: 'eftpos' }]);
+              setSplitParts(ps => [...ps, { amountCents, method: 'eftpos', linklySessionId: sessionId }]);
               setSplitInput('');
               setSplitCardStep('idle');
               setSplitCardText('');
@@ -2290,15 +2296,13 @@ function PaymentModal({
     if (method === 'cash') {
       onConfirm({ method: 'cash', amountTenderedCents: tenderedCents, surchargeCents: computedSurchargeCents });
     } else if (method === 'eftpos') {
-      handleLinklyInitiate().catch(() => {
-        onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents });
-      });
+      handleLinklyInitiate().catch(() => {});
     } else if (method === 'split') {
       onConfirm({
         method: 'split',
         amountTenderedCents: splitCommittedCents,
         surchargeCents: computedSurchargeCents,
-        splitPayments: splitParts.map(p => ({ method: p.method, amountCents: p.amountCents })),
+        splitPayments: splitParts.map(p => ({ method: p.method, amountCents: p.amountCents, linklySessionId: p.linklySessionId ?? null })),
       });
     }
   };
@@ -2680,7 +2684,7 @@ function OrderCompleteModal({ order, customerEmail: initialEmail, onClose, onPri
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
     surchargeCents: number;
-    splitPayments?: { method: string; amountCents: number }[];
+    splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
     loyaltyResult: PosLoyaltyResult | null;
     customerName: string;
     ticketItems: Array<{ name: string; quantity: number; unitPriceCents: number; variantName?: string; options: string[] }>;

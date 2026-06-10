@@ -225,6 +225,7 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Integrations',
         items: [
+          { icon: 'credit-card',  label: 'Linkly Cloud',        sub: 'PIN pad pairing, token refresh and EFTPOS device setup', color: BLUE, directorOnly: true, onPress: () => router.push('/director-linkly' as any) },
           { icon: 'shopping-bag', label: 'Shopify',             sub: 'Product & order sync',                  color: '#96BF48', directorOnly: true, soon: true },
           { icon: 'credit-card',  label: 'Square',              sub: 'POS & payment terminal',                color: '#000000', directorOnly: true, soon: true },
           { icon: 'globe',        label: 'Google Login',         sub: 'Sign in with Google for customers',    color: RED,       soon: true },

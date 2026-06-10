@@ -85,6 +85,12 @@ export interface RegisterSummaryPrintJob {
   printerBrand?: 'epson' | 'star';
 }
 
+export interface LinklyReceiptPrintJob {
+  title?: string;
+  lines?: string[];
+  printerBrand?: 'epson' | 'star';
+}
+
 // ── Cash drawer pulse ─────────────────────────────────────────────────────────
 // ESC p — standard ESC/POS cash drawer kick command.
 // Works in ESC/POS mode on Epson and Star (MCP30) printers.
@@ -362,6 +368,43 @@ export function buildRegisterSummaryBytes(job: RegisterSummaryPrintJob): Buffer 
       continue;
     }
     parts.push(row(normalized));
+  }
+
+  parts.push(
+    divider('='),
+    CMD_ALIGN_CTR,
+    Buffer.from('Butterfield POS\n', 'utf-8'),
+    lf(3),
+    ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
+  );
+
+  return Buffer.concat(parts);
+}
+
+export function buildLinklyReceiptBytes(job: LinklyReceiptPrintJob): Buffer {
+  const isStar = job.printerBrand === 'star';
+  const lines = Array.isArray(job.lines) ? job.lines.map((line) => String(line ?? '')) : [];
+  const title = (job.title?.trim() || 'LINKLY RECEIPT').slice(0, COL);
+
+  const parts: Buffer[] = [
+    ...(isStar ? [] : [CMD_INIT, lf(1)]),
+    CMD_ALIGN_CTR,
+    CMD_BOLD_ON,
+    Buffer.from(`${title}\n`, 'utf-8'),
+    CMD_BOLD_OFF,
+    divider('='),
+    CMD_ALIGN_LEFT,
+  ];
+
+  for (const line of lines) {
+    if (!line.trim()) {
+      parts.push(lf(1));
+      continue;
+    }
+    const chunks = line.match(new RegExp(`.{1,${COL}}`, 'g')) ?? [''];
+    for (const chunk of chunks) {
+      parts.push(Buffer.from(`${chunk}\n`, 'utf-8'));
+    }
   }
 
   parts.push(

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { randomUUID, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 
 // ── Per-ticket stamp cap (in-memory, keyed by client ticket UUID) ─────────────
@@ -48,6 +48,17 @@ import {
   startRegisterAutoCloseLoop,
   updateRegisterAutoCloseSetting,
 } from '../lib/registers.js';
+import {
+  attachLinklySessionToOrder,
+  getLinklyPublicConfig,
+  getLinklyToken,
+  pairLinklyPinPad,
+  recoverOrPollTransaction,
+  runReprintReceiptAction,
+  runSettlementAction,
+  saveLinklyConfig,
+  startPurchaseTransaction,
+} from '../lib/linklyCloud.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -246,44 +257,12 @@ async function buildCurrentRegisterResponse(user: { id: string; role: string }) 
   };
 }
 
-// ── Linkly encrypt/decrypt (mirrors shop-display pattern) ─────────────────
-function getPosEncKey(): Buffer {
-  const secret = process.env.SESSION_SECRET ?? 'default-secret-32-characters-ok!';
-  const padded = secret.padEnd(32, '0').slice(0, 32);
-  return Buffer.from(padded, 'utf8');
-}
-function posEncryptText(plain: string): string {
-  const key = getPosEncKey();
-  const iv = randomBytes(16);
-  const cipher = createCipheriv('aes-256-cbc', key, iv);
-  let enc = cipher.update(plain, 'utf8', 'hex');
-  enc += cipher.final('hex');
-  return `${iv.toString('hex')}:${enc}`;
-}
-function posDecryptText(stored: string): string {
-  const key = getPosEncKey();
-  const sep = stored.indexOf(':');
-  const iv = Buffer.from(stored.slice(0, sep), 'hex');
-  const data = stored.slice(sep + 1);
-  const decipher = createDecipheriv('aes-256-cbc', key, iv);
-  let dec = decipher.update(data, 'hex', 'utf8');
-  dec += decipher.final('utf8');
-  return dec;
-}
-
 // ── Active Linkly sessions (POS) ──────────────────────────────────────────
 const posActiveSessions = new Map<string, { deviceUserId: string; amountCents: number; createdAt: number }>();
-// Auth-token cache: Linkly tokens last ~60 min — cache for 55 min to avoid
-// re-authenticating on every 2-second poll, which is the main reliability risk.
-const posActiveLinklyTokens = new Map<string, { token: string; secret: string; expiresAt: number }>();
 setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000;
   for (const [id, s] of posActiveSessions.entries()) {
     if (s.createdAt < cutoff) posActiveSessions.delete(id);
-  }
-  const now = Date.now();
-  for (const [uid, t] of posActiveLinklyTokens.entries()) {
-    if (t.expiresAt < now) posActiveLinklyTokens.delete(uid);
   }
 }, 5 * 60 * 1000);
 
@@ -718,6 +697,7 @@ router.post('/orders', async (req, res) => {
     amountTenderedCents,
     surchargeCents: rawSurchargeCents,
     splitPayments: rawSplitPayments,
+    linklySessionId,
     customerId,
     discountCode,
     discountCodeId,
@@ -787,6 +767,13 @@ router.post('/orders', async (req, res) => {
       code: 'REGISTER_FLOAT_REQUIRED',
     });
   }
+
+  const linklySessionIds = [
+    typeof linklySessionId === 'string' && linklySessionId ? linklySessionId : null,
+    ...(splitPayments ?? [])
+      .map((payment: any) => (typeof payment?.linklySessionId === 'string' && payment.linklySessionId ? payment.linklySessionId : null))
+      .filter(Boolean),
+  ].filter((value, index, arr): value is string => !!value && arr.indexOf(value) === index);
 
   // ── Resolve product prices server-side ─────────────────────────────────────
   const productIds: string[] = [...new Set(
@@ -1058,6 +1045,14 @@ router.post('/orders', async (req, res) => {
       return res.status(409).json({ error: 'Free coffee reward has already been redeemed. Please remove it and try again.' });
     }
     throw err;
+  }
+
+  if (linklySessionIds.length > 0) {
+    await Promise.all(
+      linklySessionIds.map(sessionId => attachLinklySessionToOrder(sessionId, orderId).catch((err: any) => {
+        req.log.warn({ err, orderId, sessionId }, 'Failed to attach Linkly session to POS order');
+      })),
+    );
   }
 
   // ── Record discount code usage (if a validated code was applied) ────────────
@@ -1380,42 +1375,82 @@ router.post('/orders/:id/refund', async (req, res) => {
   return res.json({ success: true, refundAmountCents, isFullRefund });
 });
 
-// ── Linkly helpers ────────────────────────────────────────────────────────────
-async function getLinklyConfig(userId: string) {
-  const rows = await db.execute(sql`
-    SELECT linkly_username, linkly_password_encrypted, linkly_pairing_code
-    FROM shop_display_profiles WHERE user_id = ${userId}
-  `);
-  return (rows as any).rows?.[0] ?? (rows as any)[0] ?? null;
-}
+// ── Linkly config & transaction routes ───────────────────────────────────────
+router.get('/linkly/config', async (req, res) => {
+  await ensurePosSchemaReady();
+  const data = await getLinklyPublicConfig(req.user!.id);
+  return res.json({ data });
+});
 
-// Authenticate with Linkly Cloud — uses token cache (55-min TTL) so we only
-// re-auth when the token is about to expire, NOT on every 2-second poll.
-async function getLinklyAuth(userId: string, cfg: any): Promise<{ token: string; secret: string }> {
-  const cached = posActiveLinklyTokens.get(userId);
-  if (cached && cached.expiresAt > Date.now()) return cached;
-  let password: string;
-  try { password = posDecryptText(cfg.linkly_password_encrypted); }
-  catch { throw new Error('Failed to decrypt Linkly credentials.'); }
-  const authRes = await fetch('https://auth.cloud.eftpos.com.au/v1/pairing/cloudpos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: cfg.linkly_username,
-      password,
-      pairingCode: cfg.linkly_pairing_code,
-      posName: 'Butterfield Cookies POS',
-      posVersion: '1.0',
-      posId: `pos-${userId}`,
-    }),
+router.patch('/linkly/config', async (req, res) => {
+  await ensurePosSchemaReady();
+  const {
+    linklyEnabled,
+    environment,
+    linklyUsername,
+    linklyPassword,
+    linklyPairingCode,
+    linklyPosName,
+    linklyPosVersion,
+    linklyPosId,
+    linklyPosVendorId,
+  } = req.body ?? {};
+  await saveLinklyConfig(req.user!.id, {
+    linklyEnabled,
+    environment,
+    linklyUsername,
+    linklyPassword,
+    linklyPairingCode,
+    linklyPosName,
+    linklyPosVersion,
+    linklyPosId,
+    linklyPosVendorId,
   });
-  const authBody = await authRes.json().catch(() => ({})) as any;
-  if (!authRes.ok) throw new Error(authBody?.message ?? 'Linkly authentication failed.');
-  const token = authBody.token ?? authBody.Token;
-  const secret = authBody.secret ?? authBody.Secret ?? '';
-  posActiveLinklyTokens.set(userId, { token, secret, expiresAt: Date.now() + 55 * 60 * 1000 });
-  return { token, secret };
-}
+  return res.json({ success: true });
+});
+
+router.post('/linkly/pair', async (req, res) => {
+  await ensurePosSchemaReady();
+  try {
+    const result = await pairLinklyPinPad(req.user!.id);
+    return res.json({ success: true, terminalId: result.terminalId ?? null });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message ?? 'Linkly pairing failed.' });
+  }
+});
+
+router.post('/linkly/token', async (req, res) => {
+  await ensurePosSchemaReady();
+  try {
+    await getLinklyToken(req.user!.id, true);
+    const config = await getLinklyPublicConfig(req.user!.id);
+    return res.json({ success: true, tokenExpiresAt: config.tokenExpiresAt });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message ?? 'Linkly token request failed.' });
+  }
+});
+
+router.post('/linkly/settlement', async (req, res) => {
+  await ensurePosSchemaReady();
+  const settlementType = req.body?.settlementType === 'P' ? 'P' : 'S';
+  try {
+    const result = await runSettlementAction(req.user!.id, settlementType);
+    return res.json({ data: result });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message ?? 'Linkly settlement failed.' });
+  }
+});
+
+router.post('/linkly/reprint', async (req, res) => {
+  await ensurePosSchemaReady();
+  const mode = req.body?.mode === 'pinpad' ? 'pinpad' : 'pos';
+  try {
+    const result = await runReprintReceiptAction(req.user!.id, mode);
+    return res.json({ data: result });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message ?? 'Linkly receipt reprint failed.' });
+  }
+});
 
 // ── POST /pos/linkly/transaction — initiate EFTPOS via Linkly ─────────────
 router.post('/linkly/transaction', async (req, res) => {
@@ -1424,43 +1459,32 @@ router.post('/linkly/transaction', async (req, res) => {
   if (!amountCents || Number(amountCents) <= 0)
     return res.status(400).json({ error: 'amountCents is required and must be positive' });
 
-  const cfg = await getLinklyConfig(req.user!.id);
-  if (!cfg?.linkly_username || !cfg?.linkly_password_encrypted || !cfg?.linkly_pairing_code)
-    return res.status(400).json({ error: 'Linkly is not configured for this account. Configure it via the Shop Display settings.' });
-
   const sessionId = randomUUID();
   const chargeAmount = Math.round(Number(amountCents));
+  const txnRef = `BF${sessionId.replace(/-/g, '').slice(0, 10).toUpperCase()}`;
 
   try {
-    const { token, secret } = await getLinklyAuth(req.user!.id, cfg);
-    const txnRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'Secret': secret,
-      },
-      body: JSON.stringify({
-        SessionId: sessionId,
-        Merchant: '00',
-        TxnType: 'P',
-        AmountCash: 0,
-        AmountPurchase: chargeAmount,
-        TxnRef: sessionId.slice(0, 16),
-        EnableTip: false,
-        CutReceipt: '0',
-        ReceiptAutoPrint: '7',
-      }),
+    const started = await startPurchaseTransaction({
+      userId: req.user!.id,
+      sessionId,
+      amountCents: chargeAmount,
+      txnRef,
+      operatorId: req.user!.id,
+      operatorName: req.user!.name ?? req.user!.email ?? 'Staff',
+      source: 'pos',
     });
-    if (!txnRes.ok) {
-      const txnBody = await txnRes.json().catch(() => ({})) as any;
-      return res.status(400).json({ error: txnBody?.message ?? 'Failed to start EFTPOS transaction.' });
-    }
     posActiveSessions.set(sessionId, { deviceUserId: req.user!.id, amountCents: chargeAmount, createdAt: Date.now() });
-    return res.json({ data: { sessionId, amountCents: chargeAmount } });
+    return res.json({
+      data: {
+        sessionId,
+        amountCents: chargeAmount,
+        txnRef: started.txnRef,
+        recoveryRequired: started.recoveryRequired,
+      },
+    });
   } catch (err: any) {
     req.log.error({ err }, 'POS Linkly transaction initiation error');
-    return res.status(502).json({ error: err.message ?? 'Could not reach Linkly Cloud.' });
+    return res.status(400).json({ error: err.message ?? 'Could not reach Linkly Cloud.' });
   }
 });
 
@@ -1473,49 +1497,31 @@ router.get('/linkly/:sessionId', async (req, res) => {
   if (!binding) return res.status(404).json({ error: 'Session not found or expired.' });
   if (binding.deviceUserId !== req.user!.id) return res.status(403).json({ error: 'Session belongs to a different device.' });
 
-  const cfg = await getLinklyConfig(req.user!.id);
-  if (!cfg?.linkly_username)
-    return res.status(400).json({ error: 'Linkly not configured.' });
-
   try {
-    const { token, secret } = await getLinklyAuth(req.user!.id, cfg);
-    const pollRes = await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
-      headers: { 'Authorization': `Bearer ${token}`, 'Secret': secret },
-    });
-    const pollBody = await pollRes.json().catch(() => ({})) as any;
-
-    if (!pollRes.ok)
-      return res.json({ data: { status: 'unknown', responseText: 'Polling error', approved: false, complete: false } });
-
-    const response = pollBody.Response ?? pollBody.response ?? {};
-    const complete = pollBody.SessionComplete ?? pollBody.Complete ?? false;
-    const approved = complete && (
-      response.Success === true ||
-      response.ResponseCode === '00' ||
-      response.ResponseText?.toLowerCase().includes('approved') ||
-      pollBody.TxnCompleted === true
-    );
-    const declined = complete && !approved;
-
-    let responseText = 'Waiting for card…';
-    if (complete && approved) responseText = 'Approved';
-    else if (complete && declined) responseText = response.ResponseText ?? 'Declined';
-    else if (response.ResponseText) responseText = response.ResponseText;
-
-    if (complete) posActiveSessions.delete(sessionId);
-
+    const status = await recoverOrPollTransaction(req.user!.id, sessionId);
+    if (status.complete) posActiveSessions.delete(sessionId);
     return res.json({
       data: {
-        status: complete ? (approved ? 'approved' : 'declined') : 'pending',
-        responseText,
-        approved,
-        complete,
-        receiptText: response.ReceiptText ?? null,
+        sessionId: status.sessionId,
+        txnRef: status.txnRef,
+        status: status.status,
+        responseCode: status.responseCode,
+        responseText: status.responseText,
+        approved: status.success,
+        complete: status.complete,
+        authCode: status.authCode,
+        rrn: status.rrn,
+        stan: status.stan,
+        catid: status.catid,
+        caid: status.caid,
+        rfn: status.rfn,
+        ref: status.ref,
+        receiptText: status.receiptText ?? null,
       },
     });
   } catch (err: any) {
     req.log.error({ err }, 'POS Linkly poll error');
-    return res.json({ data: { status: 'pending', responseText: 'Connecting to terminal…', approved: false, complete: false } });
+    return res.json({ data: { status: 'pending', responseText: 'Checking terminal status…', approved: false, complete: false } });
   }
 });
 
@@ -1528,21 +1534,7 @@ router.delete('/linkly/:sessionId', async (req, res) => {
   if (binding && binding.deviceUserId !== req.user!.id)
     return res.status(403).json({ error: 'Session belongs to a different device.' });
   posActiveSessions.delete(sessionId);
-
-  const cfg = await getLinklyConfig(req.user!.id);
-  if (!cfg?.linkly_username) return res.json({ success: true });
-
-  try {
-    const { token, secret } = await getLinklyAuth(req.user!.id, cfg);
-    await fetch(`https://rest.pos.cloud.eftpos.com.au/v1/sessions/${sessionId}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}`, 'Secret': secret },
-    });
-    return res.json({ success: true });
-  } catch (err: any) {
-    req.log.error({ err }, 'POS Linkly cancel error');
-    return res.json({ success: true });
-  }
+  return res.json({ success: true });
 });
 
 // ── PATCH /pos/orders/:id/void — void a POS order within 5 minutes ─────────
