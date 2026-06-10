@@ -186,11 +186,11 @@ export async function ensureLinklySchemaReady() {
   `);
   await db.execute(sql`
     ALTER TABLE shop_display_profiles
-    ADD COLUMN IF NOT EXISTS linkly_pos_name text NOT NULL DEFAULT ${DEFAULT_POS_NAME};
+    ADD COLUMN IF NOT EXISTS linkly_pos_name text NOT NULL DEFAULT 'Butterfield POS';
   `);
   await db.execute(sql`
     ALTER TABLE shop_display_profiles
-    ADD COLUMN IF NOT EXISTS linkly_pos_version text NOT NULL DEFAULT ${DEFAULT_POS_VERSION};
+    ADD COLUMN IF NOT EXISTS linkly_pos_version text NOT NULL DEFAULT '1.3.1';
   `);
   await db.execute(sql`
     ALTER TABLE shop_display_profiles
