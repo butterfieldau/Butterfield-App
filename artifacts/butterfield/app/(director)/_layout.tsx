@@ -110,6 +110,7 @@ export default function DirectorLayout() {
         <View style={{ height: insets.top, backgroundColor: BG_STAFF }} />
         <LayoutSafeAreaContext.Provider value={true}>
         <Tabs
+          initialRouteName="index"
           tabBar={(props) => (
             <FloatingInternalTabBar
               {...props}
@@ -171,6 +172,7 @@ export default function DirectorLayout() {
   return (
     <View style={{ flex: 1 }}>
       <Tabs
+        initialRouteName="index"
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor:   BLUE,

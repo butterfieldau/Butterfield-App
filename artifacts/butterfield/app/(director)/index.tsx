@@ -589,7 +589,7 @@ function DirectorDashboardInner() {
                 <QuickBtn icon="shopping-bag" label="View Orders"   color={AMBER}   onPress={() => router.navigate('/(director)/orders' as any)} />
                 <QuickBtn icon="clipboard"    label="Tasks"         color={BLUE}    onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
                 <QuickBtn icon="bell"         label="Notify"        color="#06B6D4" onPress={() => router.push('/director-settings-notify' as any)} />
-                <QuickBtn icon="bar-chart-2"  label="Reports"       color={NAVY}    onPress={() => router.navigate('/(director)/reports' as any)} />
+                <QuickBtn icon="bar-chart-2"  label="Reports"       color={NAVY}    onPress={() => router.push('/director-reports' as any)} />
                 <QuickBtn icon="settings"     label="Settings"      color={MUTED}   onPress={() => router.navigate('/(director)/more' as any)} />
               </View>
             </View>
@@ -600,7 +600,7 @@ function DirectorDashboardInner() {
               <View style={styles.kpiGrid}>
                 <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today      ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
                 <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active     ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
-                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} helper={`Week wages ${fmtAUD(s?.staff.weekWagesOwedCents ?? 0)}`} onPress={() => router.navigate('/(director)/timesheets' as any)} />
+                <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn   ?? 0} color={PURPLE} helper={`Week wages ${fmtAUD(s?.staff.weekWagesOwedCents ?? 0)}`} onPress={() => router.push('/director-staff-hours' as any)} />
                 <KpiTile icon="clipboard"      label="Open tasks"      value={s?.tasks?.open       ?? 0} color={BLUE}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
                 <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut  ?? 0} color={RED}    alert={(s?.products.soldOut ?? 0) > 0}  onPress={() => router.navigate('/(director)/products' as any)} />
                 <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock ?? 0} color={AMBER}  alert={(s?.products.lowStock ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
