@@ -606,9 +606,7 @@ function DirectorDashboardInner() {
                 <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock ?? 0} color={AMBER}  alert={(s?.products.lowStock ?? 0) > 0} onPress={() => router.navigate('/(director)/products' as any)} />
                 <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any)} />
                 <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} helper={`Week loss ${fmtAUD(s?.wastage.costWeek ?? 0)}`} onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)} />
-                <KpiTile icon="gift"           label="Birthdays today"  value={s?.customers.birthdayToday ?? 0} color={PINK}   onPress={() => router.navigate('/(director)/customers' as any)} />
                 <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave ?? 0} color={AMBER}  onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any)} />
-                <KpiTile icon="message-circle" label="New feedback"     value={s?.customers.unreadFeedback ?? 0} color={BLUE}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'feedback' } } as any)} />
                 <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={GREEN} alert={(s?.orders.wholesaleNew ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
               </View>
             </View>
