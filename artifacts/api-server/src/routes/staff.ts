@@ -125,16 +125,13 @@ router.post('/shifts/clock-in', async (req, res) => {
       return res.status(400).json({ error: 'Location is required. Please enable location access to clock in.' });
     }
 
-    const storesMissingGeofence = assignments.filter(
-      (assignment) =>
-        assignment.latitude == null ||
-        Number.isNaN(assignment.latitude) ||
-        assignment.longitude == null ||
-        Number.isNaN(assignment.longitude),
+    const DEFAULT_GEOFENCE_RADIUS = 150;
+    const validAssignments = assignments.filter(
+      (a) => a.latitude != null && !Number.isNaN(a.latitude) && a.longitude != null && !Number.isNaN(a.longitude),
     );
-    if (storesMissingGeofence.length > 0) {
+    if (validAssignments.length === 0) {
       return res.status(403).json({
-        error: `The assigned store geofence is not fully set up for ${storesMissingGeofence[0]?.storeName ?? 'this account'}. Ask a director to update the store pin in Store Locations before clocking in.`,
+        error: `Store location is not configured. Ask a director to set the store pin in Store Locations before clocking in.`,
         code: 'STORE_GEOFENCE_NOT_CONFIGURED',
       });
     }
@@ -143,13 +140,12 @@ router.post('/shifts/clock-in', async (req, res) => {
       ? Math.max(0, Math.min(accuracyMeters, 200))
       : 0;
 
-    const measured = assignments.map(a => {
-      const effLat = a.latitude!;
-      const effLng = a.longitude!;
-      const distance = haversineMeters(latitude, longitude, effLat, effLng);
+    const measured = validAssignments.map(a => {
+      const distance = haversineMeters(latitude, longitude, a.latitude!, a.longitude!);
+      const radiusMeters = a.geofenceRadius ?? DEFAULT_GEOFENCE_RADIUS;
       return {
         ...a,
-        radiusMeters: a.geofenceRadius,
+        radiusMeters,
         distance,
         effectiveDistance: Math.max(0, distance - locationAccuracy),
       };
@@ -160,7 +156,7 @@ router.post('/shifts/clock-in', async (req, res) => {
       if (!selected) {
         return res.status(403).json({ error: 'That store is not assigned to your account. Please choose one of your assigned stores.' });
       }
-      if (selected.radiusMeters != null && selected.effectiveDistance > selected.radiusMeters) {
+      if (selected.effectiveDistance > selected.radiusMeters) {
         return res.status(403).json({
           error: `You are ${Math.round(selected.distance)}m from ${selected.storeName}. You must be within ${selected.radiusMeters}m to clock in.`,
           distanceMeters: Math.round(selected.distance),
@@ -169,7 +165,7 @@ router.post('/shifts/clock-in', async (req, res) => {
       finalStoreId = selected.storeId;
       distanceMeters = Math.round(selected.distance);
     } else {
-      const matched = measured.find(a => a.radiusMeters != null && a.effectiveDistance <= a.radiusMeters);
+      const matched = measured.find(a => a.effectiveDistance <= a.radiusMeters);
       if (!matched) {
         const nearest = measured[0];
         return res.status(403).json({

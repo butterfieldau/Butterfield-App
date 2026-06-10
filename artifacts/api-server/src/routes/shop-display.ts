@@ -496,8 +496,7 @@ router.get('/staff-assigned', async (req, res) => {
       or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')),
     ));
 
-  const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const { startUtc: dayStart } = sydneyDateToUtcBounds(getSydneyTodayStr());
   const activeShifts = await db.select({
     userId: staffShiftsTable.userId,
     id: staffShiftsTable.id,
@@ -673,14 +672,14 @@ router.post('/staff-clock', async (req, res) => {
   await clearPinLockout(staffId);
 
   const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const { startUtc: dayStart } = sydneyDateToUtcBounds(getSydneyTodayStr());
 
+  // Also look for any open shift regardless of day — catches cross-midnight shifts
   const [openShift] = await db.select()
     .from(staffShiftsTable)
     .where(and(
       eq(staffShiftsTable.userId, staffId),
       isNull(staffShiftsTable.clockOut),
-      gte(staffShiftsTable.clockIn, dayStart),
     ));
 
   if (openShift) {
@@ -693,11 +692,21 @@ router.post('/staff-clock', async (req, res) => {
 
     return res.json({ data: { clocked: 'out', name: staffUser!.name, shiftId: openShift.id, hoursWorked } });
   } else {
+    // Only allow clocking in if the shift would be within today (Sydney time)
+    if (now < dayStart) {
+      return res.status(400).json({ error: 'Cannot clock in — store day has not started yet.' });
+    }
     const shiftId = randomUUID();
+    const clockInStoreId = displayStoreIds.length > 0
+      ? (displayAssignments.find(a =>
+          displayStoreIds.includes(a.storeId)
+        )?.storeId ?? null)
+      : null;
     await db.insert(staffShiftsTable).values({
       id: shiftId,
       userId: staffId,
       clockIn: now,
+      storeId: clockInStoreId,
     });
     return res.json({ data: { clocked: 'in', name: staffUser!.name, shiftId } });
   }
@@ -728,8 +737,7 @@ router.get('/shifts/today', async (req, res) => {
     if (eligibleIds.length === 0) return res.json({ data: [] });
   }
 
-  const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const { startUtc: dayStart } = sydneyDateToUtcBounds(getSydneyTodayStr());
 
   // Build scoped WHERE — filter by userId AND storeId where possible
   const shiftWhere = eligibleIds.length > 0

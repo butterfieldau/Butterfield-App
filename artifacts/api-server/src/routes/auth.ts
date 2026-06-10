@@ -342,16 +342,13 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
       });
     }
 
-    const storesMissingGeofence = assignments.filter(
-      (assignment) =>
-        assignment.latitude == null ||
-        Number.isNaN(assignment.latitude) ||
-        assignment.longitude == null ||
-        Number.isNaN(assignment.longitude),
+    const DEFAULT_GEOFENCE_RADIUS = 150;
+    const validAssignments = assignments.filter(
+      (a) => a.latitude != null && !Number.isNaN(a.latitude) && a.longitude != null && !Number.isNaN(a.longitude),
     );
-    if (storesMissingGeofence.length > 0) {
+    if (validAssignments.length === 0) {
       return res.status(403).json({
-        error: `The assigned store geofence is not fully set up for ${storesMissingGeofence[0]?.storeName ?? 'this account'}. Ask a director to update the store pin in Store Locations before signing in.`,
+        error: `Store location is not configured. Ask a director to set the store pin in Store Locations before signing in.`,
         code: 'STORE_GEOFENCE_NOT_CONFIGURED',
       });
     }
@@ -360,21 +357,20 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
       ? Math.max(0, Math.min(accuracyMeters, 200))
       : 0;
 
-    const measured = assignments
+    const measured = validAssignments
       .map((a) => {
-        const effLat = a.latitude!;
-        const effLng = a.longitude!;
-        const distanceMeters = haversineDistanceMeters(latitude, longitude, effLat, effLng);
+        const distanceMeters = haversineDistanceMeters(latitude, longitude, a.latitude!, a.longitude!);
+        const radiusMeters = a.geofenceRadius ?? DEFAULT_GEOFENCE_RADIUS;
         return {
           ...a,
-          radiusMeters: a.geofenceRadius,
+          radiusMeters,
           distanceMeters,
           effectiveDistanceMeters: Math.max(0, distanceMeters - locationAccuracy),
         };
       })
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
-    const matched = measured.find((a) => a.radiusMeters != null && a.effectiveDistanceMeters <= a.radiusMeters);
+    const matched = measured.find((a) => a.effectiveDistanceMeters <= a.radiusMeters);
     if (!matched) {
       const nearest = measured[0];
       recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'OUTSIDE_STORE_GEOFENCE', req });
