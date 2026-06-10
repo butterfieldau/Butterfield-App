@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState, type ComponentProps } from 'react';
@@ -105,7 +104,6 @@ export default function LoginScreen() {
   const [iShowPw, setIShowPw]             = useState(false);
   const [iLoading, setILoading]           = useState(false);
   const [iError, setIError]               = useState('');
-  const [geoStatus, setGeoStatus]         = useState<'idle' | 'acquiring' | 'ready' | 'denied'>('idle');
 
 
   const isWholesale      = selectedRole === 'wholesale';
@@ -225,57 +223,12 @@ export default function LoginScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      let res = await internalLogin(iEmail.trim(), iPassword);
-      const needsLocation =
-        !res.success &&
-        !!res.error &&
-        (
-          res.error.includes('Location verification is required') ||
-          res.error.includes('Location is required') ||
-          res.error.includes('enable location services') ||
-          res.error.includes('within') ||
-          res.error.includes('store assignment')
-        );
-
-      if (needsLocation) {
-        const isDemoAcc = INTERNAL_EMAILS.includes(iEmail.trim().toLowerCase());
-        let coords: { latitude: number; longitude: number; accuracyMeters?: number } | undefined;
-        if (!isDemoAcc) {
-          setGeoStatus('acquiring');
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-              setGeoStatus('denied');
-              setIError('Location permission is required for staff and manager sign-in.');
-              setILoading(false); return;
-            }
-            const timeout = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Location timed out')), 10000)
-            );
-            const locPromise = Location.getCurrentPositionAsync({
-              accuracy: Platform.OS === 'ios' ? Location.Accuracy.BestForNavigation : Location.Accuracy.Highest,
-            });
-            const loc = await Promise.race([locPromise, timeout]);
-            coords = {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              accuracyMeters: typeof loc.coords.accuracy === 'number' ? loc.coords.accuracy : undefined,
-            };
-            setGeoStatus('ready');
-          } catch {
-            setIError('Could not get your location. Ensure Location Services are on.');
-            setILoading(false); setGeoStatus('idle'); return;
-          }
-        }
-        res = await internalLogin(iEmail.trim(), iPassword, coords);
-      }
-
-      if (!res.success) { setIError(res.error ?? 'Sign in failed.'); setGeoStatus('idle'); return; }
+      const res = await internalLogin(iEmail.trim(), iPassword);
+      if (!res.success) { setIError(res.error ?? 'Sign in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       routeAfterAuth(res.role);
     } catch (e: unknown) {
       setIError(getErrorMessage(e));
-      setGeoStatus('idle');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally { setILoading(false); }
   };
@@ -508,7 +461,7 @@ export default function LoginScreen() {
                 </Pressable>
               )}
               <Pressable
-                onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); setGeoStatus('idle'); Haptics.selectionAsync(); }}
+                onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); Haptics.selectionAsync(); }}
                 style={{ alignItems: 'center', paddingVertical: 8 }}
               >
                 <Text style={[s.internalLink, { fontWeight: '400', color: MUTED }]}>
@@ -518,7 +471,7 @@ export default function LoginScreen() {
             </>
           ) : (
             <>
-              <Pressable onPress={() => { setShowInternal(false); setIError(''); setGeoStatus('idle'); Haptics.selectionAsync(); }} style={s.backBtn}>
+              <Pressable onPress={() => { setShowInternal(false); setIError(''); Haptics.selectionAsync(); }} style={s.backBtn}>
                 <Feather name="arrow-left" size={18} color={TEXT} />
                 <Text style={[s.backText, { fontWeight: '500', color: TEXT }]}>Back</Text>
               </Pressable>
@@ -534,24 +487,6 @@ export default function LoginScreen() {
                 </Text>
               </View>
 
-              {geoStatus === 'acquiring' && (
-                <View style={[s.geoBanner, { backgroundColor: '#EFF6FF', borderColor: '#3B82F680' }]}>
-                  <ActivityIndicator size="small" color="#3B82F6" />
-                  <Text style={[s.geoText, { fontWeight: '400', color: '#3B82F6' }]}>Getting your location…</Text>
-                </View>
-              )}
-              {geoStatus === 'ready' && (
-                <View style={[s.geoBanner, { backgroundColor: '#F0FDF4', borderColor: '#22C55E80' }]}>
-                  <Feather name="check-circle" size={14} color={GREEN} />
-                  <Text style={[s.geoText, { fontWeight: '400', color: GREEN }]}>Location verified</Text>
-                </View>
-              )}
-              {geoStatus === 'denied' && (
-                <View style={[s.geoBanner, { backgroundColor: '#FEF2F2', borderColor: '#EF444480' }]}>
-                  <Feather name="alert-circle" size={14} color="#EF4444" />
-                  <Text style={[s.geoText, { fontWeight: '400', color: '#EF4444' }]}>Location denied — enable in Settings</Text>
-                </View>
-              )}
 
               <View style={[s.inputRow, { backgroundColor: CARD, borderColor: BORDER }]}>
                 <Feather name="mail" size={16} color={MUTED} />
@@ -574,19 +509,11 @@ export default function LoginScreen() {
                 {iLoading ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <ActivityIndicator color="#fff" size="small" />
-                    <Text style={[s.submitBtnText, { fontWeight: '700' }]}>
-                      {geoStatus === 'acquiring' ? 'Getting location…' : 'Signing in…'}
-                    </Text>
+                    <Text style={[s.submitBtnText, { fontWeight: '700' }]}>Signing in…</Text>
                   </View>
                 ) : <Text style={[s.submitBtnText, { fontWeight: '700' }]}>Sign In</Text>}
               </Pressable>
 
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingHorizontal: 2 }}>
-                <Feather name="map-pin" size={11} color={MUTED} style={{ marginTop: 1 }} />
-                <Text style={[s.geoNote, { fontWeight: '400', color: MUTED }]}>
-                  Staff must be within range of their assigned store to sign in.
-                </Text>
-              </View>
 
               <Pressable
                 onPress={() => router.push('/(auth)/staff-register')}
@@ -643,9 +570,6 @@ const s = StyleSheet.create({
   internalBadgeTxt:{ color: 'rgba(255,255,255,0.6)', fontSize: 11, letterSpacing: 1.5 },
   internalTitle:   { color: '#fff', fontSize: 22 },
   internalSub:     { color: 'rgba(255,255,255,0.7)', fontSize: 13, lineHeight: 18 },
-  geoBanner:       { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1 },
-  geoText:         { flex: 1, fontSize: 13 },
-  geoNote:         { flex: 1, fontSize: 11, lineHeight: 16 },
   termsText:       { fontSize: 12, textAlign: 'center', lineHeight: 18 },
   hearLabel:       { fontSize: 13, color: TEXT, marginTop: 2, marginBottom: -4 },
   hearRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

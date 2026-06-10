@@ -325,66 +325,6 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
     }
   }
 
-  // Directors and masters bypass geo checks. Staff and managers must be near
-  // one of their assigned stores before internal access is granted.
-  const isDemoAccount = DEMO_EMAILS.includes(user.email.toLowerCase());
-  const needsGeoCheck = (user.role === 'staff' || user.role === 'manager') && !isDemoAccount;
-  if (needsGeoCheck) {
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return res.status(403).json({ error: 'Location verification is required for staff and manager sign-in. Please enable location services.' });
-    }
-
-    const assignments = await getAssignedInternalStores(user.id);
-    if (assignments.length === 0) {
-      return res.status(403).json({
-        error: 'No active store assignment was found for this account. Ask a director or master to assign you to a store before signing in.',
-        code: 'STORE_ASSIGNMENT_REQUIRED',
-      });
-    }
-
-    const DEFAULT_GEOFENCE_RADIUS = 150;
-    const validAssignments = assignments.filter(
-      (a) => a.latitude != null && !Number.isNaN(a.latitude) && a.longitude != null && !Number.isNaN(a.longitude),
-    );
-    if (validAssignments.length === 0) {
-      return res.status(403).json({
-        error: `Store location is not configured. Ask a director to set the store pin in Store Locations before signing in.`,
-        code: 'STORE_GEOFENCE_NOT_CONFIGURED',
-      });
-    }
-
-    const locationAccuracy = typeof accuracyMeters === 'number' && Number.isFinite(accuracyMeters)
-      ? Math.max(0, Math.min(accuracyMeters, 200))
-      : 0;
-
-    const measured = validAssignments
-      .map((a) => {
-        const distanceMeters = haversineDistanceMeters(latitude, longitude, a.latitude!, a.longitude!);
-        const radiusMeters = a.geofenceRadius ?? DEFAULT_GEOFENCE_RADIUS;
-        return {
-          ...a,
-          radiusMeters,
-          distanceMeters,
-          effectiveDistanceMeters: Math.max(0, distanceMeters - locationAccuracy),
-        };
-      })
-      .sort((a, b) => a.distanceMeters - b.distanceMeters);
-
-    const matched = measured.find((a) => a.effectiveDistanceMeters <= a.radiusMeters);
-    if (!matched) {
-      const nearest = measured[0];
-      recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'OUTSIDE_STORE_GEOFENCE', req });
-      return res.status(403).json({
-        error: `You must be within ${nearest.radiusMeters}m of ${nearest.storeName ?? 'your assigned store'} to sign in. You are currently ${Math.round(nearest.distanceMeters)}m away.`,
-        distanceMeters: Math.round(nearest.distanceMeters),
-        effectiveDistanceMeters: Math.round(nearest.effectiveDistanceMeters),
-        radiusMeters: nearest.radiusMeters,
-        storeName: nearest.storeName ?? null,
-        code: 'OUTSIDE_STORE_GEOFENCE',
-      });
-    }
-  }
-
   // Update last login timestamp
   db.update(usersTable).set({ lastLogin: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
 
