@@ -420,7 +420,7 @@ export default function ShopDisplayOrdersScreen() {
       }
       if (status === 'completed' && printerConfig?.autoDrawer && printerConfig?.printerIp) {
         const drawerPin = ((printerConfig.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
-        sendOpenDrawer(printerConfig.printerIp, printerConfig.printerPort ?? 9100, api.shopDisplay.printerBytes, drawerPin).catch(() => {});
+        sendOpenDrawer(printerConfig.printerIp, printerConfig.printerPort ?? 9100, api.shopDisplay.printerBytes, drawerPin, printerConfig.printerBrand as 'epson' | 'star' | undefined).catch(() => {});
       }
     } finally {
       setUpdatingOrderId(null);

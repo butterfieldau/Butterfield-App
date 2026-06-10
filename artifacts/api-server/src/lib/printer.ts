@@ -92,12 +92,23 @@ export interface LinklyReceiptPrintJob {
 }
 
 // ── Cash drawer pulse ─────────────────────────────────────────────────────────
-// ESC p — standard ESC/POS cash drawer kick command.
-// Works in ESC/POS mode on Epson and Star (MCP30) printers.
+// ESC p — standard ESC/POS cash drawer kick command (Epson / queued).
+// Works when embedded inside a receipt job (buffer flush fires it).
+// For standalone open_drawer sends on Epson, this is also fine because Epson
+// flushes on socket close. Do NOT use for standalone Star sends — use DLE DC4.
 // pin 0 → drawer 1 (0x00), pin 1 → drawer 2 (0x01).
 // on_time=25ms (×2ms units=0x19), off_time=250ms (×2ms units=0xFA).
 export function buildOpenDrawerBytes(pin: 0 | 1 = 0): Buffer {
   return Buffer.from([0x1b, 0x70, pin === 1 ? 0x01 : 0x00, 0x19, 0xfa]);
+}
+
+// DLE DC4 — Star ESC/POS real-time cash drawer kick command.
+// Processed immediately upon receipt, bypassing the print buffer entirely.
+// Required for standalone open_drawer sends on Star MCP30 / mC-Print3.
+// m = 0x00 (drawer 1 / pin 2) or 0x01 (drawer 2 / pin 5).
+// t = pulse width in 100 ms units; 0x02 = 200 ms recommended.
+export function buildStarOpenDrawerBytes(pin: 0 | 1 = 0): Buffer {
+  return Buffer.from([0x10, 0x14, 0x01, pin === 1 ? 0x01 : 0x00, 0x02]);
 }
 
 export function buildReceiptBytes(job: PrintJob): Buffer {

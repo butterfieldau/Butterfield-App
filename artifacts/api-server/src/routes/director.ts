@@ -1593,12 +1593,12 @@ router.patch('/settings', async (req, res) => {
 // socket itself from the device (which IS on the same LAN as the printer).
 router.post('/printer/bytes', async (req, res) => {
   try {
-    const { buildReceiptBytes, buildTaxInvoiceBytes, buildRegisterSummaryBytes, buildLinklyReceiptBytes, buildOpenDrawerBytes } = await import('../lib/printer.js');
+    const { buildReceiptBytes, buildTaxInvoiceBytes, buildRegisterSummaryBytes, buildLinklyReceiptBytes, buildOpenDrawerBytes, buildStarOpenDrawerBytes } = await import('../lib/printer.js');
     const { job } = req.body as { job?: any };
     const brand: 'epson' | 'star' = job?.printerBrand === 'star' ? 'star' : 'epson';
     if (job?.jobType === 'open_drawer') {
       const pin: 0 | 1 = job?.drawerPin === 1 ? 1 : 0;
-      const bytes = buildOpenDrawerBytes(pin);
+      const bytes = brand === 'star' ? buildStarOpenDrawerBytes(pin) : buildOpenDrawerBytes(pin);
       return res.json({ data: { bytes: bytes.toString('base64') } });
     }
     if (job?.jobType === 'register_summary') {

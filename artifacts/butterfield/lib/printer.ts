@@ -108,8 +108,8 @@ export async function sendLinklyReceiptPrint(job: LinklyReceiptPrintJob, printer
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'linkly_receipt' }));
 }
 
-export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin }));
+export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0, printerBrand?: 'epson' | 'star'): Promise<void> {
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }));
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {

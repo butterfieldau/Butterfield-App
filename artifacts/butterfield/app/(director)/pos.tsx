@@ -1302,7 +1302,7 @@ function PosScreenInner() {
               return;
             }
             const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, (store.drawerPin ?? 0) as 0 | 1);
+            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, (store.drawerPin ?? 0) as 0 | 1, store.printerBrand as 'epson' | 'star' | undefined);
           }}
           busy={
             setRegisterFloatMutation.isPending ||

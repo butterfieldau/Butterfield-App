@@ -271,7 +271,7 @@ function PrinterConfigCard() {
     setDrawerBusy(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, api.shopDisplay.printerBytes, drawerPin);
+      await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, api.shopDisplay.printerBytes, drawerPin, printerBrand as 'epson' | 'star' | undefined);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert('Drawer Error', e?.message ?? 'Could not open the cash drawer.');
