@@ -288,6 +288,14 @@ function PosScreenInner() {
   const [discountPresets, setDiscountPresets] = useState<number[]>([10, 20, 50]);
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
 
+  // ── Post-sale balance cache ────────────────────────────────────────────────
+  // Keyed by customerId — stores the server-confirmed balance after a completed
+  // POS sale so that if staff re-attach the same customer before the next live
+  // fetch completes, we can use the post-sale value as a provisional balance.
+  const recentBalancesRef = useRef<Record<string, {
+    loyaltyPoints: number; stampCount: number; freeCoffeeRewards: number;
+  }>>({});
+
   // ── Product list ref (scroll-to-top on category change) ──────────────────
   const productListRef = useRef<any>(null);
 
@@ -712,6 +720,17 @@ function PosScreenInner() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLastOrderId(res.data.id);
+      // Persist post-sale balance so re-attaching the same customer before the
+      // next live fetch completes shows the accurate post-transaction balance.
+      if (activeTicket.customer?.userId && res.loyaltyResult) {
+        recentBalancesRef.current[activeTicket.customer.userId] = {
+          loyaltyPoints: res.loyaltyResult.newBalance,
+          stampCount: res.loyaltyResult.newStampCount,
+          // freeCoffeeRewards can't be derived from the POS loyalty result alone;
+          // keep the pre-sale value as a reasonable approximation.
+          freeCoffeeRewards: activeTicket.customer.freeCoffeeRewards,
+        };
+      }
       setCompletedOrder({
         id: res.data.id,
         orderNumber: res.data.orderNumber,
@@ -1229,6 +1248,7 @@ function PosScreenInner() {
         <CustomerModal
           currentCustomer={activeTicket.customer}
           initialMode={customerModalMode}
+          recentBalances={recentBalancesRef.current}
           onSelect={(c) => {
             updateTicket({ customer: c, appliedDiscount: null });
             setShowCustomerModal(false);
@@ -2840,13 +2860,14 @@ function OrderCompleteModal({ order, customerEmail: initialEmail, onClose, onPri
 
 // ── Customer Modal ────────────────────────────────────────────────────────────
 function CustomerModal({
-  currentCustomer, onSelect, onRemove, onClose, initialMode = 'search',
+  currentCustomer, onSelect, onRemove, onClose, initialMode = 'search', recentBalances = {},
 }: {
   currentCustomer: AttachedCustomer | null;
   onSelect: (c: AttachedCustomer) => void;
   onRemove: () => void;
   onClose: () => void;
   initialMode?: 'search' | 'scan';
+  recentBalances?: Record<string, { loyaltyPoints: number; stampCount: number; freeCoffeeRewards: number }>;
 }) {
   const { isOnline } = useOffline();
   const [mode, setMode]       = useState<'search' | 'scan'>(initialMode);
@@ -2854,6 +2875,7 @@ function CustomerModal({
   const [results, setResults] = useState<PosCustomerResult[]>([]);
   const [cachedResults, setCachedResults] = useState<CachedPosCustomer[]>([]);
   const [searching, setSearching] = useState(false);
+  const [loadingCustomerId, setLoadingCustomerId] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const lastScanAt = useRef<number>(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2980,28 +3002,65 @@ function CustomerModal({
               <FlatList
                 data={results}
                 keyExtractor={item => item.userId}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => onSelect({
-                      userId: item.userId, name: item.name, email: item.email,
-                      loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
-                      loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
-                      birthday: item.birthday ?? null,
-                      availableClaimedRewards: item.availableClaimedRewards ?? [],
-                    })}
-                    style={styles.customerResultRow}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.customerAvatar}>
-                      <Text style={styles.customerAvatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.customerName}>{item.name}</Text>
-                      <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts</Text>
-                    </View>
-                    <Feather name="chevron-right" size={16} color={MUTED} />
-                  </TouchableOpacity>
-                )}
+                renderItem={({ item }) => {
+                  const isLoadingThis = loadingCustomerId === item.userId;
+                  return (
+                    <TouchableOpacity
+                      onPress={async () => {
+                        if (loadingCustomerId) return;
+                        setLoadingCustomerId(item.userId);
+                        try {
+                          // Always do a fresh live fetch on selection to get the
+                          // point balance current at the moment of attachment.
+                          const res = await api.pos.customerSearch({ userId: item.userId });
+                          const live = res.data[0];
+                          if (live) {
+                            onSelect({
+                              userId: live.userId, name: live.name, email: live.email,
+                              loyaltyPoints: live.loyaltyPoints, stampCount: live.stampCount,
+                              loyaltyTier: live.loyaltyTier,
+                              freeCoffeeRewards: live.freeCoffeeRewards ?? 0,
+                              birthday: live.birthday ?? null,
+                              availableClaimedRewards: live.availableClaimedRewards ?? [],
+                            });
+                          } else {
+                            throw new Error('No data returned');
+                          }
+                        } catch {
+                          // Fallback: use post-sale cached balance if available (more recent
+                          // than the search result), otherwise use the search result value.
+                          const recent = recentBalances[item.userId];
+                          onSelect({
+                            userId: item.userId, name: item.name, email: item.email,
+                            loyaltyPoints: recent?.loyaltyPoints ?? item.loyaltyPoints,
+                            stampCount: recent?.stampCount ?? item.stampCount,
+                            loyaltyTier: item.loyaltyTier,
+                            freeCoffeeRewards: recent?.freeCoffeeRewards ?? item.freeCoffeeRewards ?? 0,
+                            birthday: item.birthday ?? null,
+                            availableClaimedRewards: item.availableClaimedRewards ?? [],
+                          });
+                          Alert.alert('Balance may not be current', 'Could not refresh loyalty balance — showing last known value. Verify with the customer.');
+                        } finally {
+                          setLoadingCustomerId(null);
+                        }
+                      }}
+                      style={styles.customerResultRow}
+                      activeOpacity={0.7}
+                      disabled={!!loadingCustomerId}
+                    >
+                      <View style={styles.customerAvatar}>
+                        <Text style={styles.customerAvatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.customerName}>{item.name}</Text>
+                        <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts</Text>
+                      </View>
+                      {isLoadingThis
+                        ? <ActivityIndicator size="small" color={BLUE} />
+                        : <Feather name="chevron-right" size={16} color={MUTED} />}
+                    </TouchableOpacity>
+                  );
+                }}
                 ListEmptyComponent={
                   query.length >= 2 && !searching
                     ? <Text style={{ textAlign: 'center', color: MUTED, padding: 24 }}>No customers found</Text>
@@ -3029,7 +3088,7 @@ function CustomerModal({
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.customerName}>{item.name}</Text>
-                      <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts (cached)</Text>
+                      <Text style={styles.customerSub}>{item.email} · {item.loyaltyPoints} pts (offline — points may differ)</Text>
                     </View>
                     <Feather name="chevron-right" size={16} color={MUTED} />
                   </TouchableOpacity>
