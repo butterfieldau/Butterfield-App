@@ -1299,7 +1299,8 @@ router.post('/orders/:id/refund', async (req, res) => {
   const { id } = req.params;
   const { amountCents, reason, supervisorPin } = req.body;
 
-  if (!['director', 'master', 'manager'].includes(req.user!.role)) {
+  const isShopDisplay = req.user!.role === 'shop_display';
+  if (!['director', 'master', 'manager', 'shop_display'].includes(req.user!.role)) {
     return res.status(403).json({ error: 'Director or manager access required to issue refunds' });
   }
   if (!amountCents || Number(amountCents) <= 0) {
@@ -1307,8 +1308,10 @@ router.post('/orders/:id/refund', async (req, res) => {
   }
 
   // ── Server-side refund PIN gate ───────────────────────────────────────────
+  // shop_display accounts must always provide a valid supervisor PIN regardless
+  // of the refundRequiresPin threshold — the PIN is the privilege escalation proof.
   const posThresholds = await getPosThresholds();
-  if (posThresholds.refundRequiresPin) {
+  if (isShopDisplay || posThresholds.refundRequiresPin) {
     if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
       return res.status(403).json({ error: 'A manager PIN is required to process refunds.', code: 'REFUND_PIN_REQUIRED' });
     }
