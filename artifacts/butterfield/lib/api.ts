@@ -962,7 +962,7 @@ export const api = {
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
-    refundOrder: (id: string, data: { amountCents: number; reason?: string; supervisorPin?: string }) =>
+    refundOrder: (id: string, data: { amountCents: number; reason?: string; supervisorPin?: string; linklySessionId?: string }) =>
       request<{ success: boolean; refundAmountCents: number; isFullRefund: boolean }>(
         `/pos/orders/${id}/refund`, { method: 'POST', body: JSON.stringify(data) }
       ),
@@ -1005,6 +1005,10 @@ export const api = {
       ),
     linklyCancel: (sessionId: string) =>
       request<{ success: boolean }>(`/pos/linkly/${sessionId}`, { method: 'DELETE' }),
+    linklyInitiateRefund: (orderId: string, amountCents: number, supervisorPin: string) =>
+      request<{ data: { sessionId: string; amountCents: number; txnRef?: string; recoveryRequired?: boolean } }>(
+        '/pos/linkly/refund', { method: 'POST', body: JSON.stringify({ orderId, amountCents, supervisorPin }) }
+      ),
     emailInvoice: (orderId: string, email: string) =>
       request<{ success: boolean }>(`/pos/orders/${orderId}/email-invoice`, { method: 'POST', body: JSON.stringify({ email }) }),
   },

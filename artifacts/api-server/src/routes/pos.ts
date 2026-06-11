@@ -54,12 +54,14 @@ import {
   cancelTransaction as cancelLinklyTransaction,
   getLinklyPublicConfig,
   getLinklyToken,
+  getStoredLinklyTransaction,
   pairLinklyPinPad,
   recoverOrPollTransaction,
   runReprintReceiptAction,
   runSettlementAction,
   saveLinklyConfig,
   startPurchaseTransaction,
+  startRefundTransaction,
 } from '../lib/linklyCloud.js';
 
 const router = Router();
@@ -1293,11 +1295,82 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+// ── POST /pos/linkly/refund — initiate a Linkly refund transaction ───────────
+// PIN is verified here so the terminal only opens after authorization.
+// On completion the client calls POST /pos/orders/:id/refund with linklySessionId.
+router.post('/linkly/refund', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { orderId, amountCents, supervisorPin } = req.body ?? {};
+
+  if (!['director', 'master', 'manager', 'shop_display'].includes(req.user!.role)) {
+    return res.status(403).json({ error: 'Director or manager access required to issue refunds' });
+  }
+  if (!orderId || typeof orderId !== 'string') {
+    return res.status(400).json({ error: 'orderId is required' });
+  }
+  if (!amountCents || Number(amountCents) <= 0) {
+    return res.status(400).json({ error: 'amountCents must be positive' });
+  }
+
+  // Verify supervisor PIN before opening the terminal
+  const isShopDisplay = req.user!.role === 'shop_display';
+  const posThresholds = await getPosThresholds();
+  if (isShopDisplay || posThresholds.refundRequiresPin) {
+    if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
+      return res.status(403).json({ error: 'A manager PIN is required to process refunds.', code: 'REFUND_PIN_REQUIRED' });
+    }
+    const pinValid = await verifySupervisorPin(String(supervisorPin));
+    if (!pinValid) {
+      recordAuditLog({ actor: req.user, action: 'pos.refund_pin_fail', entityType: 'pos_order', entityId: orderId }).catch(() => {});
+      recordPosPinHistory(req, false, 'REFUND_PIN_INVALID', req.user?.id, req.user?.email, req.user?.role);
+      return res.status(403).json({ error: 'Incorrect manager PIN. Refund denied.', code: 'REFUND_PIN_INVALID' });
+    }
+    recordPosPinHistory(req, true, null, req.user?.id, req.user?.email, req.user?.role);
+  }
+
+  // Validate the order exists and is an EFTPOS POS order
+  const orderResult = await db.execute(sql`
+    SELECT id, total_cents, status, source, payment_method FROM orders WHERE id = ${orderId} LIMIT 1
+  `);
+  const order = ((((orderResult as any).rows ?? (orderResult as any) ?? []) as any[])[0] ?? null) as any;
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.source !== 'pos') return res.status(400).json({ error: 'Only POS orders can be refunded via this endpoint' });
+  if (order.status === 'cancelled' || order.status === 'refunded') {
+    return res.status(400).json({ error: 'Order is already cancelled or refunded' });
+  }
+  if (order.payment_method !== 'eftpos') {
+    return res.status(400).json({ error: 'This order was not paid by EFTPOS' });
+  }
+
+  const sessionId = randomUUID();
+  const chargeAmount = Math.min(Math.round(Number(amountCents)), Math.round(Number(order.total_cents)));
+  const txnRef = `RF${sessionId.replace(/-/g, '').slice(0, 10).toUpperCase()}`;
+
+  try {
+    const started = await startRefundTransaction({
+      userId: req.user!.id,
+      sessionId,
+      amountCents: chargeAmount,
+      txnRef,
+      operatorId: req.user!.id,
+      operatorName: req.user!.name ?? req.user!.email ?? 'Staff',
+      source: 'pos',
+      orderId,
+      notificationUrl: buildLinklyNotificationUrl(req, sessionId),
+    });
+    posActiveSessions.set(sessionId, { deviceUserId: req.user!.id, amountCents: chargeAmount, createdAt: Date.now() });
+    return res.json({ data: { sessionId, amountCents: chargeAmount, txnRef: started.txnRef, recoveryRequired: started.recoveryRequired } });
+  } catch (err: any) {
+    req.log.error({ err }, 'POS Linkly refund initiation error');
+    return res.status(400).json({ error: err.message ?? 'Could not reach Linkly Cloud.' });
+  }
+});
+
 // ── POST /pos/orders/:id/refund — PIN-gated refund (full or partial) ─────────
 router.post('/orders/:id/refund', async (req, res) => {
   await ensurePosSchemaReady();
   const { id } = req.params;
-  const { amountCents, reason, supervisorPin } = req.body;
+  const { amountCents, reason, supervisorPin, linklySessionId } = req.body;
 
   const isShopDisplay = req.user!.role === 'shop_display';
   if (!['director', 'master', 'manager', 'shop_display'].includes(req.user!.role)) {
@@ -1307,21 +1380,39 @@ router.post('/orders/:id/refund', async (req, res) => {
     return res.status(400).json({ error: 'amountCents must be a positive number' });
   }
 
-  // ── Server-side refund PIN gate ───────────────────────────────────────────
-  // shop_display accounts must always provide a valid supervisor PIN regardless
-  // of the refundRequiresPin threshold — the PIN is the privilege escalation proof.
-  const posThresholds = await getPosThresholds();
-  if (isShopDisplay || posThresholds.refundRequiresPin) {
-    if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
-      return res.status(403).json({ error: 'A manager PIN is required to process refunds.', code: 'REFUND_PIN_REQUIRED' });
+  // ── When a Linkly session ID is provided, the PIN was already verified during
+  //    the refund initiation step — verify the Linkly result instead.
+  if (linklySessionId && typeof linklySessionId === 'string') {
+    const linklyTxn = await getStoredLinklyTransaction(linklySessionId);
+    if (!linklyTxn) {
+      return res.status(400).json({ error: 'Linkly refund session not found. Please retry the refund.' });
     }
-    const pinValid = await verifySupervisorPin(String(supervisorPin));
-    if (!pinValid) {
-      recordAuditLog({ actor: req.user, action: 'pos.refund_pin_fail', entityType: 'pos_order', entityId: id }).catch(() => {});
-      recordPosPinHistory(req, false, 'REFUND_PIN_INVALID', req.user?.id, req.user?.email, req.user?.role);
-      return res.status(403).json({ error: 'Incorrect manager PIN. Refund denied.', code: 'REFUND_PIN_INVALID' });
+    if (!linklyTxn.complete) {
+      return res.status(400).json({ error: 'Linkly refund is still in progress.' });
     }
-    recordPosPinHistory(req, true, null, req.user?.id, req.user?.email, req.user?.role);
+    if (!linklyTxn.success) {
+      return res.status(400).json({ error: 'Linkly refund was declined by the terminal.' });
+    }
+    if (linklyTxn.orderId && linklyTxn.orderId !== id) {
+      return res.status(400).json({ error: 'Linkly session does not match this order.' });
+    }
+  } else {
+    // ── Server-side refund PIN gate ─────────────────────────────────────────
+    // shop_display accounts must always provide a valid supervisor PIN regardless
+    // of the refundRequiresPin threshold — the PIN is the privilege escalation proof.
+    const posThresholds = await getPosThresholds();
+    if (isShopDisplay || posThresholds.refundRequiresPin) {
+      if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
+        return res.status(403).json({ error: 'A manager PIN is required to process refunds.', code: 'REFUND_PIN_REQUIRED' });
+      }
+      const pinValid = await verifySupervisorPin(String(supervisorPin));
+      if (!pinValid) {
+        recordAuditLog({ actor: req.user, action: 'pos.refund_pin_fail', entityType: 'pos_order', entityId: id }).catch(() => {});
+        recordPosPinHistory(req, false, 'REFUND_PIN_INVALID', req.user?.id, req.user?.email, req.user?.role);
+        return res.status(403).json({ error: 'Incorrect manager PIN. Refund denied.', code: 'REFUND_PIN_INVALID' });
+      }
+      recordPosPinHistory(req, true, null, req.user?.id, req.user?.email, req.user?.role);
+    }
   }
 
   const result = await db.execute(sql`

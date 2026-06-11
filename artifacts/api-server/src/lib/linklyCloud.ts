@@ -1005,6 +1005,116 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
   }
 }
 
+/** Initiate a Linkly refund transaction (TxnType 'R') on the terminal. */
+export async function startRefundTransaction(args: StartPurchaseArgs) {
+  const row = await getStoredConfig(args.userId);
+  assertConfigComplete(row);
+  const environment = normaliseEnvironment(row.linkly_environment);
+  const requestPayload = {
+    Request: {
+      Merchant: '00',
+      TxnType: 'R',
+      AmtPurchase: Math.round(args.amountCents),
+      TxnRef: args.txnRef,
+      CurrencyCode: 'AUD',
+      CutReceipt: '0',
+      ReceiptAutoPrint: '0',
+      Application: '00',
+      PurchaseAnalysisData: {
+        OPR: `${args.operatorId}|${args.operatorName}`,
+        AMT: String(Math.round(args.amountCents)),
+        PCM: '0000',
+      },
+    },
+    ...(args.notificationUrl
+      ? { Notification: { Uri: args.notificationUrl } }
+      : {}),
+  };
+
+  const pendingRecord: LinklyTransactionRecord = {
+    sessionId: args.sessionId,
+    orderId: args.orderId ?? null,
+    source: args.source,
+    amountCents: Math.round(args.amountCents),
+    amountSurchargeCents: 0,
+    txnRef: args.txnRef,
+    status: 'pending',
+    success: false,
+    complete: false,
+    responseCode: null,
+    responseText: 'Processing refund…',
+    authCode: null,
+    rrn: null,
+    stan: null,
+    catid: null,
+    caid: null,
+    rfn: null,
+    ref: null,
+    receiptText: null,
+    receiptData: null,
+    rawResponse: null,
+  };
+  await upsertTransaction(args.userId, pendingRecord, requestPayload);
+
+  try {
+    const response = await callLinklyTransaction(args.userId, environment, args.sessionId, requestPayload);
+    if (!response.ok) {
+      if (isRecoverableLinklyStatus(response.status)) {
+        return { sessionId: args.sessionId, txnRef: args.txnRef, amountCents: args.amountCents, recoveryRequired: true };
+      }
+      const message = extractLinklyErrorMessage(response.body, response.status);
+      const failed = {
+        ...pendingRecord,
+        status: 'declined' as const,
+        complete: true,
+        responseText: message,
+        responseCode: firstString(response.body?.Response?.ResponseCode, response.body?.ResponseCode),
+        rawResponse: response.body,
+      };
+      await upsertTransaction(args.userId, failed, requestPayload);
+      throw new Error(message);
+    }
+    const parsed = parseTransactionPayload(
+      args.sessionId,
+      args.source,
+      args.orderId,
+      Math.round(args.amountCents),
+      args.txnRef,
+      response.body,
+    );
+    const initialRecord = parsed.complete
+      ? parsed
+      : {
+          ...pendingRecord,
+          txnRef: parsed.txnRef,
+          responseText:
+            firstString(
+              response.body?.Response?.ResponseText,
+              response.body?.response?.ResponseText,
+              response.body?.displayMessage,
+              response.body?.message,
+            ) ?? 'Sent to terminal. Present card to refund…',
+          rawResponse: response.body,
+        };
+    await upsertTransaction(args.userId, initialRecord, requestPayload);
+    return {
+      sessionId: args.sessionId,
+      txnRef: initialRecord.txnRef,
+      amountCents: parsed.amountCents,
+      recoveryRequired: false,
+      immediateResult: initialRecord,
+    };
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      return { sessionId: args.sessionId, txnRef: args.txnRef, amountCents: args.amountCents, recoveryRequired: true };
+    }
+    if (typeof error?.message === 'string' && /network|fetch/i.test(error.message)) {
+      return { sessionId: args.sessionId, txnRef: args.txnRef, amountCents: args.amountCents, recoveryRequired: true };
+    }
+    throw error;
+  }
+}
+
 export async function recoverOrPollTransaction(
   userId: string,
   sessionId: string,

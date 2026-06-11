@@ -3172,18 +3172,50 @@ function HistoryModal({
   });
 
   const [pinForRefund, setPinForRefund] = useState<{ order: PosHistoryOrder; reason?: string } | null>(null);
+
+  // Linkly refund state
+  const [refundLinklyStep, setRefundLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
+  const [refundLinklySessionId, setRefundLinklySessionId] = useState<string | null>(null);
+  const [refundLinklyText, setRefundLinklyText] = useState('');
+  const refundLinklyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [pendingRefundPayload, setPendingRefundPayload] = useState<{ orderId: string; amountCents: number; reason?: string } | null>(null);
+
+  const stopRefundLinklyPoll = () => {
+    if (refundLinklyPollRef.current) {
+      clearInterval(refundLinklyPollRef.current);
+      refundLinklyPollRef.current = null;
+    }
+  };
+
+  const resetRefundLinklyState = () => {
+    stopRefundLinklyPoll();
+    setRefundLinklyStep('idle');
+    setRefundLinklySessionId(null);
+    setRefundLinklyText('');
+    setPendingRefundPayload(null);
+  };
+
+  const handleRefundLinklyCancel = async () => {
+    if (refundLinklySessionId) {
+      try { await api.pos.linklyCancel(refundLinklySessionId); } catch {}
+    }
+    resetRefundLinklyState();
+  };
+
   const refundMutation = useMutation({
-    mutationFn: (vars: { orderId: string; amountCents: number; reason?: string; supervisorPin?: string }) =>
-      api.pos.refundOrder(vars.orderId, { amountCents: vars.amountCents, reason: vars.reason, supervisorPin: vars.supervisorPin }),
-    onSuccess: (res, vars) => {
+    mutationFn: (vars: { orderId: string; amountCents: number; reason?: string; supervisorPin?: string; linklySessionId?: string }) =>
+      api.pos.refundOrder(vars.orderId, { amountCents: vars.amountCents, reason: vars.reason, supervisorPin: vars.supervisorPin, linklySessionId: vars.linklySessionId }),
+    onSuccess: (res) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const { isFullRefund, refundAmountCents } = res as any;
+      resetRefundLinklyState();
       Alert.alert('Refund Issued', `${isFullRefund ? 'Full' : 'Partial'} refund of ${fmtCents(refundAmountCents)} processed.`);
       queryClient.invalidateQueries({ queryKey: ['pos-history'] });
       refetch();
     },
     onError: (err: any) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      resetRefundLinklyState();
       Alert.alert('Refund Failed', err?.message ?? 'Could not process refund.');
     },
   });
@@ -3546,12 +3578,88 @@ function HistoryModal({
       {pinForRefund && (
         <PosPinModal
           onClose={() => setPinForRefund(null)}
-          onSuccess={(pin) => {
+          onSuccess={async (pin) => {
             const { order, reason } = pinForRefund;
             setPinForRefund(null);
-            refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, supervisorPin: pin });
+
+            if (order.paymentMethod === 'eftpos') {
+              // EFTPOS: initiate a Linkly terminal refund first, then commit to DB on approval
+              setRefundLinklyStep('initiating');
+              setRefundLinklyText('Connecting to terminal…');
+              setPendingRefundPayload({ orderId: order.id, amountCents: order.totalCents, reason });
+              try {
+                const res = await api.pos.linklyInitiateRefund(order.id, order.totalCents, pin);
+                const sessionId = (res as any)?.data?.sessionId as string;
+                if (!sessionId) throw new Error('No session ID returned from terminal.');
+                setRefundLinklySessionId(sessionId);
+                setRefundLinklyStep('waiting');
+                setRefundLinklyText('Present the original card to the terminal');
+
+                // Poll until the terminal completes the refund
+                refundLinklyPollRef.current = setInterval(async () => {
+                  try {
+                    const poll = await api.pos.linklyPoll(sessionId);
+                    const d = (poll as any)?.data;
+                    if (d?.responseText) setRefundLinklyText(d.responseText);
+                    if (d?.complete) {
+                      stopRefundLinklyPoll();
+                      if (d.approved) {
+                        setRefundLinklyStep('approved');
+                        setRefundLinklyText('Refund approved');
+                        // Commit the refund in the database
+                        refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, linklySessionId: sessionId });
+                      } else {
+                        setRefundLinklyStep('declined');
+                        setRefundLinklyText(d.responseText || 'Declined by terminal');
+                      }
+                    }
+                  } catch {}
+                }, 1000);
+              } catch (err: any) {
+                setRefundLinklyStep('declined');
+                setRefundLinklyText(err?.message ?? 'Could not reach Linkly terminal.');
+              }
+            } else {
+              // Cash / other: commit refund directly
+              refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, supervisorPin: pin });
+            }
           }}
         />
+      )}
+
+      {/* Linkly refund waiting overlay */}
+      {refundLinklyStep !== 'idle' && (
+        <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 24, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <View style={[styles.eftposInstructions, { width: '100%' }]}>
+            {(refundLinklyStep === 'initiating' || refundLinklyStep === 'waiting') && (
+              <>
+                <ActivityIndicator size="large" color={BLUE} />
+                <Text style={styles.eftposText}>{refundLinklyText || 'Connecting…'}</Text>
+                <Text style={styles.eftposSubText}>Present the original card to the terminal</Text>
+                <TouchableOpacity onPress={handleRefundLinklyCancel} style={[styles.presetBtn, { borderColor: '#FECACA', backgroundColor: '#FFF1F2' }]} activeOpacity={0.75}>
+                  <Text style={[styles.presetBtnText, { color: CHERRY }]}>Cancel Refund</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {refundLinklyStep === 'approved' && (
+              <>
+                <Feather name="check-circle" size={44} color="#16A34A" />
+                <Text style={[styles.eftposText, { color: '#16A34A' }]}>Refund Approved</Text>
+                <Text style={styles.eftposSubText}>Processing…</Text>
+              </>
+            )}
+            {refundLinklyStep === 'declined' && (
+              <>
+                <Feather name="x-circle" size={44} color={CHERRY} />
+                <Text style={[styles.eftposText, { color: CHERRY }]}>Refund Declined</Text>
+                {!!refundLinklyText && <Text style={styles.eftposSubText}>{refundLinklyText}</Text>}
+                <TouchableOpacity onPress={resetRefundLinklyState} style={styles.presetBtn} activeOpacity={0.75}>
+                  <Text style={styles.presetBtnText}>Dismiss</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
       )}
     </Modal>
   );
