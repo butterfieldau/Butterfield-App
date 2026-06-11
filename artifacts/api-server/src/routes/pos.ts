@@ -1532,6 +1532,7 @@ router.get('/linkly/:sessionId', async (req, res) => {
         responseText: status.responseText,
         approved: status.success,
         complete: status.complete,
+        amountSurchargeCents: status.amountSurchargeCents,
         authCode: status.authCode,
         rrn: status.rrn,
         stan: status.stan,

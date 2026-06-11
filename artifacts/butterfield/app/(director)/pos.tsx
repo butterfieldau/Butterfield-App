@@ -2242,7 +2242,8 @@ function PaymentModal({
             linklyPollRef.current = null;
             if (pd.approved) {
               setLinklyStep('approved');
-              onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents, linklySessionId: sessionId });
+              const terminalSurchargeCents = Math.max(0, Math.floor(Number(pd.amountSurchargeCents ?? 0)));
+              onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents + terminalSurchargeCents, linklySessionId: sessionId });
             } else {
               setLinklyStep('declined');
             }

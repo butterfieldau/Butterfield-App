@@ -68,6 +68,7 @@ export type LinklyTransactionRecord = {
   orderId?: string | null;
   source: LinklyTransactionSource;
   amountCents: number;
+  amountSurchargeCents: number;
   txnRef: string;
   status: LinklyTransactionStatus;
   success: boolean;
@@ -277,6 +278,10 @@ export async function ensureLinklySchemaReady() {
     CREATE INDEX IF NOT EXISTS linkly_transactions_order_id_idx
     ON linkly_transactions (order_id)
     WHERE order_id IS NOT NULL;
+  `);
+  await db.execute(sql`
+    ALTER TABLE linkly_transactions
+    ADD COLUMN IF NOT EXISTS amount_surcharge_cents integer NOT NULL DEFAULT 0;
   `);
 }
 
@@ -586,12 +591,17 @@ function parseTransactionPayload(
     ? 'approved'
     : 'declined';
   const analysis = response?.PurchaseAnalysisData ?? payload?.PurchaseAnalysisData ?? {};
+  const amountSurchargeCents = Math.max(0, Math.floor(Number(
+    response?.AmountSurcharge ?? response?.amountSurcharge ??
+    payload?.AmountSurcharge ?? payload?.amountSurcharge ?? 0,
+  )));
   const receiptText = buildReceiptText(response) ?? buildReceiptText(payload);
   return {
     sessionId,
     orderId: orderId ?? null,
     source,
     amountCents,
+    amountSurchargeCents,
     txnRef: firstString(response?.TxnRef, payload?.TxnRef, txnRef) ?? txnRef,
     status,
     success: success && responseCode === '00',
@@ -630,6 +640,7 @@ async function upsertTransaction(
       session_id,
       txn_ref,
       amount_cents,
+      amount_surcharge_cents,
       status,
       success,
       complete,
@@ -656,6 +667,7 @@ async function upsertTransaction(
       ${record.sessionId},
       ${record.txnRef},
       ${record.amountCents},
+      ${record.amountSurchargeCents},
       ${record.status},
       ${record.success},
       ${record.complete},
@@ -680,6 +692,7 @@ async function upsertTransaction(
       source = EXCLUDED.source,
       txn_ref = EXCLUDED.txn_ref,
       amount_cents = EXCLUDED.amount_cents,
+      amount_surcharge_cents = CASE WHEN linkly_transactions.complete THEN linkly_transactions.amount_surcharge_cents ELSE EXCLUDED.amount_surcharge_cents END,
       status = CASE WHEN linkly_transactions.complete THEN linkly_transactions.status ELSE EXCLUDED.status END,
       success = CASE WHEN linkly_transactions.complete THEN linkly_transactions.success ELSE EXCLUDED.success END,
       complete = CASE WHEN linkly_transactions.complete THEN linkly_transactions.complete ELSE EXCLUDED.complete END,
@@ -718,6 +731,7 @@ export async function getStoredLinklyTransaction(sessionId: string) {
       order_id,
       source,
       amount_cents,
+      amount_surcharge_cents,
       txn_ref,
       status,
       success,
@@ -745,6 +759,7 @@ export async function getStoredLinklyTransaction(sessionId: string) {
     orderId: row.order_id ?? null,
     source: row.source as LinklyTransactionSource,
     amountCents: Number(row.amount_cents ?? 0),
+    amountSurchargeCents: Number(row.amount_surcharge_cents ?? 0),
     txnRef: row.txn_ref,
     status: row.status as LinklyTransactionStatus,
     success: !!row.success,
@@ -911,6 +926,7 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
     orderId: args.orderId ?? null,
     source: args.source,
     amountCents: Math.round(args.amountCents),
+    amountSurchargeCents: 0,
     txnRef: args.txnRef,
     status: 'pending',
     success: false,
@@ -1006,6 +1022,7 @@ export async function recoverOrPollTransaction(
       orderId: existing?.orderId ?? null,
       source: existing?.source ?? 'management',
       amountCents: existing?.amountCents ?? 0,
+      amountSurchargeCents: 0,
       txnRef: existing?.txnRef ?? sessionId.slice(0, 12).toUpperCase(),
       status: 'declined',
       success: false,
@@ -1032,6 +1049,7 @@ export async function recoverOrPollTransaction(
       orderId: existing?.orderId ?? null,
       source: existing?.source ?? 'management',
       amountCents: existing?.amountCents ?? 0,
+      amountSurchargeCents: 0,
       txnRef: existing?.txnRef ?? sessionId.slice(0, 12).toUpperCase(),
       status: 'declined',
       success: false,
@@ -1058,6 +1076,7 @@ export async function recoverOrPollTransaction(
       orderId: null,
       source: 'management',
       amountCents: 0,
+      amountSurchargeCents: 0,
       txnRef: sessionId.slice(0, 12).toUpperCase(),
       status: 'pending',
       success: false,
