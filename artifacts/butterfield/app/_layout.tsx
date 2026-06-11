@@ -3,10 +3,10 @@ import NetInfo from "@react-native-community/netinfo";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { onlineManager, QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, AppState, Image, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,7 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { clearAppBadge } from "@/lib/pushNotifications";
 
@@ -56,6 +56,94 @@ const directorStandaloneScreenOptions = {
   fullScreenGestureEnabled: false,
   gestureDirection: "horizontal" as const,
 };
+
+/**
+ * Handles notification taps and routes the user to the correct in-app screen.
+ * Must live inside AuthProvider so it can read the current user's role.
+ *
+ * Routing rules (role-aware to prevent cross-portal navigation):
+ *  - customer  + orderId present → /(customer)/track/[orderId]
+ *  - customer  + screen starts with /(customer)/ → that screen
+ *  - staff     + screen starts with /(staff)/    → that screen
+ *  - director/manager/master + screen starts with /(director)/ → that screen
+ */
+function NotificationTapHandler() {
+  const { user } = useAuth();
+  // Stores cold-start notification data until the user session is resolved
+  const pendingData = useRef<Record<string, unknown> | null>(null);
+  const handledInitial = useRef(false);
+
+  const navigateFromData = useCallback(
+    (data: Record<string, unknown>, role: string) => {
+      const screen = typeof data.screen === 'string' ? data.screen : null;
+      const orderId = typeof data.orderId === 'string' ? data.orderId : null;
+
+      if (role === 'customer') {
+        // Any order notification with an ID → land directly on the tracking screen
+        if (orderId) {
+          router.push(`/(customer)/track/${orderId}` as any);
+          return;
+        }
+        if (screen?.startsWith('/(customer)/')) {
+          router.push(screen as any);
+          return;
+        }
+      } else if (role === 'staff') {
+        if (screen?.startsWith('/(staff)/')) {
+          router.push(screen as any);
+          return;
+        }
+      } else if (['director', 'manager', 'master'].includes(role)) {
+        if (screen?.startsWith('/(director)/')) {
+          router.push(screen as any);
+          return;
+        }
+      }
+    },
+    [],
+  );
+
+  // Process pending cold-start data once a user session is available
+  useEffect(() => {
+    if (user && pendingData.current) {
+      const data = pendingData.current;
+      pendingData.current = null;
+      setTimeout(() => navigateFromData(data, user.role), 400);
+    }
+  }, [user, navigateFromData]);
+
+  // Cold-start: check if the app was launched by tapping a notification
+  useEffect(() => {
+    if (handledInitial.current) return;
+    handledInitial.current = true;
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response) return;
+        const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+        if (user) {
+          setTimeout(() => navigateFromData(data, user.role), 400);
+        } else {
+          pendingData.current = data;
+        }
+      })
+      .catch(() => {});
+  }, []); // intentionally empty — runs once on mount
+
+  // Foreground / background tap: app is running or recently suspended
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      clearAppBadge().catch(() => {});
+      const data = (response.notification.request.content.data ?? {}) as Record<string, unknown>;
+      if (user) {
+        navigateFromData(data, user.role);
+      }
+    });
+    return () => sub.remove();
+  }, [user, navigateFromData]);
+
+  return null;
+}
 
 function RootLayoutNav() {
   return (
@@ -179,14 +267,9 @@ export default function RootLayout() {
       clearAppBadge().catch(() => {});
     });
 
-    const responseSub = Notifications.addNotificationResponseReceivedListener(() => {
-      clearAppBadge().catch(() => {});
-    });
-
     return () => {
       appStateSub.remove();
       receivedSub.remove();
-      responseSub.remove();
     };
   }, []);
 
@@ -207,6 +290,8 @@ export default function RootLayout() {
                   <RootLayoutNav />
                 </KeyboardProvider>
               </GestureHandlerRootView>
+              {/* Notification tap router — renders null, needs AuthProvider for role-aware navigation */}
+              <NotificationTapHandler />
             </CartProvider>
           </AuthProvider>
         </PersistQueryClientProvider>

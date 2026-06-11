@@ -379,7 +379,7 @@ router.post('/', async (req, res) => {
       'order_scheduled',
       'Order Placed',
       customerMsg,
-      { orderId, screen: '/(customer)/orders' },
+      { orderId, screen: `/(customer)/track/${orderId}` },
     ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order customer notification failed'));
   } else {
     // Quick pickup — immediate, no acceptance needed
@@ -395,7 +395,7 @@ router.post('/', async (req, res) => {
       'order_confirmed',
       'Order Received',
       'We\'ve got your order and will have it ready soon!',
-      { orderId, screen: '/(customer)/orders' },
+      { orderId, screen: `/(customer)/track/${orderId}` },
     ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
   }
 
@@ -444,7 +444,7 @@ router.patch(
     const msg = getStatusMessage(status, currentOrder.type, currentOrder.scheduledFor);
     if (order && msg) {
       notifyUser(order.userId, 'order_status', 'Butterfield Cookies', msg,
-        { orderId: order.id, status, screen: '/(customer)/orders' }).catch(() => {});
+        { orderId: order.id, status, screen: `/(customer)/track/${order.id}` }).catch(() => {});
     }
 
     // ── On cancellation: restore claimed reward + reverse loyalty points earned ──
