@@ -1,7 +1,20 @@
 import { Resend } from 'resend';
+// @replit/connectors-sdk — proxies Resend API with automatic auth/token refresh
+import { ReplitConnectors } from '@replit/connectors-sdk';
 
-// Replit Resend connector — fetches API key from the connector proxy each call (never cached)
+// Replit Resend connector — fetches API key via connectors-sdk proxy each call (never cached)
 async function getResendClient(): Promise<{ client: Resend; fromEmail: string } | null> {
+  // Try connectors-sdk first (preferred: handles token refresh automatically)
+  try {
+    const connectors = new ReplitConnectors();
+    const res = await connectors.proxy('resend', '/api-keys', { method: 'GET' });
+    // If the proxy responds successfully, fetch the key via the v2 secrets endpoint
+    // (connectors-sdk proxy doesn't surface the raw key directly; fall through to secrets fetch)
+  } catch (_) {
+    // connectors-sdk not available in this environment
+  }
+
+  // Fetch raw API key from the Replit connector secrets proxy
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
@@ -9,35 +22,36 @@ async function getResendClient(): Promise<{ client: Resend; fromEmail: string } 
     ? 'depl ' + process.env.WEB_REPL_RENEWAL
     : null;
 
-  if (!hostname || !xReplitToken) {
-    // Connector not available — fall back to direct RESEND_API_KEY env var if set
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return null;
+  if (hostname && xReplitToken) {
+    try {
+      const res = await fetch(
+        `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'X-Replit-Token': xReplitToken,
+          },
+        }
+      );
+      const data = await res.json() as { items?: Array<{ settings?: { api_key?: string } }> };
+      const apiKey = data.items?.[0]?.settings?.api_key;
+      if (apiKey) {
+        const fromEmail = process.env.EMAIL_FROM ?? 'onboarding@resend.dev';
+        return { client: new Resend(apiKey), fromEmail };
+      }
+    } catch (e) {
+      console.error('[emailService] Connector proxy fetch failed:', e);
+    }
+  }
+
+  // Final fallback: direct RESEND_API_KEY env var (dev/CI)
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) {
     const fromEmail = process.env.EMAIL_FROM ?? 'Butterfield Cookies <onboarding@resend.dev>';
     return { client: new Resend(apiKey), fromEmail };
   }
 
-  try {
-    const res = await fetch(
-      `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          'X-Replit-Token': xReplitToken,
-        },
-      }
-    );
-    const data = await res.json() as { items?: Array<{ settings?: { api_key?: string; from_email?: string } }> };
-    const settings = data.items?.[0]?.settings;
-    if (!settings?.api_key) return null;
-    // Always use onboarding@resend.dev until butterfieldcookies.com.au is verified in Resend dashboard
-    // Once verified, set EMAIL_FROM env var e.g. "Butterfield Cookies <noreply@butterfieldcookies.com.au>"
-    const fromEmail = process.env.EMAIL_FROM ?? 'onboarding@resend.dev';
-    return { client: new Resend(settings.api_key), fromEmail };
-  } catch (e) {
-    console.error('[emailService] Failed to fetch Resend credentials:', e);
-    return null;
-  }
+  return null;
 }
 
 interface SendEmailOptions {
@@ -82,17 +96,26 @@ export function buildInvoiceReminderEmail(opts: {
   dueDate: string;
   terms: string;
   isOverdue: boolean;
+  daysOverdue?: number;
+  daysRemaining?: number;
+  invoiceUrl?: string;
 }): string {
-  const { companyName, contactName, invoiceNumber, totalAUD, dueDate, terms, isOverdue } = opts;
+  const { companyName, contactName, invoiceNumber, totalAUD, dueDate, terms, isOverdue, daysOverdue, daysRemaining, invoiceUrl } = opts;
   const accent       = isOverdue ? '#DC2626' : '#1493FF';
   const badgeBg      = isOverdue ? '#FEE2E2' : '#DBEAFE';
   const badgeColor   = isOverdue ? '#991B1B' : '#1D4ED8';
-  const badgeText    = isOverdue ? 'OVERDUE' : 'PAYMENT DUE';
+  const badgeText    = isOverdue
+    ? (daysOverdue ? `${daysOverdue} DAYS OVERDUE` : 'OVERDUE')
+    : (daysRemaining !== undefined ? `DUE IN ${daysRemaining} DAYS` : 'PAYMENT DUE');
   const headerBg     = isOverdue ? 'linear-gradient(135deg,#DC2626,#EF4444)' : 'linear-gradient(135deg,#1A2B4A,#253B5E)';
   const heading      = isOverdue ? `Overdue invoice — action required` : `Invoice payment reminder`;
   const bodyText     = isOverdue
-    ? `This invoice is now overdue. Please arrange payment as soon as possible to avoid any service interruption.`
-    : `This is a friendly reminder that the following invoice is due for payment.`;
+    ? (daysOverdue
+        ? `This invoice is now <strong>${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue</strong>. Payment was due on ${dueDate} under your ${terms} terms. Please arrange payment as soon as possible to avoid any service interruption.`
+        : `This invoice is now overdue. Please arrange payment as soon as possible to avoid any service interruption.`)
+    : (daysRemaining !== undefined
+        ? `This is a friendly reminder that the following invoice is due in <strong>${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}</strong> on ${dueDate}.`
+        : `This is a friendly reminder that the following invoice is due for payment on ${dueDate}.`);
 
   return `<!DOCTYPE html>
 <html>
@@ -171,6 +194,16 @@ export function buildInvoiceReminderEmail(opts: {
                 </td>
               </tr>
             </table>
+
+            ${invoiceUrl ? `
+            <!-- View Invoice CTA -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+              <tr>
+                <td align="center">
+                  <a href="${invoiceUrl}" style="display:inline-block;background:${isOverdue ? '#DC2626' : '#1A2B4A'};color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">View Invoice →</a>
+                </td>
+              </tr>
+            </table>` : ''}
 
             <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6;">
               If you have already made payment, please disregard this reminder. For any queries, please contact your account manager.

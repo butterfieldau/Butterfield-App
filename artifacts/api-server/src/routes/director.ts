@@ -1392,7 +1392,19 @@ router.post('/wholesale/invoices/:orderId/send-reminder', async (req, res) => {
     net_7: 'NET 7', net_14: 'NET 14', net_30: 'NET 30', net_60: 'NET 60',
   };
   const terms = termsLabel[account.paymentTerms ?? ''] ?? account.paymentTerms ?? '';
-  const isOverdue = dueDate ? dueDate < new Date() : false;
+  const now = new Date();
+  const isOverdue = dueDate ? dueDate < now : false;
+  const diffMs = dueDate ? Math.abs(now.getTime() - dueDate.getTime()) : 0;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const daysOverdue = isOverdue ? diffDays : undefined;
+  const daysRemaining = !isOverdue && dueDate ? diffDays : undefined;
+
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    : (process.env.REPLIT_DOMAINS?.split(',')[0]
+        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+        : '');
+  const invoiceUrl = baseUrl ? `${baseUrl}/api/invoices/w/${orderId}` : undefined;
 
   const { sendEmail, buildInvoiceReminderEmail } = await import('../lib/emailService.js');
   const html = buildInvoiceReminderEmail({
@@ -1403,11 +1415,14 @@ router.post('/wholesale/invoices/:orderId/send-reminder', async (req, res) => {
     dueDate: dueDateStr,
     terms,
     isOverdue,
+    daysOverdue,
+    daysRemaining,
+    invoiceUrl,
   });
 
   const subject = isOverdue
-    ? `Overdue invoice reminder: ${invNum} — ${totalAUD}`
-    : `Invoice reminder: ${invNum} due ${dueDateStr}`;
+    ? `OVERDUE: ${invNum} – ${account.companyName} (${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue)`
+    : `Payment reminder: ${invNum} – ${account.companyName} – due ${dueDateStr}`;
 
   const { success } = await sendEmail({ to: recipientEmail, subject, html });
 
