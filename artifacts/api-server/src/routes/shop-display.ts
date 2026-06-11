@@ -35,6 +35,25 @@ import {
 const router = Router();
 router.use(requireRole('shop_display'));
 
+function getPublicBaseUrl(req: any): string | null {
+  if (process.env.LINKLY_NOTIFICATION_BASE_URL) return process.env.LINKLY_NOTIFICATION_BASE_URL.replace(/\/+$/, '');
+  if (process.env.EXPO_PUBLIC_DOMAIN) return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+  const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .find(Boolean);
+  if (domain) return `https://${domain}`;
+  const host = req.headers?.['x-forwarded-host'] ?? req.headers?.host;
+  if (!host) return null;
+  const protocol = req.headers?.['x-forwarded-proto'] ?? 'https';
+  return `${protocol}://${Array.isArray(host) ? host[0] : host}`;
+}
+
+function buildLinklyNotificationUrl(req: any, sessionId: string): string | null {
+  const baseUrl = getPublicBaseUrl(req);
+  return baseUrl ? `${baseUrl}/api/linkly/notifications/${encodeURIComponent(sessionId)}` : null;
+}
+
 const TERMINAL_STATUSES_SD = new Set(['completed', 'cancelled', 'refunded']);
 
 function getShopDisplayAllowedNextStatuses(
@@ -937,6 +956,7 @@ router.post('/linkly/transaction', async (req, res) => {
       operatorName: req.user!.name ?? req.user!.email ?? 'Display',
       orderId,
       source: 'shop_display',
+      notificationUrl: buildLinklyNotificationUrl(req, sessionId),
     });
     // Bind this session to the order and device — poll endpoint will enforce this binding
     activeSessions.set(sessionId, { orderId, deviceUserId: req.user!.id, createdAt: Date.now() });

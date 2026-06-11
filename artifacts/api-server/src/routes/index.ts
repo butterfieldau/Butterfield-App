@@ -26,6 +26,7 @@ import directorReportsExportRouter from "./director-reports-export.js";
 import placesRouter from "./places.js";
 import invoicesRouter from "./invoices.js";
 import posRouter from "./pos.js";
+import linklyNotificationsRouter from "./linkly-notifications.js";
 
 const router: IRouter = Router();
 
@@ -53,6 +54,7 @@ router.use("/discounts", discountsRouter);
 router.use(storageRouter);
 router.use("/places", placesRouter);
 router.use("/invoices", invoicesRouter);
+router.use("/linkly", linklyNotificationsRouter);
 router.use("/pos", posRouter);
 router.use(adminSeedRouter);
 router.use(miscRouter);

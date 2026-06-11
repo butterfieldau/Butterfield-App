@@ -106,6 +106,7 @@ type StartPurchaseArgs = {
   operatorName: string;
   orderId?: string | null;
   source: LinklyTransactionSource;
+  notificationUrl?: string | null;
 };
 
 type LinklyManagementActionArgs = {
@@ -763,6 +764,36 @@ export async function getStoredLinklyTransaction(sessionId: string) {
   } satisfies LinklyTransactionRecord;
 }
 
+export async function handleLinklyTransactionNotification(sessionId: string, payload: any) {
+  await ensureLinklySchemaReady();
+  const existing = await getStoredLinklyTransaction(sessionId);
+  if (!existing) return null;
+  const userId = await getTransactionUserId(sessionId);
+
+  const parsed = parseTransactionPayload(
+    sessionId,
+    existing.source,
+    existing.orderId,
+    existing.amountCents,
+    existing.txnRef,
+    payload,
+  );
+  await upsertTransaction(userId, parsed);
+  return parsed;
+}
+
+async function getTransactionUserId(sessionId: string): Promise<string> {
+  const result = await db.execute(sql`
+    SELECT user_id
+    FROM linkly_transactions
+    WHERE session_id = ${sessionId}
+    LIMIT 1
+  `);
+  const row = ((result as any).rows?.[0] ?? (result as any)[0] ?? null) as { user_id?: string } | null;
+  if (!row?.user_id) throw new Error('Linkly transaction session not found.');
+  return row.user_id;
+}
+
 async function callLinklyTransaction(
   userId: string,
   environment: LinklyEnvironment,
@@ -869,6 +900,16 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
         PCM: '0000',
       },
     },
+    ...(args.notificationUrl
+      ? {
+          Notification: {
+            Uri: args.notificationUrl,
+            URI: args.notificationUrl,
+            Url: args.notificationUrl,
+            URL: args.notificationUrl,
+          },
+        }
+      : {}),
   };
 
   const pendingRecord: LinklyTransactionRecord = {

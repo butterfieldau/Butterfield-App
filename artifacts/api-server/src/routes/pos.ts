@@ -65,6 +65,25 @@ router.use(requireAuth);
 router.use(requireRole('staff', 'manager', 'director', 'master', 'shop_display'));
 startRegisterAutoCloseLoop();
 
+function getPublicBaseUrl(req: any): string | null {
+  if (process.env.LINKLY_NOTIFICATION_BASE_URL) return process.env.LINKLY_NOTIFICATION_BASE_URL.replace(/\/+$/, '');
+  if (process.env.EXPO_PUBLIC_DOMAIN) return `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
+  const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .find(Boolean);
+  if (domain) return `https://${domain}`;
+  const host = req.headers?.['x-forwarded-host'] ?? req.headers?.host;
+  if (!host) return null;
+  const protocol = req.headers?.['x-forwarded-proto'] ?? 'https';
+  return `${protocol}://${Array.isArray(host) ? host[0] : host}`;
+}
+
+function buildLinklyNotificationUrl(req: any, sessionId: string): string | null {
+  const baseUrl = getPublicBaseUrl(req);
+  return baseUrl ? `${baseUrl}/api/linkly/notifications/${encodeURIComponent(sessionId)}` : null;
+}
+
 function recordPosPinHistory(req: any, success: boolean, failReason: string | null, userId?: string | null, email?: string | null, role?: string | null) {
   const ip = (() => {
     const fwd = req.headers?.['x-forwarded-for'];
@@ -1475,6 +1494,7 @@ router.post('/linkly/transaction', async (req, res) => {
       operatorId: req.user!.id,
       operatorName: req.user!.name ?? req.user!.email ?? 'Staff',
       source: 'pos',
+      notificationUrl: buildLinklyNotificationUrl(req, sessionId),
     });
     posActiveSessions.set(sessionId, { deviceUserId: req.user!.id, amountCents: chargeAmount, createdAt: Date.now() });
     return res.json({
