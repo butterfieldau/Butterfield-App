@@ -1146,25 +1146,41 @@ export async function runReprintReceiptAction(
 }
 
 /**
- * Send the Cancel key (Key "0") to the Linkly pinpad for the given session.
- * This is a fire-and-forget call — errors are swallowed because the pinpad
- * may have already timed out or the transaction may already be complete.
+ * Send the Cancel key to the Linkly pinpad for the given session.
+ * Linkly Cloud Key enum: 0=None 1=OK 2=Cancel 3=Yes 4=No 5=Authorise 6=Function
  */
 export async function cancelTransaction(userId: string, sessionId: string): Promise<void> {
   let row: StoredLinklyConfig | null = null;
-  try { row = await getStoredConfig(userId); } catch { return; }
-  if (!row?.linkly_secret) return; // not configured, nothing to cancel
+  try { row = await getStoredConfig(userId); } catch (err) {
+    logger.warn({ err, sessionId }, 'Linkly cancel: could not load stored config');
+    return;
+  }
+  if (!row?.linkly_secret) {
+    logger.warn({ sessionId }, 'Linkly cancel: no config, skipping');
+    return;
+  }
   const environment = normaliseEnvironment(row.linkly_environment);
   let token: string;
-  try { token = await getLinklyToken(userId); } catch { return; }
+  try { token = await getLinklyToken(userId); } catch (err) {
+    logger.warn({ err, sessionId }, 'Linkly cancel: could not obtain token');
+    return;
+  }
   const { rest } = getBaseUrls(environment);
-  // Linkly Cloud sendkey: Key "0" = CANCEL on the pinpad keypad
-  await fetchJson(`${rest}/v1/sessions/${sessionId}/sendkey`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ Request: { Key: '0' } }),
-  }, 8_000).catch(() => {});
+  const url = `${rest}/v1/sessions/${sessionId}/sendkey`;
+  // Key 2 = Cancel in the Linkly Cloud Key enum
+  const body = JSON.stringify({ Request: { Key: 2 } });
+  logger.info({ sessionId, url, environment }, 'Linkly cancel: sending sendkey Key=2 (Cancel)');
+  try {
+    const result = await fetchJson(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body,
+    }, 8_000);
+    logger.info({ sessionId, status: result.status, ok: result.ok, body: result.body }, 'Linkly cancel: sendkey response');
+  } catch (err) {
+    logger.warn({ err, sessionId }, 'Linkly cancel: sendkey threw');
+  }
 }
