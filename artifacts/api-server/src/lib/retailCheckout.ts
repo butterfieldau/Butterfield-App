@@ -185,9 +185,14 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     let cheapestIdx = -1;
     let cheapestPrice = Infinity;
     for (let i = 0; i < items.length; i++) {
-      const cp = coffeeProductMap.get(items[i]!.productId);
-      if (!cp || items[i]!.isFreeReward) continue;
-      const price = cp.salePriceCents ?? cp.priceCents;
+      const item = items[i]!;
+      const cp = coffeeProductMap.get(item.productId);
+      if (!cp || item.isFreeReward) continue;
+      // Prefer the item's authoritative unit price (variant + options already baked in);
+      // fall back to product-level price when the client did not supply it.
+      const price = typeof item.unitPriceCents === 'number' && item.unitPriceCents > 0
+        ? item.unitPriceCents
+        : (cp.salePriceCents ?? cp.priceCents ?? 0);
       if (price < cheapestPrice) {
         cheapestPrice = price;
         cheapestIdx = i;
@@ -206,8 +211,10 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     if (targetQty === 1) {
       items[cheapestIdx] = { ...target, isFreeReward: true, freeCoffeeItem: true } as RetailCheckoutItem & { freeCoffeeItem: boolean };
     } else {
+      // Reduce the original line by one unit, then push a full clone for the free unit.
+      // Cloning preserves variantId, selectedOptions, variantName, etc. so kitchen prep is unchanged.
       items[cheapestIdx] = { ...target, quantity: targetQty - 1 };
-      items.push({ productId: target.productId, quantity: 1, isFreeReward: true, freeCoffeeItem: true, selectedOptions: [] } as RetailCheckoutItem & { freeCoffeeItem: boolean });
+      items.push({ ...target, quantity: 1, isFreeReward: true, freeCoffeeItem: true } as RetailCheckoutItem & { freeCoffeeItem: boolean });
     }
   }
 
