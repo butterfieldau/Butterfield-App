@@ -466,9 +466,22 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
                             <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', letterSpacing: 0.5 }}>FREE</Text>
                           </View>
                         )}
+                        {item.priceOverrideCents !== undefined && (
+                          <View style={{ backgroundColor: '#FEF3C7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#92400E', letterSpacing: 0.5 }}>PRICE ADJ</Text>
+                          </View>
+                        )}
                       </View>
                       <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
-                        {item.quantity} × ${(item.unitPriceCents / 100).toFixed(2)}
+                        {item.quantity} ×{' '}
+                        {item.originalPriceCents !== undefined ? (
+                          <>
+                            <Text style={{ textDecorationLine: 'line-through' }}>${(item.originalPriceCents / 100).toFixed(2)}</Text>
+                            {' '}${(item.unitPriceCents / 100).toFixed(2)}
+                          </>
+                        ) : (
+                          `$${(item.unitPriceCents / 100).toFixed(2)}`
+                        )}
                       </Text>
                       {item.notableOptions.length > 0 && (
                         <Text style={{ color: BLUE, fontWeight: '400', fontSize: 12 }}>

@@ -90,6 +90,7 @@ interface TicketItem {
   quantity: number;
   unitPriceCents: number;
   notes: string;
+  priceOverrideCents?: number;
 }
 
 interface AttachedCustomerClaimedReward {
@@ -131,6 +132,7 @@ interface Ticket {
   orderType: OrderType;
   notes: string;
   appliedDiscount: AppliedDiscount | null;
+  priceOverrideSupervisorPin?: string;
 }
 
 interface ProductDetail {
@@ -163,7 +165,7 @@ function isBirthdayMonth(birthday?: string | null): boolean {
 }
 
 function ticketSubtotal(t: Ticket): number {
-  return t.items.reduce((s, i) => s + i.unitPriceCents * i.quantity, 0);
+  return t.items.reduce((s, i) => s + (i.priceOverrideCents ?? i.unitPriceCents) * i.quantity, 0);
 }
 
 function ticketTotal(t: Ticket): number {
@@ -215,6 +217,10 @@ function buildPosItems(items: TicketItem[]): PosOrderItem[] {
     quantity: i.quantity,
     unitPriceCents: i.unitPriceCents,
     notes: i.notes || undefined,
+    ...(i.priceOverrideCents !== undefined && {
+      priceOverrideCents: i.priceOverrideCents,
+      originalPriceCents: i.unitPriceCents,
+    }),
   }));
 }
 
@@ -567,6 +573,26 @@ function PosScreenInner() {
     Haptics.selectionAsync();
   }, [activeIdx]);
 
+  const updateItemPriceOverride = useCallback((localId: string, newPriceCents: number | undefined, supervisorPin?: string) => {
+    setTickets(prev => prev.map((t, i) => {
+      if (i !== activeIdx) return t;
+      const newItems = t.items.map(x => {
+        if (x.localId !== localId) return x;
+        if (newPriceCents === undefined || newPriceCents === x.unitPriceCents) {
+          const { priceOverrideCents: _removed, ...rest } = x;
+          return rest as TicketItem;
+        }
+        return { ...x, priceOverrideCents: newPriceCents };
+      });
+      return {
+        ...t,
+        items: newItems,
+        priceOverrideSupervisorPin: supervisorPin ?? t.priceOverrideSupervisorPin,
+      };
+    }));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [activeIdx]);
+
   const clearTicket = useCallback(() => {
     setTickets(prev => prev.map((t, i) => i === activeIdx ? blankTicket() : t));
   }, [activeIdx]);
@@ -683,7 +709,8 @@ function PosScreenInner() {
     claimedRewardId: activeTicket.appliedDiscount?.type === 'claimed_reward' ? activeTicket.appliedDiscount.claimedRewardId : undefined,
     birthdayBonus: activeTicket.customer ? isBirthdayMonth(activeTicket.customer.birthday) : undefined,
     idempotencyKey: activeIdempotencyKey,
-    supervisorPin: vars.supervisorPin,
+    supervisorPin: vars.supervisorPin ?? activeTicket.priceOverrideSupervisorPin,
+    hasPriceOverride: activeTicket.items.some(i => i.priceOverrideCents !== undefined),
   }), [activeTicket, activeIdempotencyKey]);
 
   const clearActiveTicket = useCallback(() => {
@@ -1162,6 +1189,7 @@ function PosScreenInner() {
               onUpdateTicket={updateTicket}
               onRemoveItem={removeItem}
               onUpdateQty={updateItemQty}
+              onPriceOverride={updateItemPriceOverride}
               onClear={clearTicket}
               onHold={tickets.length <= 6 ? holdTicket : undefined}
               onAttachCustomer={() => { setCustomerModalMode('search'); setShowCustomerModal(true); }}
@@ -1458,7 +1486,7 @@ function ProductGridCard({
 
 // ── Ticket Panel ──────────────────────────────────────────────────────────────
 function TicketPanel({
-  ticket, onUpdateTicket, onRemoveItem, onUpdateQty,
+  ticket, onUpdateTicket, onRemoveItem, onUpdateQty, onPriceOverride,
   onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
   discountPresets,
 }: {
@@ -1466,6 +1494,7 @@ function TicketPanel({
   onUpdateTicket: (p: Partial<Ticket>) => void;
   onRemoveItem: (id: string) => void;
   onUpdateQty: (id: string, delta: number) => void;
+  onPriceOverride: (localId: string, newPriceCents: number | undefined, supervisorPin?: string) => void;
   onClear: () => void;
   onHold?: () => void;
   onAttachCustomer: () => void;
@@ -1737,6 +1766,7 @@ function TicketPanel({
               onIncrement={() => onUpdateQty(item.localId, 1)}
               onDecrement={() => onUpdateQty(item.localId, -1)}
               onEdit={() => onEditItem(item)}
+              onPriceOverride={(newPriceCents, pin) => onPriceOverride(item.localId, newPriceCents, pin)}
             />
           ))
         )}
@@ -1874,46 +1904,143 @@ function TicketPanel({
 
 // ── Ticket Item Row ───────────────────────────────────────────────────────────
 function TicketItemRow({
-  item, onRemove, onIncrement, onDecrement, onEdit,
+  item, onRemove, onIncrement, onDecrement, onEdit, onPriceOverride,
 }: {
   item: TicketItem; onRemove: () => void;
   onIncrement: () => void; onDecrement: () => void; onEdit: () => void;
+  onPriceOverride: (newPriceCents: number | undefined, supervisorPin?: string) => void;
 }) {
-  const lineTotal = item.unitPriceCents * item.quantity;
+  const effectiveUnitPrice = item.priceOverrideCents ?? item.unitPriceCents;
+  const lineTotal = effectiveUnitPrice * item.quantity;
+  const origLineTotal = item.unitPriceCents * item.quantity;
+  const hasOverride = item.priceOverrideCents !== undefined;
   const optionSummary = item.selectedOptions.map(o => o.optionName).join(', ');
   const variantLabel = item.variantName;
 
+  const [showPriceEdit, setShowPriceEdit] = React.useState(false);
+  const [rawPrice, setRawPrice] = React.useState('');
+  const [showPinCapture, setShowPinCapture] = React.useState(false);
+  const [pendingPriceCents, setPendingPriceCents] = React.useState<number | null>(null);
+
+  const openPriceEdit = () => {
+    setRawPrice((effectiveUnitPrice / 100).toFixed(2));
+    setShowPriceEdit(true);
+    Haptics.selectionAsync();
+  };
+
+  const confirmPriceEdit = () => {
+    const parsed = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
+    if (isNaN(parsed) || parsed < 0) { setShowPriceEdit(false); return; }
+    const newCents = Math.round(parsed * 100);
+    if (newCents === item.unitPriceCents) {
+      onPriceOverride(undefined);
+      setShowPriceEdit(false);
+      return;
+    }
+    const reduction = item.unitPriceCents - newCents;
+    if (reduction > 100) {
+      setPendingPriceCents(newCents);
+      setShowPriceEdit(false);
+      setShowPinCapture(true);
+    } else {
+      onPriceOverride(newCents);
+      setShowPriceEdit(false);
+    }
+  };
+
   return (
-    <View style={styles.ticketItem}>
-      <TouchableOpacity onPress={onEdit} style={{ flex: 1 }} activeOpacity={0.7}>
-        <Text style={styles.ticketItemName} numberOfLines={1}>{item.productName}</Text>
-        {(variantLabel || optionSummary) && (
-          <Text style={styles.ticketItemMeta} numberOfLines={1}>
-            {[variantLabel, optionSummary].filter(Boolean).join(' · ')}
-          </Text>
-        )}
-        {item.notes ? (
-          <Text style={styles.ticketItemNotes} numberOfLines={1}>Note: {item.notes}</Text>
-        ) : null}
-      </TouchableOpacity>
-      <View style={styles.ticketItemRight}>
-        <Text style={styles.ticketItemPrice}>{fmtCents(lineTotal)}</Text>
-        <View style={styles.qtyControls}>
-          <Pressable onPress={onDecrement} style={styles.qtyBtn} hitSlop={6}>
-            {item.quantity === 1
-              ? <Feather name="trash-2" size={14} color={CHERRY} />
-              : <Feather name="minus" size={14} color={MID} />}
-          </Pressable>
-          <Text style={styles.qtyText}>{item.quantity}</Text>
-          <Pressable onPress={onIncrement} style={styles.qtyBtn} hitSlop={6}>
-            <Feather name="plus" size={14} color={BLUE} />
-          </Pressable>
+    <>
+      <View style={styles.ticketItem}>
+        <TouchableOpacity onPress={onEdit} style={{ flex: 1 }} activeOpacity={0.7}>
+          <Text style={styles.ticketItemName} numberOfLines={1}>{item.productName}</Text>
+          {(variantLabel || optionSummary) && (
+            <Text style={styles.ticketItemMeta} numberOfLines={1}>
+              {[variantLabel, optionSummary].filter(Boolean).join(' · ')}
+            </Text>
+          )}
+          {item.notes ? (
+            <Text style={styles.ticketItemNotes} numberOfLines={1}>Note: {item.notes}</Text>
+          ) : null}
+        </TouchableOpacity>
+        <View style={styles.ticketItemRight}>
+          <TouchableOpacity onPress={openPriceEdit} activeOpacity={0.7} hitSlop={6}>
+            {hasOverride ? (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.ticketItemPriceStrike}>{fmtCents(origLineTotal)}</Text>
+                <Text style={[styles.ticketItemPrice, { color: CHERRY }]}>{fmtCents(lineTotal)}</Text>
+              </View>
+            ) : (
+              <Text style={styles.ticketItemPrice}>{fmtCents(lineTotal)}</Text>
+            )}
+          </TouchableOpacity>
+          <View style={styles.qtyControls}>
+            <Pressable onPress={onDecrement} style={styles.qtyBtn} hitSlop={6}>
+              {item.quantity === 1
+                ? <Feather name="trash-2" size={14} color={CHERRY} />
+                : <Feather name="minus" size={14} color={MID} />}
+            </Pressable>
+            <Text style={styles.qtyText}>{item.quantity}</Text>
+            <Pressable onPress={onIncrement} style={styles.qtyBtn} hitSlop={6}>
+              <Feather name="plus" size={14} color={BLUE} />
+            </Pressable>
+          </View>
         </View>
+        <Pressable onPress={onRemove} style={styles.ticketItemDelete} hitSlop={8}>
+          <Feather name="x" size={14} color={MUTED} />
+        </Pressable>
       </View>
-      <Pressable onPress={onRemove} style={styles.ticketItemDelete} hitSlop={8}>
-        <Feather name="x" size={14} color={MUTED} />
-      </Pressable>
-    </View>
+
+      <Modal visible={showPriceEdit} transparent animationType="fade" onRequestClose={() => setShowPriceEdit(false)}>
+        <Pressable style={styles.pinOverlay} onPress={() => setShowPriceEdit(false)}>
+          <Pressable style={styles.priceEditSheet} onPress={() => {}}>
+            <Text style={styles.priceEditTitle}>Set Price</Text>
+            <Text style={styles.priceEditSub} numberOfLines={1}>{item.productName}</Text>
+            <View style={styles.priceEditInputRow}>
+              <Text style={styles.priceEditDollar}>$</Text>
+              <TextInput
+                style={styles.priceEditInput}
+                value={rawPrice}
+                onChangeText={setRawPrice}
+                keyboardType="decimal-pad"
+                autoFocus
+                selectTextOnFocus
+                returnKeyType="done"
+                onSubmitEditing={confirmPriceEdit}
+                placeholder="0.00"
+                placeholderTextColor={MUTED}
+              />
+            </View>
+            {hasOverride && (
+              <Text style={styles.priceEditOriginal}>Original: {fmtCents(item.unitPriceCents)}</Text>
+            )}
+            <Text style={styles.priceEditHint}>Reductions over $1.00 require a supervisor PIN</Text>
+            <View style={styles.priceEditActions}>
+              <Pressable onPress={() => setShowPriceEdit(false)} style={styles.priceEditCancel}>
+                <Text style={styles.priceEditCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={confirmPriceEdit} style={styles.priceEditConfirm}>
+                <Text style={styles.priceEditConfirmText}>Set Price</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {showPinCapture && (
+        <SupervisorPinCapture
+          title="Price Override"
+          subtitle="Enter supervisor PIN to reduce price by more than $1.00"
+          onClose={() => { setShowPinCapture(false); setPendingPriceCents(null); }}
+          onSuccess={(pin) => {
+            if (pendingPriceCents !== null) {
+              onPriceOverride(pendingPriceCents, pin);
+            }
+            setShowPinCapture(false);
+            setPendingPriceCents(null);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -5128,6 +5255,24 @@ const styles = StyleSheet.create({
   pinBackText:      { fontSize: 20, color: MID },
   pinCancel:        { alignItems: 'center', paddingVertical: 16 },
   pinCancelText:    { fontSize: 15, color: MUTED, fontWeight: '600' },
+
+  // Ticket item price override
+  ticketItemPriceStrike: { fontSize: 11, color: MUTED, textDecorationLine: 'line-through', textAlign: 'right' },
+
+  // Price edit modal
+  priceEditSheet:       { backgroundColor: WHITE, borderRadius: 20, width: '100%', maxWidth: 340, padding: 24, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 10 },
+  priceEditTitle:       { fontSize: 17, fontWeight: '800', color: DARK, textAlign: 'center', marginBottom: 4 },
+  priceEditSub:         { fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 20 },
+  priceEditInputRow:    { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: BLUE, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 10, backgroundColor: '#F8FAFF' },
+  priceEditDollar:      { fontSize: 22, fontWeight: '700', color: DARK, marginRight: 4 },
+  priceEditInput:       { flex: 1, fontSize: 28, fontWeight: '700', color: DARK, padding: 0 },
+  priceEditOriginal:    { fontSize: 12, color: MUTED, textAlign: 'center', marginBottom: 4 },
+  priceEditHint:        { fontSize: 11, color: MUTED, textAlign: 'center', marginBottom: 20, lineHeight: 16 },
+  priceEditActions:     { flexDirection: 'row', gap: 10 },
+  priceEditCancel:      { flex: 1, height: 46, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, justifyContent: 'center', alignItems: 'center' },
+  priceEditCancelText:  { fontSize: 15, fontWeight: '600', color: MID },
+  priceEditConfirm:     { flex: 1, height: 46, borderRadius: 12, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center' },
+  priceEditConfirmText: { fontSize: 15, fontWeight: '700', color: WHITE },
 });
 
 // ── Export (wraps inner screen with OfflineProvider) ──────────────────────────

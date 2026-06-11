@@ -838,6 +838,50 @@ router.post('/orders', async (req, res) => {
     };
   });
 
+  // ── Server-side price override gate ────────────────────────────────────────
+  // Any item with a priceOverrideCents that reduces the price by more than $1
+  // requires a verified supervisor PIN. Increases and small reductions (≤ $1)
+  // pass through without a PIN.
+  const reducingOverrideExists = rawItems.some((rawItem: any, idx: number) => {
+    const overrideCents = typeof rawItem.priceOverrideCents === 'number' ? rawItem.priceOverrideCents : null;
+    if (overrideCents === null) return false;
+    const catalogPrice = items[idx]?.unitPriceCents ?? 0;
+    return catalogPrice - overrideCents > 100;
+  });
+  if (reducingOverrideExists) {
+    const supervisorPin = req.body.supervisorPin;
+    if (!supervisorPin || !/^\d{4}$/.test(String(supervisorPin))) {
+      return res.status(403).json({
+        error: 'A supervisor PIN is required to reduce an item price by more than $1.00.',
+        code: 'PRICE_OVERRIDE_PIN_REQUIRED',
+      });
+    }
+    const pinValid = await verifySupervisorPin(String(supervisorPin));
+    if (!pinValid) {
+      recordAuditLog({ actor: req.user, action: 'pos.price_override_pin_fail', entityType: 'pos_order', entityId: '', metadata: {} }).catch(() => {});
+      recordPosPinHistory(req, false, 'PRICE_OVERRIDE_PIN_INVALID', req.user?.id, req.user?.email, req.user?.role);
+      return res.status(403).json({ error: 'Incorrect supervisor PIN. Price override denied.', code: 'PRICE_OVERRIDE_PIN_INVALID' });
+    }
+    recordPosPinHistory(req, true, null, req.user?.id, req.user?.email, req.user?.role);
+  }
+
+  // Apply any price overrides (increases are accepted without PIN)
+  for (let idx = 0; idx < items.length; idx++) {
+    const rawItem = rawItems[idx];
+    const overrideCents = typeof rawItem?.priceOverrideCents === 'number' ? rawItem.priceOverrideCents : null;
+    if (overrideCents !== null && overrideCents >= 0) {
+      const originalPriceCents = items[idx].unitPriceCents;
+      const effectiveCents = Math.max(0, overrideCents);
+      (items as any[])[idx] = {
+        ...items[idx],
+        unitPriceCents: effectiveCents,
+        totalPriceCents: effectiveCents * items[idx].quantity,
+        originalPriceCents,
+        priceOverrideCents: effectiveCents,
+      };
+    }
+  }
+
   const subtotalCents = items.reduce((s: number, i: any) => s + i.totalPriceCents, 0);
 
   // ── Resolve discount amount server-side ────────────────────────────────────

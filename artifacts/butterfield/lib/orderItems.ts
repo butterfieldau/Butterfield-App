@@ -20,6 +20,8 @@ type RawOrderItem = {
   selectedOptions?: RawOrderItemOption[] | null;
   selectedOptionsSnapshot?: RawOrderItemOption[] | null;
   isFreeReward?: boolean | null;
+  priceOverrideCents?: number | null;
+  originalPriceCents?: number | null;
 };
 
 export type NormalizedOrderItem = {
@@ -31,6 +33,8 @@ export type NormalizedOrderItem = {
   notableOptions: string[];
   baristaNote?: string;
   isFreeReward: boolean;
+  priceOverrideCents?: number;
+  originalPriceCents?: number;
 };
 
 const HIDEABLE_OPTION_NAMES = new Set([
@@ -78,6 +82,8 @@ export function normalizeOrderItems(value: unknown): NormalizedOrderItem[] {
         notableOptions,
         baristaNote,
         isFreeReward: Boolean(item.isFreeReward),
+        priceOverrideCents: item.priceOverrideCents ?? undefined,
+        originalPriceCents: item.originalPriceCents ?? undefined,
       } satisfies NormalizedOrderItem;
     })
     .filter((item) => item !== null) as NormalizedOrderItem[];

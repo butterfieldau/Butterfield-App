@@ -937,6 +937,7 @@ export const api = {
       notes?: string;
       idempotencyKey?: string;
       supervisorPin?: string;
+      hasPriceOverride?: boolean;
     }) => request<{ data: { id: string; orderNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
@@ -1056,6 +1057,8 @@ export interface PosOrderItem {
   quantity: number;
   unitPriceCents: number;
   notes?: string;
+  priceOverrideCents?: number;
+  originalPriceCents?: number;
 }
 
 export interface PosLoyaltyResult {
