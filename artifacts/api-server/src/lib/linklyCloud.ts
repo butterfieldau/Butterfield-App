@@ -901,14 +901,7 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
       },
     },
     ...(args.notificationUrl
-      ? {
-          Notification: {
-            Uri: args.notificationUrl,
-            URI: args.notificationUrl,
-            Url: args.notificationUrl,
-            URL: args.notificationUrl,
-          },
-        }
+      ? { Notification: { Uri: args.notificationUrl } }
       : {}),
   };
 
