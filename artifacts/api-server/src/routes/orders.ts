@@ -409,6 +409,7 @@ router.post('/', async (req, res) => {
         .where(eq(usersTable.id, req.user!.id));
       if (user?.email) {
         const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
+        const appDomain = process.env.REPLIT_DOMAINS?.split(',')[0] ?? process.env.REPLIT_DEV_DOMAIN ?? null;
         const html = buildOrderConfirmationEmail({
           customerName: user.name,
           orderNumber: order.orderNumber ?? '',
@@ -424,6 +425,7 @@ router.post('/', async (req, res) => {
           scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
           storeName: selectedStore?.name ?? null,
           date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          trackingUrl: appDomain ? `https://${appDomain}` : null,
         });
         await sendEmail({
           to: user.email,
@@ -498,6 +500,7 @@ router.patch(
               .from(customerProfilesTable)
               .where(eq(customerProfilesTable.userId, order.userId));
             const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
+            const appDomain = process.env.REPLIT_DOMAINS?.split(',')[0] ?? process.env.REPLIT_DEV_DOMAIN ?? null;
             const html = buildOrderReceiptEmail({
               customerName: user.name,
               orderNumber: order.orderNumber ?? '',
@@ -511,7 +514,9 @@ router.patch(
               loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
               loyaltyPointsBalance: profile?.loyaltyPoints ?? 0,
               orderType: order.type as 'pickup' | 'delivery',
+              scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
               date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              orderUrl: appDomain ? `https://${appDomain}` : null,
             });
             await sendEmail({
               to: user.email,

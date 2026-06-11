@@ -366,10 +366,11 @@ export function buildOrderConfirmationEmail(opts: {
   scheduledFor?: string | null;
   storeName?: string | null;
   date: string;
+  trackingUrl?: string | null;
 }): string {
   const {
     customerName, orderNumber, shortOrderId, items, totalCents,
-    loyaltyPointsEarned, orderType, scheduledFor, storeName, date,
+    loyaltyPointsEarned, orderType, scheduledFor, storeName, date, trackingUrl,
   } = opts;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -464,7 +465,11 @@ export function buildOrderConfirmationEmail(opts: {
         <!-- Track CTA -->
         <tr>
           <td style="padding:20px 40px 0;text-align:center;">
-            <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6;">Open the <strong>Butterfield Cookies</strong> app to track your order in real time.</p>
+            <a href="${trackingUrl || 'https://apps.apple.com/au/app/butterfield-cookies/id6748634016'}"
+               style="display:inline-block;background:#1493FF;color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">
+              Track your order →
+            </a>
+            <p style="margin:10px 0 0;font-size:12px;color:#9CA3AF;">Open in the Butterfield Cookies app to follow your order live.</p>
           </td>
         </tr>
 
@@ -494,11 +499,15 @@ export function buildOrderReceiptEmail(opts: {
   loyaltyPointsEarned: number;
   loyaltyPointsBalance: number;
   orderType: 'pickup' | 'delivery';
+  scheduledFor?: string | null;
+  storeName?: string | null;
   date: string;
+  orderUrl?: string | null;
 }): string {
   const {
     customerName, orderNumber, shortOrderId, items, totalCents,
-    loyaltyPointsEarned, loyaltyPointsBalance, orderType, date,
+    loyaltyPointsEarned, loyaltyPointsBalance, orderType, scheduledFor,
+    storeName, date, orderUrl,
   } = opts;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -533,7 +542,22 @@ export function buildOrderReceiptEmail(opts: {
             <div style="display:inline-block;background:#EFF6FF;border-radius:20px;padding:5px 16px;margin-top:8px;">
               <span style="font-size:13px;font-weight:700;color:#1D4ED8;">Order #${orderNumber || shortOrderId}</span>
             </div>
-            <p style="margin:8px 0 0;font-size:12px;color:#9CA3AF;">${date} · ${orderType === 'delivery' ? 'Delivery' : 'Pickup'}</p>
+            <p style="margin:8px 0 0;font-size:12px;color:#9CA3AF;">${date}</p>
+          </td>
+        </tr>
+
+        <!-- Fulfillment info -->
+        <tr>
+          <td style="padding:16px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border-radius:10px;border:1px solid #BBF7D0;">
+              <tr>
+                <td style="padding:12px 16px;font-size:13px;color:#15803D;font-weight:600;">${
+                  scheduledFor
+                    ? `Scheduled ${orderType === 'delivery' ? 'delivery' : 'pickup'} · ${new Date(scheduledFor).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+                    : orderType === 'delivery' ? 'Delivery order' : `Pickup${storeName ? ` · ${storeName}` : ''}`
+                }</td>
+              </tr>
+            </table>
           </td>
         </tr>
 
@@ -576,6 +600,17 @@ export function buildOrderReceiptEmail(opts: {
             </table>
           </td>
         </tr>` : ''}
+
+        <!-- View order CTA -->
+        <tr>
+          <td style="padding:20px 40px 0;text-align:center;">
+            <a href="${orderUrl || 'https://apps.apple.com/au/app/butterfield-cookies/id6748634016'}"
+               style="display:inline-block;background:#1493FF;color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">
+              View your order →
+            </a>
+            <p style="margin:10px 0 0;font-size:12px;color:#9CA3AF;">Open in the Butterfield Cookies app.</p>
+          </td>
+        </tr>
 
         <!-- Footer -->
         <tr>
