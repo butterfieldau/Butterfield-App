@@ -1189,9 +1189,8 @@ router.get('/orders', async (req, res) => {
 
   const now = new Date();
   const sydNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const startOfToday = new Date(
-    sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()
-  );
+  const sydNowOffsetMs = sydNow.getTime() - now.getTime();
+  const startOfToday = new Date(new Date(sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()).getTime() - sydNowOffsetMs);
 
   try {
     const result = await db.execute(sql`
@@ -1266,9 +1265,8 @@ router.get('/summary', async (req, res) => {
 
   const now = new Date();
   const sydNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const startOfToday = new Date(
-    sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()
-  );
+  const sydNowOffsetMs = sydNow.getTime() - now.getTime();
+  const startOfToday = new Date(new Date(sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()).getTime() - sydNowOffsetMs);
 
   try {
     const result = await db.execute(sql`

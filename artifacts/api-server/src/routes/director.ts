@@ -133,16 +133,17 @@ router.use(requireManagerRoutePermission(resolveDirectorPermission));
 router.get('/stats', async (req, res) => {
   const now = new Date();
   const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const startOfToday = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate());
+  const sydneyOffsetMs = sydneyNow.getTime() - now.getTime();
+  const startOfToday = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOffsetMs);
   const startOfWeekMonday = new Date(startOfToday);
-  const dayOfWeek = startOfWeekMonday.getDay();
+  const dayOfWeek = sydneyNow.getDay();
   const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   startOfWeekMonday.setDate(startOfWeekMonday.getDate() + mondayDiff);
   const endOfWeekSunday = new Date(startOfWeekMonday);
   endOfWeekSunday.setDate(endOfWeekSunday.getDate() + 6);
   endOfWeekSunday.setHours(23, 59, 59, 999);
   const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
-  const startOfMonth = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1);
+  const startOfMonth = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1).getTime() - sydneyOffsetMs);
   const longShiftCutoff = new Date(now.getTime() - 10 * 60 * 60 * 1000);
   const todayMMDD = `${String(sydneyNow.getMonth() + 1).padStart(2,'0')}-${String(sydneyNow.getDate()).padStart(2,'0')}`;
 
@@ -1889,9 +1890,10 @@ router.delete('/announcements/:id', async (req, res) => {
 router.get('/reports', async (req, res) => {
   const now = new Date();
   const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const startOfToday = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate());
+  const sydneyOffsetMs = sydneyNow.getTime() - now.getTime();
+  const startOfToday = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOffsetMs);
   const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
-  const startOfMonth = new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1);
+  const startOfMonth = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1).getTime() - sydneyOffsetMs);
   const start30      = new Date(startOfToday); start30.setDate(startOfToday.getDate() - 29);
 
   const [
