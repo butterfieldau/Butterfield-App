@@ -127,7 +127,6 @@ export default function DirectorLayout() {
             },
           }}
         >
-          <Tabs.Screen name="pos"      options={{ title: 'POS', href: null }} />
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
           <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff ? undefined : null }} />
@@ -185,7 +184,6 @@ export default function DirectorLayout() {
           tabBarLabelStyle: { fontWeight: '500', fontSize: 10, marginBottom: 2 },
         }}
       >
-        <Tabs.Screen name="pos" options={{ href: null }} />
         <Tabs.Screen name="index"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.index)}
           options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
