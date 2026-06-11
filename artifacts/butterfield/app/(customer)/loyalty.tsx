@@ -566,7 +566,7 @@ function LoyaltyContent() {
                   const filled = index < stampCount;
                   return (
                     <View key={index} style={[styles.miniStampBubble, filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty]}>
-                      {filled ? <Feather name="coffee" size={16} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                      {filled ? <Feather name="coffee" size={14} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
                     </View>
                   );
                 })}
@@ -984,40 +984,41 @@ const styles = StyleSheet.create({
   walletRow: { flexDirection: 'row', gap: 10 },
   infoCard: {
     flex: 1,
-    borderRadius: 24,
-    padding: 18,
+    aspectRatio: 1,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'space-between',
+    overflow: 'hidden',
   },
-  infoCardLarge: { flex: 1, aspectRatio: 1 },
-  infoCardSmall: { flex: 1, paddingBottom: 16, justifyContent: 'flex-start', minHeight: 200, overflow: 'hidden' },
+  infoCardLarge: { justifyContent: 'space-between' },
+  infoCardSmall: { justifyContent: 'flex-start' },
   infoCardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '700' },
-  infoCardValue: { marginTop: 8, color: WHITE, fontSize: 32, lineHeight: 36, fontWeight: '700' },
-  infoCardSub: { marginTop: 4, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  infoCardHint: { marginTop: 4, color: 'rgba(255,255,255,0.66)', fontSize: 12, lineHeight: 17, fontWeight: '500' },
-  freeCoffeeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12 },
-  freeCoffeeCopy: { flex: 1, paddingRight: 6 },
-  freeCoffeeTitle: { color: 'rgba(255,255,255,0.92)', fontSize: 14, lineHeight: 18, fontWeight: '700' },
-  infoCardMiniCount: { marginLeft: 'auto', color: WHITE, fontSize: 30, lineHeight: 30, fontWeight: '700' },
+  infoCardValue: { marginTop: 6, color: WHITE, fontSize: 30, lineHeight: 34, fontWeight: '700' },
+  infoCardSub: { marginTop: 3, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 17, fontWeight: '600' },
+  infoCardHint: { marginTop: 3, color: 'rgba(255,255,255,0.66)', fontSize: 11, lineHeight: 15, fontWeight: '500' },
+  freeCoffeeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 10 },
+  freeCoffeeCopy: { flex: 1 },
+  freeCoffeeTitle: { color: 'rgba(255,255,255,0.92)', fontSize: 13, lineHeight: 17, fontWeight: '700' },
+  infoCardMiniCount: { color: WHITE, fontSize: 26, lineHeight: 26, fontWeight: '700' },
   freeCoffeeHint: {
-    marginTop: 4,
+    marginTop: 3,
     color: 'rgba(255,255,255,0.78)',
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 14,
   },
-  freeCoffeeStampWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
+  freeCoffeeStampWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   miniStampGrid: {
-    width: 156,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 12,
+    rowGap: 8,
+    alignSelf: 'stretch',
   },
-  miniStampBubble: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  miniStampBubble: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
-  miniStampDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1.6, borderColor: 'rgba(255,255,255,0.72)' },
+  miniStampDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
   infoButton: {
     marginTop: 16,
     alignSelf: 'flex-start',
