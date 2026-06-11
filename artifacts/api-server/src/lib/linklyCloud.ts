@@ -999,7 +999,7 @@ export async function recoverOrPollTransaction(
   if (existing?.complete) return existing;
 
   const response = await getRemoteTransaction(userId, environment, sessionId);
-  logger.debug(
+  logger.info(
     { sessionId, httpStatus: response.status, timedOut: response.timedOut, bodyKeys: response.body && typeof response.body === 'object' ? Object.keys(response.body) : [], rawBody: JSON.stringify(response.body)?.slice(0, 500) },
     'Linkly recoverOrPoll: remote GET response',
   );
