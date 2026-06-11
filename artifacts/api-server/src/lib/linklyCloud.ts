@@ -680,20 +680,20 @@ async function upsertTransaction(
       source = EXCLUDED.source,
       txn_ref = EXCLUDED.txn_ref,
       amount_cents = EXCLUDED.amount_cents,
-      status = EXCLUDED.status,
-      success = EXCLUDED.success,
-      complete = EXCLUDED.complete,
-      response_code = EXCLUDED.response_code,
-      response_text = EXCLUDED.response_text,
-      auth_code = EXCLUDED.auth_code,
-      rrn = EXCLUDED.rrn,
-      stan = EXCLUDED.stan,
-      catid = EXCLUDED.catid,
-      caid = EXCLUDED.caid,
-      rfn = EXCLUDED.rfn,
-      ref = EXCLUDED.ref,
-      receipt_text = EXCLUDED.receipt_text,
-      receipt_data = EXCLUDED.receipt_data,
+      status = CASE WHEN linkly_transactions.complete THEN linkly_transactions.status ELSE EXCLUDED.status END,
+      success = CASE WHEN linkly_transactions.complete THEN linkly_transactions.success ELSE EXCLUDED.success END,
+      complete = CASE WHEN linkly_transactions.complete THEN linkly_transactions.complete ELSE EXCLUDED.complete END,
+      response_code = CASE WHEN linkly_transactions.complete THEN linkly_transactions.response_code ELSE EXCLUDED.response_code END,
+      response_text = CASE WHEN linkly_transactions.complete THEN linkly_transactions.response_text ELSE EXCLUDED.response_text END,
+      auth_code = CASE WHEN linkly_transactions.complete THEN linkly_transactions.auth_code ELSE EXCLUDED.auth_code END,
+      rrn = CASE WHEN linkly_transactions.complete THEN linkly_transactions.rrn ELSE EXCLUDED.rrn END,
+      stan = CASE WHEN linkly_transactions.complete THEN linkly_transactions.stan ELSE EXCLUDED.stan END,
+      catid = CASE WHEN linkly_transactions.complete THEN linkly_transactions.catid ELSE EXCLUDED.catid END,
+      caid = CASE WHEN linkly_transactions.complete THEN linkly_transactions.caid ELSE EXCLUDED.caid END,
+      rfn = CASE WHEN linkly_transactions.complete THEN linkly_transactions.rfn ELSE EXCLUDED.rfn END,
+      ref = CASE WHEN linkly_transactions.complete THEN linkly_transactions.ref ELSE EXCLUDED.ref END,
+      receipt_text = CASE WHEN linkly_transactions.complete THEN linkly_transactions.receipt_text ELSE EXCLUDED.receipt_text END,
+      receipt_data = CASE WHEN linkly_transactions.complete THEN linkly_transactions.receipt_data ELSE EXCLUDED.receipt_data END,
       request_payload = COALESCE(EXCLUDED.request_payload, linkly_transactions.request_payload),
       raw_response = COALESCE(EXCLUDED.raw_response, linkly_transactions.raw_response),
       updated_at = now(),
@@ -768,6 +768,7 @@ export async function handleLinklyTransactionNotification(sessionId: string, pay
   await ensureLinklySchemaReady();
   const existing = await getStoredLinklyTransaction(sessionId);
   if (!existing) return null;
+  if (existing.complete) return existing;
   const userId = await getTransactionUserId(sessionId);
 
   const parsed = parseTransactionPayload(
@@ -999,10 +1000,6 @@ export async function recoverOrPollTransaction(
   if (existing?.complete) return existing;
 
   const response = await getRemoteTransaction(userId, environment, sessionId);
-  logger.info(
-    { sessionId, httpStatus: response.status, timedOut: response.timedOut, bodyKeys: response.body && typeof response.body === 'object' ? Object.keys(response.body) : [], rawBody: JSON.stringify(response.body)?.slice(0, 500) },
-    'Linkly recoverOrPoll: remote GET response',
-  );
   if (response.status === 404) {
     const notSubmitted: LinklyTransactionRecord = {
       sessionId,
