@@ -1510,8 +1510,8 @@ function CartContent() {
                     {confirmation.isScheduled
                       ? `Your order has been placed and is awaiting confirmation for ${confirmation.scheduledLabel?.replace('Delivery on ', '') ?? 'your selected delivery date'}. You'll receive a push notification once confirmed.`
                       : confirmation.paymentMethodType === 'pay_at_pickup'
-                        ? 'Your order is locked in. Please pay at pickup and check My Orders for live updates.'
-                        : 'Your order was placed successfully. Go to My Orders any time to check the live status.'}
+                        ? 'Your order is locked in. Please pay at the counter — check My Orders for live status updates.'
+                        : 'Your order is being prepared. Tap Track My Order below to follow its live status.'}
                   </Text>
                 </View>
                 <View style={styles.successSummaryCard}>
@@ -1520,19 +1520,21 @@ function CartContent() {
                       <Text style={styles.successSummaryPrice}>AUD {(confirmation.totalCents / 100).toFixed(2)}</Text>
                       <Text style={styles.successSummaryOrderId}>{orderShortId}</Text>
                     </View>
-                    <Pressable
-                      onPress={() => {
-                        clearCart();
-                        router.dismissAll();
-                        router.replace('/(tabs)/profile' as any);
-                        setTimeout(() => {
-                          router.push('/orders');
-                        }, 0);
-                      }}
-                      style={styles.successTrackLink}
-                    >
-                      <Text style={styles.successTrackText}>Track</Text>
-                    </Pressable>
+                    {confirmation.paymentMethodType !== 'pay_at_pickup' && (
+                      <Pressable
+                        onPress={() => {
+                          clearCart();
+                          router.dismissAll();
+                          router.replace('/(tabs)' as any);
+                          setTimeout(() => {
+                            router.push(`/(customer)/track/${confirmation.orderId}` as any);
+                          }, 50);
+                        }}
+                        style={styles.successTrackLink}
+                      >
+                        <Text style={styles.successTrackText}>Track</Text>
+                      </Pressable>
+                    )}
                   </View>
                   <View style={styles.successDivider} />
                   <View style={styles.successSummaryBottom}>
@@ -1550,16 +1552,47 @@ function CartContent() {
                   </Text>
                 </View>
               </View>
-              <Pressable
-                onPress={() => {
-                  clearCart();
-                  router.dismissAll();
-                  router.replace('/(tabs)');
-                }}
-                style={styles.returnHomeBtn}
-              >
-                <Text style={styles.returnHomeBtnText}>Return home</Text>
-              </Pressable>
+              {confirmation.paymentMethodType !== 'pay_at_pickup' ? (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      clearCart();
+                      router.dismissAll();
+                      router.replace('/(tabs)' as any);
+                      setTimeout(() => {
+                        router.push(`/(customer)/track/${confirmation.orderId}` as any);
+                      }, 50);
+                    }}
+                    style={[styles.returnHomeBtn, { backgroundColor: BLUE }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Feather name="navigation" size={16} color="#fff" />
+                      <Text style={styles.returnHomeBtnText}>Track My Order</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      clearCart();
+                      router.dismissAll();
+                      router.replace('/(tabs)');
+                    }}
+                    style={{ alignSelf: 'center', marginTop: 16, paddingVertical: 6 }}
+                  >
+                    <Text style={{ fontSize: 15, fontWeight: '500', color: MUTED }}>Return home</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    clearCart();
+                    router.dismissAll();
+                    router.replace('/(tabs)');
+                  }}
+                  style={styles.returnHomeBtn}
+                >
+                  <Text style={styles.returnHomeBtnText}>Return home</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </ScrollView>

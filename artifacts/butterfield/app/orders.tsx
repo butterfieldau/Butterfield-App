@@ -373,12 +373,13 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
 }
 
 // ── Order list card ──────────────────────────────────────────────────────────
-function OrderCard({ order, onPress }: { order: ApiOrder; onPress: () => void }) {
+function OrderCard({ order, onPress, onTrack }: { order: ApiOrder; onPress: () => void; onTrack?: () => void }) {
   const col       = STATUS_COLORS[order.status] ?? STATUS_COLORS.completed;
   const label     = STATUS_LABEL[order.status] ?? order.status.replace(/_/g, ' ');
   const total     = (order.totalCents ?? 0) / 100;
   const scheduled = order.scheduledFor ? fmtShort(order.scheduledFor) : null;
   const items = normalizeOrderItems(order.items);
+  const isActive  = ACTIVE_STATUSES.includes(order.status);
   const progress  = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const to = order.status === 'completed' ? 1
@@ -419,7 +420,19 @@ function OrderCard({ order, onPress }: { order: ApiOrder; onPress: () => void })
           <Text style={s.meta}>Tap for details</Text>
           <Feather name="chevron-right" size={13} color={MUTED} />
         </View>
-        <Text style={s.total}>AUD ${total.toFixed(2)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {isActive && onTrack && (
+            <Pressable
+              onPress={(e) => { (e as any).stopPropagation?.(); onTrack(); }}
+              style={[s.trackChip, { backgroundColor: BLUE + '18', borderColor: BLUE + '50' }]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Feather name="navigation" size={11} color={BLUE} />
+              <Text style={[s.trackChipText, { color: BLUE }]}>Track</Text>
+            </Pressable>
+          )}
+          <Text style={s.total}>AUD ${total.toFixed(2)}</Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -479,7 +492,13 @@ function CustomerOrdersContent() {
             </View>
           }
           renderItem={({ item }) => (
-            <OrderCard order={item} onPress={() => setSelectedOrderId(item.id)} />
+            <OrderCard
+              order={item}
+              onPress={() => setSelectedOrderId(item.id)}
+              onTrack={ACTIVE_STATUSES.includes(item.status)
+                ? () => router.push(`/(customer)/track/${item.id}` as any)
+                : undefined}
+            />
           )}
         />
       )}
@@ -509,13 +528,15 @@ const s = StyleSheet.create({
   orderDate:    { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 3 },
   badge:        { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   badgeText:    { fontSize: 13, fontWeight: '600' },
-  progressTrack:{ height: 8, borderRadius: 999, backgroundColor: '#EEF2F7', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 999 },
-  itemSummary:  { fontSize: 13, fontWeight: '400', color: MUTED },
-  row:          { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta:         { fontSize: 13, fontWeight: '400', color: MUTED },
-  bottomRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  total:        { fontSize: 16, fontWeight: '700', color: TEXT },
+  progressTrack:  { height: 8, borderRadius: 999, backgroundColor: '#EEF2F7', overflow: 'hidden' },
+  progressFill:   { height: '100%', borderRadius: 999 },
+  itemSummary:    { fontSize: 13, fontWeight: '400', color: MUTED },
+  row:            { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  meta:           { fontSize: 13, fontWeight: '400', color: MUTED },
+  bottomRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  total:          { fontSize: 16, fontWeight: '700', color: TEXT },
+  trackChip:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  trackChipText:  { fontSize: 12, fontWeight: '600' },
 });
 
 // ── Detail modal styles ──────────────────────────────────────────────────────
