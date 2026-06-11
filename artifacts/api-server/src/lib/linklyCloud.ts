@@ -1144,3 +1144,27 @@ export async function runReprintReceiptAction(
     },
   });
 }
+
+/**
+ * Send the Cancel key (Key "0") to the Linkly pinpad for the given session.
+ * This is a fire-and-forget call — errors are swallowed because the pinpad
+ * may have already timed out or the transaction may already be complete.
+ */
+export async function cancelTransaction(userId: string, sessionId: string): Promise<void> {
+  let row: StoredLinklyConfig | null = null;
+  try { row = await getStoredConfig(userId); } catch { return; }
+  if (!row?.linkly_secret) return; // not configured, nothing to cancel
+  const environment = normaliseEnvironment(row.linkly_environment);
+  let token: string;
+  try { token = await getLinklyToken(userId); } catch { return; }
+  const { rest } = getBaseUrls(environment);
+  // Linkly Cloud sendkey: Key "0" = CANCEL on the pinpad keypad
+  await fetchJson(`${rest}/v1/sessions/${sessionId}/sendkey`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ Request: { Key: '0' } }),
+  }, 8_000).catch(() => {});
+}

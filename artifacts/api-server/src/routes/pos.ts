@@ -51,6 +51,7 @@ import {
 } from '../lib/registers.js';
 import {
   attachLinklySessionToOrder,
+  cancelTransaction as cancelLinklyTransaction,
   getLinklyPublicConfig,
   getLinklyToken,
   pairLinklyPinPad,
@@ -1575,7 +1576,16 @@ router.delete('/linkly/:sessionId', async (req, res) => {
   const binding = posActiveSessions.get(sessionId);
   if (binding && binding.deviceUserId !== req.user!.id)
     return res.status(403).json({ error: 'Session belongs to a different device.' });
+
   posActiveSessions.delete(sessionId);
+
+  // Send the CANCEL key (Key "0") to the Linkly pinpad so it stops waiting
+  // immediately. Fire-and-forget — we don't block the response on this.
+  const userId = binding?.deviceUserId ?? req.user!.id;
+  cancelLinklyTransaction(userId, sessionId).catch((err: any) => {
+    req.log.warn({ err, sessionId }, 'Linkly cancel sendkey failed (non-fatal)');
+  });
+
   return res.json({ success: true });
 });
 
