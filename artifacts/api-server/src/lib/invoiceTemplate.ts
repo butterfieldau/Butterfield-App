@@ -57,6 +57,8 @@ export interface InvoiceData {
   poReference:   string | null | undefined;
   notes:         string | null | undefined;
   paymentTerms:  string | null | undefined;
+
+  payUrl:        string | null | undefined;
 }
 
 export function buildInvoiceHtml(data: InvoiceData): string {
@@ -235,6 +237,15 @@ export function buildInvoiceHtml(data: InvoiceData): string {
   </div>
 
   ${data.notes ? `<div style="margin:0 20px 12px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;"><span style="font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:#92400E;text-transform:uppercase;">Notes: </span><span style="font-size:11px;color:#78350F;">${data.notes}</span></div>` : ''}
+
+  ${data.payUrl ? `
+  <!-- PAY NOW BUTTON -->
+  <div style="margin:0 20px 20px;text-align:center;">
+    <a href="${data.payUrl}" style="display:inline-block;padding:14px 40px;background:linear-gradient(135deg,#1A2B4A,#0D1A2E);color:#fff;font-size:15px;font-weight:700;letter-spacing:0.3px;text-decoration:none;border-radius:10px;box-shadow:0 4px 14px rgba(26,43,74,0.35);">
+      Pay Now · ${fmt(totalCents)} AUD
+    </a>
+    <div style="margin-top:8px;font-size:10px;color:#9CA3AF;">Secure payment powered by Stripe</div>
+  </div>` : ''}
 
   <!-- FOOTER -->
   <div style="background:linear-gradient(135deg,#1A2B4A 0%,#0D1A2E 100%);padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;">

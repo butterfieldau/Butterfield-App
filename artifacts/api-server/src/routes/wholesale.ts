@@ -271,6 +271,7 @@ router.get('/orders/:id/invoice', async (req, res) => {
     poReference:  rawOrder.poReference ?? null,
     notes:        rawOrder.notes ?? null,
     paymentTerms,
+    payUrl:       null,
   });
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');

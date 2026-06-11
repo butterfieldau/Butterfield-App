@@ -563,6 +563,7 @@ router.get('/wholesale/orders/:id/invoice', async (req, res) => {
     poReference:  order.poReference ?? null,
     notes:        order.notes ?? null,
     paymentTerms,
+    payUrl:       null,
   });
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
