@@ -566,7 +566,7 @@ function LoyaltyContent() {
                   const filled = index < stampCount;
                   return (
                     <View key={index} style={[styles.miniStampBubble, filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty]}>
-                      {filled ? <Feather name="coffee" size={14} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                      {filled ? <Feather name="coffee" size={12} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
                     </View>
                   );
                 })}
@@ -1015,10 +1015,10 @@ const styles = StyleSheet.create({
     rowGap: 8,
     alignSelf: 'stretch',
   },
-  miniStampBubble: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  miniStampBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
-  miniStampDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
+  miniStampDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
   infoButton: {
     marginTop: 16,
     alignSelf: 'flex-start',
