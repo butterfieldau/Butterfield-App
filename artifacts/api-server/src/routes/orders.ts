@@ -56,6 +56,7 @@ router.post('/', async (req, res) => {
     deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
     discountCode, discountCodeId: clientDiscountCodeId, paymentMethodType,
     claimedRewardId, storeId, contactName, contactPhone, contactEmail,
+    useFreeCoffeeReward,
   } = req.body;
 
   // ── Sydney-only delivery enforcement ─────────────────────────────────────
@@ -82,6 +83,7 @@ router.post('/', async (req, res) => {
   let computed: any;
   let resolvedOrderType: 'pickup' | 'delivery' = type === 'delivery' ? 'delivery' : 'pickup';
   let resolvedPaymentMethod: 'card' | 'pay_at_pickup' = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card';
+  let freeCoffeeRewardUsed = false;
   try {
     ({
       items,
@@ -95,6 +97,7 @@ router.post('/', async (req, res) => {
       authorativeTotalCents,
       authorativeDiscountCents,
       computed,
+      freeCoffeeRewardUsed,
     } = await prepareRetailCheckout({
       userId: req.user!.id,
       userRole: req.user!.role,
@@ -105,6 +108,7 @@ router.post('/', async (req, res) => {
       claimedRewardId,
       loyaltyPointsUsed,
       markClaimAppliedToCart: false,
+      useFreeCoffeeReward: useFreeCoffeeReward === true,
     }));
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
@@ -262,6 +266,24 @@ router.post('/', async (req, res) => {
           throw new Error('REWARD_ALREADY_CONSUMED');
         }
       }
+
+      // Atomic decrement of free coffee rewards
+      if (freeCoffeeRewardUsed) {
+        const decremented = await tx.update(customerProfilesTable)
+          .set({
+            freeCoffeeRewards: sql`${customerProfilesTable.freeCoffeeRewards} - 1`,
+            freeCoffeesEarned: sql`GREATEST(0, ${customerProfilesTable.freeCoffeesEarned} - 1)`,
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(customerProfilesTable.userId, req.user!.id),
+            sql`${customerProfilesTable.freeCoffeeRewards} > 0`,
+          ))
+          .returning({ freeCoffeeRewards: customerProfilesTable.freeCoffeeRewards });
+        if (decremented.length === 0) {
+          throw new Error('FREE_COFFEE_INSUFFICIENT');
+        }
+      }
     });
   } catch (err: any) {
     if (err?.code === '23505' && err?.constraint_name?.includes('stripe_payment_intent_id')) {
@@ -269,6 +291,9 @@ router.post('/', async (req, res) => {
     }
     if (err?.message === 'REWARD_ALREADY_CONSUMED') {
       return res.status(409).json({ error: 'This reward has already been used. Please remove it and try again.' });
+    }
+    if (err?.message === 'FREE_COFFEE_INSUFFICIENT') {
+      return res.status(409).json({ error: 'No free coffee rewards available. Please remove the free coffee option and try again.' });
     }
     throw err;
   }

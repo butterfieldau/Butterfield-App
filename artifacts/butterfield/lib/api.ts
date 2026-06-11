@@ -127,6 +127,7 @@ export const api = {
       discountCode?: string; discountCodeId?: string; paymentMethodType?: string;
       claimedRewardId?: string;
       storeId?: string;
+      useFreeCoffeeReward?: boolean;
     }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -405,6 +406,7 @@ export const api = {
       claimedRewardId?: string;
       loyaltyPointsUsed?: number;
       savePaymentMethod?: boolean;
+      useFreeCoffeeReward?: boolean;
     }) =>
       request<{
         paymentRequired?: boolean;
@@ -428,6 +430,7 @@ export const api = {
       claimedRewardId?: string;
       loyaltyPointsUsed?: number;
       paymentMethodId: string;
+      useFreeCoffeeReward?: boolean;
     }) =>
       request<{
         paymentRequired?: boolean;

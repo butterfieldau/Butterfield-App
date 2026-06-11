@@ -163,6 +163,7 @@ function PaymentStepWithStripe({
     discountAmountCents?: number;
     claimedRewardId?: string;
     loyaltyPointsUsed?: number;
+    useFreeCoffeeReward?: boolean;
   }) => Promise<void>;
 }) {
   const { confirmPayment, createPaymentMethod, handleNextAction } = useStripe();
@@ -292,6 +293,24 @@ function PaymentStepWithStripe({
   // Access full cart items (with prices) to compute item-reward discount for display
   const { items: cartItemsWithPrices } = useCart();
 
+  const [useFreeCoffeeReward, setUseFreeCoffeeReward] = useState(false);
+  const freeCoffeeRewards = loyaltyProfileData?.data?.freeCoffeeRewards ?? 0;
+  const hasCoffeeInCart = cartItemsWithPrices.some(
+    (i) => String((i as any).category ?? '').toLowerCase() === 'coffee',
+  );
+
+  const cheapestCoffeePriceCents = useMemo(() => {
+    if (!useFreeCoffeeReward || !hasCoffeeInCart) return 0;
+    const prices = cartItemsWithPrices
+      .filter((i) => String((i as any).category ?? '').toLowerCase() === 'coffee')
+      .map((i) => i.unitPriceCents ?? 0);
+    return prices.length > 0 ? Math.min(...prices) : 0;
+  }, [useFreeCoffeeReward, hasCoffeeInCart, cartItemsWithPrices]);
+
+  useEffect(() => {
+    if (freeCoffeeRewards < 1 || !hasCoffeeInCart) setUseFreeCoffeeReward(false);
+  }, [freeCoffeeRewards, hasCoffeeInCart]);
+
   const selectedClaimed = claimedRewards.find(c => c.id === selectedClaimedRewardId) ?? null;
   const claimedRewardDiscountCents = useMemo(() => {
     if (!selectedClaimed) return 0;
@@ -304,7 +323,7 @@ function PaymentStepWithStripe({
     return 0;
   }, [selectedClaimed, cartItemsWithPrices]);
 
-  const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents;
+  const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents + cheapestCoffeePriceCents;
   const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
   const baseForFee = subtotalCents + deliveryCents - discountCents;
   const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
@@ -357,6 +376,7 @@ function PaymentStepWithStripe({
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
       } finally {
         setBusy(false);
@@ -379,6 +399,7 @@ function PaymentStepWithStripe({
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
           paymentMethodId: selectedSavedPaymentMethodId,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
 
         if (savedPayment.paymentRequired === false || savedPayment.amountCents === 0) {
@@ -389,6 +410,7 @@ function PaymentStepWithStripe({
             discountAmountCents: discountApplied?.discountAmountCents,
             claimedRewardId: selectedClaimedRewardId ?? undefined,
             loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+            useFreeCoffeeReward: useFreeCoffeeReward || undefined,
           });
           return;
         }
@@ -416,6 +438,7 @@ function PaymentStepWithStripe({
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
         return;
       }
@@ -440,6 +463,7 @@ function PaymentStepWithStripe({
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
           paymentMethodId: paymentMethod.id,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
 
         if (savedPayment.paymentRequired === false || savedPayment.amountCents === 0) {
@@ -450,6 +474,7 @@ function PaymentStepWithStripe({
             discountAmountCents: discountApplied?.discountAmountCents,
             claimedRewardId: selectedClaimedRewardId ?? undefined,
             loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+            useFreeCoffeeReward: useFreeCoffeeReward || undefined,
           });
           return;
         }
@@ -475,6 +500,7 @@ function PaymentStepWithStripe({
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
         return;
       }
@@ -486,6 +512,7 @@ function PaymentStepWithStripe({
         claimedRewardId: selectedClaimedRewardId ?? undefined,
         loyaltyPointsUsed: loyaltyPointsUsed || undefined,
         savePaymentMethod: method === 'credit_card' ? saveCardForNextTime : false,
+        useFreeCoffeeReward: useFreeCoffeeReward || undefined,
       });
 
       // Zero-total orders (e.g. free item reward with empty cart) skip Stripe entirely
@@ -497,6 +524,7 @@ function PaymentStepWithStripe({
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
         return;
       }
@@ -531,6 +559,7 @@ function PaymentStepWithStripe({
           discountAmountCents: discountApplied?.discountAmountCents,
           claimedRewardId: selectedClaimedRewardId ?? undefined,
           loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
         });
         return;
       }
@@ -548,6 +577,7 @@ function PaymentStepWithStripe({
         discountAmountCents: discountApplied?.discountAmountCents,
         claimedRewardId: selectedClaimedRewardId ?? undefined,
         loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+        useFreeCoffeeReward: useFreeCoffeeReward || undefined,
       });
     } catch (e: any) {
       Alert.alert('Payment failed', e?.message ?? 'Please try again.');
@@ -821,6 +851,26 @@ function PaymentStepWithStripe({
       )}
       {!!discountError && <Text style={{ fontSize: 12, color: CHERRY, marginTop: 2 }}>{discountError}</Text>}
 
+      {freeCoffeeRewards > 0 && hasCoffeeInCart && (
+        <View style={psStyles.freeCoffeeRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={psStyles.freeCoffeeTitle}>Free coffee reward</Text>
+            <Text style={psStyles.freeCoffeeSub}>
+              {freeCoffeeRewards} available · cheapest coffee made free
+            </Text>
+          </View>
+          <Switch
+            value={useFreeCoffeeReward}
+            onValueChange={(v) => {
+              setUseFreeCoffeeReward(v);
+              Haptics.selectionAsync();
+            }}
+            trackColor={{ false: BORDER, true: BLUE }}
+            thumbColor="#fff"
+          />
+        </View>
+      )}
+
       <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Use points</Text>
       <View style={psStyles.pointsCard}>
         <View style={psStyles.pointsCardTop}>
@@ -863,6 +913,12 @@ function PaymentStepWithStripe({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 12, color: '#16A34A' }}>Reward voucher</Text>
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(claimedRewardDiscountCents / 100).toFixed(2)}</Text>
+            </View>
+          )}
+          {cheapestCoffeePriceCents > 0 && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, color: '#16A34A' }}>Free coffee reward</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#16A34A' }}>-AUD {(cheapestCoffeePriceCents / 100).toFixed(2)}</Text>
             </View>
           )}
           {loyaltyPointsDiscountCents > 0 && (
@@ -964,6 +1020,9 @@ const psStyles = StyleSheet.create({
   totalRow:      { gap: 4 },
   secureRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingTop: 4 },
   noticeRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  freeCoffeeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER, marginTop: 8 },
+  freeCoffeeTitle: { fontSize: 14, fontWeight: '600', color: TEXT },
+  freeCoffeeSub:   { marginTop: 2, fontSize: 12, color: MUTED },
 });
 
 interface Confirmation {
@@ -1318,6 +1377,7 @@ function CartContent() {
     discountAmountCents?: number;
     claimedRewardId?: string;
     loyaltyPointsUsed?: number;
+    useFreeCoffeeReward?: boolean;
   }) => {
     setLoading(true);
     try {
@@ -1370,6 +1430,7 @@ function CartContent() {
         paymentMethodType: opts.paymentMethodType,
         claimedRewardId:  opts.claimedRewardId,
         storeId: orderType === 'pickup' ? selectedStore?.id : undefined,
+        useFreeCoffeeReward: opts.useFreeCoffeeReward || undefined,
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });

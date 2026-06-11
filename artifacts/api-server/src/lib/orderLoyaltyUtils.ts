@@ -22,6 +22,7 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
   );
 
   return orderItems.reduce((sum, item) => {
+    if ((item as any)?.freeCoffeeItem === true) return sum;
     const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
     return coffeeIds.has(item?.productId ?? '') ? sum + qty : sum;
   }, 0);

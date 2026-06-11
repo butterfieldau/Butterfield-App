@@ -1,4 +1,4 @@
-import { db, claimedRewardsTable, customerProfilesTable, loyaltyRewardsTable } from '@workspace/db';
+import { db, claimedRewardsTable, customerProfilesTable, loyaltyRewardsTable, productsTable } from '@workspace/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { computeOrderTotal, type OrderItemInput, type PaymentMethod } from './orderPricing.js';
 import { validateDiscountCode } from './discountUtils.js';
@@ -19,6 +19,7 @@ export interface RetailCheckoutPreparationInput {
   claimedRewardId?: unknown;
   loyaltyPointsUsed?: unknown;
   markClaimAppliedToCart?: boolean;
+  useFreeCoffeeReward?: boolean;
 }
 
 export interface PreparedClaimedReward {
@@ -43,13 +44,15 @@ export interface RetailCheckoutPreparationResult {
   authorativeTotalCents: number;
   authorativeDiscountCents: number;
   computed: Awaited<ReturnType<typeof computeOrderTotal>>;
+  freeCoffeeRewardUsed: boolean;
+  freeCoffeeDiscountCents: number;
 }
 
 export function stripClientRewardFlags(rawItems: unknown): RetailCheckoutItem[] {
   if (!Array.isArray(rawItems)) return [];
   return rawItems.map((item) => {
     if (!item || typeof item !== 'object') return item as unknown as RetailCheckoutItem;
-    const { isFreeReward: _ignored, ...rest } = item as Record<string, unknown>;
+    const { isFreeReward: _a, freeCoffeeItem: _b, ...rest } = item as Record<string, unknown>;
     return rest as unknown as RetailCheckoutItem;
   });
 }
@@ -147,6 +150,67 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     throw new Error('Items are required');
   }
 
+  let freeCoffeeRewardUsed = false;
+  let freeCoffeeDiscountCents = 0;
+
+  if (input.useFreeCoffeeReward === true) {
+    const [profile] = await db.select({
+      freeCoffeeRewards: customerProfilesTable.freeCoffeeRewards,
+    }).from(customerProfilesTable).where(eq(customerProfilesTable.userId, input.userId));
+
+    if (!profile || (profile.freeCoffeeRewards ?? 0) < 1) {
+      throw new Error('No free coffee rewards available');
+    }
+
+    const productIds = [...new Set(items.map((i) => i.productId))];
+    const products = productIds.length > 0
+      ? await db.select({
+          id: productsTable.id,
+          category: productsTable.category,
+          priceCents: productsTable.priceCents,
+          salePriceCents: productsTable.salePriceCents,
+        }).from(productsTable).where(inArray(productsTable.id, productIds))
+      : [];
+
+    const coffeeProductMap = new Map(
+      products
+        .filter((p) => String(p.category ?? '').toLowerCase() === 'coffee')
+        .map((p) => [p.id, p]),
+    );
+
+    if (coffeeProductMap.size === 0) {
+      throw new Error('No coffee items in your order to apply the free coffee reward');
+    }
+
+    let cheapestIdx = -1;
+    let cheapestPrice = Infinity;
+    for (let i = 0; i < items.length; i++) {
+      const cp = coffeeProductMap.get(items[i]!.productId);
+      if (!cp || items[i]!.isFreeReward) continue;
+      const price = cp.salePriceCents ?? cp.priceCents;
+      if (price < cheapestPrice) {
+        cheapestPrice = price;
+        cheapestIdx = i;
+      }
+    }
+
+    if (cheapestIdx < 0) {
+      throw new Error('No coffee items in your order to apply the free coffee reward');
+    }
+
+    freeCoffeeDiscountCents = cheapestPrice;
+    freeCoffeeRewardUsed = true;
+
+    const target = items[cheapestIdx]!;
+    const targetQty = Math.max(1, Math.floor(Number(target.quantity ?? 1)));
+    if (targetQty === 1) {
+      items[cheapestIdx] = { ...target, isFreeReward: true, freeCoffeeItem: true } as RetailCheckoutItem & { freeCoffeeItem: boolean };
+    } else {
+      items[cheapestIdx] = { ...target, quantity: targetQty - 1 };
+      items.push({ productId: target.productId, quantity: 1, isFreeReward: true, freeCoffeeItem: true, selectedOptions: [] } as RetailCheckoutItem & { freeCoffeeItem: boolean });
+    }
+  }
+
   let discountCodeAmountCents = 0;
   let validatedDiscountCodeId: string | null = null;
   let validatedDiscountCode: string | null = null;
@@ -205,5 +269,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     authorativeTotalCents: computed.totalCents,
     authorativeDiscountCents: computed.discountCents,
     computed,
+    freeCoffeeRewardUsed,
+    freeCoffeeDiscountCents,
   };
 }

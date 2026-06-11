@@ -164,6 +164,7 @@ router.post('/payment-intent', async (req, res) => {
     claimedRewardId,
     loyaltyPointsUsed,
     savePaymentMethod,
+    useFreeCoffeeReward,
   } = req.body;
 
   if (paymentMethod === 'pay_at_pickup') {
@@ -192,6 +193,7 @@ router.post('/payment-intent', async (req, res) => {
       claimedRewardId,
       loyaltyPointsUsed,
       markClaimAppliedToCart: true,
+      useFreeCoffeeReward: useFreeCoffeeReward === true,
     }));
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not validate discount code' });
@@ -261,6 +263,7 @@ router.post('/confirm-saved-method', async (req, res) => {
     claimedRewardId,
     loyaltyPointsUsed,
     paymentMethodId,
+    useFreeCoffeeReward,
   } = req.body ?? {};
 
   if (!paymentMethodId) {
@@ -289,6 +292,7 @@ router.post('/confirm-saved-method', async (req, res) => {
       claimedRewardId,
       loyaltyPointsUsed,
       markClaimAppliedToCart: true,
+      useFreeCoffeeReward: useFreeCoffeeReward === true,
     }));
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not validate checkout' });
