@@ -26,7 +26,9 @@
         "GIDClientID": "119890251041-tsgds8o83po7p4gaeqqfnph67e3fpt46.apps.googleusercontent.com"
       }
     },
-    "android": {},
+    "android": {
+      "package": "au.com.butterfieldcookies.app"
+    },
     "web": {
       "favicon": "./assets/images/icon.png",
       "title": "Butterfield Cookies — Sydney's Premium Café",
@@ -53,7 +55,9 @@
         {
           "color": "#1493FF",
           "defaultChannel": "butterfield-staff",
-          "sounds": ["./assets/sounds/butterfield-push-tone.mp3"]
+          "sounds": [
+            "./assets/sounds/butterfield_push_tone.mp3"
+          ]
         }
       ],
       "./plugins/withGoogleSignInFix"

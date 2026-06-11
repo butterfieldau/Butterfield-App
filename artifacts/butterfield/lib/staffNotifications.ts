@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 const CLOCK_IN_NOTIF_ID  = 'staff-clock-in-daily';
 const CLOCK_OUT_NOTIF_ID = 'staff-clock-out-reminder';
-const NOTIFICATION_SOUND = 'butterfield-push-tone.mp3';
+const NOTIFICATION_SOUND = 'butterfield_push_tone.mp3';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({

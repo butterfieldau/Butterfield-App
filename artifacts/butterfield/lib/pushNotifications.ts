@@ -15,7 +15,7 @@ Notifications.setNotificationHandler({
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
-const NOTIFICATION_SOUND = 'butterfield-push-tone.mp3';
+const NOTIFICATION_SOUND = 'butterfield_push_tone.mp3';
 
 export async function clearAppBadge(): Promise<void> {
   if (Platform.OS === 'web') return;

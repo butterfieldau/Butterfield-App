@@ -5,20 +5,23 @@ import { logger } from './logger.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function extractLinklyErrorMessage(body: any): string {
+function extractLinklyErrorMessage(body: any, status?: number): string {
+  const statusPrefix = status ? `Linkly returned HTTP ${status}` : 'Linkly returned an error';
   const candidates = [
     body?.Message, body?.message, body?.Detail, body?.detail,
     body?.title, body?.error, body?.Error,
+    body?.rawText,
   ];
   for (const c of candidates) {
-    if (typeof c === 'string' && c.trim()) return c.trim();
+    if (typeof c === 'string' && c.trim()) return `${statusPrefix}: ${c.trim()}`;
   }
   try {
     const raw = JSON.stringify(body);
-    if (!raw || raw === '{}') return 'Linkly returned an empty error response.';
-    return raw.length > 300 ? raw.slice(0, 300) + '…' : raw;
+    if (!raw || raw === '{}') return `${statusPrefix} with an empty response body. Check the Linkly environment, username/password, and pair code.`;
+    const summary = raw.length > 300 ? raw.slice(0, 300) + '…' : raw;
+    return `${statusPrefix}: ${summary}`;
   } catch {
-    return 'Linkly returned an unreadable error response.';
+    return `${statusPrefix} with an unreadable response body.`;
   }
 }
 
@@ -178,7 +181,15 @@ async function fetchJson(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { ...init, signal: controller.signal });
-    const body = await response.json().catch(() => ({}));
+    const rawText = await response.text().catch(() => '');
+    let body: any = {};
+    if (rawText.trim()) {
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        body = { rawText: rawText.trim().slice(0, 500) };
+      }
+    }
     return { ok: response.ok, status: response.status, body, timedOut: false };
   } catch (error: any) {
     if (error?.name === 'AbortError') {
@@ -442,7 +453,7 @@ export async function pairLinklyPinPad(userId: string) {
 
   const response = await fetchJson(`${auth}/v1/pairing/cloudpos`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       username: row.linkly_username,
       password,
@@ -453,10 +464,11 @@ export async function pairLinklyPinPad(userId: string) {
   logger.info({
     httpStatus: response.status,
     bodyKeys: response.body && typeof response.body === 'object' ? Object.keys(response.body) : [],
+    hasRawText: Boolean(response.body?.rawText),
   }, 'Linkly pairing: response received');
 
   if (!response.ok) {
-    throw new Error(extractLinklyErrorMessage(response.body));
+    throw new Error(extractLinklyErrorMessage(response.body, response.status));
   }
   const secret = response.body?.secret ?? response.body?.Secret;
   if (!secret) throw new Error('Linkly pairing succeeded but no secret was returned.');
@@ -502,7 +514,7 @@ export async function getLinklyToken(userId: string, forceRefresh = false) {
   const { auth } = getBaseUrls(normaliseEnvironment(row.linkly_environment));
   const response = await fetchJson(`${auth}/v1/tokens/cloudpos`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       secret,
       posName: row.linkly_pos_name ?? DEFAULT_POS_NAME,
@@ -512,7 +524,7 @@ export async function getLinklyToken(userId: string, forceRefresh = false) {
     }),
   });
   if (!response.ok) {
-    throw new Error(extractLinklyErrorMessage(response.body));
+    throw new Error(extractLinklyErrorMessage(response.body, response.status));
   }
   const token = response.body?.token ?? response.body?.Token;
   const expirySeconds = Number(response.body?.expirySeconds ?? response.body?.ExpirySeconds ?? 0);
@@ -811,7 +823,7 @@ async function runManagementAction({
   const sessionId = randomUUID();
   const response = await callLinklyManagementAction(userId, environment, sessionId, requestType, requestPayload);
   if (!response.ok) {
-    throw new Error(extractLinklyErrorMessage(response.body));
+    throw new Error(extractLinklyErrorMessage(response.body, response.status));
   }
 
   const payload = response.body ?? {};
@@ -889,7 +901,7 @@ export async function startPurchaseTransaction(args: StartPurchaseArgs) {
       if (isRecoverableLinklyStatus(response.status)) {
         return { sessionId: args.sessionId, txnRef: args.txnRef, amountCents: args.amountCents, recoveryRequired: true };
       }
-      const message = extractLinklyErrorMessage(response.body);
+      const message = extractLinklyErrorMessage(response.body, response.status);
       const failed = {
         ...pendingRecord,
         status: 'declined' as const,

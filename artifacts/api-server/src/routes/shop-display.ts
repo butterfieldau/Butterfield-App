@@ -888,8 +888,8 @@ router.post('/linkly/test', async (req, res) => {
     const paired = await pairLinklyPinPad(req.user!.id);
     return res.json({ success: true, terminalId: paired.terminalId ?? null });
   } catch (err: any) {
-    req.log.error({ err }, 'Linkly test connection error');
-    return res.status(502).json({ error: 'Could not reach Linkly Cloud. Check your network and try again.' });
+    req.log.warn({ err: err?.message }, 'Linkly test connection error');
+    return res.status(400).json({ error: err?.message ?? 'Linkly pairing failed.' });
   }
 });
 
