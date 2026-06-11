@@ -5,13 +5,14 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
@@ -245,10 +246,8 @@ function InvoiceDetailModal({
 
             {invoice.status !== 'paid' && (
               <Pressable onPress={() => onPay(invoice)} style={[mdl.actionBtn, mdl.solidBtn]}>
-                <Feather name="credit-card" size={15} color="#fff" />
-                <Text style={mdl.solidBtnText}>
-                  {defCard ? `Pay •${defCard.last4}` : 'Pay Invoice'}
-                </Text>
+                <Feather name="external-link" size={15} color="#fff" />
+                <Text style={mdl.solidBtnText}>View &amp; Pay</Text>
               </Pressable>
             )}
           </View>
@@ -283,6 +282,12 @@ export default function WholesaleInvoices() {
   });
   const { data: cardsData, refetch: refetchCards } = useQuery({ queryKey: ['wholesale-cards'], queryFn: api.wholesale.cards, retry: 1 });
   const { refreshing, onRefresh } = useRefreshControl(refetchInvoices, refetchAccount, refetchCards);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchInvoices();
+    }, [refetchInvoices]),
+  );
 
   const rawOrders: any[] = ordersData?.data ?? [];
   const invoices: Invoice[] = rawOrders.map(mapOrderToInvoice);
@@ -485,8 +490,8 @@ export default function WholesaleInvoices() {
                     onPress={(e) => { e.stopPropagation?.(); handlePay(invoice); }}
                     style={[ss.actionBtn, ss.actionPrimary]}
                   >
-                    <Feather name="credit-card" size={13} color="#fff" />
-                    <Text style={ss.actionPrimaryText}>{defCard ? `Pay •${defCard.last4}` : 'Pay'}</Text>
+                    <Feather name="external-link" size={13} color="#fff" />
+                    <Text style={ss.actionPrimaryText}>View &amp; Pay</Text>
                   </Pressable>
                 )}
               </View>
