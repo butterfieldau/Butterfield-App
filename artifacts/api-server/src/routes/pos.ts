@@ -32,6 +32,7 @@ import {
   ensureLoyaltySchemaReady,
 } from '../lib/loyaltyIdentity.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
+import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import {
@@ -1341,29 +1342,48 @@ router.post('/orders/:id/refund', async (req, res) => {
     WHERE id = ${id}
   `);
 
-  // Reverse loyalty points if full refund and customer attached
-  if (isFullRefund && order.user_id && Number(order.loyalty_points_earned ?? 0) > 0) {
+  // Reverse loyalty on full refund if a customer was attached
+  if (isFullRefund && order.user_id) {
+    // Restore any claimed reward applied to this order
     try {
-      await db.execute(sql`
-        UPDATE customer_profiles
-        SET loyalty_points = GREATEST(0, loyalty_points - ${Number(order.loyalty_points_earned)}),
-            updated_at = now()
-        WHERE user_id = ${order.user_id}
-      `);
-      // Reverse coffee stamps if any coffee items
-      const items = Array.isArray(order.items) ? order.items : (typeof order.items === 'string' ? JSON.parse(order.items) : []);
-      const hasCoffee = items.some((i: any) => String(i.category ?? '').toLowerCase() === 'coffee');
-      if (hasCoffee) {
+      await db.update(claimedRewardsTable)
+        .set({ status: 'available', redeemedAt: null, orderId: null })
+        .where(and(
+          eq(claimedRewardsTable.orderId, id),
+          eq(claimedRewardsTable.status, 'redeemed'),
+        ));
+    } catch (err: any) {
+      req.log.error({ err, orderId: id }, 'POS refund: claimed reward restore failed');
+    }
+
+    // Reverse loyalty points (creates auditable transaction record)
+    if (Number(order.loyalty_points_earned ?? 0) > 0) {
+      try {
+        await recordLoyaltyPoints({
+          userId: String(order.user_id),
+          pointsDelta: -Number(order.loyalty_points_earned),
+          orderId: id,
+          description: 'POS refund — points reversed',
+        });
+      } catch (err: any) {
+        req.log.error({ err, orderId: id }, 'POS refund: loyalty points reversal failed');
+      }
+    }
+
+    // Reverse coffee stamps — count actual coffee items, not hardcoded 1
+    try {
+      const coffeeStampCount = await countCoffeeItemsFromOrderItems(order.items);
+      if (coffeeStampCount > 0) {
         await reverseCoffeeStamps({
           userId: String(order.user_id),
-          stampsToRemove: 1,
+          stampsToRemove: coffeeStampCount,
           source: 'order_refund',
           orderId: id,
           description: 'POS refund — coffee stamps reversed',
         });
       }
     } catch (err: any) {
-      req.log.error({ err, orderId: id }, 'POS refund: loyalty reversal failed');
+      req.log.error({ err, orderId: id }, 'POS refund: coffee stamp reversal failed');
     }
   }
 
@@ -1566,7 +1586,8 @@ router.patch('/orders/:id/void', async (req, res) => {
   const FIVE_MINS_MS = 5 * 60 * 1000;
 
   const result = await db.execute(sql`
-    SELECT id, created_at, status, source, total_cents, payment_method, split_payments
+    SELECT id, created_at, status, source, total_cents, payment_method, split_payments,
+           user_id, loyalty_points_earned, items
     FROM orders
     WHERE id = ${id}
     LIMIT 1
@@ -1589,6 +1610,51 @@ router.patch('/orders/:id/void', async (req, res) => {
         updated_at = now()
     WHERE id = ${id}
   `);
+
+  // Reverse loyalty if a customer was attached to this order
+  if (row.user_id) {
+    // Restore any claimed reward applied to this order
+    try {
+      await db.update(claimedRewardsTable)
+        .set({ status: 'available', redeemedAt: null, orderId: null })
+        .where(and(
+          eq(claimedRewardsTable.orderId, id),
+          eq(claimedRewardsTable.status, 'redeemed'),
+        ));
+    } catch (err: any) {
+      req.log.error({ err, orderId: id }, 'POS void: claimed reward restore failed');
+    }
+
+    // Reverse loyalty points
+    if (Number(row.loyalty_points_earned ?? 0) > 0) {
+      try {
+        await recordLoyaltyPoints({
+          userId: String(row.user_id),
+          pointsDelta: -Number(row.loyalty_points_earned),
+          orderId: id,
+          description: 'POS void — points reversed',
+        });
+      } catch (err: any) {
+        req.log.error({ err, orderId: id }, 'POS void: loyalty points reversal failed');
+      }
+    }
+
+    // Reverse coffee stamps
+    try {
+      const coffeeStampCount = await countCoffeeItemsFromOrderItems(row.items);
+      if (coffeeStampCount > 0) {
+        await reverseCoffeeStamps({
+          userId: String(row.user_id),
+          stampsToRemove: coffeeStampCount,
+          source: 'order_cancel',
+          orderId: id,
+          description: 'POS void — coffee stamps reversed',
+        });
+      }
+    } catch (err: any) {
+      req.log.error({ err, orderId: id }, 'POS void: coffee stamp reversal failed');
+    }
+  }
 
   const voidSession = await getOrCreateCurrentRegisterSession(req.user!.id);
   await recordPosRefundEvent({
