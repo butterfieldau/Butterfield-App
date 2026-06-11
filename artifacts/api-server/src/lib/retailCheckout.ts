@@ -1,4 +1,4 @@
-import { db, claimedRewardsTable, customerProfilesTable, loyaltyRewardsTable, productsTable } from '@workspace/db';
+import { db, claimedRewardsTable, customerProfilesTable, loyaltyRewardsTable, productsTable, productVariantsTable, productOptionsTable } from '@workspace/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { computeOrderTotal, type OrderItemInput, type PaymentMethod } from './orderPricing.js';
 import { validateDiscountCode } from './discountUtils.js';
@@ -182,19 +182,48 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
       throw new Error('No coffee items in your order to apply the free coffee reward');
     }
 
+    // Compute authoritative unit prices for coffee items from server data only —
+    // never trust client-supplied unitPriceCents for reward-selection decisions.
+    const coffeeItems = items.filter((i) => coffeeProductMap.has(i.productId) && !i.isFreeReward);
+    const coffeeVariantIds = [...new Set(coffeeItems.flatMap((i) => i.variantId ? [i.variantId] : []))];
+    const coffeeOptionIds  = [...new Set(
+      coffeeItems.flatMap((i) => (i.selectedOptions ?? []).map((o) => o.optionId).filter(Boolean) as string[]),
+    )];
+
+    const [coffeeVariants, coffeeOptions] = await Promise.all([
+      coffeeVariantIds.length
+        ? db.select().from(productVariantsTable).where(inArray(productVariantsTable.id, coffeeVariantIds))
+        : Promise.resolve([]),
+      coffeeOptionIds.length
+        ? db.select().from(productOptionsTable).where(inArray(productOptionsTable.id, coffeeOptionIds))
+        : Promise.resolve([]),
+    ]);
+    const variantMap = new Map(coffeeVariants.map((v) => [v.id, v]));
+    const optionMap  = new Map(coffeeOptions.map((o) => [o.id, o]));
+
     let cheapestIdx = -1;
     let cheapestPrice = Infinity;
     for (let i = 0; i < items.length; i++) {
       const item = items[i]!;
       const cp = coffeeProductMap.get(item.productId);
       if (!cp || item.isFreeReward) continue;
-      // Prefer the item's authoritative unit price (variant + options already baked in);
-      // fall back to product-level price when the client did not supply it.
-      const price = typeof item.unitPriceCents === 'number' && item.unitPriceCents > 0
-        ? item.unitPriceCents
-        : (cp.salePriceCents ?? cp.priceCents ?? 0);
-      if (price < cheapestPrice) {
-        cheapestPrice = price;
+      // Authoritative base price: variant price if variant present, else product price.
+      let unitCents: number;
+      if (item.variantId) {
+        const variant = variantMap.get(item.variantId);
+        unitCents = variant ? variant.priceCents : (cp.salePriceCents ?? cp.priceCents ?? 0);
+      } else {
+        unitCents = cp.salePriceCents ?? cp.priceCents ?? 0;
+      }
+      // Add option price adjustments from server-side data only.
+      for (const sel of (item.selectedOptions ?? [])) {
+        if (sel.optionId) {
+          const opt = optionMap.get(sel.optionId);
+          if (opt) unitCents += opt.priceAdjustmentCents;
+        }
+      }
+      if (unitCents < cheapestPrice) {
+        cheapestPrice = unitCents;
         cheapestIdx = i;
       }
     }
