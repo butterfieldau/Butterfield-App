@@ -1155,7 +1155,7 @@ export async function cancelTransaction(userId: string, sessionId: string): Prom
     logger.warn({ err, sessionId }, 'Linkly cancel: could not load stored config');
     return;
   }
-  if (!row?.linkly_secret) {
+  if (!row?.linkly_secret_encrypted) {
     logger.warn({ sessionId }, 'Linkly cancel: no config, skipping');
     return;
   }
