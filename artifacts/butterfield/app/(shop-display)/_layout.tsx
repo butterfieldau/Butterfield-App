@@ -2,13 +2,13 @@ import { Feather } from '@expo/vector-icons';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Alert, Animated, Image, Platform, Pressable, StatusBar, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin } from '@/lib/shopDisplayMode';
+import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
@@ -70,6 +70,13 @@ export default function ShopDisplayLayout() {
   const [lockDigits, setLockDigits] = useState<string[]>([]);
   const lockShakeAnim = useRef(new Animated.Value(0)).current;
 
+  // ── Forgot PIN recovery ───────────────────────────────────────────────────
+  const [showForgotPin, setShowForgotPin] = useState(false);
+  const [forgotPinPassword, setForgotPinPassword] = useState('');
+  const [forgotPinLoading, setForgotPinLoading] = useState(false);
+  const [forgotPinError, setForgotPinError] = useState('');
+  const [showForgotPw, setShowForgotPw] = useState(false);
+
   useEffect(() => {
     getPosLastSyncedAt().then(d => setLastSyncedAt(d));
   }, []);
@@ -127,6 +134,30 @@ export default function ShopDisplayLayout() {
     setLockDigits([]);
     setIsLocked(true);
   }, [lockPin]);
+
+  const handleForgotPinRecovery = useCallback(async () => {
+    if (!user?.email || !forgotPinPassword.trim()) {
+      setForgotPinError('Please enter your password.');
+      return;
+    }
+    setForgotPinLoading(true);
+    setForgotPinError('');
+    try {
+      await api.auth.staffLogin({ email: user.email, password: forgotPinPassword });
+      // Password correct — clear the PIN and unlock
+      await clearDisplayLockPin();
+      setLockPin(null);
+      setIsLocked(false);
+      setShowForgotPin(false);
+      setForgotPinPassword('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setForgotPinError('Incorrect password. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setForgotPinLoading(false);
+    }
+  }, [user?.email, forgotPinPassword]);
 
   const syncNow = useCallback(async () => {
     if (syncing) return;
@@ -360,6 +391,13 @@ export default function ShopDisplayLayout() {
           </View>
 
           <TouchableOpacity
+            style={styles.lockForgotBtn}
+            onPress={() => { setForgotPinError(''); setForgotPinPassword(''); setShowForgotPin(true); }}
+          >
+            <Text style={styles.lockForgotText}>Forgot PIN?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.lockSignOutBtn}
             onPress={() => {
               Alert.alert('Sign out', 'Are you sure you want to sign out of this display?', [
@@ -373,6 +411,65 @@ export default function ShopDisplayLayout() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* ── Forgot PIN recovery modal ──────────────────────────────── */}
+      <Modal visible={showForgotPin} transparent animationType="fade" onRequestClose={() => setShowForgotPin(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.forgotOverlay}>
+          <View style={styles.forgotCard}>
+            <View style={styles.forgotIconRow}>
+              <View style={styles.forgotIconBg}>
+                <Feather name="unlock" size={22} color={BLUE} />
+              </View>
+            </View>
+            <Text style={styles.forgotTitle}>Verify your identity</Text>
+            <Text style={styles.forgotSub}>
+              Enter your Butterfield account password to clear the display PIN and regain access.
+            </Text>
+
+            <View style={styles.forgotInputRow}>
+              <TextInput
+                style={styles.forgotInput}
+                placeholder="Account password"
+                placeholderTextColor="#9CA3AF"
+                value={forgotPinPassword}
+                onChangeText={setForgotPinPassword}
+                secureTextEntry={!showForgotPw}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleForgotPinRecovery}
+              />
+              <TouchableOpacity onPress={() => setShowForgotPw(v => !v)} style={styles.forgotEye}>
+                <Feather name={showForgotPw ? 'eye-off' : 'eye'} size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            {!!forgotPinError && (
+              <View style={styles.forgotError}>
+                <Feather name="alert-circle" size={13} color="#EF4444" />
+                <Text style={styles.forgotErrorText}>{forgotPinError}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.forgotConfirmBtn, forgotPinLoading && { opacity: 0.7 }]}
+              onPress={handleForgotPinRecovery}
+              disabled={forgotPinLoading}
+            >
+              {forgotPinLoading
+                ? <Text style={styles.forgotConfirmText}>Verifying…</Text>
+                : <Text style={styles.forgotConfirmText}>Clear PIN &amp; Unlock</Text>
+              }
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.forgotCancelBtn}
+              onPress={() => { setShowForgotPin(false); setForgotPinPassword(''); setForgotPinError(''); }}
+            >
+              <Text style={styles.forgotCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -412,6 +509,25 @@ const styles = StyleSheet.create({
   lockPadKey:        { flex: 1, height: 68, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   lockPadKeyBtn:     { backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   lockPadKeyText:    { fontSize: 26, fontWeight: '400', color: WHITE },
-  lockSignOutBtn:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 44, padding: 12 },
+  lockForgotBtn:     { marginTop: 28, padding: 10 },
+  lockForgotText:    { color: 'rgba(255,255,255,0.45)', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
+  lockSignOutBtn:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12, padding: 12 },
   lockSignOutText:   { color: 'rgba(255,255,255,0.35)', fontSize: 13, fontWeight: '500' },
+
+  // Forgot PIN modal
+  forgotOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  forgotCard:        { backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, gap: 4 },
+  forgotIconRow:     { alignItems: 'center', marginBottom: 8 },
+  forgotIconBg:      { width: 52, height: 52, borderRadius: 26, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  forgotTitle:       { fontSize: 18, fontWeight: '700', color: '#1C1C1E', textAlign: 'center', marginBottom: 4 },
+  forgotSub:         { fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 19, marginBottom: 16 },
+  forgotInputRow:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, marginBottom: 6 },
+  forgotInput:       { flex: 1, fontSize: 15, color: '#1C1C1E', paddingVertical: 13 },
+  forgotEye:         { padding: 6 },
+  forgotError:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FEF2F2', borderRadius: 8, padding: 10, marginBottom: 4 },
+  forgotErrorText:   { color: '#EF4444', fontSize: 13, flex: 1 },
+  forgotConfirmBtn:  { backgroundColor: '#1A2B4A', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginBottom: 6 },
+  forgotConfirmText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  forgotCancelBtn:   { alignItems: 'center', paddingVertical: 10 },
+  forgotCancelText:  { color: '#8E8E93', fontSize: 14, fontWeight: '500' },
 });
