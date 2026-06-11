@@ -355,6 +355,245 @@ export function buildPosReceiptEmail(opts: {
 </html>`;
 }
 
+export function buildOrderConfirmationEmail(opts: {
+  customerName: string;
+  orderNumber: string;
+  shortOrderId: string;
+  items: Array<{ name: string; quantity: number; isFreeReward?: boolean }>;
+  totalCents: number;
+  loyaltyPointsEarned: number;
+  orderType: 'pickup' | 'delivery';
+  scheduledFor?: string | null;
+  storeName?: string | null;
+  date: string;
+}): string {
+  const {
+    customerName, orderNumber, shortOrderId, items, totalCents,
+    loyaltyPointsEarned, orderType, scheduledFor, storeName, date,
+  } = opts;
+  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const itemRows = items.filter(i => (i.quantity ?? 0) > 0).map(item => `
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:14px;color:#374151;">
+        ${item.quantity}&times; ${item.name}${item.isFreeReward ? ' <span style="color:#16A34A;font-size:12px;font-weight:600;">(Free)</span>' : ''}
+      </td>
+    </tr>`).join('');
+
+  const pickupInfo = scheduledFor
+    ? `Scheduled ${orderType === 'delivery' ? 'delivery' : 'pickup'} · ${new Date(scheduledFor).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    : orderType === 'delivery' ? 'Delivery order' : `Pickup${storeName ? ` · ${storeName}` : ''}`;
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#1493FF,#40C0F2);padding:32px 40px;text-align:center;">
+            <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Desserts</div>
+          </td>
+        </tr>
+
+        <!-- Confirmation badge -->
+        <tr>
+          <td style="padding:28px 40px 0;text-align:center;">
+            <div style="width:52px;height:52px;border-radius:50%;background:#DCFCE7;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">
+              <span style="font-size:26px;">✓</span>
+            </div>
+            <p style="margin:0 0 4px;font-size:20px;font-weight:700;color:#1C1C1E;">Order confirmed!</p>
+            <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Hi ${customerName}, we've got your order.</p>
+            <div style="display:inline-block;background:#EFF6FF;border-radius:20px;padding:5px 16px;margin-top:8px;">
+              <span style="font-size:13px;font-weight:700;color:#1D4ED8;">Order #${orderNumber || shortOrderId}</span>
+            </div>
+            <p style="margin:8px 0 0;font-size:12px;color:#9CA3AF;">${date}</p>
+          </td>
+        </tr>
+
+        <!-- Pickup / delivery info -->
+        <tr>
+          <td style="padding:16px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border-radius:10px;border:1px solid #BBF7D0;">
+              <tr>
+                <td style="padding:12px 16px;font-size:13px;color:#15803D;font-weight:600;">${pickupInfo}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Items -->
+        <tr>
+          <td style="padding:20px 40px 0;">
+            <div style="font-size:11px;font-weight:700;color:#9CA3AF;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;padding-bottom:8px;border-bottom:2px solid #F3F4F6;">Your order</div>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${itemRows}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Total -->
+        <tr>
+          <td style="padding:12px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFB;border-radius:10px;padding:14px 16px;">
+              <tr>
+                <td style="font-size:15px;font-weight:800;color:#1C1C1E;">Total</td>
+                <td style="font-size:15px;font-weight:800;color:#1C1C1E;text-align:right;">AUD ${fmt(totalCents)}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        ${loyaltyPointsEarned > 0 ? `
+        <!-- Loyalty -->
+        <tr>
+          <td style="padding:10px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;">
+              <tr>
+                <td style="font-size:13px;color:#1D4ED8;font-weight:600;">Points earned this order</td>
+                <td style="font-size:15px;color:#1D4ED8;font-weight:800;text-align:right;">+${loyaltyPointsEarned}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : ''}
+
+        <!-- Track CTA -->
+        <tr>
+          <td style="padding:20px 40px 0;text-align:center;">
+            <p style="margin:0;font-size:13px;color:#6B7280;line-height:1.6;">Open the <strong>Butterfield Cookies</strong> app to track your order in real time.</p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#F9FAFB;padding:20px 40px;border-top:1px solid #E5E7EB;margin-top:24px;">
+            <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;line-height:1.6;">
+              Butterfield Cookies · Merrylands, Sydney NSW · ABN 24 680 761 166<br>
+              You're receiving this because you placed an order with us.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildOrderReceiptEmail(opts: {
+  customerName: string;
+  orderNumber: string;
+  shortOrderId: string;
+  items: Array<{ name: string; quantity: number; isFreeReward?: boolean }>;
+  totalCents: number;
+  loyaltyPointsEarned: number;
+  loyaltyPointsBalance: number;
+  orderType: 'pickup' | 'delivery';
+  date: string;
+}): string {
+  const {
+    customerName, orderNumber, shortOrderId, items, totalCents,
+    loyaltyPointsEarned, loyaltyPointsBalance, orderType, date,
+  } = opts;
+  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const itemRows = items.filter(i => (i.quantity ?? 0) > 0).map(item => `
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:14px;color:#374151;">
+        ${item.quantity}&times; ${item.name}${item.isFreeReward ? ' <span style="color:#16A34A;font-size:12px;font-weight:600;">(Free)</span>' : ''}
+      </td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#1493FF,#40C0F2);padding:32px 40px;text-align:center;">
+            <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Desserts</div>
+          </td>
+        </tr>
+
+        <!-- Receipt badge -->
+        <tr>
+          <td style="padding:28px 40px 0;text-align:center;">
+            <p style="margin:0 0 4px;font-size:20px;font-weight:700;color:#1C1C1E;">Here's your receipt</p>
+            <p style="margin:0 0 4px;font-size:14px;color:#6B7280;">Thanks for visiting, ${customerName}!</p>
+            <div style="display:inline-block;background:#EFF6FF;border-radius:20px;padding:5px 16px;margin-top:8px;">
+              <span style="font-size:13px;font-weight:700;color:#1D4ED8;">Order #${orderNumber || shortOrderId}</span>
+            </div>
+            <p style="margin:8px 0 0;font-size:12px;color:#9CA3AF;">${date} · ${orderType === 'delivery' ? 'Delivery' : 'Pickup'}</p>
+          </td>
+        </tr>
+
+        <!-- Items -->
+        <tr>
+          <td style="padding:20px 40px 0;">
+            <div style="font-size:11px;font-weight:700;color:#9CA3AF;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;padding-bottom:8px;border-bottom:2px solid #F3F4F6;">Items</div>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${itemRows}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Total -->
+        <tr>
+          <td style="padding:12px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFB;border-radius:10px;padding:14px 16px;">
+              <tr>
+                <td style="font-size:15px;font-weight:800;color:#1C1C1E;">Total paid</td>
+                <td style="font-size:15px;font-weight:800;color:#1C1C1E;text-align:right;">AUD ${fmt(totalCents)}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        ${loyaltyPointsEarned > 0 || loyaltyPointsBalance > 0 ? `
+        <!-- Loyalty summary -->
+        <tr>
+          <td style="padding:10px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#EFF6FF;border-radius:10px;padding:14px 16px;">
+              ${loyaltyPointsEarned > 0 ? `
+              <tr>
+                <td style="font-size:13px;color:#1D4ED8;font-weight:600;padding-bottom:6px;">Earned this order</td>
+                <td style="font-size:15px;color:#1D4ED8;font-weight:800;text-align:right;padding-bottom:6px;">+${loyaltyPointsEarned} pts</td>
+              </tr>` : ''}
+              <tr>
+                <td style="font-size:13px;color:#1D4ED8;font-weight:600;border-top:1px solid #BFDBFE;padding-top:6px;">Points balance</td>
+                <td style="font-size:15px;color:#1D4ED8;font-weight:800;text-align:right;border-top:1px solid #BFDBFE;padding-top:6px;">${loyaltyPointsBalance} pts</td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : ''}
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#F9FAFB;padding:20px 40px;border-top:1px solid #E5E7EB;margin-top:24px;">
+            <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;line-height:1.6;">
+              Butterfield Cookies · Merrylands, Sydney NSW · ABN 24 680 761 166<br>
+              Thank you for your visit — see you next time!
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function buildPasswordResetEmail(otp: string, name: string): string {
   return `<!DOCTYPE html>
 <html>

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable } from '@workspace/db';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable, usersTable } from '@workspace/db';
 import { eq, desc, sql, and, inArray, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
+import { sendEmail, buildOrderConfirmationEmail, buildOrderReceiptEmail } from '../lib/emailService.js';
 import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
@@ -399,6 +400,42 @@ router.post('/', async (req, res) => {
     ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
   }
 
+  // ── Send order confirmation email ─────────────────────────────────────────
+  void (async () => {
+    try {
+      const [user] = await db
+        .select({ email: usersTable.email, name: usersTable.name })
+        .from(usersTable)
+        .where(eq(usersTable.id, req.user!.id));
+      if (user?.email) {
+        const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
+        const html = buildOrderConfirmationEmail({
+          customerName: user.name,
+          orderNumber: order.orderNumber ?? '',
+          shortOrderId: order.id.slice(-6).toUpperCase(),
+          items: orderItems.map((i: any) => ({
+            name: i.name ?? 'Item',
+            quantity: i.quantity ?? 1,
+            isFreeReward: i.isFreeReward ?? false,
+          })),
+          totalCents: order.totalCents,
+          loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
+          orderType: order.type as 'pickup' | 'delivery',
+          scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
+          storeName: selectedStore?.name ?? null,
+          date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        });
+        await sendEmail({
+          to: user.email,
+          subject: `Order confirmed — #${order.orderNumber || order.id.slice(-6).toUpperCase()}`,
+          html,
+        });
+      }
+    } catch (err) {
+      req.log.warn({ err, orderId: order.id }, 'Order confirmation email failed');
+    }
+  })();
+
   return res.status(201).json({ data: order });
 });
 
@@ -445,6 +482,47 @@ router.patch(
     if (order && msg) {
       notifyUser(order.userId, 'order_status', 'Butterfield Cookies', msg,
         { orderId: order.id, status, screen: `/(customer)/track/${order.id}` }).catch(() => {});
+    }
+
+    // ── Send receipt email when order is completed ────────────────────────────
+    if (status === 'completed' && order) {
+      void (async () => {
+        try {
+          const [user] = await db
+            .select({ email: usersTable.email, name: usersTable.name })
+            .from(usersTable)
+            .where(eq(usersTable.id, order.userId));
+          if (user?.email) {
+            const [profile] = await db
+              .select({ loyaltyPoints: customerProfilesTable.loyaltyPoints })
+              .from(customerProfilesTable)
+              .where(eq(customerProfilesTable.userId, order.userId));
+            const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
+            const html = buildOrderReceiptEmail({
+              customerName: user.name,
+              orderNumber: order.orderNumber ?? '',
+              shortOrderId: order.id.slice(-6).toUpperCase(),
+              items: orderItems.map((i: any) => ({
+                name: i.name ?? 'Item',
+                quantity: i.quantity ?? 1,
+                isFreeReward: i.isFreeReward ?? false,
+              })),
+              totalCents: order.totalCents,
+              loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
+              loyaltyPointsBalance: profile?.loyaltyPoints ?? 0,
+              orderType: order.type as 'pickup' | 'delivery',
+              date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            });
+            await sendEmail({
+              to: user.email,
+              subject: `Your Butterfield receipt — #${order.orderNumber || order.id.slice(-6).toUpperCase()}`,
+              html,
+            });
+          }
+        } catch (err) {
+          req.log.warn({ err, orderId: order.id }, 'Order receipt email failed');
+        }
+      })();
     }
 
     // ── On cancellation: restore claimed reward + reverse loyalty points earned ──
