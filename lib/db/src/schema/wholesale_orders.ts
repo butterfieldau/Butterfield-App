@@ -26,6 +26,7 @@ export const wholesaleOrdersTable = pgTable("wholesale_orders", {
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   stripePaymentStatus: text("stripe_payment_status").notNull().default("pending"),
   paymentMethodType: text("payment_method_type"),
+  paymentReference: text("payment_reference"),
   refundedCents: integer("refunded_cents").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

@@ -27,7 +27,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
-import { syncWholesaleInvoiceStatuses } from '../lib/stripeWholesaleInvoices.js';
+import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
 import {
@@ -1341,18 +1341,35 @@ router.get('/wholesale/invoices', async (req, res) => {
 // Mark a wholesale order invoice as manually paid
 router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
   const { orderId } = req.params;
+  const paymentReference = typeof req.body?.paymentReference === 'string' && req.body.paymentReference.trim()
+    ? req.body.paymentReference.trim()
+    : null;
+
+  const [existing] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, orderId));
+  if (!existing) return res.status(404).json({ error: 'Order not found.' });
+
+  const updateData: Record<string, unknown> = {
+    isPaid:              true,
+    paidAt:              new Date(),
+    status:              'paid',
+    invoiceStatus:       'paid',
+    stripePaymentStatus: 'paid',
+    updatedAt:           new Date(),
+  };
+  if (paymentReference !== null) {
+    updateData.paymentReference = paymentReference;
+  }
+
   const [updated] = await db
     .update(wholesaleOrdersTable)
-    .set({
-      isPaid:              true,
-      paidAt:              new Date(),
-      invoiceStatus:       'paid',
-      stripePaymentStatus: 'paid',
-      updatedAt:           new Date(),
-    })
+    .set(updateData as any)
     .where(eq(wholesaleOrdersTable.id, orderId))
     .returning();
-  if (!updated) return res.status(404).json({ error: 'Order not found.' });
+
+  if (existing.stripeInvoiceId) {
+    markStripeInvoicePaidOutOfBand(existing.stripeInvoiceId).catch(() => {});
+  }
+
   return res.json({ data: updated });
 });
 

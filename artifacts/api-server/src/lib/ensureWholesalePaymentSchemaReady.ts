@@ -30,6 +30,7 @@ export async function ensureWholesalePaymentSchemaReady() {
           `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS stripe_invoice_id text`,
           `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS invoice_pdf_url text`,
           `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS invoice_updated_at timestamp`,
+          `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS payment_reference text`,
         ]);
       } catch (error) {
         schemaReadyPromise = null;

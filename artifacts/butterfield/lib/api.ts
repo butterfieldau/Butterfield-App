@@ -537,8 +537,11 @@ export const api = {
     updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
     wholesaleInvoicesList: () => request<{ data: any[] }>('/director/wholesale/invoices'),
-    markWholesaleInvoicePaid: (orderId: string) =>
-      request<{ data: any }>(`/director/wholesale/invoices/${orderId}/mark-paid`, { method: 'PATCH' }),
+    markWholesaleInvoicePaid: (orderId: string, paymentReference?: string) =>
+      request<{ data: any }>(`/director/wholesale/invoices/${orderId}/mark-paid`, {
+        method: 'PATCH',
+        body: JSON.stringify({ paymentReference: paymentReference ?? null }),
+      }),
     sendInvoiceReminder: (orderId: string) =>
       request<{ success: boolean; sentTo: string }>(`/director/wholesale/invoices/${orderId}/send-reminder`, { method: 'POST' }),
     createStaff:         (data: { name: string; email: string; password: string; position?: string; department?: string; isManager?: boolean; hourlyRateCents?: number; phone?: string; address?: string; taxFileNumber?: string; employmentStatus?: string }) =>

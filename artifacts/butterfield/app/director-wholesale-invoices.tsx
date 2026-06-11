@@ -2,8 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -252,16 +252,7 @@ function DetailModal({
 
               {/* Mark as Paid */}
               <Pressable
-                onPress={() => {
-                  Alert.alert(
-                    'Mark as Paid',
-                    `Mark ${invoiceNumber(order)} (${formatAUD(order.totalCents ?? 0)}) as paid? This cannot be undone.`,
-                    [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Mark Paid', style: 'default', onPress: () => onMarkPaid(order.id) },
-                    ],
-                  );
-                }}
+                onPress={() => onMarkPaid(order.id)}
                 disabled={marking}
                 style={({ pressed }) => [mdl.markPaidBtn, { opacity: pressed || marking ? 0.7 : 1 }]}
               >
@@ -300,6 +291,73 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
   );
 }
 
+// ── Mark Paid Modal ───────────────────────────────────────────────────────────
+
+function MarkPaidModal({
+  order,
+  onClose,
+  onConfirm,
+  confirming,
+}: {
+  order: any | null;
+  onClose: () => void;
+  onConfirm: (orderId: string, paymentReference?: string) => void;
+  confirming: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const [ref, setRef] = useState('');
+  React.useEffect(() => { setRef(''); }, [order?.id]);
+  if (!order) return null;
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
+      >
+        <View style={[mpd.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={mpd.handle} />
+          <Text style={mpd.title}>Mark as Paid</Text>
+          <Text style={mpd.subtitle}>
+            {invoiceNumber(order)} · {order.companyName}
+          </Text>
+          <Text style={mpd.amount}>{formatAUD(order.totalCents ?? 0)}</Text>
+
+          <Text style={mpd.label}>Payment Reference (optional)</Text>
+          <TextInput
+            style={mpd.input}
+            placeholder="e.g. EFT receipt 20240610, BSB transfer"
+            placeholderTextColor={MUTED}
+            value={ref}
+            onChangeText={setRef}
+            returnKeyType="done"
+            autoCapitalize="none"
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [mpd.cancelBtn, { opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Text style={mpd.cancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onConfirm(order.id, ref.trim() || undefined)}
+              disabled={confirming}
+              style={({ pressed }) => [mpd.confirmBtn, { opacity: pressed || confirming ? 0.7 : 1, flex: 2 }]}
+            >
+              {confirming
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Feather name="check-circle" size={16} color="#fff" />
+              }
+              <Text style={mpd.confirmText}>{confirming ? 'Marking…' : 'Mark as Paid'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 const FILTER_TABS: FilterTab[] = ['All', 'Unpaid', 'Overdue', 'Paid'];
@@ -315,10 +373,12 @@ export default function DirectorWholesaleInvoices() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
   const markPaidMutation = useMutation({
-    mutationFn: (orderId: string) => api.director.markWholesaleInvoicePaid(orderId),
+    mutationFn: ({ orderId, paymentReference }: { orderId: string; paymentReference?: string }) =>
+      api.director.markWholesaleInvoicePaid(orderId, paymentReference),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['director-wholesale-invoices'] });
       setSelectedOrder(null);
+      setMarkPaidTarget(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     },
     onError: () => Alert.alert('Error', 'Could not mark invoice as paid. Please try again.'),
@@ -335,6 +395,7 @@ export default function DirectorWholesaleInvoices() {
 
   const [filter, setFilter]               = useState<FilterTab>('All');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [markPaidTarget, setMarkPaidTarget] = useState<any | null>(null);
 
   const rawOrders: any[] = data?.data ?? [];
 
@@ -360,11 +421,22 @@ export default function DirectorWholesaleInvoices() {
 
   return (
     <DirectorStandaloneScreen title="Invoice Management" backgroundColor={BG}>
+      {/* Mark Paid Modal */}
+      <MarkPaidModal
+        order={markPaidTarget}
+        onClose={() => setMarkPaidTarget(null)}
+        onConfirm={(orderId, paymentReference) => markPaidMutation.mutate({ orderId, paymentReference })}
+        confirming={markPaidMutation.isPending}
+      />
+
       {/* Detail Modal */}
       <DetailModal
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
-        onMarkPaid={(id) => markPaidMutation.mutate(id)}
+        onMarkPaid={(id) => {
+          const order = rawOrders.find((o) => o.id === id);
+          setMarkPaidTarget(order ?? null);
+        }}
         marking={markPaidMutation.isPending}
         onSendReminder={(id) => sendReminderMutation.mutate(id)}
         sendingReminder={sendReminderMutation.isPending}
@@ -476,14 +548,8 @@ export default function DirectorWholesaleInvoices() {
                 <Pressable
                   onPress={(e) => {
                     e.stopPropagation?.();
-                    Alert.alert(
-                      'Mark as Paid',
-                      `Mark ${invoiceNumber(order)} for ${order.companyName} as paid?\n${formatAUD(order.totalCents ?? 0)}`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Mark Paid', style: 'default', onPress: () => markPaidMutation.mutate(order.id) },
-                      ],
-                    );
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setMarkPaidTarget(order);
                   }}
                   style={ss.markBtn}
                 >
@@ -543,4 +609,18 @@ const mdl = StyleSheet.create({
   markPaidBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: GREEN, borderRadius: 12, padding: 15 },
   markPaidText:  { color: '#fff', fontWeight: '700', fontSize: 15 },
   paidConfirm:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 15, borderWidth: 1, borderColor: '#86EFAC' },
+});
+
+const mpd = StyleSheet.create({
+  sheet:      { backgroundColor: CARD, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 12 },
+  handle:     { width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginBottom: 4 },
+  title:      { fontSize: 18, fontWeight: '700', color: TEXT, textAlign: 'center' },
+  subtitle:   { fontSize: 13, color: MUTED, textAlign: 'center' },
+  amount:     { fontSize: 22, fontWeight: '800', color: GREEN, textAlign: 'center' },
+  label:      { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 4 },
+  input:      { backgroundColor: BG, borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 12, fontSize: 14, color: TEXT },
+  cancelBtn:  { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG, borderWidth: 1, borderColor: BORDER, borderRadius: 12, padding: 14 },
+  cancelText: { color: TEXT, fontWeight: '600', fontSize: 14 },
+  confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: GREEN, borderRadius: 12, padding: 14 },
+  confirmText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

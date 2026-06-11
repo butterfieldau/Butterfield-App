@@ -112,18 +112,31 @@ async function persistInvoiceFields(orderId: string, invoice: {
   due_date?: number | null;
   status?: string | null;
 }) {
+  const [existing] = await db
+    .select({ isPaid: wholesaleOrdersTable.isPaid })
+    .from(wholesaleOrdersTable)
+    .where(eq(wholesaleOrdersTable.id, orderId));
+
+  const normalizedStatus = normalizeInvoiceStatus(invoice);
+  const manuallyPaid = existing?.isPaid === true;
+
+  const setFields: Record<string, unknown> = {
+    stripeInvoiceId:   invoice.id,
+    invoiceNumber:     invoice.number ?? null,
+    invoiceUrl:        invoice.hosted_invoice_url ?? null,
+    invoicePdfUrl:     invoice.invoice_pdf ?? null,
+    invoiceDueDate:    formatInvoiceDate(invoice.due_date),
+    invoiceUpdatedAt:  new Date(),
+    updatedAt:         new Date(),
+  };
+
+  if (!manuallyPaid || normalizedStatus === 'paid') {
+    setFields.invoiceStatus = normalizedStatus;
+  }
+
   const [updated] = await db
     .update(wholesaleOrdersTable)
-    .set({
-      stripeInvoiceId: invoice.id,
-      invoiceNumber: invoice.number ?? null,
-      invoiceUrl: invoice.hosted_invoice_url ?? null,
-      invoicePdfUrl: invoice.invoice_pdf ?? null,
-      invoiceDueDate: formatInvoiceDate(invoice.due_date),
-      invoiceStatus: normalizeInvoiceStatus(invoice),
-      invoiceUpdatedAt: new Date(),
-      updatedAt: new Date(),
-    })
+    .set(setFields as any)
     .where(eq(wholesaleOrdersTable.id, orderId))
     .returning();
 
@@ -256,6 +269,21 @@ export async function syncWholesaleInvoiceStatus(orderId: string) {
   const stripe = await getUncachableStripeClient();
   const invoice = await stripe.invoices.retrieve(order.stripeInvoiceId);
   return persistInvoiceFields(order.id, invoice);
+}
+
+export async function markStripeInvoicePaidOutOfBand(stripeInvoiceId: string): Promise<void> {
+  try {
+    const stripe = await getUncachableStripeClient();
+    const invoice = await stripe.invoices.retrieve(stripeInvoiceId);
+    if (invoice.status === 'open' || invoice.status === 'draft') {
+      if (invoice.status === 'draft') {
+        await stripe.invoices.finalizeInvoice(stripeInvoiceId);
+      }
+      await stripe.invoices.pay(stripeInvoiceId, { paid_out_of_band: true });
+    }
+  } catch {
+    // Best-effort — don't fail the local mark-paid if Stripe is unavailable
+  }
 }
 
 export async function syncWholesaleInvoiceStatuses(orderIds: string[]) {
