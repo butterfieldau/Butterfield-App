@@ -2249,7 +2249,7 @@ function PaymentModal({
             }
           }
         } catch {}
-      }, 2000);
+      }, 1000);
     } catch (err: any) {
       setLinklyStep('idle');
       setLinklyText('');
@@ -2297,7 +2297,7 @@ function PaymentModal({
             }
           }
         } catch {}
-      }, 2000);
+      }, 1000);
     } catch (err: any) {
       setSplitCardStep('idle');
       setSplitCardText('');
