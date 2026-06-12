@@ -31,7 +31,7 @@ import {
   upsertCustomerCache, searchCustomerCache,
   type CachedPosCustomer, type OfflineQueueEntry,
 } from '@/lib/posCache';
-import { sendReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint, sendOpenDrawer } from '@/lib/printer';
+import { sendReceiptPrint, sendLinklyReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint, sendOpenDrawer } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -298,9 +298,14 @@ function PosScreenInner() {
   // Keyed by customerId — stores the server-confirmed balance after a completed
   // POS sale so that if staff re-attach the same customer before the next live
   // fetch completes, we can use the post-sale value as a provisional balance.
-  const recentBalancesRef = useRef<Record<string, {
-    loyaltyPoints: number; stampCount: number; freeCoffeeRewards: number;
-  }>>({});
+  type RecentBalance = { loyaltyPoints: number; stampCount: number; freeCoffeeRewards: number };
+  const recentBalancesRef = useRef<Record<string, RecentBalance>>({});
+
+  // ── Receipt-printed guard ─────────────────────────────────────────────────
+  // Tracks which Linkly session IDs have already triggered a receipt print.
+  // Prevents double-printing when the poll callback and createOrderMutation.onSuccess
+  // both run (normal path), or when startup recovery resolves before createOrderMutation.
+  const receiptPrintedRef = useRef<Set<string>>(new Set());
 
   // ── Product list ref (scroll-to-top on category change) ──────────────────
   const productListRef = useRef<any>(null);
@@ -778,12 +783,17 @@ function PosScreenInner() {
       refetchSummary();
       refetchRegister();
       queryClient.invalidateQueries({ queryKey: ['pos-summary'] });
-      // Auto-print receipt using the captured ticket items (not the sparse res.data)
+      // Auto-print receipt using the captured ticket items (not the sparse res.data).
+      // Guard: if the Linkly poll callback already printed (receiptPrintedRef), skip to
+      // avoid double-printing. For cash and split payments there is no session to check,
+      // so always print. For EFTPOS, only print if the session hasn't already been printed.
       const store = storeData as any;
       const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-      const hasCash = vars.paymentMethod === 'cash' ||
-        (vars.paymentMethod === 'split' && vars.splitPayments?.some(p => p.method === 'cash'));
-      if (store?.autoPrint && store?.printerIp) {
+      const alreadyPrinted = vars.linklySessionId
+        ? receiptPrintedRef.current.has(vars.linklySessionId)
+        : false;
+      if (!alreadyPrinted && store?.autoPrint && store?.printerIp) {
+        if (vars.linklySessionId) receiptPrintedRef.current.add(vars.linklySessionId);
         sendReceiptPrint({
           orderId: res.data.id,
           customerName: snapshotCustomerName,
@@ -944,6 +954,27 @@ function PosScreenInner() {
       createOrderMutation.mutate(mutateVars);
     }
   }, [isOnline, buildOrderPayload, activeTicket, activeIdempotencyKey, enqueueOrder, createOrderMutation, clearActiveTicket]);
+
+
+  // ── EFTPOS approval receipt callback ──────────────────────────────────────
+  // Called by PaymentModal when the terminal approves. Prints the Linkly
+  // receipt text (from the terminal itself) if non-empty AND the store has a
+  // printer configured — then marks receiptPrintedRef so createOrderMutation
+  // .onSuccess skips double-printing. If no receiptText is provided (terminal
+  // didn't send one) the ref is NOT marked and onSuccess falls back to printing
+  // with the real orderId.
+  const handlePrintReceiptForEftpos = useCallback((sessionId: string, receiptText: string) => {
+    if (receiptPrintedRef.current.has(sessionId)) return;
+    const store = storeData as any;
+    if (!receiptText || !store?.autoPrint || !store?.printerIp) return;
+    // Only mark the ref (and suppress the onSuccess print) when we actually print.
+    receiptPrintedRef.current.add(sessionId);
+    const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+    sendLinklyReceiptPrint({
+      lines: receiptText.split('\n'),
+      printerBrand: store.printerBrand ?? 'epson',
+    }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
+  }, [storeData, isShopDisplay]);
 
   const voidOrderMutation = useMutation({
     mutationFn: (id: string) => api.pos.voidOrder(id),
@@ -1236,6 +1267,7 @@ function PosScreenInner() {
           cashEnabled={cashEnabled}
           onClose={() => setShowPayment(false)}
           onConfirm={handleChargeConfirm}
+          onPrintReceipt={handlePrintReceiptForEftpos}
           loading={createOrderMutation.isPending}
           isOnline={isOnline}
         />
@@ -1393,6 +1425,8 @@ function PosScreenInner() {
       {showHistory && (
         <HistoryModal
           onClose={() => setShowHistory(false)}
+          storeData={storeData}
+          isShopDisplay={isShopDisplay}
           onVoidSuccess={(id) => {
             if (id === lastOrderId) setLastOrderId(null);
             refetchSummary();
@@ -2269,7 +2303,7 @@ type PaymentConfirmParams = {
 };
 
 function PaymentModal({
-  totalCents, subtotalCents, discount, cashEnabled, onClose, onConfirm, loading, isOnline,
+  totalCents, subtotalCents, discount, cashEnabled, onClose, onConfirm, onPrintReceipt, loading, isOnline,
 }: {
   totalCents: number;
   subtotalCents: number;
@@ -2277,6 +2311,7 @@ function PaymentModal({
   cashEnabled: boolean;
   onClose: () => void;
   onConfirm: (params: PaymentConfirmParams) => void;
+  onPrintReceipt?: (sessionId: string, receiptText: string) => void;
   loading: boolean;
   isOnline: boolean;
 }) {
@@ -2290,13 +2325,15 @@ function PaymentModal({
   const [linklyStep, setLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
   const [linklySessionId, setLinklySessionId] = useState<string | null>(null);
   const [linklyText, setLinklyText] = useState('');
-  const linklyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const linklyPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards: tracks which sessions have already fired receipt + onConfirm
+  const receiptPrintedRef = useRef<Set<string>>(new Set());
 
   // Linkly EFTPOS state (split-part mode — runs one part at a time)
   const [splitCardStep, setSplitCardStep] = useState<'idle' | 'initiating' | 'waiting' | 'declined'>('idle');
   const [splitCardSessionId, setSplitCardSessionId] = useState<string | null>(null);
   const [splitCardText, setSplitCardText] = useState('');
-  const splitCardPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const splitCardPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load surcharges
   const { data: surchargesData } = useQuery({
@@ -2335,10 +2372,10 @@ function PaymentModal({
   const splitOk = method !== 'split' || splitCommittedCents >= chargeTotalCents;
   const roundUpPresets = [5, 10, 20, 50, 100].filter(d => d * 100 >= chargeTotalCents).slice(0, 3);
 
-  // Cleanup poll intervals on unmount
+  // Cleanup poll timeouts on unmount
   useEffect(() => () => {
-    if (linklyPollRef.current) clearInterval(linklyPollRef.current);
-    if (splitCardPollRef.current) clearInterval(splitCardPollRef.current);
+    if (linklyPollRef.current) clearTimeout(linklyPollRef.current);
+    if (splitCardPollRef.current) clearTimeout(splitCardPollRef.current);
   }, []);
 
   useEffect(() => {
@@ -2361,24 +2398,40 @@ function PaymentModal({
       setLinklySessionId(sessionId);
       setLinklyStep('waiting');
       setLinklyText('Waiting for card…');
-      linklyPollRef.current = setInterval(async () => {
-        try {
-          const pollRes = await api.pos.linklyPoll(sessionId) as any;
-          const pd = pollRes?.data;
-          if (pd?.responseText) setLinklyText(pd.responseText);
-          if (pd?.complete) {
-            clearInterval(linklyPollRef.current!);
-            linklyPollRef.current = null;
-            if (pd.approved) {
-              setLinklyStep('approved');
-              const terminalSurchargeCents = Math.max(0, Math.floor(Number(pd.amountSurchargeCents ?? 0)));
-              onConfirm({ method: 'eftpos', surchargeCents: computedSurchargeCents + terminalSurchargeCents, linklySessionId: sessionId });
+      // Exponential backoff: starts at 2 s, doubles each cycle, capped at 15 s.
+      let pollDelay = 2000;
+      const schedulePoll = () => {
+        linklyPollRef.current = setTimeout(async () => {
+          try {
+            const pollRes = await api.pos.linklyPoll(sessionId) as any;
+            const pd = pollRes?.data;
+            if (pd?.responseText) setLinklyText(pd.responseText);
+            if (pd?.complete) {
+              linklyPollRef.current = null;
+              if (pd.approved) {
+                setLinklyStep('approved');
+                const terminalSurchargeCents = Math.max(0, Math.floor(Number(pd.amountSurchargeCents ?? 0)));
+                const totalSurchargeCents = computedSurchargeCents + terminalSurchargeCents;
+                // Print the Linkly terminal receipt (if the terminal provided one) exactly once.
+                // onPrintReceipt marks receiptPrintedRef so createOrderMutation.onSuccess skips
+                // double-printing. If no receiptText, the ref stays unset and onSuccess falls back
+                // to a full POS receipt with the real orderId.
+                onPrintReceipt?.(sessionId, pd.receiptText ?? '');
+                onConfirm({ method: 'eftpos', surchargeCents: totalSurchargeCents, linklySessionId: sessionId });
+              } else {
+                setLinklyStep('declined');
+              }
             } else {
-              setLinklyStep('declined');
+              pollDelay = Math.min(pollDelay * 2, 15000);
+              schedulePoll();
             }
+          } catch {
+            pollDelay = Math.min(pollDelay * 2, 15000);
+            schedulePoll();
           }
-        } catch {}
-      }, 2000);
+        }, pollDelay);
+      };
+      schedulePoll();
     } catch (err: any) {
       setLinklyStep('idle');
       setLinklyText('');
@@ -2387,7 +2440,7 @@ function PaymentModal({
   };
 
   const handleLinklyCancel = async () => {
-    if (linklyPollRef.current) { clearInterval(linklyPollRef.current); linklyPollRef.current = null; }
+    if (linklyPollRef.current) { clearTimeout(linklyPollRef.current); linklyPollRef.current = null; }
     if (linklySessionId) { try { await api.pos.linklyCancel(linklySessionId); } catch {} }
     setLinklyStep('idle');
     setLinklySessionId(null);
@@ -2407,26 +2460,40 @@ function PaymentModal({
       setSplitCardSessionId(sessionId);
       setSplitCardStep('waiting');
       setSplitCardText('Waiting for card…');
-      splitCardPollRef.current = setInterval(async () => {
-        try {
-          const pollRes = await api.pos.linklyPoll(sessionId) as any;
-          const pd = pollRes?.data;
-          if (pd?.responseText) setSplitCardText(pd.responseText);
-          if (pd?.complete) {
-            clearInterval(splitCardPollRef.current!);
-            splitCardPollRef.current = null;
-            if (pd.approved) {
-              setSplitParts(ps => [...ps, { amountCents, method: 'eftpos', linklySessionId: sessionId }]);
-              setSplitInput('');
-              setSplitCardStep('idle');
-              setSplitCardText('');
-              setSplitCardSessionId(null);
+      // Exponential backoff: starts at 2 s, doubles each cycle, capped at 15 s.
+      let pollDelay = 2000;
+      const schedulePoll = () => {
+        splitCardPollRef.current = setTimeout(async () => {
+          try {
+            const pollRes = await api.pos.linklyPoll(sessionId) as any;
+            const pd = pollRes?.data;
+            if (pd?.responseText) setSplitCardText(pd.responseText);
+            if (pd?.complete) {
+              splitCardPollRef.current = null;
+              if (pd.approved) {
+                // Guard against double-commit for this split part
+                if (!receiptPrintedRef.current.has(sessionId)) {
+                  receiptPrintedRef.current.add(sessionId);
+                  setSplitParts(ps => [...ps, { amountCents, method: 'eftpos', linklySessionId: sessionId }]);
+                  setSplitInput('');
+                  setSplitCardStep('idle');
+                  setSplitCardText('');
+                  setSplitCardSessionId(null);
+                }
+              } else {
+                setSplitCardStep('declined');
+              }
             } else {
-              setSplitCardStep('declined');
+              pollDelay = Math.min(pollDelay * 2, 15000);
+              schedulePoll();
             }
+          } catch {
+            pollDelay = Math.min(pollDelay * 2, 15000);
+            schedulePoll();
           }
-        } catch {}
-      }, 2000);
+        }, pollDelay);
+      };
+      schedulePoll();
     } catch (err: any) {
       setSplitCardStep('idle');
       setSplitCardText('');
@@ -2435,7 +2502,7 @@ function PaymentModal({
   };
 
   const handleSplitCardCancel = async () => {
-    if (splitCardPollRef.current) { clearInterval(splitCardPollRef.current); splitCardPollRef.current = null; }
+    if (splitCardPollRef.current) { clearTimeout(splitCardPollRef.current); splitCardPollRef.current = null; }
     if (splitCardSessionId) { try { await api.pos.linklyCancel(splitCardSessionId); } catch {} }
     setSplitCardStep('idle');
     setSplitCardSessionId(null);
@@ -3259,10 +3326,12 @@ function CustomerModal({
 type HistoryFilter = 'all' | 'active' | 'voided';
 
 function HistoryModal({
-  onClose, onVoidSuccess,
+  onClose, onVoidSuccess, storeData, isShopDisplay,
 }: {
   onClose: () => void;
   onVoidSuccess: (id: string) => void;
+  storeData?: any;
+  isShopDisplay?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { failedItems, retryItem, dismissItem } = useOffline();
@@ -3306,12 +3375,13 @@ function HistoryModal({
   const [refundLinklyStep, setRefundLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
   const [refundLinklySessionId, setRefundLinklySessionId] = useState<string | null>(null);
   const [refundLinklyText, setRefundLinklyText] = useState('');
-  const refundLinklyPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refundLinklyPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refundReceiptPrintedRef = useRef<Set<string>>(new Set());
   const [pendingRefundPayload, setPendingRefundPayload] = useState<{ orderId: string; amountCents: number; reason?: string } | null>(null);
 
   const stopRefundLinklyPoll = () => {
     if (refundLinklyPollRef.current) {
-      clearInterval(refundLinklyPollRef.current);
+      clearTimeout(refundLinklyPollRef.current);
       refundLinklyPollRef.current = null;
     }
   };
@@ -3724,26 +3794,48 @@ function HistoryModal({
                 setRefundLinklyStep('waiting');
                 setRefundLinklyText('Present the original card to the terminal');
 
-                // Poll until the terminal completes the refund
-                refundLinklyPollRef.current = setInterval(async () => {
-                  try {
-                    const poll = await api.pos.linklyPoll(sessionId);
-                    const d = (poll as any)?.data;
-                    if (d?.responseText) setRefundLinklyText(d.responseText);
-                    if (d?.complete) {
-                      stopRefundLinklyPoll();
-                      if (d.approved) {
-                        setRefundLinklyStep('approved');
-                        setRefundLinklyText('Refund approved');
-                        // Commit the refund in the database
-                        refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, linklySessionId: sessionId });
+                // Poll until the terminal completes the refund.
+                // Exponential backoff: starts at 2 s, doubles each cycle, capped at 15 s.
+                let refundPollDelay = 2000;
+                const scheduleRefundPoll = () => {
+                  refundLinklyPollRef.current = setTimeout(async () => {
+                    try {
+                      const poll = await api.pos.linklyPoll(sessionId);
+                      const d = (poll as any)?.data;
+                      if (d?.responseText) setRefundLinklyText(d.responseText);
+                      if (d?.complete) {
+                        refundLinklyPollRef.current = null;
+                        if (d.approved) {
+                          setRefundLinklyStep('approved');
+                          setRefundLinklyText('Refund approved');
+                          // Guard: print and commit refund exactly once even if poll fires twice
+                          if (!refundReceiptPrintedRef.current.has(sessionId)) {
+                            refundReceiptPrintedRef.current.add(sessionId);
+                            // Print the Linkly terminal refund receipt if the terminal provided one.
+                            if (d.receiptText && storeData?.autoPrint && storeData?.printerIp) {
+                              const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+                              sendLinklyReceiptPrint({
+                                lines: (d.receiptText as string).split('\n'),
+                                printerBrand: storeData?.printerBrand ?? 'epson',
+                              }, storeData.printerIp, storeData.printerPort ?? 9100, fetchBytes).catch(() => {});
+                            }
+                            refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, linklySessionId: sessionId });
+                          }
+                        } else {
+                          setRefundLinklyStep('declined');
+                          setRefundLinklyText(d.responseText || 'Declined by terminal');
+                        }
                       } else {
-                        setRefundLinklyStep('declined');
-                        setRefundLinklyText(d.responseText || 'Declined by terminal');
+                        refundPollDelay = Math.min(refundPollDelay * 2, 15000);
+                        scheduleRefundPoll();
                       }
+                    } catch {
+                      refundPollDelay = Math.min(refundPollDelay * 2, 15000);
+                      scheduleRefundPoll();
                     }
-                  } catch {}
-                }, 1000);
+                  }, refundPollDelay);
+                };
+                scheduleRefundPoll();
               } catch (err: any) {
                 setRefundLinklyStep('declined');
                 setRefundLinklyText(err?.message ?? 'Could not reach Linkly terminal.');

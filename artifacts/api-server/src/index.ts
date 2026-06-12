@@ -10,6 +10,8 @@ import { ensureScheduledOrderSchemaReady } from "./lib/ensureScheduledOrderSchem
 import { startScheduledDeliveryAlertService } from "./lib/scheduledDeliveryAlert.js";
 import { db, productCategoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { ensureLinklySchemaReady, recoverOrPollTransaction } from "./lib/linklyCloud.js";
 
 // Catch any unhandled rejections so they never crash the process
 process.on('unhandledRejection', (reason: any) => {
@@ -60,6 +62,41 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat_sandwiches', name: 'Sandwiches', slug: 'sandwiches', sortOrder: 40, showWholesale: false },
 ] as const;
 
+async function startupLinklyRecovery() {
+  try {
+    await ensureLinklySchemaReady();
+    const result = await db.execute(sql`
+      SELECT id, user_id, session_id
+      FROM linkly_transactions
+      WHERE complete = false
+        AND created_at > now() - interval '10 minutes'
+    `);
+    const rows = ((result as any).rows ?? (result as any)) as Array<{
+      id: string;
+      user_id: string;
+      session_id: string;
+    }>;
+    if (rows.length === 0) {
+      logger.info('Linkly startup recovery: no pending transactions found');
+      return;
+    }
+    logger.info({ count: rows.length }, 'Linkly startup recovery: recovering pending transactions');
+    for (const row of rows) {
+      recoverOrPollTransaction(row.user_id, row.session_id)
+        .then(r => logger.info(
+          { sessionId: row.session_id, complete: r?.complete, status: r?.status },
+          'Linkly startup recovery: session recovered',
+        ))
+        .catch(err => logger.warn(
+          { sessionId: row.session_id, err: err?.message },
+          'Linkly startup recovery: session recovery failed',
+        ));
+    }
+  } catch (err: any) {
+    logger.warn({ err: err?.message }, 'Linkly startup recovery: skipped');
+  }
+}
+
 async function ensureDefaultCategories() {
   try {
     const existing = await db.select({ id: productCategoriesTable.id }).from(productCategoriesTable);
@@ -106,6 +143,7 @@ Promise.resolve()
   .then(() => startShiftReminderService())
   .then(() => ensureScheduledOrderSchemaReady())
   .then(() => startScheduledDeliveryAlertService())
+  .then(() => startupLinklyRecovery())
   .catch((err: any) => {
     logger.warn({ err: err?.message }, 'Background startup task failed');
   });
