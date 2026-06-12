@@ -321,8 +321,10 @@ router.get('/pos-orders', async (req, res) => {
       COALESCE(o.tip_cents, 0)       AS tip_cents,
       COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
       o.split_payments,
-      o.discount_cents
+      o.discount_cents,
+      su.name                        AS operator_name
     FROM orders o
+    LEFT JOIN users su ON su.id = o.staff_user_id
     WHERE o.source = 'pos'
     ORDER BY o.created_at DESC
     LIMIT 500
@@ -340,6 +342,7 @@ router.get('/pos-orders', async (req, res) => {
     surcharge_cents: string | number;
     split_payments: any;
     discount_cents: string | number;
+    operator_name: string | null;
   }>;
   return res.json({
     data: rows.map(r => ({
@@ -355,6 +358,7 @@ router.get('/pos-orders', async (req, res) => {
       surchargeCents: Number(r.surcharge_cents),
       splitPayments:  r.split_payments ?? null,
       discountCents:  Number(r.discount_cents ?? 0),
+      operatorName:   r.operator_name ?? null,
     })),
   });
 });

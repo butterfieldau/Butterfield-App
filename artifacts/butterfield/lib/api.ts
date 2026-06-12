@@ -1271,6 +1271,7 @@ export interface PosTransaction {
   surchargeCents: number;
   splitPayments: any;
   discountCents: number;
+  operatorName: string | null;
 }
 
 export interface LiveContext {

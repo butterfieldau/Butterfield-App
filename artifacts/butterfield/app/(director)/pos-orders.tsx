@@ -124,8 +124,18 @@ function PosCard({ tx }: { tx: PosTransaction }) {
         </View>
       )}
 
-      {tx.notes ? (
-        <Text style={s.notes} numberOfLines={1}>"{tx.notes}"</Text>
+      {tx.operatorName || tx.notes ? (
+        <View style={s.footerRow}>
+          {tx.operatorName ? (
+            <View style={s.operatorRow}>
+              <Feather name="user" size={11} color={MUTED} />
+              <Text style={s.operatorText}>{tx.operatorName}</Text>
+            </View>
+          ) : null}
+          {tx.notes ? (
+            <Text style={s.notes} numberOfLines={1}>"{tx.notes}"</Text>
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -274,5 +284,8 @@ const s = StyleSheet.create({
   extraRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   extraText:{ fontSize: 12, color: MUTED },
 
-  notes: { fontSize: 12, color: MUTED, fontStyle: 'italic' },
+  footerRow:    { gap: 4 },
+  operatorRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  operatorText: { fontSize: 12, color: MUTED },
+  notes:        { fontSize: 12, color: MUTED, fontStyle: 'italic' },
 });
