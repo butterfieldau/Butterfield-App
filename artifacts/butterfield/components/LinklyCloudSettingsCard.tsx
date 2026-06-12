@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type LinklyConfig } from '@/lib/api';
@@ -77,6 +77,7 @@ export default function LinklyCloudSettingsCard({
   const [runningSettlement, setRunningSettlement] = useState<'S' | 'P' | null>(null);
   const [runningReprint, setRunningReprint] = useState<'pos' | 'pinpad' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     if (!cfg) return;
@@ -364,6 +365,10 @@ export default function LinklyCloudSettingsCard({
       </View>
 
       <View style={s.footerRow}>
+        <Pressable onPress={() => setShowGuide(true)} style={s.guideBtn}>
+          <Feather name="help-circle" size={15} color={INDIGO} />
+          <Text style={s.guideBtnText}>How to Connect Linkly</Text>
+        </Pressable>
         <Pressable
           onPress={save}
           disabled={saving || pairing || refreshingToken}
@@ -373,6 +378,77 @@ export default function LinklyCloudSettingsCard({
           <Text style={s.saveBtnText}>{saving ? 'Saving…' : 'Save Linkly'}</Text>
         </Pressable>
       </View>
+
+      <Modal
+        visible={showGuide}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowGuide(false)}
+      >
+        <View style={s.modalContainer}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>How to Connect the PIN Pad</Text>
+            <Pressable onPress={() => setShowGuide(false)} style={s.modalClose} hitSlop={12}>
+              <Feather name="x" size={20} color={TEXT} />
+            </Pressable>
+          </View>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.modalBody} showsVerticalScrollIndicator={false}>
+
+            <View style={s.stepCard}>
+              <View style={s.stepNumRow}>
+                <View style={s.stepNum}><Text style={s.stepNumText}>1</Text></View>
+                <Text style={s.stepTitle}>Enable Cloud Mode</Text>
+              </View>
+              <Text style={s.stepDesc}>On the PIN pad terminal, press the following keys in order:</Text>
+              <View style={s.keyRow}>
+                <KeyPill label="Function" />
+                <Feather name="chevron-right" size={14} color={MUTED} />
+                <KeyPill label="7410" />
+                <Feather name="chevron-right" size={14} color={MUTED} />
+                <KeyPill label="Turn on Cloud" />
+              </View>
+              <Text style={s.stepNote}>The terminal will confirm that cloud mode is now active.</Text>
+            </View>
+
+            <View style={s.stepCard}>
+              <View style={s.stepNumRow}>
+                <View style={[s.stepNum, { backgroundColor: INDIGO }]}><Text style={s.stepNumText}>2</Text></View>
+                <Text style={s.stepTitle}>Get Your Pairing Code</Text>
+              </View>
+              <Text style={s.stepDesc}>Still on the terminal, press:</Text>
+              <View style={s.keyRow}>
+                <KeyPill label="Function" />
+                <Feather name="chevron-right" size={14} color={MUTED} />
+                <KeyPill label="8880" />
+                <Feather name="chevron-right" size={14} color={MUTED} />
+                <KeyPill label="Ok" />
+              </View>
+              <Text style={s.stepNote}>The pairing code will appear on the terminal screen.</Text>
+            </View>
+
+            <View style={s.guideCallout}>
+              <Feather name="info" size={15} color={BLUE} />
+              <Text style={s.guideCalloutText}>
+                Once you have the pairing code, close this guide, paste it into the <Text style={{ fontWeight: '700' }}>Pair Code</Text> field above, and tap <Text style={{ fontWeight: '700' }}>Save Linkly</Text>. Then tap <Text style={{ fontWeight: '700' }}>Pair PIN Pad</Text> to complete the connection.
+              </Text>
+            </View>
+
+          </ScrollView>
+          <View style={s.modalFooter}>
+            <Pressable onPress={() => setShowGuide(false)} style={s.modalDoneBtn}>
+              <Text style={s.modalDoneBtnText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function KeyPill({ label }: { label: string }) {
+  return (
+    <View style={s.keyPill}>
+      <Text style={s.keyPillText}>{label}</Text>
     </View>
   );
 }
@@ -550,4 +626,94 @@ const s = StyleSheet.create({
   },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   disabledBtn: { opacity: 0.6 },
+  guideBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
+    paddingVertical: 13,
+    marginBottom: 8,
+  },
+  guideBtnText: { fontSize: 14, fontWeight: '700', color: INDIGO },
+  modalContainer: { flex: 1, backgroundColor: '#fff' },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORDER,
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: TEXT },
+  modalClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: { padding: 20, gap: 16 },
+  stepCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    gap: 12,
+  },
+  stepNumRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepNum: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: BLUE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  stepTitle: { fontSize: 16, fontWeight: '700', color: TEXT },
+  stepDesc: { fontSize: 13, color: MUTED, lineHeight: 18 },
+  keyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  keyPill: {
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  keyPillText: { fontSize: 13, fontWeight: '700', color: '#F8FAFC', fontVariant: ['tabular-nums'] },
+  stepNote: { fontSize: 12, color: MUTED, fontStyle: 'italic', lineHeight: 17 },
+  guideCallout: {
+    flexDirection: 'row',
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    padding: 14,
+  },
+  guideCalloutText: { flex: 1, fontSize: 13, color: TEXT, lineHeight: 19 },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  modalDoneBtn: {
+    borderRadius: 14,
+    backgroundColor: INDIGO,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalDoneBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
