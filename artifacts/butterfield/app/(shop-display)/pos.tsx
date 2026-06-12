@@ -1991,39 +1991,41 @@ function TicketItemRow({
       </View>
 
       <Modal visible={showPriceEdit} transparent animationType="fade" onRequestClose={() => setShowPriceEdit(false)}>
-        <Pressable style={styles.pinOverlay} onPress={() => setShowPriceEdit(false)}>
-          <Pressable style={styles.priceEditSheet} onPress={() => {}}>
-            <Text style={styles.priceEditTitle}>Set Price</Text>
-            <Text style={styles.priceEditSub} numberOfLines={1}>{item.productName}</Text>
-            <View style={styles.priceEditInputRow}>
-              <Text style={styles.priceEditDollar}>$</Text>
-              <TextInput
-                style={styles.priceEditInput}
-                value={rawPrice}
-                onChangeText={setRawPrice}
-                keyboardType="decimal-pad"
-                autoFocus
-                selectTextOnFocus
-                returnKeyType="done"
-                onSubmitEditing={confirmPriceEdit}
-                placeholder="0.00"
-                placeholderTextColor={MUTED}
-              />
-            </View>
-            {hasOverride && (
-              <Text style={styles.priceEditOriginal}>Original: {fmtCents(item.unitPriceCents)}</Text>
-            )}
-            <Text style={styles.priceEditHint}>Reductions over $1.00 require a supervisor PIN</Text>
-            <View style={styles.priceEditActions}>
-              <Pressable onPress={() => setShowPriceEdit(false)} style={styles.priceEditCancel}>
-                <Text style={styles.priceEditCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable onPress={confirmPriceEdit} style={styles.priceEditConfirm}>
-                <Text style={styles.priceEditConfirmText}>Set Price</Text>
-              </Pressable>
-            </View>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <Pressable style={styles.pinOverlay} onPress={() => setShowPriceEdit(false)}>
+            <Pressable style={styles.priceEditSheet} onPress={() => {}}>
+              <Text style={styles.priceEditTitle}>Set Price</Text>
+              <Text style={styles.priceEditSub} numberOfLines={1}>{item.productName}</Text>
+              <View style={styles.priceEditInputRow}>
+                <Text style={styles.priceEditDollar}>$</Text>
+                <TextInput
+                  style={styles.priceEditInput}
+                  value={rawPrice}
+                  onChangeText={setRawPrice}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                  selectTextOnFocus
+                  returnKeyType="done"
+                  onSubmitEditing={confirmPriceEdit}
+                  placeholder="0.00"
+                  placeholderTextColor={MUTED}
+                />
+              </View>
+              {hasOverride && (
+                <Text style={styles.priceEditOriginal}>Original: {fmtCents(item.unitPriceCents)}</Text>
+              )}
+              <Text style={styles.priceEditHint}>Reductions over $1.00 require a supervisor PIN</Text>
+              <View style={styles.priceEditActions}>
+                <Pressable onPress={() => setShowPriceEdit(false)} style={styles.priceEditCancel}>
+                  <Text style={styles.priceEditCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={confirmPriceEdit} style={styles.priceEditConfirm}>
+                  <Text style={styles.priceEditConfirmText}>Set Price</Text>
+                </Pressable>
+              </View>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {showPinCapture && (
