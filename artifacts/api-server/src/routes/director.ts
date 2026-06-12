@@ -2148,7 +2148,7 @@ router.get('/reports/products', async (req, res) => {
         'Unknown Item'
       ).replace(/\s+/g, ' ').trim();
       const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
-      const price = Math.max(0, Number(item?.priceCents ?? item?.price ?? 0));
+      const price = Math.max(0, Number(item?.unitPriceCents ?? item?.priceCents ?? item?.price ?? 0));
       const existing = productMap.get(name);
       if (existing) {
         existing.units += qty;
@@ -2292,21 +2292,21 @@ router.get('/reports/staff', async (req, res) => {
 router.get('/reports/payments', async (req, res) => {
   const { fromDate, toDate } = parseDateRange(req.query as any);
 
-  const rows = await db.select({
-    method:     ordersTable.paymentMethodType,
-    orderCount: count(),
-    revenue:    sum(ordersTable.totalCents),
-  }).from(ordersTable)
-    .where(and(
-      gte(ordersTable.createdAt, fromDate),
-      lte(ordersTable.createdAt, toDate),
-      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
-    ))
-    .groupBy(ordersTable.paymentMethodType);
+  const rows = await db.execute(sql`
+    SELECT
+      COALESCE(payment_method_type, payment_method, 'unknown') AS method,
+      COUNT(*)::int                                            AS order_count,
+      SUM(total_cents)::bigint                                 AS revenue
+    FROM orders
+    WHERE created_at >= ${fromDate}
+      AND created_at <= ${toDate}
+      AND status NOT IN ('cancelled','refunded')
+    GROUP BY COALESCE(payment_method_type, payment_method, 'unknown')
+  `);
 
-  const breakdown = rows.map(r => ({
-    method:      r.method ?? 'unknown',
-    orderCount:  r.orderCount,
+  const breakdown = ((rows as any).rows ?? (rows as unknown as any[])).map((r: any) => ({
+    method:       String(r.method ?? 'unknown'),
+    orderCount:   Number(r.order_count ?? 0),
     revenueCents: Number(r.revenue ?? 0),
   }));
 
