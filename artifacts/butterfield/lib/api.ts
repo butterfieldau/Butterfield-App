@@ -456,6 +456,7 @@ export const api = {
     deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),
     restoreAccount:      (id: string) => request<{ success: boolean; data: DeletedAccount }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
     orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
+    posOrders:           () => request<{ data: PosTransaction[] }>('/director/pos-orders'),
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
@@ -1255,6 +1256,21 @@ export interface ApiOrder {
   contactName?: string | null;
   contactPhone?: string | null;
   isPaid?: boolean | null;
+}
+
+export interface PosTransaction {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  totalCents: number;
+  status: string;
+  paymentMethod: string;
+  items: any[];
+  notes: string | null;
+  tipCents: number;
+  surchargeCents: number;
+  splitPayments: any;
+  discountCents: number;
 }
 
 export interface LiveContext {

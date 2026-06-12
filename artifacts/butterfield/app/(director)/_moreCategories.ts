@@ -234,9 +234,10 @@ const ALL_CATEGORIES: Category[] = [
         ],
       },
       {
-        label: 'POS Security',
+        label: 'POS',
         items: [
-          { icon: 'lock',         label: 'POS Thresholds',      sub: 'Require manager PIN for refunds & large discounts', color: RED, directorOnly: true, onPress: () => router.push('/director-pos-thresholds' as any) },
+          { icon: 'lock',         label: 'POS Thresholds',      sub: 'Require manager PIN for refunds & large discounts', color: RED,  directorOnly: true, onPress: () => router.push('/director-pos-thresholds' as any) },
+          { icon: 'shopping-bag', label: 'POS Transactions',    sub: 'Read-only terminal sales history',                  color: NAVY, directorOnly: true, onPress: () => router.push('/director-pos-orders' as any) },
         ],
       },
       {

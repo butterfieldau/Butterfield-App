@@ -307,9 +307,61 @@ router.get('/activity', async (req, res) => {
 });
 
 // ── All orders (customer + wholesale merged, enriched with customer info) ─────
+router.get('/pos-orders', async (req, res) => {
+  const result = await db.execute(sql`
+    SELECT
+      o.id,
+      o.order_number,
+      o.created_at,
+      o.total_cents,
+      o.status,
+      o.payment_method,
+      o.items,
+      o.notes,
+      COALESCE(o.tip_cents, 0)       AS tip_cents,
+      COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
+      o.split_payments,
+      o.discount_cents
+    FROM orders o
+    WHERE o.source = 'pos'
+    ORDER BY o.created_at DESC
+    LIMIT 500
+  `);
+  const rows = (result.rows ?? result as unknown as any[]) as Array<{
+    id: string;
+    order_number: string;
+    created_at: string;
+    total_cents: string | number;
+    status: string;
+    payment_method: string | null;
+    items: any;
+    notes: string | null;
+    tip_cents: string | number;
+    surcharge_cents: string | number;
+    split_payments: any;
+    discount_cents: string | number;
+  }>;
+  return res.json({
+    data: rows.map(r => ({
+      id:             r.id,
+      orderNumber:    r.order_number,
+      createdAt:      r.created_at,
+      totalCents:     Number(r.total_cents),
+      status:         r.status,
+      paymentMethod:  r.payment_method ?? 'eftpos',
+      items:          r.items ?? [],
+      notes:          r.notes ?? null,
+      tipCents:       Number(r.tip_cents),
+      surchargeCents: Number(r.surcharge_cents),
+      splitPayments:  r.split_payments ?? null,
+      discountCents:  Number(r.discount_cents ?? 0),
+    })),
+  });
+});
+
 router.get('/orders', async (req, res) => {
   const [customerOrders, wholesaleOrders, allUsers, wsAccounts] = await Promise.all([
-    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(300),
+    db.select().from(ordersTable).where(sql`(source IS NULL OR source != 'pos')`).orderBy(desc(ordersTable.createdAt)).limit(300),
     db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(150),
     db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone }).from(usersTable),
     db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName, abn: wholesaleAccountsTable.abn }).from(wholesaleAccountsTable),

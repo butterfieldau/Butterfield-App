@@ -161,6 +161,7 @@ export default function DirectorLayout() {
           <Tabs.Screen name="_crmCustomersTab"    options={{ href: null }} />
           <Tabs.Screen name="more-category"                  options={{ href: null }} />
           <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
+          <Tabs.Screen name="pos-orders"          options={{ href: null }} />
         </Tabs>
         </LayoutSafeAreaContext.Provider>
       </View>
@@ -225,6 +226,7 @@ export default function DirectorLayout() {
         <Tabs.Screen name="stores"           options={{ href: null }} />
         <Tabs.Screen name="more-category"                  options={{ href: null }} />
         <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
+        <Tabs.Screen name="pos-orders"                    options={{ href: null }} />
       </Tabs>
     </View>
   );
