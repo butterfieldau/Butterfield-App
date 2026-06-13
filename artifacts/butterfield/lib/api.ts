@@ -1214,6 +1214,30 @@ export interface ApiProduct {
   servingInstructions?: string | null;
   metadata?: Record<string, string>;
   prices?: { id: string; unit_amount: number; currency: string; active?: boolean; metadata?: Record<string, string> }[];
+  // Top-level fields returned by /products
+  priceCents?: number | null;
+  salePriceCents?: number | null;
+  category?: string | null;
+  categoryId?: string | null;
+  isFeatured?: boolean;
+  isNew?: boolean;
+  isSoldOut?: boolean;
+  isLimitedDrop?: boolean;
+  isComingSoon?: boolean;
+  isPickupOnly?: boolean;
+  isAppOnly?: boolean;
+  dietaryTags?: string[];
+  allergens?: string[];
+  tags?: string[];
+  minOrderQty?: number | null;
+  maxOrderQty?: number | null;
+  stockCount?: number | null;
+  sortOrder?: number;
+  availableDays?: string[];
+  availableTimes?: string | null;
+  hasVariants?: boolean;
+  variants?: Array<{ id: string; name: string; priceCents: number; isActive: boolean; sortOrder?: number }>;
+  createdAt?: string;
 }
 
 export interface ApiOrder {

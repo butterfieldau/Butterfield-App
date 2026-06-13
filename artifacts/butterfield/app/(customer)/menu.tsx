@@ -169,6 +169,7 @@ export default function MenuScreen() {
   const [activeCategory, setActiveCategory] = useState(params.category ?? 'all');
   const [userChangedCategory, setUserChangedCategory] = useState(false);
   const [showLoginRequired, setShowLoginRequired] = useState(false);
+  const [selectedDietaryTags, setSelectedDietaryTags] = useState<string[]>([]);
   const isSkipQueue = params.skipQueue === '1';
 
   // ── Responsive values ──────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ export default function MenuScreen() {
   const tileGap     = isTablet ? 14 : 12;
 
   useEffect(() => {
-    if (params.category) setActiveCategory(params.category);
+    if (params.category) { setActiveCategory(params.category); setSelectedDietaryTags([]); }
   }, [params.category]);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['products'],
@@ -241,11 +242,45 @@ export default function MenuScreen() {
     () => products.filter(p => p.metadata?.category === 'coffee').slice(0, 4),
     [products],
   );
-  const filtered = useMemo(() => products.filter(p => {
+
+  // Step 1: filter by category + search only (used to derive available chips)
+  const categoryFiltered = useMemo(() => products.filter(p => {
     const matchCat    = activeCategory === 'all' || p.metadata?.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.description ?? '').toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   }), [products, activeCategory, search]);
+
+  // Chips available for the current view (tags present on at least one visible product)
+  const availableChips = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const p of categoryFiltered) {
+      const tags = p.dietaryTags ?? parseArr(p.metadata?.dietaryTags);
+      for (const t of tags) if (t) tagSet.add(t);
+    }
+    return Object.keys(DIETARY_ICONS).filter(k => tagSet.has(k));
+  }, [categoryFiltered]);
+
+  // Step 2: apply dietary tag filter (AND logic — must match ALL selected tags)
+  const filtered = useMemo(() => {
+    if (selectedDietaryTags.length === 0) return categoryFiltered;
+    return categoryFiltered.filter(p => {
+      const tags = p.dietaryTags ?? parseArr(p.metadata?.dietaryTags);
+      return selectedDietaryTags.every(t => tags.includes(t));
+    });
+  }, [categoryFiltered, selectedDietaryTags]);
+
+  // Whether any products in the entire catalog have dietary tags (controls chip row visibility)
+  const catalogHasDietaryTags = useMemo(
+    () => products.some(p => (p.dietaryTags ?? parseArr(p.metadata?.dietaryTags)).length > 0),
+    [products],
+  );
+
+  const toggleDietaryTag = (tag: string) => {
+    Haptics.selectionAsync();
+    setSelectedDietaryTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag],
+    );
+  };
   const handleTilePress = (p: ApiProduct) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedProduct(p);
@@ -306,7 +341,7 @@ export default function MenuScreen() {
             return (
               <Pressable
                 key={cat.id}
-                onPress={() => { setUserChangedCategory(true); setActiveCategory(cat.id); setSearch(''); Haptics.selectionAsync(); }}
+                onPress={() => { setUserChangedCategory(true); setActiveCategory(cat.id); setSearch(''); setSelectedDietaryTags([]); Haptics.selectionAsync(); }}
                 style={[
                   s.catTile,
                   { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' },
@@ -332,6 +367,26 @@ export default function MenuScreen() {
             );
           })}
         </ScrollView>
+        {/* Dietary filter chips — only shown when at least one product has dietary tags */}
+        {catalogHasDietaryTags && availableChips.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
+            {availableChips.map(tag => {
+              const isActive = selectedDietaryTags.includes(tag);
+              return (
+                <Pressable
+                  key={tag}
+                  onPress={() => toggleDietaryTag(tag)}
+                  style={[s.dietaryChip, isActive && s.dietaryChipActive]}
+                >
+                  <Text style={s.dietaryChipEmoji}>{DIETARY_ICONS[tag]}</Text>
+                  <Text style={[s.dietaryChipLabel, isActive && s.dietaryChipLabelActive, { fontSize: isTablet ? 13 : 12 }]}>
+                    {tag}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
       {isLoading ? (
         <MenuShimmer shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} />
@@ -385,13 +440,28 @@ export default function MenuScreen() {
                 <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
                   {activeCategory !== 'all' ? ` · ${categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory}` : ''}
+                  {selectedDietaryTags.length > 0 ? ` · ${selectedDietaryTags.join(', ')}` : ''}
                 </Text>
               </>
             }
             ListEmptyComponent={
-              <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
-                <Feather name="search" size={28} color="#D0D0D0" />
-                <Text style={{ color: '#8E8E93', fontWeight: '400', fontSize: 14 }}>No items found.</Text>
+              <View style={{ alignItems: 'center', marginTop: 60, gap: 10 }}>
+                <Text style={{ fontSize: 36 }}>
+                  {selectedDietaryTags.length > 0 ? selectedDietaryTags.map(t => DIETARY_ICONS[t]).join(' ') : '🔍'}
+                </Text>
+                <Text style={{ color: '#1C1C1E', fontWeight: '600', fontSize: 15, textAlign: 'center' }}>
+                  {selectedDietaryTags.length > 0
+                    ? `No ${activeCategory !== 'all' ? (categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory) + ' ' : ''}items match your filters`
+                    : 'No items found'}
+                </Text>
+                {selectedDietaryTags.length > 0 && (
+                  <Pressable
+                    onPress={() => { setSelectedDietaryTags([]); Haptics.selectionAsync(); }}
+                    style={s.clearFiltersBtn}
+                  >
+                    <Text style={[s.clearFiltersText, { fontWeight: '600' }]}>Clear filters</Text>
+                  </Pressable>
+                )}
               </View>
             }
             renderItem={({ item: p }) => (
@@ -426,6 +496,15 @@ const s = StyleSheet.create({
   catLabel:    { textAlign: 'center' },
   // Count row
   count:       { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
+  // Dietary filter chips
+  dietaryChip:          { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: '#E8E8ED', backgroundColor: '#fff' },
+  dietaryChipActive:    { borderColor: '#40C0F2', backgroundColor: '#EBF7FD' },
+  dietaryChipEmoji:     { fontSize: 14 },
+  dietaryChipLabel:     { color: '#3C3C43', fontWeight: '500' as const },
+  dietaryChipLabelActive: { color: '#0D8FC4', fontWeight: '600' as const },
+  // Clear filters button
+  clearFiltersBtn:      { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 20, backgroundColor: '#EBF7FD', borderWidth: 1.5, borderColor: '#40C0F2' },
+  clearFiltersText:     { color: '#0D8FC4', fontSize: 14 },
   // Frequently ordered section
   frequentSection: { marginBottom: 16, gap: 0 },
   frequentHeader:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },

@@ -50,9 +50,6 @@ interface ProductDetailData extends ApiProduct {
   priceCents?: number | null;
   salePriceCents?: number | null;
   galleryUrls?: string[] | string | null;
-  allergens?: string[] | string | null;
-  dietaryTags?: string[] | string | null;
-  tags?: string[] | string | null;
   shortDescription?: string | null;
   ingredients?: string | null;
   storageInstructions?: string | null;
