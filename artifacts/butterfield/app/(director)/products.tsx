@@ -1089,6 +1089,11 @@ function OptionsTab() {
   };
   const saveGroup = async () => {
     if (!gName.trim()) return Alert.alert('Name required');
+    const overlap = gProductIds.filter(id => gExcludeProductIds.includes(id));
+    if (overlap.length > 0) {
+      const names = overlap.map(id => allProducts.find(p => p.id === id)?.name ?? id).join(', ');
+      return Alert.alert('Conflicting products', `The following products are in both the include and exclude lists. Please remove them from one list before saving.\n\n${names}`);
+    }
     setGSaving(true);
     try {
       const payload = {
@@ -1344,23 +1349,27 @@ function OptionsTab() {
                       })
                       .map(p => {
                         const selected = gProductIds.includes(p.id);
+                        const disabledByExclude = gExcludeProductIds.includes(p.id);
                         const col = CAT_COLORS[p.category] ?? MUTED;
                         return (
                           <Pressable
                             key={p.id}
                             onPress={() => {
+                              if (disabledByExclude) return;
                               Haptics.selectionAsync();
                               setGProductIds(prev =>
                                 prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
                               );
                             }}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: selected ? PURPLE + '0C' : BG, borderWidth: 1, borderColor: selected ? PURPLE : BORDER }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: disabledByExclude ? BORDER + '40' : selected ? PURPLE + '0C' : BG, borderWidth: 1, borderColor: disabledByExclude ? BORDER : selected ? PURPLE : BORDER, opacity: disabledByExclude ? 0.45 : 1 }}
                           >
-                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? PURPLE : BORDER, backgroundColor: selected ? PURPLE : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                              {selected && <Feather name="check" size={11} color="#fff" />}
+                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: disabledByExclude ? MUTED : selected ? PURPLE : BORDER, backgroundColor: disabledByExclude ? MUTED + '30' : selected ? PURPLE : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                              {selected && !disabledByExclude && <Feather name="check" size={11} color="#fff" />}
+                              {disabledByExclude && <Feather name="slash" size={10} color={MUTED} />}
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, fontWeight: selected ? '600' : '400', color: TEXT }}>{p.name}</Text>
+                              <Text style={{ fontSize: 13, fontWeight: selected && !disabledByExclude ? '600' : '400', color: disabledByExclude ? MUTED : TEXT }}>{p.name}</Text>
+                              {disabledByExclude && <Text style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>Already in exclude list</Text>}
                             </View>
                             <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: col + '18' }}>
                               <Text style={{ fontSize: 10, fontWeight: '600', color: col }}>{p.category}</Text>
@@ -1423,23 +1432,27 @@ function OptionsTab() {
                       })
                       .map(p => {
                         const selected = gExcludeProductIds.includes(p.id);
+                        const disabledByInclude = gProductIds.includes(p.id);
                         const col = CAT_COLORS[p.category] ?? MUTED;
                         return (
                           <Pressable
                             key={p.id}
                             onPress={() => {
+                              if (disabledByInclude) return;
                               Haptics.selectionAsync();
                               setGExcludeProductIds(prev =>
                                 prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
                               );
                             }}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: selected ? RED + '0C' : BG, borderWidth: 1, borderColor: selected ? RED : BORDER }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: disabledByInclude ? BORDER + '40' : selected ? RED + '0C' : BG, borderWidth: 1, borderColor: disabledByInclude ? BORDER : selected ? RED : BORDER, opacity: disabledByInclude ? 0.45 : 1 }}
                           >
-                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? RED : BORDER, backgroundColor: selected ? RED : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                              {selected && <Feather name="check" size={11} color="#fff" />}
+                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: disabledByInclude ? MUTED : selected ? RED : BORDER, backgroundColor: disabledByInclude ? MUTED + '30' : selected ? RED : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                              {selected && !disabledByInclude && <Feather name="check" size={11} color="#fff" />}
+                              {disabledByInclude && <Feather name="slash" size={10} color={MUTED} />}
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, fontWeight: selected ? '600' : '400', color: TEXT }}>{p.name}</Text>
+                              <Text style={{ fontSize: 13, fontWeight: selected && !disabledByInclude ? '600' : '400', color: disabledByInclude ? MUTED : TEXT }}>{p.name}</Text>
+                              {disabledByInclude && <Text style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>Already in include list</Text>}
                             </View>
                             <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: col + '18' }}>
                               <Text style={{ fontSize: 10, fontWeight: '600', color: col }}>{p.category}</Text>
