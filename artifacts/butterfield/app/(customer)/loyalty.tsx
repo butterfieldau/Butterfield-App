@@ -710,21 +710,26 @@ function LoyaltyContent() {
               </View>
               <View style={styles.freeCoffeeStampWrap}>
                 <View style={styles.miniStampGrid}>
-                  {Array.from({ length: STAMP_COUNT }).map((_, index) => {
-                    const filled = index < stampCount;
-                    return (
-                      <Animated.View
-                        key={index}
-                        style={[
-                          styles.miniStampBubble,
-                          filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
-                          { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
-                        ]}
-                      >
-                        {filled ? <Feather name="coffee" size={12} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
-                      </Animated.View>
-                    );
-                  })}
+                  {[0, 1].map((row) => (
+                    <View key={row} style={styles.miniStampRow}>
+                      {[0, 1, 2].map((col) => {
+                        const index = row * 3 + col;
+                        const filled = index < stampCount;
+                        return (
+                          <Animated.View
+                            key={index}
+                            style={[
+                              styles.miniStampBubble,
+                              filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
+                              { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
+                            ]}
+                          >
+                            {filled ? <Feather name="coffee" size={12} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                          </Animated.View>
+                        );
+                      })}
+                    </View>
+                  ))}
                 </View>
                 <View style={styles.quickAddRow}>
                   <Text style={styles.quickAddHint}>{stampsRemaining > 0 ? `${stampsRemaining} more to go` : 'Ready to redeem!'}</Text>
@@ -1172,11 +1177,13 @@ const styles = StyleSheet.create({
   },
   freeCoffeeStampWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   miniStampGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: 8,
+    flexDirection: 'column',
+    gap: 8,
     alignSelf: 'stretch',
+  },
+  miniStampRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
   },
   miniStampBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },

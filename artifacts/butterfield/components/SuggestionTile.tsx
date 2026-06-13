@@ -92,7 +92,8 @@ const s = StyleSheet.create({
     fontSize: 38,
   },
   info: {
-    paddingHorizontal: 10,
+    paddingLeft: 10,
+    paddingRight: 38,
     paddingTop: 8,
     paddingBottom: 10,
     gap: 2,
