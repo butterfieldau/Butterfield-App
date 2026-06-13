@@ -1253,7 +1253,15 @@ router.get('/analytics', async (req, res) => {
   // ── Fast path: past-date day queries served from pre-computed daily summaries ─
   // Avoids full orders table scan at high POS volume. Falls through to live query
   // when no summary row exists (today, first day after deploy, or gap dates).
-  if (range === 'day' && refDateStr !== getSydneyTodayStr()) {
+  //
+  // Scope rules: only activate fast path when the store scope is unambiguous.
+  //   • isValidStoreId   → use per-store summary (explicit store in query)
+  //   • assignedStoreIds.length === 0 → global user; use global summary (store_id='')
+  //   • assignedStoreIds.length > 0, no storeId → fall through to live scoped query
+  //     so storeFilter (which correctly includes all assigned stores) is applied.
+  // This ensures store-assigned users never receive over-broad global totals.
+  const canUseFastPath = isValidStoreId || assignedStoreIds.length === 0;
+  if (range === 'day' && refDateStr !== getSydneyTodayStr() && canUseFastPath) {
     const summaryStoreId = isValidStoreId ? requestedStoreId! : '';
     const prevDateStr = addDaysToDateStr(refDateStr, -1);
 
