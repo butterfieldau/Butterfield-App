@@ -268,8 +268,15 @@ router.get('/home-banner', async (_req, res) => {
     const stored = JSON.parse(rows[0].value);
     // New carousel format: { slides: [...] }
     if (Array.isArray(stored?.slides)) {
+      // Use business timezone (Sydney) so slides activate/deactivate at the correct local day boundary
+      const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(new Date());
       const activeSlides = stored.slides
-        .filter((s: any) => s.isActive)
+        .filter((s: any) => {
+          if (!s.isActive) return false;
+          if (s.activeFrom && s.activeFrom > todayStr) return false;
+          if (s.activeUntil && s.activeUntil < todayStr) return false;
+          return true;
+        })
         .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
       return res.json({ data: activeSlides });
     }

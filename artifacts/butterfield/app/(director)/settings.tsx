@@ -93,6 +93,163 @@ function makeBlankSlide(sortOrder: number): HomeBannerSlide {
   };
 }
 
+/** Format ISO date string YYYY-MM-DD → DD/MM/YYYY for display */
+function fmtDate(iso: string | undefined): string {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
+/** Parse DD/MM/YYYY or YYYY-MM-DD input → YYYY-MM-DD, or null if invalid */
+function parseDate(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : trimmed;
+  }
+  // DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    const [dd, mm, yyyy] = trimmed.split('/');
+    const iso = `${yyyy}-${mm}-${dd}`;
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : iso;
+  }
+  return null;
+}
+
+/** Today's date in Australia/Sydney timezone as YYYY-MM-DD, matching the server filter */
+function sydneyToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(new Date());
+}
+
+/** Returns true if a slide with isActive=true is scheduled but not yet in window */
+function isScheduledFuture(slide: HomeBannerSlide): boolean {
+  if (!slide.isActive || !slide.activeFrom) return false;
+  return slide.activeFrom > sydneyToday();
+}
+
+/** Returns true if a slide with isActive=true has passed its activeUntil date */
+function isExpired(slide: HomeBannerSlide): boolean {
+  if (!slide.isActive || !slide.activeUntil) return false;
+  return slide.activeUntil < sydneyToday();
+}
+
+/** Simple date picker field — shows formatted date, opens a modal on press to enter date */
+function DateField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string | undefined;
+  onChange: (iso: string | undefined) => void;
+  placeholder?: string;
+}) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [inputText, setInputText] = useState('');
+  const [error, setError] = useState('');
+
+  const open = () => {
+    setInputText(value ? fmtDate(value) : '');
+    setError('');
+    setModalVisible(true);
+    Haptics.selectionAsync();
+  };
+
+  const confirm = () => {
+    if (!inputText.trim()) {
+      onChange(undefined);
+      setModalVisible(false);
+      return;
+    }
+    const parsed = parseDate(inputText);
+    if (!parsed) {
+      setError('Enter a valid date: DD/MM/YYYY');
+      return;
+    }
+    onChange(parsed);
+    setModalVisible(false);
+  };
+
+  const clear = () => {
+    onChange(undefined);
+    Haptics.selectionAsync();
+  };
+
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Pressable
+          onPress={open}
+          style={[styles.input, {
+            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            paddingVertical: 10, borderColor: BORDER,
+          }]}
+        >
+          <Text style={{ fontSize: 14, color: value ? TEXT : MUTED }}>
+            {value ? fmtDate(value) : (placeholder ?? 'No date set')}
+          </Text>
+          <Feather name="calendar" size={14} color={MUTED} />
+        </Pressable>
+        {value && (
+          <Pressable onPress={clear} hitSlop={8}>
+            <Feather name="x-circle" size={16} color={MUTED} />
+          </Pressable>
+        )}
+      </View>
+
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable
+            onPress={e => e.stopPropagation()}
+            style={{
+              width: 300, backgroundColor: '#fff', borderRadius: 16, padding: 20, gap: 12,
+              shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+            }}
+          >
+            <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{label}</Text>
+            <TextInput
+              style={[styles.input, { borderColor: error ? RED : BLUE, color: TEXT }]}
+              value={inputText}
+              onChangeText={v => { setInputText(v); setError(''); }}
+              placeholder="DD/MM/YYYY"
+              placeholderTextColor={MUTED}
+              keyboardType="numbers-and-punctuation"
+              autoFocus
+              onSubmitEditing={confirm}
+              returnKeyType="done"
+            />
+            {error ? <Text style={{ fontSize: 12, color: RED }}>{error}</Text> : null}
+            <Text style={{ fontSize: 11, color: MUTED }}>Leave blank to remove the date.</Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => setModalVisible(false)}
+                style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center' }}
+              >
+                <Text style={{ fontWeight: '600', color: MUTED }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirm}
+                style={{ flex: 1, padding: 11, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center' }}
+              >
+                <Text style={{ fontWeight: '600', color: '#fff' }}>Set Date</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
 function SlideEditor({
   slide,
   index,
@@ -142,10 +299,28 @@ function SlideEditor({
           <Text style={{ fontWeight: '600', fontSize: 14, color: TEXT }} numberOfLines={1}>
             {slide.headline?.trim() || `Slide ${index + 1}`}
           </Text>
-          <Text style={{ fontSize: 12, color: slide.isActive ? GREEN : MUTED, fontWeight: '500', marginTop: 1 }}>
-            {slide.isActive ? 'Active' : 'Hidden'}
-            {slide.imageUrl ? ' · Has image' : ' · Gradient background'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 1 }}>
+            {isScheduledFuture(slide) ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3,
+                backgroundColor: AMBER + '22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                <Feather name="clock" size={10} color={AMBER} />
+                <Text style={{ fontSize: 11, color: AMBER, fontWeight: '600' }}>Scheduled</Text>
+              </View>
+            ) : isExpired(slide) ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3,
+                backgroundColor: MUTED + '22', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                <Feather name="clock" size={10} color={MUTED} />
+                <Text style={{ fontSize: 11, color: MUTED, fontWeight: '600' }}>Expired</Text>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12, color: slide.isActive ? GREEN : MUTED, fontWeight: '500' }}>
+                {slide.isActive ? 'Active' : 'Hidden'}
+              </Text>
+            )}
+            <Text style={{ fontSize: 12, color: MUTED }}>
+              {slide.imageUrl ? '· Has image' : '· Gradient'}
+            </Text>
+          </View>
         </View>
         {/* Active toggle */}
         <Switch
@@ -374,6 +549,31 @@ function SlideEditor({
                 autoCorrect={false}
               />
             </View>
+          </View>
+
+          {/* Schedule window */}
+          <View style={{ gap: 8 }}>
+            <Text style={styles.section}>SCHEDULE (OPTIONAL)</Text>
+            <View style={[styles.card, { backgroundColor: '#FFFBEB', borderColor: AMBER + '40', padding: 10, gap: 4 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                <Feather name="info" size={12} color={AMBER} style={{ marginTop: 1 }} />
+                <Text style={{ flex: 1, fontSize: 12, color: '#92400E', lineHeight: 17 }}>
+                  Leave both dates blank to show this slide whenever it is active. Set "Show from" to pre-schedule a campaign, or "Show until" to auto-hide it after a date.
+                </Text>
+              </View>
+            </View>
+            <DateField
+              label="Show from"
+              value={slide.activeFrom}
+              onChange={v => set({ activeFrom: v })}
+              placeholder="Any time"
+            />
+            <DateField
+              label="Show until"
+              value={slide.activeUntil}
+              onChange={v => set({ activeUntil: v })}
+              placeholder="No end date"
+            />
           </View>
 
           {/* Remove */}

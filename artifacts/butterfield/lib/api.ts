@@ -1338,6 +1338,8 @@ export interface HomeBannerSlide {
   buttonText?: string;
   buttonRoute?: string;
   buttonUrl?: string;
+  activeFrom?: string;
+  activeUntil?: string;
 }
 
 export interface HomeBannerCarouselConfig {
