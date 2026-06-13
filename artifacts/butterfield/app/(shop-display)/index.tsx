@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PosIdleScreen } from '@/components/PosIdleScreen';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
@@ -207,6 +208,32 @@ export default function ShopDisplayOrdersScreen() {
   const eftposIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
+
+  // ── Idle / ambient screen ──────────────────────────────────────────────────
+  const IDLE_TIMEOUT_MS = 60_000;
+  const [showIdle, setShowIdle] = useState(false);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  const resetActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setShowIdle(false);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS) {
+        setShowIdle(prev => prev ? prev : true);
+      }
+    }, 5_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const { data: productsData } = useQuery({
+    queryKey: ['shop-display-products'],
+    queryFn: () => api.shopDisplay.products(),
+    staleTime: 5 * 60_000,
+  });
+  const allProducts: any[] = (productsData as any)?.data ?? [];
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabled).catch(() => {});
@@ -640,7 +667,7 @@ export default function ShopDisplayOrdersScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: BG }} onTouchStart={resetActivity}>
       {/* ── Compact control bar ───────────────────────────────────── */}
       <View style={s.controlCard}>
         {/* Row 1: queue mode */}
@@ -719,6 +746,15 @@ export default function ShopDisplayOrdersScreen() {
         }
         renderItem={renderCard}
       />
+
+      {/* ── Idle / ambient overlay ──────────────────────────────── */}
+      {showIdle && (
+        <PosIdleScreen
+          products={allProducts}
+          dailySpecial={store?.dailySpecial ?? null}
+          onDismiss={resetActivity}
+        />
+      )}
 
       {/* ── Cancel reason modal ─────────────────────────────────── */}
       <Modal
