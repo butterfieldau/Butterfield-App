@@ -269,6 +269,74 @@ function CelebrateOverlay({
   );
 }
 
+function StampCelebrateOverlay({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const scale = useRef(new Animated.Value(0.88)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const stampAnims = useRef(
+    Array.from({ length: STAMP_COUNT }, () => new Animated.Value(0))
+  ).current;
+
+  useEffect(() => {
+    if (!visible) {
+      scale.setValue(0.88);
+      opacity.setValue(0);
+      stampAnims.forEach((a) => a.setValue(0));
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, damping: 14, stiffness: 170, useNativeDriver: true }),
+    ]).start();
+    const stampSequence = stampAnims.map((anim, i) =>
+      Animated.sequence([
+        Animated.delay(280 + i * 100),
+        Animated.spring(anim, { toValue: 1, damping: 11, stiffness: 200, useNativeDriver: true }),
+      ])
+    );
+    Animated.parallel(stampSequence).start();
+  }, [visible, scale, opacity, stampAnims]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[styles.celebrateBackdrop, { opacity }]}>
+      <Animated.View style={[styles.stampCelebrateCard, { transform: [{ scale }] }]}>
+        <LinearGradient colors={['#0B63D8', '#1E93FF', '#5AB8FF']} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.celebrateSparkleRow}>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <View key={i} style={[styles.celebrateDot, { opacity: i % 2 === 0 ? 0.82 : 0.48 }]} />
+          ))}
+        </View>
+        <Text style={styles.celebrateEyebrow}>COFFEE CLUB</Text>
+        <Text style={styles.stampCelebrateTitle}>Free Coffee Unlocked! ☕</Text>
+        <Text style={styles.celebrateBody}>You've collected all 6 stamps. Your free coffee is ready to redeem.</Text>
+        <View style={styles.stampCelebrateGrid}>
+          {stampAnims.map((anim, i) => (
+            <Animated.View
+              key={i}
+              style={[
+                styles.stampCelebrateBubble,
+                {
+                  transform: [
+                    { scale: anim.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.3, 1.28, 1] }) },
+                  ],
+                  opacity: anim,
+                },
+              ]}
+            >
+              <Feather name="coffee" size={18} color="#0A67EC" />
+            </Animated.View>
+          ))}
+        </View>
+        <Pressable style={styles.celebrateButton} onPress={onClose}>
+          <Text style={styles.celebrateButtonText}>Redeem now</Text>
+        </Pressable>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 export default function LoyaltyScreen() {
   const { user } = useAuth();
   if (!user) return <LoggedOutAccountPrompt redirectTo="/(customer)/loyalty" compact />;
@@ -284,13 +352,24 @@ function LoyaltyContent() {
   const [healedQrToken, setHealedQrToken] = useState<string | null>(null);
   const [previewTierKey, setPreviewTierKey] = useState<DisplayTierKey>('blue');
   const [celebrateTier, setCelebrateTier] = useState<DisplayTier | null>(null);
+  const [showStampCelebration, setShowStampCelebration] = useState(false);
+  const [displayedPoints, setDisplayedPoints] = useState(0);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const sectionFade = useRef(new Animated.Value(0)).current;
+  const pointsCountAnim = useRef(new Animated.Value(0)).current;
+  const prevFreeCoffeeRef = useRef<number | null>(null);
+  const prevPointsRef = useRef<number | null>(null);
+  const prevStampCountRef = useRef<number | null>(null);
+  const stampScaleAnims = useRef(
+    Array.from({ length: STAMP_COUNT }, () => new Animated.Value(1))
+  ).current;
+  const quickAddScale = useRef(new Animated.Value(1)).current;
 
   const { data: profileData, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-profile'],
     queryFn: () => api.loyalty.profile(),
+    staleTime: 30 * 1000,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const { data: rewardsData } = useQuery({ queryKey: ['loyalty-rewards'], queryFn: () => api.loyalty.rewards() });
@@ -372,6 +451,74 @@ function LoyaltyContent() {
       })
       .catch(() => {});
   }, [displayTier, profile?.userId]);
+
+  useEffect(() => {
+    const userId = profile?.userId;
+    if (!userId) return;
+    const prev = prevFreeCoffeeRef.current;
+    prevFreeCoffeeRef.current = freeCoffeeRewards;
+    if (prev === null || freeCoffeeRewards <= prev) return;
+    const key = `@butterfield_stamp_celebrated_${userId}_${freeCoffeeRewards}`;
+    AsyncStorage.getItem(key)
+      .then((val) => {
+        if (!val) {
+          setShowStampCelebration(true);
+          void AsyncStorage.setItem(key, 'seen');
+        }
+      })
+      .catch(() => {});
+  }, [freeCoffeeRewards, profile?.userId]);
+
+  useEffect(() => {
+    const prev = prevStampCountRef.current;
+    prevStampCountRef.current = stampCount;
+    if (prev === null || stampCount <= prev) return;
+    for (let i = prev; i < stampCount && i < STAMP_COUNT; i++) {
+      const anim = stampScaleAnims[i];
+      if (!anim) continue;
+      anim.setValue(0.7);
+      Animated.sequence([
+        Animated.spring(anim, { toValue: 1.22, damping: 8, stiffness: 240, useNativeDriver: true }),
+        Animated.spring(anim, { toValue: 1, damping: 12, stiffness: 220, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [stampCount, stampScaleAnims]);
+
+  useEffect(() => {
+    if (prevPointsRef.current === null) {
+      prevPointsRef.current = points;
+      setDisplayedPoints(points);
+      pointsCountAnim.setValue(points);
+      return;
+    }
+    const from = prevPointsRef.current;
+    prevPointsRef.current = points;
+    if (points === from) return;
+    pointsCountAnim.setValue(from);
+    const listenerId = pointsCountAnim.addListener(({ value }) => {
+      setDisplayedPoints(Math.round(value));
+    });
+    Animated.timing(pointsCountAnim, {
+      toValue: points,
+      duration: 800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start(() => {
+      pointsCountAnim.removeListener(listenerId);
+      setDisplayedPoints(points);
+    });
+    return () => { pointsCountAnim.removeListener(listenerId); };
+  }, [points, pointsCountAnim]);
+
+  const handleQuickAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Animated.sequence([
+      Animated.spring(quickAddScale, { toValue: 0.82, damping: 8, stiffness: 300, useNativeDriver: true }),
+      Animated.spring(quickAddScale, { toValue: 1.18, damping: 10, stiffness: 260, useNativeDriver: true }),
+      Animated.spring(quickAddScale, { toValue: 1, damping: 12, stiffness: 220, useNativeDriver: true }),
+    ]).start();
+    setTimeout(() => { router.push('/(customer)/menu'); }, 120);
+  };
 
   const handleClaim = async (reward: LoyaltyReward) => {
     if (points < reward.pointsCost) {
@@ -457,6 +604,7 @@ function LoyaltyContent() {
   return (
     <>
       <CelebrateOverlay visible={!!celebrateTier} tier={celebrateTier} onClose={() => setCelebrateTier(null)} />
+      <StampCelebrateOverlay visible={showStampCelebration} onClose={() => setShowStampCelebration(false)} />
 
       <CustomerQrModal
         visible={showQR}
@@ -515,8 +663,8 @@ function LoyaltyContent() {
                   <Text style={[styles.memberNameLite, { color: displayTier.text }]} numberOfLines={1}>
                     Hi {profile?.customerName?.split(' ')[0] ?? 'there'}
                   </Text>
-                  <Text style={[styles.pointsHeroValue, { color: displayTier.text }]}>{points.toLocaleString()}</Text>
-                  <Text style={[styles.pointsHeroSub, { color: displayTier.text }]}>points · worth {formatCurrency(pointsDollarValue)}</Text>
+                  <Text style={[styles.pointsHeroValue, { color: displayTier.text }]}>{displayedPoints.toLocaleString()}</Text>
+                  <Text style={[styles.pointsHeroSub, { color: displayTier.text }]}>points · worth {formatCurrency(getPointsDollarValue(displayedPoints))}</Text>
                 </View>
 
                 <Pressable
@@ -544,8 +692,8 @@ function LoyaltyContent() {
           <View style={[styles.section, styles.walletRow]}>
             <LinearGradient colors={['#102656', '#1A4FCB']} style={[styles.infoCard, styles.infoCardLarge]}>
               <Text style={styles.infoCardLabel}>Your points</Text>
-              <Text style={styles.infoCardValue}>{points.toLocaleString()}</Text>
-              <Text style={styles.infoCardSub}>worth {formatCurrency(pointsDollarValue)}</Text>
+              <Text style={styles.infoCardValue}>{displayedPoints.toLocaleString()}</Text>
+              <Text style={styles.infoCardSub}>worth {formatCurrency(getPointsDollarValue(displayedPoints))}</Text>
               <Text style={styles.infoCardHint}>Use any amount at checkout</Text>
               <Pressable style={styles.infoButton} onPress={() => router.push('/(customer)/cart')}>
                 <Text style={styles.infoButtonText}>Use at checkout</Text>
@@ -561,16 +709,31 @@ function LoyaltyContent() {
                 <Text style={styles.infoCardMiniCount}>{freeCoffeeRewards}</Text>
               </View>
               <View style={styles.freeCoffeeStampWrap}>
-              <View style={styles.miniStampGrid}>
-                {Array.from({ length: STAMP_COUNT }).map((_, index) => {
-                  const filled = index < stampCount;
-                  return (
-                    <View key={index} style={[styles.miniStampBubble, filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty]}>
-                      {filled ? <Feather name="coffee" size={12} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
-                    </View>
-                  );
-                })}
-              </View>
+                <View style={styles.miniStampGrid}>
+                  {Array.from({ length: STAMP_COUNT }).map((_, index) => {
+                    const filled = index < stampCount;
+                    return (
+                      <Animated.View
+                        key={index}
+                        style={[
+                          styles.miniStampBubble,
+                          filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
+                          { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
+                        ]}
+                      >
+                        {filled ? <Feather name="coffee" size={12} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+                <View style={styles.quickAddRow}>
+                  <Text style={styles.quickAddHint}>{stampsRemaining > 0 ? `${stampsRemaining} more to go` : 'Ready to redeem!'}</Text>
+                  <Animated.View style={{ transform: [{ scale: quickAddScale }] }}>
+                    <Pressable style={styles.quickAddButton} onPress={handleQuickAdd}>
+                      <Feather name="plus" size={14} color={WHITE} />
+                    </Pressable>
+                  </Animated.View>
+                </View>
               </View>
             </LinearGradient>
           </View>
@@ -1166,4 +1329,61 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   celebrateButtonText: { color: '#111827', fontSize: 13, fontWeight: '700' },
+  stampCelebrateCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 28,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
+    overflow: 'hidden',
+  },
+  stampCelebrateTitle: {
+    marginTop: 8,
+    color: WHITE,
+    fontSize: 27,
+    lineHeight: 32,
+    fontWeight: '700',
+  },
+  stampCelebrateGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 20,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  stampCelebrateBubble: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: WHITE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0A67EC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickAddRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  quickAddHint: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 10,
+    fontWeight: '600',
+    flex: 1,
+  },
+  quickAddButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.36)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
