@@ -251,7 +251,7 @@ function StatCard({ label, valueCents, icon, color = BLUE, small = false }:
   { label: string; valueCents: number; icon: string; color?: string; small?: boolean }) {
   return (
     <View style={[styles.statCard, small && styles.statCardSmall]}>
-      <View style={[styles.statIcon, { backgroundColor: color + '22' }]}>
+      <View style={[styles.statIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
         <Feather name={icon as any} size={small ? 12 : 14} color={color} />
       </View>
       <Text style={[styles.statValue, small && styles.statValueSmall]}>
@@ -266,7 +266,7 @@ function CountCard({ label, value, icon, color = WHITE, suffix = '' }:
   { label: string; value: number; icon: string; color?: string; suffix?: string }) {
   return (
     <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: color + '18' }]}>
+      <View style={[styles.statIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
         <Feather name={icon as any} size={14} color={color} />
       </View>
       <Text style={styles.statValue}>
@@ -820,7 +820,7 @@ export default function DashboardScreen() {
               </View>
               <View style={styles.channelRow}>
                 <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: BLUE + '22' }]}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: BLUE + '33', borderColor: BLUE + '55' }]}>
                     <Feather name="shopping-bag" size={16} color={BLUE} />
                   </View>
                   <Text style={styles.channelLabel}>App Sales</Text>
@@ -830,7 +830,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: CYAN + '22' }]}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: CYAN + '33', borderColor: CYAN + '55' }]}>
                     <Feather name="monitor" size={16} color={CYAN} />
                   </View>
                   <Text style={styles.channelLabel}>POS Sales</Text>
@@ -840,7 +840,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: AMBER + '22' }]}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: AMBER + '33', borderColor: AMBER + '55' }]}>
                     <Feather name="truck" size={16} color={AMBER} />
                   </View>
                   <Text style={styles.channelLabel}>Wholesale</Text>
@@ -875,7 +875,7 @@ export default function DashboardScreen() {
               </View>
               <View style={styles.channelRow}>
                 <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: BLUE + '22' }]}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: BLUE + '33', borderColor: BLUE + '55' }]}>
                     <Feather name="shopping-bag" size={16} color={BLUE} />
                   </View>
                   <Text style={styles.channelLabel}>App Sales</Text>
@@ -885,7 +885,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: CYAN + '22' }]}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: CYAN + '33', borderColor: CYAN + '55' }]}>
                     <Feather name="monitor" size={16} color={CYAN} />
                   </View>
                   <Text style={styles.channelLabel}>POS Sales</Text>
@@ -895,7 +895,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: AMBER + '22' }]}>
+                  <View style={[styles.channelIconWrap, { backgroundColor: AMBER + '33', borderColor: AMBER + '55' }]}>
                     <Feather name="truck" size={16} color={AMBER} />
                   </View>
                   <Text style={styles.channelLabel}>Wholesale</Text>
@@ -1021,7 +1021,7 @@ const styles = StyleSheet.create({
   statRow:          { flexDirection: 'row', gap: 8, marginBottom: 10 },
   statCard:         { flex: 1, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 14, gap: 6 },
   statCardSmall:    { padding: 12 },
-  statIcon:         { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  statIcon:         { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1 },
   statValue:        { fontSize: 18, fontWeight: '800', color: WHITE, letterSpacing: -0.5 },
   statValueSmall:   { fontSize: 15 },
   statLabel:        { fontSize: 10, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
 
   channelRow:       { flexDirection: 'row', gap: 8 },
   channelCard:      { flex: 1, backgroundColor: BG, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 12, alignItems: 'center', gap: 4 },
-  channelIconWrap:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  channelIconWrap:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1 },
   channelLabel:     { fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
   channelValue:     { fontSize: 14, fontWeight: '800', color: WHITE },
   channelPct:       { fontSize: 11, fontWeight: '600', color: MUTED },

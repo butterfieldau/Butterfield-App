@@ -575,7 +575,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
           <Pressable
             onPress={() => { if (!canEdit) return; Haptics.selectionAsync(); setEditingTask(null); setShowEditor(true); }}
             style={[s.tileBig, { flex: 1, borderColor: BLUE + '50', backgroundColor: BLUE + '0D', opacity: canEdit ? 1 : 0.5 }]}>
-            <View style={[s.tileIcon, { backgroundColor: BLUE + '20' }]}>
+            <View style={[s.tileIcon, { backgroundColor: BLUE + '20', borderColor: BLUE + '44' }]}>
               <Feather name="plus" size={16} color={BLUE} />
             </View>
             <Text style={[s.tileCount, { color: BLUE }]}>{tasks.length}</Text>
@@ -586,7 +586,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
           <Pressable
             style={[s.tileBig, { flex: 1, borderColor: completedExpanded ? GREEN : BORDER, backgroundColor: completedExpanded ? GREEN + '10' : GLASS_BG }]}
             onPress={() => { Haptics.selectionAsync(); setCompletedExpanded(v => !v); setIncompleteExpanded(false); }}>
-            <View style={[s.tileIcon, { backgroundColor: GREEN + '20' }]}>
+            <View style={[s.tileIcon, { backgroundColor: GREEN + '20', borderColor: GREEN + '44' }]}>
               <Feather name="check-circle" size={16} color={GREEN} />
             </View>
             <Text style={[s.tileCount, { color: completedExpanded ? GREEN : TEXT }]}>
@@ -600,7 +600,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
           <Pressable
             style={[s.tileBig, { flex: 1, borderColor: incompleteExpanded ? AMBER : BORDER, backgroundColor: incompleteExpanded ? AMBER + '10' : GLASS_BG }]}
             onPress={() => { Haptics.selectionAsync(); setIncompleteExpanded(v => !v); setCompletedExpanded(false); }}>
-            <View style={[s.tileIcon, { backgroundColor: AMBER + '20' }]}>
+            <View style={[s.tileIcon, { backgroundColor: AMBER + '20', borderColor: AMBER + '44' }]}>
               <Feather name="clock" size={16} color={AMBER} />
             </View>
             <Text style={[s.tileCount, { color: incompleteExpanded ? AMBER : TEXT }]}>
@@ -735,7 +735,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
                     toggleComplete.mutate({ id: task.id, isCompleted: !task.isCompleted });
                   }}
                   disabled={!canEdit}
-                  style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '33' }]}
+                  style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '33', borderColor: task.isCompleted ? GREEN + '44' : (CAT_COLORS[task.category] ?? BLUE) + '55' }]}
                   hitSlop={8}>
                 <Feather
                   name={task.isCompleted ? 'check-circle' : 'circle'}
@@ -908,7 +908,7 @@ function ManagerIssuesTab() {
         issues.map((item) => (
           <Pressable key={item.id} onPress={() => handleAction(item)} style={s.glassCard}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority ?? '') + '33' }]}>
+              <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority ?? '') + '33', borderColor: priorityColor(item.priority ?? '') + '55' }]}>
                 <Feather name="alert-triangle" size={15} color={priorityColor(item.priority ?? '')} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
@@ -1112,7 +1112,7 @@ function ManagerWastageTab() {
               ]);
           }}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: PURPLE + '33' }]}>
+              <View style={[s.iconBox, { backgroundColor: PURPLE + '33', borderColor: PURPLE + '55' }]}>
                 <Feather name="trash-2" size={15} color={PURPLE} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
@@ -1226,7 +1226,7 @@ function StaffLeaveTab() {
             <View key={item.id}
               style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '60' }]}>
               <View style={s.cardHeader}>
-                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '33' }]}>
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '33', borderColor: leaveTypeColor(item.type) + '55' }]}>
                   <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -1297,7 +1297,7 @@ function ManagerLeaveTab() {
           leave.map((item) => (
             <View key={item.id} style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '70' }]}>
               <View style={s.cardHeader}>
-                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? '') + '33' }]}>
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? '') + '33', borderColor: leaveTypeColor(item.type ?? '') + '55' }]}>
                   <Feather name="calendar" size={15} color={leaveTypeColor(item.type ?? '')} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -1404,7 +1404,7 @@ function FeedbackTab() {
       showsVerticalScrollIndicator={false}>
       {unread > 0 && (
         <View style={[s.summaryCard, { backgroundColor: BLUE + '12', borderColor: BLUE + '40' }]}>
-          <View style={[s.summaryIcon, { backgroundColor: BLUE + '20' }]}>
+          <View style={[s.summaryIcon, { backgroundColor: BLUE + '20', borderColor: BLUE + '44' }]}>
             <Feather name="message-circle" size={16} color={BLUE} />
           </View>
           <Text style={[s.summaryTitle, { color: BLUE }]}>{unread} unread — tap to mark read</Text>
@@ -1422,7 +1422,7 @@ function FeedbackTab() {
               );
             }}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: item.rating ? ratingColor(item.rating) + '33' : MUTED + '33' }]}>
+              <View style={[s.iconBox, { backgroundColor: item.rating ? ratingColor(item.rating) + '33' : MUTED + '33', borderColor: item.rating ? ratingColor(item.rating) + '55' : MUTED + '55' }]}>
                 <Feather name="message-circle" size={15} color={item.rating ? ratingColor(item.rating) : MUTED} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
@@ -1574,7 +1574,7 @@ const s = StyleSheet.create({
 
   // Summary tiles (Completed / Incomplete)
   tileBig:   { padding: 14, borderRadius: 18, borderWidth: 1, alignItems: 'center', gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
-  tileIcon:  { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tileIcon:  { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   tileCount: { fontSize: 28, fontWeight: '700' },
   tileLabel: { fontSize: 12, fontWeight: '600', color: MUTED },
 
@@ -1590,7 +1590,7 @@ const s = StyleSheet.create({
 
   // Card anatomy
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderWidth: 1 },
   cardTitle:  { fontSize: 14, fontWeight: '600', color: TEXT },
   cardSub:    { fontSize: 12, color: MUTED },
   cardDesc:   { fontSize: 13, color: MUTED, lineHeight: 19 },
@@ -1615,7 +1615,7 @@ const s = StyleSheet.create({
 
   // Summary cards
   summaryCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1 },
-  summaryIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  summaryIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   summaryTitle: { fontSize: 14, fontWeight: '600', flex: 1 },
   summarySub:   { fontSize: 12, color: MUTED, marginTop: 2 },
 
