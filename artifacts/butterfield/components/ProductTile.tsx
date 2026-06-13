@@ -8,6 +8,7 @@ import Reanimated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
+  withSequence,
   interpolateColor,
 } from 'react-native-reanimated';
 import { getPalette } from '@/constants/categoryColors';
@@ -57,10 +58,11 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
 
   const handleAddPress = () => {
     if (isSoldOut) return;
-    // Pop scale: spring up then back
-    addScale.value = withSpring(1.35, { damping: 5, stiffness: 400 }, () => {
-      addScale.value = withSpring(1, { damping: 10, stiffness: 200 });
-    });
+    // Single crisp pop — timing up (no oscillation), then well-damped spring back
+    addScale.value = withSequence(
+      withTiming(1.28, { duration: 90 }),
+      withSpring(1, { damping: 20, stiffness: 280 }),
+    );
     // Flash colour: quick flash to lighter cherry then back
     flashProg.value = withTiming(1, { duration: 80 }, () => {
       flashProg.value = withTiming(0, { duration: 200 });

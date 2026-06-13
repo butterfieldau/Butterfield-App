@@ -242,7 +242,6 @@ const ts = StyleSheet.create({
   pill: {
     height:            PILL_H,
     borderRadius:      999,
-    overflow:          'hidden',
     flexDirection:     'row',
     alignItems:        'center',
     paddingHorizontal: 12,
