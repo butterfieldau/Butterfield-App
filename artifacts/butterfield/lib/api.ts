@@ -691,6 +691,7 @@ export const api = {
     // Feedback
     allFeedback:         () => request<{ data: DirectorFeedback[] }>('/director/feedback'),
     markFeedbackRead:    (id: string) => request<{ data: DirectorFeedback }>(`/director/feedback/${id}/read`, { method: 'PATCH' }),
+    markFeedbackUnread:  (id: string) => request<{ data: DirectorFeedback }>(`/director/feedback/${id}/read`, { method: 'PATCH', body: JSON.stringify({ isRead: false }) }),
 
     // Staff hub
     allWastage:          () => request<{ data: StaffWastageEntry[] }>('/director/wastage'),
@@ -1971,6 +1972,8 @@ export interface DirectorShift {
 export interface DirectorFeedback {
   id: string;
   userId?: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
   category: string;
   message: string;
   rating?: number | null;

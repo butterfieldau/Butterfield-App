@@ -2904,12 +2904,28 @@ router.delete('/tasks/:id', async (req, res) => {
 
 // ── Feedback management ───────────────────────────────────────────────────────
 router.get('/feedback', async (req, res) => {
-  const rows = await db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt)).limit(100);
+  const rows = await db.select({
+    id: feedbackTable.id,
+    userId: feedbackTable.userId,
+    category: feedbackTable.category,
+    message: feedbackTable.message,
+    rating: feedbackTable.rating,
+    orderId: feedbackTable.orderId,
+    isRead: feedbackTable.isRead,
+    createdAt: feedbackTable.createdAt,
+    userName: usersTable.name,
+    userEmail: usersTable.email,
+  })
+    .from(feedbackTable)
+    .leftJoin(usersTable, eq(feedbackTable.userId, usersTable.id))
+    .orderBy(desc(feedbackTable.createdAt))
+    .limit(200);
   return res.json({ data: rows });
 });
 
 router.patch('/feedback/:id/read', async (req, res) => {
-  const [updated] = await db.update(feedbackTable).set({ isRead: true })
+  const isRead = req.body?.isRead !== undefined ? Boolean(req.body.isRead) : true;
+  const [updated] = await db.update(feedbackTable).set({ isRead })
     .where(eq(feedbackTable.id, req.params.id)).returning();
   if (!updated) return res.status(404).json({ error: 'Feedback not found.' });
   return res.json({ data: updated });

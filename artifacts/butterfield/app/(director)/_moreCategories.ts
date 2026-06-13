@@ -79,6 +79,12 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'list',        label: 'Announcement History',  sub: 'Past sends & open rates',                color: NAVY,   perm: 'announcements', soon: true },
         ],
       },
+      {
+        label: 'Customer Feedback',
+        items: [
+          { icon: 'message-square', label: 'Feedback Inbox',    sub: 'Star ratings, comments & order reviews', color: AMBER,  perm: 'announcements', onPress: () => router.push('/(director)/feedback' as any) },
+        ],
+      },
     ],
   },
 
