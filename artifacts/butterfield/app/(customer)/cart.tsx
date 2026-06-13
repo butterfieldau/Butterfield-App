@@ -34,7 +34,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useStores } from '@/hooks/useStores';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
-import { api, type SavedAddress, type ClaimedReward, type AuthProfile } from '@/lib/api';
+import SuggestionTile from '@/components/SuggestionTile';
+import { api, type ApiProduct, type SavedAddress, type ClaimedReward, type AuthProfile } from '@/lib/api';
+import { getSuggestedProductsForCart } from '@/lib/productPairings';
+import { setSelectedProduct } from '@/lib/selectedProduct';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import {
   formatDateChip,
@@ -1107,6 +1110,12 @@ function CartContent() {
   const qc = useQueryClient();
   const routeParams = useLocalSearchParams<{ success?: string }>();
 
+  const { data: allProductsData } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => api.products.list(),
+    staleTime: 5 * 60_000,
+  });
+
   const [step, setStep]                       = useState(0);
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
   const [selectedDate, setSelectedDate]       = useState<Date | null>(null);
@@ -1692,6 +1701,39 @@ function CartContent() {
           </View>
         );
       })}
+
+      {/* ── You might also like ─────────────────────────────────────────── */}
+      {(() => {
+        const allProducts = allProductsData?.data ?? [];
+        if (allProducts.length === 0 || items.length === 0) return null;
+        const cartProductIds = items.map((i) => i.productId);
+        const cartCategories = items.map((i) => i.category ?? '').filter(Boolean);
+        const suggestions = getSuggestedProductsForCart(cartProductIds, cartCategories, allProducts, 2);
+        if (suggestions.length === 0) return null;
+        return (
+          <View style={{ marginBottom: 16 }}>
+            <Text style={[styles.sectionLabel, { fontWeight: '700', marginBottom: 10, fontSize: 13, color: '#1C1C1E', letterSpacing: 0 }]}>
+              You might also like
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+            >
+              {suggestions.map((p) => (
+                <SuggestionTile
+                  key={p.id}
+                  product={p}
+                  onPress={() => {
+                    setSelectedProduct(p);
+                    router.push({ pathname: '/product', params: { id: p.id } } as any);
+                  }}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        );
+      })()}
 
       <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <View style={styles.summaryRow}>

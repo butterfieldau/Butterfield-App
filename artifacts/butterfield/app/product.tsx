@@ -22,9 +22,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
+import SuggestionTile from '@/components/SuggestionTile';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedOptions';
+import { getSuggestedProducts } from '@/lib/productPairings';
 import { api, getProductShareUrl, type ApiOrderItemOption, type ApiProduct, type DirectorOption, type DirectorOptionGroup } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 
@@ -167,6 +169,12 @@ export default function ProductDetailScreen() {
     enabled: !!productId,
     retry: 1,
     staleTime: 60_000,
+  });
+
+  const { data: allProductsData } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => api.products.list(),
+    staleTime: 5 * 60_000,
   });
 
   const fetchedProduct = routeProductData?.data as ProductDetailData | undefined;
@@ -633,6 +641,37 @@ export default function ProductDetailScreen() {
                 <Text style={[s.desc, { fontWeight: '400' }]}>{product.description}</Text>
               </View>
             ) : null}
+
+            {/* ── Goes well with ──────────────────────────────────────────── */}
+            {(() => {
+              const allProducts = allProductsData?.data ?? [];
+              if (allProducts.length === 0 || !product) return null;
+              const suggestions = getSuggestedProducts(product as any, allProducts, [], 4);
+              if (suggestions.length === 0) return null;
+              return (
+                <View style={{ marginTop: 24, marginBottom: 4 }}>
+                  <Text style={[s.sectionTitle, { fontWeight: '700', marginBottom: 12 }]}>
+                    Goes well with
+                  </Text>
+                  <FlatList
+                    horizontal
+                    data={suggestions}
+                    keyExtractor={(p) => p.id}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+                    renderItem={({ item: p }) => (
+                      <SuggestionTile
+                        product={p}
+                        onPress={() => {
+                          setSelectedProduct(p);
+                          router.push({ pathname: '/product', params: { id: p.id } } as any);
+                        }}
+                      />
+                    )}
+                  />
+                </View>
+              );
+            })()}
 
           </ScrollView>
 
