@@ -174,6 +174,12 @@ router.post('/option-groups', allowedRoles, requireProducts, async (req, res) =>
   const { name, description, selectionType, isRequired, minSelections, maxSelections, sortOrder,
     appliesToCategoryIds, appliesToProductIds, excludeProductIds } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
+  const includeIds: string[] = Array.isArray(appliesToProductIds) ? appliesToProductIds : [];
+  const excludeIds: string[] = Array.isArray(excludeProductIds) ? excludeProductIds : [];
+  const overlap = includeIds.filter((id: string) => excludeIds.includes(id));
+  if (overlap.length > 0) {
+    return res.status(400).json({ error: 'A product cannot appear in both the include and exclude lists', overlap });
+  }
   const id = `og_${randomUUID().slice(0, 12)}`;
   const [g] = await db.insert(productOptionGroupsTable).values({
     id, name: name.trim(), description: description?.trim() || null,
@@ -191,6 +197,20 @@ router.patch('/option-groups/:id', allowedRoles, requireProducts, async (req, re
   const groupId = getRouteParam(req.params.id);
   const { name, description, selectionType, isRequired, minSelections, maxSelections, sortOrder, isActive,
     appliesToCategoryIds, appliesToProductIds, excludeProductIds } = req.body;
+
+  if (appliesToProductIds !== undefined || excludeProductIds !== undefined) {
+    const existing = await db.select().from(productOptionGroupsTable).where(eq(productOptionGroupsTable.id, groupId)).limit(1);
+    if (!existing[0]) return res.status(404).json({ error: 'Option group not found' });
+    const storedInclude: string[] = parseJsonArr(existing[0].appliesToProductIds);
+    const storedExclude: string[] = parseJsonArr(existing[0].excludeProductIds);
+    const effectiveInclude: string[] = appliesToProductIds !== undefined ? (Array.isArray(appliesToProductIds) ? appliesToProductIds : []) : storedInclude;
+    const effectiveExclude: string[] = excludeProductIds !== undefined ? (Array.isArray(excludeProductIds) ? excludeProductIds : []) : storedExclude;
+    const overlap = effectiveInclude.filter((id: string) => effectiveExclude.includes(id));
+    if (overlap.length > 0) {
+      return res.status(400).json({ error: 'A product cannot appear in both the include and exclude lists', overlap });
+    }
+  }
+
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
   if (description !== undefined) updates.description = description?.trim() || null;
