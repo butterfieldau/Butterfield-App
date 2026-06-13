@@ -142,8 +142,6 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
               width={containerWidth}
               height={slideHeight}
               onPress={() => onSlidePress(slide)}
-              onPressIn={() => { isPressedRef.current = true; }}
-              onPressOut={() => { isPressedRef.current = false; }}
               onGlassLayout={h => handleGlassLayout(i, h)}
             />
           ))}
@@ -186,12 +184,10 @@ interface SlideItemProps {
   width: number;
   height: number;
   onPress: () => void;
-  onPressIn: () => void;
-  onPressOut: () => void;
   onGlassLayout?: (height: number) => void;
 }
 
-function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut, onGlassLayout }: SlideItemProps) {
+function SlideItem({ slide, width, height, onPress, onGlassLayout }: SlideItemProps) {
   const hasImage = !!slide.imageUrl;
   const label    = slide.headlineAccent?.trim() || '';
   const title    = slide.headline?.trim()       || 'Cookies & Soft Serve';
@@ -199,13 +195,7 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut, onGla
   const btnText  = slide.buttonText?.trim()     || 'Order now';
 
   return (
-    <Pressable
-      style={[s.slide, { width, height }]}
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      android_ripple={{ color: 'rgba(255,255,255,0.1)' }}
-    >
+    <View style={[s.slide, { width, height }]}>
       {hasImage ? (
         <Image
           source={{ uri: slide.imageUrl }}
@@ -247,7 +237,7 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut, onGla
           </View>
         )}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
