@@ -47,10 +47,8 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
   const activeRef     = useRef(0);
   const dotWidths     = useRef<Animated.Value[]>([]);
 
-  // Keep ref in sync so the interval closure always sees fresh index
   useEffect(() => { activeRef.current = activeIndex; }, [activeIndex]);
 
-  // Initialise dot animated values
   if (dotWidths.current.length !== slides.length) {
     dotWidths.current = slides.map((_, i) => new Animated.Value(i === 0 ? 20 : 7));
   }
@@ -103,44 +101,41 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
   };
 
   return (
-    // Outer wrapper — measures width, no overflow restriction
-    <View onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
-      {/* Card */}
-      <View style={s.outer}>
-        {containerWidth > 0 && (
-          <ScrollView
-            ref={scrollRef}
-            horizontal
-            pagingEnabled
-            scrollEnabled={slides.length > 1}
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScrollEnd}
-            decelerationRate="fast"
-            bounces={false}
-            style={{ borderRadius: 24 }}
-            contentContainerStyle={{ borderRadius: 24, overflow: 'hidden' }}
-          >
-            {slides.map((slide, i) => (
-              <SlideItem
-                key={slide.id ?? i}
-                slide={slide}
-                width={containerWidth}
-                height={slideHeight}
-                onPress={() => onSlidePress(slide)}
-                onPressIn={() => { isPressedRef.current = true; }}
-                onPressOut={() => { isPressedRef.current = false; }}
-              />
-            ))}
-          </ScrollView>
-        )}
-      </View>
+    <View
+      style={s.outer}
+      onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      {/* Slides */}
+      {containerWidth > 0 && (
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          scrollEnabled={slides.length > 1}
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScrollEnd}
+          decelerationRate="fast"
+          bounces={false}
+        >
+          {slides.map((slide, i) => (
+            <SlideItem
+              key={slide.id ?? i}
+              slide={slide}
+              width={containerWidth}
+              height={slideHeight}
+              onPress={() => onSlidePress(slide)}
+              onPressIn={() => { isPressedRef.current = true; }}
+              onPressOut={() => { isPressedRef.current = false; }}
+            />
+          ))}
+        </ScrollView>
+      )}
 
-      {/* Dot indicators — outside the card, below it in normal flow.
-          8 pt gap above the dots, 6 pt gap below. */}
+      {/* Dot strip — inside the card, below the image/glass area */}
       {slides.length > 1 && (
         <View style={s.dotsRow}>
           {slides.map((_, i) => (
-            <Pressable key={i} onPress={() => goToSlide(i)} hitSlop={8}>
+            <Pressable key={i} onPress={() => goToSlide(i)} hitSlop={10}>
               <Animated.View
                 style={[
                   s.dot,
@@ -184,7 +179,6 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut }: Sli
       onPressOut={onPressOut}
       android_ripple={{ color: 'rgba(255,255,255,0.1)' }}
     >
-      {/* Background */}
       {hasImage ? (
         <Image
           source={{ uri: slide.imageUrl }}
@@ -201,7 +195,6 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut }: Sli
         />
       )}
 
-      {/* Dark scrim so glass card pops */}
       {hasImage && (
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.35)']}
@@ -211,7 +204,6 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut }: Sli
         />
       )}
 
-      {/* Frosted glass card */}
       <View style={s.glassAnchor}>
         {Platform.OS === 'ios' ? (
           <BlurView intensity={55} tint="light" style={s.glassPill}>
@@ -236,13 +228,9 @@ function GlassContent({
   return (
     <View style={s.glassContent}>
       <View style={{ flex: 1, gap: 4 }}>
-        {label ? (
-          <Text style={s.glassLabel} numberOfLines={1}>{label}</Text>
-        ) : null}
+        {label ? <Text style={s.glassLabel} numberOfLines={1}>{label}</Text> : null}
         <Text style={s.glassTitle} numberOfLines={2}>{title}</Text>
-        {subtext ? (
-          <Text style={s.glassSub} numberOfLines={2}>{subtext}</Text>
-        ) : null}
+        {subtext ? <Text style={s.glassSub} numberOfLines={2}>{subtext}</Text> : null}
       </View>
       <Pressable style={s.glassBtn} onPress={onPress} hitSlop={6}>
         <Text style={s.glassBtnText}>{btnText}</Text>
@@ -329,14 +317,14 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  // ── Dot indicators — below the card, in normal flow ─────────────────────────
+  // ── Dot strip — inside the card, below image area ───────────────────────────
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 5,
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingVertical: 10,
+    backgroundColor: '#EDF5FB',
   },
   dot: {
     height: 7,
