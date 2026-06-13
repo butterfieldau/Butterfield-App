@@ -119,6 +119,7 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
   };
 
   return (
+    <View style={s.outerShell}>
     <View
       style={s.outer}
       onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
@@ -173,6 +174,7 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
           ))}
         </View>
       )}
+    </View>
     </View>
   );
 }
@@ -273,15 +275,20 @@ function GlassContent({
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  outer: {
+  outerShell: {
     borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#EDF5FB',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
+  },
+  outer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#EDF5FB',
   },
   slide: {
     overflow: 'hidden',
