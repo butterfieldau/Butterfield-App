@@ -256,15 +256,25 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut, onGla
 function GlassContent({
   label, title, subtext, btnText, onPress,
 }: { label: string; title: string; subtext: string; btnText: string; onPress: () => void }) {
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmall = screenWidth <= 320;
+
   return (
-    <View style={s.glassContent}>
-      <View style={{ flex: 1, gap: 4 }}>
+    <View style={[s.glassContent, isSmall && s.glassContentSmall]}>
+      <View style={{ flex: 1, gap: isSmall ? 2 : 4 }}>
         {label ? <Text style={s.glassLabel} numberOfLines={1}>{label}</Text> : null}
-        <Text style={s.glassTitle} numberOfLines={2}>{title}</Text>
-        {subtext ? <Text style={s.glassSub} numberOfLines={2}>{subtext}</Text> : null}
+        <Text
+          style={[s.glassTitle, isSmall && s.glassTitleSmall]}
+          numberOfLines={isSmall ? 1 : 2}
+        >
+          {title}
+        </Text>
+        {subtext && !isSmall ? (
+          <Text style={s.glassSub} numberOfLines={2}>{subtext}</Text>
+        ) : null}
       </View>
-      <Pressable style={s.glassBtn} onPress={onPress} hitSlop={6}>
-        <Text style={s.glassBtnText}>{btnText}</Text>
+      <Pressable style={[s.glassBtn, isSmall && s.glassBtnSmall]} onPress={onPress} hitSlop={6}>
+        <Text style={[s.glassBtnText, isSmall && s.glassBtnTextSmall]}>{btnText}</Text>
       </Pressable>
     </View>
   );
@@ -347,6 +357,24 @@ const s = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  // ── Small-screen overrides (≤ 320px) ────────────────────────────────────────
+  glassContentSmall: {
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  glassTitleSmall: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  glassBtnSmall: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minWidth: 76,
+  },
+  glassBtnTextSmall: {
+    fontSize: 12,
   },
   // ── Dot indicators — absolutely positioned inside the card, above the glass overlay ──
   dotsRow: {
