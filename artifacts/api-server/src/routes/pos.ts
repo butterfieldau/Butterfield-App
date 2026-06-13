@@ -1942,10 +1942,68 @@ router.delete('/linkly/:sessionId', async (req, res) => {
   return res.json({ success: true });
 });
 
+// ── POST /pos/ticket-void-log — audit-log a voided in-progress ticket (pre-payment) ──
+router.post('/ticket-void-log', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { items, totalCents, supervisorPin } = req.body;
+
+  const TICKET_VOID_PIN_THRESHOLD = 5_000; // $50 in cents — server-side, cannot be bypassed by client
+  const total = Number(totalCents ?? 0);
+  const pinStr = typeof supervisorPin === 'string' ? supervisorPin : null;
+
+  if (total >= TICKET_VOID_PIN_THRESHOLD) {
+    // PIN is mandatory for high-value ticket voids
+    if (!pinStr) {
+      return res.status(403).json({ error: 'Supervisor PIN required for voids above $50.', code: 'SUPERVISOR_PIN_REQUIRED' });
+    }
+    const valid = await verifySupervisorPin(pinStr);
+    if (!valid) {
+      recordPosPinHistory(req, false, 'SUPERVISOR_PIN_INVALID', req.user!.id, null, req.user!.role);
+      return res.status(403).json({ error: 'Incorrect supervisor PIN.', code: 'SUPERVISOR_PIN_INVALID' });
+    }
+    recordPosPinHistory(req, true, null, req.user!.id, null, req.user!.role);
+  } else if (pinStr) {
+    // Below threshold: verify if provided, but don't require
+    const valid = await verifySupervisorPin(pinStr);
+    if (!valid) {
+      recordPosPinHistory(req, false, 'SUPERVISOR_PIN_INVALID', req.user!.id, null, req.user!.role);
+      return res.status(403).json({ error: 'Incorrect supervisor PIN.', code: 'SUPERVISOR_PIN_INVALID' });
+    }
+    recordPosPinHistory(req, true, null, req.user!.id, null, req.user!.role);
+  }
+
+  await recordAuditLog({
+    actor: req.user,
+    action: 'pos.ticket_void',
+    entityType: 'pos_ticket',
+    entityId: 'in_progress',
+    reason: 'void_before_payment',
+    metadata: {
+      itemCount: Array.isArray(items) ? items.length : 0,
+      totalCents: Number(totalCents ?? 0),
+    },
+  });
+
+  return res.json({ success: true });
+});
+
 // ── PATCH /pos/orders/:id/void — void a POS order within 5 minutes ─────────
 router.patch('/orders/:id/void', async (req, res) => {
   await ensurePosSchemaReady();
   const { id } = req.params;
+  const supervisorPin = typeof req.body?.supervisorPin === 'string' ? req.body.supervisorPin : null;
+
+  // Supervisor PIN is always required to void a completed order
+  if (!supervisorPin) {
+    return res.status(403).json({ error: 'Supervisor PIN required to void a completed transaction.', code: 'SUPERVISOR_PIN_REQUIRED' });
+  }
+  const valid = await verifySupervisorPin(supervisorPin);
+  if (!valid) {
+    recordPosPinHistory(req, false, 'SUPERVISOR_PIN_INVALID', req.user!.id, null, req.user!.role);
+    return res.status(403).json({ error: 'Incorrect supervisor PIN.', code: 'SUPERVISOR_PIN_INVALID' });
+  }
+  recordPosPinHistory(req, true, null, req.user!.id, null, req.user!.role);
+
   const FIVE_MINS_MS = 5 * 60 * 1000;
 
   const result = await db.execute(sql`

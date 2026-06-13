@@ -993,7 +993,10 @@ export const api = {
       const q = qs.toString();
       return request<{ data: PosHistoryOrder[]; nextCursor: string | null }>(`/pos/orders${q ? `?${q}` : ''}`);
     },
-    voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
+    voidOrder: (id: string, supervisorPin?: string) =>
+      request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH', body: JSON.stringify({ supervisorPin }) }),
+    logTicketVoid: (data: { items: { name: string; quantity: number }[]; totalCents: number; supervisorPin?: string }) =>
+      request<{ success: boolean }>('/pos/ticket-void-log', { method: 'POST', body: JSON.stringify(data) }),
     refundOrder: (id: string, data: { amountCents: number; reason?: string; supervisorPin?: string; linklySessionId?: string }) =>
       request<{ success: boolean; refundAmountCents: number; isFullRefund: boolean }>(
         `/pos/orders/${id}/refund`, { method: 'POST', body: JSON.stringify(data) }

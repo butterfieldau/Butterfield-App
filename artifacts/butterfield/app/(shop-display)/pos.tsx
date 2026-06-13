@@ -62,9 +62,11 @@ const PRESET_COLORS = [
   '#06B6D4', '#1493FF', '#8B5CF6', '#EC4899',
   '#92400E', '#0F766E', '#4F46E5', '#64748B',
 ];
-const CAT_COLORS_KEY       = 'pos_category_colors';
-const DISCOUNT_PRESETS_KEY = 'pos_discount_presets';
-const HELD_TICKETS_KEY     = 'pos_held_tickets';
+const CAT_COLORS_KEY           = 'pos_category_colors';
+const DISCOUNT_PRESETS_KEY     = 'pos_discount_presets';
+const HELD_TICKETS_KEY         = 'pos_held_tickets';
+const IDLE_TIMEOUT_MS          = 60_000;   // 60 s of inactivity → ambient screen
+const VOID_PIN_THRESHOLD_CENTS = 5_000;    // $50 — ticket voids above this need supervisor PIN
 function getDefaultCatColor(cat: string): string {
   return CATEGORY_COLORS[cat.toLowerCase()] ?? '#64748B';
 }
@@ -285,6 +287,10 @@ function PosScreenInner() {
     surchargeCents?: number;
     splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
   } | null>(null);
+  const [showVoidSheet, setShowVoidSheet]   = useState(false);
+  const [showIdle,      setShowIdle]         = useState(false);
+  const lastActivityRef                      = useRef<number>(Date.now());
+  const ticketIsEmptyRef                     = useRef<boolean>(true);
   const [registerApprovalPrompt, setRegisterApprovalPrompt] = useState<null | {
     mode: 'movement' | 'close';
     payload: any;
@@ -366,6 +372,20 @@ function PosScreenInner() {
   useEffect(() => {
     AsyncStorage.setItem(HELD_TICKETS_KEY, JSON.stringify({ tickets, activeIdx }));
   }, [tickets, activeIdx]);
+
+  // ── Idle / ambient screen timer ──────────────────────────────────────────────
+  // Only triggers when the ticket is empty — never interrupts an active sale
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (
+        Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS &&
+        ticketIsEmptyRef.current
+      ) {
+        setShowIdle(prev => prev ? prev : true);
+      }
+    }, 5_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const saveCatColor = useCallback((cat: string, color: string | null) => {
     setCustomCatColors(prev => {
@@ -449,6 +469,7 @@ function PosScreenInner() {
         autoPrint:    s.autoPrint === 'true' || s.autoPrint === true,
         autoDrawer:   s.autoDrawer === 'true' || s.autoDrawer === true,
         drawerPin:    (Number(s.drawerPin ?? s.drawer_pin ?? 0) === 1 ? 1 : 0) as 0 | 1,
+        dailySpecial: s.dailySpecial ?? s.daily_special ?? null,
       };
     },
     staleTime: 60_000,
@@ -977,15 +998,23 @@ function PosScreenInner() {
   }, [storeData, isShopDisplay]);
 
   const voidOrderMutation = useMutation({
-    mutationFn: (id: string) => api.pos.voidOrder(id),
+    mutationFn: (vars: { id: string; supervisorPin?: string }) => api.pos.voidOrder(vars.id, vars.supervisorPin),
     onSuccess: () => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Voided', 'Last transaction has been voided.');
+      Alert.alert('Voided', 'Transaction has been voided.');
       setLastOrderId(null);
       refetchSummary();
     },
     onError: (err: any) => {
       Alert.alert('Cannot Void', err?.message ?? 'Order cannot be voided (must be within 5 minutes).');
+    },
+  });
+
+  const logTicketVoidMutation = useMutation({
+    mutationFn: (vars: { items: { name: string; quantity: number }[]; totalCents: number; supervisorPin?: string }) =>
+      api.pos.logTicketVoid(vars),
+    onError: (err: any) => {
+      Alert.alert('Void Failed', err?.message ?? 'Could not void sale. Please try again.');
     },
   });
 
@@ -996,7 +1025,7 @@ function PosScreenInner() {
     }
     Alert.alert('Void Last Transaction', 'Are you sure you want to void the last completed transaction?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Void', style: 'destructive', onPress: () => voidOrderMutation.mutate(lastOrderId) },
+      { text: 'Void', style: 'destructive', onPress: () => voidOrderMutation.mutate({ id: lastOrderId }) },
     ]);
   };
 
@@ -1005,8 +1034,14 @@ function PosScreenInner() {
   const total = ticketTotal(activeTicket);
   const itemCount = activeTicket.items.reduce((s, i) => s + i.quantity, 0);
 
+  // Keep idle-timer ref in sync so it never fires while a sale is in progress
+  ticketIsEmptyRef.current = activeTicket.items.length === 0;
+
   return (
-    <View style={[styles.root, { paddingTop: layoutHandledSafeArea ? 0 : insets.top }]}>
+    <View
+      style={[styles.root, { paddingTop: layoutHandledSafeArea ? 0 : insets.top }]}
+      onTouchStart={() => { lastActivityRef.current = Date.now(); }}
+    >
       {/* ── Sync toast ──────────────────────────────────────────────────────── */}
       {!!syncToast && (
         <View style={styles.syncToast}>
@@ -1231,6 +1266,7 @@ function PosScreenInner() {
                 if (cached) setCustomiseData({ product: cached, editItem: item });
               }}
               discountPresets={discountPresets}
+              onVoidSale={() => setShowVoidSheet(true)}
             />
           </View>
         )}
@@ -1435,6 +1471,45 @@ function PosScreenInner() {
         />
       )}
 
+      {/* ── Void sale sheet ────────────────────────────────────────────────── */}
+      {showVoidSheet && (
+        <VoidConfirmSheet
+          ticket={activeTicket}
+          lastOrderId={lastOrderId}
+          voidThresholdCents={VOID_PIN_THRESHOLD_CENTS}
+          onClose={() => setShowVoidSheet(false)}
+          onVoidTicket={(supervisorPin) => {
+            const items = activeTicket.items.map(i => ({ name: i.productName, quantity: i.quantity }));
+            const totalCents = ticketTotal(activeTicket);
+            logTicketVoidMutation.mutate({ items, totalCents, supervisorPin }, {
+              onSuccess: () => {
+                setShowVoidSheet(false);
+                clearTicket();
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              },
+            });
+          }}
+          onVoidLastOrder={(supervisorPin) => {
+            if (lastOrderId) {
+              setShowVoidSheet(false);
+              voidOrderMutation.mutate({ id: lastOrderId, supervisorPin });
+            }
+          }}
+        />
+      )}
+
+      {/* ── Idle / ambient screen ───────────────────────────────────────────── */}
+      {showIdle && (
+        <PosIdleScreen
+          products={allProducts}
+          dailySpecial={(storeData as any)?.dailySpecial ?? null}
+          onDismiss={() => {
+            lastActivityRef.current = Date.now();
+            setShowIdle(false);
+          }}
+        />
+      )}
+
       {/* ── Category colour picker ─────────────────────────────────────────── */}
       <Modal
         visible={colorPickerCat !== null}
@@ -1522,7 +1597,7 @@ function ProductGridCard({
 function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty, onPriceOverride,
   onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
-  discountPresets,
+  discountPresets, onVoidSale,
 }: {
   ticket: Ticket;
   onUpdateTicket: (p: Partial<Ticket>) => void;
@@ -1536,6 +1611,7 @@ function TicketPanel({
   onCharge: () => void;
   onEditItem: (item: TicketItem) => void;
   discountPresets: number[];
+  onVoidSale?: () => void;
 }) {
   const subtotal = ticketSubtotal(ticket);
   const total = ticketTotal(ticket);
@@ -1931,6 +2007,12 @@ function TicketPanel({
             {isEmpty ? 'Charge' : `Charge ${fmtCents(total)}`}
           </Text>
         </TouchableOpacity>
+        {onVoidSale && (
+          <Pressable onPress={onVoidSale} style={styles.voidSaleBtn}>
+            <Feather name="slash" size={13} color={MUTED} />
+            <Text style={styles.voidSaleBtnText}>Void Sale</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -3365,11 +3447,11 @@ function HistoryModal({
 
   // Self-contained void mutation so we know exactly which order is being voided
   const voidMutation = useMutation({
-    mutationFn: (id: string) => api.pos.voidOrder(id),
-    onSuccess: (_, id) => {
+    mutationFn: (vars: { id: string; supervisorPin: string }) => api.pos.voidOrder(vars.id, vars.supervisorPin),
+    onSuccess: (_, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Voided', 'Transaction has been voided.');
-      onVoidSuccess(id);
+      onVoidSuccess(vars.id);
       queryClient.invalidateQueries({ queryKey: ['pos-history'] });
       refetch();
     },
@@ -3379,6 +3461,7 @@ function HistoryModal({
     },
   });
 
+  const [pinForVoid,   setPinForVoid]   = useState<PosHistoryOrder | null>(null);
   const [pinForRefund, setPinForRefund] = useState<{ order: PosHistoryOrder; reason?: string } | null>(null);
 
   // Linkly refund state
@@ -3486,17 +3569,8 @@ function HistoryModal({
   };
 
   const handleVoid = (order: PosHistoryOrder) => {
-    Alert.alert(
-      'Void Transaction',
-      `Void order #${order.orderNumber} (${fmtCents(order.totalCents)})?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Void', style: 'destructive',
-          onPress: () => voidMutation.mutate(order.id),
-        },
-      ]
-    );
+    // Supervisor PIN always required to void a completed transaction (server enforces this too)
+    setPinForVoid(order);
   };
 
   const FILTER_CHIPS: { key: HistoryFilter; label: string; count: number }[] = [
@@ -3869,6 +3943,18 @@ function HistoryModal({
               // Cash / other: commit refund directly
               refundMutation.mutate({ orderId: order.id, amountCents: order.totalCents, reason, supervisorPin: pin });
             }
+          }}
+        />
+      )}
+
+      {/* PIN gate for void (always required to void a completed order) */}
+      {pinForVoid && (
+        <PosPinModal
+          onClose={() => setPinForVoid(null)}
+          onSuccess={(pin) => {
+            const order = pinForVoid;
+            setPinForVoid(null);
+            voidMutation.mutate({ id: order.id, supervisorPin: pin });
           }}
         />
       )}
@@ -4946,6 +5032,218 @@ function SupervisorPinCapture({ onClose, onSuccess, title, subtitle }: {
   );
 }
 
+// ── Void Confirm Sheet ────────────────────────────────────────────────────────
+function VoidConfirmSheet({
+  ticket, lastOrderId, voidThresholdCents, onClose, onVoidTicket, onVoidLastOrder,
+}: {
+  ticket: Ticket;
+  lastOrderId: string | null;
+  voidThresholdCents: number;
+  onClose: () => void;
+  onVoidTicket: (supervisorPin?: string) => void;
+  onVoidLastOrder: (supervisorPin: string) => void;
+}) {
+  const total = ticketTotal(ticket);
+  const hasItems = ticket.items.length > 0;
+  const requiresPin = hasItems && total >= voidThresholdCents;
+  const [showPin, setShowPin]       = useState(false);
+  const [pinTarget, setPinTarget]   = useState<'ticket' | 'order'>('ticket');
+
+  const handleVoidTicket = () => {
+    if (requiresPin) {
+      setPinTarget('ticket');
+      setShowPin(true);
+    } else {
+      onVoidTicket();
+    }
+  };
+
+  const handleVoidLastOrder = () => {
+    setPinTarget('order');
+    setShowPin(true);
+  };
+
+  return (
+    <>
+      <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+        <Pressable style={styles.voidOverlay} onPress={onClose}>
+          <Pressable style={styles.voidSheet} onPress={() => {}}>
+            <View style={styles.voidHandle} />
+
+            <View style={styles.voidHeader}>
+              <View style={styles.voidIconBg}>
+                <Feather name="slash" size={20} color={CHERRY} />
+              </View>
+              <Text style={styles.voidTitle}>Void Sale</Text>
+            </View>
+
+            {hasItems && (
+              <View style={styles.voidSection}>
+                <Text style={styles.voidSectionLabel}>CURRENT TICKET</Text>
+                <View style={styles.voidItemsList}>
+                  {ticket.items.map(item => (
+                    <View key={item.localId} style={styles.voidItemRow}>
+                      <Text style={styles.voidItemQty}>{item.quantity}×</Text>
+                      <Text style={styles.voidItemName} numberOfLines={1}>{item.productName}</Text>
+                      <Text style={styles.voidItemPrice}>
+                        {fmtCents((item.priceOverrideCents ?? item.unitPriceCents) * item.quantity)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.voidTotalRow}>
+                  <Text style={styles.voidTotalLabel}>Total to void</Text>
+                  <Text style={styles.voidTotalValue}>{fmtCents(total)}</Text>
+                </View>
+                {requiresPin && (
+                  <View style={styles.voidPinNote}>
+                    <Feather name="shield" size={12} color="#F59E0B" />
+                    <Text style={styles.voidPinNoteText}>
+                      Supervisor PIN required for voids over {fmtCents(voidThresholdCents)}
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity onPress={handleVoidTicket} style={styles.voidConfirmBtn} activeOpacity={0.8}>
+                  <Feather name="x-circle" size={16} color={WHITE} />
+                  <Text style={styles.voidConfirmBtnText}>Void This Ticket</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {lastOrderId && (
+              <View style={styles.voidSection}>
+                <Text style={styles.voidSectionLabel}>LAST TRANSACTION</Text>
+                <Text style={styles.voidLastNote}>
+                  Supervisor PIN required to void a completed payment.
+                </Text>
+                <TouchableOpacity onPress={handleVoidLastOrder} style={styles.voidLastBtn} activeOpacity={0.8}>
+                  <Feather name="rotate-ccw" size={15} color={CHERRY} />
+                  <Text style={styles.voidLastBtnText}>Void Last Transaction</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!hasItems && !lastOrderId && (
+              <View style={styles.voidEmpty}>
+                <Feather name="check-circle" size={36} color={MUTED} />
+                <Text style={styles.voidEmptyText}>No active sale or recent transaction to void</Text>
+              </View>
+            )}
+
+            <Pressable onPress={onClose} style={styles.voidCancelBtn}>
+              <Text style={styles.voidCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {showPin && (
+        <SupervisorPinCapture
+          title="Void Authorisation"
+          subtitle={
+            pinTarget === 'ticket'
+              ? 'Enter supervisor PIN to void this sale'
+              : 'Enter supervisor PIN to void the last transaction'
+          }
+          onClose={() => setShowPin(false)}
+          onSuccess={(pin) => {
+            setShowPin(false);
+            if (pinTarget === 'ticket') {
+              onVoidTicket(pin);
+            } else {
+              onVoidLastOrder(pin);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── POS Idle / Ambient Screen ─────────────────────────────────────────────────
+function PosIdleScreen({
+  products, dailySpecial, onDismiss,
+}: {
+  products: any[];
+  dailySpecial?: string | null;
+  onDismiss: () => void;
+}) {
+  const [now, setNow]             = useState(new Date());
+  const [carouselIdx, setCarousel] = useState(0);
+
+  const featured = useMemo(
+    () => products.filter((p: any) => p.isFeatured || p.featured).slice(0, 8),
+    [products],
+  );
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1_000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (featured.length < 2) return;
+    const t = setInterval(() => setCarousel(i => (i + 1) % featured.length), 4_000);
+    return () => clearInterval(t);
+  }, [featured.length]);
+
+  const timeStr = now.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const dateStr = now.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  const current = featured[carouselIdx] ?? null;
+
+  return (
+    <Pressable style={styles.idleOverlay} onPress={onDismiss}>
+      <View style={styles.idleClock}>
+        <Text style={styles.idleTime}>{timeStr}</Text>
+        <Text style={styles.idleDate}>{dateStr}</Text>
+      </View>
+
+      {!!dailySpecial && (
+        <View style={styles.idleSpecial}>
+          <Feather name="star" size={13} color="#F59E0B" />
+          <Text style={styles.idleSpecialText} numberOfLines={2}>{dailySpecial}</Text>
+        </View>
+      )}
+
+      {current && (
+        <View style={styles.idleCard}>
+          {current.images?.[0] ? (
+            <Image
+              source={{ uri: current.images[0] }}
+              style={styles.idleCardImg}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.idleCardImg, styles.idleCardImgFallback]}>
+              <Feather name="coffee" size={40} color="rgba(255,255,255,0.3)" />
+            </View>
+          )}
+          <View style={styles.idleCardBody}>
+            <Text style={styles.idleCardBadge}>FEATURED</Text>
+            <Text style={styles.idleCardName}>{current.name}</Text>
+            <Text style={styles.idleCardPrice}>
+              {fmtCents(current.salePriceCents ?? current.priceCents ?? 0)}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {featured.length > 1 && (
+        <View style={styles.idleDots}>
+          {featured.map((_: any, i: number) => (
+            <View key={i} style={[styles.idleDot, i === carouselIdx && styles.idleDotActive]} />
+          ))}
+        </View>
+      )}
+
+      <View style={styles.idleTap}>
+        <Feather name="mouse-pointer" size={13} color="rgba(255,255,255,0.35)" />
+        <Text style={styles.idleTapText}>Tap anywhere to continue</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 // ── POS Settings Modal ────────────────────────────────────────────────────────
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -5394,6 +5692,59 @@ const styles = StyleSheet.create({
   priceEditCancelText:  { fontSize: 15, fontWeight: '600', color: MID },
   priceEditConfirm:     { flex: 1, height: 46, borderRadius: 12, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center' },
   priceEditConfirmText: { fontSize: 15, fontWeight: '700', color: WHITE },
+
+  // Void sale button (ticket toolbar)
+  voidSaleBtn:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 8, paddingVertical: 8, borderRadius: 8 },
+  voidSaleBtnText:      { fontSize: 13, fontWeight: '600', color: MUTED },
+
+  // Void confirm sheet
+  voidOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  voidSheet:            { backgroundColor: WHITE, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 32, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 10 },
+  voidHandle:           { width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginTop: 12, marginBottom: 20 },
+  voidHeader:           { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
+  voidIconBg:           { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF1F2', justifyContent: 'center', alignItems: 'center' },
+  voidTitle:            { fontSize: 20, fontWeight: '800', color: DARK },
+  voidSection:          { backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: BORDER },
+  voidSectionLabel:     { fontSize: 10, fontWeight: '800', color: MUTED, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
+  voidItemsList:        { gap: 6, marginBottom: 10 },
+  voidItemRow:          { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  voidItemQty:          { fontSize: 13, fontWeight: '700', color: MID, width: 24 },
+  voidItemName:         { flex: 1, fontSize: 13, color: DARK, fontWeight: '500' },
+  voidItemPrice:        { fontSize: 13, fontWeight: '700', color: DARK },
+  voidTotalRow:         { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, marginBottom: 10 },
+  voidTotalLabel:       { fontSize: 14, fontWeight: '600', color: MID },
+  voidTotalValue:       { fontSize: 16, fontWeight: '800', color: DARK },
+  voidPinNote:          { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#FDE68A' },
+  voidPinNoteText:      { fontSize: 12, color: '#92400E', fontWeight: '500', flex: 1 },
+  voidConfirmBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: CHERRY, borderRadius: 12, paddingVertical: 14 },
+  voidConfirmBtnText:   { fontSize: 15, fontWeight: '800', color: WHITE },
+  voidLastNote:         { fontSize: 13, color: MUTED, marginBottom: 10, lineHeight: 18 },
+  voidLastBtn:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 13, borderWidth: 1.5, borderColor: '#FECDD3', backgroundColor: '#FFF1F2' },
+  voidLastBtnText:      { fontSize: 15, fontWeight: '700', color: CHERRY },
+  voidEmpty:            { alignItems: 'center', paddingVertical: 28, gap: 10 },
+  voidEmptyText:        { fontSize: 14, color: MUTED, textAlign: 'center' },
+  voidCancelBtn:        { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
+  voidCancelText:       { fontSize: 15, fontWeight: '600', color: MUTED },
+
+  // Idle / ambient overlay
+  idleOverlay:   { ...StyleSheet.absoluteFillObject, zIndex: 1000, backgroundColor: '#0D1B2A', justifyContent: 'center', alignItems: 'center', gap: 20 },
+  idleClock:     { alignItems: 'center', gap: 6 },
+  idleTime:      { fontSize: 84, fontWeight: '800', color: WHITE, letterSpacing: -2 },
+  idleDate:      { fontSize: 18, fontWeight: '500', color: 'rgba(255,255,255,0.55)' },
+  idleSpecial:   { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 9, maxWidth: 420, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)' },
+  idleSpecialText: { fontSize: 14, fontWeight: '600', color: '#F59E0B', flex: 1, textAlign: 'center' },
+  idleCard:      { width: 260, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  idleCardImg:   { width: '100%', height: 190 },
+  idleCardImgFallback: { justifyContent: 'center', alignItems: 'center' },
+  idleCardBody:  { padding: 16, gap: 4 },
+  idleCardBadge: { fontSize: 10, fontWeight: '800', color: BLUE, letterSpacing: 1.2, textTransform: 'uppercase' },
+  idleCardName:  { fontSize: 18, fontWeight: '700', color: WHITE },
+  idleCardPrice: { fontSize: 20, fontWeight: '800', color: BLUE },
+  idleDots:      { flexDirection: 'row', gap: 6 },
+  idleDot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
+  idleDotActive: { backgroundColor: BLUE, width: 20 },
+  idleTap:       { position: 'absolute', bottom: 36, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  idleTapText:   { fontSize: 13, color: 'rgba(255,255,255,0.3)', fontWeight: '500' },
 });
 
 // ── Export (wraps inner screen with OfflineProvider) ──────────────────────────
