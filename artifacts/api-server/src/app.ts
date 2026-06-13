@@ -6,6 +6,7 @@ import router from "./routes/index.js";
 import shareRouter from "./routes/share.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
+import { startDailySummaryJob } from "./lib/dailySummaryJob.js";
 
 const app: Express = express();
 
@@ -94,5 +95,8 @@ app.use(cookieParser());
 
 app.use("/s", shareRouter);
 app.use("/api", router);
+
+// Start background jobs (non-blocking; unref'd so they don't prevent graceful shutdown)
+startDailySummaryJob();
 
 export default app;

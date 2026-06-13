@@ -203,6 +203,23 @@ async function ensurePosSchemaReady() {
             updated_at timestamptz NOT NULL DEFAULT now()
           )
         `));
+        // ── Composite indexes on orders hot paths ─────────────────────────────
+        // Serves: source='pos' + date range queries (history, summary, analytics)
+        await db.execute(sql.raw(
+          `CREATE INDEX IF NOT EXISTS idx_orders_source_created_at ON orders(source, created_at DESC)`
+        ));
+        // Serves: status-filtered POS order queue queries
+        await db.execute(sql.raw(
+          `CREATE INDEX IF NOT EXISTS idx_orders_status_source_created_at ON orders(status, source, created_at DESC)`
+        ));
+        // Serves: per-store analytics and shop-display queries
+        await db.execute(sql.raw(
+          `CREATE INDEX IF NOT EXISTS idx_orders_store_source_created_at ON orders(store_id, source, created_at DESC)`
+        ));
+        // Serves: register session history and cash-up reconciliation
+        await db.execute(sql.raw(
+          `CREATE INDEX IF NOT EXISTS idx_orders_register_session_created_at ON orders(register_session_id, created_at DESC)`
+        ));
       } catch (err) {
         posSchemaReady = null;
         throw err;
@@ -744,17 +761,17 @@ router.post('/orders', async (req, res) => {
       const [existing] = (((existingResult as any).rows ?? (existingResult as any) ?? []) as any[]);
       if (existing) {
         const row = existing as any;
-        req.log.info({ idempotencyKey, orderId: row.id }, 'POS idempotent order returned');
-        return res.status(200).json({
+        req.log.info({ idempotencyKey, orderId: row.id }, 'POS duplicate order detected (409)');
+        return res.status(409).json({
+          error: 'Order already processed',
+          code: 'DUPLICATE_ORDER',
           data: {
             id: row.id,
             orderNumber: row.order_number,
-            totalCents: row.total_cents,
+            totalCents: Number(row.total_cents),
             paymentMethod: row.payment_method,
             status: row.status,
           },
-          loyaltyResult: null,
-          idempotent: true,
         });
       }
     } catch (err: any) {
@@ -1231,14 +1248,44 @@ router.post('/orders', async (req, res) => {
   });
 });
 
-// ── GET /pos/orders — today's POS orders (for history view) ──────────────────
+// ── GET /pos/orders — today's POS orders, cursor-paginated ──────────────────
+// Query params:
+//   cursor  — composite cursor "<createdAt ISO>|<id>" from previous page's nextCursor
+//   limit   — page size, 1–100, default 50
+//
+// Response: { data: PosHistoryOrder[], nextCursor: string | null }
+// nextCursor is null when there are no more results for today.
 router.get('/orders', async (req, res) => {
   await ensurePosSchemaReady();
 
+  // Sydney midnight in UTC = start of today's window
   const now = new Date();
   const sydNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
   const sydNowOffsetMs = sydNow.getTime() - now.getTime();
-  const startOfToday = new Date(new Date(sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()).getTime() - sydNowOffsetMs);
+  const startOfToday = new Date(
+    new Date(sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()).getTime() - sydNowOffsetMs
+  );
+
+  // Parse pagination params
+  const rawLimit = parseInt(String(req.query.limit ?? '50'), 10);
+  const limit = Math.min(Math.max(1, isNaN(rawLimit) ? 50 : rawLimit), 100);
+
+  // cursor = "<ISO createdAt>|<id>" — keyset pagination for deterministic ordering
+  const rawCursor = typeof req.query.cursor === 'string' && req.query.cursor ? req.query.cursor : null;
+  let cursorTime: Date | null = null;
+  let cursorId: string | null = null;
+  if (rawCursor) {
+    const sep = rawCursor.lastIndexOf('|');
+    if (sep > 0) {
+      const ts = rawCursor.slice(0, sep);
+      const id = rawCursor.slice(sep + 1);
+      const d = new Date(ts);
+      if (!isNaN(d.getTime()) && id) {
+        cursorTime = d;
+        cursorId = id;
+      }
+    }
+  }
 
   try {
     const result = await db.execute(sql`
@@ -1251,19 +1298,25 @@ router.get('/orders', async (req, res) => {
         o.payment_method,
         o.items,
         o.notes,
-        COALESCE(o.tip_cents, 0) AS tip_cents,
+        COALESCE(o.tip_cents, 0)     AS tip_cents,
         COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
         o.split_payments,
         o.discount_cents,
-        u.name AS customer_name,
+        u.name  AS customer_name,
         su.name AS staff_name
       FROM orders o
-      LEFT JOIN users u ON u.id = o.user_id AND o.user_id != o.staff_user_id
+      LEFT JOIN users u  ON u.id  = o.user_id       AND o.user_id != o.staff_user_id
       LEFT JOIN users su ON su.id = o.staff_user_id
       WHERE o.source = 'pos'
         AND o.created_at >= ${startOfToday}
-      ORDER BY o.created_at DESC
-      LIMIT 200
+        AND (
+          ${cursorTime === null ? sql`TRUE` : sql`
+            o.created_at < ${cursorTime}
+            OR (o.created_at = ${cursorTime} AND o.id < ${cursorId!})
+          `}
+        )
+      ORDER BY o.created_at DESC, o.id DESC
+      LIMIT ${limit + 1}
     `);
 
     const rows = (result.rows ?? result as unknown as any[]) as Array<{
@@ -1283,8 +1336,15 @@ router.get('/orders', async (req, res) => {
       staff_name: string | null;
     }>;
 
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const lastRow = pageRows[pageRows.length - 1];
+    const nextCursor = hasMore && lastRow
+      ? `${new Date(lastRow.created_at).toISOString()}|${lastRow.id}`
+      : null;
+
     return res.json({
-      data: rows.map(r => ({
+      data: pageRows.map(r => ({
         id: r.id,
         orderNumber: r.order_number,
         createdAt: r.created_at,
@@ -1300,6 +1360,7 @@ router.get('/orders', async (req, res) => {
         customerName: r.customer_name,
         staffName: r.staff_name,
       })),
+      nextCursor,
     });
   } catch (err: any) {
     req.log.error({ err }, 'GET /pos/orders failed');

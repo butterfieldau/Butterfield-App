@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   api,
   type PosCustomerResult,
@@ -3345,13 +3345,23 @@ function HistoryModal({
     return () => clearInterval(t);
   }, []);
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
+  const {
+    data,
+    isLoading,
+    refetch,
+    isRefetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ['pos-history'],
-    queryFn: () => api.pos.orders(),
+    queryFn: ({ pageParam }) => api.pos.ordersPage({ cursor: pageParam }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
     staleTime: 30_000,
   });
 
-  const allOrders: PosHistoryOrder[] = (data as any)?.data ?? [];
+  const allOrders: PosHistoryOrder[] = data?.pages.flatMap(p => p.data) ?? [];
 
   // Self-contained void mutation so we know exactly which order is being voided
   const voidMutation = useMutation({
@@ -3769,6 +3779,21 @@ function HistoryModal({
                 </View>
               );
             }}
+            ListFooterComponent={
+              hasNextPage ? (
+                <TouchableOpacity
+                  onPress={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  style={styles.loadMoreBtn}
+                  activeOpacity={0.8}
+                >
+                  {isFetchingNextPage
+                    ? <ActivityIndicator size="small" color={BLUE} />
+                    : <Text style={styles.loadMoreText}>Load older transactions</Text>
+                  }
+                </TouchableOpacity>
+              ) : null
+            }
           />
         )}
       </View>
@@ -5216,6 +5241,8 @@ const styles = StyleSheet.create({
   historyReprintBtnText:  { fontSize: 13, fontWeight: '700', color: BLUE },
   historyRefundBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: '#92400E', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
   historyRefundBtnText:   { fontSize: 13, fontWeight: '700', color: WHITE },
+  loadMoreBtn:            { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, marginHorizontal: 16, marginBottom: 8, marginTop: 4, borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: WHITE },
+  loadMoreText:           { fontSize: 14, fontWeight: '600', color: BLUE },
 
   historyFilterRow:         { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   historyFilterChip:        { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER },

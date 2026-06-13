@@ -963,7 +963,14 @@ export const api = {
     markRegisterSummaryPrinted: (sessionId: string) =>
       request<{ success: boolean }>(`/pos/register/summary/${sessionId}/printed`, { method: 'PATCH' }),
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
-    orders: () => request<{ data: PosHistoryOrder[] }>('/pos/orders'),
+    orders: () => request<{ data: PosHistoryOrder[]; nextCursor: string | null }>('/pos/orders'),
+    ordersPage: (params?: { cursor?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.cursor) qs.set('cursor', params.cursor);
+      if (params?.limit)  qs.set('limit', String(params.limit));
+      const q = qs.toString();
+      return request<{ data: PosHistoryOrder[]; nextCursor: string | null }>(`/pos/orders${q ? `?${q}` : ''}`);
+    },
     voidOrder: (id: string) => request<{ success: boolean }>(`/pos/orders/${id}/void`, { method: 'PATCH' }),
     refundOrder: (id: string, data: { amountCents: number; reason?: string; supervisorPin?: string; linklySessionId?: string }) =>
       request<{ success: boolean; refundAmountCents: number; isFullRefund: boolean }>(

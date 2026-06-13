@@ -61,6 +61,14 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       await removeFromOfflineQueue(entry.idempotencyKey);
       return true;
     } catch (err: any) {
+      // 409 = server already has this order (duplicate sync attempt or idempotency hit)
+      // Treat as success: remove from queue and surface an info notice — not an error
+      if (err?.status === 409) {
+        await removeFromOfflineQueue(entry.idempotencyKey);
+        setSyncToast('Order already synced — removed from queue');
+        setTimeout(() => setSyncToast(null), 3500);
+        return true;
+      }
       const isNetworkError =
         err?.message?.includes('Network request failed') ||
         err?.message?.includes('Failed to fetch') ||
@@ -73,7 +81,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     }
-  }, []);
+  }, [setSyncToast]);
 
   const syncNow = useCallback(async () => {
     if (isSyncingRef.current) return;
