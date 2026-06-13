@@ -865,7 +865,15 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
         });
       }
     } catch (err: any) {
-      req.log.warn({ err, _fpKey }, 'POS sync: fingerprint DB check failed — continuing');
+      // Fail-closed: if the fingerprint dedup infrastructure fails (DB error,
+      // schema not ready, etc.) we cannot guarantee uniqueness.  Reject the
+      // sync request so the client retries later rather than risk a silent
+      // duplicate.  Regular POST /orders (online path) is unaffected.
+      req.log.error({ err, _fpKey }, 'POS sync: fingerprint DB check error — rejecting to prevent silent duplicate');
+      return res.status(503).json({
+        error: 'Conflict-detection service temporarily unavailable — please retry the sync',
+        code: 'DEDUP_UNAVAILABLE',
+      });
     }
   }
 
@@ -1381,7 +1389,13 @@ router.post('/orders/sync', async (req, res, next) => {
       const session = await getOrCreateCurrentRegisterSession(req.user!.id);
       req.body._fpKey = buildFingerprintKey(session.id, rawItems);
     } catch (err) {
-      req.log.warn({ err }, 'POS sync: failed to resolve register session for fingerprint — continuing without');
+      // Fail-closed: cannot resolve the register session → cannot build a
+      // reliable fingerprint key → reject instead of silently bypassing dedup.
+      req.log.error({ err }, 'POS sync: failed to resolve register session — rejecting to prevent silent duplicate');
+      return res.status(503).json({
+        error: 'Could not identify register session for conflict detection — please retry the sync',
+        code: 'DEDUP_UNAVAILABLE',
+      });
     }
   }
 

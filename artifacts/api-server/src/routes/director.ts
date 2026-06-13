@@ -3255,14 +3255,26 @@ router.get('/stats/revenue', async (req, res) => {
     }
   }
 
-  const [result] = await db.select({ total: sum(ordersTable.totalCents) })
-    .from(ordersTable)
-    .where(and(
-      gte(ordersTable.createdAt, fromDate),
-      lte(ordersTable.createdAt, toDate),
-      sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
-    ));
-  return res.json({ data: { total: Number(result.total ?? 0), from: fromDate.toISOString(), to: toDate.toISOString() } });
+  // Live fallback — includes both app/POS orders and wholesale orders so the
+  // channel composition matches the fast-path calculation above exactly.
+  const [[appResult], [wholesaleResult]] = await Promise.all([
+    db.select({ total: sum(ordersTable.totalCents) })
+      .from(ordersTable)
+      .where(and(
+        gte(ordersTable.createdAt, fromDate),
+        lte(ordersTable.createdAt, toDate),
+        sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+      )),
+    db.select({ total: sum(wholesaleOrdersTable.totalCents) })
+      .from(wholesaleOrdersTable)
+      .where(and(
+        gte(wholesaleOrdersTable.createdAt, fromDate),
+        lte(wholesaleOrdersTable.createdAt, toDate),
+        sql`${wholesaleOrdersTable.status} NOT IN ('cancelled','refunded')`,
+      )),
+  ]);
+  const total = Number(appResult?.total ?? 0) + Number(wholesaleResult?.total ?? 0);
+  return res.json({ data: { total, from: fromDate.toISOString(), to: toDate.toISOString() } });
 });
 
 // ── Deleted accounts (30-day soft-delete recovery) ─────────────────────────
