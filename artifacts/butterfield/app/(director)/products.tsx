@@ -1043,6 +1043,8 @@ function OptionsTab() {
   const [gCatIds, setGCatIds]       = useState<string[]>([]);
   const [gProductIds, setGProductIds] = useState<string[]>([]);
   const [gProductSearch, setGProductSearch] = useState('');
+  const [gExcludeProductIds, setGExcludeProductIds] = useState<string[]>([]);
+  const [gExcludeProductSearch, setGExcludeProductSearch] = useState('');
   const [gSaving, setGSaving]       = useState(false);
   // ── Option CRUD state ───────────────────────────────────────────────────────
   const [optModal, setOptModal]     = useState(false);
@@ -1075,12 +1077,14 @@ function OptionsTab() {
   const openAddGroup = () => {
     setEditGroup(null); setGName(''); setGType('single'); setGRequired(false);
     setGCatIds([]); setGProductIds([]); setGProductSearch('');
+    setGExcludeProductIds([]); setGExcludeProductSearch('');
     setGroupModal(true);
   };
   const openEditGroup = (g: any) => {
     setEditGroup(g); setGName(g.name); setGType(g.selectionType);
     setGRequired(g.isRequired ?? false); setGCatIds(g.appliesToCategoryIds ?? []);
     setGProductIds(g.appliesToProductIds ?? []); setGProductSearch('');
+    setGExcludeProductIds(g.excludeProductIds ?? []); setGExcludeProductSearch('');
     setGroupModal(true);
   };
   const saveGroup = async () => {
@@ -1090,6 +1094,7 @@ function OptionsTab() {
       const payload = {
         name: gName.trim(), selectionType: gType, isRequired: gRequired,
         appliesToCategoryIds: gCatIds, appliesToProductIds: gProductIds,
+        excludeProductIds: gExcludeProductIds,
       };
       if (editGroup) { await api.director.updateOptionGroup(editGroup.id, payload); }
       else           { await api.director.createOptionGroup(payload); }
@@ -1352,6 +1357,85 @@ function OptionsTab() {
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: selected ? PURPLE + '0C' : BG, borderWidth: 1, borderColor: selected ? PURPLE : BORDER }}
                           >
                             <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? PURPLE : BORDER, backgroundColor: selected ? PURPLE : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                              {selected && <Feather name="check" size={11} color="#fff" />}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 13, fontWeight: selected ? '600' : '400', color: TEXT }}>{p.name}</Text>
+                            </View>
+                            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: col + '18' }}>
+                              <Text style={{ fontSize: 10, fontWeight: '600', color: col }}>{p.category}</Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })
+                    }
+                  </ScrollView>
+                </View>
+              </View>
+            )}
+            {allProducts.length > 0 && (
+              <View style={[form.card, { borderColor: '#D2000130', borderWidth: 1.5 }]}>
+                <SectionHeader title="Excluded from Specific Products" icon="slash" color={RED} />
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
+                  Option will NOT appear on these products, even if their category is selected above.
+                </Text>
+                {/* Selected exclude product pills */}
+                {gExcludeProductIds.length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                    {gExcludeProductIds.map(pid => {
+                      const prod = allProducts.find(p => p.id === pid);
+                      if (!prod) return null;
+                      return (
+                        <Pressable
+                          key={pid}
+                          onPress={() => setGExcludeProductIds(prev => prev.filter(id => id !== pid))}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: RED + '18', borderWidth: 1, borderColor: RED + '50' }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: RED }}>{prod.name}</Text>
+                          <Feather name="x" size={11} color={RED} />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+                {/* Search box */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, height: 40, marginBottom: 8 }}>
+                  <Feather name="search" size={14} color={MUTED} />
+                  <TextInput
+                    value={gExcludeProductSearch}
+                    onChangeText={setGExcludeProductSearch}
+                    placeholder="Search products to exclude…"
+                    placeholderTextColor={MUTED}
+                    style={{ flex: 1, fontSize: 13, fontWeight: '400', color: TEXT }}
+                  />
+                  {gExcludeProductSearch ? <Pressable onPress={() => setGExcludeProductSearch('')}><Feather name="x" size={13} color={MUTED} /></Pressable> : null}
+                </View>
+                {/* Filtered product list */}
+                <View style={{ gap: 4, maxHeight: 260 }}>
+                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                    {allProducts
+                      .filter(p => {
+                        if (gExcludeProductSearch.trim()) {
+                          const q = gExcludeProductSearch.toLowerCase();
+                          return p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q);
+                        }
+                        return true;
+                      })
+                      .map(p => {
+                        const selected = gExcludeProductIds.includes(p.id);
+                        const col = CAT_COLORS[p.category] ?? MUTED;
+                        return (
+                          <Pressable
+                            key={p.id}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              setGExcludeProductIds(prev =>
+                                prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                              );
+                            }}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: selected ? RED + '0C' : BG, borderWidth: 1, borderColor: selected ? RED : BORDER }}
+                          >
+                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: selected ? RED : BORDER, backgroundColor: selected ? RED : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                               {selected && <Feather name="check" size={11} color="#fff" />}
                             </View>
                             <View style={{ flex: 1 }}>
