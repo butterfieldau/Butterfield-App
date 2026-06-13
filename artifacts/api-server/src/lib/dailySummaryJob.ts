@@ -49,8 +49,21 @@ function msUntilNext1AMSydney(): number {
 
 // ── Summary computation ───────────────────────────────────────────────────────
 
-export async function computeDailySummary(dateStr: string): Promise<void> {
+/**
+ * Compute and upsert a daily POS summary for `dateStr`.
+ *
+ * @param dateStr  Sydney-local date YYYY-MM-DD (e.g. '2025-03-15')
+ * @param storeId  '' (default) = global/all-stores aggregate;
+ *                 UUID = summary scoped to that store only.
+ */
+export async function computeDailySummary(dateStr: string, storeId = ''): Promise<void> {
   const { startUtc, endUtc } = sydneyDateToUtcBounds(dateStr);
+
+  // SQL fragment that optionally scopes the query to a specific store.
+  // Interpolating a sql`` fragment into another sql`` is Drizzle-supported.
+  const storeClause = storeId
+    ? sql` AND store_id = ${storeId}`
+    : sql``;
 
   // Aggregate totals
   const totalsResult = await db.execute(sql`
@@ -65,6 +78,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
     WHERE source = 'pos'
       AND created_at >= ${startUtc}
       AND created_at <= ${endUtc}
+      ${storeClause}
   `);
   const totals = ((totalsResult as any).rows ?? (totalsResult as any))[0] ?? {};
 
@@ -81,6 +95,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
       AND status NOT IN ('cancelled','refunded')
       AND created_at >= ${startUtc}
       AND created_at <= ${endUtc}
+      ${storeClause}
   `);
   const itemsSold = Number(((itemsResult as any).rows ?? (itemsResult as any))[0]?.items_sold ?? 0);
 
@@ -98,6 +113,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
       AND created_at <= ${endUtc}
       AND items IS NOT NULL
       AND jsonb_typeof(items) = 'array'
+      ${storeClause}
     GROUP BY item->>'productName'
     ORDER BY revenue_cents DESC
     LIMIT 6
@@ -121,6 +137,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
       AND status NOT IN ('cancelled','refunded')
       AND created_at >= ${startUtc}
       AND created_at <= ${endUtc}
+      ${storeClause}
     GROUP BY syd_hour
   `);
   const hourlyRows = (hourlyResult as any).rows ?? (hourlyResult as any) ?? [];
@@ -140,6 +157,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
       AND status NOT IN ('cancelled','refunded')
       AND created_at >= ${startUtc}
       AND created_at <= ${endUtc}
+      ${storeClause}
     GROUP BY payment_method
   `);
   const tenderRows = (tenderResult as any).rows ?? (tenderResult as any) ?? [];
@@ -150,15 +168,15 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
     tenderBreakdown[key] = Number(r.tender_cents ?? 0);
   }
 
-  // Upsert
+  // Upsert — conflict target is (date, store_id) compound unique index
   await db.execute(sql`
     INSERT INTO pos_daily_summaries (
-      id, date,
+      id, date, store_id,
       total_sales_cents, transaction_count, cash_total_cents, card_total_cents,
       discount_total_cents, cancelled_cents, items_sold,
       top_products, hourly_totals, tender_breakdown, computed_at
     ) VALUES (
-      ${randomUUID()}, ${dateStr},
+      ${randomUUID()}, ${dateStr}, ${storeId},
       ${Number(totals.total_sales_cents ?? 0)},
       ${Number(totals.transaction_count ?? 0)},
       ${Number(totals.cash_total_cents ?? 0)},
@@ -171,7 +189,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
       ${JSON.stringify(tenderBreakdown)}::jsonb,
       NOW()
     )
-    ON CONFLICT (date) DO UPDATE SET
+    ON CONFLICT (date, store_id) DO UPDATE SET
       total_sales_cents    = EXCLUDED.total_sales_cents,
       transaction_count    = EXCLUDED.transaction_count,
       cash_total_cents     = EXCLUDED.cash_total_cents,
@@ -185,7 +203,7 @@ export async function computeDailySummary(dateStr: string): Promise<void> {
       computed_at          = NOW()
   `);
 
-  logger.info({ date: dateStr }, 'pos_daily_summaries: upserted');
+  logger.info({ date: dateStr, storeId: storeId || '(global)' }, 'pos_daily_summaries: upserted');
 }
 
 // ── Job scheduler ─────────────────────────────────────────────────────────────
@@ -199,7 +217,30 @@ export function startDailySummaryJob(): void {
       const yesterdayStr = addDaysToDateStr(getSydneyTodayStr(), -1);
       logger.info({ date: yesterdayStr }, 'pos_daily_summary: computing');
       try {
-        await computeDailySummary(yesterdayStr);
+        // 1. Global summary (store_id = '') — covers all POS orders across all stores
+        await computeDailySummary(yesterdayStr, '');
+
+        // 2. Per-store summaries — one row per distinct store_id that had POS orders
+        const storeResult = await db.execute(sql`
+          SELECT DISTINCT store_id
+          FROM orders
+          WHERE source = 'pos'
+            AND store_id IS NOT NULL
+            AND store_id != ''
+            AND created_at >= ${(sydneyDateToUtcBounds(yesterdayStr)).startUtc}
+            AND created_at <= ${(sydneyDateToUtcBounds(yesterdayStr)).endUtc}
+        `);
+        const storeRows = (storeResult as any).rows ?? (storeResult as any) ?? [];
+        for (const row of storeRows) {
+          const sid = String(row.store_id ?? '');
+          if (sid) {
+            try {
+              await computeDailySummary(yesterdayStr, sid);
+            } catch (perStoreErr) {
+              logger.error({ err: perStoreErr, date: yesterdayStr, storeId: sid }, 'pos_daily_summary: per-store compute failed');
+            }
+          }
+        }
       } catch (err) {
         logger.error({ err, date: yesterdayStr }, 'pos_daily_summary: compute failed');
       }

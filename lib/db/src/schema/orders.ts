@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, jsonb, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -44,6 +44,14 @@ export const ordersTable = pgTable("orders", {
   cancelReason: text("cancel_reason"),
   clientIdempotencyKey: text("client_idempotency_key"),
   registerSessionId: text("register_session_id"),
+  // POS-specific columns (added to DB via ensurePosSchemaReady ALTER TABLE)
+  // Declared here so Drizzle query builder can reference them with full type safety.
+  source: text("source").default("customer_app"),
+  staffUserId: text("staff_user_id"),
+  paymentMethod: text("payment_method"),
+  tipCents: integer("tip_cents").default(0),
+  surchargeCents: integer("surcharge_cents").default(0),
+  splitPayments: jsonb("split_payments").$type<Array<{ method: string; amountCents: number }>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
@@ -53,6 +61,14 @@ export const ordersTable = pgTable("orders", {
   uniqueIndex("orders_client_idempotency_key_unique_idx")
     .on(table.clientIdempotencyKey)
     .where(sql`${table.clientIdempotencyKey} IS NOT NULL`),
+  // ── Composite indexes for POS high-volume analytics queries ─────────────
+  // These index definitions are the durable schema-level record. The actual
+  // CREATE INDEX statements are also applied at runtime in ensurePosSchemaReady()
+  // so they exist immediately on first boot without requiring drizzle-kit push.
+  index("idx_orders_source_created_at").on(table.source, table.createdAt),
+  index("idx_orders_status_source_created_at").on(table.status, table.source, table.createdAt),
+  index("idx_orders_store_source_created_at").on(table.storeId, table.source, table.createdAt),
+  index("idx_orders_register_session_created_at").on(table.registerSessionId, table.createdAt),
 ]);
 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({

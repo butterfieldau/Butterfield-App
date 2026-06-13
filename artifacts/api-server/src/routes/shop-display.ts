@@ -1250,6 +1250,136 @@ router.get('/analytics', async (req, res) => {
     }));
   }
 
+  // ── Fast path: past-date day queries served from pre-computed daily summaries ─
+  // Avoids full orders table scan at high POS volume. Falls through to live query
+  // when no summary row exists (today, first day after deploy, or gap dates).
+  if (range === 'day' && refDateStr !== getSydneyTodayStr()) {
+    const summaryStoreId = isValidStoreId ? requestedStoreId! : '';
+    const prevDateStr = addDaysToDateStr(refDateStr, -1);
+
+    const [summaryRows, prevSummaryRows, liveAppOrders, livePrevAppOrders, liveWholesale, livePrevWholesale] =
+      await Promise.all([
+        db.execute(sql`
+          SELECT * FROM pos_daily_summaries
+          WHERE date = ${refDateStr} AND store_id = ${summaryStoreId}
+          LIMIT 1
+        `),
+        db.execute(sql`
+          SELECT total_sales_cents FROM pos_daily_summaries
+          WHERE date = ${prevDateStr} AND store_id = ${summaryStoreId}
+          LIMIT 1
+        `),
+        // Non-POS (app) orders for current period — small bounded set
+        db.select({
+          totalCents: ordersTable.totalCents,
+          discountCents: ordersTable.discountCents,
+          paymentMethodType: ordersTable.paymentMethodType,
+          items: ordersTable.items,
+        }).from(ordersTable).where(and(
+          gte(ordersTable.createdAt, periodStart),
+          lte(ordersTable.createdAt, periodEnd),
+          sql`orders.source != 'pos'`,
+          sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+          storeFilter,
+        )),
+        // Non-POS (app) orders for previous period
+        db.select({ totalCents: ordersTable.totalCents })
+          .from(ordersTable).where(and(
+            gte(ordersTable.createdAt, prevStart),
+            lte(ordersTable.createdAt, prevEnd),
+            sql`orders.source != 'pos'`,
+            sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+            storeFilter,
+          )),
+        // Wholesale orders for current period
+        db.select({ totalCents: wholesaleOrdersTable.totalCents, items: wholesaleOrdersTable.items })
+          .from(wholesaleOrdersTable).where(and(
+            gte(wholesaleOrdersTable.createdAt, periodStart),
+            lte(wholesaleOrdersTable.createdAt, periodEnd),
+            sql`${wholesaleOrdersTable.status} NOT IN ('cancelled','refunded')`,
+          )),
+        // Wholesale orders for previous period
+        db.select({ totalCents: wholesaleOrdersTable.totalCents })
+          .from(wholesaleOrdersTable).where(and(
+            gte(wholesaleOrdersTable.createdAt, prevStart),
+            lte(wholesaleOrdersTable.createdAt, prevEnd),
+            sql`${wholesaleOrdersTable.status} NOT IN ('cancelled','refunded')`,
+          )),
+      ]);
+
+    const summary = ((summaryRows as any).rows ?? (summaryRows as any))[0];
+
+    if (summary) {
+      const prevSummary = ((prevSummaryRows as any).rows ?? (prevSummaryRows as any))[0];
+
+      const posCents = Number(summary.total_sales_cents ?? 0);
+      const appCents = liveAppOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+      const wholesaleCents = liveWholesale.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+      const totalCents = posCents + appCents + wholesaleCents;
+
+      const posCount = Number(summary.transaction_count ?? 0);
+      const transactionCount = posCount + liveAppOrders.length + liveWholesale.length;
+      const avgSpendCents = transactionCount > 0 ? Math.round(totalCents / transactionCount) : 0;
+
+      const prevPosCents = Number(prevSummary?.total_sales_cents ?? 0);
+      const prevAppCents = livePrevAppOrders.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+      const prevWholesaleCents = livePrevWholesale.reduce((s, o) => s + (o.totalCents ?? 0), 0);
+      const prevPeriodTotalCents = prevPosCents + prevAppCents + prevWholesaleCents;
+
+      // Hourly chart from pre-computed 24-element array (POS only)
+      const rawHourly = summary.hourly_totals;
+      const hourlyArr: number[] = Array.isArray(rawHourly) ? rawHourly
+        : (typeof rawHourly === 'string' ? JSON.parse(rawHourly) : Array(24).fill(0));
+      const chartData = chartBuckets.map((b, i) => ({
+        label: b.label,
+        valueCents: hourlyArr[i] ?? 0,
+        prevValueCents: 0,
+      }));
+
+      // Top sellers from pre-computed summary (POS only — dominant channel)
+      const rawTop = summary.top_products;
+      const topSellers: any[] = Array.isArray(rawTop) ? rawTop
+        : (typeof rawTop === 'string' ? JSON.parse(rawTop) : []);
+
+      // Tender types from pre-computed breakdown (POS only — app/wholesale invoiced separately)
+      const rawTender = summary.tender_breakdown;
+      const tenderBreakdown: Record<string, number> =
+        (rawTender && typeof rawTender === 'object' && !Array.isArray(rawTender)) ? rawTender
+        : (typeof rawTender === 'string' ? JSON.parse(rawTender) : {});
+      const tenderTypes = Object.entries(tenderBreakdown)
+        .map(([type, cents]) => ({
+          type,
+          count: 0,
+          pct: posCents > 0 ? Math.round((Number(cents) / posCents) * 100) : 0,
+        }))
+        .sort((a, b) => b.pct - a.pct);
+
+      const discountedCents =
+        Number(summary.discount_total_cents ?? 0) +
+        liveAppOrders.reduce((s, o) => s + (o.discountCents ?? 0), 0);
+
+      return res.json({
+        data: {
+          totalCents,
+          prevPeriodTotalCents,
+          transactionCount,
+          avgSpendCents,
+          itemsSold: Number(summary.items_sold ?? 0),
+          cancelledCents: Number(summary.cancelled_cents ?? 0),
+          discountedCents,
+          channelBreakdown: { appCents, posCents, wholesaleCents },
+          chartData,
+          topSellers,
+          tenderTypes,
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
+        },
+      });
+    }
+    // No pre-computed row found → fall through to full live scan below
+  }
+
+  // ── Live (full scan) path — used for today and any date missing a summary ──
   // Pull orders + wholesale for both periods in parallel (orders are store-scoped)
   const [currentOrders, prevOrders, currentWholesale, prevWholesale] = await Promise.all([
     db.select({
