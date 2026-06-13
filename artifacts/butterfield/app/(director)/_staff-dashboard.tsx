@@ -554,6 +554,9 @@ export function StaffDashboard() {
                   { icon: 'tool',           label: 'Report Issue',  bg: '#FEE2E2', onPress: () => router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any) },
                   { icon: 'calendar',       label: 'Leave Request', bg: '#F3E8FF', onPress: () => router.navigate({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any) },
                 ],
+                [
+                  { icon: 'clock',          label: 'My Roster',     bg: '#E0F2FE', onPress: () => router.push('/director-staff-roster' as any) },
+                ],
               ] as const).map((row, ri) => (
                 <View key={ri} style={styles.actionsRow}>
                   {row.map((action) => (

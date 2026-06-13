@@ -158,6 +158,7 @@ const ALL_CATEGORIES: Category[] = [
         items: [
           { icon: 'users',      label: 'Staff Accounts',     sub: 'All staff, roles & employment details',  color: PURPLE, perm: 'users', onPress: () => router.push('/director-staff-accounts' as any) },
           { icon: 'clock',      label: 'Timesheet Access',   sub: 'Staff clock-in history & hour totals',   color: GREEN,  perm: 'timesheets', onPress: () => router.push('/director-staff-hours' as any) },
+          { icon: 'calendar',   label: 'Rosters',            sub: 'Weekly shift schedule & staff roster',   color: BLUE,   perm: 'timesheets', onPress: () => router.push('/director-roster' as any) },
           { icon: 'file-text',  label: 'Employment Details', sub: 'Contracts, TFN & pay rates',             color: NAVY,   perm: 'users', soon: true },
           { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manager, Supervisor, Store Manager, Area Manager, Director and Master', color: NAVY, directorOnly: true, onPress: () => router.push('/director-settings-managers' as any) },
         ],
@@ -231,7 +232,6 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Integrations',
         items: [
-          { icon: 'credit-card',  label: 'Linkly Cloud',        sub: 'PIN pad pairing, token refresh and EFTPOS device setup', color: BLUE, directorOnly: true, onPress: () => router.push('/director-linkly' as any) },
           { icon: 'shopping-bag', label: 'Shopify',             sub: 'Product & order sync',                  color: '#96BF48', directorOnly: true, soon: true },
           { icon: 'credit-card',  label: 'Square',              sub: 'POS & payment terminal',                color: '#000000', directorOnly: true, soon: true },
           { icon: 'globe',        label: 'Google Login',         sub: 'Sign in with Google for customers',    color: RED,       soon: true },

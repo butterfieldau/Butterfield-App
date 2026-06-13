@@ -796,16 +796,26 @@ function DownloadReportModal({ visible, onClose }: DownloadModalProps) {
         URL.revokeObjectURL(objUrl);
       } else {
         const fileUri = (FileSystem.cacheDirectory ?? '') + filename;
-        const result  = await FileSystem.downloadAsync(url, fileUri, { headers: { Authorization: `Bearer ${token ?? ''}` } });
+        const res2 = await fetch(url, { headers: { Authorization: `Bearer ${token ?? ''}` } });
+        if (!res2.ok) throw new Error(await res2.text());
+        const buf = await res2.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...(bytes.subarray(i, i + chunk) as any));
+        }
+        const base64 = btoa(binary);
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(result.uri, {
+          await Sharing.shareAsync(fileUri, {
             mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             dialogTitle: 'Save Butterfield Report',
             UTI: 'com.microsoft.excel.xlsx',
           });
         } else {
-          Alert.alert('File Saved', `Saved to: ${result.uri}`);
+          Alert.alert('File Saved', `Saved to: ${fileUri}`);
         }
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

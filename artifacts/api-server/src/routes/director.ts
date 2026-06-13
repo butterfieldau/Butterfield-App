@@ -3640,4 +3640,50 @@ router.get('/reports/refund-operators', async (req, res) => {
   });
 });
 
+// ── Login History ─────────────────────────────────────────────────────────────
+router.get('/login-history', async (req, res) => {
+  const { success, from, email, page: pageQ, pageSize: pageSizeQ } = req.query as Record<string, string>;
+  const PAGE_SIZE = Math.min(parseInt(pageSizeQ ?? '50', 10) || 50, 200);
+  const PAGE      = Math.max(parseInt(pageQ ?? '1', 10) || 1, 1);
+  const offset    = (PAGE - 1) * PAGE_SIZE;
+
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (success === 'true')  conditions.push(eq(loginHistoryTable.success, true));
+  if (success === 'false') conditions.push(eq(loginHistoryTable.success, false));
+  if (from)                conditions.push(gte(loginHistoryTable.createdAt, new Date(from)));
+  if (email)               conditions.push(sql`${loginHistoryTable.email} ILIKE ${'%' + email + '%'}` as any);
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(loginHistoryTable)
+    .where(where);
+
+  const rows = await db
+    .select()
+    .from(loginHistoryTable)
+    .where(where)
+    .orderBy(desc(loginHistoryTable.createdAt))
+    .limit(PAGE_SIZE)
+    .offset(offset);
+
+  return res.json({
+    data: rows.map(r => ({
+      id:         r.id,
+      userId:     r.userId,
+      email:      r.email,
+      role:       r.role,
+      success:    r.success,
+      failReason: r.failReason,
+      ip:         r.ip,
+      userAgent:  r.userAgent,
+      createdAt:  r.createdAt,
+    })),
+    total: total ?? 0,
+    page: PAGE,
+    pageSize: PAGE_SIZE,
+  });
+});
+
 export default router;

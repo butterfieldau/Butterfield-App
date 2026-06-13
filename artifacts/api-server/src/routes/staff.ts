@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable } from '@workspace/db';
+import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable, staffRosterTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte, sql, inArray } from 'drizzle-orm';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 
@@ -527,6 +527,42 @@ router.get('/members', async (req, res) => {
     email: usersTable.email,
   }).from(staffProfilesTable).leftJoin(usersTable, eq(staffProfilesTable.userId, usersTable.id));
   return res.json({ data: members });
+});
+
+// ── My Roster ─────────────────────────────────────────────────────────────────
+router.get('/roster/mine', async (req, res) => {
+  const { weekStart } = req.query as Record<string, string>;
+  const userId = req.user!.id;
+
+  let shifts;
+  if (weekStart && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+    const d = new Date(weekStart);
+    const weekEnd = new Date(d);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const endStr = weekEnd.toISOString().slice(0, 10);
+    shifts = await db
+      .select()
+      .from(staffRosterTable)
+      .where(and(
+        eq(staffRosterTable.userId, userId),
+        gte(staffRosterTable.date, weekStart),
+        lte(staffRosterTable.date, endStr),
+      ))
+      .orderBy(staffRosterTable.date, staffRosterTable.startTime);
+  } else {
+    const today = new Date().toISOString().slice(0, 10);
+    shifts = await db
+      .select()
+      .from(staffRosterTable)
+      .where(and(
+        eq(staffRosterTable.userId, userId),
+        gte(staffRosterTable.date, today),
+      ))
+      .orderBy(staffRosterTable.date, staffRosterTable.startTime)
+      .limit(30);
+  }
+
+  return res.json({ data: shifts });
 });
 
 export default router;

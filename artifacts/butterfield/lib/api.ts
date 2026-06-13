@@ -206,6 +206,10 @@ export const api = {
       update: (radiusMeters: number) =>
         request<{ data: GeoSettings }>('/staff/settings/geo', { method: 'PATCH', body: JSON.stringify({ radiusMeters }) }),
     },
+    rosterMine: (weekStart?: string) => {
+      const qs = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : '';
+      return request<{ data: RosterShift[] }>(`/staff/roster/mine${qs}`);
+    },
   },
   shopDisplay: {
     me: () => request<{ data: ShopDisplayMe }>('/shop-display/me'),
@@ -699,6 +703,27 @@ export const api = {
     allIssues:           () => request<{ data: StaffIssue[] }>('/director/issues'),
     resolveIssue:        (id: string, status: string) => request<{ data: StaffIssue }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     tasks:               () => request<{ data: StaffTask[] }>('/director/tasks'),
+    loginHistory: (params?: { success?: boolean; from?: string; email?: string; page?: number; pageSize?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.success !== undefined) qs.set('success', String(params.success));
+      if (params?.from)     qs.set('from', params.from);
+      if (params?.email)    qs.set('email', params.email);
+      if (params?.page)     qs.set('page', String(params.page));
+      if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+      const q = qs.toString();
+      return request<{ data: LoginHistoryEntry[]; total: number; page: number; pageSize: number }>(`/director/login-history${q ? `?${q}` : ''}`);
+    },
+    roster: (weekStart?: string) => {
+      const qs = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : '';
+      return request<{ data: RosterShift[] }>(`/director/roster${qs}`);
+    },
+    rosterStaff: () => request<{ data: { id: string; name: string | null; email: string | null; position: string | null }[] }>('/director/roster/staff'),
+    rosterCreate: (data: { userId: string; date: string; startTime: string; endTime: string; role?: string; notes?: string }) =>
+      request<{ data: RosterShift }>('/director/roster', { method: 'POST', body: JSON.stringify(data) }),
+    rosterUpdate: (id: string, data: { userId?: string; date?: string; startTime?: string; endTime?: string; role?: string; notes?: string; isConfirmed?: boolean }) =>
+      request<{ data: RosterShift }>(`/director/roster/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    rosterDelete: (id: string) =>
+      request<{ success: boolean }>(`/director/roster/${id}`, { method: 'DELETE' }),
     staffList:           () => request<{ data: { id: string; name: string; role: string }[] }>('/director/staff-list'),
     createTask:          (data: { title: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
       request<{ data: StaffTask }>('/director/tasks', { method: 'POST', body: JSON.stringify(data) }),
@@ -2918,6 +2943,22 @@ export interface StockItemInput {
   supplier?: string | null;
   notes?: string | null;
   isActive?: boolean;
+}
+
+export interface RosterShift {
+  id: string;
+  userId: string;
+  userName?: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  role: string;
+  notes?: string | null;
+  isConfirmed: boolean;
+  confirmedAt?: string | null;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ShopDisplayAnalytics {

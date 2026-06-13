@@ -40,7 +40,9 @@ function recordLoginHistory(opts: {
     failReason: opts.failReason ?? null,
     ip,
     userAgent: ua,
-  }).catch(() => {});
+  }).catch((err: any) => {
+    opts.req?.log?.warn?.({ err: err?.message }, 'recordLoginHistory failed');
+  });
   // Mirror every failed login attempt into audit_logs for cross-system security queries
   if (!opts.success) {
     recordAuditLog({

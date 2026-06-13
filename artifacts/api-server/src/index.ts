@@ -12,6 +12,8 @@ import { db, productCategoriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { ensureLinklySchemaReady, recoverOrPollTransaction } from "./lib/linklyCloud.js";
+import { ensureLoginHistorySchemaReady } from "./lib/ensureLoginHistorySchemaReady.js";
+import { ensureRosterSchemaReady } from "./lib/ensureRosterSchemaReady.js";
 
 // Catch any unhandled rejections so they never crash the process
 process.on('unhandledRejection', (reason: any) => {
@@ -134,6 +136,8 @@ app.listen(port, (err) => {
 // Background init — errors are fully contained; the server is already up above
 Promise.resolve()
   .then(() => ensureLoyaltySchemaReady())
+  .then(() => ensureLoginHistorySchemaReady())
+  .then(() => ensureRosterSchemaReady())
   .then(() => ensureShopDisplaySchemaReady())
   .then(() => ensureScheduledNotificationSchemaReady())
   .then(() => ensureRegisterSchemaReady())

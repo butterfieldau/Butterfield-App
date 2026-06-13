@@ -541,17 +541,20 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
 
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
                   <Text style={det.sectionTitle}>Contact</Text>
-                  {[
-                    { label: 'Email',        value: customer.email ?? '—' },
-                    { label: 'Verified',     value: (customer as any).isEmailVerified ? '✓ Verified' : '✗ Not verified' },
-                    { label: 'Phone',        value: customer.phone ?? '—' },
-                    { label: 'Account status', value: customer.status ?? 'active' },
-                  ].map((r, i, arr) => (
-                    <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                      <Text style={det.infoLabel}>{r.label}</Text>
-                      <Text style={[det.infoValue, r.label === 'Verified' && { color: (customer as any).isEmailVerified ? GREEN : RED }]}>{r.value}</Text>
-                    </View>
-                  ))}
+                  {(() => {
+                    const profileComplete = !!(customer.name && customer.phone && (customer as any).addresses?.length > 0);
+                    return [
+                      { label: 'Email',        value: customer.email ?? '—', highlight: null },
+                      { label: 'Profile',      value: profileComplete ? '✓ Verified' : '○ Incomplete profile', highlight: profileComplete ? GREEN : MUTED },
+                      { label: 'Phone',        value: customer.phone ?? '—', highlight: null },
+                      { label: 'Account status', value: customer.status ?? 'active', highlight: null },
+                    ].map((r, i, arr) => (
+                      <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
+                        <Text style={det.infoLabel}>{r.label}</Text>
+                        <Text style={[det.infoValue, r.highlight ? { color: r.highlight } : undefined]}>{r.value}</Text>
+                      </View>
+                    ));
+                  })()}
                 </View>
 
                 <View style={[det.section, { borderBottomColor: BORDER }]}>
