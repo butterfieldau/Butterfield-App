@@ -1725,6 +1725,7 @@ function CartContent() {
                   key={p.id}
                   product={p}
                   onPress={() => {
+                    qc.prefetchQuery({ queryKey: ['product-detail-route', p.id], queryFn: () => api.products.get(p.id), staleTime: 60_000 });
                     setSelectedProduct(p);
                     router.push({ pathname: '/product', params: { id: p.id } } as any);
                   }}

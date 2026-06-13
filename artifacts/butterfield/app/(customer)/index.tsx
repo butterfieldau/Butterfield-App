@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActivityIndicator,
   FlatList,
@@ -106,6 +106,7 @@ export default function CustomerHome() {
   } = useHomeScreenData();
 
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchLoyalty);
+  const qc = useQueryClient();
   const { data: categoriesData } = useQuery({
     queryKey: ['categories'],
     queryFn: () => api.products.categories(),
@@ -134,19 +135,21 @@ export default function CustomerHome() {
 
   const handleTilePress = useCallback((p: ApiProduct) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    qc.prefetchQuery({ queryKey: ['product-detail-route', p.id], queryFn: () => api.products.get(p.id), staleTime: 60_000 });
     setSelectedProduct(p);
     router.push({ pathname: '/product', params: { id: p.id } } as any);
-  }, []);
+  }, [qc]);
 
   const handleUsualPress = useCallback((u: typeof usualItems[number]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    qc.prefetchQuery({ queryKey: ['product-detail-route', u.product.id], queryFn: () => api.products.get(u.product.id), staleTime: 60_000 });
     setSelectedProduct(u.product);
     setPreselectedOptions({
       selectedOptions: u.selectedOptions ?? [],
       quantity: u.quantity ?? 1,
     });
     router.push({ pathname: '/product', params: { id: u.product.id } } as any);
-  }, [usualItems]);
+  }, [qc, usualItems]);
 
   const handleAddToCart = useCallback((p: ApiProduct) => {
     const raw = p as any;

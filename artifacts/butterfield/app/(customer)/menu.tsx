@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct, type ProductCategory } from '@/lib/api';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
@@ -179,6 +179,7 @@ export default function MenuScreen() {
   const numColumns  = isLandscape ? 4 : isTablet ? 3 : 2;
   const hPad        = isTablet ? (isLandscape ? 28 : 24) : 16;
   const tileGap     = isTablet ? 14 : 12;
+  const qc          = useQueryClient();
 
   useEffect(() => {
     if (params.category) { setActiveCategory(params.category); setSelectedDietaryTags([]); }
@@ -283,6 +284,7 @@ export default function MenuScreen() {
   };
   const handleTilePress = (p: ApiProduct) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    qc.prefetchQuery({ queryKey: ['product-detail-route', p.id], queryFn: () => api.products.get(p.id), staleTime: 60_000 });
     setSelectedProduct(p);
     router.push({ pathname: '/product', params: { id: p.id } } as any);
   };
