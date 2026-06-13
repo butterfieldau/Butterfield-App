@@ -411,15 +411,23 @@ router.post('/', async (req, res) => {
       if (user?.email) {
         const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
         const appDomain = process.env.REPLIT_DOMAINS?.split(',')[0] ?? process.env.REPLIT_DEV_DOMAIN ?? null;
+        const emailItems = orderItems.map((i: any) => {
+          const priceEntry = computed.itemizedCents.find(
+            (ic: any) => ic.productId === i.productId && (ic.variantId ?? null) === (i.variantId ?? null),
+          );
+          return {
+            name: i.name ?? 'Item',
+            quantity: i.quantity ?? 1,
+            isFreeReward: i.isFreeReward ?? false,
+            unitPriceCents: priceEntry?.unitCents,
+            lineCents: priceEntry?.lineCents,
+          };
+        });
         const html = buildOrderConfirmationEmail({
           customerName: user.name,
           orderNumber: order.orderNumber ?? '',
           shortOrderId: order.id.slice(-6).toUpperCase(),
-          items: orderItems.map((i: any) => ({
-            name: i.name ?? 'Item',
-            quantity: i.quantity ?? 1,
-            isFreeReward: i.isFreeReward ?? false,
-          })),
+          items: emailItems,
           totalCents: order.totalCents,
           loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
           orderType: order.type as 'pickup' | 'delivery',
@@ -427,10 +435,14 @@ router.post('/', async (req, res) => {
           storeName: selectedStore?.name ?? null,
           date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           trackingUrl: appDomain ? `https://${appDomain}` : null,
+          paymentMethodType: resolvedPaymentMethod,
         });
+        const emailSubject = resolvedPaymentMethod === 'pay_at_pickup'
+          ? `Order Received — Pay at Pickup · #${order.orderNumber || order.id.slice(-6).toUpperCase()}`
+          : `Order confirmed — #${order.orderNumber || order.id.slice(-6).toUpperCase()}`;
         await sendEmail({
           to: user.email,
-          subject: `Order confirmed — #${order.orderNumber || order.id.slice(-6).toUpperCase()}`,
+          subject: emailSubject,
           html,
         });
       }
@@ -502,15 +514,20 @@ router.patch(
               .where(eq(customerProfilesTable.userId, order.userId));
             const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
             const appDomain = process.env.REPLIT_DOMAINS?.split(',')[0] ?? process.env.REPLIT_DEV_DOMAIN ?? null;
+            const receiptEmailItems = orderItems.map((i: any) => ({
+              name: i.name ?? 'Item',
+              quantity: i.quantity ?? 1,
+              isFreeReward: i.isFreeReward ?? false,
+              unitPriceCents: typeof i.unitPriceCents === 'number' ? i.unitPriceCents : undefined,
+              lineCents: typeof i.lineCents === 'number'
+                ? i.lineCents
+                : (typeof i.unitPriceCents === 'number' ? i.unitPriceCents * (i.quantity ?? 1) : undefined),
+            }));
             const html = buildOrderReceiptEmail({
               customerName: user.name,
               orderNumber: order.orderNumber ?? '',
               shortOrderId: order.id.slice(-6).toUpperCase(),
-              items: orderItems.map((i: any) => ({
-                name: i.name ?? 'Item',
-                quantity: i.quantity ?? 1,
-                isFreeReward: i.isFreeReward ?? false,
-              })),
+              items: receiptEmailItems,
               totalCents: order.totalCents,
               loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
               loyaltyPointsBalance: profile?.loyaltyPoints ?? 0,

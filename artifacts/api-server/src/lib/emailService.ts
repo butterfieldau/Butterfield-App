@@ -359,7 +359,7 @@ export function buildOrderConfirmationEmail(opts: {
   customerName: string;
   orderNumber: string;
   shortOrderId: string;
-  items: Array<{ name: string; quantity: number; isFreeReward?: boolean }>;
+  items: Array<{ name: string; quantity: number; isFreeReward?: boolean; unitPriceCents?: number; lineCents?: number }>;
   totalCents: number;
   loyaltyPointsEarned: number;
   orderType: 'pickup' | 'delivery';
@@ -367,20 +367,30 @@ export function buildOrderConfirmationEmail(opts: {
   storeName?: string | null;
   date: string;
   trackingUrl?: string | null;
+  paymentMethodType?: string | null;
 }): string {
   const {
     customerName, orderNumber, shortOrderId, items, totalCents,
     loyaltyPointsEarned, orderType, scheduledFor, storeName, date, trackingUrl,
+    paymentMethodType,
   } = opts;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const hasPrices = items.some(i => (i.lineCents ?? 0) > 0 || (i.unitPriceCents ?? 0) > 0);
 
-  const itemRows = items.filter(i => (i.quantity ?? 0) > 0).map(item => `
+  const itemRows = items.filter(i => (i.quantity ?? 0) > 0).map(item => {
+    const rowPrice = hasPrices
+      ? `<td style="padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:14px;color:#6B7280;text-align:right;white-space:nowrap;">${item.isFreeReward ? '<span style="color:#16A34A;font-weight:600;">Free</span>' : item.lineCents ? fmt(item.lineCents) : ''}</td>`
+      : '';
+    return `
     <tr>
       <td style="padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:14px;color:#374151;">
-        ${item.quantity}&times; ${item.name}${item.isFreeReward ? ' <span style="color:#16A34A;font-size:12px;font-weight:600;">(Free)</span>' : ''}
+        ${item.quantity}&times; ${item.name}${item.isFreeReward && !hasPrices ? ' <span style="color:#16A34A;font-size:12px;font-weight:600;">(Free)</span>' : ''}
       </td>
-    </tr>`).join('');
+      ${rowPrice}
+    </tr>`;
+  }).join('');
 
+  const isPayAtPickup = paymentMethodType === 'pay_at_pickup';
   const pickupInfo = scheduledFor
     ? `Scheduled ${orderType === 'delivery' ? 'delivery' : 'pickup'} · ${new Date(scheduledFor).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
     : orderType === 'delivery' ? 'Delivery order' : `Pickup${storeName ? ` · ${storeName}` : ''}`;
@@ -462,11 +472,23 @@ export function buildOrderConfirmationEmail(opts: {
           </td>
         </tr>` : ''}
 
+        ${isPayAtPickup ? `
+        <!-- Pay at pickup notice -->
+        <tr>
+          <td style="padding:10px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFF7ED;border-radius:10px;border:1px solid #FED7AA;">
+              <tr>
+                <td style="padding:12px 16px;font-size:13px;color:#C2410C;font-weight:600;">💳 Pay at pickup — please have your payment ready when you collect your order.</td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : ''}
+
         <!-- Track CTA -->
         <tr>
           <td style="padding:20px 40px 0;text-align:center;">
             <a href="${trackingUrl || 'https://apps.apple.com/au/app/butterfield-cookies/id6748634016'}"
-               style="display:inline-block;background:#1493FF;color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">
+               style="display:inline-block;background:#D20001;color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">
               Track your order →
             </a>
             <p style="margin:10px 0 0;font-size:12px;color:#9CA3AF;">Open in the Butterfield Cookies app to follow your order live.</p>
@@ -494,7 +516,7 @@ export function buildOrderReceiptEmail(opts: {
   customerName: string;
   orderNumber: string;
   shortOrderId: string;
-  items: Array<{ name: string; quantity: number; isFreeReward?: boolean }>;
+  items: Array<{ name: string; quantity: number; isFreeReward?: boolean; unitPriceCents?: number; lineCents?: number }>;
   totalCents: number;
   loyaltyPointsEarned: number;
   loyaltyPointsBalance: number;
@@ -510,13 +532,20 @@ export function buildOrderReceiptEmail(opts: {
     storeName, date, orderUrl,
   } = opts;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const hasPrices = items.some(i => (i.lineCents ?? 0) > 0 || (i.unitPriceCents ?? 0) > 0);
 
-  const itemRows = items.filter(i => (i.quantity ?? 0) > 0).map(item => `
+  const itemRows = items.filter(i => (i.quantity ?? 0) > 0).map(item => {
+    const rowPrice = hasPrices
+      ? `<td style="padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:14px;color:#6B7280;text-align:right;white-space:nowrap;">${item.isFreeReward ? '<span style="color:#16A34A;font-weight:600;">Free</span>' : item.lineCents ? fmt(item.lineCents) : ''}</td>`
+      : '';
+    return `
     <tr>
       <td style="padding:9px 0;border-bottom:1px solid #F3F4F6;font-size:14px;color:#374151;">
-        ${item.quantity}&times; ${item.name}${item.isFreeReward ? ' <span style="color:#16A34A;font-size:12px;font-weight:600;">(Free)</span>' : ''}
+        ${item.quantity}&times; ${item.name}${item.isFreeReward && !hasPrices ? ' <span style="color:#16A34A;font-size:12px;font-weight:600;">(Free)</span>' : ''}
       </td>
-    </tr>`).join('');
+      ${rowPrice}
+    </tr>`;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html>
@@ -605,7 +634,7 @@ export function buildOrderReceiptEmail(opts: {
         <tr>
           <td style="padding:20px 40px 0;text-align:center;">
             <a href="${orderUrl || 'https://apps.apple.com/au/app/butterfield-cookies/id6748634016'}"
-               style="display:inline-block;background:#1493FF;color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">
+               style="display:inline-block;background:#D20001;color:#ffffff;font-size:14px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.3px;">
               View your order →
             </a>
             <p style="margin:10px 0 0;font-size:12px;color:#9CA3AF;">Open in the Butterfield Cookies app.</p>

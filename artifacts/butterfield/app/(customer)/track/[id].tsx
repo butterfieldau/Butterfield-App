@@ -1,9 +1,11 @@
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Animated, Pressable,
-  ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Animated, Pressable,
+  ScrollView, StyleSheet, Text, TextInput, View, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -50,6 +52,9 @@ const POLLING_STATUSES = new Set([
   'received', 'scheduled', 'accepted', 'being_prepared', 'ready_for_pickup', 'out_for_delivery',
 ]);
 
+// Statuses where the rating prompt should appear
+const RATABLE_STATUSES = new Set(['ready_for_pickup', 'completed']);
+
 const STATUS_COLOR: Record<string, string> = {
   received:         '#F59E0B',
   being_prepared:   '#8B5CF6',
@@ -62,10 +67,14 @@ const STATUS_COLOR: Record<string, string> = {
   accepted:         '#22C55E',
 };
 
+const RATING_KEY_PREFIX = '@butterfield_order_rated_';
+
+function getRatingKey(orderId: string) {
+  return `${RATING_KEY_PREFIX}${orderId}`;
+}
+
 function getStageIndex(status: string, stages: Stage[]): number {
   const idx = stages.findIndex(s => s.key === status);
-  // 'completed' is not in quick/scheduled-pickup stage lists (they end at ready_for_pickup).
-  // Treat it as past the final stage so all steps render as checked.
   if (idx === -1 && status === 'completed') return stages.length;
   return idx;
 }
@@ -134,10 +143,145 @@ function AnimatedStep({ stage, index, currentIndex, totalStages, colors }: {
   );
 }
 
+function StarRating({ value, onChange, colors }: { value: number; onChange: (v: number) => void; colors: any }) {
+  return (
+    <View style={rStyles.starsRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Pressable
+          key={star}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onChange(star);
+          }}
+          style={rStyles.starBtn}
+        >
+          <Feather
+            name="star"
+            size={32}
+            color={star <= value ? '#F59E0B' : colors.border}
+          />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function FeedbackToast({ visible }: { visible: boolean }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.delay(1800),
+        Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={[tStyles.toast, { opacity }]}>
+      <Feather name="check-circle" size={16} color="#fff" />
+      <Text style={tStyles.toastText}>Thanks for your feedback!</Text>
+    </Animated.View>
+  );
+}
+
+function RatingCard({
+  orderId,
+  colors,
+  onDismiss,
+  onSubmitted,
+}: {
+  orderId: string;
+  colors: any;
+  onDismiss: () => void;
+  onSubmitted: () => void;
+}) {
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (stars === 0) {
+      Alert.alert('Select a rating', 'Please tap a star to rate your order.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.misc.feedback({
+        message: comment.trim() || `${stars}-star rating`,
+        rating: stars,
+        orderId,
+        category: 'order_rating',
+      });
+      await AsyncStorage.setItem(getRatingKey(orderId), 'submitted');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSubmitted();
+      onDismiss();
+    } catch {
+      Alert.alert('Could not submit', 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    await AsyncStorage.setItem(getRatingKey(orderId), 'skipped');
+    onDismiss();
+  };
+
+  return (
+    <View style={[rStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={rStyles.headerRow}>
+        <Text style={[rStyles.title, { color: colors.foreground }]}>How was your order?</Text>
+        <Pressable onPress={handleSkip} hitSlop={12}>
+          <Feather name="x" size={18} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+      <Text style={[rStyles.subtitle, { color: colors.mutedForeground }]}>
+        Tap a star to rate your experience
+      </Text>
+      <StarRating value={stars} onChange={setStars} colors={colors} />
+      {stars > 0 && (
+        <TextInput
+          style={[rStyles.commentInput, { borderColor: colors.border, color: colors.foreground, backgroundColor: colors.background }]}
+          placeholder="Tell us more (optional)"
+          placeholderTextColor={colors.mutedForeground}
+          value={comment}
+          onChangeText={(t) => setComment(t.slice(0, 200))}
+          multiline
+          maxLength={200}
+        />
+      )}
+      <View style={rStyles.actions}>
+        <Pressable onPress={handleSkip} style={[rStyles.skipBtn, { borderColor: colors.border }]}>
+          <Text style={[rStyles.skipText, { color: colors.mutedForeground }]}>Skip</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleSubmit}
+          disabled={submitting || stars === 0}
+          style={[rStyles.submitBtn, { opacity: stars === 0 ? 0.45 : 1 }]}
+        >
+          {submitting
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <Text style={rStyles.submitText}>Submit</Text>
+          }
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function TrackOrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+
+  const [ratingDismissed, setRatingDismissed] = useState(true);
+  const [toastVisible, setToastVisible] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -151,6 +295,15 @@ export default function TrackOrderScreen() {
 
   const order = data?.data;
   const status = order?.status ?? 'received';
+
+  useEffect(() => {
+    if (!id || !order) return;
+    if (!RATABLE_STATUSES.has(status)) return;
+    AsyncStorage.getItem(getRatingKey(id)).then((val) => {
+      if (!val) setRatingDismissed(false);
+    });
+  }, [id, status, order]);
+
   const orderType = order?.type ?? 'pickup';
   const scheduledFor = order?.scheduledFor ?? null;
 
@@ -159,26 +312,25 @@ export default function TrackOrderScreen() {
 
   const isCancelled = status === 'cancelled' || status === 'refunded';
 
-  // Active = currently moving through the known pipeline steps
   const isActive = stageIndex >= 0 && !isCancelled;
 
   const total = ((order?.totalCents ?? 0) / 100).toFixed(2);
   const statusColor = STATUS_COLOR[status] ?? colors.primary;
 
-  // Label for the status badge: use stage label when in a known stage, else prettify the raw status
   const currentStage = stages[stageIndex];
   const statusBadgeLabel = isCancelled
     ? (status === 'refunded' ? 'Refunded' : 'Cancelled')
     : (currentStage?.label ?? status.replace(/_/g, ' '));
 
-  // Live message shown in the coloured banner
   const liveMessage = currentStage?.desc ?? null;
 
-  // Show the pipeline for all non-cancelled orders
   const showPipeline = !isCancelled;
+
+  const showRatingCard = !ratingDismissed && !!order && RATABLE_STATUSES.has(status) && !isCancelled;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <FeedbackToast visible={toastVisible} />
       <View style={[styles.header, { paddingTop: insets.top + 16, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
@@ -230,6 +382,16 @@ export default function TrackOrderScreen() {
               <Feather name="zap" size={14} color={statusColor} />
               <Text style={[styles.liveMessage, { color: statusColor }]}>{liveMessage}</Text>
             </View>
+          )}
+
+          {/* Rating prompt */}
+          {showRatingCard && (
+            <RatingCard
+              orderId={order.id}
+              colors={colors}
+              onDismiss={() => setRatingDismissed(true)}
+              onSubmitted={() => setToastVisible(true)}
+            />
           )}
 
           {/* Pipeline */}
@@ -343,4 +505,49 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 14, fontWeight: '400' },
   itemPrice: { fontSize: 13, fontWeight: '500' },
   refreshHint: { textAlign: 'center', fontSize: 12, fontWeight: '400' },
+});
+
+const rStyles = StyleSheet.create({
+  card: { borderRadius: 16, padding: 18, borderWidth: 1 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  title: { fontSize: 16, fontWeight: '700' },
+  subtitle: { fontSize: 13, fontWeight: '400', marginBottom: 14 },
+  starsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 14 },
+  starBtn: { padding: 4 },
+  commentInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 72,
+    textAlignVertical: 'top',
+    marginBottom: 14,
+  },
+  actions: { flexDirection: 'row', gap: 10 },
+  skipBtn: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  skipText: { fontSize: 14, fontWeight: '600' },
+  submitBtn: { flex: 2, backgroundColor: '#D20001', borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  submitText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+});
+
+const tStyles = StyleSheet.create({
+  toast: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#1C1C1E',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  toastText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 });
