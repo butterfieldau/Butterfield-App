@@ -5,7 +5,7 @@ import { useStores } from '@/hooks/useStores';
 import { useFavouriteCategory } from '@/hooks/useFavouriteCategory';
 import { getTierConfig } from '@/constants/tierConfig';
 import { buildGreeting } from '@/lib/greetings';
-import { api, type ApiOrder, type ApiProduct, type AuthProfile, type LiveContext, type LoyaltyProfile, type LoyaltyReward } from '@/lib/api';
+import { api, type ApiOrder, type ApiProduct, type AuthProfile, type HomeBannerSlide, type LiveContext, type LoyaltyProfile, type LoyaltyReward } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 
 export type UsualItem = {
@@ -86,7 +86,7 @@ export function useHomeScreenData() {
   const loyaltyPoints = loyaltyProfile?.loyaltyPoints ?? 0;
   const loyaltyTier   = loyaltyProfile?.loyaltyTier ?? 'blue';
   const stampCount    = loyaltyProfile?.coffeeStampCount ?? loyaltyProfile?.stampCount ?? 0;
-  const banner        = bannerData?.data ?? null;
+  const banner: HomeBannerSlide[] = bannerData?.data ?? [];
   const preferredStoreId = meProfile?.preferredStoreId ?? loyaltyProfile?.preferredStoreId ?? null;
   const featuredStore = (preferredStoreId
     ? stores.find((store) => store.id === preferredStoreId)

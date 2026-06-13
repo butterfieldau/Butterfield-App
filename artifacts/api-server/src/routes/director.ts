@@ -3110,13 +3110,29 @@ router.get('/wholesale/:accountId/cards', async (req, res) => {
 // ── Home Banner (director-configurable hero card) ─────────────────────────────
 router.get('/home-banner', async (_req, res) => {
   const rows = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'home_banner'));
-  if (!rows.length) return res.json({ data: null });
-  try { return res.json({ data: JSON.parse(rows[0].value) }); }
-  catch { return res.json({ data: null }); }
+  if (!rows.length) return res.json({ data: { slides: [] } });
+  try {
+    const stored = JSON.parse(rows[0].value);
+    // Already carousel format
+    if (Array.isArray(stored?.slides)) return res.json({ data: stored });
+    // Migrate legacy single banner to carousel format
+    const slide = { ...stored, id: randomUUID(), sortOrder: 0 };
+    return res.json({ data: { slides: [slide] } });
+  } catch {
+    return res.json({ data: { slides: [] } });
+  }
 });
 
 router.patch('/home-banner', async (req, res) => {
-  const config = req.body;
+  const config = req.body; // { slides: HomeBannerSlide[] }
+  // Ensure every slide has an id and sortOrder
+  if (Array.isArray(config?.slides)) {
+    config.slides = config.slides.map((s: any, i: number) => ({
+      ...s,
+      id: s.id || randomUUID(),
+      sortOrder: s.sortOrder ?? i,
+    }));
+  }
   const value = JSON.stringify(config);
   const existing = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'home_banner'));
   if (existing.length) {

@@ -28,7 +28,7 @@ import { HeroBanner } from '@/components/home/HeroBanner';
 import { FeatureShortcutTile } from '@/components/home/FeatureShortcutTile';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
-import { api, type ApiProduct } from '@/lib/api';
+import { api, type ApiProduct, type HomeBannerSlide } from '@/lib/api';
 import ProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
@@ -168,12 +168,12 @@ export default function CustomerHome() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [addItemToCart]);
 
-  const handleBannerPress = useCallback(() => {
-    if (banner?.buttonUrl) {
-      Linking.openURL(banner.buttonUrl).catch(() => {});
+  const handleBannerPress = useCallback((slide: HomeBannerSlide) => {
+    if (slide.buttonUrl) {
+      Linking.openURL(slide.buttonUrl).catch(() => {});
       return;
     }
-    const routeKey = banner?.buttonRoute?.trim();
+    const routeKey = slide.buttonRoute?.trim();
     if (!routeKey) { router.push('/(customer)/menu'); return; }
     if (!user && ['loyalty', 'rewards', 'cart'].includes(routeKey)) {
       setLoginTarget(routeKey === 'cart' ? '/(customer)/cart' : '/(customer)/loyalty');
@@ -189,14 +189,14 @@ export default function CustomerHome() {
       return;
     }
     router.push((BANNER_ROUTES[routeKey] ?? `/(customer)/${routeKey}`) as any);
-  }, [banner]);
+  }, [user]);
 
   // ── Reusable section renderers ─────────────────────────────────────────────
-  const heroBannerSection = (
+  const heroBannerSection = banner.length > 0 ? (
     <View style={{ paddingHorizontal: hPad, paddingTop: isTablet ? 18 : 12, marginTop: -2 }}>
-      <HeroBanner banner={banner} onPress={handleBannerPress} />
+      <HeroBanner slides={banner} onSlidePress={handleBannerPress} />
     </View>
-  );
+  ) : null;
 
   const storePickupSection = (
     <View style={{ paddingHorizontal: hPad, marginTop: isTablet ? 20 : 14 }}>

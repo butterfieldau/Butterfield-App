@@ -17,6 +17,8 @@ import {
   type DirectorReward,
   type DirectorUserSummary,
   type HomeBannerConfig,
+  type HomeBannerSlide,
+  type HomeBannerCarouselConfig,
   type StoreHour,
   type StoreSummary,
 } from '@/lib/api';
@@ -72,36 +74,390 @@ export function SettingsStandaloneScreen({ title, children }: { title: string; c
   );
 }
 
+// ─── Slide Editor (used inside BannerTab for each slide) ──────────────────────
+
+const MAX_SLIDES = 5;
+
+function makeBlankSlide(sortOrder: number): HomeBannerSlide {
+  return {
+    id: `new-${Date.now()}-${sortOrder}`,
+    sortOrder,
+    isActive: true,
+    imageUrl: '',
+    headline: '',
+    headlineAccent: '',
+    subtext: '',
+    buttonText: 'Order Now',
+    buttonRoute: 'menu',
+    buttonUrl: '',
+  };
+}
+
+function SlideEditor({
+  slide,
+  index,
+  total,
+  allProducts,
+  loadingProducts,
+  uploading,
+  onChange,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
+  onUploadImage,
+}: {
+  slide: HomeBannerSlide;
+  index: number;
+  total: number;
+  allProducts: DirectorProduct[];
+  loadingProducts: boolean;
+  uploading: boolean;
+  onChange: (updated: HomeBannerSlide) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove: () => void;
+  onUploadImage: (slideId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(index === 0);
+  const [showProductPicker, setShowProductPicker] = useState(slide.buttonRoute?.startsWith('product:') ?? false);
+  const [productSearch, setProductSearch] = useState('');
+
+  const set = (patch: Partial<HomeBannerSlide>) => onChange({ ...slide, ...patch });
+
+  return (
+    <View style={[styles.card, { padding: 0, overflow: 'hidden' }]}>
+      {/* Header row */}
+      <Pressable
+        onPress={() => { setExpanded(v => !v); Haptics.selectionAsync(); }}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}
+      >
+        <View style={{
+          width: 28, height: 28, borderRadius: 14,
+          backgroundColor: slide.isActive ? GREEN : BORDER,
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{index + 1}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: '600', fontSize: 14, color: TEXT }} numberOfLines={1}>
+            {slide.headline?.trim() || `Slide ${index + 1}`}
+          </Text>
+          <Text style={{ fontSize: 12, color: slide.isActive ? GREEN : MUTED, fontWeight: '500', marginTop: 1 }}>
+            {slide.isActive ? 'Active' : 'Hidden'}
+            {slide.imageUrl ? ' · Has image' : ' · Gradient background'}
+          </Text>
+        </View>
+        {/* Active toggle */}
+        <Switch
+          value={slide.isActive}
+          onValueChange={v => { set({ isActive: v }); Haptics.selectionAsync(); }}
+          trackColor={{ false: '#D1D5DB', true: GREEN }}
+          thumbColor="#fff"
+          ios_backgroundColor="#D1D5DB"
+        />
+        {/* Move up/down */}
+        <Pressable
+          onPress={e => { e.stopPropagation(); onMoveUp(); }}
+          disabled={index === 0}
+          hitSlop={8}
+          style={{ opacity: index === 0 ? 0.3 : 1 }}
+        >
+          <Feather name="chevron-up" size={18} color={MUTED} />
+        </Pressable>
+        <Pressable
+          onPress={e => { e.stopPropagation(); onMoveDown(); }}
+          disabled={index === total - 1}
+          hitSlop={8}
+          style={{ opacity: index === total - 1 ? 0.3 : 1 }}
+        >
+          <Feather name="chevron-down" size={18} color={MUTED} />
+        </Pressable>
+        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={BLUE} />
+      </Pressable>
+
+      {expanded && (
+        <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 14 }}>
+          <View style={[styles.divider, { backgroundColor: BORDER, marginBottom: 0 }]} />
+
+          {/* Background image */}
+          <View style={{ gap: 8 }}>
+            <Text style={styles.section}>BACKGROUND IMAGE</Text>
+            <Pressable
+              onPress={() => onUploadImage(slide.id)}
+              disabled={uploading}
+              style={[styles.addBtn, { backgroundColor: uploading ? MUTED : BLUE, opacity: uploading ? 0.8 : 1 }]}
+            >
+              {uploading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Feather name="upload" size={15} color="#fff" />
+                    <Text style={styles.addBtnText}>Upload from Camera Roll</Text>
+                  </View>
+                )}
+            </Pressable>
+            {slide.imageUrl ? (
+              <Image
+                source={{ uri: slide.imageUrl }}
+                style={{ width: '100%', height: 100, borderRadius: 10, resizeMode: 'cover' }}
+              />
+            ) : null}
+            <TextInput
+              style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+              value={slide.imageUrl ?? ''}
+              onChangeText={v => set({ imageUrl: v })}
+              placeholder="https://... (leave blank for gradient)"
+              placeholderTextColor={MUTED}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            <Text style={[styles.hint, { color: MUTED }]}>Best at 1600×900px (16:9 landscape).</Text>
+          </View>
+
+          {/* Headline text */}
+          <View style={{ gap: 8 }}>
+            <Text style={styles.section}>HEADLINE TEXT</Text>
+            <TextInput
+              style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+              value={slide.headline ?? ''}
+              onChangeText={v => set({ headline: v })}
+              placeholder="e.g. Summer Cookie Drop"
+              placeholderTextColor={MUTED}
+            />
+            <TextInput
+              style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+              value={slide.headlineAccent ?? ''}
+              onChangeText={v => set({ headlineAccent: v })}
+              placeholder="Accent word (optional)"
+              placeholderTextColor={MUTED}
+            />
+            <TextInput
+              style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+              value={slide.subtext ?? ''}
+              onChangeText={v => set({ subtext: v })}
+              placeholder="Subtext (optional)"
+              placeholderTextColor={MUTED}
+            />
+          </View>
+
+          {/* CTA button */}
+          <View style={{ gap: 8 }}>
+            <Text style={styles.section}>BUTTON</Text>
+            <TextInput
+              style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+              value={slide.buttonText ?? ''}
+              onChangeText={v => set({ buttonText: v })}
+              placeholder="Order Now"
+              placeholderTextColor={MUTED}
+            />
+            <TextInput
+              style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+              value={slide.buttonUrl ?? ''}
+              onChangeText={v => set({ buttonUrl: v })}
+              placeholder="External URL (optional)"
+              placeholderTextColor={MUTED}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            <View style={{ gap: 6 }}>
+              <Text style={[styles.fieldLabel, { marginBottom: 2 }]}>In-app destination</Text>
+              {BANNER_ROUTE_OPTIONS.map(opt => (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => { set({ buttonRoute: opt.value }); setShowProductPicker(false); Haptics.selectionAsync(); }}
+                  style={[
+                    styles.row,
+                    { padding: 9, borderRadius: 9, borderWidth: 1,
+                      borderColor: slide.buttonRoute === opt.value ? BLUE : BORDER,
+                      backgroundColor: slide.buttonRoute === opt.value ? '#EBF8FF' : '#FAFAFA' }
+                  ]}
+                >
+                  <View style={{
+                    width: 16, height: 16, borderRadius: 8, borderWidth: 2,
+                    borderColor: slide.buttonRoute === opt.value ? BLUE : BORDER,
+                    backgroundColor: slide.buttonRoute === opt.value ? BLUE : 'transparent',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {slide.buttonRoute === opt.value && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />}
+                  </View>
+                  <Text style={{ fontWeight: '500', fontSize: 13, color: slide.buttonRoute === opt.value ? BLUE : TEXT }}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+              {/* Specific product */}
+              {(() => {
+                const isProd = slide.buttonRoute?.startsWith('product:') || slide.buttonRoute === '__product__';
+                const linkedPid = slide.buttonRoute?.startsWith('product:') ? slide.buttonRoute.replace('product:', '').trim() : '';
+                const linkedProduct = linkedPid ? allProducts.find(p => p.id === linkedPid) : null;
+                return (
+                  <Pressable
+                    onPress={() => {
+                      setShowProductPicker(true);
+                      if (!slide.buttonRoute?.startsWith('product:')) set({ buttonRoute: '__product__' });
+                      Haptics.selectionAsync();
+                    }}
+                    style={[
+                      styles.row,
+                      { padding: 9, borderRadius: 9, borderWidth: 1,
+                        borderColor: isProd ? BLUE : BORDER,
+                        backgroundColor: isProd ? '#EBF8FF' : '#FAFAFA',
+                        flexDirection: 'row', alignItems: 'flex-start', gap: 10 }
+                    ]}
+                  >
+                    <View style={{
+                      width: 16, height: 16, borderRadius: 8, borderWidth: 2, marginTop: 2,
+                      borderColor: isProd ? BLUE : BORDER,
+                      backgroundColor: isProd ? BLUE : 'transparent',
+                      alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      {isProd && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '500', fontSize: 13, color: isProd ? BLUE : TEXT }}>Specific product</Text>
+                      {linkedProduct ? (
+                        <Text style={{ fontSize: 11, color: GREEN, marginTop: 1, fontWeight: '500' }}>✓ {linkedProduct.name}</Text>
+                      ) : isProd ? (
+                        <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>Select below</Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              })()}
+              {showProductPicker && (
+                <View style={{ gap: 6, paddingTop: 2 }}>
+                  <TextInput
+                    style={[styles.input, { borderColor: BLUE + '60', color: TEXT }]}
+                    value={productSearch}
+                    onChangeText={setProductSearch}
+                    placeholder="Search products…"
+                    placeholderTextColor={MUTED}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {loadingProducts && <ActivityIndicator color={BLUE} size="small" style={{ marginVertical: 4 }} />}
+                  {allProducts
+                    .filter(p => !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase()))
+                    .slice(0, 8)
+                    .map(p => {
+                      const isSel = slide.buttonRoute === `product:${p.id}`;
+                      return (
+                        <Pressable
+                          key={p.id}
+                          onPress={() => { set({ buttonRoute: `product:${p.id}` }); setProductSearch(''); Haptics.selectionAsync(); }}
+                          style={[
+                            styles.row,
+                            { padding: 9, borderRadius: 8, borderWidth: 1,
+                              borderColor: isSel ? GREEN : BORDER,
+                              backgroundColor: isSel ? '#F0FFF4' : '#FAFAFA' }
+                          ]}
+                        >
+                          <Feather name={isSel ? 'check-circle' : 'circle'} size={14} color={isSel ? GREEN : BORDER} />
+                          <Text style={{ fontWeight: '500', fontSize: 13, color: isSel ? GREEN : TEXT, flex: 1 }} numberOfLines={1}>
+                            {p.name}
+                          </Text>
+                          {p.priceCents ? <Text style={{ fontSize: 11, color: MUTED }}>${(p.priceCents / 100).toFixed(2)}</Text> : null}
+                        </Pressable>
+                      );
+                    })}
+                </View>
+              )}
+              <TextInput
+                style={[styles.input, { borderColor: BORDER, color: TEXT, marginTop: 4 }]}
+                value={slide.buttonRoute === '__product__' ? '' : (slide.buttonRoute ?? '')}
+                onChangeText={v => { set({ buttonRoute: v }); setShowProductPicker(v.startsWith('product:')); }}
+                placeholder="Custom: category:cookies, product:abc123"
+                placeholderTextColor={MUTED}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
+          {/* Remove */}
+          {total > 1 && (
+            <Pressable
+              onPress={() => { Alert.alert('Remove slide', 'Remove this slide from the banner?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Remove', style: 'destructive', onPress: onRemove },
+              ]); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end', padding: 8 }}
+            >
+              <Feather name="trash-2" size={14} color={RED} />
+              <Text style={{ color: RED, fontSize: 13, fontWeight: '600' }}>Remove slide</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
 export function BannerTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['director-home-banner'],
     queryFn:  () => api.director.homeBanner(),
   });
-  const banner: HomeBannerConfig | null | undefined = data?.data;
 
-  const [isActive,        setIsActive]        = useState(false);
-  const [imageUrl,        setImageUrl]        = useState('');
-  const [headline,        setHeadline]        = useState('');
-  const [headlineAccent,  setHeadlineAccent]  = useState('');
-  const [subtext,         setSubtext]         = useState('');
-  const [buttonText,      setButtonText]      = useState('Order Now');
-  const [buttonRoute,     setButtonRoute]     = useState('menu');
-  const [buttonUrl,       setButtonUrl]       = useState('');
-  const [saving,          setSaving]          = useState(false);
-  const [uploading,       setUploading]       = useState(false);
-  const [showProductPicker, setShowProductPicker] = useState(false);
-  const [productSearch,   setProductSearch]   = useState('');
+  const [slides, setSlides] = useState<HomeBannerSlide[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [uploadingSlideId, setUploadingSlideId] = useState<string | null>(null);
+  const [showProductPickerForSlide, setShowProductPickerForSlide] = useState<string | null>(null);
 
-  const { data: productsData } = useQuery({
+  const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['director-all-products-banner'],
     queryFn:  () => api.director.products(),
-    enabled:  showProductPicker,
+    enabled:  showProductPickerForSlide !== null,
     staleTime: 60_000,
   });
   const allProducts: DirectorProduct[] = productsData?.data ?? [];
 
-  const pickAndUploadBannerImage = async () => {
+  // Populate from server on load
+  useEffect(() => {
+    const serverSlides = data?.data?.slides;
+    if (serverSlides) {
+      setSlides(serverSlides.length > 0
+        ? serverSlides
+        : [makeBlankSlide(0)]);
+    }
+  }, [data]);
+
+  const updateSlide = (id: string, updated: HomeBannerSlide) => {
+    setSlides(prev => prev.map(s => s.id === id ? updated : s));
+  };
+
+  const moveSlide = (idx: number, dir: 'up' | 'down') => {
+    setSlides(prev => {
+      const next = [...prev];
+      const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= next.length) return prev;
+      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+      return next.map((s, i) => ({ ...s, sortOrder: i }));
+    });
+    Haptics.selectionAsync();
+  };
+
+  const removeSlide = (id: string) => {
+    setSlides(prev => {
+      const filtered = prev.filter(s => s.id !== id);
+      return filtered.length > 0
+        ? filtered.map((s, i) => ({ ...s, sortOrder: i }))
+        : [makeBlankSlide(0)];
+    });
+  };
+
+  const addSlide = () => {
+    setSlides(prev => {
+      if (prev.length >= MAX_SLIDES) return prev;
+      return [...prev, makeBlankSlide(prev.length)];
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const uploadImageForSlide = async (slideId: string) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permission needed', 'Allow photo access to upload a banner image.');
@@ -110,7 +466,7 @@ export function BannerTab() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [2, 1],
+      aspect: [16, 9],
       quality: 0.85,
     });
     if (result.canceled || !result.assets[0]) return;
@@ -118,51 +474,40 @@ export function BannerTab() {
     const ext  = asset.uri.split('.').pop()?.toLowerCase() ?? 'jpg';
     const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
     const name = `banner-${Date.now()}.${ext}`;
-    setUploading(true);
+    setUploadingSlideId(slideId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const { servingUrl } = await api.storage.uploadFile(asset.uri, name, mime);
-      setImageUrl(servingUrl);
+      setSlides(prev => prev.map(s => s.id === slideId ? { ...s, imageUrl: servingUrl } : s));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       Alert.alert('Upload failed', getErrorMessage(e, 'Could not upload image.'));
-    } finally { setUploading(false); }
+    } finally { setUploadingSlideId(null); }
   };
-
-  useEffect(() => {
-    if (banner) {
-      setIsActive(banner.isActive ?? false);
-      setImageUrl(banner.imageUrl ?? '');
-      setHeadline(banner.headline ?? '');
-      setHeadlineAccent(banner.headlineAccent ?? '');
-      setSubtext(banner.subtext ?? '');
-      setButtonText(banner.buttonText ?? 'Order Now');
-      const route = banner.buttonRoute ?? 'menu';
-      setButtonRoute(route);
-      setButtonUrl(banner.buttonUrl ?? '');
-      if (route.startsWith('product:')) {
-        setShowProductPicker(true);
-      }
-    }
-  }, [data]);
 
   const save = async () => {
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      await api.director.updateHomeBanner({
-        isActive,
-        imageUrl:       imageUrl.trim() || undefined,
-        headline:       headline.trim() || undefined,
-        headlineAccent: headlineAccent.trim() || undefined,
-        subtext:        subtext.trim() || undefined,
-        buttonText:     buttonText.trim() || 'Order Now',
-        buttonRoute:    (buttonRoute === '__product__' || !buttonRoute) ? 'menu' : buttonRoute,
-        buttonUrl:      buttonUrl.trim() || undefined,
-      });
+      const payload: HomeBannerCarouselConfig = {
+        slides: slides.map((s, i) => ({
+          ...s,
+          sortOrder: i,
+          imageUrl:       s.imageUrl?.trim()       || undefined,
+          headline:       s.headline?.trim()        || undefined,
+          headlineAccent: s.headlineAccent?.trim()  || undefined,
+          subtext:        s.subtext?.trim()         || undefined,
+          buttonText:     s.buttonText?.trim()      || 'Order Now',
+          buttonRoute:    (s.buttonRoute === '__product__' || !s.buttonRoute) ? 'menu' : s.buttonRoute,
+          buttonUrl:      s.buttonUrl?.trim()       || undefined,
+        })),
+      };
+      await api.director.updateHomeBanner(payload);
       await qc.invalidateQueries({ queryKey: ['director-home-banner'] });
+      await qc.invalidateQueries({ queryKey: ['home-banner'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Saved', 'Home banner updated. Customers will see the change immediately.');
+      const activeCount = slides.filter(s => s.isActive).length;
+      Alert.alert('Saved', `Banner updated. ${activeCount} slide${activeCount !== 1 ? 's' : ''} now showing to customers.`);
     } catch (e) {
       Alert.alert('Error', getErrorMessage(e));
     } finally { setSaving(false); }
@@ -171,307 +516,47 @@ export function BannerTab() {
   if (isLoading) return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
 
       <View style={[styles.card, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-          <Feather name="image" size={14} color={BLUE} />
+          <Feather name="layers" size={14} color={BLUE} />
           <Text style={{ flex: 1, fontSize: 13, fontWeight: '400', color: BLUE, lineHeight: 18 }}>
-            The hero banner appears at the top of the customer home screen. Leave image URL blank for a solid gradient fallback.
+            The hero banner is a full-screen carousel at the top of the customer home screen. Add up to {MAX_SLIDES} slides — each with its own image, headline, and call-to-action. Slides auto-advance every 5 seconds.
           </Text>
         </View>
       </View>
 
-      <Text style={styles.section}>VISIBILITY</Text>
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Show banner</Text>
-            <Text style={styles.rowSub}>Toggle to show or hide the hero banner on the home screen</Text>
-          </View>
-          <Switch value={isActive} onValueChange={v => { setIsActive(v); Haptics.selectionAsync(); }}
-            trackColor={{ false: '#D1D5DB', true: GREEN }} thumbColor="#fff" ios_backgroundColor="#D1D5DB" />
-        </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2 }}>
+        <Text style={[styles.section, { marginBottom: 0 }]}>SLIDES ({slides.length}/{MAX_SLIDES})</Text>
+        {slides.length < MAX_SLIDES && (
+          <Pressable
+            onPress={addSlide}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 5,
+              backgroundColor: BLUE, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 }}
+          >
+            <Feather name="plus" size={14} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Add Slide</Text>
+          </Pressable>
+        )}
       </View>
 
-      <Text style={styles.section}>BACKGROUND IMAGE</Text>
-      <View style={styles.card}>
-        {/* Upload button */}
-        <Pressable
-          onPress={pickAndUploadBannerImage}
-          disabled={uploading}
-          style={[styles.addBtn, { backgroundColor: uploading ? MUTED : BLUE, opacity: uploading ? 0.8 : 1 }]}
-        >
-          {uploading
-            ? <ActivityIndicator color="#fff" size="small" />
-            : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Feather name="upload" size={16} color="#fff" />
-                <Text style={styles.addBtnText}>Upload Photo from Camera Roll</Text>
-              </View>
-            )}
-        </Pressable>
-        {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={{ width: '100%', height: 120, borderRadius: 10, resizeMode: 'cover' }}
-          />
-        ) : null}
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Or paste an image URL</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={imageUrl}
-            onChangeText={setImageUrl}
-            placeholder="https://... (leave blank for gradient)"
-            placeholderTextColor={MUTED}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
-        </View>
-        <Text style={[styles.hint, { color: MUTED }]}>Best at 1200×600px landscape.</Text>
-      </View>
-
-      <Text style={styles.section}>HEADLINE TEXT</Text>
-      <View style={styles.card}>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Main headline</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={headline}
-            onChangeText={setHeadline}
-            placeholder="e.g. 20% Off On All Espresso!"
-            placeholderTextColor={MUTED}
-          />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Accent word / phrase (shown in orange)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={headlineAccent}
-            onChangeText={setHeadlineAccent}
-            placeholder="e.g. 20%  (must appear in headline above)"
-            placeholderTextColor={MUTED}
-          />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Subtext (below headline)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={subtext}
-            onChangeText={setSubtext}
-            placeholder="e.g. Today Only! Limited Offer."
-            placeholderTextColor={MUTED}
-          />
-        </View>
-      </View>
-
-      <Text style={styles.section}>CALL TO ACTION BUTTON</Text>
-      <View style={styles.card}>
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Button label</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={buttonText}
-            onChangeText={setButtonText}
-            placeholder="Order Now"
-            placeholderTextColor={MUTED}
-          />
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 6 }}>
-          <Text style={styles.fieldLabel}>Button URL (optional — overrides destination below)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={buttonUrl}
-            onChangeText={setButtonUrl}
-            placeholder="https://... (leave blank to use in-app destination)"
-            placeholderTextColor={MUTED}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
-          <Text style={{ fontWeight: '400', fontSize: 11, color: MUTED }}>
-            Set a URL to open any webpage or deep link. When set, the in-app destination below is ignored.
-          </Text>
-        </View>
-        <View style={[styles.divider, { backgroundColor: BORDER }]} />
-        <View style={{ gap: 8 }}>
-          <Text style={styles.fieldLabel}>Button destination (in-app)</Text>
-          {BANNER_ROUTE_OPTIONS.map(opt => (
-            <Pressable
-              key={opt.value}
-              onPress={() => { setButtonRoute(opt.value); setShowProductPicker(false); setProductSearch(''); Haptics.selectionAsync(); }}
-              style={[
-                styles.row,
-                { padding: 10, borderRadius: 10, borderWidth: 1,
-                  borderColor: buttonRoute === opt.value ? BLUE : BORDER,
-                  backgroundColor: buttonRoute === opt.value ? '#EBF8FF' : '#FAFAFA' }
-              ]}
-            >
-              <View style={{
-                width: 18, height: 18, borderRadius: 9, borderWidth: 2,
-                borderColor: buttonRoute === opt.value ? BLUE : BORDER,
-                backgroundColor: buttonRoute === opt.value ? BLUE : 'transparent',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                {buttonRoute === opt.value && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' }} />}
-              </View>
-              <Text style={{ fontWeight: '500', fontSize: 14, color: buttonRoute === opt.value ? BLUE : TEXT }}>
-                {opt.label}
-              </Text>
-            </Pressable>
-          ))}
-
-          {/* Specific product option */}
-          {(() => {
-            const isProductSelected = buttonRoute.startsWith('product:') || buttonRoute === '__product__';
-            const linkedPid = buttonRoute.startsWith('product:') ? buttonRoute.replace('product:', '').trim() : '';
-            const linkedProduct = linkedPid ? allProducts.find(p => p.id === linkedPid) : null;
-            return (
-              <Pressable
-                onPress={() => {
-                  setShowProductPicker(true);
-                  if (!buttonRoute.startsWith('product:')) setButtonRoute('__product__');
-                  Haptics.selectionAsync();
-                }}
-                style={[
-                  styles.row,
-                  { padding: 10, borderRadius: 10, borderWidth: 1,
-                    borderColor: isProductSelected ? BLUE : BORDER,
-                    backgroundColor: isProductSelected ? '#EBF8FF' : '#FAFAFA',
-                    flexDirection: 'row', alignItems: 'flex-start', gap: 10 }
-                ]}
-              >
-                <View style={{
-                  width: 18, height: 18, borderRadius: 9, borderWidth: 2, marginTop: 2,
-                  borderColor: isProductSelected ? BLUE : BORDER,
-                  backgroundColor: isProductSelected ? BLUE : 'transparent',
-                  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                  {isProductSelected && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' }} />}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: '500', fontSize: 14, color: isProductSelected ? BLUE : TEXT }}>
-                    Specific product
-                  </Text>
-                  {linkedProduct ? (
-                    <Text style={{ fontSize: 12, color: GREEN, marginTop: 2, fontWeight: '500' }}>
-                      ✓ {linkedProduct.name}
-                    </Text>
-                  ) : linkedPid ? (
-                    <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>ID: {linkedPid}</Text>
-                  ) : isProductSelected ? (
-                    <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Select a product below</Text>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          })()}
-
-          {/* Product search picker — shown when Specific product is selected */}
-          {showProductPicker && (
-            <View style={{ gap: 6, paddingTop: 4 }}>
-              <TextInput
-                style={[styles.input, { borderColor: BLUE + '60', color: TEXT }]}
-                value={productSearch}
-                onChangeText={setProductSearch}
-                placeholder="Search products…"
-                placeholderTextColor={MUTED}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              {showProductPicker && allProducts.length === 0 && (
-                <ActivityIndicator color={BLUE} size="small" style={{ marginVertical: 6 }} />
-              )}
-              {allProducts
-                .filter(p =>
-                  !productSearch.trim() ||
-                  p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                  (p.category ?? '').toLowerCase().includes(productSearch.toLowerCase()),
-                )
-                .slice(0, 10)
-                .map(p => {
-                  const isSelected = buttonRoute === `product:${p.id}`;
-                  return (
-                    <Pressable
-                      key={p.id}
-                      onPress={() => {
-                        setButtonRoute(`product:${p.id}`);
-                        setProductSearch('');
-                        Haptics.selectionAsync();
-                      }}
-                      style={[
-                        styles.row,
-                        { padding: 10, borderRadius: 8, borderWidth: 1,
-                          borderColor: isSelected ? GREEN : BORDER,
-                          backgroundColor: isSelected ? '#F0FFF4' : '#FAFAFA' }
-                      ]}
-                    >
-                      <Feather name={isSelected ? 'check-circle' : 'circle'} size={15} color={isSelected ? GREEN : BORDER} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '500', fontSize: 13, color: isSelected ? GREEN : TEXT }} numberOfLines={1}>
-                          {p.name}
-                        </Text>
-                        {p.category ? (
-                          <Text style={{ fontSize: 11, color: MUTED, textTransform: 'capitalize', marginTop: 1 }}>
-                            {p.category}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {p.priceCents ? (
-                        <Text style={{ fontSize: 12, color: MUTED }}>
-                          ${(p.priceCents / 100).toFixed(2)}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-            </View>
-          )}
-
-          <Text style={{ fontWeight: '500', fontSize: 12, color: MUTED, marginTop: 2 }}>
-            Advanced: type a custom destination below, e.g. `category:cookies`.
-          </Text>
-          <TextInput
-            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
-            value={buttonRoute === '__product__' ? '' : buttonRoute}
-            onChangeText={v => { setButtonRoute(v); setShowProductPicker(v.startsWith('product:')); }}
-            placeholder="menu, category:cookies, product:abc123"
-            placeholderTextColor={MUTED}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-      </View>
-
-      {/* Live preview summary */}
-      {(headline || subtext) && (
-        <>
-          <Text style={styles.section}>PREVIEW</Text>
-          <View style={[styles.card, { backgroundColor: '#1A0F07', borderColor: '#333', gap: 6 }]}>
-            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '400' }}>Banner preview (not to scale)</Text>
-            {headline ? (
-              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>
-                {headlineAccent && headline.includes(headlineAccent) ? (
-                  <>
-                    <Text style={{ color: '#F59E0B' }}>{headlineAccent}</Text>
-                    {headline.split(headlineAccent)[1]}
-                  </>
-                ) : headline}
-              </Text>
-            ) : null}
-            {subtext ? <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '400' }}>{subtext}</Text> : null}
-            <View style={{ backgroundColor: '#D0312D', alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 4 }}>
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>{buttonText || 'Order Now'}</Text>
-            </View>
-          </View>
-        </>
-      )}
+      {slides.map((slide, index) => (
+        <SlideEditor
+          key={slide.id}
+          slide={slide}
+          index={index}
+          total={slides.length}
+          allProducts={allProducts}
+          loadingProducts={loadingProducts}
+          uploading={uploadingSlideId === slide.id}
+          onChange={updated => updateSlide(slide.id, updated)}
+          onMoveUp={() => moveSlide(index, 'up')}
+          onMoveDown={() => moveSlide(index, 'down')}
+          onRemove={() => removeSlide(slide.id)}
+          onUploadImage={id => { setShowProductPickerForSlide(id); uploadImageForSlide(id); }}
+        />
+      ))}
 
       <Pressable onPress={save} disabled={saving}
         style={[styles.saveBtn, { backgroundColor: BLUE, opacity: saving ? 0.8 : 1 }]}>

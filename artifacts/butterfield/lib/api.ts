@@ -338,7 +338,7 @@ export const api = {
     announcements: () => request<{ data: DirectorAnnouncement[] }>('/announcements'),
     feedback: (data: { category?: string; message: string; rating?: number; orderId?: string }) =>
       request<{ data: DirectorFeedback }>('/feedback', { method: 'POST', body: JSON.stringify(data) }),
-    homeBanner: () => request<{ data: HomeBannerConfig | null }>('/home-banner'),
+    homeBanner: () => request<{ data: HomeBannerSlide[] }>('/home-banner'),
     context: () => request<{ data: LiveContext }>('/context'),
   },
   notifications: {
@@ -537,8 +537,8 @@ export const api = {
     },
     printerBytes:        (job?: PrinterJob) =>
       request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
-    homeBanner:          () => request<{ data: HomeBannerConfig | null }>('/director/home-banner'),
-    updateHomeBanner:    (config: HomeBannerConfig) => request<{ data: HomeBannerConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
+    homeBanner:          () => request<{ data: HomeBannerCarouselConfig }>('/director/home-banner'),
+    updateHomeBanner:    (config: HomeBannerCarouselConfig) => request<{ data: HomeBannerCarouselConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
     wholesale:           () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
     wholesaleInvoicesList: () => request<{ data: any[] }>('/director/wholesale/invoices'),
     markWholesaleInvoicePaid: (orderId: string, paymentReference?: string) =>
@@ -1325,6 +1325,23 @@ export interface HomeBannerConfig {
   buttonText?: string;
   buttonRoute?: string;
   buttonUrl?: string;
+}
+
+export interface HomeBannerSlide {
+  id: string;
+  sortOrder: number;
+  isActive: boolean;
+  imageUrl?: string;
+  headline?: string;
+  headlineAccent?: string;
+  subtext?: string;
+  buttonText?: string;
+  buttonRoute?: string;
+  buttonUrl?: string;
+}
+
+export interface HomeBannerCarouselConfig {
+  slides: HomeBannerSlide[];
 }
 
 export interface LoyaltyProfile {

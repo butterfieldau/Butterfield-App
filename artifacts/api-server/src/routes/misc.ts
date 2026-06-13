@@ -260,16 +260,24 @@ router.post('/feedback', requireAuth, async (req, res) => {
   return res.status(201).json({ data: fb });
 });
 
-// ── Public home banner ────────────────────────────────────────────────────────
+// ── Public home banner (carousel) ────────────────────────────────────────────
 router.get('/home-banner', async (_req, res) => {
   const rows = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, 'home_banner'));
-  if (!rows.length) return res.json({ data: null });
+  if (!rows.length) return res.json({ data: [] });
   try {
-    const config = JSON.parse(rows[0].value);
-    if (!config.isActive) return res.json({ data: null });
-    return res.json({ data: config });
+    const stored = JSON.parse(rows[0].value);
+    // New carousel format: { slides: [...] }
+    if (Array.isArray(stored?.slides)) {
+      const activeSlides = stored.slides
+        .filter((s: any) => s.isActive)
+        .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      return res.json({ data: activeSlides });
+    }
+    // Legacy single-banner migration
+    if (!stored?.isActive) return res.json({ data: [] });
+    return res.json({ data: [{ ...stored, id: 'legacy', sortOrder: 0 }] });
   } catch {
-    return res.json({ data: null });
+    return res.json({ data: [] });
   }
 });
 
