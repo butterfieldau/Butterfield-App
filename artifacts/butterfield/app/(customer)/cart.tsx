@@ -859,7 +859,7 @@ function PaymentStepWithStripe({
           <View style={{ flex: 1 }}>
             <Text style={psStyles.freeCoffeeTitle}>Free coffee reward</Text>
             <Text style={psStyles.freeCoffeeSub}>
-              {freeCoffeeRewards} available · cheapest coffee made free
+              {freeCoffeeRewards} available · Thanks for being part of Butterfield.
             </Text>
           </View>
           <Switch
