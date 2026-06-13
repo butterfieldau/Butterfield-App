@@ -1106,7 +1106,7 @@ export default function CartScreen() {
 function CartContent() {
   const insets   = useSafeAreaInsets();
   const { user } = useAuth();
-  const { items, totalPriceCents, totalItems, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
+  const { items, totalPriceCents, totalItems, addItemToCart, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
   const qc = useQueryClient();
   const routeParams = useLocalSearchParams<{ success?: string }>();
 
@@ -1702,7 +1702,7 @@ function CartContent() {
         );
       })}
 
-      {/* ── You might also like ─────────────────────────────────────────── */}
+      {/* ── You may also like ─────────────────────────────────────────── */}
       {(() => {
         const allProducts = allProductsData?.data ?? [];
         if (allProducts.length === 0 || items.length === 0) return null;
@@ -1713,7 +1713,7 @@ function CartContent() {
         return (
           <View style={{ marginBottom: 16 }}>
             <Text style={[styles.sectionLabel, { fontWeight: '700', marginBottom: 10, fontSize: 13, color: '#1C1C1E', letterSpacing: 0 }]}>
-              You might also like
+              You may also like
             </Text>
             <ScrollView
               horizontal
@@ -1727,6 +1727,18 @@ function CartContent() {
                   onPress={() => {
                     setSelectedProduct(p);
                     router.push({ pathname: '/product', params: { id: p.id } } as any);
+                  }}
+                  onAddToCart={() => {
+                    addItemToCart({
+                      productId:       p.id,
+                      productName:     p.name,
+                      basePriceCents:  (p as any).priceCents ?? p.prices?.[0]?.unit_amount ?? 0,
+                      selectedOptions: [],
+                      quantity:        1,
+                      imageUrl:        p.images?.[0],
+                      category:        (p as any).category ?? p.metadata?.category,
+                      isCoffee:        false,
+                    });
                   }}
                 />
               ))}

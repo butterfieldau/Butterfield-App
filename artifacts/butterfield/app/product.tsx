@@ -26,7 +26,7 @@ import SuggestionTile from '@/components/SuggestionTile';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedOptions';
-import { getSuggestedProducts } from '@/lib/productPairings';
+import { getSuggestedProducts, getProductCategory, getProductPriceCents } from '@/lib/productPairings';
 import { api, getProductShareUrl, type ApiOrderItemOption, type ApiProduct, type DirectorOption, type DirectorOptionGroup } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 
@@ -642,7 +642,7 @@ export default function ProductDetailScreen() {
               </View>
             ) : null}
 
-            {/* ── Goes well with ──────────────────────────────────────────── */}
+            {/* ── You may also like ────────────────────────────────────────── */}
             {(() => {
               const allProducts = allProductsData?.data ?? [];
               if (allProducts.length === 0 || !product) return null;
@@ -651,7 +651,7 @@ export default function ProductDetailScreen() {
               return (
                 <View style={{ marginTop: 24, marginBottom: 4 }}>
                   <Text style={[s.sectionTitle, { fontWeight: '700', marginBottom: 12 }]}>
-                    Goes well with
+                    You may also like
                   </Text>
                   <FlatList
                     horizontal
@@ -665,6 +665,18 @@ export default function ProductDetailScreen() {
                         onPress={() => {
                           setSelectedProduct(p);
                           router.push({ pathname: '/product', params: { id: p.id } } as any);
+                        }}
+                        onAddToCart={() => {
+                          addItemToCart({
+                            productId:       p.id,
+                            productName:     p.name,
+                            basePriceCents:  getProductPriceCents(p),
+                            selectedOptions: [],
+                            quantity:        1,
+                            imageUrl:        p.images?.[0],
+                            category:        getProductCategory(p),
+                            isCoffee:        false,
+                          });
                         }}
                       />
                     )}

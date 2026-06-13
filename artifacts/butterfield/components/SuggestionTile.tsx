@@ -8,11 +8,12 @@ import type { ApiProduct } from '@/lib/api';
 import { getProductCategory, getProductPriceCents } from '@/lib/productPairings';
 
 interface SuggestionTileProps {
-  product: ApiProduct;
-  onPress: () => void;
+  product:      ApiProduct;
+  onPress:      () => void;
+  onAddToCart?: () => void;
 }
 
-export default function SuggestionTile({ product, onPress }: SuggestionTileProps) {
+export default function SuggestionTile({ product, onPress, onAddToCart }: SuggestionTileProps) {
   const category = getProductCategory(product);
   const palette  = getPalette(category);
   const cents    = getProductPriceCents(product);
@@ -44,9 +45,21 @@ export default function SuggestionTile({ product, onPress }: SuggestionTileProps
           <Text style={s.price}>${(cents / 100).toFixed(2)}</Text>
         )}
       </View>
-      <View style={s.plusBtn}>
+      <Pressable
+        style={s.plusBtn}
+        hitSlop={8}
+        onPress={(e) => {
+          e.stopPropagation();
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          if (onAddToCart) {
+            onAddToCart();
+          } else {
+            onPress();
+          }
+        }}
+      >
         <Feather name="plus" size={14} color="#fff" />
-      </View>
+      </Pressable>
     </Pressable>
   );
 }
@@ -102,7 +115,7 @@ const s = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#D0312D',
+    backgroundColor: '#1493FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
