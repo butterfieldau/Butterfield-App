@@ -210,6 +210,8 @@ export const api = {
       const qs = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : '';
       return request<{ data: RosterShift[] }>(`/staff/roster/mine${qs}`);
     },
+    rosterConfirm: (id: string) =>
+      request<{ data: RosterShift }>(`/staff/roster/${id}/confirm`, { method: 'PATCH' }),
   },
   shopDisplay: {
     me: () => request<{ data: ShopDisplayMe }>('/shop-display/me'),

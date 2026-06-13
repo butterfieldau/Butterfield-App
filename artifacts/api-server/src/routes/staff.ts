@@ -530,6 +530,27 @@ router.get('/members', async (req, res) => {
 });
 
 // ── My Roster ─────────────────────────────────────────────────────────────────
+router.patch('/roster/:id/confirm', async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user!.id;
+
+  const [existing] = await db
+    .select()
+    .from(staffRosterTable)
+    .where(and(eq(staffRosterTable.id, id), eq(staffRosterTable.userId, userId)));
+
+  if (!existing) return res.status(404).json({ error: 'Shift not found or does not belong to you.' });
+  if (existing.isConfirmed) return res.json({ data: existing });
+
+  const [updated] = await db
+    .update(staffRosterTable)
+    .set({ isConfirmed: true, confirmedAt: new Date(), updatedAt: new Date() })
+    .where(eq(staffRosterTable.id, id))
+    .returning();
+
+  return res.json({ data: updated });
+});
+
 router.get('/roster/mine', async (req, res) => {
   const { weekStart } = req.query as Record<string, string>;
   const userId = req.user!.id;

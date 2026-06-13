@@ -86,6 +86,7 @@ export default function DirectorRosterScreen() {
   const [weekStart, setWeekStart] = useState(() => toYMD(toMonday(new Date())));
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingConfirmed, setEditingConfirmed] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
   const { data, isLoading, refetch } = useQuery({
@@ -138,6 +139,11 @@ export default function DirectorRosterScreen() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['director-roster'] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); },
     onError: (e: any) => Alert.alert('Error', e?.message ?? 'Failed to delete shift'),
   });
+  const confirmMut = useMutation({
+    mutationFn: (id: string) => api.director.rosterUpdate(id, { isConfirmed: true }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['director-roster'] }); closeModal(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+    onError: (e: any) => Alert.alert('Error', e?.message ?? 'Failed to confirm shift'),
+  });
 
   function openCreate(dateYmd: string) {
     setEditingId(null);
@@ -148,6 +154,7 @@ export default function DirectorRosterScreen() {
 
   function openEdit(shift: RosterShift) {
     setEditingId(shift.id);
+    setEditingConfirmed(shift.isConfirmed);
     setForm({
       userId: shift.userId,
       date: shift.date,
@@ -163,6 +170,7 @@ export default function DirectorRosterScreen() {
   function closeModal() {
     setModalVisible(false);
     setEditingId(null);
+    setEditingConfirmed(false);
     setForm(EMPTY_FORM);
   }
 
@@ -191,7 +199,7 @@ export default function DirectorRosterScreen() {
     );
   }
 
-  const isBusy = createMut.isPending || updateMut.isPending;
+  const isBusy = createMut.isPending || updateMut.isPending || confirmMut.isPending;
 
   const weekLabel = (() => {
     const end = addDays(new Date(weekStart + 'T12:00:00'), 6);
@@ -422,8 +430,20 @@ export default function DirectorRosterScreen() {
               <Pressable onPress={closeModal} style={m.cancelBtn} disabled={isBusy}>
                 <Text style={m.cancelText}>Cancel</Text>
               </Pressable>
+              {editingId && !editingConfirmed && (
+                <Pressable
+                  onPress={() => confirmMut.mutate(editingId)}
+                  style={[m.confirmBtn, isBusy && { opacity: 0.7 }]}
+                  disabled={isBusy}
+                >
+                  {confirmMut.isPending
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Feather name="check-circle" size={15} color="#fff" />}
+                  <Text style={m.confirmBtnText}>Confirm</Text>
+                </Pressable>
+              )}
               <Pressable onPress={handleSave} style={[m.saveBtn, isBusy && { opacity: 0.7 }]} disabled={isBusy}>
-                {isBusy
+                {isBusy && !confirmMut.isPending
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <Feather name="check" size={16} color="#fff" />}
                 <Text style={m.saveText}>{editingId ? 'Save Changes' : 'Add Shift'}</Text>
@@ -508,6 +528,8 @@ const m = StyleSheet.create({
   },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: '#F0F4FF', alignItems: 'center' },
   cancelText: { fontSize: 15, fontWeight: '600', color: NAVY },
+  confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: GREEN },
+  confirmBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   saveBtn:   { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, backgroundColor: NAVY },
   saveText:  { fontSize: 15, fontWeight: '700', color: '#fff' },
 });

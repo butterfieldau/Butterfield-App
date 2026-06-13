@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import React, { useState, useMemo } from 'react';
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type RosterShift } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -70,12 +71,13 @@ function calcHours(start: string, end: string): number {
   return ((eh! * 60 + em!) - (sh! * 60 + sm!)) / 60;
 }
 
-function ShiftCard({ shift }: { shift: RosterShift }) {
+function ShiftCard({ shift, onConfirm, confirming }: { shift: RosterShift; onConfirm?: () => void; confirming?: boolean }) {
   const roleColor = ROLE_COLORS[shift.role] ?? MUTED;
   const hrs = calcHours(shift.startTime, shift.endTime);
   const today = toYMD(new Date());
   const isToday = shift.date === today;
   const isPast  = shift.date < today;
+  const canConfirm = !isPast && !shift.isConfirmed;
 
   return (
     <View style={[sc.card, isPast && { opacity: 0.6 }]}>
@@ -93,7 +95,7 @@ function ShiftCard({ shift }: { shift: RosterShift }) {
           {fmtTime12(shift.startTime)} – {fmtTime12(shift.endTime)}
           <Text style={sc.hrsText}> · {hrs.toFixed(1)}h</Text>
         </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
           <View style={[sc.roleChip, { backgroundColor: roleColor + '20' }]}>
             <Text style={[sc.roleChipText, { color: roleColor }]}>{shift.role}</Text>
           </View>
@@ -103,20 +105,34 @@ function ShiftCard({ shift }: { shift: RosterShift }) {
               <Text style={sc.confirmedText}>Confirmed</Text>
             </View>
           )}
-          {!shift.isConfirmed && (
+          {!shift.isConfirmed && !isPast && (
             <Text style={sc.pendingText}>Pending confirmation</Text>
           )}
         </View>
         {shift.notes ? (
           <Text style={sc.notesText} numberOfLines={2}>{shift.notes}</Text>
         ) : null}
+        {canConfirm && onConfirm && (
+          <Pressable
+            style={[sc.confirmBtn, confirming && { opacity: 0.6 }]}
+            onPress={onConfirm}
+            disabled={confirming}
+          >
+            {confirming
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Feather name="check" size={13} color="#fff" />}
+            <Text style={sc.confirmBtnText}>{confirming ? 'Confirming…' : 'Confirm shift'}</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
 }
 
 export default function DirectorStaffRosterScreen() {
+  const qc = useQueryClient();
   const [weekStart, setWeekStart] = useState(() => toYMD(toMonday(new Date())));
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['staff-roster-mine', weekStart],
@@ -124,6 +140,17 @@ export default function DirectorStaffRosterScreen() {
     staleTime: 30_000,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
+
+  const confirmMut = useMutation({
+    mutationFn: (id: string) => api.staff.rosterConfirm(id),
+    onMutate: (id) => setConfirmingId(id),
+    onSettled: () => setConfirmingId(null),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['staff-roster-mine'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (e: any) => Alert.alert('Error', e?.message ?? 'Could not confirm shift'),
+  });
 
   const shifts = data?.data ?? [];
 
@@ -219,7 +246,14 @@ export default function DirectorStaffRosterScreen() {
             </View>
           </View>
 
-          {shifts.map(shift => <ShiftCard key={shift.id} shift={shift} />)}
+          {shifts.map(shift => (
+            <ShiftCard
+              key={shift.id}
+              shift={shift}
+              onConfirm={() => confirmMut.mutate(shift.id)}
+              confirming={confirmingId === shift.id}
+            />
+          ))}
         </ScrollView>
       )}
     </DirectorStandaloneScreen>
@@ -243,6 +277,12 @@ const sc = StyleSheet.create({
   notesText: { fontSize: 12, color: MUTED, fontStyle: 'italic', marginTop: 4 },
   todayBadge: { backgroundColor: BLUE, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 },
   todayBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+  confirmBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: 10, backgroundColor: GREEN, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14,
+    alignSelf: 'flex-start',
+  },
+  confirmBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 });
 
 const s = StyleSheet.create({
