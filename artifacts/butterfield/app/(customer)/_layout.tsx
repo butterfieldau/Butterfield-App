@@ -119,8 +119,9 @@ function ClassicCustomerTabs() {
           listeners={{ tabPress: (e) => { if (!user) { e.preventDefault(); setLoginTarget('/(customer)/profile'); } } }}
           options={{ title: 'Account' }}
         />
-        <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
-        <Tabs.Screen name="stores"     options={{ href: null, title: 'Our Stores'  }} />
+        <Tabs.Screen name="track/[id]"       options={{ href: null, title: 'Track Order'       }} />
+        <Tabs.Screen name="stores"           options={{ href: null, title: 'Our Stores'       }} />
+        <Tabs.Screen name="payment-methods"  options={{ href: null, title: 'Payment Methods'  }} />
       </Tabs>
       <LoginRequiredModal
         visible={!!loginTarget}
