@@ -193,7 +193,7 @@ export default function CustomerHome() {
 
   // ── Reusable section renderers ─────────────────────────────────────────────
   const heroBannerSection = banner.length > 0 ? (
-    <View style={{ paddingHorizontal: hPad, paddingTop: isTablet ? 18 : 12, marginTop: -2 }}>
+    <View style={{ paddingHorizontal: hPad, paddingTop: isTablet ? 18 : 12, marginBottom: 4 }}>
       <HeroBanner slides={banner} onSlidePress={handleBannerPress} />
     </View>
   ) : null;

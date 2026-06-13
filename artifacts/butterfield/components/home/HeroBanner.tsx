@@ -251,7 +251,10 @@ const s = StyleSheet.create({
   },
   // ── Glass overlay ───────────────────────────────────────────────────────────
   glassAnchor: {
-    margin: 14,
+    marginHorizontal: 14,
+    marginBottom: 14,
+    marginTop: 14,
+    paddingTop: 28,
   },
   glassPill: {
     borderRadius: 18,
@@ -270,7 +273,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 14,
   },
   glassLabel: {
@@ -311,17 +314,20 @@ const s = StyleSheet.create({
   // ── Dot indicators ──────────────────────────────────────────────────────────
   dotsRow: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 98,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 5,
-    paddingBottom: 10,
   },
   dot: {
     height: 7,
     borderRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
 });
