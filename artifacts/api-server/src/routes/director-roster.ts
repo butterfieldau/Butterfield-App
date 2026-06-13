@@ -4,6 +4,24 @@ import { db, staffRosterTable, usersTable, staffProfilesTable } from '@workspace
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
+import { notifyUser } from '../lib/notificationService.js';
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function formatShiftDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y!, m! - 1, d!);
+  return `${DAYS[dt.getDay()]}, ${dt.getDate()} ${MONTHS[dt.getMonth()]}`;
+}
+
+function formatTime12h(time: string): string {
+  const [hStr, mStr] = time.split(':');
+  const h = parseInt(hStr!, 10);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr} ${suffix}`;
+}
 
 const router = Router();
 // Directors and masters pass through unconditionally; managers require timesheets permission.
@@ -87,6 +105,14 @@ router.post('/roster', async (req, res) => {
   }).returning();
 
   const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
+
+  notifyUser(
+    userId,
+    'roster_assigned',
+    'New Shift Rostered',
+    `You've been rostered on ${formatShiftDate(shift.date)}, from ${formatTime12h(shift.startTime)} to ${formatTime12h(shift.endTime)}`,
+  ).catch(() => {});
+
   return res.status(201).json({ data: { ...shift, userName: user?.name ?? null } });
 });
 
@@ -112,6 +138,14 @@ router.patch('/roster/:id', async (req, res) => {
 
   const uid = userId ?? shift.userId;
   const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, uid));
+
+  notifyUser(
+    uid,
+    'roster_updated',
+    'Shift Updated',
+    `You've been rostered on ${formatShiftDate(shift.date)}, from ${formatTime12h(shift.startTime)} to ${formatTime12h(shift.endTime)}`,
+  ).catch(() => {});
+
   return res.json({ data: { ...shift, userName: user?.name ?? null } });
 });
 
