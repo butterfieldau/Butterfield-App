@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { InAppNotificationBanner, type InAppNotificationPayload } from "@/components/InAppNotificationBanner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { clearAppBadge } from "@/lib/pushNotifications";
@@ -247,6 +248,8 @@ function JsSplashOverlay({ onDone }: { onDone: () => void }) {
 
 export default function RootLayout() {
   const [splashDone, setSplashDone] = useState(false);
+  const [inAppNotif, setInAppNotif] = useState<InAppNotificationPayload | null>(null);
+  const inAppNavTarget = useRef<string | null>(null);
 
   useEffect(() => {
     // Hide the native Expo splash immediately — the JS overlay takes over
@@ -263,8 +266,22 @@ export default function RootLayout() {
       }
     });
 
-    const receivedSub = Notifications.addNotificationReceivedListener(() => {
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
       clearAppBadge().catch(() => {});
+
+      const content = notification.request.content;
+      const title = content.title ?? 'Butterfield Cookies';
+      const body  = content.body  ?? '';
+      const data  = (content.data ?? {}) as Record<string, unknown>;
+
+      // Derive a navigation target from the data payload
+      const orderId = typeof data.orderId === 'string' ? data.orderId : null;
+      const screen  = typeof data.screen  === 'string' ? data.screen  : null;
+      inAppNavTarget.current = orderId
+        ? `/(customer)/track/${orderId}`
+        : screen ?? null;
+
+      setInAppNotif({ title, body, data });
     });
 
     return () => {
@@ -296,6 +313,23 @@ export default function RootLayout() {
           </AuthProvider>
         </PersistQueryClientProvider>
       </ErrorBoundary>
+
+      {/* In-app foreground notification banner */}
+      {inAppNotif && (
+        <InAppNotificationBanner
+          notification={inAppNotif}
+          onDismiss={() => setInAppNotif(null)}
+          onPress={
+            inAppNavTarget.current
+              ? () => {
+                  const target = inAppNavTarget.current;
+                  inAppNavTarget.current = null;
+                  if (target) router.push(target as any);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {/* JS splash sits above everything until its fade completes */}
       {!splashDone && (

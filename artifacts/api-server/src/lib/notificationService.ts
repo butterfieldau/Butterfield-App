@@ -6,7 +6,8 @@ import { logger } from './logger.js';
 
 const expo = new Expo({ useFcmV1: true } as any);
 const NOTIFICATION_SOUND = 'butterfield-push-tone.mp3';
-const NOTIFICATION_CHANNEL_ID = 'butterfield-staff';
+const DEFAULT_CHANNEL_ID = 'default';
+const STAFF_CHANNEL_ID = 'butterfield-staff';
 
 export interface SendNotificationOptions {
   /** Target a single user by ID */
@@ -26,6 +27,12 @@ export interface SendNotificationOptions {
   sentBy?: string;
   /** Optional custom label stored in the notification log */
   logTargetLabel?: string | null;
+  /**
+   * Android notification channel ID.
+   * Defaults to 'default' (customer/general channel).
+   * Use 'butterfield-staff' for staff/internal-team notifications.
+   */
+  channelId?: string;
 }
 
 /**
@@ -80,13 +87,14 @@ export async function sendNotification(opts: SendNotificationOptions): Promise<v
     if (tokens.length === 0) {
       logger.info({ type: opts.type, target: opts.userId ?? targetRole }, 'Push notification: no tokens found');
     } else {
+      const channelId = opts.channelId ?? DEFAULT_CHANNEL_ID;
       const messages: ExpoPushMessage[] = tokens.map((to) => ({
         to,
         title: opts.title,
         body: opts.body,
         data: opts.data ?? {},
         sound: NOTIFICATION_SOUND,
-        channelId: NOTIFICATION_CHANNEL_ID,
+        channelId,
       }));
 
       const chunks = expo.chunkPushNotifications(messages);

@@ -28,6 +28,7 @@ function sendNotificationToInternalTeam(
     title,
     body,
     data,
+    channelId: 'butterfield-staff',
   });
 }
 
