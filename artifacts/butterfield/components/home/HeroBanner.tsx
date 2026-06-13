@@ -245,7 +245,7 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   slide: {
-    aspectRatio: 16 / 9,
+    aspectRatio: 4 / 5,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
