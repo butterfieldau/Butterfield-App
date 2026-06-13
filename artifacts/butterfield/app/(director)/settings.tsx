@@ -610,7 +610,6 @@ export function BannerTab() {
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['director-all-products-banner'],
     queryFn:  () => api.director.products(),
-    enabled:  showProductPickerForSlide !== null,
     staleTime: 60_000,
   });
   const allProducts: DirectorProduct[] = productsData?.data ?? [];
@@ -666,7 +665,7 @@ export function BannerTab() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
-      aspect: [16, 9],
+      aspect: [4, 5],
       quality: 0.85,
     });
     if (result.canceled || !result.assets[0]) return;
@@ -716,7 +715,8 @@ export function BannerTab() {
   if (isLoading) return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
       <View style={[styles.card, { backgroundColor: '#EBF8FF', borderColor: BLUE + '40' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
@@ -763,6 +763,7 @@ export function BannerTab() {
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>Save Banner</Text>}
       </Pressable>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
