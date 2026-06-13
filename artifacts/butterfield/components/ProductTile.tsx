@@ -6,7 +6,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   withSequence,
   interpolateColor,
@@ -30,8 +29,8 @@ interface Props {
   onAddToCart?: () => void;
 }
 
-const CHERRY       = '#D0312D';
-const CHERRY_FLASH = '#FF5A5A';
+const ADD_BLUE       = '#1493FF';
+const ADD_BLUE_FLASH = '#5BB8FF';
 
 export default function ProductTile({ product, onPress, onAddToCart }: Props) {
   const raw       = product as any;
@@ -53,15 +52,15 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
 
   const addBtnAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: addScale.value }],
-    backgroundColor: interpolateColor(flashProg.value, [0, 1], [CHERRY, CHERRY_FLASH]),
+    backgroundColor: interpolateColor(flashProg.value, [0, 1], [ADD_BLUE, ADD_BLUE_FLASH]),
   }));
 
   const handleAddPress = () => {
     if (isSoldOut) return;
-    // Single crisp pop — timing up (no oscillation), then well-damped spring back
+    // Out then in, pure timing — zero oscillation, exactly one cycle
     addScale.value = withSequence(
-      withTiming(1.28, { duration: 90 }),
-      withSpring(1, { damping: 20, stiffness: 280 }),
+      withTiming(1.2, { duration: 80 }),
+      withTiming(1, { duration: 130 }),
     );
     // Flash colour: quick flash to lighter cherry then back
     flashProg.value = withTiming(1, { duration: 80 }, () => {

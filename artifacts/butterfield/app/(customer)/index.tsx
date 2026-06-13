@@ -303,7 +303,7 @@ export default function CustomerHome() {
                 <Text style={[s.usualPrice, { color: pal.banner, fontWeight: '700' }]}>${(unitCents / 100).toFixed(2)}</Text>
               </View>
               <Pressable
-                style={[s.usualAddBtn, { backgroundColor: CHERRY }]}
+                style={[s.usualAddBtn, { backgroundColor: BLUE_TOP }]}
                 hitSlop={8}
                 onPress={(e) => {
                   e.stopPropagation();

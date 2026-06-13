@@ -13,7 +13,8 @@ import {
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
+  withSequence,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,9 +69,10 @@ export function AnimatedTabItem({
     const prev = prevCountRef.current;
     const curr = badgeCount ?? 0;
     if (curr > prev) {
-      badgeScale.value = withSpring(1.55, { damping: 4, stiffness: 400 }, () => {
-        badgeScale.value = withSpring(1, { damping: 10, stiffness: 200 });
-      });
+      badgeScale.value = withSequence(
+        withTiming(1.22, { duration: 100 }),
+        withTiming(1, { duration: 160 }),
+      );
     }
     prevCountRef.current = curr;
   }, [badgeCount]);

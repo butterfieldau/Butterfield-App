@@ -517,7 +517,7 @@ const s = StyleSheet.create({
   frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   frequentName:    { fontSize: 14, color: '#1C1C1E' },
   frequentPrice:   { fontSize: 13, color: '#8E8E93' },
-  frequentAdd:     { width: 34, height: 34, borderRadius: 17, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
+  frequentAdd:     { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1493FF', alignItems: 'center', justifyContent: 'center' },
   frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
   // Product tile
   tile:          { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
