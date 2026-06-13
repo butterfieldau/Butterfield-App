@@ -3,16 +3,22 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Fix: "enumeration redeclared with different underlying type 'NSInteger' (was 'NSUInteger')"
+ * Fix: "The following Swift pods cannot yet be integrated as static libraries"
  *
  * @react-native-google-signin/google-signin v16.x uses GoogleSignIn SDK 9.x, which
  * changed several enum underlying types from NSUInteger to NSInteger. Without modular
  * headers, Clang sees both definitions in the same compilation unit and throws a hard
  * redeclaration error during the Xcode build.
  *
- * Enabling :modular_headers => true for GoogleSignIn and its dependencies
- * (AppAuth, GTMAppAuth, GTMSessionFetcher) properly namespaces each SDK's symbols
- * so conflicting definitions never appear in the same compilation unit.
+ * Additionally, AppCheckCore (pulled in transitively by Google Sign-In) depends on
+ * GoogleUtilities and RecaptchaInterop, which do not define modules by default.
+ * CocoaPods refuses to integrate them as static libraries without modular headers,
+ * producing: "The Swift pod AppCheckCore depends upon GoogleUtilities and
+ * RecaptchaInterop, which do not define modules."
+ *
+ * Enabling :modular_headers => true for all affected Google SDK pods properly
+ * namespaces each SDK's symbols so conflicting definitions never appear in the
+ * same compilation unit and all pods can be linked as static libraries.
  *
  * This plugin runs after `expo prebuild` generates the Podfile and inserts explicit
  * pod declarations with modular headers right after `use_expo_modules!`.
@@ -42,15 +48,18 @@ module.exports = function withGoogleSignInFix(config) {
         '  # Prevents "enumeration redeclared with different underlying type" Xcode build errors',
         '  # caused by GoogleSignIn 9.x enum type changes (NSUInteger -> NSInteger) leaking',
         '  # across compilation units when headers are not properly namespaced.',
+        '  # Also fixes: "The Swift pod AppCheckCore depends upon GoogleUtilities and',
+        '  # RecaptchaInterop, which do not define modules" static library integration error.',
         "  pod 'GoogleSignIn', :modular_headers => true",
         "  pod 'AppAuth', :modular_headers => true",
         "  pod 'GTMAppAuth', :modular_headers => true",
         "  pod 'GTMSessionFetcher', :modular_headers => true",
+        "  pod 'AppCheckCore', :modular_headers => true",
+        "  pod 'GoogleUtilities', :modular_headers => true",
+        "  pod 'RecaptchaInterop', :modular_headers => true",
         '',
       ].join('\n');
 
-      // Match the full use_expo_modules! line (with or without arguments / trailing content)
-      // and append the injection after it.
       const expoModulesLineRegex = /^([ \t]*use_expo_modules!.*)/m;
 
       if (!expoModulesLineRegex.test(podfile)) {

@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "au.com.butterfieldcookies.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSCameraUsageDescription": "Butterfield uses the camera to scan loyalty QR codes and earn coffee stamps at the counter.",
         "NSLocationWhenInUseUsageDescription": "Butterfield uses your location to verify you are at a Butterfield store when signing in as a staff member.",
