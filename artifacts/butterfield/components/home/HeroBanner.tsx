@@ -37,10 +37,14 @@ function computeSlideHeight(screenWidth: number, containerW: number): number {
   return Math.min(natural, 480);
 }
 
+const GLASS_MARGIN_BOTTOM = 14;
+const DOTS_GAP_ABOVE_GLASS = 10;
+
 export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
   const { width: screenWidth }              = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(0);
   const [activeIndex, setActiveIndex]       = useState(0);
+  const [glassHeights, setGlassHeights]     = useState<number[]>([]);
   const scrollRef     = useRef<ScrollView>(null);
   const timerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPressedRef  = useRef(false);
@@ -87,9 +91,23 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [startTimer]);
 
+  const handleGlassLayout = useCallback((slideIdx: number, height: number) => {
+    setGlassHeights(prev => {
+      const next = [...prev];
+      next[slideIdx] = height;
+      return next;
+    });
+  }, []);
+
   if (slides.length === 0) return null;
 
   const slideHeight = computeSlideHeight(screenWidth, containerWidth);
+
+  // Use the active slide's measured glass height; fall back to the tallest
+  // measured height so far (avoids a flash at bottom:0 before all slides render).
+  const activeGlassHeight =
+    glassHeights[activeIndex] ??
+    (glassHeights.length > 0 ? Math.max(...glassHeights.filter(Boolean)) : 0);
 
   const handleScrollEnd = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
     if (containerWidth === 0) return;
@@ -126,14 +144,22 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
               onPress={() => onSlidePress(slide)}
               onPressIn={() => { isPressedRef.current = true; }}
               onPressOut={() => { isPressedRef.current = false; }}
+              onGlassLayout={h => handleGlassLayout(i, h)}
             />
           ))}
         </ScrollView>
       )}
 
-      {/* Dot strip — inside the card, below the image/glass area */}
-      {slides.length > 1 && (
-        <View style={s.dotsRow}>
+      {/* Dot indicators — absolutely positioned inside the card, above the glass overlay.
+          Bottom offset is measured per-slide from the glass anchor height + its bottom
+          margin + gap, so the dots shift up automatically when the overlay grows taller. */}
+      {slides.length > 1 && activeGlassHeight > 0 && (
+        <View
+          style={[
+            s.dotsRow,
+            { bottom: activeGlassHeight + GLASS_MARGIN_BOTTOM + DOTS_GAP_ABOVE_GLASS },
+          ]}
+        >
           {slides.map((_, i) => (
             <Pressable key={i} onPress={() => goToSlide(i)} hitSlop={10}>
               <Animated.View
@@ -141,7 +167,7 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
                   s.dot,
                   {
                     width: dotWidths.current[i] ?? 7,
-                    backgroundColor: i === activeIndex ? BLUE_TOP : '#BFD4E8',
+                    backgroundColor: i === activeIndex ? '#fff' : 'rgba(255,255,255,0.45)',
                   },
                 ]}
               />
@@ -162,9 +188,10 @@ interface SlideItemProps {
   onPress: () => void;
   onPressIn: () => void;
   onPressOut: () => void;
+  onGlassLayout?: (height: number) => void;
 }
 
-function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut }: SlideItemProps) {
+function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut, onGlassLayout }: SlideItemProps) {
   const hasImage = !!slide.imageUrl;
   const label    = slide.headlineAccent?.trim() || '';
   const title    = slide.headline?.trim()       || 'Cookies & Soft Serve';
@@ -204,7 +231,11 @@ function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut }: Sli
         />
       )}
 
-      <View style={s.glassAnchor}>
+      {/* Frosted glass card */}
+      <View
+        style={s.glassAnchor}
+        onLayout={onGlassLayout ? e => onGlassLayout(e.nativeEvent.layout.height) : undefined}
+      >
         {Platform.OS === 'ios' ? (
           <BlurView intensity={55} tint="light" style={s.glassPill}>
             <View style={s.glassTint} />
@@ -317,14 +348,15 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  // ── Dot strip — inside the card, below image area ───────────────────────────
+  // ── Dot indicators — absolutely positioned inside the card, above the glass overlay ──
   dotsRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 5,
-    paddingVertical: 10,
-    backgroundColor: '#EDF5FB',
   },
   dot: {
     height: 7,
