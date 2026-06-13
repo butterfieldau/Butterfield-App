@@ -585,12 +585,12 @@ function DirectorDashboardInner() {
               <View style={styles.qaGrid}>
                 <QuickBtn icon="box"          label="Products"   color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
                 <QuickBtn icon="users"        label="Staff"      color={PURPLE}  onPress={() => router.push({ pathname: '/(director)/users', params: { tab: 'Staff' } } as any)} />
-                <QuickBtn icon="briefcase"    label="Wholesale"  color={GREEN}   onPress={() => router.push({ pathname: '/(director)/more', params: { category: 'wholesale' } } as any)} />
-                <QuickBtn icon="shopping-bag" label="View Orders"   color={AMBER}   onPress={() => router.navigate('/(director)/orders' as any)} />
+                <QuickBtn icon="briefcase"    label="Wholesale"  color={AMBER}   onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'wholesale' } } as any)} />
+                <QuickBtn icon="shopping-bag" label="View Orders"   color="#06B6D4" onPress={() => router.navigate('/(director)/orders' as any)} />
                 <QuickBtn icon="clipboard"    label="Tasks"         color={BLUE}    onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
                 <QuickBtn icon="bell"         label="Notify"        color="#06B6D4" onPress={() => router.push('/director-settings-notify' as any)} />
                 <QuickBtn icon="bar-chart-2"  label="Reports"       color={NAVY}    onPress={() => router.push('/director-reports' as any)} />
-                <QuickBtn icon="settings"     label="Settings"      color={MUTED}   onPress={() => router.navigate('/(director)/more' as any)} />
+                <QuickBtn icon="settings"     label="Settings"      color={NAVY}    onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'system' } } as any)} />
               </View>
             </View>
 
@@ -607,7 +607,7 @@ function DirectorDashboardInner() {
                 <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open       ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any)} />
                 <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday ?? 0} color={PURPLE} helper={`Week loss ${fmtAUD(s?.wastage.costWeek ?? 0)}`} onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)} />
                 <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave ?? 0} color={AMBER}  onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any)} />
-                <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={GREEN} alert={(s?.orders.wholesaleNew ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
+                <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={AMBER} alert={(s?.orders.wholesaleNew ?? 0) > 0} onPress={() => router.navigate('/(director)/orders' as any)} />
               </View>
             </View>
 
