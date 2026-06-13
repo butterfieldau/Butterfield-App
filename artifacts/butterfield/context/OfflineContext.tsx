@@ -76,15 +76,17 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const submitEntry = useCallback(async (entry: OfflineQueueEntry): Promise<boolean> => {
     try {
-      await (api.pos.createOrder as any)(entry.payload);
+      // Use the sync endpoint which adds sale-fingerprint conflict detection on
+      // top of the standard idempotency-key check — catches "same sale from two
+      // tablets with different idempotency keys" scenarios.
+      await (api.pos.syncOrder as any)(entry.payload);
       await removeFromOfflineQueue(entry.idempotencyKey);
       return true;
     } catch (err: any) {
-      // ── 409 Conflict: server already has this exact order ─────────────────
-      // This happens when the same idempotency key was synced by another device
-      // (e.g. a backup tablet that came back online). The order IS processed —
-      // staff just need to be informed so they don't re-ring it.
-      if (err?.status === 409) {
+      // ── 409 DUPLICATE_ORDER — same idempotency key already processed ──────
+      // Happens when the same device (or another with the same key) already
+      // synced this order. The order IS in the system — safe to remove.
+      if (err?.status === 409 && err?.body?.code === 'DUPLICATE_ORDER') {
         await removeFromOfflineQueue(entry.idempotencyKey);
         const itemText = buildItemSummary(entry);
         const totalText = fmtAUD(entry.totalCents ?? 0);
@@ -95,11 +97,46 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
             {
               text: 'View Order Queue',
               style: 'default',
-              // Staff can navigate to the order list themselves; we just dismiss here
               onPress: () => {},
             },
             { text: 'Dismiss', style: 'cancel' },
           ],
+        );
+        return true;
+      }
+
+      // ── 409 CONFLICT_DETECTED — same items on same register within 3 min ──
+      // Two tablets submitted the same sale independently (different idempotency
+      // keys). The first one won. Staff must verify before re-processing.
+      if (err?.status === 409 && err?.body?.code === 'CONFLICT_DETECTED') {
+        const conflictingOrder = err?.body?.data;
+        const itemText = buildItemSummary(entry);
+        const totalText = fmtAUD(entry.totalCents ?? 0);
+        Alert.alert(
+          'Possible Duplicate Sale',
+          `A similar order was recorded on this register within the last 3 minutes.\n\n${itemText}\nTotal: ${totalText}\n\nConflicting order: ${conflictingOrder?.orderNumber ?? 'unknown'}\n\nCheck the order queue before retrying to avoid charging the customer twice.`,
+          [
+            {
+              text: 'Remove from Queue',
+              style: 'destructive',
+              onPress: async () => { await removeFromOfflineQueue(entry.idempotencyKey); },
+            },
+            { text: 'Keep & Review', style: 'cancel' },
+          ],
+        );
+        // Return false so the entry stays in the queue for staff to review.
+        return false;
+      }
+
+      // ── Legacy 409 fallback (no code field) ──────────────────────────────
+      if (err?.status === 409) {
+        await removeFromOfflineQueue(entry.idempotencyKey);
+        const itemText = buildItemSummary(entry);
+        const totalText = fmtAUD(entry.totalCents ?? 0);
+        Alert.alert(
+          'Duplicate Order Detected',
+          `This order was already processed and has been removed from the sync queue.\n\n${itemText}\nTotal: ${totalText}`,
+          [{ text: 'Dismiss', style: 'cancel' }],
         );
         return true;
       }

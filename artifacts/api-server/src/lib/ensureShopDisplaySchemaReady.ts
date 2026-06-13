@@ -143,5 +143,31 @@ export async function ensureShopDisplaySchemaReady() {
     ADD COLUMN IF NOT EXISTS drawer_pin integer NOT NULL DEFAULT 0;
   `);
 
+  // ── pos_daily_summaries — pre-computed nightly POS rollup ──────────────────
+  // Guard ensures the table exists before analytics fast-path queries or the
+  // daily summary job run, even if drizzle-kit push was never executed.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS pos_daily_summaries (
+      id text PRIMARY KEY,
+      date text NOT NULL,
+      store_id text NOT NULL DEFAULT '',
+      total_sales_cents integer NOT NULL DEFAULT 0,
+      transaction_count integer NOT NULL DEFAULT 0,
+      cash_total_cents integer NOT NULL DEFAULT 0,
+      card_total_cents integer NOT NULL DEFAULT 0,
+      discount_total_cents integer NOT NULL DEFAULT 0,
+      cancelled_cents integer NOT NULL DEFAULT 0,
+      items_sold integer NOT NULL DEFAULT 0,
+      top_products jsonb,
+      hourly_totals jsonb,
+      tender_breakdown jsonb,
+      computed_at timestamp NOT NULL DEFAULT now()
+    );
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS pos_daily_summaries_date_store_unique
+    ON pos_daily_summaries(date, store_id);
+  `);
+
   ensured = true;
 }

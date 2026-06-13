@@ -3205,6 +3205,56 @@ router.get('/stats/revenue', async (req, res) => {
   if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
     return res.status(400).json({ error: 'Invalid date format.' });
   }
+
+  // ── Analytics fast path — single past Sydney day ────────────────────────
+  // When the request spans exactly one Sydney calendar day that has already
+  // ended (i.e. not today), use the pre-computed pos_daily_summaries row for
+  // the POS total, then add a small bounded query for non-POS app orders.
+  // This avoids a full orders-table scan for historical director analytics.
+  const sydFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' });
+  const fromSydney  = sydFmt.format(fromDate);
+  const toSydney    = sydFmt.format(toDate);
+  const todaySydney = sydFmt.format(new Date());
+
+  if (fromSydney === toSydney && fromSydney < todaySydney) {
+    try {
+      await ensureShopDisplaySchemaReady();
+      const [summaryRaw, [appResult], [wholesaleResult]] = await Promise.all([
+        db.execute(sql`
+          SELECT total_sales_cents
+          FROM pos_daily_summaries
+          WHERE date = ${fromSydney} AND store_id = ''
+          LIMIT 1
+        `),
+        db.select({ total: sum(ordersTable.totalCents) })
+          .from(ordersTable)
+          .where(and(
+            gte(ordersTable.createdAt, fromDate),
+            lte(ordersTable.createdAt, toDate),
+            sql`source != 'pos'`,
+            sql`${ordersTable.status} NOT IN ('cancelled','refunded')`,
+          )),
+        db.select({ total: sum(wholesaleOrdersTable.totalCents) })
+          .from(wholesaleOrdersTable)
+          .where(and(
+            gte(wholesaleOrdersTable.createdAt, fromDate),
+            lte(wholesaleOrdersTable.createdAt, toDate),
+            sql`${wholesaleOrdersTable.status} NOT IN ('cancelled','refunded')`,
+          )),
+      ]);
+      const summaryRow = ((summaryRaw as any).rows ?? (summaryRaw as any))[0];
+      if (summaryRow) {
+        const total =
+          Number(summaryRow.total_sales_cents ?? 0) +
+          Number(appResult?.total ?? 0) +
+          Number(wholesaleResult?.total ?? 0);
+        return res.json({ data: { total, from: fromDate.toISOString(), to: toDate.toISOString() } });
+      }
+    } catch {
+      // fall through to live query below
+    }
+  }
+
   const [result] = await db.select({ total: sum(ordersTable.totalCents) })
     .from(ordersTable)
     .where(and(
