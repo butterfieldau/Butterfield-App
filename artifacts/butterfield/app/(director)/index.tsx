@@ -378,7 +378,7 @@ function KpiTile({ icon, label, value, color, alert, onPress, helper }: {
 }) {
   return (
     <Pressable onPress={onPress} style={[kpi.tile, alert ? { borderColor: color + '60' } : undefined]}>
-      <View style={[kpi.iconBox, { backgroundColor: color + '18' }]}>
+      <View style={[kpi.iconBox, { backgroundColor: color + '33' }]}>
         <Feather name={icon as any} size={16} color={color} />
         {alert && <View style={kpi.alertDot} />}
       </View>
@@ -393,7 +393,7 @@ function KpiTile({ icon, label, value, color, alert, onPress, helper }: {
 function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string; color: string; onPress: () => void }) {
   return (
     <Pressable onPress={() => { Haptics.selectionAsync(); onPress(); }} style={qa.btn}>
-      <View style={[qa.icon, { backgroundColor: color + '18' }]}>
+      <View style={[qa.icon, { backgroundColor: color + '33' }]}>
         <Feather name={icon as any} size={18} color={color} />
       </View>
       <Text style={[qa.label, { color: TEXT }]}>{label}</Text>

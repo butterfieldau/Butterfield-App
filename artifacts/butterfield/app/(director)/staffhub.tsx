@@ -735,7 +735,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
                     toggleComplete.mutate({ id: task.id, isCompleted: !task.isCompleted });
                   }}
                   disabled={!canEdit}
-                  style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '18' }]}
+                  style={[s.iconBox, { backgroundColor: task.isCompleted ? GREEN + '20' : (CAT_COLORS[task.category] ?? BLUE) + '33' }]}
                   hitSlop={8}>
                 <Feather
                   name={task.isCompleted ? 'check-circle' : 'circle'}
@@ -908,7 +908,7 @@ function ManagerIssuesTab() {
         issues.map((item) => (
           <Pressable key={item.id} onPress={() => handleAction(item)} style={s.glassCard}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority ?? '') + '18' }]}>
+              <View style={[s.iconBox, { backgroundColor: priorityColor(item.priority ?? '') + '33' }]}>
                 <Feather name="alert-triangle" size={15} color={priorityColor(item.priority ?? '')} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
@@ -1112,7 +1112,7 @@ function ManagerWastageTab() {
               ]);
           }}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: PURPLE + '18' }]}>
+              <View style={[s.iconBox, { backgroundColor: PURPLE + '33' }]}>
                 <Feather name="trash-2" size={15} color={PURPLE} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
@@ -1226,7 +1226,7 @@ function StaffLeaveTab() {
             <View key={item.id}
               style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '60' }]}>
               <View style={s.cardHeader}>
-                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '18' }]}>
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type) + '33' }]}>
                   <Feather name="calendar" size={15} color={leaveTypeColor(item.type)} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -1297,7 +1297,7 @@ function ManagerLeaveTab() {
           leave.map((item) => (
             <View key={item.id} style={[s.glassCard, item.status === 'pending' && { borderColor: AMBER + '70' }]}>
               <View style={s.cardHeader}>
-                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? '') + '18' }]}>
+                <View style={[s.iconBox, { backgroundColor: leaveTypeColor(item.type ?? '') + '33' }]}>
                   <Feather name="calendar" size={15} color={leaveTypeColor(item.type ?? '')} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -1422,7 +1422,7 @@ function FeedbackTab() {
               );
             }}>
             <View style={s.cardHeader}>
-              <View style={[s.iconBox, { backgroundColor: item.rating ? ratingColor(item.rating) + '18' : MUTED + '18' }]}>
+              <View style={[s.iconBox, { backgroundColor: item.rating ? ratingColor(item.rating) + '33' : MUTED + '33' }]}>
                 <Feather name="message-circle" size={15} color={item.rating ? ratingColor(item.rating) : MUTED} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
