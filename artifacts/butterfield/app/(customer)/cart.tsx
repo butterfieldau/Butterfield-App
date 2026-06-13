@@ -1103,7 +1103,7 @@ export default function CartScreen() {
 function CartContent() {
   const insets   = useSafeAreaInsets();
   const { user } = useAuth();
-  const { items, totalPriceCents, totalItems, updateItemQuantity, removeCartItem, clearCart } = useCart();
+  const { items, totalPriceCents, totalItems, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
   const qc = useQueryClient();
   const routeParams = useLocalSearchParams<{ success?: string }>();
 
@@ -1631,6 +1631,21 @@ function CartContent() {
   // ── Cart step ────────────────────────────────────────────────────────────
   const renderCartStep = () => (
     <View style={styles.stepWrap}>
+      {/* Stale cart restoration banner */}
+      {cartRestoredFromSession && (
+        <View style={styles.restoredBanner}>
+          <Feather name="shopping-bag" size={15} color="#0369A1" style={{ marginTop: 1 }} />
+          <Text style={styles.restoredBannerText}>
+            You left something behind — your cart has been restored.
+          </Text>
+          <Pressable onPress={() => { clearCart(); dismissCartRestoredBanner(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}>
+            <Text style={styles.restoredBannerClear}>Clear</Text>
+          </Pressable>
+          <Pressable onPress={dismissCartRestoredBanner} hitSlop={8}>
+            <Feather name="x" size={15} color="#0369A1" />
+          </Pressable>
+        </View>
+      )}
       {items.map((item) => {
         const palette  = getPalette(item.category ?? 'default');
         const imageUrl = item.imageUrl ?? null;
@@ -2295,6 +2310,10 @@ const styles = StyleSheet.create({
   // Content wrapper
   stepWrap:  { padding: 16, gap: 12 },
   sectionLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', letterSpacing: 1, textTransform: 'uppercase', marginTop: 4 },
+  // Stale cart restored banner
+  restoredBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E0F2FE', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#BAE6FD' },
+  restoredBannerText: { flex: 1, fontSize: 13, color: '#0369A1', fontWeight: '400', lineHeight: 18 },
+  restoredBannerClear: { fontSize: 13, color: '#0369A1', fontWeight: '700' },
   // Item cards
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
   itemThumb:  { width: 90, alignSelf: 'stretch' },

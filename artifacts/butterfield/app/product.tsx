@@ -9,6 +9,14 @@ import {
   Dimensions, FlatList, Pressable, ScrollView,
   StyleSheet, Text, View, ViewToken,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  runOnJS,
+  Easing as RAnimEasing,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
@@ -126,6 +134,24 @@ export default function ProductDetailScreen() {
   const [showLoginRequired, setShowLoginRequired] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const heroListRef = useRef<FlatList<string>>(null);
+
+  // ── Fly-to-cart animation ─────────────────────────────────────────────
+  const flyTranslateX = useSharedValue(0);
+  const flyTranslateY = useSharedValue(0);
+  const flyScale     = useSharedValue(1);
+  const flyOpacity   = useSharedValue(0);
+
+  const flyStyle = useAnimatedStyle(() => ({
+    opacity: flyOpacity.value,
+    transform: [
+      { translateX: flyTranslateX.value },
+      { translateY: flyTranslateY.value },
+      { scale: flyScale.value },
+    ],
+  }));
+
+  const [flyActive, setFlyActive] = useState(false);
+  const [flyImageUrl, setFlyImageUrl] = useState<string | null>(null);
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       if (viewableItems.length > 0 && viewableItems[0].index != null) {
@@ -316,7 +342,28 @@ export default function ProductDetailScreen() {
       category,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.back();
+
+    // ── Fly-to-cart animation ───────────────────────────────────────────
+    setFlyImageUrl(photoUrl ?? null);
+    setFlyActive(true);
+
+    // Reset to starting position (center of screen, at the button area)
+    flyTranslateX.value = 0;
+    flyTranslateY.value = 0;
+    flyScale.value = 1;
+    flyOpacity.value = withTiming(1, { duration: 80 });
+
+    const navBack = () => router.back();
+
+    // Cart tab is the 4th of 5 tabs (index/menu/loyalty/cart/profile) — right of centre.
+    // Fly down and to the right toward the cart tab icon, shrink, fade out.
+    flyTranslateX.value = withTiming(W * 0.18, { duration: 520, easing: RAnimEasing.out(RAnimEasing.quad) });
+    flyScale.value = withTiming(0.18, { duration: 500, easing: RAnimEasing.in(RAnimEasing.quad) });
+    flyOpacity.value = withDelay(280, withTiming(0, { duration: 260 }));
+    // Callback drives navigation after arc completes
+    flyTranslateY.value = withTiming(H * 0.32, { duration: 520, easing: RAnimEasing.in(RAnimEasing.quad) }, () => {
+      runOnJS(navBack)();
+    });
   };
 
   return (
@@ -613,6 +660,22 @@ export default function ProductDetailScreen() {
           </View>
         </View>
       </View>
+
+      {/* ── Fly-to-cart overlay ──────────────────────────────────────────── */}
+      {flyActive && (
+        <Reanimated.View
+          pointerEvents="none"
+          style={[s.flyOverlay, flyStyle]}
+        >
+          {flyImageUrl ? (
+            <Image source={{ uri: flyImageUrl }} style={s.flyThumb} contentFit="cover" />
+          ) : (
+            <View style={[s.flyThumb, { backgroundColor: '#F4F1EC', alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ fontSize: 28 }}>{(product as any).metadata?.category ? getPalette((product as any).metadata?.category).emoji : '🍪'}</Text>
+            </View>
+          )}
+        </Reanimated.View>
+      )}
     </View>
   );
 }
@@ -683,6 +746,22 @@ const s = StyleSheet.create({
   addBtnText:   { color: '#fff', fontSize: 16 },
   soldOutBtn:   { borderRadius: 30, paddingVertical: 17, alignItems: 'center', backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
   soldOutText:  { color: MUTED, fontSize: 16 },
+
+  // Fly-to-cart overlay
+  flyOverlay:   {
+    position:       'absolute',
+    alignSelf:      'center',
+    top:            H * 0.28,
+    zIndex:         999,
+    borderRadius:   14,
+    overflow:       'hidden',
+    shadowColor:    '#000',
+    shadowOffset:   { width: 0, height: 4 },
+    shadowOpacity:  0.18,
+    shadowRadius:   10,
+    elevation:      12,
+  },
+  flyThumb:     { width: 80, height: 80, borderRadius: 14 },
 });
 
 const pill = StyleSheet.create({

@@ -10,6 +10,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type TabCfg = { icon: string; title: string };
@@ -46,6 +51,10 @@ export function AnimatedTabItem({
   const anim  = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const EXP_W = expandedWidth(cfg.title);
 
+  // Badge bounce — spring scale up then back when count increases
+  const badgeScale   = useSharedValue(1);
+  const prevCountRef = useRef<number>(badgeCount ?? 0);
+
   useEffect(() => {
     Animated.spring(anim, {
       toValue:         focused ? 1 : 0,
@@ -54,6 +63,21 @@ export function AnimatedTabItem({
       useNativeDriver: false,
     }).start();
   }, [focused]);
+
+  useEffect(() => {
+    const prev = prevCountRef.current;
+    const curr = badgeCount ?? 0;
+    if (curr > prev) {
+      badgeScale.value = withSpring(1.55, { damping: 4, stiffness: 400 }, () => {
+        badgeScale.value = withSpring(1, { damping: 10, stiffness: 200 });
+      });
+    }
+    prevCountRef.current = curr;
+  }, [badgeCount]);
+
+  const badgeAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: badgeScale.value }],
+  }));
 
   const animWidth    = anim.interpolate({ inputRange: [0, 1], outputRange: [BASE_W, EXP_W] });
   const animBg       = anim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,0,0,0)', activeColor] });
@@ -71,9 +95,9 @@ export function AnimatedTabItem({
           <View style={ts.iconWrap}>
             <Feather name={cfg.icon as any} size={ICON_SZ} color={focused ? WHITE : MUTED} />
             {badgeCount != null && badgeCount > 0 && (
-              <View style={ts.badge}>
+              <Reanimated.View style={[ts.badge, badgeAnimStyle]}>
                 <Text style={ts.badgeText}>{badgeCount > 99 ? '99+' : String(badgeCount)}</Text>
-              </View>
+              </Reanimated.View>
             )}
           </View>
           <Animated.Text style={[ts.label, { opacity: labelOpacity }]} numberOfLines={1}>

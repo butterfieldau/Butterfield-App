@@ -3,6 +3,13 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  interpolateColor,
+} from 'react-native-reanimated';
 import { getPalette } from '@/constants/categoryColors';
 import { type ApiProduct } from '@/lib/api';
 
@@ -22,6 +29,9 @@ interface Props {
   onAddToCart?: () => void;
 }
 
+const CHERRY       = '#D0312D';
+const CHERRY_FLASH = '#FF5A5A';
+
 export default function ProductTile({ product, onPress, onAddToCart }: Props) {
   const raw       = product as any;
   const priceCents = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
@@ -35,6 +45,30 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
   const isLimited  = product.metadata?.isLimitedDrop === 'true' || raw.isLimitedDrop;
   const imageUrl   = product.images?.[0] ?? PRODUCT_IMAGES[product.name] ?? null;
   const shortDesc  = raw.shortDescription || (palette.emoji + ' ' + (product.metadata?.category ?? 'treat'));
+
+  // ── Add button animation ──────────────────────────────────────────────
+  const addScale   = useSharedValue(1);
+  const flashProg  = useSharedValue(0);
+
+  const addBtnAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: addScale.value }],
+    backgroundColor: interpolateColor(flashProg.value, [0, 1], [CHERRY, CHERRY_FLASH]),
+  }));
+
+  const handleAddPress = () => {
+    if (isSoldOut) return;
+    // Pop scale: spring up then back
+    addScale.value = withSpring(1.35, { damping: 5, stiffness: 400 }, () => {
+      addScale.value = withSpring(1, { damping: 10, stiffness: 200 });
+    });
+    // Flash colour: quick flash to lighter cherry then back
+    flashProg.value = withTiming(1, { duration: 80 }, () => {
+      flashProg.value = withTiming(0, { duration: 200 });
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onAddToCart) onAddToCart();
+    else onPress();
+  };
 
   return (
     <Pressable
@@ -74,20 +108,15 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
               : null}
             ${display.toFixed(2)}
           </Text>
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              if (!isSoldOut) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (onAddToCart) onAddToCart();
-                else onPress();
-              }
-            }}
-            style={s.addBtn}
-            hitSlop={6}
-          >
-            <Feather name="shopping-bag" size={13} color="#fff" />
-          </Pressable>
+          <Reanimated.View style={[s.addBtn, addBtnAnimStyle]}>
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); handleAddPress(); }}
+              style={s.addBtnInner}
+              hitSlop={6}
+            >
+              <Feather name="shopping-bag" size={13} color="#fff" />
+            </Pressable>
+          </Reanimated.View>
         </View>
       </View>
     </Pressable>
@@ -123,5 +152,6 @@ const s = StyleSheet.create({
   desc:     { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
   price:    { fontSize: 16, color: '#1C1C1E' },
-  addBtn:   { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D0312D', alignItems: 'center', justifyContent: 'center' },
+  addBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  addBtnInner: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 });
