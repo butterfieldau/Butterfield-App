@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import type { HomeBannerSlide } from '@/lib/api';
@@ -23,7 +24,21 @@ interface HeroBannerProps {
   onSlidePress: (slide: HomeBannerSlide) => void;
 }
 
+/** Compute a slide height that stays proportional but is capped on small screens.
+ *  - SE / narrow (≤ 320px): cap at 320px (≈ 1:1)
+ *  - Medium phones (321–374px): cap at 390px
+ *  - Standard phones (375px+): 4:5 ratio capped at 480px
+ */
+function computeSlideHeight(screenWidth: number, containerW: number): number {
+  if (containerW === 0) return 0;
+  const natural = containerW * (5 / 4);
+  if (screenWidth <= 320) return Math.min(natural, 320);
+  if (screenWidth < 375)  return Math.min(natural, 390);
+  return Math.min(natural, 480);
+}
+
 export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
+  const { width: screenWidth }              = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(0);
   const [activeIndex, setActiveIndex]       = useState(0);
   const scrollRef     = useRef<ScrollView>(null);
@@ -76,6 +91,8 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
 
   if (slides.length === 0) return null;
 
+  const slideHeight = computeSlideHeight(screenWidth, containerWidth);
+
   const handleScrollEnd = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
     if (containerWidth === 0) return;
     const idx = Math.round(e.nativeEvent.contentOffset.x / containerWidth);
@@ -108,6 +125,7 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
                 key={slide.id ?? i}
                 slide={slide}
                 width={containerWidth}
+                height={slideHeight}
                 onPress={() => onSlidePress(slide)}
                 onPressIn={() => { isPressedRef.current = true; }}
                 onPressOut={() => { isPressedRef.current = false; }}
@@ -145,12 +163,13 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
 interface SlideItemProps {
   slide: HomeBannerSlide;
   width: number;
+  height: number;
   onPress: () => void;
   onPressIn: () => void;
   onPressOut: () => void;
 }
 
-function SlideItem({ slide, width, onPress, onPressIn, onPressOut }: SlideItemProps) {
+function SlideItem({ slide, width, height, onPress, onPressIn, onPressOut }: SlideItemProps) {
   const hasImage = !!slide.imageUrl;
   const label    = slide.headlineAccent?.trim() || '';
   const title    = slide.headline?.trim()       || 'Cookies & Soft Serve';
@@ -159,7 +178,7 @@ function SlideItem({ slide, width, onPress, onPressIn, onPressOut }: SlideItemPr
 
   return (
     <Pressable
-      style={[s.slide, { width }]}
+      style={[s.slide, { width, height }]}
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
@@ -246,7 +265,6 @@ const s = StyleSheet.create({
     elevation: 5,
   },
   slide: {
-    aspectRatio: 4 / 5,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
