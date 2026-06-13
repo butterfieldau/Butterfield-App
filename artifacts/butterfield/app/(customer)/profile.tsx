@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
+import Constants from 'expo-constants';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 import { getTierConfig } from '@/constants/tierConfig';
 
@@ -210,7 +211,7 @@ export default function AccountScreen() {
             <Text style={[styles.legalLink, { color: MUTED }]}>Terms of Use</Text>
           </Pressable>
         </View>
-        <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version 1.0.0</Text>
+        <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version {Constants.expoConfig?.version ?? '—'}</Text>
       </View>
     </ScrollView>
     </View>

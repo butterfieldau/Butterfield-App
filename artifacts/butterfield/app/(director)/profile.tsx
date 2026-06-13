@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
@@ -140,7 +141,7 @@ export default function StaffProfileScreen() {
           <Text style={[styles.signOutText, { color: '#EF4444' }]}>Sign Out</Text>
         </Pressable>
 
-        <Text style={[styles.version, { color: MUTED }]}>Butterfield Staff · Version 1.0.0</Text>
+        <Text style={[styles.version, { color: MUTED }]}>Butterfield Staff · Version {Constants.expoConfig?.version ?? '—'}</Text>
       </View>
     </ScrollView>
   );

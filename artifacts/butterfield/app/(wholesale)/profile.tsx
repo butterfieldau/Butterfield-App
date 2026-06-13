@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -538,7 +539,7 @@ export default function WholesaleAccount() {
           <Text style={s.signOutText}>Sign Out</Text>
         </Pressable>
 
-        <Text style={s.versionText}>Butterfield Wholesale · v1.0</Text>
+        <Text style={s.versionText}>Butterfield Wholesale · v{Constants.expoConfig?.version ?? '—'}</Text>
       </View>
       </ScrollView>
     </View>

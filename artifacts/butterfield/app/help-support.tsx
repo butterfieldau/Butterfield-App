@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import Constants from 'expo-constants';
 import { BUTTERFIELD_PRIVACY_URL, BUTTERFIELD_TERMS_URL } from '@/constants/legal';
 
 const BG     = '#EFF6FF';
@@ -204,7 +205,7 @@ export default function HelpSupportScreen() {
           </View>
         ) : null}
 
-        <Text style={st.version}>Butterfield Cookies · Version 1.0.0</Text>
+        <Text style={st.version}>Butterfield Cookies · Version {Constants.expoConfig?.version ?? '—'}</Text>
       </ScrollView>
     </View>
   );
