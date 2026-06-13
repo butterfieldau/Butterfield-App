@@ -252,7 +252,7 @@ function StatCard({ label, valueCents, icon, color = BLUE, small = false }:
   return (
     <View style={[styles.statCard, small && styles.statCardSmall]}>
       <View style={[styles.statIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
-        <Feather name={icon as any} size={small ? 12 : 14} color={color} />
+        <Feather name={icon as any} size={small ? 18 : 22} color={color} />
       </View>
       <Text style={[styles.statValue, small && styles.statValueSmall]}>
         <AnimatedNumber value={valueCents} formatter={fmtAUD} />
@@ -267,7 +267,7 @@ function CountCard({ label, value, icon, color = WHITE, suffix = '' }:
   return (
     <View style={styles.statCard}>
       <View style={[styles.statIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
-        <Feather name={icon as any} size={14} color={color} />
+        <Feather name={icon as any} size={22} color={color} />
       </View>
       <Text style={styles.statValue}>
         <AnimatedNumber value={value} formatter={(v) => String(Math.round(v)) + suffix} />
@@ -1021,11 +1021,11 @@ const styles = StyleSheet.create({
   statRow:          { flexDirection: 'row', gap: 8, marginBottom: 10 },
   statCard:         { flex: 1, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 14, gap: 6 },
   statCardSmall:    { padding: 12 },
-  statIcon:         { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1.5 },
-  statValue:        { fontSize: 18, fontWeight: '800', color: WHITE, letterSpacing: -0.5 },
-  statValueSmall:   { fontSize: 15 },
-  statLabel:        { fontSize: 10, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
-  statLabelSmall:   { fontSize: 9 },
+  statIcon:         { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1.5 },
+  statValue:        { fontSize: 26, fontWeight: '800', color: WHITE, letterSpacing: -0.5 },
+  statValueSmall:   { fontSize: 22 },
+  statLabel:        { fontSize: 12, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statLabelSmall:   { fontSize: 11 },
 
   section:          { backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER, padding: 18, marginBottom: 10 },
   sectionHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
