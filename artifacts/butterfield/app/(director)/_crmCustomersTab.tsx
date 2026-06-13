@@ -171,7 +171,7 @@ function TimelineSection({ customerId }: { customerId: string }) {
         return (
           <View key={`${ev.type}-${ev.date}-${i}`} style={[det.timelineRow, i < allEvents.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
             <View style={{ alignItems: 'center', gap: 0 }}>
-              <View style={[det.timelineIcon, { backgroundColor: cfg.color + '18' }]}>
+              <View style={[det.timelineIcon, { backgroundColor: cfg.color + '33', borderColor: cfg.color + '55' }]}>
                 <Feather name={cfg.icon as any} size={14} color={cfg.color} />
               </View>
               {i < allEvents.length - 1 && <View style={det.timelineLine} />}
@@ -1263,7 +1263,7 @@ const det = StyleSheet.create({
   infoLabel:          { fontSize: 13, color: MUTED, flex: 1 },
   infoValue:          { fontSize: 13, color: TEXT, fontWeight: '600', textAlign: 'right', maxWidth: '55%' },
   timelineRow:        { flexDirection: 'row', gap: 12, paddingTop: 16, paddingHorizontal: 16 },
-  timelineIcon:       { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  timelineIcon:       { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   timelineLine:       { width: 2, flex: 1, backgroundColor: BORDER, marginTop: 4, minHeight: 16, alignSelf: 'center' },
   fieldLabel:         { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
   input:              { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT },

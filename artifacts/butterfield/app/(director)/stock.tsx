@@ -201,7 +201,7 @@ function ManageCategoriesModal({
             const isDeleting = deleting === cat.id;
             return (
               <View key={cat.id} style={mm.row}>
-                <View style={[mm.dot, { backgroundColor: color + '22' }]}>
+                <View style={[mm.dot, { backgroundColor: color + '33', borderColor: color + '55' }]}>
                   <Feather name={catIcon(cat.id)} size={14} color={color} />
                 </View>
                 <Text style={mm.catName}>{cat.label}</Text>
@@ -237,7 +237,7 @@ const mm = StyleSheet.create({
   addInput:  { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: TEXT },
   addBtn:    { width: 44, height: 44, borderRadius: 10, backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center' },
   row:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  dot:       { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  dot:       { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   catName:   { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
   inUseBadge:{ backgroundColor: BLUE + '18', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
   inUseTxt:  { fontSize: 10, fontWeight: '700', color: BLUE },
@@ -405,7 +405,7 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
   return (
     <View style={sc.card}>
       <View style={sc.left}>
-        <View style={[sc.catDot, { backgroundColor: color + '22' }]}>
+        <View style={[sc.catDot, { backgroundColor: color + '33', borderColor: color + '55' }]}>
           <Feather name={icon} size={14} color={color} />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
@@ -447,7 +447,7 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
 const sc = StyleSheet.create({
   card:    { backgroundColor: GLASS_BG, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   left:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 },
-  catDot:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  catDot:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   name:    { fontSize: 15, fontWeight: '600', color: TEXT },
   meta:    { fontSize: 12, color: MUTED },
   badge:   { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },

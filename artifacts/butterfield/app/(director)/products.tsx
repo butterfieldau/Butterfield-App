@@ -61,7 +61,7 @@ function TagChip({ label, active, color, onPress }: { label: string; active: boo
 function SectionHeader({ title, icon, color }: { title: string; icon: string; color: string }) {
   return (
     <View style={form.sectionHeader}>
-      <View style={[form.sectionIcon, { backgroundColor: color + '18' }]}>
+      <View style={[form.sectionIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
         <Feather name={icon as any} size={14} color={color} />
       </View>
       <Text style={[form.sectionTitle, { fontWeight: '700', color: NAVY }]}>{title}</Text>
@@ -583,7 +583,7 @@ function ProductModal({
                     <ActivityIndicator size="large" color={BLUE} />
                   ) : (
                     <>
-                      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: BLUE + '33', alignItems: 'center', justifyContent: 'center', marginBottom: 10, borderWidth: 1.5, borderColor: BLUE + '55' }}>
                         <Feather name="upload-cloud" size={26} color={BLUE} />
                       </View>
                       <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 4 }}>
@@ -1943,7 +1943,7 @@ const modal = StyleSheet.create({
 const form = StyleSheet.create({
   card:          { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, padding: 16, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  sectionIcon:   { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sectionIcon:   { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   sectionTitle:  { fontSize: 15 },
   fieldWrap:     { gap: 6 },
   label:         { fontSize: 12 },

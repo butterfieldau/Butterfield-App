@@ -57,7 +57,7 @@ function SegmentNotifyModal({ segment, onClose }: { segment: CrmSegment; onClose
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }}>
           <View style={[s.card, { backgroundColor: segment.color + '12', borderColor: segment.color + '30', padding: 14 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: segment.color + '20', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: segment.color + '33', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: segment.color + '55' }}>
                 <Feather name={segment.icon as any} size={16} color={segment.color} />
               </View>
               <View>
@@ -159,7 +159,7 @@ export default function CustomerSegmentsScreen() {
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setNotifyTarget(seg); }}
               style={s.segCard}
             >
-              <View style={[s.segIcon, { backgroundColor: seg.color + '18' }]}>
+              <View style={[s.segIcon, { backgroundColor: seg.color + '33', borderColor: seg.color + '55' }]}>
                 <Feather name={seg.icon as any} size={20} color={seg.color} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
@@ -208,7 +208,7 @@ const s = StyleSheet.create({
     backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER,
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
   },
-  segIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  segIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   segLabel:      { fontSize: 15, fontWeight: '700', color: TEXT },
   segDesc:       { fontSize: 12, color: MUTED },
   segCountBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },

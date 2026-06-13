@@ -1574,7 +1574,7 @@ const s = StyleSheet.create({
 
   // Summary tiles (Completed / Incomplete)
   tileBig:   { padding: 14, borderRadius: 18, borderWidth: 1, alignItems: 'center', gap: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
-  tileIcon:  { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  tileIcon:  { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   tileCount: { fontSize: 28, fontWeight: '700' },
   tileLabel: { fontSize: 12, fontWeight: '600', color: MUTED },
 
@@ -1590,7 +1590,7 @@ const s = StyleSheet.create({
 
   // Card anatomy
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderWidth: 1 },
+  iconBox:    { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderWidth: 1.5 },
   cardTitle:  { fontSize: 14, fontWeight: '600', color: TEXT },
   cardSub:    { fontSize: 12, color: MUTED },
   cardDesc:   { fontSize: 13, color: MUTED, lineHeight: 19 },
@@ -1615,7 +1615,7 @@ const s = StyleSheet.create({
 
   // Summary cards
   summaryCard:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1 },
-  summaryIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  summaryIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   summaryTitle: { fontSize: 14, fontWeight: '600', flex: 1 },
   summarySub:   { fontSize: 12, color: MUTED, marginTop: 2 },
 

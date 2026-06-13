@@ -1021,7 +1021,7 @@ const styles = StyleSheet.create({
   statRow:          { flexDirection: 'row', gap: 8, marginBottom: 10 },
   statCard:         { flex: 1, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 14, gap: 6 },
   statCardSmall:    { padding: 12 },
-  statIcon:         { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1 },
+  statIcon:         { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1.5 },
   statValue:        { fontSize: 18, fontWeight: '800', color: WHITE, letterSpacing: -0.5 },
   statValueSmall:   { fontSize: 15 },
   statLabel:        { fontSize: 10, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
 
   channelRow:       { flexDirection: 'row', gap: 8 },
   channelCard:      { flex: 1, backgroundColor: BG, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 12, alignItems: 'center', gap: 4 },
-  channelIconWrap:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1 },
+  channelIconWrap:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2, borderWidth: 1.5 },
   channelLabel:     { fontSize: 10, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
   channelValue:     { fontSize: 14, fontWeight: '800', color: WHITE },
   channelPct:       { fontSize: 11, fontWeight: '600', color: MUTED },

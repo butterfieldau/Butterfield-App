@@ -117,7 +117,7 @@ export default function WholesaleDashboard() {
           {announcements.length > 0 && (
             <View style={s.glassCard}>
               <View style={s.sectionHeader}>
-                <View style={[s.sectionIcon, { backgroundColor: AMBER + '20' }]}>
+                <View style={[s.sectionIcon, { backgroundColor: AMBER + '33', borderColor: AMBER + '55' }]}>
                   <Feather name="bell" size={13} color={AMBER} />
                 </View>
                 <Text style={s.sectionTitle}>Latest News</Text>
@@ -135,7 +135,7 @@ export default function WholesaleDashboard() {
           {recentOrders.length > 0 ? (
             <View style={s.glassCard}>
               <View style={s.sectionHeader}>
-                <View style={[s.sectionIcon, { backgroundColor: BLUE + '15' }]}>
+                <View style={[s.sectionIcon, { backgroundColor: BLUE + '33', borderColor: BLUE + '55' }]}>
                   <Feather name="package" size={13} color={BLUE} />
                 </View>
                 <Text style={s.sectionTitle}>Recent Orders</Text>
@@ -209,7 +209,7 @@ const s = StyleSheet.create({
 
   glassCard:   { backgroundColor: GLASS_BG, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: GLASS_BORDER, ...GLASS_SHADOW },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sectionIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   sectionTitle: { color: TEXT, fontWeight: '700', fontSize: 15 },
   linkText:    { color: BLUE, fontWeight: '600', fontSize: 13 },
 

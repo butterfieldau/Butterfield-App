@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
 
 const kpi = StyleSheet.create({
   tile:     { width: '47.5%', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 14, gap: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  iconBox:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1 },
+  iconBox:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1.5 },
   alertDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: RED },
   value:    { fontSize: 26, fontWeight: '700' },
   helper:   { fontSize: 11, fontWeight: '600' },
@@ -706,7 +706,7 @@ const kpi = StyleSheet.create({
 
 const qa = StyleSheet.create({
   btn:   { width: '23%', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
 });
 

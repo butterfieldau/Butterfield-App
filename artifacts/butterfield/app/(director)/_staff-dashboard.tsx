@@ -358,7 +358,7 @@ export function StaffDashboard() {
                 onPress={async () => { setStorePickerVisible(false); await doClockIn(pendingCoords, a.storeId); }}
                 style={{ backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}
               >
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: BLUE + '33', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: BLUE + '55' }}>
                   <Feather name="map-pin" size={18} color={BLUE} />
                 </View>
                 <View style={{ flex: 1 }}>

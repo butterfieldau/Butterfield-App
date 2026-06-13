@@ -28,7 +28,7 @@ function SectionRow({ item, isLast }: { item: RowItem; isLast: boolean }) {
         }}
         style={({ pressed }) => [s.row, pressed && !item.soon && { opacity: 0.68 }]}
       >
-        <View style={[s.rowIcon, { backgroundColor: (item.soon ? MUTED : item.color) + '18' }]}>
+        <View style={[s.rowIcon, { backgroundColor: (item.soon ? MUTED : item.color) + '33', borderColor: (item.soon ? MUTED : item.color) + '55' }]}>
           <Feather name={item.icon as any} size={16} color={item.soon ? MUTED : item.color} />
         </View>
         <View style={{ flex: 1 }}>
@@ -105,7 +105,7 @@ export default function MoreCategoryScreen() {
 
         {/* Category header */}
         <View style={s.detailHeader}>
-          <View style={[s.detailIcon, { backgroundColor: openCategory.color + '18' }]}>
+          <View style={[s.detailIcon, { backgroundColor: openCategory.color + '33', borderColor: openCategory.color + '55' }]}>
             <Feather name={openCategory.icon as any} size={28} color={openCategory.color} />
           </View>
           <View style={{ flex: 1, gap: 4 }}>
@@ -141,7 +141,7 @@ const s = StyleSheet.create({
   backLabel: { fontSize: 15, fontWeight: '600' },
 
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
-  detailIcon:   { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  detailIcon:   { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderWidth: 1.5 },
   detailTitle:  { fontSize: 22, fontWeight: '700', color: TEXT },
   detailDesc:   { fontSize: 13, color: MUTED },
 
@@ -150,7 +150,7 @@ const s = StyleSheet.create({
   divider:    { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(0,0,0,0.07)', marginHorizontal: 14 },
 
   row:      { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 14, paddingVertical: 13 },
-  rowIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rowIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   rowLabel: { fontSize: 14, fontWeight: '500', color: TEXT },
   rowSub:   { fontSize: 12, color: MUTED, marginTop: 1 },
 

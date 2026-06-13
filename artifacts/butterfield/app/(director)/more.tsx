@@ -27,7 +27,7 @@ function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) 
       onPress={() => { Haptics.selectionAsync(); onPress(); }}
       style={({ pressed }) => [s.catCard, { opacity: pressed ? 0.8 : 1 }]}
     >
-      <View style={[s.catIcon, { backgroundColor: cat.color + '18' }]}>
+      <View style={[s.catIcon, { backgroundColor: cat.color + '33', borderColor: cat.color + '55' }]}>
         <Feather name={cat.icon as any} size={22} color={cat.color} />
       </View>
       <View style={{ flex: 1, gap: 3 }}>
@@ -137,7 +137,7 @@ const s = StyleSheet.create({
     paddingVertical: 16, paddingHorizontal: 16,
     borderWidth: StyleSheet.hairlineWidth, borderColor: BORD,
   },
-  catIcon:  { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  catIcon:  { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   catLabel: { fontSize: 16, fontWeight: '700', color: TEXT },
   catDesc:  { fontSize: 12, color: MUTED },
   badge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },

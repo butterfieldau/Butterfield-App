@@ -97,7 +97,7 @@ function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => voi
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [s.card, pressed && { opacity: 0.85 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <View style={[s.storeIcon, { backgroundColor: sc + '18' }]}>
+        <View style={[s.storeIcon, { backgroundColor: sc + '33', borderColor: sc + '55' }]}>
           <Feather name="map-pin" size={18} color={sc} />
         </View>
         <View style={{ flex: 1 }}>
@@ -967,7 +967,7 @@ export default function DirectorStoresScreen() {
         </View>
       ) : stores.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 }}>
-          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: BLUE + '33', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: BLUE + '55' }}>
             <Feather name="map-pin" size={28} color={BLUE} />
           </View>
           <Text style={{ fontWeight: '700', fontSize: 18, color: TEXT, textAlign: 'center' }}>No stores yet</Text>
@@ -1006,7 +1006,7 @@ const s = StyleSheet.create({
   addBtn:         { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   addBtnText:     { fontWeight: '600', fontSize: 13, color: '#fff' },
   card:           { backgroundColor: GLASS_BG, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  storeIcon:      { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  storeIcon:      { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   storeName:      { fontWeight: '600', fontSize: 15, color: TEXT },
   storeSub:       { fontWeight: '400', fontSize: 12, color: MUTED, marginTop: 2 },
   badge:          { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
