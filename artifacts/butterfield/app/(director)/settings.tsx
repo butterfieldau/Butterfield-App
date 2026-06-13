@@ -262,6 +262,7 @@ function SlideEditor({
   onMoveDown,
   onRemove,
   onUploadImage,
+  onProductPickerOpen,
 }: {
   slide: HomeBannerSlide;
   index: number;
@@ -274,6 +275,7 @@ function SlideEditor({
   onMoveDown: () => void;
   onRemove: () => void;
   onUploadImage: (slideId: string) => void;
+  onProductPickerOpen: () => void;
 }) {
   const [expanded, setExpanded] = useState(index === 0);
   const [showProductPicker, setShowProductPicker] = useState(slide.buttonRoute?.startsWith('product:') ?? false);
@@ -471,6 +473,7 @@ function SlideEditor({
                   <Pressable
                     onPress={() => {
                       setShowProductPicker(true);
+                      onProductPickerOpen();
                       if (!slide.buttonRoute?.startsWith('product:')) set({ buttonRoute: '__product__' });
                       Haptics.selectionAsync();
                     }}
@@ -606,10 +609,12 @@ export function BannerTab() {
   const [saving, setSaving] = useState(false);
   const [uploadingSlideId, setUploadingSlideId] = useState<string | null>(null);
   const [showProductPickerForSlide, setShowProductPickerForSlide] = useState<string | null>(null);
+  const [productFetchEnabled, setProductFetchEnabled] = useState(false);
 
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['director-all-products-banner'],
     queryFn:  () => api.director.products(),
+    enabled:  productFetchEnabled,
     staleTime: 60_000,
   });
   const allProducts: DirectorProduct[] = productsData?.data ?? [];
@@ -755,6 +760,7 @@ export function BannerTab() {
           onMoveDown={() => moveSlide(index, 'down')}
           onRemove={() => removeSlide(slide.id)}
           onUploadImage={id => { setShowProductPickerForSlide(id); uploadImageForSlide(id); }}
+          onProductPickerOpen={() => setProductFetchEnabled(true)}
         />
       ))}
 

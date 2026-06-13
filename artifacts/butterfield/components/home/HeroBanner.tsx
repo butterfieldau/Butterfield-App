@@ -82,44 +82,45 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
     const clamped = Math.max(0, Math.min(idx, slides.length - 1));
     setActiveIndex(clamped);
     animateDots(clamped);
-    // Restart timer after manual swipe
     startTimer();
   };
 
   return (
-    <View
-      style={s.outer}
-      onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
-    >
-      {containerWidth > 0 && (
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          scrollEnabled={slides.length > 1}
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScrollEnd}
-          decelerationRate="fast"
-          bounces={false}
-          style={{ borderRadius: 24 }}
-          contentContainerStyle={{ borderRadius: 24, overflow: 'hidden' }}
-        >
-          {slides.map((slide, i) => (
-            <SlideItem
-              key={slide.id ?? i}
-              slide={slide}
-              width={containerWidth}
-              onPress={() => onSlidePress(slide)}
-              onPressIn={() => { isPressedRef.current = true; }}
-              onPressOut={() => { isPressedRef.current = false; }}
-            />
-          ))}
-        </ScrollView>
-      )}
+    // Outer wrapper — measures width, no overflow restriction
+    <View onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}>
+      {/* Card */}
+      <View style={s.outer}>
+        {containerWidth > 0 && (
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            scrollEnabled={slides.length > 1}
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScrollEnd}
+            decelerationRate="fast"
+            bounces={false}
+            style={{ borderRadius: 24 }}
+            contentContainerStyle={{ borderRadius: 24, overflow: 'hidden' }}
+          >
+            {slides.map((slide, i) => (
+              <SlideItem
+                key={slide.id ?? i}
+                slide={slide}
+                width={containerWidth}
+                onPress={() => onSlidePress(slide)}
+                onPressIn={() => { isPressedRef.current = true; }}
+                onPressOut={() => { isPressedRef.current = false; }}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </View>
 
-      {/* Dot indicators */}
+      {/* Dot indicators — outside the card, below it in normal flow.
+          8 pt gap above the dots, 6 pt gap below. */}
       {slides.length > 1 && (
-        <View style={s.dotsRow} pointerEvents="box-none">
+        <View style={s.dotsRow}>
           {slides.map((_, i) => (
             <Pressable key={i} onPress={() => goToSlide(i)} hitSlop={8}>
               <Animated.View
@@ -127,7 +128,7 @@ export function HeroBanner({ slides, onSlidePress }: HeroBannerProps) {
                   s.dot,
                   {
                     width: dotWidths.current[i] ?? 7,
-                    backgroundColor: i === activeIndex ? '#fff' : 'rgba(255,255,255,0.5)',
+                    backgroundColor: i === activeIndex ? BLUE_TOP : '#BFD4E8',
                   },
                 ]}
               />
@@ -254,7 +255,6 @@ const s = StyleSheet.create({
     marginHorizontal: 14,
     marginBottom: 14,
     marginTop: 14,
-    paddingTop: 28,
   },
   glassPill: {
     borderRadius: 18,
@@ -311,23 +311,17 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  // ── Dot indicators ──────────────────────────────────────────────────────────
+  // ── Dot indicators — below the card, in normal flow ─────────────────────────
   dotsRow: {
-    position: 'absolute',
-    bottom: 98,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 5,
+    paddingTop: 8,
+    paddingBottom: 6,
   },
   dot: {
     height: 7,
     borderRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
   },
 });
