@@ -15,21 +15,6 @@ const _stampCachePruner = setInterval(() => {
 }, 30 * 60 * 1000);
 if (typeof _stampCachePruner.unref === 'function') _stampCachePruner.unref();
 
-// ── Sale fingerprint cache — offline conflict detection ───────────────────────
-// Keyed by `${registerSessionId}:${itemsFingerprint}`.  Entries expire after the
-// conflict window (3 minutes) so the Map never grows unbounded.
-// Used by POST /orders/sync to detect when two tablets created separate offline
-// entries for the same sale (different idempotency keys, same items + register).
-const FINGERPRINT_WINDOW_MS = 3 * 60 * 1000;
-const posSaleFingerprintCache = new Map<string, { orderId: string; orderNumber: string; createdAt: number }>();
-const _fpCachePruner = setInterval(() => {
-  const cutoff = Date.now() - FINGERPRINT_WINDOW_MS;
-  for (const [key, val] of posSaleFingerprintCache.entries()) {
-    if (val.createdAt < cutoff) posSaleFingerprintCache.delete(key);
-  }
-}, 60_000);
-if (typeof _fpCachePruner.unref === 'function') _fpCachePruner.unref();
-
 /**
  * Compute a stable fingerprint for an array of POS order items.
  * Sorts by productId+productName so item ordering doesn't matter.
@@ -48,6 +33,22 @@ function computeSaleFingerprint(items: any[]): string {
   return String(h >>> 0);
 }
 
+/**
+ * Build the fingerprint key used for DB-backed duplicate-sale detection.
+ *
+ * Key = `${registerSessionId}:${itemsHash}:${3-min-bucket}` so two requests
+ * that share the same register session, the same set of items AND arrive
+ * within the same 3-minute window produce an identical key.
+ *
+ * The key is stored in `pos_order_fingerprints` (PRIMARY KEY, UNIQUE).
+ * PostgreSQL enforces uniqueness atomically, eliminating any TOCTOU race.
+ */
+function buildFingerprintKey(registerSessionId: string, items: any[]): string {
+  const hash = computeSaleFingerprint(items);
+  const bucket = Math.floor(Date.now() / (3 * 60 * 1000));
+  return `${registerSessionId}:${hash}:${bucket}`;
+}
+
 import {
   db, ordersTable, customerProfilesTable, usersTable, productsTable,
   discountCodesTable, discountCodeUsagesTable, loyaltyActivityLogTable,
@@ -64,6 +65,7 @@ import {
   reverseCoffeeStamps,
   ensureLoyaltySchemaReady,
 } from '../lib/loyaltyIdentity.js';
+import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
@@ -814,6 +816,59 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     }
   }
 
+  // ── DB-backed sale fingerprint check (sync path only) ────────────────────
+  // When the request comes from POST /orders/sync, `req.body._fpKey` is set to
+  // a pre-computed fingerprint key.  We try to atomically INSERT that key into
+  // pos_order_fingerprints (which has a PRIMARY KEY unique constraint).
+  //
+  //   • INSERT succeeds  → we own the slot; continue with order creation.
+  //   • INSERT fails (PK violation) → another request already processed this
+  //     same sale fingerprint within the current 3-minute bucket.  Return 409
+  //     CONFLICT_DETECTED immediately — no order is created.
+  //
+  // This eliminates the TOCTOU race: PostgreSQL's unique-constraint enforcement
+  // is atomic, so two concurrent sync requests with the same fingerprint cannot
+  // both proceed past this point.
+  const _fpKey: string | undefined = typeof req.body._fpKey === 'string' ? req.body._fpKey : undefined;
+  if (_fpKey) {
+    try {
+      await ensureShopDisplaySchemaReady();
+      const insertResult = await db.execute(sql`
+        INSERT INTO pos_order_fingerprints (fingerprint_key, created_at)
+        VALUES (${_fpKey}, NOW())
+        ON CONFLICT (fingerprint_key) DO NOTHING
+        RETURNING fingerprint_key
+      `);
+      const rows = (insertResult as any).rows ?? insertResult;
+      const claimed = Array.isArray(rows) ? rows.length > 0 : false;
+      if (!claimed) {
+        // Unique constraint fired — fetch the conflicting order details
+        const conflictResult = await db.execute(sql`
+          SELECT order_id, order_number
+          FROM pos_order_fingerprints
+          WHERE fingerprint_key = ${_fpKey}
+          LIMIT 1
+        `);
+        const conflictRows = (conflictResult as any).rows ?? conflictResult;
+        const conflictRow = Array.isArray(conflictRows) ? conflictRows[0] : undefined;
+        req.log.info(
+          { fpKey: _fpKey, conflictOrderId: conflictRow?.order_id },
+          'POS sync: DB fingerprint conflict detected',
+        );
+        return res.status(409).json({
+          error: 'Duplicate sale detected — a similar order was placed on the same register within the last 3 minutes',
+          code: 'CONFLICT_DETECTED',
+          data: {
+            id: conflictRow?.order_id ?? null,
+            orderNumber: conflictRow?.order_number ?? null,
+          },
+        });
+      }
+    } catch (err: any) {
+      req.log.warn({ err, _fpKey }, 'POS sync: fingerprint DB check failed — continuing');
+    }
+  }
+
   // Tier multiplier map — applied to points earned (not tip or surcharge)
   function getTierMultiplier(tier: string): number {
     switch ((tier ?? '').toLowerCase()) {
@@ -1277,16 +1332,15 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     }).catch(() => {});
   }
 
-  // ── Store sale fingerprint for offline conflict detection ─────────────────
-  // After a successful order creation, record the (registerSession, itemsFingerprint)
-  // pair so POST /orders/sync can detect a duplicate sale from another tablet.
-  if (registerSession?.id && Array.isArray(items) && items.length > 0) {
-    const fp = computeSaleFingerprint(items);
-    posSaleFingerprintCache.set(`${registerSession.id}:${fp}`, {
-      orderId,
-      orderNumber: orderNumber ?? orderId.slice(0, 8),
-      createdAt: Date.now(),
-    });
+  // ── Back-fill fingerprint row with the created order details ─────────────
+  // Now that we have orderId/orderNumber, update the row we claimed above so
+  // that subsequent conflict lookups can return meaningful details to the client.
+  if (_fpKey) {
+    db.execute(sql`
+      UPDATE pos_order_fingerprints
+      SET order_id = ${orderId}, order_number = ${orderNumber ?? ''}
+      WHERE fingerprint_key = ${_fpKey}
+    `).catch(err => req.log.warn({ err, _fpKey }, 'POS sync: fingerprint back-fill failed'));
   }
 
   return res.status(201).json({
@@ -1297,51 +1351,40 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
 
 router.post('/orders', handleCreatePosOrder);
 
-// ── POST /pos/orders/sync — offline sync endpoint with fingerprint conflict ───
-// Used exclusively by the mobile offline sync path (OfflineContext) so that
-// orders submitted from a device that was offline are checked for duplicates
-// beyond simple idempotency-key dedup.
+// ── POST /pos/orders/sync — offline sync endpoint with DB fingerprint check ───
+// Used exclusively by the mobile offline sync path (OfflineContext).
 //
-// Adds a second layer of conflict detection:
-//   items fingerprint + register session + 3-minute window
-// This catches the "two tablets, same sale, different idempotency keys" case.
+// Extends POST /orders with a second conflict-detection layer:
+//   register session × items fingerprint × 3-minute time bucket
+// The check is enforced by a PostgreSQL UNIQUE constraint on
+// pos_order_fingerprints.fingerprint_key, making it atomic and TOCTOU-safe.
+// Two concurrent sync requests with the same items on the same register
+// cannot both succeed: the loser gets a PK violation → 409 CONFLICT_DETECTED,
+// and NO duplicate order is created.
 //
-// Returns the same 201 payload as POST /orders on success.
-// Returns 409 DUPLICATE_ORDER if the idempotency key is already known.
-// Returns 409 CONFLICT_DETECTED if a same-items sale was recently processed
-//   on the same register (with details of the conflicting order).
+// Returns: same 201 payload as POST /orders on success.
+//          409 DUPLICATE_ORDER if the idempotency key is already known.
+//          409 CONFLICT_DETECTED if a same-items sale was detected (with
+//              conflicting order details).
 router.post('/orders/sync', async (req, res, next) => {
   await ensurePosSchemaReady();
+  await ensureShopDisplaySchemaReady(); // ensures pos_order_fingerprints exists
 
   const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
 
+  // Build fingerprint key and inject it for handleCreatePosOrder to use.
+  // The actual DB check runs inside the handler so the check + order insert
+  // share the same execution context (fingerprint claimed → order created →
+  // fingerprint back-filled with orderId — all in one logical sequence).
   if (rawItems.length > 0) {
     try {
       const session = await getOrCreateCurrentRegisterSession(req.user!.id);
-      const fp = computeSaleFingerprint(rawItems);
-      const cacheKey = `${session.id}:${fp}`;
-      const cached = posSaleFingerprintCache.get(cacheKey);
-      if (cached && Date.now() - cached.createdAt < FINGERPRINT_WINDOW_MS) {
-        req.log.info(
-          { cacheKey, conflictingOrderId: cached.orderId, conflictingOrderNumber: cached.orderNumber },
-          'POS sync: fingerprint conflict detected',
-        );
-        return res.status(409).json({
-          error: 'Duplicate sale detected — a similar order was placed on the same register within the last 3 minutes',
-          code: 'CONFLICT_DETECTED',
-          data: {
-            id: cached.orderId,
-            orderNumber: cached.orderNumber,
-          },
-        });
-      }
+      req.body._fpKey = buildFingerprintKey(session.id, rawItems);
     } catch (err) {
-      req.log.warn({ err }, 'POS sync: fingerprint check failed — continuing with order creation');
+      req.log.warn({ err }, 'POS sync: failed to resolve register session for fingerprint — continuing without');
     }
   }
 
-  // No fingerprint conflict detected — delegate to the main order handler.
-  // The idempotency check (DUPLICATE_ORDER) and all order creation logic run there.
   return handleCreatePosOrder(req, res, next);
 });
 

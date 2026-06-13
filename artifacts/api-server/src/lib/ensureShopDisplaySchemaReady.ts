@@ -143,6 +143,19 @@ export async function ensureShopDisplaySchemaReady() {
     ADD COLUMN IF NOT EXISTS drawer_pin integer NOT NULL DEFAULT 0;
   `);
 
+  // ── pos_order_fingerprints — DB-backed duplicate sale dedup ─────────────────
+  // Stores a unique key per (register-session × items-hash × 3-min time-bucket)
+  // so the UNIQUE constraint on fingerprint_key gives atomic, TOCTOU-safe
+  // conflict detection for POST /pos/orders/sync.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS pos_order_fingerprints (
+      fingerprint_key text PRIMARY KEY,
+      order_id text,
+      order_number text,
+      created_at timestamp NOT NULL DEFAULT now()
+    );
+  `);
+
   // ── pos_daily_summaries — pre-computed nightly POS rollup ──────────────────
   // Guard ensures the table exists before analytics fast-path queries or the
   // daily summary job run, even if drizzle-kit push was never executed.
