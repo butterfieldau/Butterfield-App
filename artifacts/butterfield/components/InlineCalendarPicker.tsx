@@ -99,10 +99,12 @@ export default function InlineCalendarPicker({
     : null;
 
   function isDisabled(date: Date, inMonth: boolean): boolean {
+    // Out-of-month filler cells are always disabled — never selectable
+    if (!inMonth) return true;
     const d = new Date(date); d.setHours(0, 0, 0, 0);
     if (maxDate) { const mx = new Date(maxDate); mx.setHours(0, 0, 0, 0); if (d > mx) return true; }
     if (minDate) { const mn = new Date(minDate); mn.setHours(0, 0, 0, 0); if (d < mn) return true; }
-    if (availableKeys && inMonth && !availableKeys.has(toKey(date))) return true;
+    if (availableKeys && !availableKeys.has(toKey(date))) return true;
     return false;
   }
 

@@ -1331,6 +1331,14 @@ function CartContent() {
     }
   }, [orderType, pickupDates, pickupTimes, selectedDate, selectedTimeMins]);
 
+  // Guard delivery date — clear if it falls outside the available Mon/Thu slots
+  useEffect(() => {
+    if (orderType !== 'delivery' || !selectedDate) return;
+    const availableDeliveryDates = deliveryDates.filter(s => s.available).map(s => s.date);
+    const stillAvailable = availableDeliveryDates.some(d => isSameDay(d, selectedDate));
+    if (!stillAvailable) setSelectedDate(null);
+  }, [orderType, deliveryDates, selectedDate]);
+
   const [timePickerVisible, setTimePickerVisible] = useState(false);
 
   // Convert pickupTimes (minutes from midnight) → initial HH:MM for TimeWheelPicker
