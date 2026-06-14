@@ -37,6 +37,40 @@ function findNearestInOpposite(currentMins: number, validSlots: number[]): numbe
   return best;
 }
 
+function findPrevHour(currentMins: number, validSlots: number[]): number | null {
+  const currentHour = Math.floor(currentMins / 60);
+  const currentMin = currentMins % 60;
+  const prevSlots = validSlots.filter((s) => Math.floor(s / 60) < currentHour);
+  if (prevSlots.length === 0) return null;
+  const targetHour = Math.max(...prevSlots.map((s) => Math.floor(s / 60)));
+  const targetHourSlots = prevSlots.filter((s) => Math.floor(s / 60) === targetHour);
+  const sameMin = targetHourSlots.find((s) => s % 60 === currentMin);
+  if (sameMin !== undefined) return sameMin;
+  return targetHourSlots[targetHourSlots.length - 1];
+}
+
+function findNextHour(currentMins: number, validSlots: number[]): number | null {
+  const currentHour = Math.floor(currentMins / 60);
+  const currentMin = currentMins % 60;
+  const nextSlots = validSlots.filter((s) => Math.floor(s / 60) > currentHour);
+  if (nextSlots.length === 0) return null;
+  const targetHour = Math.min(...nextSlots.map((s) => Math.floor(s / 60)));
+  const targetHourSlots = nextSlots.filter((s) => Math.floor(s / 60) === targetHour);
+  const sameMin = targetHourSlots.find((s) => s % 60 === currentMin);
+  if (sameMin !== undefined) return sameMin;
+  return targetHourSlots[0];
+}
+
+function findPrevMin(currentIndex: number, validSlots: number[]): number | null {
+  if (currentIndex <= 0) return null;
+  return validSlots[currentIndex - 1];
+}
+
+function findNextMin(currentIndex: number, validSlots: number[]): number | null {
+  if (currentIndex >= validSlots.length - 1) return null;
+  return validSlots[currentIndex + 1];
+}
+
 export default function PickupTimeWheelPicker({
   validSlots,
   selectedSlotMins,
@@ -88,38 +122,70 @@ export default function PickupTimeWheelPicker({
 
   const currentMins = validSlots[safeIndex];
   const slot = formatSlot(currentMins);
-  const atStart = safeIndex === 0;
-  const atEnd = safeIndex === validSlots.length - 1;
+
+  const prevHourSlot = findPrevHour(currentMins, validSlots);
+  const nextHourSlot = findNextHour(currentMins, validSlots);
+  const prevMinSlot = findPrevMin(safeIndex, validSlots);
+  const nextMinSlot = findNextMin(safeIndex, validSlots);
+
+  const hourUpDisabled = prevHourSlot === null;
+  const hourDownDisabled = nextHourSlot === null;
+  const minUpDisabled = prevMinSlot === null;
+  const minDownDisabled = nextMinSlot === null;
+
+  const hourUp = () => { if (prevHourSlot !== null) onSelectSlot(prevHourSlot); };
+  const hourDown = () => { if (nextHourSlot !== null) onSelectSlot(nextHourSlot); };
+  const minuteUp = () => { if (prevMinSlot !== null) onSelectSlot(prevMinSlot); };
+  const minuteDown = () => { if (nextMinSlot !== null) onSelectSlot(nextMinSlot); };
 
   const oppositeSlot = findNearestInOpposite(currentMins, validSlots);
   const canToggleMeridiem = oppositeSlot !== null;
-
-  const goUp = () => { if (!atStart) onSelectSlot(validSlots[safeIndex - 1]); };
-  const goDown = () => { if (!atEnd) onSelectSlot(validSlots[safeIndex + 1]); };
   const toggleMeridiem = () => { if (oppositeSlot !== null) onSelectSlot(oppositeSlot); };
 
   return (
     <View style={s.container}>
       <View style={s.pickerRow} {...panResponder.panHandlers}>
         <View style={s.col}>
-          <Pressable onPress={goUp} style={[s.arrow, atStart && s.arrowDisabled]} hitSlop={8}>
-            <Feather name="chevron-up" size={26} color={atStart ? '#D1D5DB' : accentColor} />
+          <Pressable
+            onPress={hourUp}
+            disabled={hourUpDisabled}
+            style={[s.arrow, hourUpDisabled && s.arrowDisabled]}
+            hitSlop={8}
+          >
+            <Feather name="chevron-up" size={26} color={hourUpDisabled ? '#D1D5DB' : accentColor} />
           </Pressable>
           <Text style={s.digit}>{slot.h12}</Text>
-          <Pressable onPress={goDown} style={[s.arrow, atEnd && s.arrowDisabled]} hitSlop={8}>
-            <Feather name="chevron-down" size={26} color={atEnd ? '#D1D5DB' : accentColor} />
+          <Pressable
+            onPress={hourDown}
+            disabled={hourDownDisabled}
+            style={[s.arrow, hourDownDisabled && s.arrowDisabled]}
+            hitSlop={8}
+          >
+            <Feather name="chevron-down" size={26} color={hourDownDisabled ? '#D1D5DB' : accentColor} />
           </Pressable>
         </View>
 
-        <Text style={s.colon}>:</Text>
+        <View style={s.colonWrap}>
+          <Text style={s.colon}>:</Text>
+        </View>
 
         <View style={s.col}>
-          <Pressable onPress={goUp} style={[s.arrow, atStart && s.arrowDisabled]} hitSlop={8}>
-            <Feather name="chevron-up" size={26} color={atStart ? '#D1D5DB' : accentColor} />
+          <Pressable
+            onPress={minuteUp}
+            disabled={minUpDisabled}
+            style={[s.arrow, minUpDisabled && s.arrowDisabled]}
+            hitSlop={8}
+          >
+            <Feather name="chevron-up" size={26} color={minUpDisabled ? '#D1D5DB' : accentColor} />
           </Pressable>
           <Text style={s.digit}>{slot.min}</Text>
-          <Pressable onPress={goDown} style={[s.arrow, atEnd && s.arrowDisabled]} hitSlop={8}>
-            <Feather name="chevron-down" size={26} color={atEnd ? '#D1D5DB' : accentColor} />
+          <Pressable
+            onPress={minuteDown}
+            disabled={minDownDisabled}
+            style={[s.arrow, minDownDisabled && s.arrowDisabled]}
+            hitSlop={8}
+          >
+            <Feather name="chevron-down" size={26} color={minDownDisabled ? '#D1D5DB' : accentColor} />
           </Pressable>
         </View>
 
@@ -175,13 +241,17 @@ const s = StyleSheet.create({
     width: 66,
     textAlign: 'center',
     letterSpacing: -1,
+    lineHeight: 52,
+  },
+  colonWrap: {
+    alignSelf: 'center',
+    marginHorizontal: 2,
   },
   colon: {
     fontSize: 44,
     fontWeight: '700',
     color: '#111827',
-    marginTop: -14,
-    marginHorizontal: 2,
+    lineHeight: 52,
   },
   ampmBox: {
     marginLeft: 10,
