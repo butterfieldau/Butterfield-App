@@ -269,7 +269,7 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 
   const isCancellingNow = status === 'cancelled' && previousStatus !== 'cancelled' && previousStatus !== 'refunded';
-  if (isCancellingNow) {
+  if (isCancellingNow && previousStatus === 'completed') {
     try {
       await db.update(claimedRewardsTable)
         .set({ status: 'available', redeemedAt: null, orderId: null })

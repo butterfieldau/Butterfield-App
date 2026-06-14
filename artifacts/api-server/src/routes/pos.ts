@@ -1315,7 +1315,11 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
       }
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
-      const coffeeStampCount = await countCoffeeItemsFromOrderItems(items);
+      const coffeeStampCount = items.reduce((sum: number, item: any) => {
+        if ((item as any)?.freeCoffeeItem === true) return sum;
+        if (String(item?.category ?? '').toLowerCase() !== 'coffee') return sum;
+        return sum + Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
+      }, 0);
       let stampsAdded = 0;
       let rewardUnlocked = false;
       let newStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);

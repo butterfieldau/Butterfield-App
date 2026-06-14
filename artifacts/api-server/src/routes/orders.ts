@@ -566,7 +566,7 @@ router.patch(
     // Guard: only run once — skip if order was already cancelled before this call
     const isCancelOrRefund = (status === 'cancelled' || status === 'refunded');
     const wasAlreadyCancelledOrRefunded = previousStatus === 'cancelled' || previousStatus === 'refunded';
-    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && order) {
+    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && order && previousStatus === 'completed') {
       try {
         await db.update(claimedRewardsTable)
           .set({ status: 'available', redeemedAt: null, orderId: null })
