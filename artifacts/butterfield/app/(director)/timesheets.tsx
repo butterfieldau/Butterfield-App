@@ -637,17 +637,20 @@ function getWeekOptionLabel(key: WeekRangeKey): string {
   return 'Custom…';
 }
 
-function DateRangeDropdown({ value, customFrom, customTo, onChange }: {
+function DateRangeDropdown({ value, customFrom, customTo, panelOpen, onSelectPreset, onOpenCustom }: {
   value: WeekRangeKey;
   customFrom: Date | null;
   customTo: Date | null;
-  onChange: (k: WeekRangeKey) => void;
+  panelOpen: boolean;
+  onSelectPreset: (k: Exclude<WeekRangeKey, 'custom'>) => void;
+  onOpenCustom: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
   function triggerLabel(): string {
-    if (value === 'custom' && customFrom && customTo) {
-      return `${fmtShortDate(customFrom)} – ${fmtShortDate(customTo)}`;
+    if (value === 'custom') {
+      if (customFrom && customTo) return `${fmtShortDate(customFrom)} – ${fmtShortDate(customTo)}`;
+      return 'From – To';
     }
     return getWeekOptionLabel(value);
   }
@@ -661,14 +664,22 @@ function DateRangeDropdown({ value, customFrom, customTo, onChange }: {
       {open && (
         <View style={dd.menu}>
           {WEEK_OPTIONS.map(r => (
-            <Pressable key={r.key}
-              onPress={() => { onChange(r.key); setOpen(false); Haptics.selectionAsync(); }}
-              style={[dd.item, r.key === value && { backgroundColor: BLUE + '12' }]}>
-              <Text style={[dd.itemText, r.key === value && { color: BLUE, fontWeight: '600' }]}>
-                {getWeekOptionLabel(r.key)}
-              </Text>
-              {r.key === value && <Feather name="check" size={14} color={BLUE} />}
-            </Pressable>
+              <Pressable key={r.key}
+                onPress={() => {
+                  if (r.key === 'custom') {
+                    setOpen(false);
+                    onOpenCustom();
+                  } else {
+                    setOpen(false);
+                    onSelectPreset(r.key as Exclude<WeekRangeKey, 'custom'>);
+                  }
+                }}
+                style={[dd.item, r.key === value && { backgroundColor: BLUE + '12' }]}>
+                <Text style={[dd.itemText, r.key === value && { color: BLUE, fontWeight: '600' }]}>
+                  {getWeekOptionLabel(r.key)}
+                </Text>
+                {r.key === value && <Feather name="check" size={14} color={BLUE} />}
+              </Pressable>
           ))}
         </View>
       )}
@@ -690,7 +701,9 @@ export default function DirectorTimesheetsScreen() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
 
-  const [dateRange,    setDateRange]    = useState<WeekRangeKey>('w0');
+  // appliedRange = what's actually filtering the list; panelOpen = custom picker visible
+  const [appliedRange, setAppliedRange] = useState<WeekRangeKey>('w0');
+  const [panelOpen,    setPanelOpen]    = useState(false);
   const [customFrom,   setCustomFrom]   = useState<Date | null>(null);
   const [customTo,     setCustomTo]     = useState<Date | null>(null);
   const [draftFrom,    setDraftFrom]    = useState<Date | null>(null);
@@ -720,16 +733,16 @@ export default function DirectorTimesheetsScreen() {
   // staffList already includes position from server (LEFT JOIN on staff_profiles)
 
   const { rangeStart, rangeEnd } = useMemo(() => {
-    if (dateRange === 'custom') {
+    if (appliedRange === 'custom') {
       const start = customFrom ? new Date(customFrom) : getMondayOfWeek(0);
       start.setHours(0, 0, 0, 0);
       const end = customTo ? new Date(customTo) : getSundayOfWeek(0);
       end.setHours(23, 59, 59, 999);
       return { rangeStart: start, rangeEnd: end };
     }
-    const weeksAgo = parseInt(dateRange[1]);
+    const weeksAgo = parseInt(appliedRange[1]);
     return { rangeStart: getMondayOfWeek(weeksAgo), rangeEnd: getSundayOfWeek(weeksAgo) };
-  }, [dateRange, customFrom, customTo]);
+  }, [appliedRange, customFrom, customTo]);
 
   const rangeShifts = useMemo(() =>
     allShifts.filter(s => new Date(s.clockIn) >= rangeStart && new Date(s.clockIn) <= rangeEnd),
@@ -844,20 +857,29 @@ export default function DirectorTimesheetsScreen() {
             <Text style={sc.locationText}>Butterfield</Text>
           </View>
           <DateRangeDropdown
-            value={dateRange}
+            value={appliedRange}
             customFrom={customFrom}
             customTo={customTo}
-            onChange={k => {
-              setDateRange(k);
+            panelOpen={panelOpen}
+            onSelectPreset={k => {
+              setAppliedRange(k);
               setPersonFilter('all');
-              if (k !== 'custom') { setCustomFrom(null); setCustomTo(null); }
-              if (k === 'custom') { setDraftFrom(customFrom); setDraftTo(customTo); }
+              setCustomFrom(null);
+              setCustomTo(null);
+              setPanelOpen(false);
+              Haptics.selectionAsync();
+            }}
+            onOpenCustom={() => {
+              setDraftFrom(customFrom);
+              setDraftTo(customTo);
+              setPanelOpen(true);
+              Haptics.selectionAsync();
             }}
           />
         </View>
 
         {/* ── Custom date-range panel ──────────────────────────────────────── */}
-        {dateRange === 'custom' && (
+        {panelOpen && (
           <View style={sc.customPanel}>
             <View style={sc.customPanelRow}>
               {/* From calendar */}
@@ -886,17 +908,27 @@ export default function DirectorTimesheetsScreen() {
                 />
               </View>
             </View>
-            <Pressable
-              onPress={() => {
-                if (!draftFrom || !draftTo) return;
-                setCustomFrom(draftFrom);
-                setCustomTo(draftTo);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              }}
-              disabled={!draftFrom || !draftTo}
-              style={[sc.customApplyBtn, (!draftFrom || !draftTo) && { opacity: 0.4 }]}>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => setPanelOpen(false)}
+                style={[sc.customApplyBtn, { flex: 1, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER }]}>
+                <Text style={[sc.customApplyBtnText, { color: TEXT }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (!draftFrom || !draftTo) return;
+                  setAppliedRange('custom');
+                  setCustomFrom(draftFrom);
+                  setCustomTo(draftTo);
+                  setPersonFilter('all');
+                  setPanelOpen(false);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                disabled={!draftFrom || !draftTo}
+                style={[sc.customApplyBtn, { flex: 2 }, (!draftFrom || !draftTo) && { opacity: 0.4 }]}>
               <Text style={sc.customApplyBtnText}>Apply</Text>
-            </Pressable>
+              </Pressable>
+            </View>
           </View>
         )}
 
