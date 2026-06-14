@@ -4,9 +4,9 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useMemo, useState, type ComponentProps } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Modal,
-  Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
-  Text, TextInput, View,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
+  Modal, Platform, Pressable, RefreshControl, ScrollView,
+  StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -14,57 +14,57 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { api, type DirectorShift } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useAuth } from '@/context/AuthContext';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-type FeatherIconName = ComponentProps<typeof Feather>['name'];
+// ── Palette ───────────────────────────────────────────────────────────────────
+const BG         = '#EFF6FF';
+const CARD       = '#FFFFFF';
+const BLUE       = '#1493FF';
+const INDIGO     = '#4F46E5';
+const NAVY       = '#1A2B4A';
+const TEXT       = '#1C1C1E';
+const MUTED      = '#8E8E93';
+const BORDER     = '#E5E7EB';
+const GREEN      = '#22C55E';
+const AMBER      = '#F59E0B';
+const GLASS_BG   = 'rgba(255,255,255,0.8)';
+const GLASS_BDR  = 'rgba(255,255,255,0.9)';
+type FeatherName = ComponentProps<typeof Feather>['name'];
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-function getWeekStart(ref: Date): Date {
-  const d = new Date(ref);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  d.setHours(0, 0, 0, 0);
-  return d;
+const MONTH_NAMES   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_FULL    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_FULL      = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function toDateKey(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function addWeeks(d: Date, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n * 7);
-  return r;
+function fmtSectionHeader(iso: string) {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTH_FULL[d.getMonth()]} ${d.getFullYear()}`;
 }
-function formatDate(d: Date): string {
-  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+function fmtDateRow(d: Date): string {
+  return `${DAY_FULL[d.getDay()]} ${d.getDate()} ${MONTH_FULL[d.getMonth()]}`;
+}
+function fmtTimeShort(iso: string): string {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? 'pm' : 'am';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2,'0')} ${ampm}`;
 }
 function fmtTime(iso: string) {
   const d = new Date(iso);
   let h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, '0');
-  const s = d.getSeconds().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2,'0');
+  const s = d.getSeconds().toString().padStart(2,'0');
   const ampm = h >= 12 ? 'pm' : 'am';
   if (h > 12) h -= 12;
   if (h === 0) h = 12;
   return `${h}:${m}:${s} ${ampm}`;
-}
-function fmtDateGroup(iso: string) {
-  return new Date(iso).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
-}
-function toDateKey(iso: string) {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function fmtAUD(cents: number) {
-  return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function parseHoursWorked(raw: string | null | undefined): number {
   if (!raw) return 0;
@@ -85,36 +85,52 @@ function formatHours(hrs: number): string {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
 }
+function formatDate(d: Date): string {
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
-function calcPay(s: DirectorShift): number | null {
-  if (!s.clockOut || !s.hourlyRateCents) return null;
-  const hrs = parseHoursWorked(s.hoursWorked);
-  return Math.round(hrs * s.hourlyRateCents);
-}
-function isoToHHMM(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-function applyHHMM(base: string, hhmm: string): string | null {
-  const match = hhmm.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const d = new Date(base);
-  d.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
-  return d.toISOString();
 }
 function capitalize(s: string) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 }
+function fmtAUD(cents: number) {
+  return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function calcPay(s: DirectorShift): number | null {
+  if (!s.clockOut || !s.hourlyRateCents) return null;
+  return Math.round(parseHoursWorked(s.hoursWorked) * s.hourlyRateCents);
+}
+function isoToHHMM(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'object' && error && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+  if (typeof error === 'object' && error && 'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string') {
     return (error as { message: string }).message;
   }
   return fallback;
 }
-// ── Payroll summary per staff member ─────────────────────────────────────────
+
+// ── Date range helpers ────────────────────────────────────────────────────────
+type DateRangeKey = '7d' | '1m' | '6m';
+const DATE_RANGES: { key: DateRangeKey; label: string }[] = [
+  { key: '7d', label: 'Last 7 days' },
+  { key: '1m', label: 'Last month' },
+  { key: '6m', label: 'Last 6 months' },
+];
+function getRangeStart(key: DateRangeKey): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (key === '7d')  { d.setDate(d.getDate() - 6); return d; }
+  if (key === '1m')  { d.setMonth(d.getMonth() - 1); return d; }
+  d.setMonth(d.getMonth() - 6);
+  return d;
+}
+
+// ── Payroll summary ───────────────────────────────────────────────────────────
 type StaffPaySummary = {
   userId: string; name: string; position: string;
   approvedShifts: number; pendingShifts: number;
@@ -125,27 +141,28 @@ function buildPayrollSummary(shifts: DirectorShift[]): StaffPaySummary[] {
   for (const s of shifts) {
     if (!s.clockOut || !s.userId) continue;
     if (!map.has(s.userId)) {
-      map.set(s.userId, { userId: s.userId, name: s.name ?? 'Unknown', position: s.position ?? 'Staff',
-        approvedShifts: 0, pendingShifts: 0, totalHours: 0, totalPayCents: 0, hasRate: false });
+      map.set(s.userId, { userId: s.userId, name: s.name ?? 'Unknown',
+        position: s.position ?? 'Staff', approvedShifts: 0, pendingShifts: 0,
+        totalHours: 0, totalPayCents: 0, hasRate: false });
     }
     const entry = map.get(s.userId)!;
-    const hrs = parseHoursWorked(s.hoursWorked);
+    entry.totalHours += parseHoursWorked(s.hoursWorked);
     const pay = calcPay(s);
-    entry.totalHours += hrs;
     if (s.hourlyRateCents) entry.hasRate = true;
     if (pay != null) entry.totalPayCents += pay;
     if (s.approvedAt) entry.approvedShifts++; else entry.pendingShifts++;
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// ── PDF export ────────────────────────────────────────────────────────────────
 function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): string {
   const rows = shifts.map(s => {
     const hrs = parseHoursWorked(s.hoursWorked);
     const pay = calcPay(s);
-    const dateStr = new Date(s.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    const dateStr = new Date(s.clockIn).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
     return `<tr>
-      <td>${s.name ?? ''}</td>
-      <td>${dateStr}</td>
+      <td>${s.name ?? ''}</td><td>${dateStr}</td>
       <td>${fmtTime(s.clockIn)}</td>
       <td>${s.clockOut ? fmtTime(s.clockOut) : '—'}</td>
       <td>${s.unpaidBreakMins ? `${s.unpaidBreakMins}m` : '—'}</td>
@@ -163,7 +180,6 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { background: #1A2B4A; color: white; padding: 10px 12px; text-align: left; font-size: 11px; letter-spacing: 0.5px; }
     td { padding: 10px 12px; border-bottom: 1px solid #E5E7EB; }
-    tr:last-child td { border-bottom: none; }
     tr:nth-child(even) { background: #F9FAFB; }
     .total { background: #1C1C1E; color: white; font-weight: bold; }
     .total td { color: white; }
@@ -178,29 +194,202 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
     ${rows}
     <tr class="total"><td colspan="5">TOTAL</td><td>${formatHours(totalHrs)}</td><td>${fmtAUD(totalPay)}</td></tr>
   </tbody></table>
-  <div class="footer">Generated ${new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })} · Butterfield Cookies Pty Ltd</div>
+  <div class="footer">Generated ${new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' })} · Butterfield Cookies Pty Ltd</div>
   </body></html>`;
 }
-// ── Edit / Approve Modal ───────────────────────────────────────────────────────
-function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
-  shift: DirectorShift | null; visible: boolean; onClose: () => void; onSaved: () => void;
-  hidePayInfo?: boolean;
+
+// ── Time Picker Modal ─────────────────────────────────────────────────────────
+function TimePickerModal({ visible, initialHHMM, onConfirm, onClose }: {
+  visible: boolean; initialHHMM: string;
+  onConfirm: (hhmm: string) => void; onClose: () => void;
+}) {
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
+  React.useEffect(() => {
+    if (visible && initialHHMM) {
+      const [hStr, mStr] = initialHHMM.split(':');
+      setHour(Math.min(23, Math.max(0, parseInt(hStr) || 0)));
+      setMinute(Math.min(59, Math.max(0, parseInt(mStr) || 0)));
+    }
+  }, [visible, initialHHMM]);
+  const ampm  = hour >= 12 ? 'PM' : 'AM';
+  const h12   = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  const hhmm  = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={tp.overlay} onPress={onClose}>
+        <Pressable style={tp.sheet} onPress={e => e.stopPropagation()}>
+          <Text style={tp.title}>Select Time</Text>
+          <View style={tp.pickerRow}>
+            {/* Hour */}
+            <View style={tp.col}>
+              <Pressable onPress={() => setHour(h => (h + 1) % 24)} style={tp.arrow}>
+                <Feather name="chevron-up" size={22} color={INDIGO} />
+              </Pressable>
+              <Text style={tp.digit}>{String(h12).padStart(2,'0')}</Text>
+              <Pressable onPress={() => setHour(h => (h - 1 + 24) % 24)} style={tp.arrow}>
+                <Feather name="chevron-down" size={22} color={INDIGO} />
+              </Pressable>
+            </View>
+            <Text style={tp.colon}>:</Text>
+            {/* Minute — 5-min steps */}
+            <View style={tp.col}>
+              <Pressable onPress={() => setMinute(m => (m + 5) % 60)} style={tp.arrow}>
+                <Feather name="chevron-up" size={22} color={INDIGO} />
+              </Pressable>
+              <Text style={tp.digit}>{String(minute).padStart(2,'0')}</Text>
+              <Pressable onPress={() => setMinute(m => (m - 5 + 60) % 60)} style={tp.arrow}>
+                <Feather name="chevron-down" size={22} color={INDIGO} />
+              </Pressable>
+            </View>
+            {/* AM/PM */}
+            <Pressable style={tp.ampmBtn} onPress={() => setHour(h => h >= 12 ? h - 12 : h + 12)}>
+              <Text style={tp.ampmText}>{ampm}</Text>
+            </Pressable>
+          </View>
+          <View style={tp.btnRow}>
+            <Pressable onPress={onClose} style={[tp.btn, { backgroundColor: '#F3F4F6' }]}>
+              <Text style={[tp.btnText, { color: TEXT }]}>Cancel</Text>
+            </Pressable>
+            <Pressable onPress={() => { onConfirm(hhmm); onClose(); }}
+              style={[tp.btn, { backgroundColor: INDIGO }]}>
+              <Text style={[tp.btnText, { color: '#fff' }]}>Done</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+const tp = StyleSheet.create({
+  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  sheet:     { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: 280, gap: 20 },
+  title:     { fontSize: 17, fontWeight: '700', color: TEXT, textAlign: 'center' },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  col:       { alignItems: 'center', gap: 4 },
+  arrow:     { padding: 6 },
+  digit:     { fontSize: 36, fontWeight: '700', color: TEXT, width: 56, textAlign: 'center' },
+  colon:     { fontSize: 36, fontWeight: '700', color: TEXT, marginTop: -8 },
+  ampmBtn:   { marginLeft: 8, backgroundColor: INDIGO + '18', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  ampmText:  { fontSize: 16, fontWeight: '700', color: INDIGO },
+  btnRow:    { flexDirection: 'row', gap: 10 },
+  btn:       { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  btnText:   { fontSize: 15, fontWeight: '600' },
+});
+
+// ── Staff Picker Modal ────────────────────────────────────────────────────────
+function StaffPickerModal({ visible, staff, onSelect, onClose }: {
+  visible: boolean;
+  staff: Array<{ id: string; name: string; role: string; position?: string | null }>;
+  onSelect: (s: { id: string; name: string; role: string; position?: string | null }) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <View style={[sp.header, { paddingTop: insets.top + 12 }]}>
+          <Text style={sp.title}>Select Team Member</Text>
+          <Pressable onPress={onClose} style={sp.closeBtn}>
+            <Feather name="x" size={18} color={TEXT} />
+          </Pressable>
+        </View>
+        <FlatList
+          data={staff}
+          keyExtractor={i => i.id}
+          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}
+          renderItem={({ item }) => (
+            <Pressable onPress={() => { onSelect(item); onClose(); }}
+              style={({ pressed }) => [sp.row, pressed && { opacity: 0.7 }]}>
+              <View style={sp.avatar}>
+                <Text style={sp.avatarText}>{initials(item.name)}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={sp.name}>{item.name}</Text>
+                <Text style={sp.role}>{capitalize(item.position ?? item.role)}</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color={MUTED} />
+            </Pressable>
+          )}
+        />
+      </View>
+    </Modal>
+  );
+}
+const sp = StyleSheet.create({
+  header:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  title:      { fontSize: 18, fontWeight: '700', color: TEXT },
+  closeBtn:   { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
+  row:        { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
+  avatar:     { width: 40, height: 40, borderRadius: 20, backgroundColor: INDIGO + '18', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', color: INDIGO },
+  name:       { fontSize: 15, fontWeight: '600', color: TEXT },
+  role:       { fontSize: 12, color: MUTED, marginTop: 1 },
+});
+
+// ── Add / Edit Timesheet Modal ─────────────────────────────────────────────────
+function TimesheetModal({ mode, shift, staffList, isManager, visible, onClose, onSaved }: {
+  mode: 'add' | 'edit';
+  shift?: DirectorShift | null;
+  staffList: Array<{ id: string; name: string; role: string; position?: string | null }>;
+  isManager: boolean;
+  visible: boolean;
+  onClose: () => void;
+  onSaved: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [inTime,  setInTime]  = useState('');
-  const [outTime, setOutTime] = useState('');
-  const [brk,     setBrk]     = useState('');
-  const [saving,  setSaving]  = useState(false);
-  const [tab,     setTab]     = useState<'details' | 'edit'>('details');
+
+  // Form state
+  const [selectedStaff, setSelectedStaff] = useState<{ id: string; name: string; role: string; position?: string | null } | null>(null);
+  const [selectedDate,  setSelectedDate]  = useState<Date | null>(null);
+  const [startHHMM,     setStartHHMM]     = useState('09:00');
+  const [endHHMM,       setEndHHMM]       = useState('17:00');
+  const [breakMins,     setBreakMins]      = useState(0);
+  const [calOpen,       setCalOpen]        = useState(false);
+  const [showStaffPick, setShowStaffPick]  = useState(false);
+  const [showStartPick, setShowStartPick]  = useState(false);
+  const [showEndPick,   setShowEndPick]    = useState(false);
+  const [saving,        setSaving]         = useState(false);
+  const [deleting,      setDeleting]       = useState(false);
+
   React.useEffect(() => {
-    if (shift) {
-      setInTime(isoToHHMM(shift.clockIn));
-      setOutTime(shift.clockOut ? isoToHHMM(shift.clockOut) : '');
-      setBrk(String(shift.unpaidBreakMins ?? 0));
-      setTab('details');
+    if (!visible) return;
+    if (mode === 'edit' && shift) {
+      const s = staffList.find(x => x.id === shift.userId);
+      setSelectedStaff(s ?? { id: shift.userId, name: shift.name ?? 'Unknown', role: 'staff', position: shift.position ?? undefined });
+      setSelectedDate(new Date(shift.clockIn));
+      setStartHHMM(isoToHHMM(shift.clockIn));
+      setEndHHMM(shift.clockOut ? isoToHHMM(shift.clockOut) : '17:00');
+      setBreakMins(shift.unpaidBreakMins ?? 0);
+    } else {
+      setSelectedStaff(null);
+      setSelectedDate(null);
+      setStartHHMM('09:00');
+      setEndHHMM('17:00');
+      setBreakMins(0);
     }
-  }, [shift]);
+    setCalOpen(false);
+    setShowStaffPick(false);
+  }, [visible, mode, shift]);
+
+  // Compute total hours badge
+  const totalHoursDisplay = useMemo(() => {
+    if (!selectedDate) return null;
+    const base = new Date(selectedDate);
+    const [sh, sm] = startHHMM.split(':').map(Number);
+    const [eh, em] = endHHMM.split(':').map(Number);
+    base.setHours(sh, sm, 0, 0);
+    const end = new Date(base);
+    end.setHours(eh, em, 0, 0);
+    const diffMs = end.getTime() - base.getTime();
+    if (diffMs <= 0) return null;
+    const totalMins = Math.max(0, diffMs / 60000 - breakMins);
+    return formatHours(totalMins / 60);
+  }, [selectedDate, startHHMM, endHHMM, breakMins]);
+
+  const canSave = !!selectedStaff && !!selectedDate && !!startHHMM && !!endHHMM;
+
   const approve = useMutation({
     mutationFn: (a: boolean) => api.director.updateShift(shift!.id, { approve: a }),
     onSuccess: () => {
@@ -208,294 +397,462 @@ function ShiftModal({ shift, visible, onClose, onSaved, hidePayInfo = false }: {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSaved();
     },
-    onError: (error: unknown) => Alert.alert('Error', getErrorMessage(error, 'Could not update shift approval.')),
+    onError: (e: unknown) => Alert.alert('Error', getErrorMessage(e, 'Could not update approval.')),
   });
-  const handleSaveEdit = async () => {
-    if (!shift) return;
+
+  const handleSave = async () => {
+    if (!canSave || !selectedDate) return;
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const newIn  = applyHHMM(shift.clockIn, inTime);
-      const newOut = outTime.trim() ? applyHHMM(shift.clockIn, outTime) : null;
-      const brkMin = parseInt(brk) || 0;
-      if (!newIn) { Alert.alert('Invalid time', 'Clock-in time must be in HH:MM format.'); return; }
-      if (outTime.trim() && !newOut) { Alert.alert('Invalid time', 'Clock-out time must be in HH:MM format.'); return; }
-      await api.director.updateShift(shift.id, { clockIn: newIn, clockOut: newOut, unpaidBreakMins: brkMin });
+      const base = new Date(selectedDate);
+      const [sh, sm] = startHHMM.split(':').map(Number);
+      const [eh, em] = endHHMM.split(':').map(Number);
+      base.setHours(sh, sm, 0, 0);
+      const endDate = new Date(base);
+      endDate.setHours(eh, em, 0, 0);
+      if (endDate <= base) { Alert.alert('Invalid times', 'End time must be after start time.'); return; }
+      if (mode === 'add') {
+        await api.director.createTimesheet({
+          userId: selectedStaff!.id,
+          clockIn: base.toISOString(),
+          clockOut: endDate.toISOString(),
+          unpaidBreakMins: breakMins,
+        });
+      } else {
+        await api.director.updateShift(shift!.id, {
+          clockIn: base.toISOString(),
+          clockOut: endDate.toISOString(),
+          unpaidBreakMins: breakMins,
+        });
+      }
       await qc.invalidateQueries({ queryKey: ['director-timesheets'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onSaved();
-    } catch (error: unknown) {
-      Alert.alert('Error', getErrorMessage(error, 'Could not save shift changes.'));
+    } catch (e: unknown) {
+      Alert.alert('Error', getErrorMessage(e, 'Could not save timesheet.'));
     } finally { setSaving(false); }
   };
-  if (!shift) return null;
-  const isApproved = !!shift.approvedAt;
-  const hrs = shift.hoursWorked ? parseHoursWorked(shift.hoursWorked) : null;
-  const pay = calcPay(shift);
-  const active = !shift.clockOut;
+
+  const handleDelete = () => {
+    if (!shift) return;
+    Alert.alert(
+      'Delete Timesheet',
+      `Remove this shift for ${shift.name ?? 'this staff member'}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await api.director.deleteTimesheet(shift.id);
+              await qc.invalidateQueries({ queryKey: ['director-timesheets'] });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              onSaved();
+            } catch (e: unknown) {
+              Alert.alert('Error', getErrorMessage(e, 'Could not delete timesheet.'));
+            } finally { setDeleting(false); }
+          },
+        },
+      ],
+    );
+  };
+
+  const isApproved = mode === 'edit' && !!shift?.approvedAt;
+  const isActive   = mode === 'edit' && !shift?.clockOut;
+  const staffPosition = selectedStaff
+    ? (selectedStaff.position ?? capitalize(selectedStaff.role))
+    : null;
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[sm.header, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={onClose} style={sm.closeBtn}>
-            <Feather name="x" size={20} color={TEXT} />
+        {/* Header */}
+        <View style={[tm.header, { paddingTop: insets.top + 12 }]}>
+          <Pressable onPress={onClose} style={tm.closeBtn}>
+            <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={sm.title}>{shift.name ?? 'Unknown'}</Text>
-            <Text style={[sm.subtitle, { color: MUTED }]}>{capitalize(shift.position ?? 'Staff')}</Text>
-          </View>
-          <View style={{ width: 36 }} />
+          <Text style={tm.title}>{mode === 'add' ? 'Add Timesheet' : 'Edit Timesheet'}</Text>
+          <View style={{ width: 32 }} />
         </View>
-        <View style={sm.subTabBar}>
-          {(['details', 'edit'] as const).map(t => (
-            <Pressable key={t} onPress={() => setTab(t)} style={[sm.subTab, tab === t && { borderBottomColor: BLUE }]}>
-              <Text style={[sm.subTabText, { color: tab === t ? BLUE : MUTED }]}>
-                {t === 'details' ? 'Details' : 'Edit Times'}
+
+        <ScrollView contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          {/* Status banner (edit mode) */}
+          {mode === 'edit' && (
+            <View style={[tm.statusBanner, {
+              backgroundColor: isActive ? '#EBF8FF' : isApproved ? '#DCFCE7' : '#FFF7ED',
+              borderColor:     isActive ? BLUE     : isApproved ? GREEN     : AMBER,
+            }]}>
+              <Feather name={isActive ? 'zap' : isApproved ? 'check-circle' : 'clock'}
+                size={15} color={isActive ? BLUE : isApproved ? GREEN : AMBER} />
+              <Text style={[tm.statusBannerText, { color: isActive ? BLUE : isApproved ? GREEN : AMBER }]}>
+                {isActive ? 'Currently clocked in' : isApproved ? 'Approved' : 'Pending approval'}
               </Text>
-            </Pressable>
-          ))}
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {tab === 'details' ? (
-            <>
-              <View style={[sm.statusBanner, { backgroundColor: active ? '#EBF8FF' : isApproved ? '#DCFCE7' : '#FFF7ED', borderColor: active ? BLUE : isApproved ? GREEN : AMBER }]}>
-                <Feather name={active ? 'zap' : isApproved ? 'check-circle' : 'clock'} size={16} color={active ? BLUE : isApproved ? GREEN : AMBER} />
-                <Text style={[sm.statusBannerText, { color: active ? BLUE : isApproved ? GREEN : AMBER }]}>
-                  {active ? 'Currently clocked in' : isApproved ? 'Approved' : 'Pending approval'}
+            </View>
+          )}
+
+          {/* Rows card */}
+          <View style={tm.card}>
+            {/* Team Member */}
+            <Pressable onPress={() => setShowStaffPick(true)}
+              style={[tm.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}>
+              <View style={tm.rowLeft}>
+                <Feather name="user" size={16} color={MUTED} />
+                <Text style={[tm.rowLabel, !selectedStaff && { color: MUTED }]}>
+                  {selectedStaff ? selectedStaff.name : 'Select Team Member'}
                 </Text>
               </View>
-              <View style={sm.card}>
-                <Text style={sm.sectionLabel}>SHIFT DETAILS</Text>
-                {[
-                  { label: 'Clock In',      value: new Date(shift.clockIn).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) },
-                  { label: 'Clock Out',     value: shift.clockOut ? new Date(shift.clockOut).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Active' },
-                  { label: 'Break',         value: `${shift.unpaidBreakMins ?? 0} min unpaid` },
-                  { label: 'Hours Worked',  value: active ? '—' : hrs ? `${hrs.toFixed(2)} hrs` : '—' },
-                  ...(!hidePayInfo ? [{ label: 'Owing', value: pay ? fmtAUD(pay) : (shift.hourlyRateCents ? fmtAUD(0) : 'No rate set') }] : []),
-                  ...(isApproved ? [{ label: 'Approved', value: new Date(shift.approvedAt!).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }] : []),
-                ].map(row => (
-                  <View key={row.label} style={sm.infoRow}>
-                    <Text style={sm.infoLabel}>{row.label}</Text>
-                    <Text style={sm.infoValue}>{row.value}</Text>
-                  </View>
-                ))}
+              <Feather name="chevron-right" size={16} color={MUTED} />
+            </Pressable>
+
+            {/* Date */}
+            <Pressable
+              onPress={() => { setCalOpen(o => !o); Haptics.selectionAsync(); }}
+              style={[tm.row, { borderBottomWidth: calOpen ? 0 : StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}
+            >
+              <View style={tm.rowLeft}>
+                <Feather name="calendar" size={16} color={MUTED} />
+                <Text style={[tm.rowLabel, !selectedDate && { color: MUTED }]}>
+                  {selectedDate ? fmtDateRow(selectedDate) : 'Select Date'}
+                </Text>
               </View>
-              {!active && (
-                <View style={sm.card}>
-                  <Text style={sm.sectionLabel}>APPROVAL</Text>
-                  <Text style={[sm.approvalHint, { color: MUTED }]}>
-                    {isApproved ? 'This shift has been approved. You can revoke if a correction is needed.' : 'Review and approve this shift to confirm hours for payroll.'}
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                    <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(true); }}
-                      disabled={approve.isPending}
-                      style={[sm.actionBtn, { backgroundColor: isApproved ? '#DCFCE7' : BG, borderColor: isApproved ? GREEN : BORDER, flex: 1 }]}>
-                      {approve.isPending && !isApproved
-                        ? <ActivityIndicator size="small" color={GREEN} />
-                        : <><Feather name="check" size={15} color={GREEN} /><Text style={[sm.actionBtnText, { color: GREEN }]}>Approve</Text></>}
-                    </Pressable>
-                    <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(false); }}
-                      style={[sm.actionBtn, { backgroundColor: !isApproved ? '#FFF7ED' : BG, borderColor: !isApproved ? AMBER : BORDER, flex: 1 }]}>
-                      {approve.isPending && isApproved
-                        ? <ActivityIndicator size="small" color={AMBER} />
-                        : <><Feather name="rotate-ccw" size={15} color={AMBER} /><Text style={[sm.actionBtnText, { color: AMBER }]}>Unapprove</Text></>}
-                    </Pressable>
-                  </View>
+              <Feather name={calOpen ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
+            </Pressable>
+            {calOpen && (
+              <View style={{ paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+                <InlineCalendarPicker
+                  selectedDate={selectedDate}
+                  onSelectDate={d => { setSelectedDate(d); setCalOpen(false); Haptics.selectionAsync(); }}
+                  accentColor={INDIGO}
+                />
+              </View>
+            )}
+
+            {/* Time range */}
+            <View style={[tm.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}>
+              <View style={tm.rowLeft}>
+                <Feather name="clock" size={16} color={MUTED} />
+                <Pressable onPress={() => setShowStartPick(true)} style={tm.timePill}>
+                  <Text style={tm.timePillText}>{fmtTimePill(startHHMM)}</Text>
+                </Pressable>
+                <Text style={{ color: MUTED, fontSize: 13 }}>→</Text>
+                <Pressable onPress={() => setShowEndPick(true)} style={tm.timePill}>
+                  <Text style={tm.timePillText}>{fmtTimePill(endHHMM)}</Text>
+                </Pressable>
+              </View>
+              {totalHoursDisplay && (
+                <View style={tm.hoursBadge}>
+                  <Text style={tm.hoursBadgeText}>{totalHoursDisplay}</Text>
                 </View>
               )}
-            </>
-          ) : (
-            <View style={sm.card}>
-              <Text style={sm.sectionLabel}>CLOCK TIMES</Text>
-              <Text style={[sm.approvalHint, { color: MUTED, marginBottom: 14 }]}>
-                Enter times in 24-hour format (HH:MM). Times apply to the same calendar day as the original clock-in.
-              </Text>
-              {[
-                { label: 'Clock In',  icon: 'log-in',  val: inTime,  set: setInTime,  ph: '09:00' },
-                { label: 'Clock Out', icon: 'log-out', val: outTime, set: setOutTime, ph: '17:00' },
-              ].map((f, i) => (
-                <View key={f.label} style={i > 0 ? { marginTop: 12 } : {}}>
-                  <Text style={sm.fieldLabel}>{f.label}</Text>
-                  <View style={[sm.inputRow, { borderColor: BORDER }]}>
-                    <Feather name={f.icon as FeatherIconName} size={15} color={MUTED} />
-                    <TextInput style={[sm.input, { color: TEXT }]} value={f.val} onChangeText={f.set}
-                      placeholder={f.ph} placeholderTextColor={MUTED} keyboardType="numbers-and-punctuation" />
-                  </View>
-                </View>
-              ))}
-              <Text style={[sm.fieldLabel, { marginTop: 12 }]}>Unpaid Break (minutes)</Text>
-              <View style={[sm.inputRow, { borderColor: BORDER }]}>
-                <Feather name="coffee" size={15} color={MUTED} />
-                <TextInput style={[sm.input, { color: TEXT }]} value={brk} onChangeText={setBrk}
-                  placeholder="30" placeholderTextColor={MUTED} keyboardType="number-pad" />
+            </View>
+
+            {/* Role (auto-filled, read-only) */}
+            <View style={[tm.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }]}>
+              <View style={tm.rowLeft}>
+                <Feather name="briefcase" size={16} color={MUTED} />
+                <Text style={[tm.rowLabel, !staffPosition && { color: MUTED }]}>
+                  {staffPosition ? `${capitalize(staffPosition)}, Butterfield` : 'Role · auto-filled'}
+                </Text>
               </View>
-              <Pressable onPress={handleSaveEdit} disabled={saving}
-                style={[sm.saveBtn, { opacity: saving ? 0.8 : 1, backgroundColor: NAVY }]}>
-                {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={sm.saveBtnText}>Save Changes</Text>}
-              </Pressable>
+            </View>
+
+            {/* Break */}
+            <View style={tm.row}>
+              <View style={tm.rowLeft}>
+                <Feather name="coffee" size={16} color={MUTED} />
+                <Text style={tm.rowLabel}>Meal Break</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Pressable onPress={() => setBreakMins(b => Math.max(0, b - 5))} hitSlop={8}
+                  style={tm.breakAdj}>
+                  <Feather name="minus" size={14} color={INDIGO} />
+                </Pressable>
+                <Text style={tm.breakLabel}>{breakMins}m</Text>
+                <Pressable onPress={() => setBreakMins(b => b + 5)} hitSlop={8}
+                  style={tm.breakAdj}>
+                  <Feather name="plus" size={14} color={INDIGO} />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          {/* Approve / Unapprove (edit only, completed shifts) */}
+          {mode === 'edit' && !isActive && (
+            <View style={tm.card}>
+              <Text style={tm.sectionLabel}>APPROVAL</Text>
+              <Text style={[tm.approvalHint, { color: MUTED }]}>
+                {isApproved
+                  ? 'This shift is approved. Unapprove if corrections are needed.'
+                  : 'Review and approve this shift to confirm hours for payroll.'}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(true); }}
+                  disabled={approve.isPending}
+                  style={[tm.approveBtn, { backgroundColor: isApproved ? '#DCFCE7' : BG, borderColor: isApproved ? GREEN : BORDER }]}>
+                  {approve.isPending && !isApproved
+                    ? <ActivityIndicator size="small" color={GREEN} />
+                    : <><Feather name="check" size={15} color={GREEN} /><Text style={[tm.approveBtnText, { color: GREEN }]}>Approve</Text></>}
+                </Pressable>
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approve.mutate(false); }}
+                  disabled={approve.isPending}
+                  style={[tm.approveBtn, { backgroundColor: !isApproved ? '#FFF7ED' : BG, borderColor: !isApproved ? AMBER : BORDER }]}>
+                  {approve.isPending && isApproved
+                    ? <ActivityIndicator size="small" color={AMBER} />
+                    : <><Feather name="rotate-ccw" size={15} color={AMBER} /><Text style={[tm.approveBtnText, { color: AMBER }]}>Unapprove</Text></>}
+                </Pressable>
+              </View>
             </View>
           )}
         </ScrollView>
+
+        {/* Footer: Delete (edit + director only) + Save */}
+        <View style={[tm.footer, { paddingBottom: insets.bottom + 16, gap: 10 }]}>
+          {mode === 'edit' && !isManager && (
+            <Pressable onPress={handleDelete} disabled={deleting}
+              style={[tm.saveBtn, { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', opacity: deleting ? 0.5 : 1 }]}>
+              {deleting
+                ? <ActivityIndicator color="#DC2626" size="small" />
+                : <Text style={[tm.saveBtnText, { color: '#DC2626' }]}>Delete Entry</Text>}
+            </Pressable>
+          )}
+          <Pressable onPress={handleSave} disabled={!canSave || saving}
+            style={[tm.saveBtn, { opacity: (!canSave || saving) ? 0.5 : 1, backgroundColor: INDIGO }]}>
+            {saving
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={tm.saveBtnText}>{mode === 'add' ? 'Add' : 'Save Changes'}</Text>}
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
+
+      <StaffPickerModal
+        visible={showStaffPick}
+        staff={staffList}
+        onSelect={s => setSelectedStaff(s)}
+        onClose={() => setShowStaffPick(false)}
+      />
+      <TimePickerModal
+        visible={showStartPick}
+        initialHHMM={startHHMM}
+        onConfirm={setStartHHMM}
+        onClose={() => setShowStartPick(false)}
+      />
+      <TimePickerModal
+        visible={showEndPick}
+        initialHHMM={endHHMM}
+        onConfirm={setEndHHMM}
+        onClose={() => setShowEndPick(false)}
+      />
     </Modal>
   );
 }
-// ── Payroll Summary Card ───────────────────────────────────────────────────────
-function PayrollSummaryCard({ summaries, weekLabel }: { summaries: StaffPaySummary[]; weekLabel: string }) {
-  if (summaries.length === 0) return null;
-  const totalPay   = summaries.reduce((a, s) => a + s.totalPayCents, 0);
-  const totalHours = summaries.reduce((a, s) => a + s.totalHours, 0);
-  const pending    = summaries.reduce((a, s) => a + s.pendingShifts, 0);
+
+function fmtTimePill(hhmm: string): string {
+  const [hStr, mStr] = hhmm.split(':');
+  let h = parseInt(hStr) || 0;
+  const m = parseInt(mStr) || 0;
+  const ampm = h >= 12 ? 'pm' : 'am';
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+const tm = StyleSheet.create({
+  header:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  closeBtn:        { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
+  title:           { fontSize: 18, fontWeight: '700', color: TEXT },
+  statusBanner:    { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderRadius: 12, borderWidth: 1 },
+  statusBannerText:{ fontSize: 14, fontWeight: '600' },
+  card:            { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  row:             { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16, gap: 12 },
+  rowLeft:         { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  rowLabel:        { fontSize: 15, fontWeight: '500', color: TEXT, flex: 1 },
+  timePill:        { backgroundColor: INDIGO + '14', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  timePillText:    { fontSize: 13, fontWeight: '600', color: INDIGO },
+  hoursBadge:      { backgroundColor: '#111827', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 },
+  hoursBadgeText:  { fontSize: 12, fontWeight: '700', color: '#fff' },
+  breakAdj:        { width: 28, height: 28, borderRadius: 14, backgroundColor: INDIGO + '14', alignItems: 'center', justifyContent: 'center' },
+  breakLabel:      { fontSize: 14, fontWeight: '600', color: TEXT, minWidth: 32, textAlign: 'center' },
+  sectionLabel:    { fontSize: 11, fontWeight: '600', letterSpacing: 1, color: MUTED, marginBottom: 8 },
+  approvalHint:    { fontSize: 13, lineHeight: 19 },
+  approveBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  approveBtnText:  { fontSize: 14, fontWeight: '600' },
+  footer:          { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+  saveBtn:         { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText:     { color: '#fff', fontSize: 16, fontWeight: '700' },
+});
+
+// ── Date-Range Dropdown ───────────────────────────────────────────────────────
+function DateRangeDropdown({ value, onChange }: {
+  value: DateRangeKey; onChange: (k: DateRangeKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label = DATE_RANGES.find(r => r.key === value)?.label ?? 'Last 6 months';
   return (
-    <View style={pay.card}>
-      <View style={pay.cardHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={pay.title}>Payroll — {weekLabel}</Text>
-          <Text style={[pay.sub, { color: MUTED }]}>
-            {totalHours.toFixed(1)} total hrs · {summaries.length} staff
-            {pending > 0 ? ` · ${pending} shift${pending !== 1 ? 's' : ''} pending` : ''}
-          </Text>
-        </View>
-        <View style={[pay.totalBadge, { backgroundColor: NAVY + '12' }]}>
-          <Text style={[pay.totalAmt, { color: NAVY }]}>{fmtAUD(totalPay)}</Text>
-        </View>
-      </View>
-      {summaries.map((s, i) => (
-        <View key={s.userId} style={[pay.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
-          <View style={[pay.avatar, { backgroundColor: s.pendingShifts > 0 ? '#FFF7ED' : '#DCFCE7' }]}>
-            <Text style={[pay.avatarText, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{initials(s.name)}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={pay.name}>{s.name}</Text>
-            <Text style={[pay.pos, { color: MUTED }]}>
-              {s.position} · {s.totalHours.toFixed(1)}h
-              {s.pendingShifts > 0 && <Text style={{ color: AMBER }}> · {s.pendingShifts} pending</Text>}
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            {s.hasRate
-              ? <Text style={[pay.amt, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{fmtAUD(s.totalPayCents)}</Text>
-              : <Text style={[pay.noRate, { color: MUTED }]}>No rate</Text>}
-            <Text style={[pay.shifts, { color: MUTED }]}>
-              {s.approvedShifts + s.pendingShifts} shift{s.approvedShifts + s.pendingShifts !== 1 ? 's' : ''}
-            </Text>
-          </View>
-        </View>
-      ))}
-      {pending > 0 && (
-        <View style={[pay.warning, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
-          <Feather name="alert-circle" size={13} color={AMBER} />
-          <Text style={[pay.warningText, { color: '#92400E' }]}>Approve all shifts before processing payroll</Text>
+    <View style={{ position: 'relative', zIndex: 20 }}>
+      <Pressable onPress={() => setOpen(o => !o)} style={dd.trigger}>
+        <Text style={dd.triggerText}>{label}</Text>
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={14} color={BLUE} />
+      </Pressable>
+      {open && (
+        <View style={dd.menu}>
+          {DATE_RANGES.map(r => (
+            <Pressable key={r.key} onPress={() => { onChange(r.key); setOpen(false); Haptics.selectionAsync(); }}
+              style={[dd.item, r.key === value && { backgroundColor: BLUE + '12' }]}>
+              <Text style={[dd.itemText, r.key === value && { color: BLUE, fontWeight: '600' }]}>{r.label}</Text>
+              {r.key === value && <Feather name="check" size={14} color={BLUE} />}
+            </Pressable>
+          ))}
         </View>
       )}
     </View>
   );
 }
-// ── Main Screen ────────────────────────────────────────────────────────────────
+const dd = StyleSheet.create({
+  trigger:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  triggerText: { fontSize: 13, fontWeight: '600', color: BLUE },
+  menu:        { position: 'absolute', top: 38, right: 0, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', minWidth: 160, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8 },
+  item:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13, gap: 8 },
+  itemText:    { fontSize: 14, fontWeight: '500', color: TEXT },
+});
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
+type StatusFilter = 'all' | 'pending' | 'approved';
+
 export default function DirectorTimesheetsScreen() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
-  const [weekOffset,    setWeekOffset]    = useState(0);
-  const [personFilter,  setPersonFilter]  = useState<string>('all');
-  const [selected,      setSelected]      = useState<DirectorShift | null>(null);
-  const [modalVisible,  setModalVisible]  = useState(false);
-  const [exporting,     setExporting]     = useState(false);
-  const weekStart = getWeekStart(addWeeks(new Date(), weekOffset));
-  const weekEnd   = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
-  const isCurrentWeek = weekOffset === 0;
-  const weekLabel = isCurrentWeek
-    ? 'This Week'
-    : weekOffset === -1
-    ? 'Last Week'
-    : `${formatDate(weekStart)} – ${formatDate(weekEnd)}`;
+
+  const [dateRange,    setDateRange]    = useState<DateRangeKey>('6m');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [personFilter, setPersonFilter] = useState<string>('all');
+  const [modalMode,    setModalMode]    = useState<'add' | 'edit'>('add');
+  const [selected,     setSelected]     = useState<DirectorShift | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [exporting,    setExporting]    = useState(false);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-timesheets'],
     queryFn: () => api.director.timesheets(),
     staleTime: 30_000,
   });
-  const allShifts: DirectorShift[] = data?.data ?? [];
-  const weekShifts = useMemo(() => allShifts.filter(s => {
-    const d = new Date(s.clockIn);
-    return d >= weekStart && d <= weekEnd;
-  }), [allShifts, weekStart.toISOString()]);
-  const people = useMemo(() => {
-    const seen = new Map<string, string>();
-    weekShifts.forEach(s => { if (s.userId && s.name) seen.set(s.userId, s.name); });
-    return Array.from(seen.entries()).map(e => ({ id: e[0], name: e[1] })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [weekShifts]);
+  const { data: staffData } = useQuery({
+    queryKey: ['director-staff-list'],
+    queryFn: () => api.director.staffList(),
+    staleTime: 60_000,
+  });
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
-  const filtered = useMemo(() =>
-    personFilter === 'all' ? weekShifts : weekShifts.filter(s => s.userId === personFilter),
-    [weekShifts, personFilter]
+  const allShifts: DirectorShift[] = data?.data ?? [];
+  const staffList = staffData?.data ?? [];
+
+  // staffList already includes position from server (LEFT JOIN on staff_profiles)
+
+  const rangeStart = getRangeStart(dateRange);
+  const rangeEnd   = new Date(); rangeEnd.setHours(23, 59, 59, 999);
+
+  const rangeShifts = useMemo(() =>
+    allShifts.filter(s => new Date(s.clockIn) >= rangeStart && new Date(s.clockIn) <= rangeEnd),
+    [allShifts, dateRange],
   );
+
+  // Person filter pills (derived from range shifts)
+  const people = useMemo(() => {
+    const seen = new Map<string, string>();
+    rangeShifts.forEach(s => { if (s.userId && s.name) seen.set(s.userId, s.name); });
+    return Array.from(seen.entries()).map(e => ({ id: e[0], name: e[1] })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [rangeShifts]);
+
+  const filtered = useMemo(() => {
+    let result = personFilter === 'all' ? rangeShifts : rangeShifts.filter(s => s.userId === personFilter);
+    if (statusFilter === 'pending')  result = result.filter(s => s.clockOut && !s.approvedAt);
+    if (statusFilter === 'approved') result = result.filter(s => !!s.approvedAt);
+    return result;
+  }, [rangeShifts, personFilter, statusFilter]);
+
+  // Group by date
   const sections = useMemo(() => {
-    const map = new Map<string, { label: string; shifts: DirectorShift[] }>();
+    const map = new Map<string, { key: string; label: string; totalHrs: number; shifts: DirectorShift[] }>();
     filtered.forEach(s => {
       const key = toDateKey(s.clockIn);
-      if (!map.has(key)) map.set(key, { label: fmtDateGroup(s.clockIn), shifts: [] });
-      map.get(key)!.shifts.push(s);
+      if (!map.has(key)) map.set(key, { key, label: fmtSectionHeader(s.clockIn), totalHrs: 0, shifts: [] });
+      const g = map.get(key)!;
+      g.shifts.push(s);
+      g.totalHrs += parseHoursWorked(s.hoursWorked);
     });
-    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0])).map(e => e[1]);
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(e => e[1]);
   }, [filtered]);
-  const payrollSummary = useMemo(() => buildPayrollSummary(weekShifts), [weekShifts]);
+
+  const payrollSummary = useMemo(() => buildPayrollSummary(rangeShifts), [rangeShifts]);
+
   const stats = useMemo(() => {
     const done = filtered.filter(s => s.clockOut);
-    const totalHrs = done.reduce((sum, s) => sum + parseHoursWorked(s.hoursWorked), 0);
-    const totalOwingCents = done.reduce((sum, s) => { const p = calcPay(s); return sum + (p ?? 0); }, 0);
-    return { completed: done.length, totalHrs, totalOwingCents };
+    return {
+      totalHrs: done.reduce((sum, s) => sum + parseHoursWorked(s.hoursWorked), 0),
+      totalOwing: done.reduce((sum, s) => { const p = calcPay(s); return sum + (p ?? 0); }, 0),
+      completed: done.length,
+    };
   }, [filtered]);
+
+  const openAdd = () => {
+    setModalMode('add');
+    setSelected(null);
+    setModalVisible(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+  const openEdit = (s: DirectorShift) => {
+    setModalMode('edit');
+    setSelected(s);
+    setModalVisible(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const handleExport = async () => {
     setExporting(true);
     try {
-      const html = buildTimesheetHtml(filtered.filter(s => s.clockOut), weekStart, weekEnd);
+      const html = buildTimesheetHtml(filtered.filter(s => s.clockOut), rangeStart, rangeEnd);
       if (Platform.OS === 'web') {
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;';
         document.body.appendChild(iframe);
-        iframe.contentDocument!.open();
-        iframe.contentDocument!.write(html);
-        iframe.contentDocument!.close();
-        setTimeout(() => {
-          iframe.contentWindow?.print();
-          setTimeout(() => document.body.removeChild(iframe), 1500);
-        }, 400);
+        iframe.contentDocument!.open(); iframe.contentDocument!.write(html); iframe.contentDocument!.close();
+        setTimeout(() => { iframe.contentWindow?.print(); setTimeout(() => document.body.removeChild(iframe), 1500); }, 400);
         return;
       }
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Save Staff Hours Report',
-          UTI: 'com.adobe.pdf',
-        });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Save Timesheets', UTI: 'com.adobe.pdf' });
       } else {
         Alert.alert('File Saved', `Saved to: ${uri}`);
       }
-    } catch (error: unknown) {
-      Alert.alert('Export Error', getErrorMessage(error, 'Could not generate timesheet.'));
+    } catch (e: unknown) {
+      Alert.alert('Export Error', getErrorMessage(e, 'Could not generate timesheet.'));
     } finally { setExporting(false); }
   };
-  const openShift = (s: DirectorShift) => {
-    setSelected(s); setModalVisible(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+
   return (
     <DirectorStandaloneScreen
-      title="Staff Hours"
+      title="Timesheets"
       headerRight={
-        <Pressable
-          onPress={handleExport}
-          disabled={exporting || filtered.filter(s => s.clockOut).length === 0}
-          style={[styles.exportBtn, { backgroundColor: BLUE, opacity: filtered.filter(s => s.clockOut).length === 0 ? 0.4 : 1 }]}
-        >
-          {exporting
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <><Feather name="download" size={14} color="#fff" /><Text style={styles.exportBtnText}>Export</Text></>}
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {!isManager && filtered.filter(s => s.clockOut).length > 0 && (
+            <Pressable onPress={handleExport} disabled={exporting}
+              style={[sc.exportBtn, { opacity: exporting ? 0.6 : 1 }]}>
+              {exporting
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <><Feather name="download" size={13} color="#fff" /><Text style={sc.exportBtnText}>Export</Text></>}
+            </Pressable>
+          )}
+          <Pressable onPress={openAdd} style={sc.addBtn}>
+            <Feather name="plus" size={20} color="#fff" />
+          </Pressable>
+        </View>
       }
     >
       <ScrollView
@@ -503,291 +860,309 @@ export default function DirectorTimesheetsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
-        {/* ── Week navigator ─────────────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: 8 }]}>
-          <View style={styles.weekNav}>
-            <Pressable onPress={() => { setWeekOffset(o => o - 1); setPersonFilter('all'); }} style={styles.weekNavBtn}>
-              <Feather name="chevron-left" size={20} color={TEXT} />
-            </Pressable>
-            <View style={{ alignItems: 'center', flex: 1 }}>
-              <Text style={[styles.weekLabel, { color: TEXT }]}>{weekLabel}</Text>
-              <Text style={[styles.weekSub, { color: MUTED }]}>{weekStart.getFullYear()}</Text>
-            </View>
-            <Pressable
-              onPress={() => { setWeekOffset(o => Math.min(0, o + 1)); setPersonFilter('all'); }}
-              style={[styles.weekNavBtn, { opacity: weekOffset >= 0 ? 0.3 : 1 }]}
-              disabled={weekOffset >= 0}
-            >
-              <Feather name="chevron-right" size={20} color={TEXT} />
-            </Pressable>
+        {/* ── Top bar ─────────────────────────────────────────────────────── */}
+        <View style={[sc.topBar, { paddingTop: 8 }]}>
+          <View style={sc.locationPill}>
+            <Feather name="map-pin" size={12} color={MUTED} />
+            <Text style={sc.locationText}>Butterfield</Text>
           </View>
+          <DateRangeDropdown value={dateRange} onChange={k => { setDateRange(k); setPersonFilter('all'); }} />
         </View>
+
+        {/* ── Status filter chips ──────────────────────────────────────────── */}
+        <View style={sc.chipRow}>
+          {(['all', 'pending', 'approved'] as const).map(s => (
+            <Pressable key={s} onPress={() => { setStatusFilter(s); Haptics.selectionAsync(); }}
+              style={[sc.chip,
+                s === 'all'      && statusFilter === s && { backgroundColor: TEXT,  borderColor: TEXT },
+                s === 'pending'  && statusFilter === s && { backgroundColor: AMBER, borderColor: AMBER },
+                s === 'approved' && statusFilter === s && { backgroundColor: GREEN, borderColor: GREEN },
+                statusFilter !== s && { backgroundColor: CARD },
+              ]}>
+              <Text style={[sc.chipText, statusFilter === s && { color: '#fff' }]}>
+                {s === 'all' ? 'All' : s === 'pending' ? 'Pending' : 'Approved'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         <View style={{ paddingHorizontal: 16, gap: 14 }}>
-          {/* ── 3 Summary cards ─────────────────────────────────────────────── */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCard}>
-              <Text style={[styles.summaryLabel, { color: MUTED }]}>HOURS WORKED</Text>
-              <Text style={[styles.summaryValue, { color: TEXT }]}>{formatHours(stats.totalHrs)}</Text>
+          {/* ── Summary strip ────────────────────────────────────────────────── */}
+          <View style={sc.summaryRow}>
+            <View style={sc.summaryCard}>
+              <Text style={sc.summaryLabel}>HOURS</Text>
+              <Text style={sc.summaryValue}>{formatHours(stats.totalHrs)}</Text>
             </View>
             {!isManager && (
-              <View style={styles.summaryCard}>
-                <Text style={[styles.summaryLabel, { color: MUTED }]}>OWING</Text>
-                <Text style={[styles.summaryValue, { color: BLUE }]}>{fmtAUD(stats.totalOwingCents)}</Text>
+              <View style={sc.summaryCard}>
+                <Text style={sc.summaryLabel}>OWING</Text>
+                <Text style={[sc.summaryValue, { color: BLUE }]}>{fmtAUD(stats.totalOwing)}</Text>
               </View>
             )}
-            <View style={styles.summaryCard}>
-              <Text style={[styles.summaryLabel, { color: MUTED }]}>SHIFTS</Text>
-              <Text style={[styles.summaryValue, { color: TEXT }]}>{stats.completed}</Text>
+            <View style={sc.summaryCard}>
+              <Text style={sc.summaryLabel}>SHIFTS</Text>
+              <Text style={sc.summaryValue}>{stats.completed}</Text>
             </View>
           </View>
-          {/* ── Staff filter pills ───────────────────────────────────────────── */}
-          {people.length > 0 && (
-            <View style={{ gap: 8 }}>
-              <Text style={[styles.sectionTitle, { color: MUTED }]}>STAFF MEMBER</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
-                <Pressable
-                  onPress={() => { setPersonFilter('all'); Haptics.selectionAsync(); }}
-                  style={[styles.staffPill, personFilter === 'all' && { backgroundColor: BLUE, borderColor: BLUE }]}
-                >
-                  <Text style={[styles.staffPillText, { color: personFilter === 'all' ? '#fff' : TEXT }]}>All Staff</Text>
-                </Pressable>
-                {people.map(p => {
-                  const isActive = personFilter === p.id;
-                  return (
-                    <Pressable key={p.id} onPress={() => { setPersonFilter(p.id); Haptics.selectionAsync(); }}
-                      style={[styles.staffPill, isActive && { backgroundColor: BLUE, borderColor: BLUE }]}>
-                      <Text style={[styles.staffPillText, { color: isActive ? '#fff' : TEXT }]}>{p.name.split(' ')[0]}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
+
+          {/* ── Person filter pills ──────────────────────────────────────────── */}
+          {people.length > 1 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+              <Pressable onPress={() => { setPersonFilter('all'); Haptics.selectionAsync(); }}
+                style={[sc.personPill, personFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}>
+                <Text style={[sc.personPillText, { color: personFilter === 'all' ? '#fff' : TEXT }]}>All</Text>
+              </Pressable>
+              {people.map(p => {
+                const active = personFilter === p.id;
+                return (
+                  <Pressable key={p.id} onPress={() => { setPersonFilter(p.id); Haptics.selectionAsync(); }}
+                    style={[sc.personPill, active && { backgroundColor: NAVY, borderColor: NAVY }]}>
+                    <Text style={[sc.personPillText, { color: active ? '#fff' : TEXT }]}>{p.name.split(' ')[0]}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           )}
-          {/* ── Payroll summary card ─────────────────────────────────────────── */}
-          {!isManager && personFilter === 'all' && payrollSummary.length > 0 && (
-            <PayrollSummaryCard summaries={payrollSummary} weekLabel={weekLabel} />
+
+          {/* ── Payroll summary (director only, all-people view) ─────────────── */}
+          {!isManager && personFilter === 'all' && statusFilter === 'all' && payrollSummary.length > 0 && (
+            <PayrollCard summaries={payrollSummary} />
           )}
+
           {/* ── Loading / empty ──────────────────────────────────────────────── */}
           {isLoading ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <ActivityIndicator color={BLUE} />
             </View>
           ) : sections.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Feather name="clock" size={32} color={BORDER} />
-              <Text style={[styles.emptyTitle, { color: TEXT }]}>No shifts this week</Text>
-              <Text style={[styles.emptySub, { color: MUTED }]}>No shifts were recorded for this period.</Text>
+            <View style={sc.empty}>
+              <Feather name="clock" size={36} color={BORDER} />
+              <Text style={sc.emptyTitle}>No shifts found</Text>
+              <Text style={sc.emptySub}>Try a different date range or filter.</Text>
             </View>
           ) : (
-            <>
-            {/* ── Shifts grouped by day ──────────────────────────────────────── */}
-            {sections.map((section, si) => {
-              const d = new Date(section.shifts[0].clockIn);
-              const dayName = DAY_NAMES[d.getDay()];
-              const dateStr = `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
-              const isToday = new Date().toDateString() === d.toDateString();
-              return (
-                <View key={si} style={{ gap: 8 }}>
-                  <View style={styles.dayHeader}>
-                    <Text style={[styles.dayName, { color: isToday ? BLUE : TEXT }]}>{dayName}</Text>
-                    <Text style={[styles.dayDate, { color: isToday ? BLUE : MUTED }]}>{dateStr}</Text>
-                    {isToday && (
-                      <View style={[styles.todayBadge, { backgroundColor: BLUE }]}>
-                        <Text style={styles.todayBadgeText}>Today</Text>
-                      </View>
-                    )}
-                  </View>
-                  {section.shifts.map(shift => {
-                    const isActive   = !shift.clockOut;
-                    const isApproved = !!shift.approvedAt;
-                    const hrs  = parseHoursWorked(shift.hoursWorked);
-                    const p    = calcPay(shift);
-                    const brk  = shift.unpaidBreakMins && shift.unpaidBreakMins > 0 ? shift.unpaidBreakMins : null;
-                    return (
-                      <Pressable
-                        key={shift.id}
-                        onPress={() => openShift(shift)}
-                        style={({ pressed }) => [
-                          styles.shiftCard,
-                          {
-                            backgroundColor: GLASS_BG,
-                            borderColor: isActive ? '#86EFAC' : GLASS_BORDER,
-                            borderLeftColor: isActive ? '#22C55E' : BLUE,
-                            borderLeftWidth: 3,
-                            opacity: pressed ? 0.75 : 1,
-                          },
-                        ]}
-                      >
-                        {/* Staff name + role */}
-                        <View style={styles.shiftStaffRow}>
-                          <View style={[styles.shiftAvatar, { backgroundColor: isActive ? '#EBF8FF' : isApproved ? '#DCFCE7' : '#F3F4F6' }]}>
-                            <Text style={[styles.shiftAvatarText, { color: isActive ? BLUE : isApproved ? GREEN : MUTED }]}>
-                              {initials(shift.name ?? '?')}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                              <Text style={styles.shiftName}>{shift.name ?? 'Unknown'}</Text>
-                              {isActive && (
-                                <View style={[styles.liveBadge]}>
-                                  <View style={[styles.liveDot, { backgroundColor: BLUE }]} />
-                                  <Text style={[styles.liveText, { color: BLUE }]}>LIVE</Text>
-                                </View>
-                              )}
-                              {!isActive && isApproved && <Feather name="check-circle" size={13} color={GREEN} />}
-                            </View>
-                            <Text style={[styles.shiftPos, { color: MUTED }]}>{capitalize(shift.position ?? 'Staff')}</Text>
-                          </View>
-                        </View>
-                        {/* Times row */}
-                        <View style={styles.shiftMainRow}>
-                          <View style={styles.shiftTimeRow}>
-                              <Text style={[styles.shiftTime, { color: TEXT }]}>{fmtTime(shift.clockIn)}</Text>
-                              <Text style={[styles.shiftArrow, { color: MUTED }]}>→</Text>
-                              <Text style={[styles.shiftTime, { color: isActive ? '#22C55E' : TEXT }]}>
-                                {isActive ? 'Active' : shift.clockOut ? fmtTime(shift.clockOut) : '—'}
-                              </Text>
-                            {brk != null && (
-                              <Text style={[styles.breakNote, { color: MUTED }]}>{brk}m unpaid break</Text>
-                            )}
-                          </View>
-                          <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                            {!isActive && (
-                              <>
-                                <Text style={[styles.shiftDuration, { color: TEXT }]}>{formatHours(hrs)}</Text>
-                                {!isManager && p != null && <Text style={[styles.shiftEarnings, { color: BLUE }]}>{fmtAUD(p)}</Text>}
-                              </>
-                            )}
-                            {isActive && (
-                              <View style={[styles.activePill, { backgroundColor: '#E8FDF0', borderColor: '#86EFAC' }]}>
-                                <View style={[styles.activeDot]} />
-                                <Text style={[styles.activePillText, { color: '#15803D' }]}>Live</Text>
-                              </View>
-                            )}
-                            {!isActive && !isApproved && (
-                              <View style={[styles.pendingPill, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
-                                <Text style={[styles.pendingText, { color: AMBER }]}>Review</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                        {/* Footer rate row — directors/masters only, never shown to managers */}
-                        {!isManager && !isActive && shift.hourlyRateCents != null && (
-                          <View style={[styles.shiftRateRow, { borderTopColor: BORDER }]}>
-                            <Text style={[styles.shiftRateText, { color: MUTED }]}>
-                              ${(shift.hourlyRateCents / 100).toFixed(2)}/hr · {formatHours(hrs)} worked
-                            </Text>
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
+            sections.map((section, si) => (
+              <View key={section.key} style={{ gap: 8 }}>
+                {/* Section header */}
+                <View style={sc.sectionHeader}>
+                  <Text style={sc.sectionDate}>{section.label}</Text>
+                  {section.totalHrs > 0 && (
+                    <View style={sc.sectionHrsBadge}>
+                      <Text style={sc.sectionHrsText}>{formatHours(section.totalHrs)}</Text>
+                    </View>
+                  )}
                 </View>
-              );
-            })}
-            </>
+                {/* Shift cards */}
+                {section.shifts.map(shift => (
+                  <ShiftCard
+                    key={shift.id}
+                    shift={shift}
+                    isManager={isManager}
+                    onPress={() => openEdit(shift)}
+                  />
+                ))}
+              </View>
+            ))
           )}
         </View>
       </ScrollView>
-      <ShiftModal
+
+      <TimesheetModal
+        mode={modalMode}
         shift={selected}
+        staffList={staffList}
+        isManager={isManager}
         visible={modalVisible}
         onClose={() => { setModalVisible(false); setSelected(null); }}
         onSaved={() => { setModalVisible(false); setSelected(null); }}
-        hidePayInfo={isManager}
       />
     </DirectorStandaloneScreen>
   );
 }
+
+// ── Shift Card ─────────────────────────────────────────────────────────────────
+function ShiftCard({ shift, isManager, onPress }: {
+  shift: DirectorShift; isManager: boolean; onPress: () => void;
+}) {
+  const isApproved = !!shift.approvedAt;
+  const isActive   = !shift.clockOut;
+  const hrs        = parseHoursWorked(shift.hoursWorked);
+  const brk        = shift.unpaidBreakMins ?? 0;
+
+  return (
+    <Pressable onPress={onPress}
+      style={({ pressed }) => [sc.shiftCard, pressed && { opacity: 0.75 }]}>
+      {/* Left accent line */}
+      <View style={[sc.shiftAccent, {
+        backgroundColor: isActive ? GREEN : isApproved ? GREEN : AMBER,
+      }]} />
+
+      <View style={{ flex: 1, padding: 12, gap: 8 }}>
+        {/* Row 1: Avatar + Name + status badge */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[sc.avatar, {
+            backgroundColor: isActive ? '#EBF8FF' : isApproved ? '#DCFCE7' : '#F9FAFB',
+          }]}>
+            <Text style={[sc.avatarText, {
+              color: isActive ? BLUE : isApproved ? GREEN : MUTED,
+            }]}>{initials(shift.name ?? '?')}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={sc.shiftName}>{shift.name ?? 'Unknown'}</Text>
+            {shift.position && (
+              <Text style={[sc.shiftRole, { color: MUTED }]}>{capitalize(shift.position)}, Butterfield</Text>
+            )}
+          </View>
+          {isActive ? (
+            <View style={[sc.badge, { backgroundColor: '#E0F2FE', borderColor: BLUE }]}>
+              <View style={sc.liveDot} />
+              <Text style={[sc.badgeText, { color: BLUE }]}>Live</Text>
+            </View>
+          ) : isApproved ? (
+            <View style={[sc.badge, { backgroundColor: '#DCFCE7', borderColor: GREEN }]}>
+              <Feather name="check" size={10} color={GREEN} />
+              <Text style={[sc.badgeText, { color: GREEN }]}>Approved</Text>
+            </View>
+          ) : (
+            <View style={[sc.badge, { backgroundColor: '#FFF7ED', borderColor: AMBER }]}>
+              <Text style={[sc.badgeText, { color: AMBER }]}>Pending</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Row 2: Time range + hours */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={sc.timeText}>{fmtTimeShort(shift.clockIn)}</Text>
+            <Text style={{ color: MUTED, fontSize: 13 }}>→</Text>
+            <Text style={[sc.timeText, { color: isActive ? GREEN : TEXT }]}>
+              {isActive ? 'Active' : shift.clockOut ? fmtTimeShort(shift.clockOut) : '—'}
+            </Text>
+            {brk > 0 && (
+              <Text style={[sc.breakNote, { color: MUTED }]}> · {brk}m break</Text>
+            )}
+          </View>
+          {!isActive && hrs > 0 && (
+            <Text style={sc.durationText}>{formatHours(hrs)}</Text>
+          )}
+        </View>
+
+        {/* Row 3: Pay (director only) */}
+        {!isManager && !isActive && shift.hourlyRateCents != null && (
+          <View style={sc.payRow}>
+            <Feather name="dollar-sign" size={11} color={MUTED} />
+            <Text style={[sc.payText, { color: MUTED }]}>
+              ${(shift.hourlyRateCents / 100).toFixed(2)}/hr · {fmtAUD(Math.round(hrs * shift.hourlyRateCents))} owing
+            </Text>
+          </View>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Payroll Card ───────────────────────────────────────────────────────────────
+function PayrollCard({ summaries }: { summaries: StaffPaySummary[] }) {
+  if (summaries.length === 0) return null;
+  const totalPay   = summaries.reduce((a, s) => a + s.totalPayCents, 0);
+  const totalHours = summaries.reduce((a, s) => a + s.totalHours, 0);
+  const pending    = summaries.reduce((a, s) => a + s.pendingShifts, 0);
+  return (
+    <View style={py.card}>
+      <View style={py.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={py.title}>Payroll Summary</Text>
+          <Text style={[py.sub, { color: MUTED }]}>
+            {totalHours.toFixed(1)}h · {summaries.length} staff
+            {pending > 0 ? ` · ${pending} pending` : ''}
+          </Text>
+        </View>
+        <Text style={[py.total, { color: NAVY }]}>{fmtAUD(totalPay)}</Text>
+      </View>
+      {summaries.map((s, i) => (
+        <View key={s.userId} style={[py.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
+          <View style={[py.avatar, { backgroundColor: s.pendingShifts > 0 ? '#FFF7ED' : '#DCFCE7' }]}>
+            <Text style={[py.avatarText, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{initials(s.name)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={py.name}>{s.name}</Text>
+            <Text style={[py.pos, { color: MUTED }]}>
+              {capitalize(s.position)} · {s.totalHours.toFixed(1)}h
+              {s.pendingShifts > 0 && <Text style={{ color: AMBER }}> · {s.pendingShifts} pending</Text>}
+            </Text>
+          </View>
+          {s.hasRate
+            ? <Text style={[py.amt, { color: s.pendingShifts > 0 ? AMBER : GREEN }]}>{fmtAUD(s.totalPayCents)}</Text>
+            : <Text style={[py.noRate, { color: MUTED }]}>No rate</Text>}
+        </View>
+      ))}
+      {pending > 0 && (
+        <View style={[py.warn, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+          <Feather name="alert-circle" size={13} color={AMBER} />
+          <Text style={[py.warnText, { color: '#92400E' }]}>Approve all shifts before processing payroll</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  header:          { paddingHorizontal: 16, paddingBottom: 14, gap: 14 },
-  headerRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title:           { fontSize: 28, fontWeight: '700', color: TEXT },
-  exportBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
-  exportBtnText:   { color: '#fff', fontSize: 13, fontWeight: '600' },
-  weekNav:         { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, overflow: 'hidden', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  weekNavBtn:      { padding: 14 },
-  weekLabel:       { fontSize: 15, fontWeight: '600' },
-  weekSub:         { fontSize: 12, fontWeight: '400', marginTop: 1 },
-  summaryRow:      { flexDirection: 'row', gap: 10 },
-  summaryCard:     { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  summaryLabel:    { fontSize: 9, fontWeight: '600', letterSpacing: 0.8 },
-  summaryValue:    { fontSize: 18, fontWeight: '700' },
-  sectionTitle:    { fontSize: 10, fontWeight: '600', letterSpacing: 1.2 },
-  staffPill:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
-  staffPillText:   { fontSize: 13, fontWeight: '600' },
-  emptyState:      { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  emptyTitle:      { fontSize: 16, fontWeight: '600' },
-  emptySub:        { fontSize: 13, fontWeight: '400', textAlign: 'center', lineHeight: 19 },
-  dayHeader:       { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 2, marginTop: 6 },
-  dayName:         { fontSize: 14, fontWeight: '700' },
-  dayDate:         { fontSize: 13, fontWeight: '400' },
-  todayBadge:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  todayBadgeText:  { color: '#fff', fontSize: 10, fontWeight: '600' },
-  shiftCard:       { borderRadius: 14, padding: 14, borderWidth: 1, gap: 8, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  shiftStaffRow:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  shiftAvatar:     { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  shiftAvatarText: { fontSize: 13, fontWeight: '700' },
-  shiftName:       { fontSize: 15, fontWeight: '600', color: TEXT },
-  shiftPos:        { fontSize: 12, fontWeight: '400', marginTop: 1 },
-  shiftMainRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  shiftTimeRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  shiftTime:       { fontSize: 15, fontWeight: '600' },
-  shiftArrow:      { fontSize: 14 },
-  breakNote:       { fontSize: 11, fontWeight: '400', marginTop: 4 },
-  shiftDuration:   { fontSize: 15, fontWeight: '700' },
-  shiftEarnings:   { fontSize: 13, fontWeight: '600' },
-  activePill:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
-  activeDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' },
-  activePillText:  { fontSize: 11, fontWeight: '600' },
-  pendingPill:     { borderRadius: 8, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2 },
-  pendingText:     { fontSize: 10, fontWeight: '600' },
-  shiftRateRow:    { borderTopWidth: 1, paddingTop: 8 },
-  shiftRateText:   { fontSize: 11, fontWeight: '400' },
-  liveBadge:       { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EBF8FF', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
-  liveDot:         { width: 5, height: 5, borderRadius: 3 },
-  liveText:        { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+const sc = StyleSheet.create({
+  topBar:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  locationPill:  { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: GLASS_BG, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: GLASS_BDR },
+  locationText:  { fontSize: 13, fontWeight: '600', color: TEXT },
+  chipRow:       { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+  chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER },
+  chipText:      { fontSize: 13, fontWeight: '600', color: TEXT },
+  summaryRow:    { flexDirection: 'row', gap: 10 },
+  summaryCard:   { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4, backgroundColor: GLASS_BG, borderColor: GLASS_BDR, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  summaryLabel:  { fontSize: 9, fontWeight: '600', letterSpacing: 0.8, color: MUTED },
+  summaryValue:  { fontSize: 18, fontWeight: '700', color: TEXT },
+  personPill:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  personPillText:{ fontSize: 13, fontWeight: '600' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 2, marginTop: 4 },
+  sectionDate:   { fontSize: 14, fontWeight: '700', color: TEXT, flex: 1 },
+  sectionHrsBadge:{ backgroundColor: NAVY + '12', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  sectionHrsText:{ fontSize: 12, fontWeight: '600', color: NAVY },
+  empty:         { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BDR },
+  emptyTitle:    { fontSize: 16, fontWeight: '600', color: TEXT },
+  emptySub:      { fontSize: 13, color: MUTED, textAlign: 'center' },
+  // Shift card
+  shiftCard:     { flexDirection: 'row', backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  shiftAccent:   { width: 4, flexShrink: 0 },
+  avatar:        { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarText:    { fontSize: 13, fontWeight: '700' },
+  shiftName:     { fontSize: 15, fontWeight: '600', color: TEXT },
+  shiftRole:     { fontSize: 12, marginTop: 1 },
+  badge:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+  badgeText:     { fontSize: 11, fontWeight: '600' },
+  liveDot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: BLUE },
+  timeText:      { fontSize: 14, fontWeight: '600', color: TEXT },
+  breakNote:     { fontSize: 12 },
+  durationText:  { fontSize: 14, fontWeight: '700', color: TEXT },
+  payRow:        { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  payText:       { fontSize: 11 },
+  // Header buttons
+  exportBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  exportBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  addBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: INDIGO, alignItems: 'center', justifyContent: 'center' },
 });
-const sm = StyleSheet.create({
-  header:           { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
-  closeBtn:         { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  title:            { fontSize: 16, fontWeight: '700', color: TEXT },
-  subtitle:         { fontSize: 12, fontWeight: '400', marginTop: 2 },
-  subTabBar:        { flexDirection: 'row', borderBottomWidth: 1 },
-  subTab:           { flex: 1, paddingVertical: 13, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  subTabText:       { fontSize: 14, fontWeight: '600' },
-  statusBanner:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1 },
-  statusBannerText: { fontSize: 14, fontWeight: '600' },
-  card:             { backgroundColor: GLASS_BG, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  sectionLabel:     { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, color: MUTED, marginBottom: 10 },
-  infoRow:          { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: BORDER },
-  infoLabel:        { color: MUTED, fontWeight: '400', fontSize: 13 },
-  infoValue:        { color: TEXT,  fontWeight: '500',  fontSize: 13, maxWidth: '55%', textAlign: 'right' },
-  approvalHint:     { fontSize: 13, fontWeight: '400', lineHeight: 19 },
-  fieldLabel:       { fontSize: 13, fontWeight: '500', color: TEXT, marginBottom: 6 },
-  inputRow:         { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#FAFAFA' },
-  input:            { flex: 1, fontSize: 15, fontWeight: '400' },
-  actionBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
-  actionBtnText:    { fontSize: 14, fontWeight: '600' },
-  saveBtn:          { height: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText:      { color: '#fff', fontSize: 16, fontWeight: '600' },
-});
-const pay = StyleSheet.create({
-  card:        { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, padding: 16, gap: 0, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  cardHeader:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
-  title:       { fontSize: 15, fontWeight: '700', color: TEXT },
-  sub:         { fontSize: 12, fontWeight: '400', marginTop: 2 },
-  totalBadge:  { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  totalAmt:    { fontSize: 16, fontWeight: '700' },
-  row:         { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  avatar:      { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  avatarText:  { fontSize: 13, fontWeight: '700' },
-  name:        { fontSize: 14, fontWeight: '600', color: TEXT },
-  pos:         { fontSize: 12, fontWeight: '400', marginTop: 1 },
-  amt:         { fontSize: 15, fontWeight: '700' },
-  noRate:      { fontSize: 13, fontWeight: '500' },
-  shifts:      { fontSize: 11, fontWeight: '400', marginTop: 2 },
-  warning:     { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 8 },
-  warningText: { flex: 1, fontSize: 12, fontWeight: '500' },
+
+
+const py = StyleSheet.create({
+  card:      { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, gap: 0 },
+  header:    { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+  title:     { fontSize: 15, fontWeight: '700', color: TEXT },
+  sub:       { fontSize: 12, marginTop: 2 },
+  total:     { fontSize: 18, fontWeight: '700' },
+  row:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  avatar:    { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarText:{ fontSize: 13, fontWeight: '700' },
+  name:      { fontSize: 14, fontWeight: '600', color: TEXT },
+  pos:       { fontSize: 12, marginTop: 1 },
+  amt:       { fontSize: 15, fontWeight: '700' },
+  noRate:    { fontSize: 13, fontWeight: '500' },
+  warn:      { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 8 },
+  warnText:  { flex: 1, fontSize: 12, fontWeight: '500' },
 });

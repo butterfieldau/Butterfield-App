@@ -2560,6 +2560,69 @@ router.get('/reports/customers', async (req, res) => {
 });
 
 // ── Timesheets ────────────────────────────────────────────────────────────────
+router.post('/timesheets', async (req, res) => {
+  const viewScope: 'all' | 'self' | undefined = (req as any).managerViewScope;
+  const { userId, clockIn, clockOut, unpaidBreakMins } = req.body as {
+    userId: string; clockIn: string; clockOut?: string; unpaidBreakMins?: number;
+  };
+  if (!userId || !clockIn) return res.status(400).json({ error: 'userId and clockIn are required.' });
+
+  // Managers with self-scope can only create timesheets for themselves.
+  if (viewScope === 'self' && userId !== req.user!.id) {
+    return res.status(403).json({ error: 'Forbidden: you can only create timesheets for yourself.' });
+  }
+
+  // Validate that the target user exists and is a staff/manager/director/master role.
+  const [targetUser] = await db.select({ id: usersTable.id, role: usersTable.role })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  if (!targetUser) return res.status(404).json({ error: 'User not found.' });
+  const allowedRoles = ['staff', 'manager', 'director', 'master'];
+  if (!allowedRoles.includes(targetUser.role)) {
+    return res.status(400).json({ error: 'Timesheets can only be created for staff members.' });
+  }
+
+  const resolvedIn    = new Date(clockIn);
+  const resolvedOut   = clockOut ? new Date(clockOut) : null;
+  const resolvedBreak = unpaidBreakMins ?? 0;
+
+  if (isNaN(resolvedIn.getTime())) return res.status(400).json({ error: 'Invalid clockIn timestamp.' });
+  if (resolvedOut && isNaN(resolvedOut.getTime())) return res.status(400).json({ error: 'Invalid clockOut timestamp.' });
+  if (resolvedOut && resolvedOut <= resolvedIn) return res.status(400).json({ error: 'clockOut must be after clockIn.' });
+
+  let hoursWorked: string | null = null;
+  if (resolvedOut) {
+    const diffMs  = resolvedOut.getTime() - resolvedIn.getTime();
+    const breakMs = resolvedBreak * 60_000;
+    hoursWorked   = Math.max(0, (diffMs - breakMs) / 3_600_000).toFixed(2);
+  }
+
+  const [shift] = await db.insert(staffShiftsTable).values({
+    id:              randomUUID(),
+    userId,
+    clockIn:         resolvedIn,
+    clockOut:        resolvedOut,
+    unpaidBreakMins: resolvedBreak,
+    hoursWorked,
+    createdAt:       new Date(),
+    updatedAt:       new Date(),
+  } as any).returning();
+
+  return res.json({ data: shift });
+});
+
+router.delete('/timesheets/:id', async (req, res) => {
+  const viewScope: 'all' | 'self' | undefined = (req as any).managerViewScope;
+  // Managers with self-scope cannot delete timesheets (director/master only).
+  if (viewScope) return res.status(403).json({ error: 'Forbidden: only directors can delete timesheet entries.' });
+
+  const [existing] = await db.select({ id: staffShiftsTable.id })
+    .from(staffShiftsTable).where(eq(staffShiftsTable.id, req.params.id));
+  if (!existing) return res.status(404).json({ error: 'Shift not found.' });
+
+  await db.delete(staffShiftsTable).where(eq(staffShiftsTable.id, req.params.id));
+  return res.json({ success: true });
+});
+
 router.get('/timesheets', async (req, res) => {
   const viewScope: 'all' | 'self' | undefined = (req as any).managerViewScope;
 
@@ -2826,8 +2889,14 @@ router.post('/tasks', async (req, res) => {
 
 router.get('/staff-list', async (req, res) => {
   const staff = await db
-    .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+    .select({
+      id:       usersTable.id,
+      name:     usersTable.name,
+      role:     usersTable.role,
+      position: staffProfilesTable.position,
+    })
     .from(usersTable)
+    .leftJoin(staffProfilesTable, eq(staffProfilesTable.userId, usersTable.id))
     .where(sql`${usersTable.role} IN ('staff', 'manager', 'director', 'master')`);
   return res.json({ data: staff });
 });

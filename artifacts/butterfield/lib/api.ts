@@ -691,6 +691,10 @@ export const api = {
 
     // Timesheets
     timesheets:          () => request<{ data: DirectorShift[] }>('/director/timesheets'),
+    createTimesheet:     (data: { userId: string; clockIn: string; clockOut?: string; unpaidBreakMins?: number }) =>
+      request('/director/timesheets', { method: 'POST', body: JSON.stringify(data) }),
+    deleteTimesheet:     (id: string) =>
+      request(`/director/timesheets/${id}`, { method: 'DELETE' }),
     updateShift:         (id: string, data: { approve?: boolean; clockIn?: string; clockOut?: string | null; unpaidBreakMins?: number }) =>
       request<{ data: DirectorShift }>(`/director/timesheets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
@@ -705,16 +709,6 @@ export const api = {
     allIssues:           () => request<{ data: StaffIssue[] }>('/director/issues'),
     resolveIssue:        (id: string, status: string) => request<{ data: StaffIssue }>(`/director/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
     tasks:               () => request<{ data: StaffTask[] }>('/director/tasks'),
-    loginHistory: (params?: { success?: boolean; from?: string; email?: string; page?: number; pageSize?: number }) => {
-      const qs = new URLSearchParams();
-      if (params?.success !== undefined) qs.set('success', String(params.success));
-      if (params?.from)     qs.set('from', params.from);
-      if (params?.email)    qs.set('email', params.email);
-      if (params?.page)     qs.set('page', String(params.page));
-      if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
-      const q = qs.toString();
-      return request<{ data: LoginHistoryEntry[]; total: number; page: number; pageSize: number }>(`/director/login-history${q ? `?${q}` : ''}`);
-    },
     roster: (weekStart?: string) => {
       const qs = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : '';
       return request<{ data: RosterShift[] }>(`/director/roster${qs}`);
@@ -726,7 +720,7 @@ export const api = {
       request<{ data: RosterShift }>(`/director/roster/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     rosterDelete: (id: string) =>
       request<{ success: boolean }>(`/director/roster/${id}`, { method: 'DELETE' }),
-    staffList:           () => request<{ data: { id: string; name: string; role: string }[] }>('/director/staff-list'),
+    staffList:           () => request<{ data: { id: string; name: string; role: string; position: string | null }[] }>('/director/staff-list'),
     createTask:          (data: { title: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
       request<{ data: StaffTask }>('/director/tasks', { method: 'POST', body: JSON.stringify(data) }),
     updateTask:          (id: string, data: { title?: string; description?: string; category?: string; cadence?: 'daily' | 'weekly' | 'one_off'; isRecurring?: boolean; assignedToUserId?: string | null; assignedToName?: string | null }) =>
