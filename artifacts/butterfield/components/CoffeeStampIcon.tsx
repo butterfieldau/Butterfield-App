@@ -45,11 +45,10 @@ export function CoffeeStampToken({
     <View
       style={[
         styles.token,
-        filled ? styles.tokenFilled : styles.tokenEmpty,
-        { width: Math.round(size * 0.88), height: size, borderRadius: Math.round(size * 0.22) },
+        { width: Math.round(size * 0.84), height: size, opacity: filled ? 1 : 0.28 },
       ]}
     >
-      <CoffeeStampIcon size={Math.round(size * 0.72)} color={filled ? '#0A67EC' : 'rgba(255,255,255,0.54)'} />
+      <CoffeeStampIcon size={Math.round(size * 0.78)} color={filled ? '#FFFFFF' : '#FFFFFF'} />
     </View>
   );
 }
@@ -58,19 +57,5 @@ const styles = StyleSheet.create({
   token: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  tokenFilled: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#0A67EC',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  tokenEmpty: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.28)',
   },
 });
