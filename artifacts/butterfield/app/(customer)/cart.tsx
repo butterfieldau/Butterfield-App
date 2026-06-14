@@ -1471,6 +1471,7 @@ function CartContent() {
           quantity:       i.quantity,
           unitPriceCents: i.unitPriceCents,
           totalCents:     i.unitPriceCents * i.quantity,
+          category:       i.category,
         })),
         type:             orderType,
         scheduledFor:     scheduledForDate?.toISOString(),

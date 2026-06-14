@@ -1,5 +1,6 @@
 import { db, productsTable } from '@workspace/db';
 import { inArray, or } from 'drizzle-orm';
+import { logger } from './logger.js';
 
 export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<number> {
   const orderItems = Array.isArray(items) ? items as Array<{ productId?: string; quantity?: number; category?: string }> : [];
@@ -18,6 +19,10 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
       ))
     : [];
 
+  if (orderProductIds.length > 0 && products.length === 0) {
+    logger.warn({ orderProductIds }, 'countCoffeeItems: none of the order product IDs resolved to a row in productsTable — falling back to item-level category');
+  }
+
   // Build sets covering both local id and stripeProductId so either form matches
   const coffeeIds = new Set<string>();
   const resolvedIds = new Set<string>();
@@ -32,6 +37,11 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
       if (isCoffee) coffeeIds.add(product.stripeProductId);
     }
   }
+
+  logger.debug(
+    { resolved: products.length, coffee: coffeeIds.size, total: orderProductIds.length },
+    'countCoffeeItems: product resolution summary',
+  );
 
   return orderItems.reduce((sum, item) => {
     if ((item as any)?.freeCoffeeItem === true) return sum;
