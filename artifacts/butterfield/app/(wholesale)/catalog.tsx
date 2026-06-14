@@ -133,12 +133,26 @@ export default function WholesaleCatalog() {
   const [category, setCategory]   = useState('All');
   const [cart, setCart]           = useState<CartEntry[]>([]);
 
+  const { data: accountData } = useQuery({
+    queryKey: ['wholesale-account'],
+    queryFn: () => api.wholesale.account(),
+    staleTime: 60_000, retry: false,
+  });
+  const account = accountData?.data;
+  const isPending = account?.status === 'pending';
+
   const { data: pricingData } = useQuery({
     queryKey: ['wholesale-pricing-context'],
     queryFn:  () => api.wholesale.pricingContext(),
     staleTime: 60_000, retry: false,
+    enabled: !isPending,
   });
-  const { data, isLoading, refetch } = useQuery({ queryKey: ['wholesale-products'], queryFn: () => api.wholesale.catalog(), retry: 1 });
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['wholesale-products'],
+    queryFn: () => api.wholesale.catalog(),
+    retry: 1,
+    enabled: !isPending,
+  });
   const products = data?.data ?? [];
   const { refreshing, onRefresh } = useRefreshControl(refetch);
 
@@ -265,7 +279,15 @@ export default function WholesaleCatalog() {
       </View>
 
       {/* ── Product list ────────────────────────────────────────────────── */}
-      {isLoading ? (
+      {isPending ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
+          <Feather name="clock" size={40} color="#F59E0B" />
+          <Text style={{ color: '#92400E', fontWeight: '700', fontSize: 16, textAlign: 'center' }}>Account Pending Approval</Text>
+          <Text style={{ color: '#B45309', fontWeight: '400', fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
+            You will be able to browse and order from the catalog once your wholesale account has been approved.
+          </Text>
+        </View>
+      ) : isLoading ? (
         <ActivityIndicator color={BLUE} style={{ marginTop: 60 }} />
       ) : (
         <FlatList
@@ -274,9 +296,14 @@ export default function WholesaleCatalog() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 120 }}
           ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 60, gap: 8 }}>
+            <View style={{ alignItems: 'center', marginTop: 60, gap: 8, paddingHorizontal: 32 }}>
               <Feather name="package" size={32} color={BORDER} />
-              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14 }}>No products available</Text>
+              <Text style={{ color: TEXT, fontWeight: '600', fontSize: 15, textAlign: 'center' }}>No products available yet</Text>
+              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13, textAlign: 'center', lineHeight: 19 }}>
+                {search
+                  ? `No products match "${search}" — try a different search.`
+                  : 'Your catalog is being set up. Contact your account manager if this persists.'}
+              </Text>
             </View>
           }
           renderItem={({ item: product }) => (

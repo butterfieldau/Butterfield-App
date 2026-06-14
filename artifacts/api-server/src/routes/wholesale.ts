@@ -128,6 +128,7 @@ router.get('/catalog', async (req, res) => {
   const ctx = await loadPriceContextForAccount(req.user!.id);
   if (!ctx) return res.status(404).json({ error: 'Account not found' });
   if (ctx.isSuspended) return res.status(403).json({ error: 'Your account is suspended.' });
+  if (ctx.status !== 'approved') return res.status(403).json({ error: 'Your account is pending approval. You will be notified once it is approved.' });
 
   const products = await db.select().from(productsTable)
     .where(eq(productsTable.isActive, true))
@@ -327,7 +328,7 @@ router.post('/orders', async (req, res) => {
       if (pi.currency !== 'aud') {
         return res.status(400).json({ error: 'Payment currency is not AUD.' });
       }
-      if (Math.abs(pi.amount - finalTotalCents) > 1) {
+      if (Math.abs(pi.amount - finalTotalCents) > 2) {
         return res.status(400).json({ error: 'Payment amount does not match the wholesale order total.' });
       }
       stripePaymentStatus = 'paid';

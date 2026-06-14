@@ -74,6 +74,8 @@ function estimateStripeFeeCents(amountCents: number) {
   return amountCents > 0 ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS) : 0;
 }
 
+const AU_STATE_RE = /\b(?:NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\b/i;
+
 function prefillWholesaleAddress(
   account: {
     deliveryAddress?: string | null;
@@ -93,11 +95,28 @@ function prefillWholesaleAddress(
     return { street: '', suburb: '', postcode: '' };
   }
 
-  const match = rawStreet.match(/^(.*?)(?:,\s*|\s+)([^,]+?)\s+(\d{4})$/);
+  // Try comma-split first: "123 Smith St, Surry Hills NSW 2010"
+  const commaIdx = rawStreet.indexOf(',');
+  if (commaIdx > 0) {
+    const street = rawStreet.slice(0, commaIdx).trim();
+    const rest = rawStreet.slice(commaIdx + 1).trim();
+    // Extract trailing 4-digit postcode
+    const pcMatch = rest.match(/\b(\d{4})$/);
+    if (pcMatch) {
+      const pc = pcMatch[1];
+      // Remove postcode and optional state code from the end
+      const withoutPc = rest.slice(0, rest.lastIndexOf(pc)).trim();
+      const sub = withoutPc.replace(AU_STATE_RE, '').trim().replace(/,+$/, '').trim();
+      return { street, suburb: sub, postcode: pc };
+    }
+    return { street, suburb: rest.replace(AU_STATE_RE, '').trim(), postcode: '' };
+  }
+
+  // No comma — try space-based split respecting state code before postcode
+  const match = rawStreet.match(/^(.*?)\s+([A-Za-z][^,]*?)\s+(?:[A-Z]{2,3}\s+)?(\d{4})$/);
   if (!match) {
     return { street: rawStreet, suburb: '', postcode: '' };
   }
-
   return {
     street: match[1].trim(),
     suburb: match[2].trim(),

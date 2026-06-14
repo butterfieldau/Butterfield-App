@@ -47,7 +47,11 @@ export default function WholesaleDashboard() {
   const tierName      = account?.tier?.name ?? account?.pricingTier ?? 'Standard';
   const isPending     = account?.status === 'pending';
 
-  const goCatalog = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/(wholesale)/catalog' as any); };
+  const goCatalog = () => {
+    if (isPending) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/(wholesale)/catalog' as any);
+  };
   const goOrders  = () => { Haptics.selectionAsync(); router.push('/(wholesale)/orders' as any); };
 
   return (
@@ -81,8 +85,21 @@ export default function WholesaleDashboard() {
         </View>
 
         <View style={{ paddingHorizontal: 16, gap: 14 }}>
+          {/* ── PENDING APPROVAL BANNER ───────────────────────────────────────── */}
+          {isPending && (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: '#F59E0B' }}>
+              <Feather name="clock" size={16} color="#D97706" style={{ marginTop: 1 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#92400E', fontWeight: '700', fontSize: 14 }}>Account pending approval</Text>
+                <Text style={{ color: '#B45309', fontWeight: '400', fontSize: 12, marginTop: 3, lineHeight: 17 }}>
+                  Your wholesale account is being reviewed. You will be notified once approved and can start placing orders.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* ── PRIMARY CTA ───────────────────────────────────────────────────── */}
-          <Pressable onPress={goCatalog} style={s.ctaWrap}>
+          <Pressable onPress={goCatalog} disabled={isPending} style={[s.ctaWrap, isPending && { opacity: 0.45 }]}>
             <LinearGradient
               colors={['#1493FF', '#3CBBEE']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -92,8 +109,8 @@ export default function WholesaleDashboard() {
                 <Feather name="shopping-bag" size={20} color={BLUE} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.ctaTitle}>Place a New Order</Text>
-                <Text style={s.ctaSub}>Browse catalog · {tierName} pricing applied</Text>
+                <Text style={s.ctaTitle}>{isPending ? 'Ordering Unavailable' : 'Place a New Order'}</Text>
+                <Text style={s.ctaSub}>{isPending ? 'Awaiting account approval' : `Browse catalog · ${tierName} pricing applied`}</Text>
               </View>
               <Feather name="chevron-right" size={20} color="#fff" />
             </LinearGradient>
