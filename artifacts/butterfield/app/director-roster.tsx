@@ -577,6 +577,36 @@ export default function DirectorRosterScreen() {
     onError: (e: any) => Alert.alert('Error', e?.message ?? 'Failed to confirm shift'),
   });
 
+  const [confirmingAll, setConfirmingAll] = useState(false);
+  const unconfirmedShifts = useMemo(() => shifts.filter(s => !s.isConfirmed), [shifts]);
+
+  const handleConfirmAll = useCallback(() => {
+    if (unconfirmedShifts.length === 0) return;
+    Alert.alert(
+      'Confirm All Shifts',
+      `Mark all ${unconfirmedShifts.length} unconfirmed shift${unconfirmedShifts.length !== 1 ? 's' : ''} as confirmed?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm All',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            setConfirmingAll(true);
+            try {
+              await Promise.all(unconfirmedShifts.map(s => api.director.rosterUpdate(s.id, { isConfirmed: true })));
+              await qc.invalidateQueries({ queryKey: ['director-roster'] });
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch {
+              Alert.alert('Error', 'Some shifts could not be confirmed. Please try again.');
+            } finally {
+              setConfirmingAll(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [unconfirmedShifts, qc]);
+
   function openCreate() {
     setEditingShift(null);
     setModalVisible(true);
@@ -642,8 +672,23 @@ export default function DirectorRosterScreen() {
         </View>
         <View style={sc.summaryCard}>
           <Text style={sc.summaryLabel}>CONFIRMED</Text>
-          <Text style={[sc.summaryValue, { color: GREEN }]}>{confirmedCount}</Text>
+          <Text style={[sc.summaryValue, { color: GREEN }]}>{confirmedCount}/{totalShifts}</Text>
         </View>
+        {unconfirmedShifts.length > 0 && (
+          <Pressable
+            onPress={handleConfirmAll}
+            disabled={confirmingAll}
+            style={[sc.confirmAllBtn, confirmingAll && { opacity: 0.6 }]}
+          >
+            {confirmingAll
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <>
+                  <Feather name="check-circle" size={13} color="#fff" />
+                  <Text style={sc.confirmAllText}>Confirm All</Text>
+                </>
+            }
+          </Pressable>
+        )}
       </View>
 
       {/* Role filter chips */}
@@ -807,4 +852,6 @@ const sc = StyleSheet.create({
   iconBtn:        { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F0F4FF', alignItems: 'center', justifyContent: 'center' },
   confirmBtn:     { width: 30, height: 30, borderRadius: 15, backgroundColor: GREEN + '18', alignItems: 'center', justifyContent: 'center' },
   confirmedBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: GREEN + '18', alignItems: 'center', justifyContent: 'center' },
+  confirmAllBtn:  { alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: GREEN, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, minWidth: 80 },
+  confirmAllText: { fontSize: 11, fontWeight: '700', color: '#fff', letterSpacing: 0.2 },
 });
