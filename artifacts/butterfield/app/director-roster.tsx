@@ -648,6 +648,7 @@ export default function DirectorRosterScreen() {
 
       {/* Role filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={sc.chipScroll}
         contentContainerStyle={sc.chipRow}>
         {ALL_ROLES.map(r => {
           const active = roleFilter === r;
@@ -783,7 +784,8 @@ const sc = StyleSheet.create({
   summaryCard: { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4, backgroundColor: GLASS_BG, borderColor: GLASS_BDR, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   summaryLabel:{ fontSize: 9, fontWeight: '600', letterSpacing: 0.8, color: MUTED },
   summaryValue:{ fontSize: 18, fontWeight: '700', color: TEXT },
-  chipRow:     { gap: 8, paddingHorizontal: 16, paddingBottom: 10, paddingTop: 2 },
+  chipScroll:  { flexGrow: 0, alignSelf: 'flex-start', width: '100%' },
+  chipRow:     { gap: 8, paddingHorizontal: 16, paddingBottom: 10, paddingTop: 2, alignItems: 'center' },
   chip:        { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER },
   chipText:    { fontSize: 13, fontWeight: '600', color: TEXT },
   dayBlock:    { backgroundColor: CARD, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER },
