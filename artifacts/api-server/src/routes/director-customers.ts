@@ -727,7 +727,7 @@ router.post('/customers/:id/stamps/adjust', allowedRoles, requireUsers, async (r
   const newCount = Math.max(0, (profile.coffeeStampCount ?? 0) + delta);
   await Promise.all([
     db.update(customerProfilesTable)
-      .set({ coffeeStampCount: newCount, updatedAt: new Date() })
+      .set({ coffeeStampCount: newCount, stampCount: newCount, updatedAt: new Date() })
       .where(eq(customerProfilesTable.userId, userId)),
     db.insert(loyaltyTransactionsTable).values({
       id: randomUUID(), userId,

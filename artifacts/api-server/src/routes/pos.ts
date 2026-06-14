@@ -776,6 +776,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     splitPayments: rawSplitPayments,
     linklySessionId,
     customerId,
+    coffeeItemCount: rawCoffeeItemCount,
     discountCode,
     discountCodeId,
     manualDiscountPct,
@@ -1315,11 +1316,17 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
       }
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
-      const coffeeStampCount = items.reduce((sum: number, item: any) => {
+      const detectedCoffeeStampCount = items.reduce((sum: number, item: any) => {
         if ((item as any)?.freeCoffeeItem === true) return sum;
         if (String(item?.category ?? '').toLowerCase() !== 'coffee') return sum;
         return sum + Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
       }, 0);
+      const requestedCoffeeStampCount = Math.max(0, Math.floor(Number(rawCoffeeItemCount) || 0));
+      const totalItemCount = items.reduce((sum: number, item: any) => sum + Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1)), 0);
+      const coffeeStampCount = detectedCoffeeStampCount > 0
+        ? detectedCoffeeStampCount
+        : Math.min(requestedCoffeeStampCount, totalItemCount);
+      req.log.info({ orderId, customerId, detectedCoffeeStampCount, requestedCoffeeStampCount, coffeeStampCount }, 'POS loyalty coffee stamp count resolved');
       let stampsAdded = 0;
       let rewardUnlocked = false;
       let newStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
@@ -1336,6 +1343,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
         stampsAdded = coffeeStampCount;
         rewardUnlocked = stampRes.earnedFree;
         newStampCount = stampRes.stampCount;
+        req.log.info({ orderId, customerId, stampsAdded, newStampCount, rewardUnlocked }, 'POS coffee stamps awarded');
       }
 
       loyaltyResult = { pointsEarned, newBalance, stampsAdded, newStampCount, rewardUnlocked };

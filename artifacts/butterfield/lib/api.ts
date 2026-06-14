@@ -949,6 +949,7 @@ export const api = {
     },
     createOrder: (data: {
       items: PosOrderItem[];
+      coffeeItemCount?: number;
       orderType: 'dine_in' | 'takeaway' | 'counter';
       paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;
@@ -971,6 +972,7 @@ export const api = {
     ),
     syncOrder: (data: {
       items: PosOrderItem[];
+      coffeeItemCount?: number;
       orderType: 'dine_in' | 'takeaway' | 'counter';
       paymentMethod: 'cash' | 'eftpos' | 'split';
       amountTenderedCents?: number;

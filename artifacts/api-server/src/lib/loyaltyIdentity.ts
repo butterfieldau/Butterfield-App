@@ -184,13 +184,18 @@ export async function getOrCreateCustomerLoyaltyProfile(userId: string, fallback
     profile = { ...profile, loyaltyQrToken: token } as LoyaltyProfileRow;
   }
 
-  // Sync legacy stamp/reward fields so both column pairs are always identical.
+  // Sync legacy stamp/reward mirrors so both column pairs are always identical.
+  // Canonical source of truth is coffeeStampCount/freeCoffeeRewards.
   const updates: Record<string, any> = {};
-  if ((profile.coffeeStampCount ?? 0) !== (profile.stampCount ?? 0)) {
-    updates.coffeeStampCount = profile.stampCount ?? 0;
+  const resolvedStampCount = Math.max(profile.coffeeStampCount ?? 0, profile.stampCount ?? 0);
+  const resolvedFreeCoffeeRewards = Math.max(profile.freeCoffeeRewards ?? 0, profile.freeCoffeesEarned ?? 0);
+  if ((profile.coffeeStampCount ?? 0) !== resolvedStampCount || (profile.stampCount ?? 0) !== resolvedStampCount) {
+    updates.coffeeStampCount = resolvedStampCount;
+    updates.stampCount = resolvedStampCount;
   }
-  if ((profile.freeCoffeeRewards ?? 0) !== (profile.freeCoffeesEarned ?? 0)) {
-    updates.freeCoffeeRewards = profile.freeCoffeesEarned ?? 0;
+  if ((profile.freeCoffeeRewards ?? 0) !== resolvedFreeCoffeeRewards || (profile.freeCoffeesEarned ?? 0) !== resolvedFreeCoffeeRewards) {
+    updates.freeCoffeeRewards = resolvedFreeCoffeeRewards;
+    updates.freeCoffeesEarned = resolvedFreeCoffeeRewards;
   }
   if (Object.keys(updates).length > 0) {
     updates.updatedAt = new Date();

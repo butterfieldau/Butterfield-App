@@ -703,6 +703,9 @@ function PosScreenInner() {
     supervisorPin?: string;
   }) => ({
     items: buildPosItems(activeTicket.items),
+    coffeeItemCount: activeTicket.items
+      .filter((item) => item.category.toLowerCase() === 'coffee')
+      .reduce((sum, item) => sum + (item.quantity ?? 1), 0),
     orderType: activeTicket.orderType,
     paymentMethod: (vars.paymentMethod === 'split' ? 'eftpos' : vars.paymentMethod) as 'cash' | 'eftpos',
     amountTenderedCents: vars.amountTenderedCents,
@@ -1599,39 +1602,6 @@ function TicketPanel({
     .reduce((sum, i) => sum + (i.quantity ?? 1), 0);
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
 
-  // Track stamp count at the moment the current customer was attached.
-  // Resets when customer identity changes so stampsAwardedThisTicket is relative to attachment.
-  const initialStampRef = React.useRef<number>(ticket.customer?.stampCount ?? 0);
-  React.useEffect(() => {
-    initialStampRef.current = ticket.customer?.stampCount ?? 0;
-  }, [ticket.customer?.userId]);
-
-  // Stamp mutation — award one stamp to attached customer (server validates coffee item present)
-  const addStampMutation = useMutation({
-    mutationFn: ({ customerId, items, coffeeItemCount, ticketId }: { customerId: string; items: { category: string; productId?: string }[]; coffeeItemCount: number; ticketId: string }) =>
-      api.pos.addStamp(customerId, items, coffeeItemCount, ticketId),
-    onSuccess: (res) => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const data = (res as any)?.data ?? {};
-      if (ticket.customer) {
-        onUpdateTicket({
-          customer: {
-            ...ticket.customer,
-            stampCount: data.stampCount ?? ticket.customer.stampCount,
-            freeCoffeeRewards: data.freeCoffeeRewards ?? ticket.customer.freeCoffeeRewards,
-          },
-        });
-      }
-      if (data.rewardUnlocked) {
-        Alert.alert('☕ Free Coffee Earned!', `${ticket.customer?.name ?? 'Customer'} has earned a free coffee!`);
-      }
-    },
-    onError: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Could not award stamp. Please try again.');
-    },
-  });
-
   const applyPctDiscount = (pct: number) => {
     const amountCents = Math.round(subtotal * pct / 100);
     onUpdateTicket({ appliedDiscount: { type: 'pct', pct, amountCents, label: `${pct}% off` } });
@@ -1748,35 +1718,22 @@ function TicketPanel({
           <View style={styles.stampRow}>
             {Array.from({ length: STAMP_GOAL }).map((_, i) => {
               const filled = i < (ticket.customer?.stampCount ?? 0);
-              const isNext = i === (ticket.customer?.stampCount ?? 0);
-              // Stamps awarded this ticket = current count minus count at customer attachment
-              const stampsAwardedThisTicket = (ticket.customer?.stampCount ?? 0) - initialStampRef.current;
-              // Can only tap the next circle if: coffee in ticket AND haven't exceeded coffee quantity cap
-              const canTap = isNext && coffeeCount > 0 && stampsAwardedThisTicket < coffeeCount && !addStampMutation.isPending;
               return (
-                <Pressable
+                <View
                   key={i}
-                  onPress={canTap ? () => addStampMutation.mutate({
-                    customerId: ticket.customer!.userId,
-                    items: ticket.items.map(i => ({ category: i.category, productId: i.productId })),
-                    coffeeItemCount: coffeeCount,
-                    ticketId: ticket.id,
-                  }) : undefined}
                   style={[
                     styles.stampCircle,
                     filled && styles.stampCircleFilled,
-                    isNext && hasCoffeeItems && styles.stampCircleNext,
-                    addStampMutation.isPending && { opacity: 0.5 },
                   ]}
                 >
                   {filled ? <Feather name="coffee" size={11} color={WHITE} /> : null}
-                </Pressable>
+                </View>
               );
             })}
             <Text style={styles.stampLabel}>{ticket.customer.stampCount}/{STAMP_GOAL}</Text>
-            {!hasCoffeeItems && (
-              <Text style={[styles.stampLabel, { marginLeft: 0, color: MUTED }]}>— add coffee to stamp</Text>
-            )}
+            <Text style={[styles.stampLabel, { marginLeft: 0, color: MUTED }]}>
+              {hasCoffeeItems ? '— stamps apply automatically after payment' : '— add coffee to earn stamps'}
+            </Text>
           </View>
         </View>
       ) : (

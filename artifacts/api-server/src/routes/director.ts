@@ -483,7 +483,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     // On cancellation or refund: reverse loyalty points + restore claimed rewards + Stripe refund
     const isCancelOrRefund = (status === 'cancelled' || status === 'refunded');
     const wasAlreadyCancelledOrRefunded = previousStatus === 'cancelled' || previousStatus === 'refunded';
-    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && updated && previousStatus === 'completed') {
+    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && updated) {
       // Restore claimed reward if any
       try {
         await db.update(claimedRewardsTable)

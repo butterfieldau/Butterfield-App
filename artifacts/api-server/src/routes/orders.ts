@@ -497,6 +497,7 @@ router.patch(
     if (isCompletion && order) {
       try {
         const coffeeCount = await countCoffeeItemsFromOrderItems(order.items);
+        req.log.info({ orderId: order.id, userId: order.userId, status, previousStatus, coffeeCount }, 'Orders route coffee stamp completion check');
         if (coffeeCount > 0) {
           if (!(await hasAwardedCoffeeStampsForOrder(order.id))) {
             await applyCoffeeStamps({
@@ -566,7 +567,7 @@ router.patch(
     // Guard: only run once — skip if order was already cancelled before this call
     const isCancelOrRefund = (status === 'cancelled' || status === 'refunded');
     const wasAlreadyCancelledOrRefunded = previousStatus === 'cancelled' || previousStatus === 'refunded';
-    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && order && previousStatus === 'completed') {
+    if (isCancelOrRefund && !wasAlreadyCancelledOrRefunded && order) {
       try {
         await db.update(claimedRewardsTable)
           .set({ status: 'available', redeemedAt: null, orderId: null })
@@ -593,6 +594,7 @@ router.patch(
 
       try {
         const outstandingStampCount = await getOutstandingCoffeeStampsForOrder(order.id);
+        req.log.info({ orderId: order.id, userId: order.userId, status, previousStatus, outstandingStampCount }, 'Orders route coffee stamp reversal check');
         if (outstandingStampCount > 0) {
             await reverseCoffeeStamps({
               userId: order.userId,
