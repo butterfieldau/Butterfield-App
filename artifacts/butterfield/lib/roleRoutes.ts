@@ -4,7 +4,7 @@ import type { UserRole } from '@/types';
 export function getHomeRouteForRole(role?: UserRole | null): Href {
   if (role === 'customer') return '/(customer)';
   if (role === 'wholesale') return '/(wholesale)';
-  if (role === 'shop_display') return '/(shop-display)';
+  if (role === 'shop_display') return '/(shop-display)/pos';
   if (role === 'staff' || role === 'manager' || role === 'director' || role === 'master') {
     return '/(director)';
   }
