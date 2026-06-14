@@ -5,7 +5,6 @@ import {
   claimedRewardsTable,
   customerProfilesTable,
   db,
-  loyaltyActivityLogTable,
   ordersTable,
   productsTable,
   staffProfilesTable,
@@ -17,13 +16,13 @@ import {
   usersTable,
   wholesaleOrdersTable,
 } from '@workspace/db';
-import { and, count, desc, eq, gt, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { applyCoffeeStamps, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
-import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { countCoffeeItemsFromOrderItems, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 import {
   getLinklyPublicConfig,
@@ -297,7 +296,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     try {
       const coffeeStampCount = await countCoffeeItemsFromOrderItems(updated.items);
-      if (coffeeStampCount > 0) {
+      if (coffeeStampCount > 0 && await hasAwardedCoffeeStampsForOrder(updated.id)) {
         await reverseCoffeeStamps({
           userId: updated.userId,
           stampsToRemove: coffeeStampCount,
@@ -322,37 +321,26 @@ router.patch('/orders/:id/status', async (req, res) => {
     }
   }
 
-  // ── Award coffee stamps at fulfillment milestone ──────────────────────────
-  // Mirrors the same logic in /api/orders/:id/status — stamps must fire here
-  // because staff always advance orders via the shop-display route, never
-  // through the customer-facing route.
-  const isTransitionToReady = status === 'ready_for_pickup' || status === 'out_for_delivery';
+  // ── Award coffee stamps only when the order is completed ─────────────────
+  // Shop Display drives the real App Sales workflow, so the completion rule
+  // is enforced here as well: one stamp per coffee, once, at completed.
   const isCompletion = status === 'completed';
-  if ((isTransitionToReady || isCompletion) && !isCancellingNow) {
+  if (isCompletion && !isCancellingNow) {
     try {
       const coffeeCount = await countCoffeeItemsFromOrderItems(updated.items);
       if (coffeeCount > 0) {
-        const [alreadyAwarded] = await db
-          .select({ id: loyaltyActivityLogTable.id })
-          .from(loyaltyActivityLogTable)
-          .where(and(
-            eq(loyaltyActivityLogTable.orderId, updated.id),
-            eq(loyaltyActivityLogTable.activityType, 'in_app_order'),
-            gt(loyaltyActivityLogTable.coffeeStampsDelta, 0),
-          ))
-          .limit(1);
-        if (!alreadyAwarded) {
+        if (!(await hasAwardedCoffeeStampsForOrder(updated.id))) {
           await applyCoffeeStamps({
             userId: updated.userId,
             stampsToAdd: coffeeCount,
             source: 'in_app_order',
             orderId: updated.id,
-            description: `Coffee ready — Order #${updated.id.slice(0, 8)}`,
+            description: `Coffee completed — Order #${updated.id.slice(0, 8)}`,
           });
         }
       }
     } catch (err: any) {
-      req.log.error({ err, orderId: updated.id }, 'Failed to award coffee stamps on shop display order ready');
+      req.log.error({ err, orderId: updated.id }, 'Failed to award coffee stamps on shop display order completion');
     }
   }
 

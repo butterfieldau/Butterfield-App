@@ -24,7 +24,7 @@ import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
-import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { countCoffeeItemsFromOrderItems, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
@@ -512,7 +512,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
       try {
         const coffeeStampCount = await countCoffeeItemsFromOrderItems(updated.items);
-        if (coffeeStampCount > 0) {
+        if (coffeeStampCount > 0 && await hasAwardedCoffeeStampsForOrder(updated.id)) {
           await reverseCoffeeStamps({
             userId: updated.userId,
             stampsToRemove: coffeeStampCount,

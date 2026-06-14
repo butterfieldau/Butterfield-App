@@ -1,5 +1,5 @@
-import { db, productsTable } from '@workspace/db';
-import { inArray, or } from 'drizzle-orm';
+import { db, loyaltyActivityLogTable, productsTable } from '@workspace/db';
+import { and, eq, gt, inArray, or } from 'drizzle-orm';
 import { logger } from './logger.js';
 
 export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<number> {
@@ -53,4 +53,18 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
     if (!resolvedIds.has(productId) && String(item?.category ?? '').toLowerCase() === 'coffee') return sum + qty;
     return sum;
   }, 0);
+}
+
+export async function hasAwardedCoffeeStampsForOrder(orderId: string): Promise<boolean> {
+  const [awarded] = await db
+    .select({ id: loyaltyActivityLogTable.id })
+    .from(loyaltyActivityLogTable)
+    .where(and(
+      eq(loyaltyActivityLogTable.orderId, orderId),
+      eq(loyaltyActivityLogTable.activityType, 'in_app_order'),
+      gt(loyaltyActivityLogTable.coffeeStampsDelta, 0),
+    ))
+    .limit(1);
+
+  return Boolean(awarded);
 }

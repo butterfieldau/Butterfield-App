@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable, usersTable, loyaltyActivityLogTable } from '@workspace/db';
-import { eq, desc, sql, and, inArray, isNull, gt } from 'drizzle-orm';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable, usersTable } from '@workspace/db';
+import { eq, desc, sql, and, inArray, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { sendEmail, buildOrderConfirmationEmail, buildOrderReceiptEmail } from '../lib/emailService.js';
 import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
-import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { countCoffeeItemsFromOrderItems, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
@@ -489,40 +489,27 @@ router.patch(
         { orderId: order.id, status, screen: `/(customer)/track/${order.id}` }).catch(() => {});
     }
 
-    // ── Award coffee stamps at fulfillment milestone ───────────────────────────
-    // Stamps are earned when the order is fulfilled, not at creation:
-    //   • Standard pickup / delivery: at ready_for_pickup / out_for_delivery
-    //   • Any path that reaches completed (quick pickup, force-complete, etc.)
-    // The idempotency guard below prevents double-awarding on ready → completed.
-    const isTransitionToReady = status === 'ready_for_pickup' || status === 'out_for_delivery';
+    // ── Award coffee stamps only when the order is completed ───────────────────
+    // App Sales coffee stamps must not be granted on acceptance, preparation,
+    // or ready-for-pickup. They are earned exactly once when the order reaches
+    // the terminal "completed" state.
     const isCompletion = status === 'completed';
-    if ((isTransitionToReady || isCompletion) && order) {
+    if (isCompletion && order) {
       try {
         const coffeeCount = await countCoffeeItemsFromOrderItems(order.items);
         if (coffeeCount > 0) {
-          // Idempotency guard: skip if stamps were already awarded for this order
-          // (protects against accidental double-transitions or admin overrides).
-          const [alreadyAwarded] = await db
-            .select({ id: loyaltyActivityLogTable.id })
-            .from(loyaltyActivityLogTable)
-            .where(and(
-              eq(loyaltyActivityLogTable.orderId, order.id),
-              eq(loyaltyActivityLogTable.activityType, 'in_app_order'),
-              gt(loyaltyActivityLogTable.coffeeStampsDelta, 0),
-            ))
-            .limit(1);
-          if (!alreadyAwarded) {
+          if (!(await hasAwardedCoffeeStampsForOrder(order.id))) {
             await applyCoffeeStamps({
               userId: order.userId,
               stampsToAdd: coffeeCount,
               source: 'in_app_order',
               orderId: order.id,
-              description: `Coffee ready — Order #${order.id.slice(0, 8)}`,
+              description: `Coffee completed — Order #${order.id.slice(0, 8)}`,
             });
           }
         }
       } catch (err: any) {
-        req.log.error({ err, orderId: order.id }, 'Failed to award coffee stamps on order ready');
+        req.log.error({ err, orderId: order.id }, 'Failed to award coffee stamps on order completion');
       }
     }
 
@@ -610,16 +597,7 @@ router.patch(
           // Only reverse stamps if they were actually awarded for this order.
           // Stamps are now awarded at the fulfillment milestone (ready/completed),
           // so cancellations before that point must not reverse anything.
-          const [stampLog] = await db
-            .select({ id: loyaltyActivityLogTable.id })
-            .from(loyaltyActivityLogTable)
-            .where(and(
-              eq(loyaltyActivityLogTable.orderId, order.id),
-              eq(loyaltyActivityLogTable.activityType, 'in_app_order'),
-              gt(loyaltyActivityLogTable.coffeeStampsDelta, 0),
-            ))
-            .limit(1);
-          if (stampLog) {
+          if (await hasAwardedCoffeeStampsForOrder(order.id)) {
             await reverseCoffeeStamps({
               userId: order.userId,
               stampsToRemove: coffeeStampCount,
