@@ -26,7 +26,6 @@ const NAV_ITEMS = [
   { segment: 'tasks',     label: 'Tasks',        icon: 'check-square' as const },
   { segment: 'clock',     label: 'Clock In/Out', icon: 'clock'        as const },
   { segment: 'customers', label: 'Customers',    icon: 'users'        as const, perm: 'customers' },
-  { segment: 'scan',      label: 'Scan QR',      icon: 'maximize'     as const },
   { segment: 'settings',  label: 'Settings',     icon: 'settings'     as const },
 ] as const;
 

@@ -91,8 +91,8 @@ export default function DirectorLayout() {
         'more',
       ]
     : canViewOrders
-      ? ['index', 'orders', 'schedule', 'scan', 'staffhub', 'profile']
-      : ['index', 'schedule', 'scan', 'staffhub', 'profile'];
+      ? ['index', 'orders', 'schedule', 'staffhub', 'profile']
+      : ['index', 'schedule', 'staffhub', 'profile'];
 
   const badgeLabel = isStaff   ? 'STAFF'
                    : isManager ? 'STORE MANAGER'
@@ -131,7 +131,7 @@ export default function DirectorLayout() {
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
           <Tabs.Screen name="schedule" options={{ title: 'Schedule',  href: isStaff ? undefined : null }} />
-          <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff ? undefined : null }} />
+          <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
           <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub' }} />
           <Tabs.Screen name="profile"  options={{ title: 'Profile',   href: isStaff ? undefined : null }} />
