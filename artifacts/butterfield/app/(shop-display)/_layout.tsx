@@ -377,6 +377,7 @@ export default function ShopDisplayLayout() {
 
   const tabScreens = (
     <Tabs
+      initialRouteName="pos"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: BLUE,
