@@ -571,6 +571,12 @@ export default function DirectorRosterScreen() {
     onError: (e: any) => Alert.alert('Error', e?.message ?? 'Failed to delete shift'),
   });
 
+  const confirmMutMain = useMutation({
+    mutationFn: (id: string) => api.director.rosterUpdate(id, { isConfirmed: true }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['director-roster'] }); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); },
+    onError: (e: any) => Alert.alert('Error', e?.message ?? 'Failed to confirm shift'),
+  });
+
   function openCreate() {
     setEditingShift(null);
     setModalVisible(true);
@@ -723,6 +729,21 @@ export default function DirectorRosterScreen() {
                           </View>
                           {/* Icon buttons */}
                           <View style={{ alignItems: 'center', justifyContent: 'center', gap: 6, paddingRight: 10 }}>
+                            {shift.isConfirmed ? (
+                              <View style={sc.confirmedBadge}>
+                                <Feather name="check-circle" size={14} color={GREEN} />
+                              </View>
+                            ) : (
+                              <Pressable
+                                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); confirmMutMain.mutate(shift.id); }}
+                                disabled={confirmMutMain.isPending}
+                                style={sc.confirmBtn}
+                              >
+                                {confirmMutMain.isPending && confirmMutMain.variables === shift.id
+                                  ? <ActivityIndicator size="small" color={GREEN} />
+                                  : <Feather name="check-circle" size={14} color={GREEN} />}
+                              </Pressable>
+                            )}
                             <Pressable onPress={() => openEdit(shift)} style={sc.iconBtn}>
                               <Feather name="edit-2" size={14} color={MUTED} />
                             </Pressable>
@@ -781,5 +802,7 @@ const sc = StyleSheet.create({
   shiftNotes:  { fontSize: 11, color: MUTED, flex: 1 },
   roleChip:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1 },
   roleChipText:{ fontSize: 10, fontWeight: '600' },
-  iconBtn:     { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F0F4FF', alignItems: 'center', justifyContent: 'center' },
+  iconBtn:        { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F0F4FF', alignItems: 'center', justifyContent: 'center' },
+  confirmBtn:     { width: 30, height: 30, borderRadius: 15, backgroundColor: GREEN + '18', alignItems: 'center', justifyContent: 'center' },
+  confirmedBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: GREEN + '18', alignItems: 'center', justifyContent: 'center' },
 });
