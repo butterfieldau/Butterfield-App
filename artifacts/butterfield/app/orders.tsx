@@ -187,7 +187,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
             <Feather name="x" size={18} color={TEXT} />
           </Pressable>
           <Text style={d.headerTitle}>
-            {isLoading ? 'Loading…' : `Order #${(order?.id ?? '').slice(-6).toUpperCase()}`}
+            {isLoading ? 'Loading…' : `Order #${order?.orderNumber ?? (order?.id ?? '').slice(-6).toUpperCase()}`}
           </Text>
           <View style={{ width: 36 }} />
         </View>
@@ -207,7 +207,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ gap: 3 }}>
                   <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
-                    Order #{order.id.slice(-6).toUpperCase()}
+                    Order #{order.orderNumber ?? order.id.slice(-6).toUpperCase()}
                   </Text>
                   <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
                     {fmtDate(order.createdAt)}
@@ -394,7 +394,7 @@ function OrderCard({ order, onPress, onTrack }: { order: ApiOrder; onPress: () =
     <Pressable onPress={onPress} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
       <View style={s.topRow}>
         <View>
-          <Text style={s.orderId}>#{order.id.slice(-6).toUpperCase()}</Text>
+          <Text style={s.orderId}>#{order.orderNumber ?? order.id.slice(-6).toUpperCase()}</Text>
           <Text style={s.orderDate}>{new Date(order.createdAt).toLocaleDateString('en-AU')}</Text>
         </View>
         <View style={[s.badge, { backgroundColor: col.bg }]}>
