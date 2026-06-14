@@ -282,6 +282,7 @@ export default function ShopDisplayOrdersScreen() {
   const eftposIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seenRef = useRef<Record<string, string>>({});
   const bootedRef = useRef(false);
+  const mountTimeRef = useRef(Date.now());
 
   // ── Idle / ambient screen ──────────────────────────────────────────────────
   const IDLE_TIMEOUT_MS = 60_000;
@@ -384,9 +385,29 @@ export default function ShopDisplayOrdersScreen() {
     const currentMap: Record<string, string> = {};
     for (const o of rows) currentMap[o.id] = o.status;
     if (!bootedRef.current) {
-      if (rows.length === 0) return;
+      if (rows.length === 0) return; // wait for first real data
+      // Seed seen-list from snapshot, but still alert on any 'received' orders
+      // that were created at or after mount time (placed while screen was loading).
       seenRef.current = currentMap;
       bootedRef.current = true;
+      const mountMs = mountTimeRef.current;
+      const freshOnBoot = rows.find(o => {
+        if (o.status !== 'received') return false;
+        const ts = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+        return ts >= mountMs - 2000; // 2 s buffer for clock skew
+      });
+      if (freshOnBoot) {
+        setAlertOrderId(freshOnBoot.id);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setShowNewOrderBanner(prev => {
+          if (prev) return prev;
+          setNewOrderBannerOrder({
+            customerName: freshOnBoot.customerName ?? 'Customer',
+            orderNumber: freshOnBoot.orderNumber ?? `#${freshOnBoot.id.slice(0, 6).toUpperCase()}`,
+          });
+          return true;
+        });
+      }
       return;
     }
     const prev = seenRef.current;
