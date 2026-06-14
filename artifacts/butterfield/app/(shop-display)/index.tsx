@@ -177,12 +177,12 @@ function NewOrderAlertOverlay({
   visible,
   order,
   onDismiss,
-  storeIsOpen,
+  soundEnabled,
 }: {
   visible: boolean;
   order: NewOrderBannerOrder | null;
   onDismiss: () => void;
-  storeIsOpen: boolean;
+  soundEnabled: boolean;
 }) {
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -198,10 +198,13 @@ function NewOrderAlertOverlay({
     let cancelled = false;
     Audio.Sound.createAsync(
       require('@/assets/sounds/new-order-alert.wav'),
-      { isLooping: true, shouldPlay: storeIsOpen },
+      { isLooping: true, shouldPlay: false },
     ).then(({ sound }) => {
       if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
       soundRef.current = sound;
+      if (soundEnabled) {
+        sound.playAsync().catch(() => {});
+      }
     }).catch(() => {});
     return () => {
       cancelled = true;
@@ -211,7 +214,7 @@ function NewOrderAlertOverlay({
         soundRef.current = null;
       }
     };
-  }, [visible, storeIsOpen]);
+  }, [visible, soundEnabled]);
 
   if (!visible || !order) return null;
 
@@ -380,7 +383,12 @@ export default function ShopDisplayOrdersScreen() {
   useEffect(() => {
     const currentMap: Record<string, string> = {};
     for (const o of rows) currentMap[o.id] = o.status;
-    if (!bootedRef.current) { seenRef.current = currentMap; bootedRef.current = true; return; }
+    if (!bootedRef.current) {
+      if (rows.length === 0) return;
+      seenRef.current = currentMap;
+      bootedRef.current = true;
+      return;
+    }
     const prev = seenRef.current;
     const fresh = rows.find(o => !prev[o.id] && o.status === 'received');
     if (fresh) {
@@ -1309,7 +1317,7 @@ export default function ShopDisplayOrdersScreen() {
           setNewOrderBannerOrder(null);
           resetActivity();
         }}
-        storeIsOpen={isStoreOpenForAsap(store ? { ...store, status: store.status ?? undefined } : null, new Date())}
+        soundEnabled={soundEnabled}
       />
     </View>
   );
