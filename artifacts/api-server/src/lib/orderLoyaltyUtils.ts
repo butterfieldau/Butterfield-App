@@ -2,7 +2,7 @@ import { db, productsTable } from '@workspace/db';
 import { inArray } from 'drizzle-orm';
 
 export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<number> {
-  const orderItems = Array.isArray(items) ? items as Array<{ productId?: string; quantity?: number }> : [];
+  const orderItems = Array.isArray(items) ? items as Array<{ productId?: string; quantity?: number; category?: string }> : [];
   const orderProductIds = Array.from(new Set(
     orderItems
       .map((item) => item?.productId)
@@ -21,9 +21,17 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
       .map((product) => product.id),
   );
 
+  // IDs that resolved in the DB
+  const resolvedIds = new Set(products.map((p) => p.id));
+
   return orderItems.reduce((sum, item) => {
     if ((item as any)?.freeCoffeeItem === true) return sum;
     const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
-    return coffeeIds.has(item?.productId ?? '') ? sum + qty : sum;
+    const productId = item?.productId ?? '';
+    // Primary: DB-resolved category
+    if (coffeeIds.has(productId)) return sum + qty;
+    // Fallback: use category stored on the order item itself (cart attaches it at add-to-cart time)
+    if (!resolvedIds.has(productId) && String(item?.category ?? '').toLowerCase() === 'coffee') return sum + qty;
+    return sum;
   }, 0);
 }

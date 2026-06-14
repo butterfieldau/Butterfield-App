@@ -489,15 +489,14 @@ router.patch(
         { orderId: order.id, status, screen: `/(customer)/track/${order.id}` }).catch(() => {});
     }
 
-    // ── Award coffee stamps when order is marked Ready ────────────────────────
-    // Stamps are earned at the fulfillment milestone, not at order creation:
+    // ── Award coffee stamps at fulfillment milestone ───────────────────────────
+    // Stamps are earned when the order is fulfilled, not at creation:
     //   • Standard pickup / delivery: at ready_for_pickup / out_for_delivery
-    //   • Quick pickup (received → being_prepared → completed, no ready state):
-    //     at completed, but only when previousStatus === 'being_prepared' so we
-    //     don't double-award if status is force-advanced later.
+    //   • Any path that reaches completed (quick pickup, force-complete, etc.)
+    // The idempotency guard below prevents double-awarding on ready → completed.
     const isTransitionToReady = status === 'ready_for_pickup' || status === 'out_for_delivery';
-    const isQuickPickupCompletion = status === 'completed' && previousStatus === 'being_prepared';
-    if ((isTransitionToReady || isQuickPickupCompletion) && order) {
+    const isCompletion = status === 'completed';
+    if ((isTransitionToReady || isCompletion) && order) {
       try {
         const coffeeCount = await countCoffeeItemsFromOrderItems(order.items);
         if (coffeeCount > 0) {
