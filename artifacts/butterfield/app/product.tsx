@@ -182,12 +182,29 @@ export default function ProductDetailScreen() {
     fetchedProduct
     ?? (selectedProduct && (!routeProductId || selectedProduct.id === routeProductId) ? selectedProduct : null);
 
-  // Option groups returned by GET /products/:id
-  const optGroups: ProductOptionGroup[] = fetchedProduct?.optionGroups ?? [];
+  // Option groups returned by GET /products/:id — memoized on product id so background
+  // refetches don't produce new array references. Options are sorted by sortOrder then id
+  // as a stable tiebreaker, preventing visual shuffling if the API returns rows in a
+  // different order on subsequent fetches.
+  const optGroups: ProductOptionGroup[] = useMemo(() => {
+    const groups = fetchedProduct?.optionGroups ?? [];
+    return groups.map((g) => ({
+      ...g,
+      options: [...(g.options ?? [])].sort((a, b) => {
+        const orderDiff = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      }),
+    }));
+  }, [fetchedProduct?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Apply pre-selected options (from "Your Usual") or fall back to group defaults
+  // Apply pre-selected options (from "Your Usual") or fall back to group defaults.
+  // Keyed on fetchedProduct?.id so this only runs when a new product loads, not on
+  // every background refetch. Also skips re-initialization if the customer has already
+  // made selections (Object.keys(selections).length > 0) to avoid wiping their choices.
   React.useEffect(() => {
     if (!optGroups.length) return;
+    if (Object.keys(selections).length > 0) return;
     const preselect = getPreselectedOptions();
     if (preselect && preselect.selectedOptions.length > 0) {
       // Build selections map from saved order options
@@ -219,7 +236,7 @@ export default function ProductDetailScreen() {
       }
       if (Object.keys(defs).length) setSelections(defs);
     }
-  }, [optGroups.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchedProduct?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     return () => {
