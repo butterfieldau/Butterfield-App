@@ -16,6 +16,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -345,6 +346,12 @@ export default function LoyaltyScreen() {
 
 function LoyaltyContent() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  // section paddingH 16×2=32, card padding 14×2=28 → 60px consumed; gap 8×5=40
+  const STAMP_GAP = 8;
+  const stampSize = Math.min(52, Math.floor((screenWidth - 60 - STAMP_GAP * 5) / 6));
+  const stampIconSize = Math.round(stampSize * 0.42);   // ~22 at max
+  const stampDotSize  = Math.round(stampSize * 0.27);   // ~14 at max
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -692,7 +699,7 @@ function LoyaltyContent() {
                   <Text style={styles.freeCoffeeBadgeLabel}>free</Text>
                 </View>
               </View>
-              <View style={styles.coffeeStampRow}>
+              <View style={[styles.coffeeStampRow, { gap: STAMP_GAP }]}>
                 {[0, 1, 2, 3, 4, 5].map((index) => {
                   const filled = index < stampCount;
                   return (
@@ -701,10 +708,12 @@ function LoyaltyContent() {
                       style={[
                         styles.miniStampBubble,
                         filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
-                        { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
+                        { width: stampSize, height: stampSize, borderRadius: stampSize / 2, transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
                       ]}
                     >
-                      {filled ? <Feather name="coffee" size={22} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                      {filled
+                        ? <Feather name="coffee" size={stampIconSize} color="#0A67EC" />
+                        : <View style={[styles.miniStampDot, { width: stampDotSize, height: stampDotSize, borderRadius: stampDotSize / 2 }]} />}
                     </Animated.View>
                   );
                 })}
@@ -1153,8 +1162,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 10,
-    marginVertical: 14,
+    marginVertical: 10,
   },
   miniStampBubble: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
