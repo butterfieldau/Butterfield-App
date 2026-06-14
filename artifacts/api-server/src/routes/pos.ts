@@ -67,7 +67,7 @@ import {
 } from '../lib/loyaltyIdentity.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
-import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import {
@@ -1315,13 +1315,24 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
       }
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
+      const coffeeStampCount = await countCoffeeItemsFromOrderItems(items);
+      let stampsAdded = 0;
+      let rewardUnlocked = false;
+      let newStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
 
-      // POS stamps are awarded exclusively through the interactive stamp card UI
-      // (POST /pos/customers/:id/stamp). Auto-stamping here is intentionally disabled
-      // to prevent double-awarding when staff have already tapped the stamp circles.
-      const stampsAdded = 0;
-      const rewardUnlocked = false;
-      const newStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
+      if (coffeeStampCount > 0) {
+        const stampRes = await applyCoffeeStamps({
+          userId: customerId,
+          stampsToAdd: coffeeStampCount,
+          source: 'staff_scan',
+          staffId: req.user!.id,
+          orderId,
+          description: `POS coffee purchase — order #${orderNumber ?? orderId.slice(0, 8)}`,
+        });
+        stampsAdded = coffeeStampCount;
+        rewardUnlocked = stampRes.earnedFree;
+        newStampCount = stampRes.stampCount;
+      }
 
       loyaltyResult = { pointsEarned, newBalance, stampsAdded, newStampCount, rewardUnlocked };
     } catch (err: any) {
@@ -1724,9 +1735,9 @@ router.post('/orders/:id/refund', async (req, res) => {
       }
     }
 
-    // Reverse coffee stamps — count actual coffee items, not hardcoded 1
+    // Reverse only the stamps this order actually granted
     try {
-      const coffeeStampCount = await countCoffeeItemsFromOrderItems(order.items);
+      const coffeeStampCount = await getOutstandingCoffeeStampsForOrder(id);
       if (coffeeStampCount > 0) {
         await reverseCoffeeStamps({
           userId: String(order.user_id),
@@ -2060,9 +2071,9 @@ router.patch('/orders/:id/void', async (req, res) => {
       }
     }
 
-    // Reverse coffee stamps
+    // Reverse only the stamps this order actually granted
     try {
-      const coffeeStampCount = await countCoffeeItemsFromOrderItems(row.items);
+      const coffeeStampCount = await getOutstandingCoffeeStampsForOrder(id);
       if (coffeeStampCount > 0) {
         await reverseCoffeeStamps({
           userId: String(row.user_id),
