@@ -146,8 +146,10 @@ export default function ShopDisplayLayout() {
 
   // ── New-order popup + sound (layout-level so it fires on any tab) ──────────
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [showNewOrderBanner, setShowNewOrderBanner] = useState(false);
-  const [newOrderBannerOrder, setNewOrderBannerOrder] = useState<NewOrderBannerOrder | null>(null);
+  // Single state — null means hidden, non-null means visible with order details.
+  // Never split into showBanner+order because calling setState inside another
+  // setState updater is illegal React (inner call gets dropped in strict mode).
+  const [alertOrder, setAlertOrder] = useState<NewOrderBannerOrder | null>(null);
   const seenRef    = useRef<Record<string, string>>({});
   const bootedRef  = useRef(false);
   const mountTimeRef = useRef(Date.now());
@@ -159,6 +161,7 @@ export default function ShopDisplayLayout() {
   useEffect(() => {
     const currentMap: Record<string, string> = {};
     for (const o of layoutRows) currentMap[o.id] = o.status;
+
     if (!bootedRef.current) {
       if (layoutRows.length === 0) return;
       seenRef.current = currentMap;
@@ -171,28 +174,22 @@ export default function ShopDisplayLayout() {
       });
       if (freshOnBoot) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        setShowNewOrderBanner(prev => {
-          if (prev) return prev;
-          setNewOrderBannerOrder({
-            customerName: freshOnBoot.customerName ?? 'Customer',
-            orderNumber: freshOnBoot.orderNumber ?? `#${freshOnBoot.id.slice(0, 6).toUpperCase()}`,
-          });
-          return true;
+        // Use functional update — keep first alert, don't replace if already showing
+        setAlertOrder(prev => prev ?? {
+          customerName: freshOnBoot.customerName ?? 'Customer',
+          orderNumber:  freshOnBoot.orderNumber  ?? `#${freshOnBoot.id.slice(0, 6).toUpperCase()}`,
         });
       }
       return;
     }
+
     const prev = seenRef.current;
     const fresh = layoutRows.find(o => !prev[o.id] && o.status === 'received');
     if (fresh) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      setShowNewOrderBanner(prev => {
-        if (prev) return prev;
-        setNewOrderBannerOrder({
-          customerName: fresh.customerName ?? 'Customer',
-          orderNumber: fresh.orderNumber ?? `#${fresh.id.slice(0, 6).toUpperCase()}`,
-        });
-        return true;
+      setAlertOrder(prev => prev ?? {
+        customerName: fresh.customerName ?? 'Customer',
+        orderNumber:  fresh.orderNumber  ?? `#${fresh.id.slice(0, 6).toUpperCase()}`,
       });
     }
     seenRef.current = currentMap;
@@ -656,12 +653,9 @@ export default function ShopDisplayLayout() {
 
       {/* ── New order alert — layout-level so it fires on any tab ─── */}
       <NewOrderAlertOverlay
-        visible={showNewOrderBanner}
-        order={newOrderBannerOrder}
-        onDismiss={() => {
-          setShowNewOrderBanner(false);
-          setNewOrderBannerOrder(null);
-        }}
+        visible={alertOrder !== null}
+        order={alertOrder}
+        onDismiss={() => setAlertOrder(null)}
         soundEnabled={soundEnabled}
       />
     </View>
