@@ -5,6 +5,7 @@ import {
   claimedRewardsTable,
   customerProfilesTable,
   db,
+  loyaltyActivityLogTable,
   ordersTable,
   productsTable,
   staffProfilesTable,
@@ -16,10 +17,10 @@ import {
   usersTable,
   wholesaleOrdersTable,
 } from '@workspace/db';
-import { and, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
+import { and, count, desc, eq, gt, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
-import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { applyCoffeeStamps, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
@@ -318,6 +319,40 @@ router.patch('/orders/:id/status', async (req, res) => {
       });
     } catch (err: any) {
       req.log.warn({ err, orderId: updated.id }, 'Stripe refund failed or skipped on shop display cancellation');
+    }
+  }
+
+  // ── Award coffee stamps at fulfillment milestone ──────────────────────────
+  // Mirrors the same logic in /api/orders/:id/status — stamps must fire here
+  // because staff always advance orders via the shop-display route, never
+  // through the customer-facing route.
+  const isTransitionToReady = status === 'ready_for_pickup' || status === 'out_for_delivery';
+  const isCompletion = status === 'completed';
+  if ((isTransitionToReady || isCompletion) && !isCancellingNow) {
+    try {
+      const coffeeCount = await countCoffeeItemsFromOrderItems(updated.items);
+      if (coffeeCount > 0) {
+        const [alreadyAwarded] = await db
+          .select({ id: loyaltyActivityLogTable.id })
+          .from(loyaltyActivityLogTable)
+          .where(and(
+            eq(loyaltyActivityLogTable.orderId, updated.id),
+            eq(loyaltyActivityLogTable.activityType, 'in_app_order'),
+            gt(loyaltyActivityLogTable.coffeeStampsDelta, 0),
+          ))
+          .limit(1);
+        if (!alreadyAwarded) {
+          await applyCoffeeStamps({
+            userId: updated.userId,
+            stampsToAdd: coffeeCount,
+            source: 'in_app_order',
+            orderId: updated.id,
+            description: `Coffee ready — Order #${updated.id.slice(0, 8)}`,
+          });
+        }
+      }
+    } catch (err: any) {
+      req.log.error({ err, orderId: updated.id }, 'Failed to award coffee stamps on shop display order ready');
     }
   }
 
