@@ -397,6 +397,25 @@ function PaymentStepWithStripe({
       return;
     }
 
+    // Free-order fast-path — skip Stripe entirely when nothing is owed
+    if (totalCents === 0) {
+      setBusy(true);
+      try {
+        await onSuccess({
+          paymentMethodType: 'free_reward',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (!stripeReady) {
       Alert.alert('Payment unavailable', 'Payment processing is not available right now.');
       return;
@@ -961,7 +980,7 @@ function PaymentStepWithStripe({
 
       <Pressable
         onPress={handlePay}
-        disabled={busy || (!stripeReady && method !== 'pay_at_pickup')}
+        disabled={busy || (!stripeReady && method !== 'pay_at_pickup' && totalCents > 0)}
         style={[
           styles.continueBtn,
           {

@@ -1,5 +1,5 @@
 import { db, productsTable } from '@workspace/db';
-import { inArray } from 'drizzle-orm';
+import { inArray, or } from 'drizzle-orm';
 
 export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<number> {
   const orderItems = Array.isArray(items) ? items as Array<{ productId?: string; quantity?: number; category?: string }> : [];
@@ -10,25 +10,34 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
   ));
 
   const products = orderProductIds.length > 0
-    ? await db.select({ id: productsTable.id, category: productsTable.category })
+    ? await db.select({ id: productsTable.id, stripeProductId: productsTable.stripeProductId, category: productsTable.category })
       .from(productsTable)
-      .where(inArray(productsTable.id, orderProductIds))
+      .where(or(
+        inArray(productsTable.id, orderProductIds),
+        inArray(productsTable.stripeProductId, orderProductIds),
+      ))
     : [];
 
-  const coffeeIds = new Set(
-    products
-      .filter((product) => String(product.category ?? '').toLowerCase() === 'coffee')
-      .map((product) => product.id),
-  );
-
-  // IDs that resolved in the DB
-  const resolvedIds = new Set(products.map((p) => p.id));
+  // Build sets covering both local id and stripeProductId so either form matches
+  const coffeeIds = new Set<string>();
+  const resolvedIds = new Set<string>();
+  for (const product of products) {
+    const isCoffee = String(product.category ?? '').toLowerCase() === 'coffee';
+    if (product.id) {
+      resolvedIds.add(product.id);
+      if (isCoffee) coffeeIds.add(product.id);
+    }
+    if (product.stripeProductId) {
+      resolvedIds.add(product.stripeProductId);
+      if (isCoffee) coffeeIds.add(product.stripeProductId);
+    }
+  }
 
   return orderItems.reduce((sum, item) => {
     if ((item as any)?.freeCoffeeItem === true) return sum;
     const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
     const productId = item?.productId ?? '';
-    // Primary: DB-resolved category
+    // Primary: DB-resolved category (matches by local id or stripeProductId)
     if (coffeeIds.has(productId)) return sum + qty;
     // Fallback: use category stored on the order item itself (cart attaches it at add-to-cart time)
     if (!resolvedIds.has(productId) && String(item?.category ?? '').toLowerCase() === 'coffee') return sum + qty;
