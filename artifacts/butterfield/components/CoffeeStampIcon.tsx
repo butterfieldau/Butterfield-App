@@ -30,7 +30,7 @@ export function CoffeeStampIcon({
   size: number;
   color: string;
 }) {
-  const width = Math.round(size * 0.84);
+  const width = Math.round(size * 0.88);
   return <SvgXml xml={withColor(color)} width={width} height={size} />;
 }
 
@@ -45,10 +45,10 @@ export function CoffeeStampToken({
     <View
       style={[
         styles.token,
-        { width: Math.round(size * 0.84), height: size, opacity: filled ? 1 : 0.28 },
+        { width: Math.round(size * 0.88), height: size, opacity: filled ? 1 : 0.2 },
       ]}
     >
-      <CoffeeStampIcon size={Math.round(size * 0.78)} color={filled ? '#FFFFFF' : '#FFFFFF'} />
+      <CoffeeStampIcon size={Math.round(size * 0.84)} color="#FFFFFF" />
     </View>
   );
 }
