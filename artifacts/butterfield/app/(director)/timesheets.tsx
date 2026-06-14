@@ -513,7 +513,7 @@ function TimesheetModal({ mode, shift, staffList, isManager, visible, onClose, o
 
           {/* Approve / Unapprove (edit only, completed shifts) */}
           {mode === 'edit' && !isActive && (
-            <View style={tm.card}>
+            <View style={[tm.card, { padding: 16 }]}>
               <Text style={tm.sectionLabel}>APPROVAL</Text>
               <Text style={[tm.approvalHint, { color: MUTED }]}>
                 {isApproved
