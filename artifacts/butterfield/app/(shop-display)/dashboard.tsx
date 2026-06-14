@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
+import { File as FSFile } from 'expo-file-system/next';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -365,7 +366,8 @@ async function exportReport(data: ShopDisplayAnalytics, range: Range, date: stri
   const cacheDir = ((FileSystem as any).cacheDirectory ?? (FileSystem as any).documentDirectory ?? "") as string;
   const fileUri = cacheDir + `butterfield-analytics-${safeName}.csv`;
   try {
-    await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+    const file = new FSFile(fileUri);
+    await file.write(csv);
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Analytics Report', UTI: 'public.comma-separated-values-text' });
     } else {
