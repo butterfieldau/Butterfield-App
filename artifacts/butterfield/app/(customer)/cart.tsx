@@ -40,10 +40,8 @@ import { getSuggestedProductsForCart } from '@/lib/productPairings';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
-import TimeWheelPicker from '@/components/TimeWheelPicker';
 import {
   formatDateChip,
-  formatTime,
   getDeliveryDates,
   getSydneyNow,
   isSameDay,
@@ -52,7 +50,6 @@ import { getPalette } from '@/constants/categoryColors';
 import {
   getStoreAsapUnavailableReason,
   getStorePickupDates,
-  getStorePickupTimeMins,
   isStoreOpenForAsap,
 } from '@/lib/storeSchedule';
 
@@ -74,6 +71,13 @@ const TABS = [
 ] as const;
 
 const DELIVERY_FEE_CENTS = 1200;
+
+const PICKUP_WINDOWS = [
+  { label: '9am – 12pm',  startMins: 9  * 60 },
+  { label: '12pm – 3pm',  startMins: 12 * 60 },
+  { label: '5pm – 7pm',   startMins: 17 * 60 },
+  { label: '7pm – 9pm',   startMins: 19 * 60 },
+];
 const STRIPE_CARD_RATE = 0.017;
 const STRIPE_CARD_FIXED_FEE_CENTS = 30;
 const DELIVERY_ELIGIBLE_CATEGORIES = new Set(['cookies', 'boxes', 'merch']);
@@ -1122,6 +1126,7 @@ function CartContent() {
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
   const [selectedDate, setSelectedDate]       = useState<Date | null>(null);
   const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
+  const [pickupWindow, setPickupWindow]         = useState<string | null>(null);
   const [pickupMode, setPickupMode]           = useState<'asap' | 'scheduled'>('scheduled');
   const [street, setStreet]                   = useState('');
   const [suburb, setSuburb]                   = useState('');
@@ -1311,7 +1316,6 @@ function CartContent() {
   const storeOpen     = isStoreOpenForAsap(selectedStore, sydNow);
   const deliveryDates = getDeliveryDates();
   const pickupDates   = getStorePickupDates(selectedStore, sydNow);
-  const pickupTimes   = selectedDate ? getStorePickupTimeMins(selectedStore, selectedDate, sydNow) : [];
 
   useEffect(() => {
     if (orderType !== 'pickup') return;
@@ -1324,12 +1328,9 @@ function CartContent() {
     if (!dateStillAvailable) {
       setSelectedDate(null);
       setSelectedTimeMins(null);
-      return;
+      setPickupWindow(null);
     }
-    if (selectedTimeMins != null && !pickupTimes.includes(selectedTimeMins)) {
-      setSelectedTimeMins(null);
-    }
-  }, [orderType, pickupDates, pickupTimes, selectedDate, selectedTimeMins]);
+  }, [orderType, pickupDates, selectedDate]);
 
   // Guard delivery date — clear if it falls outside the available Mon/Thu slots
   useEffect(() => {
@@ -1339,15 +1340,6 @@ function CartContent() {
     if (!stillAvailable) setSelectedDate(null);
   }, [orderType, deliveryDates, selectedDate]);
 
-  const [timePickerVisible, setTimePickerVisible] = useState(false);
-
-  // Convert pickupTimes (minutes from midnight) → initial HH:MM for TimeWheelPicker
-  const firstSlotHHMM = pickupTimes.length > 0
-    ? `${String(Math.floor(pickupTimes[0] / 60)).padStart(2, '0')}:${String(pickupTimes[0] % 60).padStart(2, '0')}`
-    : '10:00';
-  const currentSlotHHMM = selectedTimeMins != null
-    ? `${String(Math.floor(selectedTimeMins / 60)).padStart(2, '0')}:${String(selectedTimeMins % 60).padStart(2, '0')}`
-    : firstSlotHHMM;
 
   const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1357,8 +1349,8 @@ function CartContent() {
     }
     if (step === 1) {
       if (orderType === 'pickup') {
-        if (pickupMode === 'scheduled' && (!selectedDate || selectedTimeMins === null)) {
-          Alert.alert('Select pickup time', 'Please choose a date and time for your pickup.');
+        if (pickupMode === 'scheduled' && (!selectedDate || pickupWindow === null)) {
+          Alert.alert('Select pickup time', 'Please choose a date and pickup window.');
           return;
         }
       } else {
@@ -1405,11 +1397,12 @@ function CartContent() {
       if (orderType === 'pickup') {
         if (pickupMode === 'asap') {
           scheduledLabel = 'Pickup: Within 10 minutes';
-        } else if (selectedDate && selectedTimeMins !== null) {
+        } else if (selectedDate && pickupWindow !== null) {
+          const win = PICKUP_WINDOWS.find(w => w.label === pickupWindow);
           const d = new Date(selectedDate);
-          d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
+          d.setHours(Math.floor((win?.startMins ?? 540) / 60), (win?.startMins ?? 540) % 60, 0, 0);
           scheduledForDate = d;
-          scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)} at ${formatTime(selectedTimeMins)}`;
+          scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)}, ${pickupWindow}`;
         }
       } else if (orderType === 'delivery' && selectedDate) {
         scheduledForDate = selectedDate;
@@ -1800,6 +1793,7 @@ function CartContent() {
               setOrderType(t.id as any);
               setSelectedDate(null);
               setSelectedTimeMins(null);
+              setPickupWindow(null);
               if (t.id === 'pickup') setPickupMode(isStoreOpenForAsap(selectedStore, getSydneyNow()) ? 'asap' : 'scheduled');
               Haptics.selectionAsync();
             }}
@@ -1928,22 +1922,36 @@ function CartContent() {
       )}
 
       {orderType === 'delivery' ? (
-        <View style={styles.calendarCard}>
-          <InlineCalendarPicker
-            selectedDate={selectedDate}
-            onSelectDate={d => { setSelectedDate(d); Haptics.selectionAsync(); }}
-            accentColor={BLUE}
-            availableDates={deliveryDates.filter(s => s.available).map(s => s.date)}
-            minDate={new Date()}
-            maxDate={deliveryDates.length > 0 ? deliveryDates[deliveryDates.length - 1].date : undefined}
-          />
+        <View style={styles.deliveryDaysGrid}>
+          {deliveryDates.map((slot, i) => {
+            const isSelected = selectedDate != null && isSameDay(selectedDate, slot.date);
+            return (
+              <Pressable
+                key={i}
+                disabled={!slot.available}
+                onPress={() => { setSelectedDate(slot.date); Haptics.selectionAsync(); }}
+                style={[
+                  styles.deliveryDayChip,
+                  isSelected && { borderColor: BLUE, backgroundColor: LIGHT_BLUE },
+                  !slot.available && { opacity: 0.38 },
+                ]}
+              >
+                <Text style={[styles.deliveryDayChipText, { color: isSelected ? BLUE : TEXT }]}>
+                  {slot.label}
+                </Text>
+                {!slot.available && slot.note && (
+                  <Text style={styles.deliveryDayChipNote}>{slot.note}</Text>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
       ) : pickupMode === 'scheduled' ? (
         <>
           <View style={styles.calendarCard}>
             <InlineCalendarPicker
               selectedDate={selectedDate}
-              onSelectDate={d => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+              onSelectDate={d => { setSelectedDate(d); setPickupWindow(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
               accentColor={BLUE}
               availableDates={pickupDates}
               minDate={new Date()}
@@ -1953,43 +1961,22 @@ function CartContent() {
 
           {selectedDate && (
             <>
-              {pickupTimes.length === 0 ? (
-                <View style={styles.noSlotsRow}>
-                  <Feather name="alert-circle" size={14} color={MUTED} />
-                  <Text style={styles.noSlotsText}>No slots available — choose another day</Text>
-                </View>
-              ) : (
-                <>
-                  <Pressable
-                    style={[styles.timePickerBtn, selectedTimeMins != null && { borderColor: BLUE, backgroundColor: LIGHT_BLUE }]}
-                    onPress={() => { setTimePickerVisible(true); Haptics.selectionAsync(); }}
-                  >
-                    <Feather name="clock" size={16} color={selectedTimeMins != null ? BLUE : MUTED} />
-                    <Text style={[styles.timePickerBtnText, { color: selectedTimeMins != null ? BLUE : MUTED }]}>
-                      {selectedTimeMins != null ? formatTime(selectedTimeMins) : 'Select a pickup time'}
-                    </Text>
-                    <Feather name="chevron-down" size={16} color={selectedTimeMins != null ? BLUE : MUTED} />
-                  </Pressable>
-
-                  <TimeWheelPicker
-                    visible={timePickerVisible}
-                    initialHHMM={currentSlotHHMM}
-                    accentColor={BLUE}
-                    title="Pickup Time"
-                    onClose={() => setTimePickerVisible(false)}
-                    onConfirm={hhmm => {
-                      const [hStr, mStr] = hhmm.split(':');
-                      const totalMins = parseInt(hStr) * 60 + parseInt(mStr);
-                      const nearest = pickupTimes.reduce((best, t) =>
-                        Math.abs(t - totalMins) < Math.abs(best - totalMins) ? t : best,
-                        pickupTimes[0],
-                      );
-                      setSelectedTimeMins(nearest);
-                      Haptics.selectionAsync();
-                    }}
-                  />
-                </>
-              )}
+              <Text style={styles.windowsLabel}>Choose a pickup window</Text>
+              <View style={styles.windowsGrid}>
+                {PICKUP_WINDOWS.map(w => {
+                  const active = pickupWindow === w.label;
+                  return (
+                    <Pressable
+                      key={w.label}
+                      onPress={() => { setPickupWindow(w.label); setSelectedTimeMins(w.startMins); Haptics.selectionAsync(); }}
+                      style={[styles.windowBtn, active && { borderColor: BLUE, backgroundColor: LIGHT_BLUE }]}
+                    >
+                      <Feather name="clock" size={14} color={active ? BLUE : MUTED} />
+                      <Text style={[styles.windowBtnText, { color: active ? BLUE : TEXT }]}>{w.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </>
           )}
         </>
@@ -2212,8 +2199,8 @@ function CartContent() {
           <View style={styles.orderDetailRow}>
             <Feather name="calendar" size={14} color={BLUE} />
             <Text style={[styles.orderDetailText, { color: TEXT }]}>
-              {orderType === 'pickup' && selectedTimeMins !== null
-                ? `${formatDateChip(sydNow, selectedDate)} at ${formatTime(selectedTimeMins)}`
+              {orderType === 'pickup' && pickupWindow !== null
+                ? `${formatDateChip(sydNow, selectedDate)}, ${pickupWindow}`
                 : selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
             </Text>
           </View>
@@ -2406,10 +2393,19 @@ const styles = StyleSheet.create({
   // Inline calendar card
   calendarCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12,
                   shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  // Pickup time wheel trigger
-  timePickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 12,
-                   borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 13 },
-  timePickerBtnText: { flex: 1, fontSize: 14, fontWeight: '500' },
+  // Pickup window buttons
+  windowsLabel:   { fontSize: 13, fontWeight: '600', color: '#6B7280', letterSpacing: 0.5, marginTop: 12, marginBottom: 8 },
+  windowsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  windowBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, width: '47%', paddingVertical: 13,
+                    paddingHorizontal: 14, backgroundColor: '#fff', borderRadius: 14,
+                    borderWidth: 1.5, borderColor: '#E5E7EB' },
+  windowBtnText:  { fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  // Delivery day chips
+  deliveryDaysGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  deliveryDayChip:     { width: '47%', paddingVertical: 13, paddingHorizontal: 14, backgroundColor: '#fff',
+                         borderRadius: 14, borderWidth: 1.5, borderColor: '#E5E7EB', gap: 3 },
+  deliveryDayChipText: { fontSize: 14, fontWeight: '600', color: '#1C1C1E' },
+  deliveryDayChipNote: { fontSize: 11, fontWeight: '400', color: '#8E8E93' },
   // No slots message
   noSlotsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   noSlotsText: { fontSize: 13, fontWeight: '400', color: '#8E8E93' },
