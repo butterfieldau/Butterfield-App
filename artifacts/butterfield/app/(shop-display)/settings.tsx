@@ -637,8 +637,8 @@ export default function ShopDisplaySettingsScreen() {
         <View style={styles.card}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.title}>Order alerts</Text>
-              <Text style={styles.sub}>Play a sound when a new app order arrives.</Text>
+              <Text style={styles.title}>App Sales order alerts</Text>
+              <Text style={styles.sub}>Play the App Sales alert sound when a new app order arrives on this display.</Text>
             </View>
             <Switch value={soundEnabled} onValueChange={(v) => void toggleSound(v)} trackColor={{ true: BLUE }} />
           </View>
