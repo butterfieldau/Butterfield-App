@@ -116,19 +116,30 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 // ── Date range helpers ────────────────────────────────────────────────────────
-type DateRangeKey = '7d' | '1m' | '6m';
-const DATE_RANGES: { key: DateRangeKey; label: string }[] = [
-  { key: '7d', label: 'Last 7 days' },
-  { key: '1m', label: 'Last month' },
-  { key: '6m', label: 'Last 6 months' },
-];
-function getRangeStart(key: DateRangeKey): Date {
+type WeekRangeKey = 'w0' | 'w1' | 'w2' | 'w3' | 'custom';
+
+function getMondayOfWeek(weeksAgo: number): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
-  if (key === '7d')  { d.setDate(d.getDate() - 6); return d; }
-  if (key === '1m')  { d.setMonth(d.getMonth() - 1); return d; }
-  d.setMonth(d.getMonth() - 6);
+  const day = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+  d.setDate(d.getDate() - day - weeksAgo * 7);
   return d;
+}
+function getSundayOfWeek(weeksAgo: number): Date {
+  const mon = getMondayOfWeek(weeksAgo);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  sun.setHours(23, 59, 59, 999);
+  return sun;
+}
+function fmtShortDate(d: Date): string {
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+function fmtWeekRange(weeksAgo: number): string {
+  const mon = getMondayOfWeek(weeksAgo);
+  const sun = new Date(getMondayOfWeek(weeksAgo));
+  sun.setDate(sun.getDate() + 6);
+  return `${fmtShortDate(mon)} – ${fmtShortDate(sun)}`;
 }
 
 // ── Payroll summary ───────────────────────────────────────────────────────────
@@ -610,23 +621,52 @@ const tm = StyleSheet.create({
 });
 
 // ── Date-Range Dropdown ───────────────────────────────────────────────────────
-function DateRangeDropdown({ value, onChange }: {
-  value: DateRangeKey; onChange: (k: DateRangeKey) => void;
+const WEEK_OPTIONS: { key: WeekRangeKey; staticLabel?: string }[] = [
+  { key: 'w0', staticLabel: 'This week' },
+  { key: 'w1', staticLabel: 'Last week' },
+  { key: 'w2' },
+  { key: 'w3' },
+  { key: 'custom', staticLabel: 'Custom…' },
+];
+
+function getWeekOptionLabel(key: WeekRangeKey): string {
+  if (key === 'w0') return 'This week';
+  if (key === 'w1') return 'Last week';
+  if (key === 'w2') return fmtWeekRange(2);
+  if (key === 'w3') return fmtWeekRange(3);
+  return 'Custom…';
+}
+
+function DateRangeDropdown({ value, customFrom, customTo, onChange }: {
+  value: WeekRangeKey;
+  customFrom: Date | null;
+  customTo: Date | null;
+  onChange: (k: WeekRangeKey) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = DATE_RANGES.find(r => r.key === value)?.label ?? 'Last 6 months';
+
+  function triggerLabel(): string {
+    if (value === 'custom' && customFrom && customTo) {
+      return `${fmtShortDate(customFrom)} – ${fmtShortDate(customTo)}`;
+    }
+    return getWeekOptionLabel(value);
+  }
+
   return (
     <View style={{ position: 'relative', zIndex: 20 }}>
       <Pressable onPress={() => setOpen(o => !o)} style={dd.trigger}>
-        <Text style={dd.triggerText}>{label}</Text>
+        <Text style={dd.triggerText} numberOfLines={1}>{triggerLabel()}</Text>
         <Feather name={open ? 'chevron-up' : 'chevron-down'} size={14} color={BLUE} />
       </Pressable>
       {open && (
         <View style={dd.menu}>
-          {DATE_RANGES.map(r => (
-            <Pressable key={r.key} onPress={() => { onChange(r.key); setOpen(false); Haptics.selectionAsync(); }}
+          {WEEK_OPTIONS.map(r => (
+            <Pressable key={r.key}
+              onPress={() => { onChange(r.key); setOpen(false); Haptics.selectionAsync(); }}
               style={[dd.item, r.key === value && { backgroundColor: BLUE + '12' }]}>
-              <Text style={[dd.itemText, r.key === value && { color: BLUE, fontWeight: '600' }]}>{r.label}</Text>
+              <Text style={[dd.itemText, r.key === value && { color: BLUE, fontWeight: '600' }]}>
+                {getWeekOptionLabel(r.key)}
+              </Text>
               {r.key === value && <Feather name="check" size={14} color={BLUE} />}
             </Pressable>
           ))}
@@ -636,9 +676,9 @@ function DateRangeDropdown({ value, onChange }: {
   );
 }
 const dd = StyleSheet.create({
-  trigger:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  triggerText: { fontSize: 13, fontWeight: '600', color: BLUE },
-  menu:        { position: 'absolute', top: 38, right: 0, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', minWidth: 160, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8 },
+  trigger:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, maxWidth: 180 },
+  triggerText: { fontSize: 13, fontWeight: '600', color: BLUE, flexShrink: 1 },
+  menu:        { position: 'absolute', top: 38, right: 0, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', minWidth: 170, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 8 },
   item:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13, gap: 8 },
   itemText:    { fontSize: 14, fontWeight: '500', color: TEXT },
 });
@@ -650,7 +690,11 @@ export default function DirectorTimesheetsScreen() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
 
-  const [dateRange,    setDateRange]    = useState<DateRangeKey>('6m');
+  const [dateRange,    setDateRange]    = useState<WeekRangeKey>('w0');
+  const [customFrom,   setCustomFrom]   = useState<Date | null>(null);
+  const [customTo,     setCustomTo]     = useState<Date | null>(null);
+  const [draftFrom,    setDraftFrom]    = useState<Date | null>(null);
+  const [draftTo,      setDraftTo]      = useState<Date | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [personFilter, setPersonFilter] = useState<string>('all');
   const [modalMode,    setModalMode]    = useState<'add' | 'edit'>('add');
@@ -675,12 +719,21 @@ export default function DirectorTimesheetsScreen() {
 
   // staffList already includes position from server (LEFT JOIN on staff_profiles)
 
-  const rangeStart = getRangeStart(dateRange);
-  const rangeEnd   = new Date(); rangeEnd.setHours(23, 59, 59, 999);
+  const { rangeStart, rangeEnd } = useMemo(() => {
+    if (dateRange === 'custom') {
+      const start = customFrom ? new Date(customFrom) : getMondayOfWeek(0);
+      start.setHours(0, 0, 0, 0);
+      const end = customTo ? new Date(customTo) : getSundayOfWeek(0);
+      end.setHours(23, 59, 59, 999);
+      return { rangeStart: start, rangeEnd: end };
+    }
+    const weeksAgo = parseInt(dateRange[1]);
+    return { rangeStart: getMondayOfWeek(weeksAgo), rangeEnd: getSundayOfWeek(weeksAgo) };
+  }, [dateRange, customFrom, customTo]);
 
   const rangeShifts = useMemo(() =>
     allShifts.filter(s => new Date(s.clockIn) >= rangeStart && new Date(s.clockIn) <= rangeEnd),
-    [allShifts, dateRange],
+    [allShifts, rangeStart, rangeEnd],
   );
 
   // Person filter pills (derived from range shifts)
@@ -790,8 +843,62 @@ export default function DirectorTimesheetsScreen() {
             <Feather name="map-pin" size={12} color={MUTED} />
             <Text style={sc.locationText}>Butterfield</Text>
           </View>
-          <DateRangeDropdown value={dateRange} onChange={k => { setDateRange(k); setPersonFilter('all'); }} />
+          <DateRangeDropdown
+            value={dateRange}
+            customFrom={customFrom}
+            customTo={customTo}
+            onChange={k => {
+              setDateRange(k);
+              setPersonFilter('all');
+              if (k !== 'custom') { setCustomFrom(null); setCustomTo(null); }
+              if (k === 'custom') { setDraftFrom(customFrom); setDraftTo(customTo); }
+            }}
+          />
         </View>
+
+        {/* ── Custom date-range panel ──────────────────────────────────────── */}
+        {dateRange === 'custom' && (
+          <View style={sc.customPanel}>
+            <View style={sc.customPanelRow}>
+              {/* From calendar */}
+              <View style={sc.customCalCol}>
+                <Text style={sc.customCalLabel}>FROM</Text>
+                <InlineCalendarPicker
+                  selectedDate={draftFrom}
+                  onSelectDate={d => {
+                    setDraftFrom(d);
+                    if (draftTo && d > draftTo) setDraftTo(null);
+                    Haptics.selectionAsync();
+                  }}
+                  accentColor={BLUE}
+                  maxDate={draftTo ?? undefined}
+                />
+              </View>
+              <View style={sc.customPanelDivider} />
+              {/* To calendar */}
+              <View style={sc.customCalCol}>
+                <Text style={sc.customCalLabel}>TO</Text>
+                <InlineCalendarPicker
+                  selectedDate={draftTo}
+                  onSelectDate={d => { setDraftTo(d); Haptics.selectionAsync(); }}
+                  accentColor={BLUE}
+                  minDate={draftFrom ?? undefined}
+                />
+              </View>
+            </View>
+            <Pressable
+              onPress={() => {
+                if (!draftFrom || !draftTo) return;
+                setCustomFrom(draftFrom);
+                setCustomTo(draftTo);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              disabled={!draftFrom || !draftTo}
+              style={[sc.customApplyBtn, (!draftFrom || !draftTo) && { opacity: 0.4 }]}>
+              <Text style={sc.customApplyBtnText}>Apply</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* ── Status filter chips ──────────────────────────────────────────── */}
         <View style={sc.chipRow}>
@@ -1071,6 +1178,14 @@ const sc = StyleSheet.create({
   exportBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   exportBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   addBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  // Custom date-range panel
+  customPanel:      { marginHorizontal: 16, marginBottom: 12, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 12, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 3 },
+  customPanelRow:   { flexDirection: 'row', gap: 0 },
+  customCalCol:     { flex: 1 },
+  customCalLabel:   { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, color: MUTED, paddingHorizontal: 4, marginBottom: 6 },
+  customPanelDivider: { width: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginHorizontal: 8 },
+  customApplyBtn:   { backgroundColor: BLUE, borderRadius: 12, height: 44, alignItems: 'center', justifyContent: 'center' },
+  customApplyBtnText:{ color: '#fff', fontSize: 15, fontWeight: '700' },
 });
 
 
