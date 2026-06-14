@@ -25,6 +25,7 @@ import {
   type RefundEvent,
 } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 import { sendRegisterSummaryPrint } from '@/lib/printer';
 
 const BG     = '#EFF6FF';
@@ -230,12 +231,27 @@ interface DateRangePickerProps {
 }
 
 function DateRangePicker({ preset, range, onPreset, onCustomChange }: DateRangePickerProps) {
+  const [showFromCal, setShowFromCal] = useState(false);
+  const [showToCal,   setShowToCal]   = useState(false);
+
   const PRESETS: { key: RangePreset; label: string }[] = [
     { key: 'today', label: 'Today' },
     { key: 'week',  label: '7 Days' },
     { key: 'month', label: 'Month' },
     { key: 'custom',label: 'Custom' },
   ];
+
+  const today    = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const fromDate = useMemo(() => range.from ? new Date(range.from + 'T12:00:00') : null, [range.from]);
+  const toDate   = useMemo(() => range.to   ? new Date(range.to   + 'T12:00:00') : null, [range.to]);
+
+  function toISO(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function fmtLabel(iso: string): string {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
 
   return (
     <View style={s.drpContainer}>
@@ -250,34 +266,67 @@ function DateRangePicker({ preset, range, onPreset, onCustomChange }: DateRangeP
           </Pressable>
         ))}
       </View>
+
       {preset === 'custom' && (
-        <View style={s.drpCustomRow}>
-          <View style={s.drpInputWrap}>
-            <Feather name="calendar" size={13} color={MUTED} />
-            <TextInput
-              style={s.drpInput}
-              value={range.from}
-              onChangeText={v => onCustomChange({ ...range, from: v })}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={MUTED}
-              keyboardType="numbers-and-punctuation"
-              autoCorrect={false}
-            />
+        <>
+          <View style={s.drpCustomRow}>
+            <Pressable style={s.drpDateBtn} onPress={() => { Haptics.selectionAsync(); setShowFromCal(true); }}>
+              <Feather name="calendar" size={13} color={BLUE} />
+              <Text style={[s.drpDateText, !range.from && { color: MUTED }]}>
+                {range.from ? fmtLabel(range.from) : 'From date'}
+              </Text>
+            </Pressable>
+            <Text style={s.drpSep}>→</Text>
+            <Pressable style={s.drpDateBtn} onPress={() => { Haptics.selectionAsync(); setShowToCal(true); }}>
+              <Feather name="calendar" size={13} color={BLUE} />
+              <Text style={[s.drpDateText, !range.to && { color: MUTED }]}>
+                {range.to ? fmtLabel(range.to) : 'To date'}
+              </Text>
+            </Pressable>
           </View>
-          <Text style={s.drpSep}>→</Text>
-          <View style={s.drpInputWrap}>
-            <Feather name="calendar" size={13} color={MUTED} />
-            <TextInput
-              style={s.drpInput}
-              value={range.to}
-              onChangeText={v => onCustomChange({ ...range, to: v })}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={MUTED}
-              keyboardType="numbers-and-punctuation"
-              autoCorrect={false}
-            />
-          </View>
-        </View>
+
+          {/* From calendar */}
+          <Modal visible={showFromCal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowFromCal(false)}>
+            <View style={{ flex: 1, backgroundColor: BG }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+                <Pressable onPress={() => setShowFromCal(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="x" size={20} color={TEXT} />
+                </Pressable>
+                <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT }}>Start Date</Text>
+                <View style={{ width: 36 }} />
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+                <InlineCalendarPicker
+                  selectedDate={fromDate}
+                  onSelectDate={d => { onCustomChange({ ...range, from: toISO(d) }); setShowFromCal(false); Haptics.selectionAsync(); }}
+                  accentColor={BLUE}
+                  maxDate={today}
+                />
+              </ScrollView>
+            </View>
+          </Modal>
+
+          {/* To calendar */}
+          <Modal visible={showToCal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowToCal(false)}>
+            <View style={{ flex: 1, backgroundColor: BG }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+                <Pressable onPress={() => setShowToCal(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name="x" size={20} color={TEXT} />
+                </Pressable>
+                <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT }}>End Date</Text>
+                <View style={{ width: 36 }} />
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+                <InlineCalendarPicker
+                  selectedDate={toDate}
+                  onSelectDate={d => { onCustomChange({ ...range, to: toISO(d) }); setShowToCal(false); Haptics.selectionAsync(); }}
+                  accentColor={BLUE}
+                  maxDate={today}
+                />
+              </ScrollView>
+            </View>
+          </Modal>
+        </>
       )}
     </View>
   );
@@ -1520,8 +1569,8 @@ const s = StyleSheet.create({
   drpChipText:  { fontSize: 12, fontWeight: '600', color: MUTED },
   drpChipTextActive: { color: '#fff' },
   drpCustomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  drpInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BG, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: BORDER },
-  drpInput:     { flex: 1, fontSize: 13, color: TEXT },
+  drpDateBtn:   { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BG, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, borderWidth: 1, borderColor: BORDER },
+  drpDateText:  { flex: 1, fontSize: 13, fontWeight: '500', color: TEXT },
   drpSep:       { fontSize: 14, color: MUTED, fontWeight: '600' },
 
   // Section

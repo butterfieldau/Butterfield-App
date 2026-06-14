@@ -18,6 +18,7 @@ import type { ApiOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -757,42 +758,7 @@ function CalendarModal({
   onSelectDate: (d: Date) => void;
   ordersByDate: Record<string, number>;
 }) {
-  const [calYear, setCalYear] = useState(selectedDate.getFullYear());
-  const [calMonth, setCalMonth] = useState(selectedDate.getMonth());
-
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
-  const sixMonthsAgo = useMemo(() => { const d = new Date(today); d.setMonth(d.getMonth() - 6); return d; }, [today]);
-  const twoYearsAgo  = useMemo(() => { const d = new Date(today); d.setFullYear(d.getFullYear() - 2); return d; }, [today]);
-
-  const canGoPrev = new Date(calYear, calMonth, 1) > new Date(twoYearsAgo.getFullYear(), twoYearsAgo.getMonth(), 1);
-  const canGoNext = new Date(calYear, calMonth, 1) < new Date(today.getFullYear(), today.getMonth(), 1);
-
-  const firstDayOfMonth = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth     = new Date(calYear, calMonth + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array(firstDayOfMonth).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  const dateOf  = (day: number) => new Date(calYear, calMonth, day);
-  const isSel   = (day: number) => selectedDate.getFullYear() === calYear && selectedDate.getMonth() === calMonth && selectedDate.getDate() === day;
-  const isTod   = (day: number) => today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
-  const isArc   = (day: number) => dateOf(day) < sixMonthsAgo;
-  const isFut   = (day: number) => { const d = dateOf(day); d.setHours(0,0,0,0); return d > today; };
-  const dateKey = (day: number) => `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-  const prevMonth = () => {
-    if (!canGoPrev) return;
-    if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else { setCalMonth(m => m - 1); }
-  };
-  const nextMonth = () => {
-    if (!canGoNext) return;
-    if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else { setCalMonth(m => m + 1); }
-  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -805,60 +771,16 @@ function CalendarModal({
           <View style={{ width: 36 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-            <Pressable onPress={prevMonth} style={{ padding: 10 }} hitSlop={8}>
-              <Feather name="chevron-left" size={22} color={canGoPrev ? TEXT : BORDER} />
-            </Pressable>
-            <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: TEXT }}>{monthLabel}</Text>
-            <Pressable onPress={nextMonth} style={{ padding: 10 }} hitSlop={8}>
-              <Feather name="chevron-right" size={22} color={canGoNext ? TEXT : BORDER} />
-            </Pressable>
-          </View>
-
-          <View style={{ flexDirection: 'row', marginBottom: 10 }}>
-            {DAYS.map(d => (
-              <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', color: MUTED }}>{d}</Text>
-            ))}
-          </View>
-
-          {Array.from({ length: cells.length / 7 }, (_, row) => (
-            <View key={row} style={{ flexDirection: 'row', marginBottom: 4 }}>
-              {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-                if (day === null) return <View key={col} style={{ flex: 1, height: 50 }} />;
-                const sel = isSel(day);
-                const tod = isTod(day);
-                const arc = isArc(day);
-                const fut = isFut(day);
-                const cnt = ordersByDate[dateKey(day)] ?? 0;
-                const textColor = sel ? '#fff' : fut ? BORDER : arc ? '#C7C7CC' : tod ? BLUE : TEXT;
-                return (
-                  <Pressable
-                    key={col}
-                    onPress={() => {
-                      if (fut) return;
-                      onSelectDate(new Date(calYear, calMonth, day));
-                      onClose();
-                      Haptics.selectionAsync();
-                    }}
-                    style={{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sel ? BLUE : tod ? `${BLUE}18` : 'transparent' }}>
-                      <Text style={{ fontSize: 14, fontWeight: sel || tod ? '700' : '400', color: textColor }}>{day}</Text>
-                    </View>
-                    {cnt > 0 && !fut ? (
-                      <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: arc ? '#C7C7CC' : BLUE, marginTop: 1 }} />
-                    ) : (
-                      <View style={{ width: 5, height: 5, marginTop: 1 }} />
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-
-          <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#C7C7CC' }} />
-            <Text style={{ fontSize: 12, color: MUTED }}>Greyed dates are archive (older than 6 months)</Text>
+          <InlineCalendarPicker
+            selectedDate={selectedDate}
+            onSelectDate={d => { onSelectDate(d); onClose(); Haptics.selectionAsync(); }}
+            accentColor={BLUE}
+            maxDate={today}
+            dotDates={ordersByDate}
+          />
+          <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: BLUE }} />
+            <Text style={{ fontSize: 12, color: MUTED }}>Dot indicates orders on that day</Text>
           </View>
         </ScrollView>
       </View>

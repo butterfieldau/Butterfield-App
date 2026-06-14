@@ -25,6 +25,8 @@ import {
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { sendTestPrint } from '@/lib/printer';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
+import TimeWheelPicker from '@/components/TimeWheelPicker';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -137,7 +139,7 @@ function isExpired(slide: HomeBannerSlide): boolean {
   return slide.activeUntil < sydneyToday();
 }
 
-/** Simple date picker field — shows formatted date, opens a modal on press to enter date */
+/** Date picker field — shows formatted date, opens an InlineCalendarPicker modal on press */
 function DateField({
   label,
   value,
@@ -149,43 +151,18 @@ function DateField({
   onChange: (iso: string | undefined) => void;
   placeholder?: string;
 }) {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [inputText, setInputText] = useState('');
-  const [error, setError] = useState('');
+  const [showCal, setShowCal] = useState(false);
 
-  const open = () => {
-    setInputText(value ? fmtDate(value) : '');
-    setError('');
-    setModalVisible(true);
-    Haptics.selectionAsync();
-  };
+  const selectedDate = value ? new Date(value + 'T12:00:00') : null;
 
-  const confirm = () => {
-    if (!inputText.trim()) {
-      onChange(undefined);
-      setModalVisible(false);
-      return;
-    }
-    const parsed = parseDate(inputText);
-    if (!parsed) {
-      setError('Enter a valid date: DD/MM/YYYY');
-      return;
-    }
-    onChange(parsed);
-    setModalVisible(false);
-  };
-
-  const clear = () => {
-    onChange(undefined);
-    Haptics.selectionAsync();
-  };
+  const clear = () => { onChange(undefined); Haptics.selectionAsync(); };
 
   return (
     <View style={{ gap: 4 }}>
       <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>{label}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Pressable
-          onPress={open}
+          onPress={() => { setShowCal(true); Haptics.selectionAsync(); }}
           style={[styles.input, {
             flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
             paddingVertical: 10, borderColor: BORDER,
@@ -194,7 +171,7 @@ function DateField({
           <Text style={{ fontSize: 14, color: value ? TEXT : MUTED }}>
             {value ? fmtDate(value) : (placeholder ?? 'No date set')}
           </Text>
-          <Feather name="calendar" size={14} color={MUTED} />
+          <Feather name="calendar" size={14} color={BLUE} />
         </Pressable>
         {value && (
           <Pressable onPress={clear} hitSlop={8}>
@@ -203,48 +180,36 @@ function DateField({
         )}
       </View>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => setModalVisible(false)}
-        >
-          <Pressable
-            onPress={e => e.stopPropagation()}
-            style={{
-              width: 300, backgroundColor: '#fff', borderRadius: 16, padding: 20, gap: 12,
-              shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-            }}
-          >
-            <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{label}</Text>
-            <TextInput
-              style={[styles.input, { borderColor: error ? RED : BLUE, color: TEXT }]}
-              value={inputText}
-              onChangeText={v => { setInputText(v); setError(''); }}
-              placeholder="DD/MM/YYYY"
-              placeholderTextColor={MUTED}
-              keyboardType="numbers-and-punctuation"
-              autoFocus
-              onSubmitEditing={confirm}
-              returnKeyType="done"
+      <Modal visible={showCal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCal(false)}>
+        <View style={{ flex: 1, backgroundColor: BG }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+            <Pressable onPress={() => setShowCal(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="x" size={20} color={TEXT} />
+            </Pressable>
+            <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT }}>{label}</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+            <InlineCalendarPicker
+              selectedDate={selectedDate}
+              onSelectDate={d => {
+                const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                onChange(iso);
+                setShowCal(false);
+                Haptics.selectionAsync();
+              }}
+              accentColor={BLUE}
             />
-            {error ? <Text style={{ fontSize: 12, color: RED }}>{error}</Text> : null}
-            <Text style={{ fontSize: 11, color: MUTED }}>Leave blank to remove the date.</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            {value && (
               <Pressable
-                onPress={() => setModalVisible(false)}
-                style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center' }}
+                onPress={clear}
+                style={{ marginTop: 12, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: BORDER }}
               >
-                <Text style={{ fontWeight: '600', color: MUTED }}>Cancel</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: MUTED }}>Clear Date</Text>
               </Pressable>
-              <Pressable
-                onPress={confirm}
-                style={{ flex: 1, padding: 11, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center' }}
-              >
-                <Text style={{ fontWeight: '600', color: '#fff' }}>Set Date</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
+            )}
+          </ScrollView>
+        </View>
       </Modal>
     </View>
   );
@@ -984,6 +949,7 @@ function StoreHoursSection() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [hours,  setHours]  = useState<HourRow[]>(defaultHours());
   const [saving, setSaving] = useState(false);
+  const [timePickerTarget, setTimePickerTarget] = useState<{ dayIndex: number; field: 'openTime' | 'closeTime' } | null>(null);
 
   const activeStoreId = selectedStoreId ?? (stores.length > 0 ? stores[0].id : null);
 
@@ -1156,31 +1122,27 @@ function StoreHoursSection() {
                       <View style={{ flexDirection: 'row', gap: 10, paddingLeft: 44 }}>
                         <View style={{ flex: 1, gap: 4 }}>
                           <Text style={[styles.fieldLabel, { fontSize: 11 }]}>Opens</Text>
-                          <TextInput
-                            style={[styles.input, { borderColor: openBorder, color: TEXT, paddingVertical: 8, fontSize: 14 }]}
-                            value={row.openTime}
-                            onChangeText={v => updateRow(dayIndex, { openTime: v })}
-                            onBlur={() => normaliseRowTime(dayIndex, 'openTime')}
-                            placeholder="08:00"
-                            placeholderTextColor={MUTED}
-                            keyboardType="numbers-and-punctuation"
-                            autoCorrect={false}
-                            maxLength={5}
-                          />
+                          <Pressable
+                            onPress={() => { setTimePickerTarget({ dayIndex, field: 'openTime' }); Haptics.selectionAsync(); }}
+                            style={[styles.input, { borderColor: openBorder, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                          >
+                            <Text style={{ fontSize: 14, color: row.openTime ? TEXT : MUTED }}>
+                              {row.openTime ? formatTime12(row.openTime) : '—'}
+                            </Text>
+                            <Feather name="clock" size={13} color={BLUE} />
+                          </Pressable>
                         </View>
                         <View style={{ flex: 1, gap: 4 }}>
                           <Text style={[styles.fieldLabel, { fontSize: 11 }]}>Closes</Text>
-                          <TextInput
-                            style={[styles.input, { borderColor: closeBorder, color: TEXT, paddingVertical: 8, fontSize: 14 }]}
-                            value={row.closeTime}
-                            onChangeText={v => updateRow(dayIndex, { closeTime: v })}
-                            onBlur={() => normaliseRowTime(dayIndex, 'closeTime')}
-                            placeholder="17:00"
-                            placeholderTextColor={MUTED}
-                            keyboardType="numbers-and-punctuation"
-                            autoCorrect={false}
-                            maxLength={5}
-                          />
+                          <Pressable
+                            onPress={() => { setTimePickerTarget({ dayIndex, field: 'closeTime' }); Haptics.selectionAsync(); }}
+                            style={[styles.input, { borderColor: closeBorder, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                          >
+                            <Text style={{ fontSize: 14, color: row.closeTime ? TEXT : MUTED }}>
+                              {row.closeTime ? formatTime12(row.closeTime) : '—'}
+                            </Text>
+                            <Feather name="clock" size={13} color={BLUE} />
+                          </Pressable>
                         </View>
                       </View>
                       {rowErr && (
@@ -1220,6 +1182,20 @@ function StoreHoursSection() {
             </View>
           )}
       </Pressable>
+
+      {timePickerTarget && (
+        <TimeWheelPicker
+          visible
+          initialHHMM={hours.find(r => r.dayOfWeek === timePickerTarget.dayIndex)?.[timePickerTarget.field] ?? '08:00'}
+          onConfirm={hhmm => {
+            updateRow(timePickerTarget.dayIndex, { [timePickerTarget.field]: hhmm });
+            setTimePickerTarget(null);
+          }}
+          onClose={() => setTimePickerTarget(null)}
+          accentColor={BLUE}
+          title={timePickerTarget.field === 'openTime' ? 'Opens At' : 'Closes At'}
+        />
+      )}
     </>
   );
 }

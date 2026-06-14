@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-const DAYS_SHORT = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DAYS_SHORT  = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -12,20 +12,36 @@ interface Props {
   selectedDate: Date | null;
   onSelectDate: (date: Date) => void;
   accentColor?: string;
+  /** Block dates after this (inclusive). Defaults to no restriction. */
+  maxDate?: Date;
+  /** Block dates before this (inclusive). Defaults to no restriction. */
+  minDate?: Date;
+  /**
+   * Map of YYYY-MM-DD → count. Days with count > 0 show a small accent dot
+   * below the date number (useful for showing which dates have data).
+   */
+  dotDates?: Record<string, number>;
 }
 
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+    a.getMonth()    === b.getMonth()    &&
+    a.getDate()     === b.getDate()
   );
+}
+
+function toKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export default function InlineCalendarPicker({
   selectedDate,
   onSelectDate,
   accentColor = '#4F46E5',
+  maxDate,
+  minDate,
+  dotDates,
 }: Props) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(
@@ -44,12 +60,12 @@ export default function InlineCalendarPicker({
     else setViewMonth(m => m + 1);
   }
 
-  // Build grid: cells for a Mon–Sun grid
-  const firstDay = new Date(viewYear, viewMonth, 1);
-  const lastDay  = new Date(viewYear, viewMonth + 1, 0);
-  // Mon=0 … Sun=6
-  const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+  // Build grid: Mon–Sun
+  const firstDay  = new Date(viewYear, viewMonth, 1);
+  const lastDay   = new Date(viewYear, viewMonth + 1, 0);
+  const startDow  = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Mon=0
   const cells: Array<{ date: Date; inMonth: boolean }> = [];
+
   for (let i = startDow - 1; i >= 0; i--) {
     const d = new Date(firstDay);
     d.setDate(firstDay.getDate() - i - 1);
@@ -69,6 +85,13 @@ export default function InlineCalendarPicker({
 
   const rows: Array<typeof cells> = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+  function isDisabled(date: Date): boolean {
+    const d = new Date(date); d.setHours(0, 0, 0, 0);
+    if (maxDate) { const mx = new Date(maxDate); mx.setHours(0, 0, 0, 0); if (d > mx) return true; }
+    if (minDate) { const mn = new Date(minDate); mn.setHours(0, 0, 0, 0); if (d < mn) return true; }
+    return false;
+  }
 
   return (
     <View style={s.container}>
@@ -98,11 +121,15 @@ export default function InlineCalendarPicker({
           {row.map((cell, ci) => {
             const isToday    = isSameDay(cell.date, today);
             const isSelected = selectedDate ? isSameDay(cell.date, selectedDate) : false;
+            const disabled   = isDisabled(cell.date);
+            const dotCount   = dotDates ? (dotDates[toKey(cell.date)] ?? 0) : 0;
+
             return (
               <Pressable
                 key={ci}
-                onPress={() => onSelectDate(cell.date)}
+                onPress={() => { if (!disabled) onSelectDate(cell.date); }}
                 style={s.cell}
+                disabled={disabled}
               >
                 <View style={[
                   s.dayCircle,
@@ -111,13 +138,18 @@ export default function InlineCalendarPicker({
                 ]}>
                   <Text style={[
                     s.dayText,
-                    !cell.inMonth && s.dayTextOut,
+                    (!cell.inMonth || disabled) && s.dayTextOut,
                     isSelected && s.dayTextSelected,
                     !isSelected && isToday && { color: accentColor, fontWeight: '600' },
                   ]}>
                     {cell.date.getDate()}
                   </Text>
                 </View>
+                {dotCount > 0 && !disabled ? (
+                  <View style={[s.dot, { backgroundColor: isSelected ? '#fff' : accentColor }]} />
+                ) : (
+                  <View style={s.dotPlaceholder} />
+                )}
               </Pressable>
             );
           })}
@@ -133,10 +165,12 @@ const s = StyleSheet.create({
   navBtn:          { padding: 6 },
   monthLabel:      { fontSize: 15, fontWeight: '600', color: '#111827' },
   row:             { flexDirection: 'row' },
-  cell:            { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 3 },
+  cell:            { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
   dowLabel:        { fontSize: 11, fontWeight: '600', color: '#9CA3AF', marginBottom: 4 },
   dayCircle:       { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   dayText:         { fontSize: 13, fontWeight: '500', color: '#111827' },
   dayTextOut:      { color: '#D1D5DB' },
   dayTextSelected: { color: '#FFFFFF', fontWeight: '700' },
+  dot:             { width: 5, height: 5, borderRadius: 2.5, marginTop: 1 },
+  dotPlaceholder:  { width: 5, height: 5, marginTop: 1 },
 });

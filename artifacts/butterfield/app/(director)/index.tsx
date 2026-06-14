@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { api } from '@/lib/api';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
 
@@ -79,63 +80,11 @@ function RevenueRangePicker({
   onClose: () => void;
   onApply: (from: Date, to: Date) => void;
 }) {
-  const [step, setStep]     = useState<'start' | 'end'>('start');
-  const [start, setStart]   = useState<Date | null>(null);
-  const [end, setEnd]       = useState<Date | null>(null);
-  const [calYear, setCalYear]   = useState(new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [step, setStep]   = useState<'start' | 'end'>('start');
+  const [start, setStart] = useState<Date | null>(null);
+  const [end, setEnd]     = useState<Date | null>(null);
 
-  const today       = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; })[0];
-  const twoYearsAgo = useState(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 2); d.setHours(0,0,0,0); return d; })[0];
-
-  const canGoPrev = new Date(calYear, calMonth, 1) > new Date(twoYearsAgo.getFullYear(), twoYearsAgo.getMonth(), 1);
-  const canGoNext = new Date(calYear, calMonth, 1) < new Date(today.getFullYear(), today.getMonth(), 1);
-
-  const firstDay    = new Date(calYear, calMonth, 1).getDay();
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
-  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  const dateOf   = (day: number) => new Date(calYear, calMonth, day);
-  const isFut    = (day: number) => { const d = dateOf(day); d.setHours(0,0,0,0); return d > today; };
-  const isStart  = (day: number) => !!start && start.getFullYear() === calYear && start.getMonth() === calMonth && start.getDate() === day;
-  const isEnd    = (day: number) => !!end && end.getFullYear() === calYear && end.getMonth() === calMonth && end.getDate() === day;
-  const isInRange = (day: number) => {
-    if (!start || !end) return false;
-    const d = dateOf(day);
-    return d > start && d < end;
-  };
-  const isToday = (day: number) => today.getFullYear() === calYear && today.getMonth() === calMonth && today.getDate() === day;
-
-  const prevMonth = () => {
-    if (!canGoPrev) return;
-    if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else { setCalMonth(m => m - 1); }
-  };
-  const nextMonth = () => {
-    if (!canGoNext) return;
-    if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0); } else { setCalMonth(m => m + 1); }
-  };
-
-  const handleDayPress = (day: number) => {
-    if (isFut(day)) return;
-    const d = dateOf(day);
-    if (step === 'start') {
-      setStart(d);
-      setEnd(null);
-      setStep('end');
-    } else {
-      if (start && d < start) { setEnd(start); setStart(d); }
-      else { setEnd(d); }
-      setStep('start');
-    }
-    Haptics.selectionAsync();
-  };
+  const today = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; })[0];
 
   const handleClose = () => { setStart(null); setEnd(null); setStep('start'); onClose(); };
   const handleApply = () => {
@@ -144,6 +93,19 @@ function RevenueRangePicker({
     onApply(start, to);
     onClose();
   };
+
+  const handleSelectDate = (d: Date) => {
+    if (step === 'start') {
+      setStart(d); setEnd(null); setStep('end');
+    } else {
+      if (start && d < start) { setEnd(start); setStart(d); }
+      else { setEnd(d); }
+      setStep('start');
+    }
+    Haptics.selectionAsync();
+  };
+
+  const displayDate = step === 'start' ? start : (end ?? start);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
@@ -157,7 +119,7 @@ function RevenueRangePicker({
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
-          {/* Date selection boxes */}
+          {/* Step indicator boxes */}
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
             <Pressable
               onPress={() => setStep('start')}
@@ -178,54 +140,17 @@ function RevenueRangePicker({
             </Pressable>
           </View>
 
-          <Text style={{ fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 16, fontWeight: '400' }}>
+          <Text style={{ fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 8, fontWeight: '400' }}>
             {step === 'start' ? 'Tap a date to set the start' : 'Now tap a date to set the end'}
           </Text>
 
-          {/* Month navigator */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-            <Pressable onPress={prevMonth} style={{ padding: 10 }} hitSlop={8}>
-              <Feather name="chevron-left" size={22} color={canGoPrev ? TEXT : BORDER} />
-            </Pressable>
-            <Text style={{ flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '700', color: TEXT }}>{monthLabel}</Text>
-            <Pressable onPress={nextMonth} style={{ padding: 10 }} hitSlop={8}>
-              <Feather name="chevron-right" size={22} color={canGoNext ? TEXT : BORDER} />
-            </Pressable>
-          </View>
+          <InlineCalendarPicker
+            selectedDate={displayDate}
+            onSelectDate={handleSelectDate}
+            accentColor={BLUE}
+            maxDate={today}
+          />
 
-          {/* Day headers */}
-          <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-            {DAYS.map(d => (
-              <Text key={d} style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', color: MUTED }}>{d}</Text>
-            ))}
-          </View>
-
-          {/* Calendar grid */}
-          {Array.from({ length: cells.length / 7 }, (_, row) => (
-            <View key={row} style={{ flexDirection: 'row', marginBottom: 4 }}>
-              {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
-                if (day === null) return <View key={col} style={{ flex: 1, height: 44 }} />;
-                const fut = isFut(day);
-                const sel = isStart(day) || isEnd(day);
-                const inR = isInRange(day);
-                const tod = isToday(day);
-                const textColor = sel ? '#fff' : fut ? BORDER : tod ? BLUE : TEXT;
-                return (
-                  <Pressable
-                    key={col}
-                    onPress={() => handleDayPress(day)}
-                    style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: inR ? `${BLUE}14` : 'transparent' }}
-                  >
-                    <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: sel ? BLUE : 'transparent' }}>
-                      <Text style={{ fontSize: 14, fontWeight: sel || tod ? '700' : '400', color: textColor }}>{day}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-
-          {/* Apply button */}
           {start && end && (
             <Pressable
               onPress={handleApply}

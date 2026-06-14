@@ -15,6 +15,7 @@ import { api, type DirectorShift } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useAuth } from '@/context/AuthContext';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
+import TimeWheelPicker from '@/components/TimeWheelPicker';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const BG         = '#EFF6FF';
@@ -197,85 +198,6 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
   <div class="footer">Generated ${new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' })} · Butterfield Cookies Pty Ltd</div>
   </body></html>`;
 }
-
-// ── Time Picker Modal ─────────────────────────────────────────────────────────
-function TimePickerModal({ visible, initialHHMM, onConfirm, onClose }: {
-  visible: boolean; initialHHMM: string;
-  onConfirm: (hhmm: string) => void; onClose: () => void;
-}) {
-  const [hour, setHour] = useState(9);
-  const [minute, setMinute] = useState(0);
-  React.useEffect(() => {
-    if (visible && initialHHMM) {
-      const [hStr, mStr] = initialHHMM.split(':');
-      setHour(Math.min(23, Math.max(0, parseInt(hStr) || 0)));
-      setMinute(Math.min(59, Math.max(0, parseInt(mStr) || 0)));
-    }
-  }, [visible, initialHHMM]);
-  const ampm  = hour >= 12 ? 'PM' : 'AM';
-  const h12   = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  const hhmm  = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={tp.overlay} onPress={onClose}>
-        <Pressable style={tp.sheet} onPress={e => e.stopPropagation()}>
-          <Text style={tp.title}>Select Time</Text>
-          <View style={tp.pickerRow}>
-            {/* Hour */}
-            <View style={tp.col}>
-              <Pressable onPress={() => setHour(h => (h + 1) % 24)} style={tp.arrow}>
-                <Feather name="chevron-up" size={22} color={INDIGO} />
-              </Pressable>
-              <Text style={tp.digit}>{String(h12).padStart(2,'0')}</Text>
-              <Pressable onPress={() => setHour(h => (h - 1 + 24) % 24)} style={tp.arrow}>
-                <Feather name="chevron-down" size={22} color={INDIGO} />
-              </Pressable>
-            </View>
-            <Text style={tp.colon}>:</Text>
-            {/* Minute — 5-min steps */}
-            <View style={tp.col}>
-              <Pressable onPress={() => setMinute(m => (m + 5) % 60)} style={tp.arrow}>
-                <Feather name="chevron-up" size={22} color={INDIGO} />
-              </Pressable>
-              <Text style={tp.digit}>{String(minute).padStart(2,'0')}</Text>
-              <Pressable onPress={() => setMinute(m => (m - 5 + 60) % 60)} style={tp.arrow}>
-                <Feather name="chevron-down" size={22} color={INDIGO} />
-              </Pressable>
-            </View>
-            {/* AM/PM */}
-            <Pressable style={tp.ampmBtn} onPress={() => setHour(h => h >= 12 ? h - 12 : h + 12)}>
-              <Text style={tp.ampmText}>{ampm}</Text>
-            </Pressable>
-          </View>
-          <View style={tp.btnRow}>
-            <Pressable onPress={onClose} style={[tp.btn, { backgroundColor: '#F3F4F6' }]}>
-              <Text style={[tp.btnText, { color: TEXT }]}>Cancel</Text>
-            </Pressable>
-            <Pressable onPress={() => { onConfirm(hhmm); onClose(); }}
-              style={[tp.btn, { backgroundColor: INDIGO }]}>
-              <Text style={[tp.btnText, { color: '#fff' }]}>Done</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-const tp = StyleSheet.create({
-  overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
-  sheet:     { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: 280, gap: 20 },
-  title:     { fontSize: 17, fontWeight: '700', color: TEXT, textAlign: 'center' },
-  pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  col:       { alignItems: 'center', gap: 4 },
-  arrow:     { padding: 6 },
-  digit:     { fontSize: 36, fontWeight: '700', color: TEXT, width: 56, textAlign: 'center' },
-  colon:     { fontSize: 36, fontWeight: '700', color: TEXT, marginTop: -8 },
-  ampmBtn:   { marginLeft: 8, backgroundColor: INDIGO + '18', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  ampmText:  { fontSize: 16, fontWeight: '700', color: INDIGO },
-  btnRow:    { flexDirection: 'row', gap: 10 },
-  btn:       { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  btnText:   { fontSize: 15, fontWeight: '600' },
-});
 
 // ── Staff Picker Modal ────────────────────────────────────────────────────────
 function StaffPickerModal({ visible, staff, onSelect, onClose }: {
@@ -634,17 +556,19 @@ function TimesheetModal({ mode, shift, staffList, isManager, visible, onClose, o
         onSelect={s => setSelectedStaff(s)}
         onClose={() => setShowStaffPick(false)}
       />
-      <TimePickerModal
+      <TimeWheelPicker
         visible={showStartPick}
         initialHHMM={startHHMM}
         onConfirm={setStartHHMM}
         onClose={() => setShowStartPick(false)}
+        accentColor={INDIGO}
       />
-      <TimePickerModal
+      <TimeWheelPicker
         visible={showEndPick}
         initialHHMM={endHHMM}
         onConfirm={setEndHHMM}
         onClose={() => setShowEndPick(false)}
+        accentColor={INDIGO}
       />
     </Modal>
   );
