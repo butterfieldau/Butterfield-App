@@ -22,7 +22,7 @@ import { notifyUser } from '../lib/notificationService.js';
 import { applyCoffeeStamps, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
-import { countCoffeeItemsFromOrderItems, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
+import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 import {
   getLinklyPublicConfig,
@@ -295,11 +295,11 @@ router.patch('/orders/:id/status', async (req, res) => {
     }
 
     try {
-      const coffeeStampCount = await countCoffeeItemsFromOrderItems(updated.items);
-      if (coffeeStampCount > 0 && await hasAwardedCoffeeStampsForOrder(updated.id)) {
+      const outstandingStampCount = await getOutstandingCoffeeStampsForOrder(updated.id);
+      if (outstandingStampCount > 0) {
         await reverseCoffeeStamps({
           userId: updated.userId,
-          stampsToRemove: coffeeStampCount,
+          stampsToRemove: outstandingStampCount,
           source: 'order_cancel',
           orderId: updated.id,
           description: 'Order cancelled from shop display — coffee stamps reversed',

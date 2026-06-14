@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { sendEmail, buildOrderConfirmationEmail, buildOrderReceiptEmail } from '../lib/emailService.js';
 import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
-import { countCoffeeItemsFromOrderItems, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
+import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
@@ -592,20 +592,15 @@ router.patch(
       }
 
       try {
-        const coffeeStampCount = await countCoffeeItemsFromOrderItems(order.items);
-        if (coffeeStampCount > 0) {
-          // Only reverse stamps if they were actually awarded for this order.
-          // Stamps are now awarded at the fulfillment milestone (ready/completed),
-          // so cancellations before that point must not reverse anything.
-          if (await hasAwardedCoffeeStampsForOrder(order.id)) {
+        const outstandingStampCount = await getOutstandingCoffeeStampsForOrder(order.id);
+        if (outstandingStampCount > 0) {
             await reverseCoffeeStamps({
               userId: order.userId,
-              stampsToRemove: coffeeStampCount,
+              stampsToRemove: outstandingStampCount,
               source: status === 'refunded' ? 'order_refund' : 'order_cancel',
               orderId: order.id,
               description: `Order ${status} — coffee stamps reversed`,
             });
-          }
         }
       } catch (err: any) {
         req.log.error({ err, orderId: order.id }, 'Failed to reverse coffee stamps on order cancellation');

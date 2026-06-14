@@ -1,5 +1,5 @@
 import { db, loyaltyActivityLogTable, productsTable } from '@workspace/db';
-import { and, eq, gt, inArray, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import { logger } from './logger.js';
 
 export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<number> {
@@ -67,4 +67,14 @@ export async function hasAwardedCoffeeStampsForOrder(orderId: string): Promise<b
     .limit(1);
 
   return Boolean(awarded);
+}
+
+export async function getOutstandingCoffeeStampsForOrder(orderId: string): Promise<number> {
+  const [row] = await db
+    .select({
+      netCoffeeStamps: sql<number>`COALESCE(SUM(${loyaltyActivityLogTable.coffeeStampsDelta}), 0)`,
+    })
+    .from(loyaltyActivityLogTable)
+    .where(eq(loyaltyActivityLogTable.orderId, orderId));
+  return Math.max(0, Number(row?.netCoffeeStamps ?? 0));
 }
