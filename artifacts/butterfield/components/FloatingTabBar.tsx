@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef } from 'react';
 import {
@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export type TabCfg = { icon: string; title: string };
 
 const WHITE   = '#FFFFFF';
-const MUTED   = '#9CA3AF';
+const MUTED   = '#111111';
 const ICON_SZ = 20;
 const BASE_W  = 44;   // collapsed width for inactive tab (just icon + tight padding)
 const PILL_H  = 46;   // pill height
@@ -95,7 +95,7 @@ export function AnimatedTabItem({
         {/* Pill: same width as outer — can never overflow */}
         <Animated.View style={[ts.pill, { width: animWidth, backgroundColor: animBg }]}>
           <View style={ts.iconWrap}>
-            <Feather name={cfg.icon as any} size={ICON_SZ} color={focused ? WHITE : MUTED} />
+            <Ionicons name={cfg.icon as any} size={ICON_SZ} color={focused ? WHITE : MUTED} />
             {badgeCount != null && badgeCount > 0 && (
               <Reanimated.View style={[ts.badge, badgeAnimStyle]}>
                 <Text style={ts.badgeText}>{badgeCount > 99 ? '99+' : String(badgeCount)}</Text>

@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Href, Redirect, router, Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
@@ -15,14 +15,14 @@ const NAVY = '#1A2B4A';
 const BG_STAFF = '#EFF6FF';
 
 const STAFF_TAB_CONFIG = {
-  index:    { icon: 'home',         title: 'Dashboard' },
-  orders:   { icon: 'shopping-bag', title: 'Orders'    },
-  schedule: { icon: 'calendar',     title: 'Schedule'  },
-  products: { icon: 'package',      title: 'Products'  },
-  scan:     { icon: 'maximize',     title: 'Scan'      },
-  staffhub: { icon: 'users',        title: 'Staff Hub' },
-  profile:  { icon: 'user',         title: 'Profile'   },
-  more:     { icon: 'grid',         title: 'More'      },
+  index:    { icon: 'home',          title: 'Dashboard' },
+  orders:   { icon: 'bag',           title: 'Orders'    },
+  schedule: { icon: 'calendar',      title: 'Schedule'  },
+  products: { icon: 'cube',          title: 'Products'  },
+  scan:     { icon: 'scan',          title: 'Scan'      },
+  staffhub: { icon: 'people',        title: 'Staff Hub' },
+  profile:  { icon: 'person',        title: 'Profile'   },
+  more:     { icon: 'grid',          title: 'More'      },
 } as const;
 
 const DIRECTOR_ROOT_TAB_PATHS = {
@@ -179,7 +179,7 @@ export default function DirectorLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor:   BLUE,
-          tabBarInactiveTintColor: '#8E8E93',
+          tabBarInactiveTintColor: '#111111',
           tabBarStyle: {
             backgroundColor: '#FFFFFF',
             borderTopColor:  '#E5E7EB',
@@ -190,19 +190,19 @@ export default function DirectorLayout() {
       >
         <Tabs.Screen name="index"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.index)}
-          options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Feather name="home"         size={size} color={color} /> }} />
+          options={{ title: 'Home',     tabBarIcon: ({ color, size }) => <Ionicons name="home"          size={size} color={color} /> }} />
         <Tabs.Screen name="orders"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.orders)}
-          options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} /> }} />
+          options={{ title: 'Orders',   tabBarIcon: ({ color, size }) => <Ionicons name="bag"           size={size} color={color} /> }} />
         <Tabs.Screen name="users"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.users)}
-          options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Feather name="users"         size={size} color={color} /> }} />
+          options={{ title: 'People',   tabBarIcon: ({ color, size }) => <Ionicons name="people"        size={size} color={color} /> }} />
         <Tabs.Screen name="products"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.products)}
-          options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Feather name="package"       size={size} color={color} /> }} />
+          options={{ title: 'Products', tabBarIcon: ({ color, size }) => <Ionicons name="cube"          size={size} color={color} /> }} />
         <Tabs.Screen name="more"
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.more)}
-          options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
+          options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Ionicons name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
         <Tabs.Screen name="schedule"         options={{ href: null }} />
         <Tabs.Screen name="linkly"           options={{ href: null }} />

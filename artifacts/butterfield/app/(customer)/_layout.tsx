@@ -13,11 +13,11 @@ import { AnimatedTabItem, GlassPill } from '@/components/FloatingTabBar';
 const BLUE = '#1493FF';
 
 const CUSTOMER_TABS = {
-  index:   { icon: 'home',         title: 'Home'    },
-  menu:    { icon: 'list',         title: 'Menu'    },
-  loyalty: { icon: 'star',         title: 'Rewards' },
-  cart:    { icon: 'shopping-bag', title: 'Order'   },
-  profile: { icon: 'user',         title: 'Account' },
+  index:   { icon: 'home',    title: 'Home'    },
+  menu:    { icon: 'list',    title: 'Menu'    },
+  loyalty: { icon: 'star',    title: 'Rewards' },
+  cart:    { icon: 'bag',     title: 'Order'   },
+  profile: { icon: 'person',  title: 'Account' },
 } as const;
 
 const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'cart', 'profile'] as const;

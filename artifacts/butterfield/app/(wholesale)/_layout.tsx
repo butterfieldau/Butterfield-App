@@ -10,11 +10,11 @@ const BG   = '#EFF6FF';
 const BLUE = '#1493FF';
 
 const WHOLESALE_TAB_CONFIG = {
-  index:   { icon: 'home',          title: 'Dashboard' },
-  catalog: { icon: 'shopping-bag',  title: 'Catalog'   },
-  cart:    { icon: 'shopping-cart', title: 'Cart'      },
-  orders:  { icon: 'file-text',     title: 'Orders'    },
-  profile: { icon: 'user',          title: 'Account'   },
+  index:   { icon: 'home',           title: 'Dashboard' },
+  catalog: { icon: 'bag',            title: 'Catalog'   },
+  cart:    { icon: 'cart',           title: 'Cart'      },
+  orders:  { icon: 'document-text',  title: 'Orders'    },
+  profile: { icon: 'person',         title: 'Account'   },
 } as const;
 
 const VISIBLE: string[] = ['index', 'catalog', 'cart', 'orders', 'profile'];
