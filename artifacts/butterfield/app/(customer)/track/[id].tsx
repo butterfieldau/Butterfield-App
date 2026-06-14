@@ -355,7 +355,7 @@ export default function TrackOrderScreen() {
           <View style={[styles.orderCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View>
-                <Text style={[styles.orderRef, { color: colors.foreground }]}>Order #{order.id.slice(-6).toUpperCase()}</Text>
+                <Text style={[styles.orderRef, { color: colors.foreground }]}>Order #{order.orderNumber ?? order.id.slice(-6).toUpperCase()}</Text>
                 <Text style={[styles.orderDate, { color: colors.mutedForeground }]}>{formatDate(order.createdAt)}</Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>

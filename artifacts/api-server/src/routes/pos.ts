@@ -1172,7 +1172,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
           ${orderId},
           ${orderNumber},
           ${customerId ?? req.user!.id},
-          'received',
+          'completed',
           'pickup',
           ${notes ?? null},
           ${totalCents},
@@ -1380,7 +1380,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
   }
 
   return res.status(201).json({
-    data: { id: orderId, orderNumber, totalCents, paymentMethod, status: 'received' },
+    data: { id: orderId, orderNumber, totalCents, paymentMethod, status: 'completed' },
     loyaltyResult,
   });
 };
