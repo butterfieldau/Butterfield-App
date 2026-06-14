@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PosIdleScreen } from '@/components/PosIdleScreen';
 import type { ComponentProps } from 'react';
@@ -27,6 +27,7 @@ import type { LinklyTransactionStatus, ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 import { sendReceiptPrint, sendOpenDrawer, orderToPrintJob } from '@/lib/printer';
+import { isStoreOpenForAsap } from '@/lib/storeSchedule';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -170,14 +171,82 @@ function orderSubtitle(order: ShopDisplayOrder) {
   ].filter(Boolean).join(' · ');
 }
 
-function playNewOrderAlert(name: string, label: string, soundEnabled: boolean) {
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  if (!soundEnabled) return;
-  Notifications.scheduleNotificationAsync({
-    content: { title: 'New Butterfield order', body: `${name} · ${label}`, sound: 'default' },
-    trigger: null,
-  }).catch(() => {});
+type NewOrderBannerOrder = { customerName: string; orderNumber: string };
+
+function NewOrderAlertOverlay({
+  visible,
+  order,
+  onDismiss,
+  storeIsOpen,
+}: {
+  visible: boolean;
+  order: NewOrderBannerOrder | null;
+  onDismiss: () => void;
+  storeIsOpen: boolean;
+}) {
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+      return;
+    }
+    let cancelled = false;
+    Audio.Sound.createAsync(
+      require('@/assets/sounds/new-order-alert.wav'),
+      { isLooping: true, shouldPlay: storeIsOpen },
+    ).then(({ sound }) => {
+      if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
+      soundRef.current = sound;
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    };
+  }, [visible, storeIsOpen]);
+
+  if (!visible || !order) return null;
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+    >
+      <Pressable style={sAlert.backdrop} onPress={onDismiss}>
+        <View style={sAlert.card}>
+          <View style={sAlert.iconWrap}>
+            <Feather name="bell" size={40} color={NAVY} />
+          </View>
+          <Text style={sAlert.title}>New Order</Text>
+          <Text style={sAlert.name}>{order.customerName}</Text>
+          <Text style={sAlert.orderNum}>{order.orderNumber}</Text>
+          <Text style={sAlert.hint}>Tap anywhere to dismiss</Text>
+        </View>
+      </Pressable>
+    </Modal>
+  );
 }
+
+const sAlert = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  card:     { backgroundColor: '#fff', borderRadius: 28, padding: 36, alignItems: 'center', gap: 10, width: '100%', maxWidth: 360, borderWidth: 3, borderColor: NAVY },
+  iconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  title:    { fontSize: 30, fontWeight: '900', color: NAVY },
+  name:     { fontSize: 20, fontWeight: '700', color: TEXT },
+  orderNum: { fontSize: 15, fontWeight: '600', color: MUTED },
+  hint:     { fontSize: 13, color: MUTED, marginTop: 10 },
+});
 
 export default function ShopDisplayOrdersScreen() {
   const { width } = useWindowDimensions();
@@ -187,6 +256,8 @@ export default function ShopDisplayOrdersScreen() {
 
   const qc = useQueryClient();
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
+  const [showNewOrderBanner, setShowNewOrderBanner] = useState(false);
+  const [newOrderBannerOrder, setNewOrderBannerOrder] = useState<NewOrderBannerOrder | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
   const [queueMode, setQueueMode] = useState<QueueMode>('active');
@@ -314,10 +385,18 @@ export default function ShopDisplayOrdersScreen() {
     const fresh = rows.find(o => !prev[o.id] && o.status === 'received');
     if (fresh) {
       setAlertOrderId(fresh.id);
-      playNewOrderAlert(fresh.customerName ?? 'Customer', fresh.orderNumber ?? `#${fresh.id.slice(0, 6).toUpperCase()}`, soundEnabled);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setShowNewOrderBanner(prev => {
+        if (prev) return prev;
+        setNewOrderBannerOrder({
+          customerName: fresh.customerName ?? 'Customer',
+          orderNumber: fresh.orderNumber ?? `#${fresh.id.slice(0, 6).toUpperCase()}`,
+        });
+        return true;
+      });
     }
     seenRef.current = currentMap;
-  }, [rows, soundEnabled]);
+  }, [rows]);
 
   const queueCounts = useMemo(() => ({
     active: dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number])).length,
@@ -1220,6 +1299,18 @@ export default function ShopDisplayOrdersScreen() {
           </Modal>
         );
       })() : null}
+
+      {/* ── New Order Alert Overlay ──────────────────────────────── */}
+      <NewOrderAlertOverlay
+        visible={showNewOrderBanner}
+        order={newOrderBannerOrder}
+        onDismiss={() => {
+          setShowNewOrderBanner(false);
+          setNewOrderBannerOrder(null);
+          resetActivity();
+        }}
+        storeIsOpen={isStoreOpenForAsap(store ? { ...store, status: store.status ?? undefined } : null, new Date())}
+      />
     </View>
   );
 }

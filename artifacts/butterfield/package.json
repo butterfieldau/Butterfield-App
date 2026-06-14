@@ -67,6 +67,7 @@
     "@tanstack/query-async-storage-persister": "^5.100.9",
     "@tanstack/react-query-persist-client": "^5.100.9",
     "expo-apple-authentication": "^8.0.8",
+    "expo-av": "^16.0.8",
     "expo-camera": "^17.0.10",
     "expo-crypto": "^15.0.9",
     "expo-file-system": "^56.0.7",
