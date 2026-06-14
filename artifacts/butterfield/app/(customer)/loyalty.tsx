@@ -347,11 +347,10 @@ export default function LoyaltyScreen() {
 function LoyaltyContent() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  // section paddingH 16×2=32, card padding 14×2=28 → 60px consumed; gap 8×5=40
-  const STAMP_GAP = 8;
-  const stampSize = Math.min(52, Math.floor((screenWidth - 60 - STAMP_GAP * 5) / 6));
-  const stampIconSize = Math.round(stampSize * 0.42);   // ~22 at max
-  const stampDotSize  = Math.round(stampSize * 0.27);   // ~14 at max
+  // Stamps sit inline with text + badge — fixed size to match text block height
+  const stampSize     = Math.min(40, Math.round(screenWidth * 0.09));
+  const stampIconSize = Math.round(stampSize * 0.42);
+  const stampDotSize  = Math.round(stampSize * 0.27);
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -689,34 +688,34 @@ function LoyaltyContent() {
 
           <View style={styles.section}>
             <LinearGradient colors={['#10213E', '#0D1630']} style={styles.coffeeClubCard}>
-              <View style={styles.coffeeClubHeader}>
+              <View style={styles.coffeeClubRow}>
                 <View style={styles.freeCoffeeCopy}>
                   <Text style={styles.coffeeClubTitle}>Coffee Club</Text>
-                  <Text style={styles.freeCoffeeHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
+                  <Text style={styles.freeCoffeeHint}>Every 6 purchases = 1 free coffee.</Text>
+                </View>
+                <View style={styles.coffeeStampRow}>
+                  {[0, 1, 2, 3, 4, 5].map((index) => {
+                    const filled = index < stampCount;
+                    return (
+                      <Animated.View
+                        key={index}
+                        style={[
+                          styles.miniStampBubble,
+                          filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
+                          { width: stampSize, height: stampSize, borderRadius: stampSize / 2, transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
+                        ]}
+                      >
+                        {filled
+                          ? <Feather name="coffee" size={stampIconSize} color="#0A67EC" />
+                          : <View style={[styles.miniStampDot, { width: stampDotSize, height: stampDotSize, borderRadius: stampDotSize / 2 }]} />}
+                      </Animated.View>
+                    );
+                  })}
                 </View>
                 <View style={styles.freeCoffeeBadge}>
                   <Text style={styles.freeCoffeeBadgeCount}>{freeCoffeeRewards}</Text>
                   <Text style={styles.freeCoffeeBadgeLabel}>free</Text>
                 </View>
-              </View>
-              <View style={[styles.coffeeStampRow, { gap: STAMP_GAP }]}>
-                {[0, 1, 2, 3, 4, 5].map((index) => {
-                  const filled = index < stampCount;
-                  return (
-                    <Animated.View
-                      key={index}
-                      style={[
-                        styles.miniStampBubble,
-                        filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
-                        { width: stampSize, height: stampSize, borderRadius: stampSize / 2, transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
-                      ]}
-                    >
-                      {filled
-                        ? <Feather name="coffee" size={stampIconSize} color="#0A67EC" />
-                        : <View style={[styles.miniStampDot, { width: stampDotSize, height: stampDotSize, borderRadius: stampDotSize / 2 }]} />}
-                    </Animated.View>
-                  );
-                })}
               </View>
             </LinearGradient>
           </View>
@@ -1134,14 +1133,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
   },
-  coffeeClubHeader: {
+  coffeeClubRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
   },
   coffeeClubTitle: { color: WHITE, fontSize: 15, fontWeight: '700', lineHeight: 19 },
-  freeCoffeeCopy: { flex: 1, marginRight: 10 },
+  freeCoffeeCopy: { flexShrink: 1, marginRight: 8 },
   freeCoffeeHint: {
     marginTop: 2,
     color: 'rgba(255,255,255,0.65)',
@@ -1159,10 +1156,11 @@ const styles = StyleSheet.create({
   freeCoffeeBadgeCount: { color: WHITE, fontSize: 18, fontWeight: '700', lineHeight: 22 },
   freeCoffeeBadgeLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 10, fontWeight: '600' },
   coffeeStampRow: {
+    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
-    marginVertical: 10,
+    marginHorizontal: 8,
   },
   miniStampBubble: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
