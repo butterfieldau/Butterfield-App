@@ -2,7 +2,6 @@ import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PosIdleScreen } from '@/components/PosIdleScreen';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
@@ -284,24 +283,6 @@ export default function ShopDisplayOrdersScreen() {
   const bootedRef = useRef(false);
   const mountTimeRef = useRef(Date.now());
 
-  // ── Idle / ambient screen ──────────────────────────────────────────────────
-  const IDLE_TIMEOUT_MS = 60_000;
-  const [showIdle, setShowIdle] = useState(false);
-  const lastActivityRef = useRef<number>(Date.now());
-
-  const resetActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-    setShowIdle(false);
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS) {
-        setShowIdle(prev => prev ? prev : true);
-      }
-    }, 5_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const { data: productsData } = useQuery({
     queryKey: ['shop-display-products'],
@@ -775,7 +756,7 @@ export default function ShopDisplayOrdersScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }} onTouchStart={resetActivity}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
       {/* ── Compact control bar ───────────────────────────────────── */}
       <View style={s.controlCard}>
         {/* Row 1: queue mode */}
@@ -854,15 +835,6 @@ export default function ShopDisplayOrdersScreen() {
         }
         renderItem={renderCard}
       />
-
-      {/* ── Idle / ambient overlay ──────────────────────────────── */}
-      {showIdle && (
-        <PosIdleScreen
-          products={allProducts}
-          dailySpecial={store?.dailySpecial ?? null}
-          onDismiss={resetActivity}
-        />
-      )}
 
       {/* ── Cancel reason modal ─────────────────────────────────── */}
       <Modal
@@ -1336,7 +1308,6 @@ export default function ShopDisplayOrdersScreen() {
         onDismiss={() => {
           setShowNewOrderBanner(false);
           setNewOrderBannerOrder(null);
-          resetActivity();
         }}
         soundEnabled={soundEnabled}
       />

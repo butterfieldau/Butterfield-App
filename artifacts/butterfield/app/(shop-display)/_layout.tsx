@@ -12,6 +12,9 @@ import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clear
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
+import { PosIdleScreen } from '@/components/PosIdleScreen';
+
+const IDLE_TIMEOUT_MS = 60_000;
 
 const BLUE  = '#1493FF';
 const NAVY  = '#1A2B4A';
@@ -57,6 +60,35 @@ export default function ShopDisplayLayout() {
     staleTime: 10_000,
   });
   const receivedCount = (ordersData?.data ?? []).filter((o: { status: string }) => o.status === 'received').length;
+
+  // ── Global screensaver ───────────────────────────────────────────────────────
+  const lastIdleRef = useRef<number>(Date.now());
+  const [isIdle, setIsIdle] = useState(false);
+
+  const { data: idleProductsData } = useQuery({
+    queryKey: ['shop-display-products'],
+    queryFn: () => api.shopDisplay.products(),
+    enabled: user?.role === 'shop_display',
+    staleTime: 5 * 60_000,
+  });
+  const idleProducts: any[] = (idleProductsData as any)?.data ?? [];
+
+  const { data: idleStoreData } = useQuery({
+    queryKey: ['shop-display-store'],
+    queryFn: () => api.shopDisplay.store(),
+    enabled: user?.role === 'shop_display',
+    staleTime: 60_000,
+  });
+  const idleDailySpecial: string | null = (idleStoreData as any)?.data?.[0]?.dailySpecial ?? null;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (Date.now() - lastIdleRef.current >= IDLE_TIMEOUT_MS) {
+        setIsIdle(prev => prev ? prev : true);
+      }
+    }, 5_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Product sync ──────────────────────────────────────────────────────────
   const queryClient = useQueryClient();
@@ -278,7 +310,10 @@ export default function ShopDisplayLayout() {
   // Single return keeps <Tabs> at the same tree position on every render,
   // so rotating the device never unmounts the navigator or clears app state.
   return (
-    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: NAVY }}>
+    <View
+      style={{ flex: 1, flexDirection: 'row', backgroundColor: NAVY }}
+      onStartShouldSetResponderCapture={() => { lastIdleRef.current = Date.now(); return false; }}
+    >
       <StatusBar barStyle="light-content" backgroundColor={NAVY} />
 
       {/* ── Sidebar — wide screens only ───────────────────────────── */}
@@ -345,6 +380,18 @@ export default function ShopDisplayLayout() {
           {tabScreens}
         </LayoutSafeAreaContext.Provider>
       </View>
+
+      {/* ── Global screensaver overlay ────────────────────────────── */}
+      {isIdle && !isLocked && (
+        <PosIdleScreen
+          products={idleProducts}
+          dailySpecial={idleDailySpecial}
+          onDismiss={() => {
+            lastIdleRef.current = Date.now();
+            setIsIdle(false);
+          }}
+        />
+      )}
 
       {/* ── Display lock screen overlay ───────────────────────────── */}
       {isLocked && lockPin && (

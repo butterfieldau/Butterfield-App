@@ -4,7 +4,6 @@ import * as Haptics from 'expo-haptics';
 import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { PosIdleScreen } from '@/components/PosIdleScreen';
 import {
   ActivityIndicator, Animated, Alert, FlatList, Image, Keyboard,
   KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
@@ -66,7 +65,6 @@ const PRESET_COLORS = [
 const CAT_COLORS_KEY           = 'pos_category_colors';
 const DISCOUNT_PRESETS_KEY     = 'pos_discount_presets';
 const HELD_TICKETS_KEY         = 'pos_held_tickets';
-const IDLE_TIMEOUT_MS          = 60_000;   // 60 s of inactivity → ambient screen
 const VOID_PIN_THRESHOLD_CENTS = 5_000;    // $50 — ticket voids above this need supervisor PIN
 function getDefaultCatColor(cat: string): string {
   return CATEGORY_COLORS[cat.toLowerCase()] ?? '#64748B';
@@ -289,9 +287,6 @@ function PosScreenInner() {
     splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];
   } | null>(null);
   const [showVoidSheet, setShowVoidSheet]   = useState(false);
-  const [showIdle,      setShowIdle]         = useState(false);
-  const lastActivityRef                      = useRef<number>(Date.now());
-  const ticketIsEmptyRef                     = useRef<boolean>(true);
   const [registerApprovalPrompt, setRegisterApprovalPrompt] = useState<null | {
     mode: 'movement' | 'close';
     payload: any;
@@ -374,19 +369,6 @@ function PosScreenInner() {
     AsyncStorage.setItem(HELD_TICKETS_KEY, JSON.stringify({ tickets, activeIdx }));
   }, [tickets, activeIdx]);
 
-  // ── Idle / ambient screen timer ──────────────────────────────────────────────
-  // Only triggers when the ticket is empty — never interrupts an active sale
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (
-        Date.now() - lastActivityRef.current >= IDLE_TIMEOUT_MS &&
-        ticketIsEmptyRef.current
-      ) {
-        setShowIdle(prev => prev ? prev : true);
-      }
-    }, 5_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const saveCatColor = useCallback((cat: string, color: string | null) => {
     setCustomCatColors(prev => {
@@ -1035,13 +1017,9 @@ function PosScreenInner() {
   const total = ticketTotal(activeTicket);
   const itemCount = activeTicket.items.reduce((s, i) => s + i.quantity, 0);
 
-  // Keep idle-timer ref in sync so it never fires while a sale is in progress
-  ticketIsEmptyRef.current = activeTicket.items.length === 0;
-
   return (
     <View
       style={[styles.root, { paddingTop: layoutHandledSafeArea ? 0 : insets.top }]}
-      onTouchStart={() => { lastActivityRef.current = Date.now(); }}
     >
       {/* ── Sync toast ──────────────────────────────────────────────────────── */}
       {!!syncToast && (
@@ -1495,18 +1473,6 @@ function PosScreenInner() {
               setShowVoidSheet(false);
               voidOrderMutation.mutate({ id: lastOrderId, supervisorPin });
             }
-          }}
-        />
-      )}
-
-      {/* ── Idle / ambient screen ───────────────────────────────────────────── */}
-      {showIdle && (
-        <PosIdleScreen
-          products={allProducts}
-          dailySpecial={(storeData as any)?.dailySpecial ?? null}
-          onDismiss={() => {
-            lastActivityRef.current = Date.now();
-            setShowIdle(false);
           }}
         />
       )}
