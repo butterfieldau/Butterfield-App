@@ -348,9 +348,11 @@ export default function LoyaltyScreen() {
 function LoyaltyContent() {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
-  // section paddingH 16×2=32, card padding 14×2=28 → 60px consumed; gap 8×5=40
-  const STAMP_GAP = 8;
-  const stampSize = Math.min(52, Math.floor((screenWidth - 60 - STAMP_GAP * 5) / 6));
+  // section paddingH 16×2=32, card padding 14×2=28 → 60px consumed
+  // Keep the cups slightly larger on roomy screens while still fitting neatly
+  // on smaller phones.
+  const STAMP_GAP = screenWidth < 380 ? 6 : 10;
+  const stampSize = Math.min(58, Math.max(40, Math.floor((screenWidth - 60 - STAMP_GAP * 5) / 6)));
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -698,7 +700,7 @@ function LoyaltyContent() {
                   <Text style={styles.freeCoffeeBadgeLabel}>free</Text>
                 </View>
               </View>
-              <View style={[styles.coffeeStampRow, { gap: STAMP_GAP }]}>
+              <View style={[styles.coffeeStampRow, { columnGap: STAMP_GAP }]}>
                 {[0, 1, 2, 3, 4, 5].map((index) => {
                   const filled = index < stampCount;
                   return (
@@ -1155,9 +1157,10 @@ const styles = StyleSheet.create({
   freeCoffeeBadgeLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 10, fontWeight: '600' },
   coffeeStampRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginVertical: 10,
+    width: '100%',
   },
   walletScroll: { gap: 12, paddingRight: 12 },
   walletCard: {
