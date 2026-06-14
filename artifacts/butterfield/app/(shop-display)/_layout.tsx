@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -8,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin } from '@/lib/shopDisplayMode';
+import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
@@ -20,6 +21,87 @@ const BLUE  = '#1493FF';
 const NAVY  = '#1A2B4A';
 const WHITE = '#FFFFFF';
 const MUTED = '#9CA3AF';
+const TEXT  = '#1C1C1E';
+
+type NewOrderBannerOrder = { customerName: string; orderNumber: string };
+
+function NewOrderAlertOverlay({
+  visible,
+  order,
+  onDismiss,
+  soundEnabled,
+}: {
+  visible: boolean;
+  order: NewOrderBannerOrder | null;
+  onDismiss: () => void;
+  soundEnabled: boolean;
+}) {
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+      return;
+    }
+    let cancelled = false;
+    Audio.Sound.createAsync(
+      require('@/assets/sounds/new-order-alert.wav'),
+      { isLooping: true, shouldPlay: false },
+    ).then(({ sound }) => {
+      if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
+      soundRef.current = sound;
+      if (soundEnabled) {
+        sound.playAsync().catch(() => {});
+      }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (soundRef.current) {
+        soundRef.current.stopAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    };
+  }, [visible, soundEnabled]);
+
+  if (!visible || !order) return null;
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+    >
+      <Pressable style={sAlert.backdrop} onPress={onDismiss}>
+        <View style={sAlert.card}>
+          <View style={sAlert.iconWrap}>
+            <Feather name="bell" size={40} color={NAVY} />
+          </View>
+          <Text style={sAlert.title}>New Order</Text>
+          <Text style={sAlert.name}>{order.customerName}</Text>
+          <Text style={sAlert.orderNum}>{order.orderNumber}</Text>
+          <Text style={sAlert.hint}>Tap anywhere to dismiss</Text>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const sAlert = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  card:     { backgroundColor: '#fff', borderRadius: 28, padding: 36, alignItems: 'center', gap: 10, width: '100%', maxWidth: 360, borderWidth: 3, borderColor: NAVY },
+  iconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  title:    { fontSize: 30, fontWeight: '900', color: NAVY },
+  name:     { fontSize: 20, fontWeight: '700', color: TEXT },
+  orderNum: { fontSize: 15, fontWeight: '600', color: MUTED },
+  hint:     { fontSize: 13, color: MUTED, marginTop: 10 },
+});
 
 const NAV_ITEMS = [
   { segment: 'pos',       label: 'POS',          icon: 'monitor'      as const },
@@ -59,7 +141,62 @@ export default function ShopDisplayLayout() {
     refetchInterval: 15_000,
     staleTime: 10_000,
   });
-  const receivedCount = (ordersData?.data ?? []).filter((o: { status: string }) => o.status === 'received').length;
+  const layoutRows: Array<{ id: string; status: string; customerName?: string; orderNumber?: string; createdAt?: string }> = ordersData?.data ?? [];
+  const receivedCount = layoutRows.filter(o => o.status === 'received').length;
+
+  // ── New-order popup + sound (layout-level so it fires on any tab) ──────────
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showNewOrderBanner, setShowNewOrderBanner] = useState(false);
+  const [newOrderBannerOrder, setNewOrderBannerOrder] = useState<NewOrderBannerOrder | null>(null);
+  const seenRef    = useRef<Record<string, string>>({});
+  const bootedRef  = useRef(false);
+  const mountTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    getShopDisplaySoundEnabled().then(setSoundEnabled).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const currentMap: Record<string, string> = {};
+    for (const o of layoutRows) currentMap[o.id] = o.status;
+    if (!bootedRef.current) {
+      if (layoutRows.length === 0) return;
+      seenRef.current = currentMap;
+      bootedRef.current = true;
+      const mountMs = mountTimeRef.current;
+      const freshOnBoot = layoutRows.find(o => {
+        if (o.status !== 'received') return false;
+        const ts = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+        return ts >= mountMs - 2000;
+      });
+      if (freshOnBoot) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setShowNewOrderBanner(prev => {
+          if (prev) return prev;
+          setNewOrderBannerOrder({
+            customerName: freshOnBoot.customerName ?? 'Customer',
+            orderNumber: freshOnBoot.orderNumber ?? `#${freshOnBoot.id.slice(0, 6).toUpperCase()}`,
+          });
+          return true;
+        });
+      }
+      return;
+    }
+    const prev = seenRef.current;
+    const fresh = layoutRows.find(o => !prev[o.id] && o.status === 'received');
+    if (fresh) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setShowNewOrderBanner(prev => {
+        if (prev) return prev;
+        setNewOrderBannerOrder({
+          customerName: fresh.customerName ?? 'Customer',
+          orderNumber: fresh.orderNumber ?? `#${fresh.id.slice(0, 6).toUpperCase()}`,
+        });
+        return true;
+      });
+    }
+    seenRef.current = currentMap;
+  }, [layoutRows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Global screensaver ───────────────────────────────────────────────────────
   const lastIdleRef = useRef<number>(Date.now());
@@ -516,6 +653,17 @@ export default function ShopDisplayLayout() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── New order alert — layout-level so it fires on any tab ─── */}
+      <NewOrderAlertOverlay
+        visible={showNewOrderBanner}
+        order={newOrderBannerOrder}
+        onDismiss={() => {
+          setShowNewOrderBanner(false);
+          setNewOrderBannerOrder(null);
+        }}
+        soundEnabled={soundEnabled}
+      />
     </View>
   );
 }

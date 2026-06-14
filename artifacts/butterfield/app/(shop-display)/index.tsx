@@ -1,5 +1,4 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
@@ -24,7 +23,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { LinklyTransactionStatus, ShopDisplayOrder } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
-import { getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 import { sendReceiptPrint, sendOpenDrawer, orderToPrintJob } from '@/lib/printer';
 import { isStoreOpenForAsap } from '@/lib/storeSchedule';
 
@@ -170,86 +168,6 @@ function orderSubtitle(order: ShopDisplayOrder) {
   ].filter(Boolean).join(' · ');
 }
 
-type NewOrderBannerOrder = { customerName: string; orderNumber: string };
-
-function NewOrderAlertOverlay({
-  visible,
-  order,
-  onDismiss,
-  soundEnabled,
-}: {
-  visible: boolean;
-  order: NewOrderBannerOrder | null;
-  onDismiss: () => void;
-  soundEnabled: boolean;
-}) {
-  const soundRef = useRef<Audio.Sound | null>(null);
-
-  useEffect(() => {
-    if (!visible) {
-      if (soundRef.current) {
-        soundRef.current.stopAsync().catch(() => {});
-        soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
-      return;
-    }
-    let cancelled = false;
-    Audio.Sound.createAsync(
-      require('@/assets/sounds/new-order-alert.wav'),
-      { isLooping: true, shouldPlay: false },
-    ).then(({ sound }) => {
-      if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
-      soundRef.current = sound;
-      if (soundEnabled) {
-        sound.playAsync().catch(() => {});
-      }
-    }).catch(() => {});
-    return () => {
-      cancelled = true;
-      if (soundRef.current) {
-        soundRef.current.stopAsync().catch(() => {});
-        soundRef.current.unloadAsync().catch(() => {});
-        soundRef.current = null;
-      }
-    };
-  }, [visible, soundEnabled]);
-
-  if (!visible || !order) return null;
-
-  return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
-      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
-    >
-      <Pressable style={sAlert.backdrop} onPress={onDismiss}>
-        <View style={sAlert.card}>
-          <View style={sAlert.iconWrap}>
-            <Feather name="bell" size={40} color={NAVY} />
-          </View>
-          <Text style={sAlert.title}>New Order</Text>
-          <Text style={sAlert.name}>{order.customerName}</Text>
-          <Text style={sAlert.orderNum}>{order.orderNumber}</Text>
-          <Text style={sAlert.hint}>Tap anywhere to dismiss</Text>
-        </View>
-      </Pressable>
-    </Modal>
-  );
-}
-
-const sAlert = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  card:     { backgroundColor: '#fff', borderRadius: 28, padding: 36, alignItems: 'center', gap: 10, width: '100%', maxWidth: 360, borderWidth: 3, borderColor: NAVY },
-  iconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  title:    { fontSize: 30, fontWeight: '900', color: NAVY },
-  name:     { fontSize: 20, fontWeight: '700', color: TEXT },
-  orderNum: { fontSize: 15, fontWeight: '600', color: MUTED },
-  hint:     { fontSize: 13, color: MUTED, marginTop: 10 },
-});
-
 export default function ShopDisplayOrdersScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
@@ -258,9 +176,6 @@ export default function ShopDisplayOrdersScreen() {
 
   const qc = useQueryClient();
   const [alertOrderId, setAlertOrderId] = useState<string | null>(null);
-  const [showNewOrderBanner, setShowNewOrderBanner] = useState(false);
-  const [newOrderBannerOrder, setNewOrderBannerOrder] = useState<NewOrderBannerOrder | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [filterMode, setFilterMode] = useState<OrderFilterMode>('today');
   const [queueMode, setQueueMode] = useState<QueueMode>('active');
   const [selectedDate, setSelectedDate] = useState(() => startOfSydneyDay(new Date()));
@@ -279,10 +194,6 @@ export default function ShopDisplayOrdersScreen() {
   const [eftposStarting, setEftposStarting] = useState(false);
   const [eftposStatus, setEftposStatus] = useState<LinklyTransactionStatus | null>(null);
   const eftposIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const seenRef = useRef<Record<string, string>>({});
-  const bootedRef = useRef(false);
-  const mountTimeRef = useRef(Date.now());
-
 
   const { data: productsData } = useQuery({
     queryKey: ['shop-display-products'],
@@ -290,10 +201,6 @@ export default function ShopDisplayOrdersScreen() {
     staleTime: 5 * 60_000,
   });
   const allProducts: any[] = (productsData as any)?.data ?? [];
-
-  useEffect(() => {
-    getShopDisplaySoundEnabled().then(setSoundEnabled).catch(() => {});
-  }, []);
 
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['shop-display-orders'],
@@ -362,51 +269,6 @@ export default function ShopDisplayOrdersScreen() {
     });
   }, [rows, searchQuery]);
 
-  useEffect(() => {
-    const currentMap: Record<string, string> = {};
-    for (const o of rows) currentMap[o.id] = o.status;
-    if (!bootedRef.current) {
-      if (rows.length === 0) return; // wait for first real data
-      // Seed seen-list from snapshot, but still alert on any 'received' orders
-      // that were created at or after mount time (placed while screen was loading).
-      seenRef.current = currentMap;
-      bootedRef.current = true;
-      const mountMs = mountTimeRef.current;
-      const freshOnBoot = rows.find(o => {
-        if (o.status !== 'received') return false;
-        const ts = o.createdAt ? new Date(o.createdAt).getTime() : 0;
-        return ts >= mountMs - 2000; // 2 s buffer for clock skew
-      });
-      if (freshOnBoot) {
-        setAlertOrderId(freshOnBoot.id);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        setShowNewOrderBanner(prev => {
-          if (prev) return prev;
-          setNewOrderBannerOrder({
-            customerName: freshOnBoot.customerName ?? 'Customer',
-            orderNumber: freshOnBoot.orderNumber ?? `#${freshOnBoot.id.slice(0, 6).toUpperCase()}`,
-          });
-          return true;
-        });
-      }
-      return;
-    }
-    const prev = seenRef.current;
-    const fresh = rows.find(o => !prev[o.id] && o.status === 'received');
-    if (fresh) {
-      setAlertOrderId(fresh.id);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      setShowNewOrderBanner(prev => {
-        if (prev) return prev;
-        setNewOrderBannerOrder({
-          customerName: fresh.customerName ?? 'Customer',
-          orderNumber: fresh.orderNumber ?? `#${fresh.id.slice(0, 6).toUpperCase()}`,
-        });
-        return true;
-      });
-    }
-    seenRef.current = currentMap;
-  }, [rows]);
 
   const queueCounts = useMemo(() => ({
     active: dateFilteredRows.filter((order) => ACTIVE_STATUSES.includes(order.status as (typeof ACTIVE_STATUSES)[number])).length,
@@ -1301,16 +1163,6 @@ export default function ShopDisplayOrdersScreen() {
         );
       })() : null}
 
-      {/* ── New Order Alert Overlay ──────────────────────────────── */}
-      <NewOrderAlertOverlay
-        visible={showNewOrderBanner}
-        order={newOrderBannerOrder}
-        onDismiss={() => {
-          setShowNewOrderBanner(false);
-          setNewOrderBannerOrder(null);
-        }}
-        soundEnabled={soundEnabled}
-      />
     </View>
   );
 }
