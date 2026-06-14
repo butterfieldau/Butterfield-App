@@ -24,12 +24,12 @@ function formatTime12h(time: string): string {
 }
 
 const router = Router();
-// Directors and masters pass through unconditionally; managers require timesheets permission.
 router.use(requireRole('director', 'manager', 'master'));
-router.use(requireManagerPermission('timesheets'));
+
+const requireTimesheets = requireManagerPermission('timesheets');
 
 // GET /director/roster?weekStart=YYYY-MM-DD
-router.get('/roster', async (req, res) => {
+router.get('/roster', requireTimesheets, async (req, res) => {
   const { weekStart } = req.query as Record<string, string>;
 
   let shifts;
@@ -81,7 +81,7 @@ router.get('/roster', async (req, res) => {
 });
 
 // POST /director/roster
-router.post('/roster', async (req, res) => {
+router.post('/roster', requireTimesheets, async (req, res) => {
   const { userId, date, startTime, endTime, role, notes } = req.body;
   if (!userId || !date || !startTime || !endTime) {
     return res.status(400).json({ error: 'userId, date, startTime, endTime are required.' });
@@ -117,7 +117,7 @@ router.post('/roster', async (req, res) => {
 });
 
 // PATCH /director/roster/:id
-router.patch('/roster/:id', async (req, res) => {
+router.patch('/roster/:id', requireTimesheets, async (req, res) => {
   const { id } = req.params;
   const { userId, date, startTime, endTime, role, notes, isConfirmed } = req.body;
 
@@ -150,14 +150,14 @@ router.patch('/roster/:id', async (req, res) => {
 });
 
 // DELETE /director/roster/:id
-router.delete('/roster/:id', async (req, res) => {
+router.delete('/roster/:id', requireTimesheets, async (req, res) => {
   const [shift] = await db.delete(staffRosterTable).where(eq(staffRosterTable.id, req.params.id)).returning();
   if (!shift) return res.status(404).json({ error: 'Shift not found.' });
   return res.json({ success: true });
 });
 
 // GET /director/roster/staff — list staff available to roster
-router.get('/roster/staff', async (req, res) => {
+router.get('/roster/staff', requireTimesheets, async (req, res) => {
   const staffRows = await db.select({
     id: usersTable.id,
     name: usersTable.name,
