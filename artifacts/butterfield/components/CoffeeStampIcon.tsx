@@ -1,0 +1,76 @@
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import { SvgXml } from 'react-native-svg';
+
+const COFFEE_STAMP_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+<svg fill="currentColor" id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 578 688.9">
+  <path d="M424.9,684l-269-.2c-39.7,0-71.3-32.7-75.2-71.8L34.5,151.1H.8c-.8-13.7-1.6-27.1,1-40,3.3-16.1,17-25.9,33.1-24.2l.5-30.2c.6-36,36.9-61.6,70.8-61.6h367.5c14.3,0,27.6,5.4,39.1,12.2,18.1,10.7,30,29.7,30.3,50.7l.4,29.1c16.1-1.4,30.3,8.1,33,24.6,2.1,12.6,1.5,25.7,1,39.2l-34.9.6-47.1,465c-3.7,36.5-35.2,63.6-70.7,67.5ZM291.5,650.9l135.3-1c20.5-4.5,34.9-22,35.6-43.2l37.7-376.8,7.7-78.9H69.1c0,0,27.3,272.9,27.3,272.9l18.3,183.3c1.5,23.4,19.4,43.2,43,43.2l90.5.2,43.3.3Z"/>
+  <g>
+    <path d="M209.4,451.3l-.2-33.6c-4.5,7.4-8.2,14.7-12.2,22.1h-7.8s-12.1-22-12.1-22v33.4c-.1,0-9.2,0-9.2,0v-54.6s8.2,0,8.2,0l16.9,31.7,16.9-31.7h8.2c0,0,0,54.6,0,54.6h-8.8Z"/>
+    <polygon points="429.3 370.3 421 370.3 394.4 332.4 394.2 370.4 385.4 370.3 385.4 315.7 393.8 315.7 420.5 353.9 420.6 315.7 429.3 315.7 429.3 370.3"/>
+    <polygon points="364.7 346.8 337.2 346.8 337.3 361.9 365.6 361.9 365.6 370.3 328.5 370.3 328.5 315.7 365.6 315.7 365.6 324 337.3 324.1 337.2 338.1 364.7 338.1 364.7 346.8"/>
+    <polygon points="353.4 427.8 326 427.8 326 442.8 354.2 442.8 354.3 451.3 317.2 451.3 317.2 396.6 354.2 396.6 354.2 405 326 405 326 419.3 353.4 419.3 353.4 427.8"/>
+    <polygon points="246.3 346.8 219 346.8 219.1 361.9 247.2 361.9 247.3 370.4 210.3 370.3 210.3 315.7 247.2 315.7 247.3 324.1 219 324.1 219.1 338.1 246.3 338.1 246.3 346.8"/>
+    <path d="M183.7,367.9c-11,6.5-27.4,3.6-34.9-7.9l6.4-6.3c4.7,8.3,15.4,11.5,23.8,7.2s4.2-5.1,3.1-7.8-4-4.4-6.8-5l-10.9-2.2c-5-1-9.7-4-12-8.5-3.2-6.4-1.4-14,4.1-18.1,9.9-7.5,25.8-5.4,33.6,5.2l-6.1,6.5c-4.8-7.2-14.1-10-21.4-5.7s-3.3,3.9-3.1,6.1c.9,8.4,15,5.4,24.1,10.7s7.5,7.6,7.6,12.9-2.5,10.1-7.4,13Z"/>
+    <path d="M409.7,445c-6.6,8.1-18.9,8.8-28.5,4.9s-7.7-4.9-10.7-8.8l6.1-6.5c2.6,3.7,5.2,6.4,9,7.8,8.2,2.9,18.2.8,18.4-6.2,0-2.5-1.6-5-4.3-6.2-5.8-2.6-13.8-1.7-20.3-5.8-4.7-3-7.3-7.6-7.1-12.9.2-5,2.8-9.9,7.6-12.5,10.6-5.8,24.1-3.3,31.6,6.4l-6.1,6.7c-4.2-6.6-12.3-9.4-19.6-6.7-2,.8-3.7,2.4-4.2,3.9-.9,2.2-.6,4.8,1.1,6.5s4.2,2.5,6.6,3l10.9,2.2c4.2.9,8.1,3.4,10.4,7.1s3,12.3-.8,17.1Z"/>
+    <polygon points="303.3 315.7 312.7 315.7 293.2 370.3 284.5 370.3 264.9 315.7 274.3 315.7 289 356.6 303.3 315.7"/>
+    <path d="M300.9,443v8.3s-37.1,0-37.1,0c0-1.7.2-3,.8-4.5l19.9-50.1h9.7s-18.7,46.3-18.7,46.3h25.3Z"/>
+    <polygon points="248.9 451.2 240.1 451.3 240.1 396.7 248.9 396.6 248.9 451.2"/>
+  </g>
+</svg>`;
+
+function withColor(color: string) {
+  return COFFEE_STAMP_SVG.replace('fill="currentColor"', `fill="${color}"`);
+}
+
+export function CoffeeStampIcon({
+  size,
+  color,
+}: {
+  size: number;
+  color: string;
+}) {
+  const width = Math.round(size * 0.84);
+  return <SvgXml xml={withColor(color)} width={width} height={size} />;
+}
+
+export function CoffeeStampToken({
+  size,
+  filled,
+}: {
+  size: number;
+  filled: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.token,
+        filled ? styles.tokenFilled : styles.tokenEmpty,
+        { width: Math.round(size * 0.88), height: size, borderRadius: Math.round(size * 0.22) },
+      ]}
+    >
+      <CoffeeStampIcon size={Math.round(size * 0.72)} color={filled ? '#0A67EC' : 'rgba(255,255,255,0.54)'} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  token: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  tokenFilled: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0A67EC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tokenEmpty: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+});

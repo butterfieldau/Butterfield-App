@@ -24,6 +24,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ClaimedReward, type LoyaltyReward } from '@/lib/api';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
+import { CoffeeStampIcon, CoffeeStampToken } from '@/components/CoffeeStampIcon';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { getNextTierBySpend, getTierBySpendCents, type TierKey } from '@/constants/tierConfig';
@@ -326,7 +327,7 @@ function StampCelebrateOverlay({ visible, onClose }: { visible: boolean; onClose
                 },
               ]}
             >
-              <Feather name="coffee" size={18} color="#0A67EC" />
+              <CoffeeStampIcon size={24} color="#0A67EC" />
             </Animated.View>
           ))}
         </View>
@@ -350,8 +351,6 @@ function LoyaltyContent() {
   // section paddingH 16×2=32, card padding 14×2=28 → 60px consumed; gap 8×5=40
   const STAMP_GAP = 8;
   const stampSize = Math.min(52, Math.floor((screenWidth - 60 - STAMP_GAP * 5) / 6));
-  const stampIconSize = Math.round(stampSize * 0.42);   // ~22 at max
-  const stampDotSize  = Math.round(stampSize * 0.27);   // ~14 at max
   const qc = useQueryClient();
   const [showQR, setShowQR] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -706,14 +705,10 @@ function LoyaltyContent() {
                     <Animated.View
                       key={index}
                       style={[
-                        styles.miniStampBubble,
-                        filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
-                        { width: stampSize, height: stampSize, borderRadius: stampSize / 2, transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
+                        { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
                       ]}
                     >
-                      {filled
-                        ? <Feather name="coffee" size={stampIconSize} color="#0A67EC" />
-                        : <View style={[styles.miniStampDot, { width: stampDotSize, height: stampDotSize, borderRadius: stampDotSize / 2 }]} />}
+                      <CoffeeStampToken size={stampSize} filled={filled} />
                     </Animated.View>
                   );
                 })}
@@ -1164,10 +1159,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 10,
   },
-  miniStampBubble: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  miniStampBubbleFilled: { backgroundColor: WHITE },
-  miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
-  miniStampDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
   walletScroll: { gap: 12, paddingRight: 12 },
   walletCard: {
     width: 232,
