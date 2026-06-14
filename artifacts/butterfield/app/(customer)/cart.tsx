@@ -1122,6 +1122,16 @@ function CartContent() {
     staleTime: 5 * 60_000,
   });
 
+  const cartProductIdsKey = items.map((i) => i.productId).join(',');
+  const cartSuggestedProducts = useMemo(() => {
+    const allProducts = allProductsData?.data ?? [];
+    if (allProducts.length === 0 || items.length === 0) return [];
+    const cartProductIds = items.map((i) => i.productId);
+    const cartCategories = items.map((i) => i.category ?? '').filter(Boolean);
+    return getSuggestedProductsForCart(cartProductIds, cartCategories, allProducts, 2);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartProductIdsKey, allProductsData]);
+
   const [step, setStep]                       = useState(0);
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
   const [selectedDate, setSelectedDate]       = useState<Date | null>(null);
@@ -1706,24 +1716,17 @@ function CartContent() {
       })}
 
       {/* ── You may also like ─────────────────────────────────────────── */}
-      {(() => {
-        const allProducts = allProductsData?.data ?? [];
-        if (allProducts.length === 0 || items.length === 0) return null;
-        const cartProductIds = items.map((i) => i.productId);
-        const cartCategories = items.map((i) => i.category ?? '').filter(Boolean);
-        const suggestions = getSuggestedProductsForCart(cartProductIds, cartCategories, allProducts, 2);
-        if (suggestions.length === 0) return null;
-        return (
-          <View style={{ marginBottom: 16 }}>
-            <Text style={[styles.sectionLabel, { fontWeight: '700', marginBottom: 10, fontSize: 13, color: '#1C1C1E', letterSpacing: 0 }]}>
-              You may also like
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-            >
-              {suggestions.map((p) => (
+      {cartSuggestedProducts.length > 0 && (
+        <View style={{ marginBottom: 16 }}>
+          <Text style={[styles.sectionLabel, { fontWeight: '700', marginBottom: 10, fontSize: 13, color: '#1C1C1E', letterSpacing: 0 }]}>
+            You may also like
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+          >
+            {cartSuggestedProducts.map((p) => (
                 <SuggestionTile
                   key={p.id}
                   product={p}
@@ -1748,8 +1751,7 @@ function CartContent() {
               ))}
             </ScrollView>
           </View>
-        );
-      })()}
+        )}
 
       <View style={[styles.summaryCard, { backgroundColor: CARD, borderColor: BORDER }]}>
         <View style={styles.summaryRow}>

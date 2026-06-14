@@ -186,6 +186,13 @@ export default function ProductDetailScreen() {
   // refetches don't produce new array references. Options are sorted by sortOrder then id
   // as a stable tiebreaker, preventing visual shuffling if the API returns rows in a
   // different order on subsequent fetches.
+  const suggestedProducts = useMemo(() => {
+    const allProducts = allProductsData?.data ?? [];
+    if (allProducts.length === 0 || !product) return [];
+    return getSuggestedProducts(product as any, allProducts, [], 4);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id, allProductsData]);
+
   const optGroups: ProductOptionGroup[] = useMemo(() => {
     const groups = fetchedProduct?.optionGroups ?? [];
     return groups.map((g) => ({
@@ -660,47 +667,41 @@ export default function ProductDetailScreen() {
             ) : null}
 
             {/* ── You may also like ────────────────────────────────────────── */}
-            {(() => {
-              const allProducts = allProductsData?.data ?? [];
-              if (allProducts.length === 0 || !product) return null;
-              const suggestions = getSuggestedProducts(product as any, allProducts, [], 4);
-              if (suggestions.length === 0) return null;
-              return (
-                <View style={{ marginTop: 24, marginBottom: 4 }}>
-                  <Text style={[s.sectionTitle, { fontWeight: '700', marginBottom: 12 }]}>
-                    You may also like
-                  </Text>
-                  <FlatList
-                    horizontal
-                    data={suggestions}
-                    keyExtractor={(p) => p.id}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ gap: 10, paddingRight: 4 }}
-                    renderItem={({ item: p }) => (
-                      <SuggestionTile
-                        product={p}
-                        onPress={() => {
-                          setSelectedProduct(p);
-                          router.push({ pathname: '/product', params: { id: p.id } } as any);
-                        }}
-                        onAddToCart={() => {
-                          addItemToCart({
-                            productId:       p.id,
-                            productName:     p.name,
-                            basePriceCents:  getProductPriceCents(p),
-                            selectedOptions: [],
-                            quantity:        1,
-                            imageUrl:        p.images?.[0],
-                            category:        getProductCategory(p),
-                            isCoffee:        false,
-                          });
-                        }}
-                      />
-                    )}
-                  />
-                </View>
-              );
-            })()}
+            {suggestedProducts.length > 0 && (
+              <View style={{ marginTop: 24, marginBottom: 4 }}>
+                <Text style={[s.sectionTitle, { fontWeight: '700', marginBottom: 12 }]}>
+                  You may also like
+                </Text>
+                <FlatList
+                  horizontal
+                  data={suggestedProducts}
+                  keyExtractor={(p) => p.id}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+                  renderItem={({ item: p }) => (
+                    <SuggestionTile
+                      product={p}
+                      onPress={() => {
+                        setSelectedProduct(p);
+                        router.push({ pathname: '/product', params: { id: p.id } } as any);
+                      }}
+                      onAddToCart={() => {
+                        addItemToCart({
+                          productId:       p.id,
+                          productName:     p.name,
+                          basePriceCents:  getProductPriceCents(p),
+                          selectedOptions: [],
+                          quantity:        1,
+                          imageUrl:        p.images?.[0],
+                          category:        getProductCategory(p),
+                          isCoffee:        false,
+                        });
+                      }}
+                    />
+                  )}
+                />
+              </View>
+            )}
 
           </ScrollView>
 
