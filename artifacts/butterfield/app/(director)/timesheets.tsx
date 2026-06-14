@@ -1070,7 +1070,7 @@ const sc = StyleSheet.create({
   // Header buttons
   exportBtn:     { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BLUE, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   exportBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  addBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: INDIGO, alignItems: 'center', justifyContent: 'center' },
+  addBtn:        { width: 36, height: 36, borderRadius: 18, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
 });
 
 
