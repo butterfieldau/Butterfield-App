@@ -2434,7 +2434,8 @@ const styles = StyleSheet.create({
                   shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   // Pickup time wheel picker card
   pickerCard:     { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12,
-                    marginTop: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+                    marginTop: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+                    alignItems: 'center' },
   // Delivery date cards (matches wholesale layout)
   deliveryDateCard: { flex: 1, borderRadius: 14, padding: 14, gap: 3 },
   // No slots message
