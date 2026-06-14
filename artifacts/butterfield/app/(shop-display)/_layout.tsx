@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { Asset } from 'expo-asset';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -46,9 +47,15 @@ function NewOrderAlertOverlay({
   soundEnabled: boolean;
 }) {
   const soundRef = useRef<Audio.Sound | null>(null);
+  const webAudioRef = useRef<any>(null);
 
   useEffect(() => {
     if (!visible) {
+      if (webAudioRef.current) {
+        webAudioRef.current.pause();
+        webAudioRef.current.currentTime = 0;
+        webAudioRef.current = null;
+      }
       if (soundRef.current) {
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
@@ -59,6 +66,28 @@ function NewOrderAlertOverlay({
     let cancelled = false;
     (async () => {
       try {
+        const alertSoundModule = require('@/assets/sounds/app-sales-order-alert.wav');
+        if (Platform.OS === 'web') {
+          const asset = Asset.fromModule(alertSoundModule);
+          if (!asset.localUri && !asset.uri) {
+            await asset.downloadAsync();
+          }
+          const src = asset.localUri || asset.uri;
+          if (!src) throw new Error('App Sales alert sound URL missing');
+          const WebAudio = (globalThis as { Audio?: new (src?: string) => any }).Audio;
+          if (!WebAudio) throw new Error('Web audio is unavailable on this device');
+          const audioEl = new WebAudio(src);
+          audioEl.loop = true;
+          audioEl.preload = 'auto';
+          audioEl.volume = 1;
+          webAudioRef.current = audioEl;
+          if (soundEnabled) {
+            await audioEl.play();
+          }
+          return;
+        }
+
+        await Audio.setIsEnabledAsync(true);
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
           allowsRecordingIOS: false,
@@ -68,19 +97,33 @@ function NewOrderAlertOverlay({
           interruptionModeAndroid: Audio.InterruptionModeAndroid.DuckOthers,
           playThroughEarpieceAndroid: false,
         });
-        const { sound } = await Audio.Sound.createAsync(
-          require('@/assets/sounds/app-sales-order-alert.wav'),
-          { isLooping: true, shouldPlay: soundEnabled, volume: 1 },
+        const sound = new Audio.Sound();
+        await sound.loadAsync(
+          alertSoundModule,
+          { shouldPlay: false, volume: 1 },
+          true,
         );
         if (cancelled) {
           sound.unloadAsync().catch(() => {});
           return;
         }
+        await sound.setIsLoopingAsync(true);
+        await sound.setVolumeAsync(1);
         soundRef.current = sound;
-      } catch {}
+        if (soundEnabled) {
+          await sound.playFromPositionAsync(0);
+        }
+      } catch (error) {
+        console.warn('App Sales order alert sound failed to start', error);
+      }
     })();
     return () => {
       cancelled = true;
+      if (webAudioRef.current) {
+        webAudioRef.current.pause();
+        webAudioRef.current.currentTime = 0;
+        webAudioRef.current = null;
+      }
       if (soundRef.current) {
         soundRef.current.stopAsync().catch(() => {});
         soundRef.current.unloadAsync().catch(() => {});
