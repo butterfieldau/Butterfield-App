@@ -50,8 +50,10 @@ import { getPalette } from '@/constants/categoryColors';
 import {
   getStoreAsapUnavailableReason,
   getStorePickupDates,
+  getStorePickupTimeMins,
   isStoreOpenForAsap,
 } from '@/lib/storeSchedule';
+import PickupTimeWheelPicker from '@/components/PickupTimeWheelPicker';
 
 const BG       = '#EFF6FF';
 const CARD     = '#FFFFFF';
@@ -72,12 +74,6 @@ const TABS = [
 
 const DELIVERY_FEE_CENTS = 1200;
 
-const PICKUP_WINDOWS = [
-  { label: '9am – 12pm',  startMins: 9  * 60 },
-  { label: '12pm – 3pm',  startMins: 12 * 60 },
-  { label: '5pm – 7pm',   startMins: 17 * 60 },
-  { label: '7pm – 9pm',   startMins: 19 * 60 },
-];
 const STRIPE_CARD_RATE = 0.017;
 const STRIPE_CARD_FIXED_FEE_CENTS = 30;
 const DELIVERY_ELIGIBLE_CATEGORIES = new Set(['cookies', 'boxes', 'merch']);
@@ -91,6 +87,14 @@ function calcTotals(subtotalCents: number, step: number, orderType: 'pickup' | '
   const base      = subtotalCents + deliv;
   const stripeFee = paymentMethod === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(base);
   return { deliv, stripeFee, total: base + stripeFee };
+}
+
+function formatPickupMins(totalMins: number): string {
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const ampm = h >= 12 ? 'pm' : 'am';
+  return `${h12}:${String(m).padStart(2, '0')}${ampm}`;
 }
 
 function SectionLabel({ title }: { title: string }) {
@@ -1136,7 +1140,6 @@ function CartContent() {
   const [orderType, setOrderType]             = useState<'pickup' | 'delivery'>('pickup');
   const [selectedDate, setSelectedDate]       = useState<Date | null>(null);
   const [selectedTimeMins, setSelectedTimeMins] = useState<number | null>(null);
-  const [pickupWindow, setPickupWindow]         = useState<string | null>(null);
   const [pickupMode, setPickupMode]           = useState<'asap' | 'scheduled'>('scheduled');
   const [street, setStreet]                   = useState('');
   const [suburb, setSuburb]                   = useState('');
@@ -1338,9 +1341,26 @@ function CartContent() {
     if (!dateStillAvailable) {
       setSelectedDate(null);
       setSelectedTimeMins(null);
-      setPickupWindow(null);
     }
   }, [orderType, pickupDates, selectedDate]);
+
+  const validSlots = useMemo(() => {
+    if (!selectedDate || orderType !== 'pickup' || pickupMode !== 'scheduled') return [];
+    return getStorePickupTimeMins(selectedStore, selectedDate, sydNow);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedStore, orderType, pickupMode]);
+
+  useEffect(() => {
+    if (orderType !== 'pickup' || pickupMode !== 'scheduled') return;
+    if (validSlots.length > 0) {
+      setSelectedTimeMins(prev => {
+        if (prev !== null && validSlots.includes(prev)) return prev;
+        return validSlots[0];
+      });
+    } else {
+      setSelectedTimeMins(null);
+    }
+  }, [validSlots, orderType, pickupMode]);
 
   // Guard delivery date — clear if it falls outside the available Mon/Thu slots
   useEffect(() => {
@@ -1359,8 +1379,8 @@ function CartContent() {
     }
     if (step === 1) {
       if (orderType === 'pickup') {
-        if (pickupMode === 'scheduled' && (!selectedDate || pickupWindow === null)) {
-          Alert.alert('Select pickup time', 'Please choose a date and pickup window.');
+        if (pickupMode === 'scheduled' && (!selectedDate || selectedTimeMins === null)) {
+          Alert.alert('Select pickup time', 'Please choose a date and pickup time.');
           return;
         }
       } else {
@@ -1407,12 +1427,11 @@ function CartContent() {
       if (orderType === 'pickup') {
         if (pickupMode === 'asap') {
           scheduledLabel = 'Pickup: Within 10 minutes';
-        } else if (selectedDate && pickupWindow !== null) {
-          const win = PICKUP_WINDOWS.find(w => w.label === pickupWindow);
+        } else if (selectedDate && selectedTimeMins !== null) {
           const d = new Date(selectedDate);
-          d.setHours(Math.floor((win?.startMins ?? 540) / 60), (win?.startMins ?? 540) % 60, 0, 0);
+          d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
           scheduledForDate = d;
-          scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)}, ${pickupWindow}`;
+          scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)}, ${formatPickupMins(selectedTimeMins)}`;
         }
       } else if (orderType === 'delivery' && selectedDate) {
         scheduledForDate = selectedDate;
@@ -1795,7 +1814,6 @@ function CartContent() {
               setOrderType(t.id as any);
               setSelectedDate(null);
               setSelectedTimeMins(null);
-              setPickupWindow(null);
               if (t.id === 'pickup') setPickupMode(isStoreOpenForAsap(selectedStore, getSydneyNow()) ? 'asap' : 'scheduled');
               Haptics.selectionAsync();
             }}
@@ -1963,7 +1981,7 @@ function CartContent() {
           <View style={styles.calendarCard}>
             <InlineCalendarPicker
               selectedDate={selectedDate}
-              onSelectDate={d => { setSelectedDate(d); setPickupWindow(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+              onSelectDate={d => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
               accentColor={BLUE}
               availableDates={pickupDates}
               minDate={new Date()}
@@ -1972,24 +1990,14 @@ function CartContent() {
           </View>
 
           {selectedDate && (
-            <>
-              <Text style={styles.windowsLabel}>Choose a pickup window</Text>
-              <View style={styles.windowsGrid}>
-                {PICKUP_WINDOWS.map(w => {
-                  const active = pickupWindow === w.label;
-                  return (
-                    <Pressable
-                      key={w.label}
-                      onPress={() => { setPickupWindow(w.label); setSelectedTimeMins(w.startMins); Haptics.selectionAsync(); }}
-                      style={[styles.windowBtn, active && { borderColor: BLUE, backgroundColor: LIGHT_BLUE }]}
-                    >
-                      <Feather name="clock" size={14} color={active ? BLUE : MUTED} />
-                      <Text style={[styles.windowBtnText, { color: active ? BLUE : TEXT }]}>{w.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
+            <View style={styles.pickerCard}>
+              <PickupTimeWheelPicker
+                validSlots={validSlots}
+                selectedSlotMins={selectedTimeMins}
+                onSelectSlot={mins => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
+                accentColor={BLUE}
+              />
+            </View>
           )}
         </>
       ) : null}
@@ -2211,8 +2219,8 @@ function CartContent() {
           <View style={styles.orderDetailRow}>
             <Feather name="calendar" size={14} color={BLUE} />
             <Text style={[styles.orderDetailText, { color: TEXT }]}>
-              {orderType === 'pickup' && pickupWindow !== null
-                ? `${formatDateChip(sydNow, selectedDate)}, ${pickupWindow}`
+              {orderType === 'pickup' && selectedTimeMins !== null
+                ? `${formatDateChip(sydNow, selectedDate)}, ${formatPickupMins(selectedTimeMins)}`
                 : selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
             </Text>
           </View>
@@ -2405,13 +2413,9 @@ const styles = StyleSheet.create({
   // Inline calendar card
   calendarCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12,
                   shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  // Pickup window buttons
-  windowsLabel:   { fontSize: 13, fontWeight: '600', color: '#6B7280', letterSpacing: 0.5, marginTop: 12, marginBottom: 8 },
-  windowsGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  windowBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, width: '47%', paddingVertical: 13,
-                    paddingHorizontal: 14, backgroundColor: '#fff', borderRadius: 14,
-                    borderWidth: 1.5, borderColor: '#E5E7EB' },
-  windowBtnText:  { fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  // Pickup time wheel picker card
+  pickerCard:     { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12,
+                    marginTop: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   // Delivery date cards (matches wholesale layout)
   deliveryDateCard: { flex: 1, borderRadius: 14, padding: 14, gap: 3 },
   // No slots message
