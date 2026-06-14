@@ -1924,30 +1924,40 @@ function CartContent() {
       )}
 
       {orderType === 'delivery' ? (
-        <View style={styles.deliveryDaysGrid}>
-          {deliveryDates.map((slot, i) => {
-            const isSelected = selectedDate != null && isSameDay(selectedDate, slot.date);
-            return (
-              <Pressable
-                key={i}
-                disabled={!slot.available}
-                onPress={() => { setSelectedDate(slot.date); Haptics.selectionAsync(); }}
-                style={[
-                  styles.deliveryDayChip,
-                  isSelected && { borderColor: BLUE, backgroundColor: LIGHT_BLUE },
-                  !slot.available && { opacity: 0.38 },
-                ]}
-              >
-                <Text style={[styles.deliveryDayChipText, { color: isSelected ? BLUE : TEXT }]}>
-                  {slot.label}
-                </Text>
-                {!slot.available && slot.note && (
-                  <Text style={styles.deliveryDayChipNote}>{slot.note}</Text>
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
+        <>
+          {(() => {
+            const pairs: (typeof deliveryDates[0] | null)[][] = [];
+            for (let i = 0; i < deliveryDates.length; i += 2)
+              pairs.push([deliveryDates[i], deliveryDates[i + 1] ?? null]);
+            return pairs.map((pair, ri) => (
+              <View key={ri} style={{ flexDirection: 'row', gap: 10 }}>
+                {pair.map((slot, ci) => {
+                  if (!slot) return <View key={ci} style={{ flex: 1 }} />;
+                  const isSel   = selectedDate != null && isSameDay(selectedDate, slot.date);
+                  const dayName = slot.date.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
+                  const dayDate = slot.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
+                  return (
+                    <Pressable
+                      key={ci}
+                      disabled={!slot.available}
+                      onPress={() => { setSelectedDate(slot.date); Haptics.selectionAsync(); }}
+                      style={[styles.deliveryDateCard, {
+                        backgroundColor: isSel ? LIGHT_BLUE : '#fff',
+                        borderColor:     isSel ? BLUE : BORDER,
+                        borderWidth:     isSel ? 2 : 1,
+                        opacity:         slot.available ? 1 : 0.4,
+                      }]}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: BLUE }}>{dayName}</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT }}>{dayDate}</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>8am – 5pm</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ));
+          })()}
+        </>
       ) : pickupMode === 'scheduled' ? (
         <>
           <View style={styles.calendarCard}>
@@ -2402,12 +2412,8 @@ const styles = StyleSheet.create({
                     paddingHorizontal: 14, backgroundColor: '#fff', borderRadius: 14,
                     borderWidth: 1.5, borderColor: '#E5E7EB' },
   windowBtnText:  { fontSize: 14, fontWeight: '600', flexShrink: 1 },
-  // Delivery day chips
-  deliveryDaysGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  deliveryDayChip:     { width: '47%', paddingVertical: 13, paddingHorizontal: 14, backgroundColor: '#fff',
-                         borderRadius: 14, borderWidth: 1.5, borderColor: '#E5E7EB', gap: 3 },
-  deliveryDayChipText: { fontSize: 14, fontWeight: '600', color: '#1C1C1E' },
-  deliveryDayChipNote: { fontSize: 11, fontWeight: '400', color: '#8E8E93' },
+  // Delivery date cards (matches wholesale layout)
+  deliveryDateCard: { flex: 1, borderRadius: 14, padding: 14, gap: 3 },
   // No slots message
   noSlotsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   noSlotsText: { fontSize: 13, fontWeight: '400', color: '#8E8E93' },
