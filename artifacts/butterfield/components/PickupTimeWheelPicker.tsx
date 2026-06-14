@@ -1,18 +1,6 @@
 import React, { useRef } from 'react';
-import { View, Text, PanResponder, StyleSheet } from 'react-native';
+import { View, Text, Pressable, PanResponder, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-
-const ROW_H = 44;
-const VISIBLE = 5;
-const HALF = Math.floor(VISIBLE / 2);
-const DRUM_H = ROW_H * VISIBLE;
-const TAP_THRESHOLD = 8;
-
-const ROW_OPACITY: Record<number, number> = {
-  0: 1,
-  1: 0.55,
-  2: 0.22,
-};
 
 interface Props {
   validSlots: number[];
@@ -21,12 +9,32 @@ interface Props {
   accentColor?: string;
 }
 
-function formatSlot(totalMins: number): string {
+function formatSlot(totalMins: number) {
   const h = Math.floor(totalMins / 60);
   const m = totalMins % 60;
   const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  const ampm = h >= 12 ? 'pm' : 'am';
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  return {
+    h12: String(h12).padStart(2, '0'),
+    min: String(m).padStart(2, '0'),
+    ampm,
+  };
+}
+
+function findNearestInOpposite(currentMins: number, validSlots: number[]): number | null {
+  const currentIsAM = currentMins < 720;
+  const oppositeSlots = currentIsAM
+    ? validSlots.filter((s) => s >= 720)
+    : validSlots.filter((s) => s < 720);
+  if (oppositeSlots.length === 0) return null;
+  const currentHalfDay = currentMins % 720;
+  let best = oppositeSlots[0];
+  let bestDiff = Math.abs((best % 720) - currentHalfDay);
+  for (const s of oppositeSlots) {
+    const diff = Math.abs((s % 720) - currentHalfDay);
+    if (diff < bestDiff) { bestDiff = diff; best = s; }
+  }
+  return best;
 }
 
 export default function PickupTimeWheelPicker({
@@ -44,58 +52,28 @@ export default function PickupTimeWheelPicker({
   validSlotsRef.current = validSlots;
   const onSelectSlotRef = useRef(onSelectSlot);
   onSelectSlotRef.current = onSelectSlot;
-
-  const accDy = useRef(0);
-  const grantY = useRef(0);
+  const lastDy = useRef(0);
 
   const panResponder = useRef(
     PanResponder.create({
-      // Capture every touch at start so the parent ScrollView never steals the
-      // gesture, fully isolating drum flicks from page scroll.
       onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-
-      onPanResponderGrant: (evt) => {
-        accDy.current = 0;
-        // Store the Y position relative to this view so we can detect which
-        // row the finger landed on when the gesture ends as a tap.
-        grantY.current = evt.nativeEvent.locationY;
+      onPanResponderGrant: () => {
+        lastDy.current = 0;
       },
-
       onPanResponderMove: (_, gs) => {
-        const delta = gs.dy - accDy.current;
-        if (Math.abs(delta) >= ROW_H) {
-          const steps = Math.trunc(delta / ROW_H);
-          const dir = -steps;
-          const next = Math.max(0, Math.min(validSlotsRef.current.length - 1, safeIndexRef.current + dir));
-          if (next !== safeIndexRef.current) {
+        const delta = gs.dy - lastDy.current;
+        if (Math.abs(delta) >= 30) {
+          const dir = delta < 0 ? 1 : -1;
+          const next = safeIndexRef.current + dir;
+          if (next >= 0 && next < validSlotsRef.current.length) {
             onSelectSlotRef.current(validSlotsRef.current[next]);
           }
-          accDy.current += steps * ROW_H;
+          lastDy.current = gs.dy;
         }
       },
-
-      onPanResponderRelease: (_, gs) => {
-        if (Math.abs(gs.dy) < TAP_THRESHOLD) {
-          // Short movement = tap. Calculate which row the finger was on using
-          // the Y captured at grant, then jump to that slot if it isn't centre.
-          const rowIndex = Math.floor(grantY.current / ROW_H);
-          const offset = rowIndex - HALF;
-          const slotIndex = safeIndexRef.current + offset;
-          if (offset !== 0 && slotIndex >= 0 && slotIndex < validSlotsRef.current.length) {
-            onSelectSlotRef.current(validSlotsRef.current[slotIndex]);
-          }
-        }
-        accDy.current = 0;
-        grantY.current = 0;
-      },
-
-      onPanResponderTerminate: () => {
-        accDy.current = 0;
-        grantY.current = 0;
-      },
+      onPanResponderRelease: () => { lastDy.current = 0; },
+      onPanResponderTerminate: () => { lastDy.current = 0; },
     })
   ).current;
 
@@ -108,73 +86,115 @@ export default function PickupTimeWheelPicker({
     );
   }
 
+  const currentMins = validSlots[safeIndex];
+  const slot = formatSlot(currentMins);
+  const atStart = safeIndex === 0;
+  const atEnd = safeIndex === validSlots.length - 1;
+
+  const oppositeSlot = findNearestInOpposite(currentMins, validSlots);
+  const canToggleMeridiem = oppositeSlot !== null;
+
+  const goUp = () => { if (!atStart) onSelectSlot(validSlots[safeIndex - 1]); };
+  const goDown = () => { if (!atEnd) onSelectSlot(validSlots[safeIndex + 1]); };
+  const toggleMeridiem = () => { if (oppositeSlot !== null) onSelectSlot(oppositeSlot); };
+
   return (
-    <View style={s.drum} {...panResponder.panHandlers}>
-      <View
-        style={[s.highlightBar, { borderColor: accentColor + '44', backgroundColor: accentColor + '14' }]}
-        pointerEvents="none"
-      />
-      {Array.from({ length: VISIBLE }, (_, vi) => {
-        const offset = vi - HALF;
-        const slotIndex = safeIndex + offset;
-        const isCenter = offset === 0;
-        const absOffset = Math.abs(offset);
-        const opacity = ROW_OPACITY[absOffset] ?? 0;
+    <View style={s.container}>
+      <View style={s.pickerRow} {...panResponder.panHandlers}>
+        <View style={s.col}>
+          <Pressable onPress={goUp} style={[s.arrow, atStart && s.arrowDisabled]} hitSlop={8}>
+            <Feather name="chevron-up" size={26} color={atStart ? '#D1D5DB' : accentColor} />
+          </Pressable>
+          <Text style={s.digit}>{slot.h12}</Text>
+          <Pressable onPress={goDown} style={[s.arrow, atEnd && s.arrowDisabled]} hitSlop={8}>
+            <Feather name="chevron-down" size={26} color={atEnd ? '#D1D5DB' : accentColor} />
+          </Pressable>
+        </View>
 
-        if (slotIndex < 0 || slotIndex >= validSlots.length) {
-          return <View key={vi} style={s.row} />;
-        }
+        <Text style={s.colon}>:</Text>
 
-        const label = formatSlot(validSlots[slotIndex]);
+        <View style={s.col}>
+          <Pressable onPress={goUp} style={[s.arrow, atStart && s.arrowDisabled]} hitSlop={8}>
+            <Feather name="chevron-up" size={26} color={atStart ? '#D1D5DB' : accentColor} />
+          </Pressable>
+          <Text style={s.digit}>{slot.min}</Text>
+          <Pressable onPress={goDown} style={[s.arrow, atEnd && s.arrowDisabled]} hitSlop={8}>
+            <Feather name="chevron-down" size={26} color={atEnd ? '#D1D5DB' : accentColor} />
+          </Pressable>
+        </View>
 
-        return (
-          <View key={vi} style={s.row}>
-            <Text
-              style={[
-                s.rowText,
-                { opacity, color: isCenter ? accentColor : '#111827' },
-                isCenter && s.rowTextCenter,
-              ]}
-            >
-              {label}
-            </Text>
-          </View>
-        );
-      })}
+        <Pressable
+          onPress={toggleMeridiem}
+          disabled={!canToggleMeridiem}
+          style={[
+            s.ampmBox,
+            { backgroundColor: canToggleMeridiem ? accentColor + '22' : '#F3F4F6' },
+            !canToggleMeridiem && s.ampmDisabled,
+          ]}
+          hitSlop={6}
+        >
+          <Text style={[s.ampmText, { color: canToggleMeridiem ? accentColor : '#9CA3AF' }]}>
+            {slot.ampm}
+          </Text>
+        </Pressable>
+      </View>
+
+      <Text style={s.slotHint}>
+        {safeIndex + 1} of {validSlots.length} slot{validSlots.length !== 1 ? 's' : ''} · swipe or tap arrows
+      </Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  drum: {
-    height: DRUM_H,
-    alignSelf: 'stretch',
-    position: 'relative',
-    justifyContent: 'center',
-    overflow: 'hidden',
+  container: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 10,
   },
-  highlightBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: HALF * ROW_H,
-    height: ROW_H,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderRadius: 8,
-  },
-  row: {
-    height: ROW_H,
+  pickerRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
-  rowText: {
-    fontSize: 17,
-    fontWeight: '500',
+  col: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  arrow: {
+    padding: 6,
+  },
+  arrowDisabled: {
+    opacity: 0.4,
+  },
+  digit: {
+    fontSize: 44,
+    fontWeight: '700',
     color: '#111827',
+    width: 66,
+    textAlign: 'center',
+    letterSpacing: -1,
   },
-  rowTextCenter: {
-    fontSize: 19,
+  colon: {
+    fontSize: 44,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: -14,
+    marginHorizontal: 2,
+  },
+  ampmBox: {
+    marginLeft: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignSelf: 'center',
+  },
+  ampmDisabled: {
+    opacity: 0.5,
+  },
+  ampmText: {
+    fontSize: 17,
     fontWeight: '700',
   },
   closedWrap: {
@@ -188,5 +208,10 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#8E8E93',
+  },
+  slotHint: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '400',
   },
 });
