@@ -689,56 +689,42 @@ function LoyaltyContent() {
             </LinearGradient>
           </View>
 
-          <View style={[styles.section, styles.walletRow]}>
-            <LinearGradient colors={['#102656', '#1A4FCB']} style={[styles.infoCard, styles.infoCardLarge]}>
-              <Text style={styles.infoCardLabel}>Your points</Text>
-              <Text style={styles.infoCardValue}>{displayedPoints.toLocaleString()}</Text>
-              <Text style={styles.infoCardSub}>worth {formatCurrency(getPointsDollarValue(displayedPoints))}</Text>
-              <Text style={styles.infoCardHint}>Use any amount at checkout</Text>
-              <Pressable style={styles.infoButton} onPress={() => router.push('/(customer)/cart')}>
-                <Text style={styles.infoButtonText}>Use at checkout</Text>
-              </Pressable>
-            </LinearGradient>
-
-            <LinearGradient colors={['#10213E', '#0D1630']} style={[styles.infoCard, styles.infoCardSmall]}>
-              <View style={styles.freeCoffeeHeader}>
+          <View style={styles.section}>
+            <LinearGradient colors={['#10213E', '#0D1630']} style={styles.coffeeClubCard}>
+              <View style={styles.coffeeClubHeader}>
                 <View style={styles.freeCoffeeCopy}>
-                  <Text style={styles.freeCoffeeTitle}>Free coffee rewards</Text>
+                  <Text style={styles.coffeeClubTitle}>Coffee Club</Text>
                   <Text style={styles.freeCoffeeHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
                 </View>
-                <Text style={styles.infoCardMiniCount}>{freeCoffeeRewards}</Text>
+                <View style={styles.freeCoffeeBadge}>
+                  <Text style={styles.freeCoffeeBadgeCount}>{freeCoffeeRewards}</Text>
+                  <Text style={styles.freeCoffeeBadgeLabel}>free</Text>
+                </View>
               </View>
-              <View style={styles.freeCoffeeStampWrap}>
-                <View style={styles.miniStampGrid}>
-                  {[0, 1].map((row) => (
-                    <View key={row} style={styles.miniStampRow}>
-                      {[0, 1, 2].map((col) => {
-                        const index = row * 3 + col;
-                        const filled = index < stampCount;
-                        return (
-                          <Animated.View
-                            key={index}
-                            style={[
-                              styles.miniStampBubble,
-                              filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
-                              { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
-                            ]}
-                          >
-                            {filled ? <Feather name="coffee" size={12} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
-                          </Animated.View>
-                        );
-                      })}
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.quickAddRow}>
-                  <Text style={styles.quickAddHint}>{stampsRemaining > 0 ? `${stampsRemaining} more to go` : 'Ready to redeem!'}</Text>
-                  <Animated.View style={{ transform: [{ scale: quickAddScale }] }}>
-                    <Pressable style={styles.quickAddButton} onPress={handleQuickAdd}>
-                      <Feather name="plus" size={14} color={WHITE} />
-                    </Pressable>
-                  </Animated.View>
-                </View>
+              <View style={styles.coffeeStampRow}>
+                {[0, 1, 2, 3, 4, 5].map((index) => {
+                  const filled = index < stampCount;
+                  return (
+                    <Animated.View
+                      key={index}
+                      style={[
+                        styles.miniStampBubble,
+                        filled ? styles.miniStampBubbleFilled : styles.miniStampBubbleEmpty,
+                        { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
+                      ]}
+                    >
+                      {filled ? <Feather name="coffee" size={16} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                    </Animated.View>
+                  );
+                })}
+              </View>
+              <View style={styles.quickAddRow}>
+                <Text style={styles.quickAddHint}>{stampsRemaining > 0 ? `${stampsRemaining} more to go` : 'Ready to redeem!'}</Text>
+                <Animated.View style={{ transform: [{ scale: quickAddScale }] }}>
+                  <Pressable style={styles.quickAddButton} onPress={handleQuickAdd}>
+                    <Feather name="plus" size={14} color={WHITE} />
+                  </Pressable>
+                </Animated.View>
               </View>
             </LinearGradient>
           </View>
@@ -1149,55 +1135,47 @@ const styles = StyleSheet.create({
   perkIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#0D2345', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   perkTitle: { color: TEXT, fontSize: 14, lineHeight: 18, fontWeight: '700' },
   perkDetail: { marginTop: 6, color: TEXT_MUTED, fontSize: 12, lineHeight: 17, fontWeight: '500' },
-  walletRow: { flexDirection: 'row', gap: 10 },
-  infoCard: {
-    flex: 1,
-    aspectRatio: 1,
+  coffeeClubCard: {
     borderRadius: 20,
-    padding: 16,
+    padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
   },
-  infoCardLarge: { justifyContent: 'space-between' },
-  infoCardSmall: { justifyContent: 'flex-start' },
-  infoCardLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '700' },
-  infoCardValue: { marginTop: 6, color: WHITE, fontSize: 30, lineHeight: 34, fontWeight: '700' },
-  infoCardSub: { marginTop: 3, color: 'rgba(255,255,255,0.8)', fontSize: 13, lineHeight: 17, fontWeight: '600' },
-  infoCardHint: { marginTop: 3, color: 'rgba(255,255,255,0.66)', fontSize: 11, lineHeight: 15, fontWeight: '500' },
-  freeCoffeeHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 10 },
-  freeCoffeeCopy: { flex: 1 },
-  freeCoffeeTitle: { color: 'rgba(255,255,255,0.92)', fontSize: 13, lineHeight: 17, fontWeight: '700' },
-  infoCardMiniCount: { color: WHITE, fontSize: 26, lineHeight: 26, fontWeight: '700' },
+  coffeeClubHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  coffeeClubTitle: { color: WHITE, fontSize: 17, fontWeight: '700', lineHeight: 21 },
+  freeCoffeeCopy: { flex: 1, marginRight: 12 },
   freeCoffeeHint: {
     marginTop: 3,
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 10,
-    lineHeight: 14,
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 11,
+    lineHeight: 15,
   },
-  freeCoffeeStampWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  miniStampGrid: {
-    flexDirection: 'column',
-    gap: 8,
-    alignSelf: 'stretch',
+  freeCoffeeBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 48,
   },
-  miniStampRow: {
+  freeCoffeeBadgeCount: { color: WHITE, fontSize: 22, fontWeight: '700', lineHeight: 26 },
+  freeCoffeeBadgeLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 10, fontWeight: '600' },
+  coffeeStampRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  miniStampBubble: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  miniStampBubble: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
-  miniStampDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
-  infoButton: {
-    marginTop: 16,
-    alignSelf: 'flex-start',
-    borderRadius: 16,
-    backgroundColor: WHITE,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-  },
-  infoButtonText: { color: '#0D1730', fontSize: 13, fontWeight: '700' },
+  miniStampDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
   walletScroll: { gap: 12, paddingRight: 12 },
   walletCard: {
     width: 232,
