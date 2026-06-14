@@ -39,6 +39,8 @@ import { api, type ApiProduct, type SavedAddress, type ClaimedReward, type AuthP
 import { getSuggestedProductsForCart } from '@/lib/productPairings';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
+import TimeWheelPicker from '@/components/TimeWheelPicker';
 import {
   formatDateChip,
   formatTime,
@@ -1329,15 +1331,15 @@ function CartContent() {
     }
   }, [orderType, pickupDates, pickupTimes, selectedDate, selectedTimeMins]);
 
-  // Build 2-column pairs for date grid
-  const deliveryPairs: (typeof deliveryDates[0] | null)[][] = [];
-  for (let i = 0; i < deliveryDates.length; i += 2) {
-    deliveryPairs.push([deliveryDates[i], deliveryDates[i + 1] ?? null]);
-  }
-  const pickupPairs: (Date | null)[][] = [];
-  for (let i = 0; i < pickupDates.length; i += 2) {
-    pickupPairs.push([pickupDates[i], pickupDates[i + 1] ?? null]);
-  }
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+
+  // Convert pickupTimes (minutes from midnight) → initial HH:MM for TimeWheelPicker
+  const firstSlotHHMM = pickupTimes.length > 0
+    ? `${String(Math.floor(pickupTimes[0] / 60)).padStart(2, '0')}:${String(pickupTimes[0] % 60).padStart(2, '0')}`
+    : '10:00';
+  const currentSlotHHMM = selectedTimeMins != null
+    ? `${String(Math.floor(selectedTimeMins / 60)).padStart(2, '0')}:${String(selectedTimeMins % 60).padStart(2, '0')}`
+    : firstSlotHHMM;
 
   const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1918,86 +1920,68 @@ function CartContent() {
       )}
 
       {orderType === 'delivery' ? (
-        <>
-          {deliveryPairs.map((pair, ri) => (
-            <View key={ri} style={styles.dateGrid}>
-              {pair.map((slot, ci) => {
-                if (!slot) return <View key={ci} style={{ flex: 1 }} />;
-                const isSelected = selectedDate ? isSameDay(selectedDate, slot.date) : false;
-                const dayName    = slot.date.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
-                const dayDate    = slot.date.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
-                return (
-                  <Pressable
-                    key={ci}
-                    onPress={() => { if (slot.available) { setSelectedDate(slot.date); Haptics.selectionAsync(); } }}
-                    disabled={!slot.available}
-                    style={[styles.dateCard, {
-                      backgroundColor: isSelected ? LIGHT_BLUE : CARD,
-                      borderColor:     isSelected ? BLUE : BORDER,
-                      borderWidth:     isSelected ? 2 : 1,
-                      opacity:         slot.available ? 1 : 0.4,
-                    }]}
-                  >
-                    <Text style={[styles.dateDayName, { color: BLUE }]}>{dayName}</Text>
-                    <Text style={styles.dateDayNum}>{dayDate}</Text>
-                    <Text style={styles.dateTimeRange}>8am – 5pm</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-        </>
+        <View style={styles.calendarCard}>
+          <InlineCalendarPicker
+            selectedDate={selectedDate}
+            onSelectDate={d => { setSelectedDate(d); Haptics.selectionAsync(); }}
+            accentColor={BLUE}
+            availableDates={deliveryDates.filter(s => s.available).map(s => s.date)}
+            minDate={new Date()}
+            maxDate={deliveryDates.length > 0 ? deliveryDates[deliveryDates.length - 1].date : undefined}
+          />
+        </View>
       ) : pickupMode === 'scheduled' ? (
         <>
-          {pickupPairs.map((pair, ri) => (
-            <View key={ri} style={styles.dateGrid}>
-              {pair.map((d, ci) => {
-                if (!d) return <View key={ci} style={{ flex: 1 }} />;
-                const isSelected = selectedDate ? isSameDay(selectedDate, d) : false;
-                const lbl        = formatDateChip(sydNow, d);
-                const dayFull    = d.toLocaleDateString('en-AU', { weekday: 'long' }).toUpperCase();
-                const dayDate    = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long' });
-                return (
-                  <Pressable
-                    key={ci}
-                    onPress={() => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
-                    style={[styles.dateCard, {
-                      backgroundColor: isSelected ? LIGHT_BLUE : CARD,
-                      borderColor:     isSelected ? BLUE : BORDER,
-                      borderWidth:     isSelected ? 2 : 1,
-                    }]}
-                  >
-                    <Text style={[styles.dateDayName, { color: BLUE }]}>{lbl === 'Today' ? 'TODAY' : lbl === 'Tomorrow' ? 'TOMORROW' : dayFull}</Text>
-                    <Text style={styles.dateDayNum}>{dayDate}</Text>
-              <Text style={styles.dateTimeRange}>10am – 7pm</Text>
-            </Pressable>
-                );
-              })}
-            </View>
-          ))}
+          <View style={styles.calendarCard}>
+            <InlineCalendarPicker
+              selectedDate={selectedDate}
+              onSelectDate={d => { setSelectedDate(d); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+              accentColor={BLUE}
+              availableDates={pickupDates}
+              minDate={new Date()}
+              maxDate={pickupDates.length > 0 ? pickupDates[pickupDates.length - 1] : undefined}
+            />
+          </View>
+
           {selectedDate && (
             <>
-              <Text style={styles.pickupTimeLabel}>Select a time</Text>
-              <View style={styles.timeGrid}>
-                {pickupTimes.length === 0 ? (
-                  <Text style={[styles.noSlots, { color: MUTED }]}>No slots available — choose another day</Text>
-                ) : pickupTimes.map((mins) => {
-                  const lbl        = formatTime(mins);
-                  const isSelected = selectedTimeMins === mins;
-                  return (
-                    <Pressable
-                      key={mins}
-                      onPress={() => { setSelectedTimeMins(mins); Haptics.selectionAsync(); }}
-                      style={[styles.timePill, {
-                        backgroundColor: isSelected ? BLUE : CARD,
-                        borderColor:     isSelected ? BLUE : BORDER,
-                      }]}
-                    >
-                      <Text style={[styles.timePillText, { color: isSelected ? '#fff' : TEXT }]}>{lbl}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              {pickupTimes.length === 0 ? (
+                <View style={styles.noSlotsRow}>
+                  <Feather name="alert-circle" size={14} color={MUTED} />
+                  <Text style={styles.noSlotsText}>No slots available — choose another day</Text>
+                </View>
+              ) : (
+                <>
+                  <Pressable
+                    style={[styles.timePickerBtn, selectedTimeMins != null && { borderColor: BLUE, backgroundColor: LIGHT_BLUE }]}
+                    onPress={() => { setTimePickerVisible(true); Haptics.selectionAsync(); }}
+                  >
+                    <Feather name="clock" size={16} color={selectedTimeMins != null ? BLUE : MUTED} />
+                    <Text style={[styles.timePickerBtnText, { color: selectedTimeMins != null ? BLUE : MUTED }]}>
+                      {selectedTimeMins != null ? formatTime(selectedTimeMins) : 'Select a pickup time'}
+                    </Text>
+                    <Feather name="chevron-down" size={16} color={selectedTimeMins != null ? BLUE : MUTED} />
+                  </Pressable>
+
+                  <TimeWheelPicker
+                    visible={timePickerVisible}
+                    initialHHMM={currentSlotHHMM}
+                    accentColor={BLUE}
+                    title="Pickup Time"
+                    onClose={() => setTimePickerVisible(false)}
+                    onConfirm={hhmm => {
+                      const [hStr, mStr] = hhmm.split(':');
+                      const totalMins = parseInt(hStr) * 60 + parseInt(mStr);
+                      const nearest = pickupTimes.reduce((best, t) =>
+                        Math.abs(t - totalMins) < Math.abs(best - totalMins) ? t : best,
+                        pickupTimes[0],
+                      );
+                      setSelectedTimeMins(nearest);
+                      Haptics.selectionAsync();
+                    }}
+                  />
+                </>
+              )}
             </>
           )}
         </>
@@ -2411,18 +2395,16 @@ const styles = StyleSheet.create({
   // Choose date header
   chooseDateHeader:{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   chooseDateTitle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
-  // Date grid (2-column)
-  dateGrid: { flexDirection: 'row', gap: 10 },
-  dateCard: { flex: 1, borderRadius: 14, padding: 14, gap: 3, alignItems: 'flex-start' },
-  dateDayName:  { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-  dateDayNum:   { fontSize: 16, fontWeight: '700', color: '#1C1C1E' },
-  dateTimeRange:{ fontSize: 12, fontWeight: '400', color: '#8E8E93' },
-  // Pickup times
-  pickupTimeLabel: { fontSize: 14, fontWeight: '600', color: '#1C1C1E', marginTop: 4 },
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  timePill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, borderWidth: 1 },
-  timePillText: { fontSize: 13, fontWeight: '500' },
-  noSlots: { fontSize: 13, fontWeight: '400', paddingVertical: 8 },
+  // Inline calendar card
+  calendarCard: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', padding: 12,
+                  shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  // Pickup time wheel trigger
+  timePickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 12,
+                   borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 13 },
+  timePickerBtnText: { flex: 1, fontSize: 14, fontWeight: '500' },
+  // No slots message
+  noSlotsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  noSlotsText: { fontSize: 13, fontWeight: '400', color: '#8E8E93' },
   // Forms
   formCard:       { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, padding: 16, gap: 10 },
   formFieldWrap:  { gap: 4 },

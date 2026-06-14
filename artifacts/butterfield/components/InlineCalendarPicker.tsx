@@ -21,6 +21,12 @@ interface Props {
    * below the date number (useful for showing which dates have data).
    */
   dotDates?: Record<string, number>;
+  /**
+   * Whitelist of selectable dates. When provided, any in-month date NOT in
+   * this list is rendered greyed-out and non-pressable (out-of-month filler
+   * cells are always greyed out regardless).
+   */
+  availableDates?: Date[];
 }
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -42,6 +48,7 @@ export default function InlineCalendarPicker({
   maxDate,
   minDate,
   dotDates,
+  availableDates,
 }: Props) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(
@@ -86,10 +93,16 @@ export default function InlineCalendarPicker({
   const rows: Array<typeof cells> = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
 
-  function isDisabled(date: Date): boolean {
+  // Pre-build a Set of YYYY-MM-DD keys for O(1) lookup
+  const availableKeys: Set<string> | null = availableDates
+    ? new Set(availableDates.map(toKey))
+    : null;
+
+  function isDisabled(date: Date, inMonth: boolean): boolean {
     const d = new Date(date); d.setHours(0, 0, 0, 0);
     if (maxDate) { const mx = new Date(maxDate); mx.setHours(0, 0, 0, 0); if (d > mx) return true; }
     if (minDate) { const mn = new Date(minDate); mn.setHours(0, 0, 0, 0); if (d < mn) return true; }
+    if (availableKeys && inMonth && !availableKeys.has(toKey(date))) return true;
     return false;
   }
 
@@ -121,7 +134,7 @@ export default function InlineCalendarPicker({
           {row.map((cell, ci) => {
             const isToday    = isSameDay(cell.date, today);
             const isSelected = selectedDate ? isSameDay(cell.date, selectedDate) : false;
-            const disabled   = isDisabled(cell.date);
+            const disabled   = isDisabled(cell.date, cell.inMonth);
             const dotCount   = dotDates ? (dotDates[toKey(cell.date)] ?? 0) : 0;
 
             return (
