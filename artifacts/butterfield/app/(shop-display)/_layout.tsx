@@ -24,6 +24,14 @@ const MUTED = '#9CA3AF';
 const TEXT  = '#1C1C1E';
 
 type NewOrderBannerOrder = { customerName: string; orderNumber: string };
+const NEW_ORDER_STATUSES = new Set(['received', 'scheduled']);
+
+function toAlertOrder(order: { id: string; customerName?: string; orderNumber?: string }) {
+  return {
+    customerName: order.customerName ?? 'Customer',
+    orderNumber: order.orderNumber ?? `#${order.id.slice(0, 6).toUpperCase()}`,
+  };
+}
 
 function NewOrderAlertOverlay({
   visible,
@@ -48,16 +56,28 @@ function NewOrderAlertOverlay({
       return;
     }
     let cancelled = false;
-    Audio.Sound.createAsync(
-      require('@/assets/sounds/new-order-alert.wav'),
-      { isLooping: true, shouldPlay: false },
-    ).then(({ sound }) => {
-      if (cancelled) { sound.unloadAsync().catch(() => {}); return; }
-      soundRef.current = sound;
-      if (soundEnabled) {
-        sound.playAsync().catch(() => {});
-      }
-    }).catch(() => {});
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+          staysActiveInBackground: false,
+          interruptionModeIOS: Audio.InterruptionModeIOS.DuckOthers,
+          shouldDuckAndroid: true,
+          interruptionModeAndroid: Audio.InterruptionModeAndroid.DuckOthers,
+          playThroughEarpieceAndroid: false,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          require('@/assets/sounds/new-order-alert.wav'),
+          { isLooping: true, shouldPlay: soundEnabled, volume: 1 },
+        );
+        if (cancelled) {
+          sound.unloadAsync().catch(() => {});
+          return;
+        }
+        soundRef.current = sound;
+      } catch {}
+    })();
     return () => {
       cancelled = true;
       if (soundRef.current) {
@@ -142,7 +162,7 @@ export default function ShopDisplayLayout() {
     staleTime: 10_000,
   });
   const layoutRows: Array<{ id: string; status: string; customerName?: string; orderNumber?: string; createdAt?: string }> = ordersData?.data ?? [];
-  const receivedCount = layoutRows.filter(o => o.status === 'received').length;
+  const incomingOrderCount = layoutRows.filter((o) => NEW_ORDER_STATUSES.has(o.status)).length;
 
   // ── New-order popup + sound (layout-level so it fires on any tab) ──────────
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -168,29 +188,23 @@ export default function ShopDisplayLayout() {
       bootedRef.current = true;
       const mountMs = mountTimeRef.current;
       const freshOnBoot = layoutRows.find(o => {
-        if (o.status !== 'received') return false;
+        if (!NEW_ORDER_STATUSES.has(o.status)) return false;
         const ts = o.createdAt ? new Date(o.createdAt).getTime() : 0;
         return ts >= mountMs - 2000;
       });
       if (freshOnBoot) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         // Use functional update — keep first alert, don't replace if already showing
-        setAlertOrder(prev => prev ?? {
-          customerName: freshOnBoot.customerName ?? 'Customer',
-          orderNumber:  freshOnBoot.orderNumber  ?? `#${freshOnBoot.id.slice(0, 6).toUpperCase()}`,
-        });
+        setAlertOrder(prev => prev ?? toAlertOrder(freshOnBoot));
       }
       return;
     }
 
     const prev = seenRef.current;
-    const fresh = layoutRows.find(o => !prev[o.id] && o.status === 'received');
+    const fresh = layoutRows.find((o) => !prev[o.id] && NEW_ORDER_STATUSES.has(o.status));
     if (fresh) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      setAlertOrder(prev => prev ?? {
-        customerName: fresh.customerName ?? 'Customer',
-        orderNumber:  fresh.orderNumber  ?? `#${fresh.id.slice(0, 6).toUpperCase()}`,
-      });
+      setAlertOrder(prev => prev ?? toAlertOrder(fresh));
     }
     seenRef.current = currentMap;
   }, [layoutRows]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -395,7 +409,7 @@ export default function ShopDisplayLayout() {
         options={{
           title: 'App Sales',
           tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} />,
-          tabBarBadge: receivedCount > 0 ? receivedCount : undefined,
+          tabBarBadge: incomingOrderCount > 0 ? incomingOrderCount : undefined,
           tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 11, minWidth: 18, height: 18, lineHeight: 18 },
         }}
       />
@@ -482,9 +496,9 @@ export default function ShopDisplayLayout() {
                 >
                   <Feather name={item.icon} size={18} color={active ? BLUE : MUTED} />
                   <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
-                  {item.segment === 'index' && receivedCount > 0 && (
+                  {item.segment === 'index' && incomingOrderCount > 0 && (
                     <View style={styles.navBadge}>
-                      <Text style={styles.navBadgeText}>{receivedCount > 99 ? '99+' : String(receivedCount)}</Text>
+                      <Text style={styles.navBadgeText}>{incomingOrderCount > 99 ? '99+' : String(incomingOrderCount)}</Text>
                     </View>
                   )}
                 </Pressable>
