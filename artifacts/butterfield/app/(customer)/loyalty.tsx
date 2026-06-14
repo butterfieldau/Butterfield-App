@@ -364,7 +364,6 @@ function LoyaltyContent() {
   const stampScaleAnims = useRef(
     Array.from({ length: STAMP_COUNT }, () => new Animated.Value(1))
   ).current;
-  const quickAddScale = useRef(new Animated.Value(1)).current;
 
   const { data: profileData, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-profile'],
@@ -476,10 +475,11 @@ function LoyaltyContent() {
     for (let i = prev; i < stampCount && i < STAMP_COUNT; i++) {
       const anim = stampScaleAnims[i];
       if (!anim) continue;
-      anim.setValue(0.7);
+      anim.setValue(1);
       Animated.sequence([
-        Animated.spring(anim, { toValue: 1.22, damping: 8, stiffness: 240, useNativeDriver: true }),
-        Animated.spring(anim, { toValue: 1, damping: 12, stiffness: 220, useNativeDriver: true }),
+        Animated.spring(anim, { toValue: 0.85, damping: 8, stiffness: 320, useNativeDriver: true }),
+        Animated.spring(anim, { toValue: 1.2, damping: 9, stiffness: 340, useNativeDriver: true }),
+        Animated.spring(anim, { toValue: 1, damping: 10, stiffness: 300, useNativeDriver: true }),
       ]).start();
     }
   }, [stampCount, stampScaleAnims]);
@@ -510,15 +510,6 @@ function LoyaltyContent() {
     return () => { pointsCountAnim.removeListener(listenerId); };
   }, [points, pointsCountAnim]);
 
-  const handleQuickAdd = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Animated.sequence([
-      Animated.spring(quickAddScale, { toValue: 0.82, damping: 8, stiffness: 300, useNativeDriver: true }),
-      Animated.spring(quickAddScale, { toValue: 1.18, damping: 10, stiffness: 260, useNativeDriver: true }),
-      Animated.spring(quickAddScale, { toValue: 1, damping: 12, stiffness: 220, useNativeDriver: true }),
-    ]).start();
-    setTimeout(() => { router.push('/(customer)/menu'); }, 120);
-  };
 
   const handleClaim = async (reward: LoyaltyReward) => {
     if (points < reward.pointsCost) {
@@ -713,18 +704,10 @@ function LoyaltyContent() {
                         { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
                       ]}
                     >
-                      {filled ? <Feather name="coffee" size={14} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                      {filled ? <Feather name="coffee" size={22} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
                     </Animated.View>
                   );
                 })}
-              </View>
-              <View style={styles.quickAddRow}>
-                <Text style={styles.quickAddHint}>{stampsRemaining > 0 ? `${stampsRemaining} more to go` : 'Ready to redeem!'}</Text>
-                <Animated.View style={{ transform: [{ scale: quickAddScale }] }}>
-                  <Pressable style={styles.quickAddButton} onPress={handleQuickAdd}>
-                    <Feather name="plus" size={14} color={WHITE} />
-                  </Pressable>
-                </Animated.View>
               </View>
             </LinearGradient>
           </View>
@@ -1168,14 +1151,15 @@ const styles = StyleSheet.create({
   freeCoffeeBadgeLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 10, fontWeight: '600' },
   coffeeStampRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    gap: 10,
+    marginVertical: 14,
   },
-  miniStampBubble: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  miniStampBubble: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
-  miniStampDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
+  miniStampDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
   walletScroll: { gap: 12, paddingRight: 12 },
   walletCard: {
     width: 232,
@@ -1348,27 +1332,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 8,
     elevation: 4,
-  },
-  quickAddRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  quickAddHint: {
-    color: 'rgba(255,255,255,0.72)',
-    fontSize: 10,
-    fontWeight: '600',
-    flex: 1,
-  },
-  quickAddButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.36)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
