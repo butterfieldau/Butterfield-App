@@ -206,8 +206,13 @@ export const api = {
       update: (radiusMeters: number) =>
         request<{ data: GeoSettings }>('/staff/settings/geo', { method: 'PATCH', body: JSON.stringify({ radiusMeters }) }),
     },
-    rosterMine: (weekStart?: string) => {
-      const qs = weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : '';
+    rosterMine: (params?: { weekStart?: string; from?: string; to?: string }) => {
+      const p = params ?? {};
+      const qs = p.from && p.to
+        ? `?from=${encodeURIComponent(p.from)}&to=${encodeURIComponent(p.to)}`
+        : p.weekStart
+          ? `?weekStart=${encodeURIComponent(p.weekStart)}`
+          : '';
       return request<{ data: RosterShift[] }>(`/staff/roster/mine${qs}`);
     },
     rosterConfirm: (id: string) =>

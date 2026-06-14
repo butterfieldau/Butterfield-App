@@ -552,11 +552,21 @@ router.patch('/roster/:id/confirm', async (req, res) => {
 });
 
 router.get('/roster/mine', async (req, res) => {
-  const { weekStart } = req.query as Record<string, string>;
+  const { weekStart, from, to } = req.query as Record<string, string>;
   const userId = req.user!.id;
 
   let shifts;
-  if (weekStart && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+  if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    shifts = await db
+      .select()
+      .from(staffRosterTable)
+      .where(and(
+        eq(staffRosterTable.userId, userId),
+        gte(staffRosterTable.date, from),
+        lte(staffRosterTable.date, to),
+      ))
+      .orderBy(staffRosterTable.date, staffRosterTable.startTime);
+  } else if (weekStart && /^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
     const d = new Date(weekStart);
     const weekEnd = new Date(d);
     weekEnd.setDate(weekEnd.getDate() + 6);

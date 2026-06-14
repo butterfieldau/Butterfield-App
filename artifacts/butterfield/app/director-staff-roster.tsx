@@ -136,7 +136,7 @@ export default function DirectorStaffRosterScreen() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['staff-roster-mine', weekStart],
-    queryFn: () => api.staff.rosterMine(weekStart),
+    queryFn: () => api.staff.rosterMine({ weekStart }),
     staleTime: 30_000,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);

@@ -17,6 +17,7 @@ const BG_STAFF = '#EFF6FF';
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',         title: 'Dashboard' },
   orders:   { icon: 'shopping-bag', title: 'Orders'    },
+  schedule: { icon: 'calendar',     title: 'Schedule'  },
   products: { icon: 'package',      title: 'Products'  },
   scan:     { icon: 'maximize',     title: 'Scan'      },
   staffhub: { icon: 'users',        title: 'Staff Hub' },
@@ -90,8 +91,8 @@ export default function DirectorLayout() {
         'more',
       ]
     : canViewOrders
-      ? ['index', 'orders', 'scan', 'staffhub', 'profile']
-      : ['index', 'scan', 'staffhub', 'profile'];
+      ? ['index', 'orders', 'schedule', 'scan', 'staffhub', 'profile']
+      : ['index', 'schedule', 'scan', 'staffhub', 'profile'];
 
   const badgeLabel = isStaff   ? 'STAFF'
                    : isManager ? 'STORE MANAGER'
@@ -129,6 +130,7 @@ export default function DirectorLayout() {
         >
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
+          <Tabs.Screen name="schedule" options={{ title: 'Schedule',  href: isStaff ? undefined : null }} />
           <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: isStaff ? undefined : null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
           <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub' }} />
@@ -202,6 +204,7 @@ export default function DirectorLayout() {
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.more)}
           options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Feather name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
+        <Tabs.Screen name="schedule"         options={{ href: null }} />
         <Tabs.Screen name="linkly"           options={{ href: null }} />
         <Tabs.Screen name="scan"             options={{ href: null }} />
         <Tabs.Screen name="tasks"            options={{ href: null }} />
