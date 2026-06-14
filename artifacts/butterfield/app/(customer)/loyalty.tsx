@@ -713,7 +713,7 @@ function LoyaltyContent() {
                         { transform: [{ scale: stampScaleAnims[index] ?? 1 }] },
                       ]}
                     >
-                      {filled ? <Feather name="coffee" size={16} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
+                      {filled ? <Feather name="coffee" size={14} color="#0A67EC" /> : <View style={styles.miniStampDot} />}
                     </Animated.View>
                   );
                 })}
@@ -1136,43 +1136,43 @@ const styles = StyleSheet.create({
   perkTitle: { color: TEXT, fontSize: 14, lineHeight: 18, fontWeight: '700' },
   perkDetail: { marginTop: 6, color: TEXT_MUTED, fontSize: 12, lineHeight: 17, fontWeight: '500' },
   coffeeClubCard: {
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
   },
   coffeeClubHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 12,
   },
-  coffeeClubTitle: { color: WHITE, fontSize: 17, fontWeight: '700', lineHeight: 21 },
-  freeCoffeeCopy: { flex: 1, marginRight: 12 },
+  coffeeClubTitle: { color: WHITE, fontSize: 15, fontWeight: '700', lineHeight: 19 },
+  freeCoffeeCopy: { flex: 1, marginRight: 10 },
   freeCoffeeHint: {
-    marginTop: 3,
-    color: 'rgba(255,255,255,0.72)',
+    marginTop: 2,
+    color: 'rgba(255,255,255,0.65)',
     fontSize: 11,
-    lineHeight: 15,
+    lineHeight: 14,
   },
   freeCoffeeBadge: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 48,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    minWidth: 44,
   },
-  freeCoffeeBadgeCount: { color: WHITE, fontSize: 22, fontWeight: '700', lineHeight: 26 },
-  freeCoffeeBadgeLabel: { color: 'rgba(255,255,255,0.72)', fontSize: 10, fontWeight: '600' },
+  freeCoffeeBadgeCount: { color: WHITE, fontSize: 18, fontWeight: '700', lineHeight: 22 },
+  freeCoffeeBadgeLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 10, fontWeight: '600' },
   coffeeStampRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
-  miniStampBubble: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  miniStampBubble: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   miniStampBubbleFilled: { backgroundColor: WHITE },
   miniStampBubbleEmpty: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.42)', borderStyle: 'dashed', backgroundColor: 'rgba(255,255,255,0.06)' },
   miniStampDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.72)' },
@@ -1353,7 +1353,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 6,
   },
   quickAddHint: {
     color: 'rgba(255,255,255,0.72)',
