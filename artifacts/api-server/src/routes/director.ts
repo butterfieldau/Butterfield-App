@@ -511,15 +511,24 @@ router.patch('/orders/:id/status', async (req, res) => {
       }
 
       try {
-        const outstandingStampCount = await getOutstandingCoffeeStampsForOrder(updated.id);
-        if (outstandingStampCount > 0) {
-          await reverseCoffeeStamps({
-            userId: updated.userId,
-            stampsToRemove: outstandingStampCount,
-            source: status === 'refunded' ? 'order_refund' : 'order_cancel',
-            orderId: updated.id,
-            description: `Order ${status} — coffee stamps reversed`,
-          });
+        // Only reverse stamps if the order was previously completed — stamps are
+        // only awarded at completion, so a cancelled-before-completion order cannot
+        // have stamps to reverse. This guards against draining stamps that belong
+        // to a different completed order when an uncompleted order is cancelled.
+        if (previousStatus === 'completed') {
+          const outstandingStampCount = await getOutstandingCoffeeStampsForOrder(updated.id);
+          req.log.info({ orderId: updated.id, userId: updated.userId, status, previousStatus, outstandingStampCount }, 'Director coffee stamp reversal check');
+          if (outstandingStampCount > 0) {
+            await reverseCoffeeStamps({
+              userId: updated.userId,
+              stampsToRemove: outstandingStampCount,
+              source: status === 'refunded' ? 'order_refund' : 'order_cancel',
+              orderId: updated.id,
+              description: `Order ${status} — coffee stamps reversed`,
+            });
+          }
+        } else {
+          req.log.info({ orderId: updated.id, userId: updated.userId, status, previousStatus }, 'Director coffee stamp reversal skipped — order was never completed');
         }
       } catch (err: any) {
         req.log.error({ err, orderId: updated.id }, 'Failed to reverse coffee stamps on director cancellation');

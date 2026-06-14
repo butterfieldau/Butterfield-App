@@ -604,7 +604,9 @@ router.post('/customers/:id/stamp', async (req, res) => {
   }
 
   // Cross-validate coffee item productIds against the internal product catalog
-  // to prevent fabricated client payloads from minting stamps with unknown products
+  // to prevent fabricated client payloads from minting stamps with unknown products.
+  // POS ticket items carry Stripe product IDs (prod_XXXXX) so we must match against
+  // BOTH productsTable.id (local UUID) and productsTable.stripeProductId.
   const coffeeProductIds = coffeeItems
     .map((i: any) => i.productId)
     .filter((id: any) => typeof id === 'string' && id.trim());
@@ -615,7 +617,10 @@ router.post('/customers/:id/stamp', async (req, res) => {
         .from(productsTable)
         .where(
           and(
-            inArray(productsTable.id, coffeeProductIds),
+            or(
+              inArray(productsTable.id, coffeeProductIds),
+              inArray(productsTable.stripeProductId, coffeeProductIds),
+            ),
             sql`${productsTable.category} ILIKE 'coffee'`,
           ),
         )

@@ -70,11 +70,23 @@ export async function hasAwardedCoffeeStampsForOrder(orderId: string): Promise<b
 }
 
 export async function getOutstandingCoffeeStampsForOrder(orderId: string): Promise<number> {
+  // Only sum positive-earning entries (activityType used by applyCoffeeStamps).
+  // Reversal entries ('order_cancel', 'order_refund') are excluded so that a
+  // previously-reversed order does not appear to have 0 outstanding stamps when
+  // queried again — the caller's own guard (previousStatus === 'completed') is
+  // responsible for preventing double-reversal. Excluding reversals also ensures
+  // a non-completed order (which has no earning entries with its orderId) always
+  // returns 0, preventing incorrect stamp drains on uncompleted-order cancellations.
   const [row] = await db
     .select({
       netCoffeeStamps: sql<number>`COALESCE(SUM(${loyaltyActivityLogTable.coffeeStampsDelta}), 0)`,
     })
     .from(loyaltyActivityLogTable)
-    .where(eq(loyaltyActivityLogTable.orderId, orderId));
+    .where(
+      and(
+        eq(loyaltyActivityLogTable.orderId, orderId),
+        gt(loyaltyActivityLogTable.coffeeStampsDelta, 0),
+      ),
+    );
   return Math.max(0, Number(row?.netCoffeeStamps ?? 0));
 }
