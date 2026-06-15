@@ -4,6 +4,9 @@ const PRODUCTS_KEY       = '@pos_products_v1';
 const SYNCED_AT_KEY      = '@pos_synced_at_v1';
 const OFFLINE_QUEUE_KEY  = '@pos_offline_queue_v1';
 const CUSTOMER_CACHE_KEY = '@pos_customer_cache_v1';
+const DETAIL_CACHE_KEY   = '@pos_detail_cache_v1';
+const STORE_CONFIG_KEY   = '@pos_store_config_v1';
+const SURCHARGES_KEY     = '@pos_surcharges_v1';
 
 // ── Product cache ──────────────────────────────────────────────────────────────
 
@@ -133,6 +136,60 @@ export async function markOfflineOrderFailed(idempotencyKey: string, error: stri
     queue[idx] = { ...queue[idx]!, syncStatus: 'failed', syncError: error };
     await saveOfflineQueue(queue);
   }
+}
+
+// ── Product detail cache (variants + option groups, keyed by product ID) ────────
+
+export async function loadDetailCache(): Promise<Record<string, any>> {
+  try {
+    const raw = await AsyncStorage.getItem(DETAIL_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, any>) : {};
+  } catch { return {}; }
+}
+
+export async function saveDetailEntry(productId: string, detail: any): Promise<void> {
+  try {
+    const map = await loadDetailCache();
+    map[productId] = detail;
+    const keys = Object.keys(map);
+    if (keys.length > 200) {
+      const trimmed: Record<string, any> = {};
+      keys.slice(keys.length - 200).forEach(k => { trimmed[k] = map[k]; });
+      await AsyncStorage.setItem(DETAIL_CACHE_KEY, JSON.stringify(trimmed));
+    } else {
+      await AsyncStorage.setItem(DETAIL_CACHE_KEY, JSON.stringify(map));
+    }
+  } catch {}
+}
+
+export async function clearDetailCache(): Promise<void> {
+  try { await AsyncStorage.removeItem(DETAIL_CACHE_KEY); } catch {}
+}
+
+// ── Store config cache (printer, surcharges, auto-print) ─────────────────────
+
+export async function loadCachedStoreConfig(): Promise<any | null> {
+  try {
+    const raw = await AsyncStorage.getItem(STORE_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export async function saveStoreConfig(config: any): Promise<void> {
+  try { await AsyncStorage.setItem(STORE_CONFIG_KEY, JSON.stringify(config)); } catch {}
+}
+
+// ── Surcharges cache ──────────────────────────────────────────────────────────
+
+export async function loadCachedSurcharges(): Promise<any[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SURCHARGES_KEY);
+    return raw ? (JSON.parse(raw) as any[]) : null;
+  } catch { return null; }
+}
+
+export async function saveSurchargesCache(surcharges: any[]): Promise<void> {
+  try { await AsyncStorage.setItem(SURCHARGES_KEY, JSON.stringify(surcharges)); } catch {}
 }
 
 // ── Customer cache (last 50 seen) ──────────────────────────────────────────────

@@ -13,7 +13,10 @@ import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
-import { getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime } from '@/lib/posCache';
+import {
+  getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime,
+  loadCachedPosProducts, loadCachedStoreConfig, loadCachedSurcharges,
+} from '@/lib/posCache';
 import { PosIdleScreen } from '@/components/PosIdleScreen';
 
 const IDLE_TIMEOUT_MS = 60_000;
@@ -304,6 +307,21 @@ export default function ShopDisplayLayout() {
     getPosLastSyncedAt().then(d => setLastSyncedAt(d));
   }, []);
 
+  // Seed QueryClient from AsyncStorage before POS screen first mounts.
+  // This eliminates the blank flash on every mount — data is in-memory before
+  // the POS useQuery hooks execute, so staleTime:Infinity prevents any fetch.
+  useEffect(() => {
+    Promise.all([
+      loadCachedPosProducts(),
+      loadCachedStoreConfig(),
+      loadCachedSurcharges(),
+    ]).then(([products, storeConfig, surcharges]) => {
+      if (products?.length) queryClient.setQueryData(['pos-products'], { data: products });
+      if (storeConfig)       queryClient.setQueryData(['pos-store-settings'], storeConfig);
+      if (surcharges)        queryClient.setQueryData(['pos-surcharges'], { data: surcharges });
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load lock PIN on mount — lock immediately if PIN is set
   useEffect(() => {
     getDisplayLockPin().then(pin => {
@@ -388,6 +406,8 @@ export default function ShopDisplayLayout() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await queryClient.refetchQueries({ queryKey: ['pos-products'] });
+      await queryClient.refetchQueries({ queryKey: ['pos-store-settings'] });
+      await queryClient.refetchQueries({ queryKey: ['pos-surcharges'] });
       const d = await getPosLastSyncedAt();
       setLastSyncedAt(d ?? new Date());
     } finally {
@@ -549,6 +569,9 @@ export default function ShopDisplayLayout() {
             })}
           </View>
 
+          {lastSyncedAt ? (
+            <Text style={styles.sidebarSyncTime}>{formatSyncTime(lastSyncedAt)}</Text>
+          ) : null}
           {lockPin ? (
             <Pressable onPress={doLock} style={styles.sidebarLogout}>
               <Feather name="lock" size={15} color={MUTED} />
@@ -737,6 +760,7 @@ const styles = StyleSheet.create({
   navLabelActive:    { color: WHITE, fontWeight: '700' },
   navBadge:          { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   navBadgeText:      { color: WHITE, fontSize: 11, fontWeight: '800', lineHeight: 14 },
+  sidebarSyncTime:   { color: MUTED, fontSize: 11, marginHorizontal: 14, marginBottom: 4 },
   sidebarLogout:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   sidebarLogoutText: { color: MUTED, fontSize: 13, fontWeight: '600' },
 

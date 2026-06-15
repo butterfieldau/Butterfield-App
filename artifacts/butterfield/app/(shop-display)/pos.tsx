@@ -27,7 +27,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  loadCachedPosProducts, savePosProductsCache,
+  savePosProductsCache,
+  loadDetailCache, saveDetailEntry, clearDetailCache,
+  saveStoreConfig, saveSurchargesCache,
+  getPosLastSyncedAt, formatSyncTime,
   upsertCustomerCache, searchCustomerCache,
   type CachedPosCustomer, type OfflineQueueEntry,
 } from '@/lib/posCache';
@@ -320,16 +323,18 @@ function PosScreenInner() {
   const [detailCache, setDetailCache] = useState<Record<string, ProductDetail>>({});
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
 
-  // ── Local product cache ────────────────────────────────────────────────────
-  // Seed React Query from AsyncStorage so products are instant on every open.
-  const [cacheReady, setCacheReady] = useState(false);
+  // ── Last synced timestamp ─────────────────────────────────────────────────
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  // Pre-load detail cache and sync timestamp from AsyncStorage so the
+  // customise sheet and sync chip are instant even after an app restart.
   useEffect(() => {
-    loadCachedPosProducts().then(cached => {
-      if (cached?.length) {
-        queryClient.setQueryData(['pos-products'], { data: cached });
+    loadDetailCache().then(map => {
+      if (Object.keys(map).length > 0) {
+        setDetailCache(map as Record<string, ProductDetail>);
       }
-      setCacheReady(true);
     });
+    getPosLastSyncedAt().then(setLastSyncedAt);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load persisted category colours
@@ -397,7 +402,6 @@ function PosScreenInner() {
       return res;
     },
     staleTime: Infinity,   // never auto-refetch; only syncs on demand
-    enabled: cacheReady,   // wait until AsyncStorage check completes
   });
 
   const { data: summaryData, refetch: refetchSummary } = useQuery({
@@ -421,6 +425,9 @@ function PosScreenInner() {
     setSyncingAll(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      // Clear persisted detail cache so variants re-fetch fresh after a product sync
+      clearDetailCache();
+      setDetailCache({});
       await Promise.all([
         refetchProducts(),
         refetchSummary(),
@@ -429,6 +436,7 @@ function PosScreenInner() {
         queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] }),
         queryClient.invalidateQueries({ queryKey: ['pos-loyalty-config'] }),
       ]);
+      getPosLastSyncedAt().then(d => setLastSyncedAt(d ?? new Date()));
     } finally {
       setSyncingAll(false);
     }
@@ -439,23 +447,27 @@ function PosScreenInner() {
   const { data: storeData } = useQuery({
     queryKey: ['pos-store-settings'],
     queryFn: async () => {
+      let result: any;
       if (isShopDisplay) {
         const res = await api.shopDisplay.store();
-        return (res as any)?.data?.[0] ?? null;
+        result = (res as any)?.data?.[0] ?? null;
+      } else {
+        const res = await api.director.settings();
+        const s = (res as any)?.data ?? {};
+        result = {
+          printerIp:    s.printerIp ?? null,
+          printerPort:  s.printerPort ? Number(s.printerPort) : 9100,
+          printerBrand: s.printerBrand ?? 'epson',
+          autoPrint:    s.autoPrint === 'true' || s.autoPrint === true,
+          autoDrawer:   s.autoDrawer === 'true' || s.autoDrawer === true,
+          drawerPin:    (Number(s.drawerPin ?? s.drawer_pin ?? 0) === 1 ? 1 : 0) as 0 | 1,
+          dailySpecial: s.dailySpecial ?? s.daily_special ?? null,
+        };
       }
-      const res = await api.director.settings();
-      const s = (res as any)?.data ?? {};
-      return {
-        printerIp:    s.printerIp ?? null,
-        printerPort:  s.printerPort ? Number(s.printerPort) : 9100,
-        printerBrand: s.printerBrand ?? 'epson',
-        autoPrint:    s.autoPrint === 'true' || s.autoPrint === true,
-        autoDrawer:   s.autoDrawer === 'true' || s.autoDrawer === true,
-        drawerPin:    (Number(s.drawerPin ?? s.drawer_pin ?? 0) === 1 ? 1 : 0) as 0 | 1,
-        dailySpecial: s.dailySpecial ?? s.daily_special ?? null,
-      };
+      if (result) saveStoreConfig(result);
+      return result;
     },
-    staleTime: 60_000,
+    staleTime: Infinity,   // never auto-refetch; only syncs on demand
   });
   const registerState = registerData?.data ?? null;
   const registerSession = registerState?.session ?? null;
@@ -664,6 +676,7 @@ function PosScreenInner() {
       const res = await api.products.get(product.id);
       const detail = res.data as unknown as ProductDetail;
       setDetailCache(prev => ({ ...prev, [product.id]: detail }));
+      saveDetailEntry(product.id, detail);
 
       const hasOpts = detail.optionGroups.length > 0;
       if (!hasVariants && !hasOpts) {
@@ -1078,7 +1091,14 @@ function PosScreenInner() {
             style={[styles.headerBtn, syncingAll && { opacity: 0.5 }]}
           >
             <Feather name="refresh-cw" size={16} color={syncingAll ? MUTED : MID} />
-            <Text style={styles.headerBtnText}>{syncingAll ? 'Syncing…' : 'Sync'}</Text>
+            <View style={{ alignItems: 'flex-start' }}>
+              <Text style={styles.headerBtnText}>{syncingAll ? 'Syncing…' : 'Sync'}</Text>
+              {lastSyncedAt && !syncingAll ? (
+                <Text style={styles.headerSyncTime}>
+                  {formatSyncTime(lastSyncedAt).replace('Synced ', '')}
+                </Text>
+              ) : null}
+            </View>
           </Pressable>
           {/* Register */}
           <Pressable onPress={() => setShowRegisterPin(true)} style={styles.headerBtn}>
@@ -2339,8 +2359,13 @@ function PaymentModal({
   // Load surcharges
   const { data: surchargesData } = useQuery({
     queryKey: ['pos-surcharges'],
-    queryFn: () => api.pos.surcharges(),
-    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await api.pos.surcharges();
+      const rows = (res as any)?.data ?? [];
+      if (rows.length) saveSurchargesCache(rows);
+      return res;
+    },
+    staleTime: Infinity,   // never auto-refetch; only syncs on demand
   });
   const surcharges: PosSurcharge[] = (surchargesData as any)?.data ?? [];
 
@@ -4070,8 +4095,13 @@ function RegisterModal({
 
   const { data: surchargesData, refetch: refetchSurcharges } = useQuery({
     queryKey: ['pos-surcharges'],
-    queryFn: () => api.pos.surcharges(),
-    staleTime: 30_000,
+    queryFn: async () => {
+      const res = await api.pos.surcharges();
+      const rows = (res as any)?.data ?? [];
+      if (rows.length) saveSurchargesCache(rows);
+      return res;
+    },
+    staleTime: Infinity,   // never auto-refetch; only syncs on demand
   });
   const surcharges: PosSurcharge[] = (surchargesData as any)?.data ?? [];
 
@@ -5079,6 +5109,7 @@ const styles = StyleSheet.create({
   header:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: WHITE, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   headerTitle:        { fontSize: 18, fontWeight: '700', color: DARK },
   headerBtn:          { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F1F5F9', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  headerSyncTime:     { fontSize: 9, color: MUTED, lineHeight: 11, marginTop: 1 },
   headerBtnText:      { fontSize: 12, fontWeight: '600', color: MID },
 
   salesStrip:         { flexDirection: 'row', backgroundColor: '#EFF6FF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, paddingHorizontal: 16, paddingVertical: 10, gap: 20 },
