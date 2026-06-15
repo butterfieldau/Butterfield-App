@@ -1,9 +1,12 @@
 import { Feather } from '@expo/vector-icons';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -41,28 +44,45 @@ const METHOD_CONFIG: Record<string, { label: string; color: string }> = {
   split:  { label: 'Split',   color: PURPLE },
 };
 
-function localDateStr(d: Date = new Date()): string {
-  return d.toLocaleDateString('en-CA');
+// ── Sydney-aware date helpers ─────────────────────────────────────────────────
+
+/** Returns YYYY-MM-DD string for a Date in Australia/Sydney timezone. */
+function sydneyDateStr(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(d);
 }
 
+/** Shift a YYYY-MM-DD string by N days (handles DST correctly via noon UTC). */
 function shiftDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  d.setDate(d.getDate() + days);
-  return localDateStr(d);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 2, 0, 0)); // 02:00 UTC is always "that day" in Sydney
+  date.setUTCDate(date.getUTCDate() + days);
+  return sydneyDateStr(date);
+}
+
+/** Parse a YYYY-MM-DD string to a JS Date at midnight Sydney time (for DateTimePicker value). */
+function dateStrToLocal(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0); // noon device-local — DateTimePicker just needs the calendar date
 }
 
 function formatDayLabel(dateStr: string): string {
-  const today = localDateStr();
+  const today = sydneyDateStr();
   const yesterday = shiftDate(today, -1);
   if (dateStr === today) return 'Today';
   if (dateStr === yesterday) return 'Yesterday';
-  const d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 2, 0, 0));
+  return date.toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
 }
 
 function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    hour: '2-digit', minute: '2-digit',
+  });
 }
 
 function fmtCents(cents: number): string {
@@ -87,6 +107,8 @@ function summariseItems(items: any[]): string {
   if (names.length <= 3) return names.join(', ');
   return names.slice(0, 2).join(', ') + ` & ${names.length - 2} more`;
 }
+
+// ── Card component ────────────────────────────────────────────────────────────
 
 function PosCard({ tx }: { tx: PosTransaction }) {
   const statusStyle = STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
@@ -152,13 +174,16 @@ function PosCard({ tx }: { tx: PosTransaction }) {
   );
 }
 
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function PosOrdersScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string>(localDateStr());
+  const [selectedDate, setSelectedDate] = useState<string>(sydneyDateStr());
+  const [showPicker, setShowPicker] = useState(false);
 
-  const todayStr = localDateStr();
+  const todayStr = sydneyDateStr();
   const isToday = selectedDate === todayStr;
 
   const { data, isLoading, error } = useQuery({
@@ -197,6 +222,14 @@ export default function PosOrdersScreen() {
     if (!isToday) setSelectedDate(prev => shiftDate(prev, 1));
   }
 
+  function onPickerChange(event: DateTimePickerEvent, date?: Date) {
+    if (Platform.OS === 'android') setShowPicker(false);
+    if (event.type === 'set' && date) {
+      setSelectedDate(sydneyDateStr(date));
+    }
+    if (event.type === 'dismissed') setShowPicker(false);
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Header */}
@@ -214,10 +247,11 @@ export default function PosOrdersScreen() {
           <Feather name="chevron-left" size={22} color={NAVY} />
         </Pressable>
 
-        <View style={s.dayLabelWrap}>
+        <Pressable style={s.dayLabelWrap} onPress={() => setShowPicker(true)}>
           <Feather name="calendar" size={13} color={MUTED} style={{ marginRight: 5 }} />
           <Text style={s.dayLabel}>{formatDayLabel(selectedDate)}</Text>
-        </View>
+          <Feather name="chevron-down" size={13} color={MUTED} style={{ marginLeft: 4 }} />
+        </Pressable>
 
         <Pressable
           onPress={goForward}
@@ -228,6 +262,43 @@ export default function PosOrdersScreen() {
           <Feather name="chevron-right" size={22} color={isToday ? BORD : NAVY} />
         </Pressable>
       </View>
+
+      {/* Native date picker — iOS inline / Android modal */}
+      {showPicker && Platform.OS === 'ios' && (
+        <Modal
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowPicker(false)}
+        >
+          <Pressable style={s.pickerOverlay} onPress={() => setShowPicker(false)}>
+            <View style={s.pickerSheet}>
+              <View style={s.pickerHeader}>
+                <Text style={s.pickerTitle}>Select Date</Text>
+                <Pressable onPress={() => setShowPicker(false)}>
+                  <Text style={s.pickerDone}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={dateStrToLocal(selectedDate)}
+                mode="date"
+                display="spinner"
+                maximumDate={dateStrToLocal(todayStr)}
+                onChange={onPickerChange}
+                locale="en-AU"
+              />
+            </View>
+          </Pressable>
+        </Modal>
+      )}
+      {showPicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={dateStrToLocal(selectedDate)}
+          mode="date"
+          display="default"
+          maximumDate={dateStrToLocal(todayStr)}
+          onChange={onPickerChange}
+        />
+      )}
 
       {/* Info banner */}
       <View style={s.banner}>
@@ -260,7 +331,7 @@ export default function PosOrdersScreen() {
           <Text style={{ color: MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
             {isToday
               ? 'Transactions processed at the terminal will appear here.'
-              : 'Use the arrows above to navigate to another day.'}
+              : 'Use the arrows or tap the date to navigate to another day.'}
           </Text>
         </View>
       ) : (
@@ -288,6 +359,8 @@ export default function PosOrdersScreen() {
     </View>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   header: {
@@ -325,12 +398,37 @@ const s = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   dayLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: TEXT,
   },
+
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  pickerSheet: {
+    backgroundColor: CARD,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 32,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORD,
+  },
+  pickerTitle: { fontSize: 16, fontWeight: '600', color: TEXT },
+  pickerDone:  { fontSize: 16, fontWeight: '600', color: BLUE },
 
   banner: {
     flexDirection: 'row',
