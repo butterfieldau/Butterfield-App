@@ -61,7 +61,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   merch:      '#F97316',
   specials:   '#EF4444',
 };
-const CATEGORY_ORDER = ['cookies', 'coffee'];
 const PRESET_COLORS = [
   '#EF4444', '#F97316', '#F59E0B', '#10B981',
   '#06B6D4', '#1493FF', '#8B5CF6', '#EC4899',
@@ -72,7 +71,12 @@ const DISCOUNT_PRESETS_KEY     = 'pos_discount_presets';
 const HELD_TICKETS_KEY         = 'pos_held_tickets';
 const VOID_PIN_THRESHOLD_CENTS = 5_000;    // $50 — ticket voids above this need supervisor PIN
 function getDefaultCatColor(cat: string): string {
-  return CATEGORY_COLORS[cat.toLowerCase()] ?? '#64748B';
+  const slug = cat.toLowerCase();
+  if (CATEGORY_COLORS[slug]) return CATEGORY_COLORS[slug];
+  // Deterministic hash for director-created slugs not in the legacy map
+  let hash = 0;
+  for (let i = 0; i < slug.length; i++) hash = (hash + slug.charCodeAt(i)) % PRESET_COLORS.length;
+  return PRESET_COLORS[hash]!;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -426,6 +430,15 @@ function PosScreenInner() {
     staleTime: Infinity,   // never auto-refetch; only syncs on demand
   });
 
+  const {
+    data: categoriesData,
+    refetch: refetchCategories,
+  } = useQuery({
+    queryKey: ['pos-categories'],
+    queryFn: () => api.products.categories(),
+    staleTime: Infinity,   // only refresh on manual sync
+  });
+
   const { data: summaryData, refetch: refetchSummary } = useQuery({
     queryKey: ['pos-summary'],
     queryFn: () => api.pos.summary(),
@@ -454,6 +467,7 @@ function PosScreenInner() {
       // data is fresh even when some panes are not currently visible.
       await Promise.all([
         refetchProducts(),
+        refetchCategories(),
         refetchSummary(),
         refetchRegister(),
         queryClient.refetchQueries({ queryKey: ['pos-store-settings'], type: 'all' }),
@@ -464,7 +478,7 @@ function PosScreenInner() {
     } finally {
       setSyncingAll(false);
     }
-  }, [syncingAll, refetchProducts, refetchSummary, refetchRegister, queryClient]);
+  }, [syncingAll, refetchProducts, refetchCategories, refetchSummary, refetchRegister, queryClient]);
 
   // ── Store settings (for auto-print) ──────────────────────────────────────
   const isShopDisplay = user?.role === 'shop_display';
@@ -561,22 +575,29 @@ function PosScreenInner() {
     return (raw as any[]).filter((p: any) => !p.isAppOnly);
   }, [productsData]);
 
-  const categories = useMemo(() => {
-    const cats = [...new Set(allProducts.map((p: any) => p.category ?? 'other').filter(Boolean))] as string[];
-    return cats.sort((a, b) => {
-      const ai = CATEGORY_ORDER.indexOf(a.toLowerCase());
-      const bi = CATEGORY_ORDER.indexOf(b.toLowerCase());
-      if (ai !== -1 && bi !== -1) return ai - bi;
-      if (ai !== -1) return -1;
-      if (bi !== -1) return 1;
-      return a.localeCompare(b);
-    });
-  }, [allProducts]);
+  // Categories driven by director-managed product_categories table, sorted by
+  // sortOrder. Falls back to deriving from product slugs when the API hasn't
+  // loaded yet so the UI is never empty on first render.
+  const categories = useMemo<{ slug: string; name: string }[]>(() => {
+    const apiCats = (categoriesData as any)?.data as { id: string; name: string; slug: string; sortOrder?: number; isActive?: boolean }[] | undefined;
+    if (apiCats && apiCats.length > 0) {
+      return apiCats
+        .filter(c => c.isActive !== false)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+        .map(c => ({ slug: c.slug, name: c.name }));
+    }
+    // Fallback: derive unique slugs from loaded products, alphabetically
+    const slugs = [...new Set(allProducts.map((p: any) => p.category ?? 'other').filter(Boolean))] as string[];
+    return slugs.sort((a, b) => a.localeCompare(b)).map(s => ({
+      slug: s,
+      name: s.charAt(0).toUpperCase() + s.slice(1),
+    }));
+  }, [categoriesData, allProducts]);
 
   // Pre-select the first category once products load (never default to "All")
   useEffect(() => {
     if (categories.length > 0 && selCategory === 'all') {
-      setSelCategory(categories[0]!);
+      setSelCategory(categories[0]!.slug);
     }
   }, [categories]);
 
@@ -1242,13 +1263,13 @@ function PosScreenInner() {
               contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}
             >
               {categories.map(cat => {
-                const active = selCategory === cat;
-                const color  = customCatColors[cat.toLowerCase()] ?? getDefaultCatColor(cat);
+                const active = selCategory === cat.slug;
+                const color  = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug);
                 return (
                   <Pressable
-                    key={cat}
-                    onPress={() => setSelCategory(cat)}
-                    onLongPress={() => setColorPickerCat(cat)}
+                    key={cat.slug}
+                    onPress={() => setSelCategory(cat.slug)}
+                    onLongPress={() => setColorPickerCat(cat.slug)}
                     delayLongPress={400}
                     style={[
                       styles.catTile,
@@ -1258,7 +1279,7 @@ function PosScreenInner() {
                     ]}
                   >
                     <Text style={[styles.catTileLabel, { color: active ? '#fff' : color }]} numberOfLines={2}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      {cat.name}
                     </Text>
                   </Pressable>
                 );

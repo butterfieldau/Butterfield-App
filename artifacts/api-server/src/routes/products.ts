@@ -319,12 +319,14 @@ router.get('/', async (_req, res) => {
   }
 });
 
-// ── GET /products/categories — public category list ────────────────────────
+// ── GET /products/categories — active category list ────────────────────────
+// Returns ALL active categories (not filtered by showPublic) so the POS
+// always reflects the complete director-managed category set.
 router.get('/categories', async (_req, res) => {
   try {
     const { productCategoriesTable: catTable } = await import('@workspace/db');
     const cats = await db.select().from(catTable)
-      .where(and(eq(catTable.isActive, true), eq(catTable.showPublic, true)))
+      .where(eq(catTable.isActive, true))
       .orderBy(asc(catTable.sortOrder));
     return res.json({ data: cats });
   } catch {
