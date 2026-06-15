@@ -33,6 +33,24 @@ const SOFT_BLUE = '#EFF6FF';
 type NewOrderBannerOrder = { customerName: string; orderNumber: string };
 const NEW_ORDER_STATUSES = new Set(['received', 'scheduled']);
 
+// ── Web AudioContext — created once, shared across renders ────────────────────
+// Kept at module level so the unlocked state persists across component re-renders.
+let _webAudioCtx: AudioContext | null = null;
+
+function getOrCreateWebAudioCtx(): AudioContext | null {
+  if (Platform.OS !== 'web') return null;
+  const win = globalThis as any;
+  const AC = win.AudioContext ?? win.webkitAudioContext;
+  if (!AC) return null;
+  if (!_webAudioCtx) _webAudioCtx = new AC() as AudioContext;
+  return _webAudioCtx;
+}
+
+function unlockWebAudio() {
+  const ctx = getOrCreateWebAudioCtx();
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+}
+
 function toAlertOrder(order: { id: string; customerName?: string; orderNumber?: string }) {
   return {
     customerName: order.customerName ?? 'Customer',
@@ -52,14 +70,14 @@ function NewOrderAlertOverlay({
   soundEnabled: boolean;
 }) {
   const soundRef = useRef<Audio.Sound | null>(null);
-  const webAudioRef = useRef<any>(null);
+  // On web: holds the currently-playing AudioBufferSourceNode (looping)
+  const webSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   useEffect(() => {
     if (!visible) {
-      if (webAudioRef.current) {
-        webAudioRef.current.pause();
-        webAudioRef.current.currentTime = 0;
-        webAudioRef.current = null;
+      if (webSourceRef.current) {
+        try { webSourceRef.current.stop(); } catch {}
+        webSourceRef.current = null;
       }
       if (soundRef.current) {
         soundRef.current.stopAsync().catch(() => {});
@@ -73,26 +91,38 @@ function NewOrderAlertOverlay({
       try {
         const alertSoundModule = require('@/assets/sounds/app-sales-order-alert.wav');
         if (Platform.OS === 'web') {
+          const ctx = getOrCreateWebAudioCtx();
+          if (!ctx) throw new Error('Web audio is unavailable on this device');
+          // Ensure context is running — may still be suspended before first gesture
+          if (ctx.state === 'suspended') await ctx.resume();
+
           const asset = Asset.fromModule(alertSoundModule);
-          if (!asset.localUri && !asset.uri) {
-            await asset.downloadAsync();
-          }
-          const src = asset.localUri || asset.uri;
-          if (!src) throw new Error('App Sales alert sound URL missing');
-          const WebAudio = (globalThis as { Audio?: new (src?: string) => any }).Audio;
-          if (!WebAudio) throw new Error('Web audio is unavailable on this device');
-          const audioEl = new WebAudio(src);
-          audioEl.loop = true;
-          audioEl.preload = 'auto';
-          audioEl.volume = 1;
-          webAudioRef.current = audioEl;
-          if (soundEnabled) {
-            await audioEl.play();
-          }
+          if (!asset.localUri && !asset.uri) await asset.downloadAsync();
+          const rawSrc = asset.localUri || asset.uri;
+          if (!rawSrc) throw new Error('App Sales alert sound URL missing');
+          // Convert any relative URI to absolute so fetch() works in all browsers
+          const src = rawSrc.startsWith('http')
+            ? rawSrc
+            : `${(globalThis as any).location?.origin ?? ''}${rawSrc}`;
+
+          const response = await fetch(src);
+          const arrayBuffer = await response.arrayBuffer();
+          if (cancelled) return;
+          const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+          if (cancelled) return;
+
+          if (!soundEnabled) return;
+
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.loop = true;
+          source.connect(ctx.destination);
+          source.start(0);
+          webSourceRef.current = source;
           return;
         }
 
-        await Audio.setIsEnabledAsync(true);
+        // Native path ─────────────────────────────────────────────────────────
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
           allowsRecordingIOS: false,
@@ -124,10 +154,9 @@ function NewOrderAlertOverlay({
     })();
     return () => {
       cancelled = true;
-      if (webAudioRef.current) {
-        webAudioRef.current.pause();
-        webAudioRef.current.currentTime = 0;
-        webAudioRef.current = null;
+      if (webSourceRef.current) {
+        try { webSourceRef.current.stop(); } catch {}
+        webSourceRef.current = null;
       }
       if (soundRef.current) {
         soundRef.current.stopAsync().catch(() => {});
@@ -225,6 +254,26 @@ export default function ShopDisplayLayout() {
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabled).catch(() => {});
+  }, []);
+
+  // Pre-unlock the Web AudioContext on the first user gesture anywhere on the
+  // display so that the order-alert sound can play without autoplay restrictions.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = () => {
+      unlockWebAudio();
+      document.removeEventListener('touchstart', handler);
+      document.removeEventListener('pointerdown', handler);
+      document.removeEventListener('click', handler);
+    };
+    document.addEventListener('touchstart', handler, { passive: true });
+    document.addEventListener('pointerdown', handler, { passive: true });
+    document.addEventListener('click', handler, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', handler);
+      document.removeEventListener('pointerdown', handler);
+      document.removeEventListener('click', handler);
+    };
   }, []);
 
   useEffect(() => {
